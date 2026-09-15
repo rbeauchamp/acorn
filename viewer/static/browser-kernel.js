@@ -173,8 +173,8 @@ trend:(...p)=>(Number.isFinite(p[0])?(Number.isFinite(p[1])?((Math.abs((((999999
 filling:(...p)=>((p[0]<(p[1]/(80000000000000000000000000000000000000000000000000e-49)))?(10000000000000000000000000000000000000000000000000000e-52):(0e-1074)),
 enoughSamples:(...p)=>((p[0]<(30000000000000000000000000000000000000000000000000e-48))?(0e-1074):(10000000000000000000000000000000000000000000000000000e-52))
 });
-function observerGoalItemLabel(code){return ({0:"—",1:"Wood",2:"Stone",3:"Food",4:"Gold",11:"Axe",12:"Boat"})[code]??'—';}
-function observerGoalText(gkind,gitem,gx,gy,gn){switch(gkind){case 0:return '—';case 1:return 'Go to the gold target ('+gx+', '+gy+')';case 2:return 'Hold '+gn+' '+observerGoalItemLabel(gitem);case 3:return 'Own '+observerGoalItemLabel(gitem);case 4:return 'Continue for '+gn+' world steps in this attempt';default:return '—';}}
+function observerGoalItemLabel(code,count=1){const labels=({0:["—","—"],1:["Wood","Wood"],2:["Stone","Stones"],3:["Food","Food"],4:["Gold","Gold"],11:["Axe","Axes"],12:["Boat","Boats"]})[code];return labels?.[count===1?0:1]??'—';}
+function observerGoalText(gkind,gitem,gx,gy,gn){switch(gkind){case 0:return '—';case 1:return 'Go to the gold target ('+gx+', '+gy+')';case 2:return 'Hold at least '+gn+' '+observerGoalItemLabel(gitem,gn).toLowerCase();case 3:return 'Own '+observerGoalItemLabel(gitem);case 4:return 'Continue for '+gn+' world steps in this attempt';default:return '—';}}
 function observerAdmission(f){
 if(!f||typeof f!=='object'||Array.isArray(f))return {why:'malformed',key:'frame'};
 if(!Object.hasOwn(f,"schema_version"))return {why:'missingField',key:"schema_version"};

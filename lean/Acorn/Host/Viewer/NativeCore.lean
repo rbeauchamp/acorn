@@ -32,8 +32,8 @@ def nativeConstruction (options : Cli.Streaming) : AgentConstruction :=
 /-- User-facing task names are exhaustive projections of the actual host goal. -/
 def curriculumGoalName : Goal → String
   | .survive steps => s!"Survive {steps} steps"
-  | .collect item count => s!"Collect {GoalItem.label (some (.inl item))} ×{count}"
-  | .craft item => s!"Craft {GoalItem.label (some (.inr item))}"
+  | .collect item count => s!"Collect {(GoalItem.labels (some (.inl item))).1} ×{count}"
+  | .craft item => s!"Craft {(GoalItem.labels (some (.inr item))).1}"
   | .reach position => s!"Reach ({position.x.val}, {position.y.val})"
 
 /-- Telemetry campaign counts are projections of the execution owner's admitted

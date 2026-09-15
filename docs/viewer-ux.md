@@ -87,16 +87,19 @@ What a newcomer must be able to say without scrolling.
   remain available there; opening it changes presentation only. The goal
   achievement summary remains outside that disclosure. The options ribbon and
   display transport remain below the scene.
-- **UX-2 · The top bar.** On one line at 1440 CSS px in the healthy state:
+- **UX-2 · The top bar.** In one row at 1440 CSS px in the healthy state:
   title, the `LIVE RUN · single stream` badge (UX-47), `world 1024² · seed N`,
-  lifetime steps with the unit, core steps/s, the sensed percentage, the
+  `agent lifetime` steps with the unit, core steps/s, the sensed percentage, the
   identity pill (UX-19), any health pills (UX-20, UX-25), `restored` /
   `not persisted` (UX-45), the run controls (UX-21), and the connection state
-  (UX-18). Before the first frame the counters read `—`, never zero. The
+  (UX-18). Counter labels sit above their values. Before the first frame the
+  counters read `—`, never zero. The
   identity pill, health pills, controls and connection state form one
   right-hand cluster that wraps to a second line as a unit when a fault label
   or health pill needs the room, so the pill that explains a state lands beside
-  the state word and never under the title.
+  the state word and never under the title. The introduction distinguishes total
+  agent experience from steps in the current world: checkpoint resume restores
+  saved experience and restarts the world clock.
 - **UX-3 · The thesis.** The main sidebar carries the question the viewer
   answers (*How well is this agent achieving its goals?*) as a prominent semantic
   heading, followed by **Goal achievement · higher is better**, a percentage and
@@ -611,13 +614,16 @@ What each panel must show. How it draws it is the code's.
   ☀/🌙.
 - **UX-29 · The HUD.** A header above the map places `current goal N/<goal_count>`
   on the left, with plain-language goal text — `Go to the gold target (x, y)` /
-  `Hold n <Item>` / `Own Axe|Boat` / `Continue for n world steps in this attempt`
+  `Hold at least n <item>` / `Own Axe|Boat` / `Continue for n world steps in this attempt`
   — and `tier T · attempt A of <attempt_cap> · cycle C`, every cap read
   from the authoritative frame. Non-travel goals explicitly have no fixed map
-  destination. Collection means current inventory; crafting means tool ownership.
+  destination. Collection means current inventory at or above the requested
+  quantity, with quantity-appropriate nouns (`1 stone`, `2 stones`; mass nouns
+  such as `wood` keep their form); crafting means tool ownership.
   The survival duration is the requested duration, not a remaining-time estimate.
-  The header's right side shows world time in steps, the day icon,
-  and the display state word whenever the display is not live (UX-6).
+  The header's right side labels world time `current world`, shows steps and the
+  day icon, and says the counter resets when the world restarts. It shows the
+  display state word whenever the display is not live (UX-6).
   A footer below the map places the energy bar on the left, the inventory `🪵n 🪨n 🍗n ✨n` with axe and
   boat badges dimmed when absent, and `💤 resting` while the agent is
   exhausted. The footer's right side shows the running option — `—` when none, else the slot's

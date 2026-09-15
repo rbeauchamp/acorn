@@ -289,15 +289,16 @@ theorem browserRules_goal_separation :
 
 /-- Item labels are generated from the same exhaustive semantic vocabulary as admission. -/
 def browserGoalLabelsJavascript : String :=
-  "function observerGoalItemLabel(code){return ({" ++
+  "function observerGoalItemLabel(code,count=1){const labels=({" ++
     String.intercalate "," (goalItems.map fun item =>
-      toString item.code ++ ":" ++ telemetryString item.label) ++
-    "})[code]??'—';}\n"
+      toString item.code ++ ":[" ++ telemetryString item.labels.1 ++ "," ++
+        telemetryString item.labels.2 ++ "]") ++
+    "})[code];return labels?.[count===1?0:1]??'—';}\n"
 
 private def goalTextExpression : GoalKind → String
   | none => "'—'"
   | some .reach => "'Go to the gold target ('+gx+', '+gy+')'"
-  | some .collect => "'Hold '+gn+' '+observerGoalItemLabel(gitem)"
+  | some .collect => "'Hold at least '+gn+' '+observerGoalItemLabel(gitem,gn).toLowerCase()"
   | some .craft => "'Own '+observerGoalItemLabel(gitem)"
   | some .survive => "'Continue for '+gn+' world steps in this attempt'"
 

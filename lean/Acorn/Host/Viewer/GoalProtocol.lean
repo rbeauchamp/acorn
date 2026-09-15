@@ -55,15 +55,15 @@ theorem goalItems_complete (item : GoalItem) : item ∈ goalItems := by
     | inl item => cases item <;> simp [goalItems]
     | inr tool => cases tool <;> simp [goalItems]
 
-/-- Every item label is covered by exhaustive matching over the host types. -/
-def GoalItem.label : GoalItem → String
-  | none => "—"
-  | some (.inl .wood) => "Wood"
-  | some (.inl .stone) => "Stone"
-  | some (.inl .food) => "Food"
-  | some (.inl .gold) => "Gold"
-  | some (.inr .axe) => "Axe"
-  | some (.inr .boat) => "Boat"
+/-- Singular and plural labels are exhaustive over the host types; mass nouns keep their form. -/
+def GoalItem.labels : GoalItem → String × String
+  | none => ("—", "—")
+  | some (.inl .wood) => ("Wood", "Wood")
+  | some (.inl .stone) => ("Stone", "Stones")
+  | some (.inl .food) => ("Food", "Food")
+  | some (.inl .gold) => ("Gold", "Gold")
+  | some (.inr .axe) => ("Axe", "Axes")
+  | some (.inr .boat) => ("Boat", "Boats")
 
 /-- Browser numeric goal-family domain is derived from the complete vocabulary. -/
 def goalKindCodes : List Nat := goalKinds.map GoalKind.code
