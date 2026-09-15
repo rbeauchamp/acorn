@@ -9,7 +9,7 @@ import AcornSpec.Learner
 /-!
 # Executable specification: εz-greedy exploration
 
-Mirrors `src/handcrafted/exploration.rs`: the persistent-run `EzGreedy`
+The persistent-run `EzGreedy`
 policy with its `⌊1/U⌋` duration draw capped at 128, the retired
 `EpsilonSchedule`, and the `RatePolicy` that says where each ε-consumer's
 rate comes from. `EzGreedy` itself carries no rate — one is supplied at each
@@ -94,8 +94,8 @@ namespace EzGreedy
 def maxDuration : UInt32 := 128
 
 /-- `EzGreedy::begin` — decide at a primitive decision point: draw the gate,
-then the ζ-tailed duration and the action. Consumes the caller's RNG in the
-exact Rust order. Returns `some (action, remaining)` when a run starts;
+then the ζ-tailed duration and the action, consuming the caller's RNG in that
+order. Returns `some (action, remaining)` when a run starts;
 `remaining` is `duration − 1`, the steps still to serve after this one. -/
 def begin (rate : Float32) (rng : Xoshiro256) :
     Option (Nat × UInt32) × Xoshiro256 :=

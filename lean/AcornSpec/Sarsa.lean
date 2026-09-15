@@ -9,14 +9,14 @@ import AcornSpec.Learner
 /-!
 # Executable specification: Swift-Sarsa
 
-Mirrors `src/agent/sarsa.rs`: one `SwiftTD` learner per action; a shared TD
+One `SwiftTD` learner per action; a shared TD
 error and a shared `vδ` accumulator; all learners run the first loop, only
 the chosen action's learner runs the second; SMDP updates bootstrap with
 `γᵏ` and decay traces by `(γλ)ᵏ`; the terminal update runs only the first
 loop and then clears every transient register.
 
 Selection (`greedy` tie-breaking, `uniform`, ε-greedy) consumes the caller's
-RNG stream in exactly the Rust draw order: the greedy tie-break draws once
+RNG stream: the greedy tie-break draws once
 per within-window candidate — the first included.
 -/
 
@@ -196,7 +196,7 @@ stream) and is omitted. Draw order: one `next_f64` comparison, then either
 def epsilonGreedyChoice (vals : Array Float32) (eps : Float32) (rng : Xoshiro256) :
     Nat × Xoshiro256 :=
   -- No projection: the rate arrives from `exploreRate`, already in `[0, 1]`,
-  -- mirroring Rust's `ExploreRate` type invariant.
+  -- preserving the exploration-rate invariant.
   let (u, rng) := rng.next
   let draw := UInt64.toFloat (u >>> 11) * (natF64 1 / UInt64.toFloat ((1 : UInt64) <<< 53))
   let explored := draw < widen eps

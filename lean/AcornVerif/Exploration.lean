@@ -10,9 +10,8 @@ import Mathlib.Analysis.SpecialFunctions.Log.Basic
 /-!
 # The εz-greedy duration law
 
-A real-arithmetic model of the predecessor `EzGreedy::begin` in
-`src/handcrafted/exploration.rs`, which draws `u ∈ (0,1]`, takes `⌊1/u⌋`, and
-caps the result at `EzGreedy::MAX_DURATION`.
+A real-arithmetic model of a duration draw: for `u ∈ (0,1]`, take `⌊1/u⌋`
+and cap the result at the supplied maximum.
 
 **Prior-art pin (PAR-8 / D3).** Dabney, Ostrovski & Barreto,
 *Temporally-Extended ε-Greedy Exploration*, ICLR 2021, arXiv:2006.01782v1
@@ -47,7 +46,7 @@ noncomputable section
 /-- The duration `EzGreedy::begin` commits to: `⌊1/u⌋`, capped.
 
 `u` is `1 - next_f64()`, so it ranges over `(0, 1]` and the reciprocal is finite —
-the Rust relies on that same fact to avoid a division-by-zero branch. -/
+positivity excludes a zero divisor. -/
 noncomputable def ezDuration (u : ℝ) (cap : ℤ) : ℤ :=
   if ⌊(1 : ℝ) / u⌋ ≥ cap then cap else ⌊(1 : ℝ) / u⌋
 
@@ -91,12 +90,8 @@ theorem ez_remaining_zero_at_cap_one {u : ℝ} (h0 : 0 < u) (h1 : u ≤ 1) :
     ezDuration u 1 - 1 = 0 := by
   rw [ez_contains_epsilon_greedy h0 h1]; ring
 
-/-- The bound, restated at the cap this build actually runs at.
-
-`Generated.ezMaxDuration` is emitted from `EzGreedy::MAX_DURATION` by
-`acorn emit-lean`, and CI fails if the emitted file is stale — so this is a
-statement about the shipped constant rather than about a number retyped into a
-proof, which is the standard the rest of the package already holds itself to. -/
+/-- The bound at the model cap in `Generated.ezMaxDuration`. Current constant
+compatibility is checked separately by `AcornVerif.CurrentConstants`. -/
 theorem ez_duration_le_shipped_cap (u : ℝ) :
     ezDuration u (Generated.ezMaxDuration : ℤ) ≤ (Generated.ezMaxDuration : ℤ) :=
   ez_duration_le_cap u _

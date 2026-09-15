@@ -23,8 +23,7 @@ namespace AcornSpec
 /-! ## Curriculum -/
 
 /-- `curriculum::Curriculum::standard` — the 13 goals in training order for
-a campaign seed and world side. Reach targets are the hashed draws of the
-Rust source. -/
+a campaign seed and world side. Reach targets use deterministic hashed draws. -/
 def standardCurriculum (seed : UInt64) (side : Int) : Array GoalKind :=
   let cx := side / 2
   let cy := side / 2

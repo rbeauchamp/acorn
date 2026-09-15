@@ -15,8 +15,8 @@ indices, first-occurrence order, and uniqueness. It needs neither a world nor
 a learner. The observer-specific adapter lives in `HistoricalEncoding`.
 
 These theorems quantify over this Lean encoder at the declared 2¹⁴ weight
-space. Rust's dimension-parametric encoder and its execution correspondence
-have separate obligations; index bounds and uniqueness do not establish them.
+space. The current dimension-parametric encoder has separate execution contracts;
+these index and uniqueness results concern only the definitions below.
 -/
 
 namespace AcornSpec
@@ -119,7 +119,7 @@ def encodeTilingsGo (f : Featurizer) (words : Array (UInt64 × UInt64))
       (t + 1) fuel
 
 /-- One imprint unit's projection: the signed sum over its 32 cells, as an
-integer accumulator (the Rust `i64`). -/
+integer accumulator. -/
 def imprintAccGo (f : Featurizer) (patch : ByteArray) (u : Nat) (acc : Int)
     (j : Nat) : Nat → Int
   | 0 => acc
@@ -147,19 +147,12 @@ def imprintUnitsGo (f : Featurizer) (patch : ByteArray) (out : Array UInt32)
 
 /-! ## The unique pass
 
-`Featurizer::encode` returns the first occurrence of each index in
-construction order, so a repeated index cannot reach a learner and the
-deployed `φ` is binary. Two definitions carry that here. `firstOccurrences`
-is the *statement*: the filter over lists, with the seen set as a list.
-`uniqueIndices` is the *mirror* of `ActiveSet::unique`: the same filter over
-a word-packed seen set — `weightSpace / 64` words of 64 bits, the Rust
-`UniqueScratch` — which is what the probe runs. `uniqueIndices_eq` proves the
-mirror computes the statement for every array of masked indices, so an
-optimisation of the pass cannot change the modeled stream, and
-`uniqueIndices_nodup` / `uniqueIndices_sublist` are the two facts a learner
-relies on. That the Rust pass computes the same function is assumed at the
-definitional level, as for every mirror in this specification, and
-corroborated by the audit digest. -/
+`firstOccurrences` specifies filtering by first occurrence using a list of seen
+indices. `uniqueIndices` implements the same filter with a packed seen set of
+`weightSpace / 64` words. `uniqueIndices_eq` proves their equality for every
+array of masked indices. `uniqueIndices_nodup` and `uniqueIndices_sublist`
+establish uniqueness and preservation of input order for these definitions.
+Correspondence with a separately implemented encoder requires its own proof. -/
 
 /-- First-occurrence filter: keep `x` when it is not in `seen`, and treat it
 as seen from then on. The statement of uniquing. -/
@@ -209,7 +202,7 @@ theorem firstOccurrences_nodup (seen xs : List UInt32) :
         ih (x :: seen)⟩
 
 /-- The seen set as packed words: one bit per weight, `weightSpace / 64`
-words — the Rust `UniqueScratch`. -/
+words. -/
 def seenWords : Nat := weightSpace / 64
 
 /-- The word holding index `i`'s bit — `idx >> 6`, reduced modulo the word

@@ -63,9 +63,9 @@ def dispatch (arguments : List String) : Except String (IO String) := do
   match arguments with
   | "admit" :: rest =>
     match ← Cli.dispatch rest |>.mapError cliError with
-    | .demo (.streaming _) => return pure "admitted streaming configuration; full-agent composition owner: #112"
-    | .demo (.ansi _ _) => return pure "admitted ANSI configuration; full-agent composition owner: #112"
-    | .external _ _ => return pure "distinct command retained with its Rust/scientific owner; migration owner: #116/#117"
+    | .demo (.streaming _) => return pure "admitted streaming configuration; run with acorn-core"
+    | .demo (.ansi _ _) => return pure "admitted ANSI configuration; run with acorn-core"
+    | .external _ _ => return pure "admitted external command; this driver checks its syntax only"
   | "actions" :: seed :: side :: actionTexts =>
     let seed := (← word seed 64).toUInt64
     let side ← coordinate side

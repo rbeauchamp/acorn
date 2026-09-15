@@ -33,7 +33,11 @@ cost beside the proposed observation and obtain an owner decision if it does
 not cost clearly less. Difficulty proving a property does not make it empirical.
 
 Measure only irreducibly empirical claims with explicit scope, budget, uncertainty
-and prospective decision criteria. A digest is a mutation detector, not correctness
+and prospective decision criteria. Label the unresolved empirical quantity
+UNKNOWN with the reason deduction cannot settle it; report measurements as
+observed with their run and configuration. Follow
+[scientific evidence guidance](CONTRIBUTING.md#scientific-evidence) for protocols
+and recordkeeping. A digest is a mutation detector, not correctness
 or scientific evidence. Do not rerun learning or promote defaults during ordinary
 engineering. Preserve original observations separately from presentations.
 
@@ -84,15 +88,16 @@ missing check or cached acceptance substitutes for a pass. Every discovered modu
 and native entry retains compilation and source/compiled/axiom/route admission.
 Mathlib umbrella imports are forbidden; import specific dependencies.
 
-CI runs the same command on the exact proposed head. Resolve required checks,
+Sign commits and preserve license notices. CI runs the same command on the exact
+proposed head. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need
 no permanent receipt. Optional diagnostics are not ordinary acceptance substitutes.
 
-Public source has an explicit profile and no historical studies, private capture
-or calculator executables. Shared schema and analysis definitions remain where
-proofs use them. Never select reduced verification because a file is absent.
+Every maintained source belongs to one explicit ownership inventory. Shared
+specification and analysis definitions remain where proofs use them. A missing
+file fails verification; it never selects a smaller suite.
 No release, visibility change, external submission or scientific campaign follows
 from permission to prepare or merge code. Keep local run state and credentials
-out of commits. Use [SECURITY](SECURITY.md) for vulnerability reporting.
+and private or proprietary material out of commits. Use [SECURITY](SECURITY.md) for vulnerability reporting.

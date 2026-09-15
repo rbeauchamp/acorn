@@ -9,44 +9,26 @@ import AcornVerif.Generated
 /-!
 # The value-range projection
 
-A GVF demon estimates a discounted sum of a cumulant in `[0,1]`, so its value
-cannot leave `[0, 1/(1-γ)]`. Bounding the weights with `!is_finite()` instead
-would be a predicate on the wrong set: it admits all of ±3.4e38, while the
-reachable range for `γ = 0.99` is `[0, 100]`. Everything between those two is
-finite and illegal, so such a guard never fires on a diverged weight.
+For a cumulant in `[0,1]` and discount `0 ≤ γ < 1`, the discounted return lies
+in `[0, 1/(1-γ)]`. `projectR` models symmetric projection onto `[-b,b]` over
+ℝ. Its range, identity and non-expansiveness theorems state their hypotheses
+explicitly; non-expansiveness requires the target to lie in the interval.
 
-`agent::swifttd::project` is the predicate on the right set. Note the scope:
-`projectR` below models
-the *symmetric* `project`, which guards weights (`Weight::set`, bound
-`Discount::horizon`). The `[0, horizon]` guard on the prediction itself is
-`project_nonneg` / `Prediction::project`, whose totality is covered by the Kani
-harness `project_nonneg_is_total_and_bounded` and which is not modelled here.
-
-The theorems supply the two things a projection needs in order to be
-*principled rather than cosmetic*:
-
-* it must not discard reachable values — the projection set has to contain the
-  fixed point (`horizon_covers_true_bound`, checked over the exact `f32`
-  constants this build uses), and
-* it must not increase error — projection onto a convex set containing the
-  target is non-expansive (`project_nonexpansive`).
-
-Bit-precise totality over every `f32` (including `NaN` and `±inf`) is the
-complementary obligation and lives in Kani, `src/proofs.rs`: the range invariant
-is *inductive*, so one update step suffices and no reasoning over 10⁷ steps is
-needed.
+`horizon_covers_true_bound` checks the rational discount/horizon pairs in
+`AcornVerif.Generated`. The current finite constant interface is checked in
+`AcornVerif.CurrentConstants`. Machine-word totality, NaNs, infinities and
+rounding require the executable admission and arithmetic contracts; they are
+outside this real-arithmetic projection model.
 -/
 
 namespace AcornVerif
 
 open AcornVerif.Generated
 
-/-- The projection `agent::swifttd::project` applies, over the reals:
-clamp `v` into `[-b, b]`. -/
+/-- Symmetric real projection: clamp `v` into `[-b, b]`. -/
 def projectR (b v : ℝ) : ℝ := max (-b) (min b v)
 
-/-- The projection lands inside the bound. Mirrors the Kani harness
-`project_is_total_and_bounded`, which additionally covers `NaN` and `±inf`. -/
+/-- Real projection lands inside every nonnegative bound. -/
 theorem project_mem_range (b v : ℝ) (hb : 0 ≤ b) :
     -b ≤ projectR b v ∧ projectR b v ≤ b := by
   constructor
@@ -58,8 +40,7 @@ theorem project_mem_range (b v : ℝ) (hb : 0 ≤ b) :
     · rw [max_eq_left h]
       linarith
 
-/-- The projection fixes what is already in range: it discards no reachable
-value. Mirrors the Kani harness `project_is_identity_in_range`. -/
+/-- Real projection fixes every value already inside the interval. -/
 theorem project_id_of_mem (b v : ℝ) (h1 : -b ≤ v) (h2 : v ≤ b) :
     projectR b v = v := by
   unfold projectR
@@ -86,26 +67,9 @@ theorem project_nonexpansive (b v t : ℝ) (ht1 : -b ≤ t) (ht2 : t ≤ b) :
         abs_of_nonneg (by linarith : 0 ≤ v - t)]
       linarith
 
-/-- **The generated-constant link.**
-
-For every discount in the closed Rust set, the horizon the Rust build actually
-computes in `f32` is at least the true bound `1/(1-γ)` — so the projection set
-contains every value the GVF can reach, and `project_nonexpansive` applies.
-
-The constants come from `AcornVerif.Generated`, emitted by `acorn emit-lean` as the
-*exact* rationals the `f32`s hold.
-
-Be precise about what enforces what. If a constant changes in Rust and
-`Generated.lean` is *not* regenerated, this proof still succeeds — about the old
-number. What catches that is the CI step `acorn emit-lean && git diff
---exit-code`, i.e. regeneration, not the proof. The proof catches the other half:
-a *regenerated* constant that fails to cover its true bound fails here. And
-because the Lean package is deliberately not in CI (Mathlib's toolchain weight),
-that half is a **local** gate — `lake build` on a developer's machine.
-
-The margin is thin and in the right direction — for `γ = 0.99` the computed
-horizon exceeds the true bound by about 4·10⁻⁶ — which is precisely the kind of
-fact that is invisible without a link like this. -/
+/-- Every rational discount/horizon pair in `Generated.discounts` bounds the
+corresponding real discounted return. Current constant compatibility is checked
+separately by `AcornVerif.CurrentConstants`. -/
 theorem horizon_covers_true_bound :
     ∀ p ∈ Generated.discounts, 1 / (1 - p.1) ≤ p.2 := by
   intro p hp

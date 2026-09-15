@@ -14,9 +14,9 @@ agent is orders of magnitude smaller than the world it acts in, so it *"can
 neither fully perceive the state of the world nor can it represent the value or
 optimal action for every state."*
 
-Every number below comes from `AcornVerif.Generated`, emitted by `acorn emit-lean`
-from the build, so a change to the architecture moves the theorems rather than
-leaving a stale figure behind.
+Every number below comes from the explicit model constants in
+`AcornVerif.Generated`. `AcornVerif.CurrentConstants` checks its listed finite
+interface with current execution; the inequalities here concern this model.
 
 **Which comparison the hypothesis is about.** It is about *states the agent must
 value*, not about the size of the world's description. Those give opposite

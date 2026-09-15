@@ -9,9 +9,8 @@ import Acorn.Host.AgentAdmission
 /-!
 # Checkpoint format 14
 
-Field order, widths and fixed collection shapes match `src/agent/checkpoint.rs`
-and the `durable_record!` declaration in `src/agent/lifetime.rs`. Structural
-words remain untrusted until receiver-relative admission. Knowledge accepts all
+Field order, widths and fixed collection shapes define the serialized schema.
+Structural words remain untrusted until receiver-relative admission. Knowledge accepts all
 binary32 words and is projected only by each receiving learner's closed rule.
 -/
 namespace Acorn.Checkpoint

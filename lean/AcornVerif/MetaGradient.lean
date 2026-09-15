@@ -23,25 +23,17 @@ Reference: Javed, Sharifnassab & Sutton, *SwiftTD: A Fast and Robust Algorithm
 for Temporal Difference Learning*, Reinforcement Learning Journal, vol. 2
 (2024), pp. 840–863, Algorithm 1, Algorithm 3 and equations (23), (30), (32).
 <https://rlj.cs.umass.edu/2024/papers/RLJ_RLC_2024_111.pdf>
-Opened that PDF (24 pages; labels 1–24; header `RLJ| RLC 2024`). Algorithm 1
-is printed page 9 (`"Algorithm 1: SwiftTD"` / `"p[i] ← p[i] + φ[i] h[i]"`).
-§6 on printed page 10: `"6 SwiftTD: Fast and Robust Learning by Combining the
-Three Ideas"` / `"Algorithm 1 is the pseudocode for SwiftTD."` Equation (32)
-is printed page 18: `"The final h_t[i] update is:"`. Companion HTML
-`Paper111.html` records the journal span pp. 840–863; those numbers are not
-on this PDF's face. **Status:** this file is the proof owner of that
-recurrence over ℝ. The Lean↔Rust transcription match is **assumed**.
+Algorithm 1 is on printed page 9 and equation (32) on printed page 18.
 
 ## Model domain and correspondence
 
-The definitions are a hand transcription of the predecessor register updates in
-`src/agent/swifttd.rs`. Lean checks their real-arithmetic algebra; correspondence
-to that implementation is a reviewed assumption. `AcornVerif.Generated` owns the
-retained constants separately from this transcription.
+These hand-transcribed register equations are checked over ℝ. Correspondence
+to an implementation is an assumption of any use as an implementation model;
+this file proves the algebra, not the transcription or machine rounding.
 
 The model covers a feature that runs both the eligible and active loops on a
 step. An active but ineligible feature runs only the second loop. Pruning clears
-its registers (`SwiftTd::drop_from_eligible`), and `run` starts with all three at
+its registers, and `run` starts with all three at
 zero. The clip re-anchor and step-size decay branches reset registers and are
 outside this recurrence. The arithmetic domain is ℝ; machine rounding has
 separate implementation and proof owners.
@@ -60,11 +52,11 @@ structure StepInput where
   /-- The dutch trace `z̄` at the start of the step. -/
   zbar : ℝ
   /-- The trace increment `zδ` **from the previous step**, which the first loop
-  applies before zeroing it (`swifttd.rs`: the `z_delta[idx] * v_delta` term,
+  applies before zeroing it (the `z_delta[idx] * v_delta` term,
   then `self.z_delta[idx] = 0.0`). -/
   zdeltaPrev : ℝ
   /-- The trace increment `zδ` computed for **this** step, which the second loop
-  applies (`swifttd.rs`: `z_delta[idx] = (eta / e) * alpha`). Distinct from
+  applies (`z_delta[idx] = (eta / e) * alpha`). Distinct from
   `zdeltaPrev`: conflating them would make the model agree with the code only
   when a feature's increment happens to be unchanged between steps. -/
   zdelta : ℝ
@@ -136,8 +128,8 @@ right-hand side of equation (32) (printed page 18), with `h_temp` carrying
 
 Holds by `rfl`: `eq32` and `stepPaper` are two spellings of one expression, and
 that is the point of stating it — it names the correspondence a reader must
-check against the paper. The transcription from `src/agent/swifttd.rs` is
-`assumed`; see the module note. -/
+check against the paper. Implementation correspondence remains an assumption;
+see the module note. -/
 theorem stepPaper_eq_eq32 (r : Regs) (p : StepInput) :
     (stepPaper r p).hTemp = eq32 r.hTemp r.h p := rfl
 

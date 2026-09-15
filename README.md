@@ -111,12 +111,11 @@ Research criticism, proof/implementation review and contributions are welcome.
 Questions about an equation, an adaptation or an unclear explanation are useful
 contributions too; you do not need a Lean proof to open a discussion in an issue.
 Report vulnerabilities through [private reporting](SECURITY.md), not public issues.
-MIT licensed; see [LICENSE](LICENSE) and [third-party notices](NOTICE.md).
+MIT licensed; see [LICENSE](LICENSE). Dependencies retain their own licenses.
 
 ## Lean package layout
 
 The `lean/` package contains application modules in `Acorn/`, specifications in
-`AcornSpec/`, proofs in `AcornVerif/`, shared scientific schema contracts in
-`AcornStudy/`, and build/verification tools in
+`AcornSpec/`, proofs in `AcornVerif/`, and build/verification tools in
 `AcornTools/`. Native entry points live in `NativeApp/`; its `Viewer.lean` module
 starts the viewer. `Bootstrap.lean` is the directly invoked build bootstrap.

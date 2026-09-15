@@ -16,7 +16,6 @@ the source operation's platform-dependent quieting/sign/payload choice rather
 than imposing a separate canonicalization policy. Those standard casts are
 opaque in the kernel and trusted at native execution; no numerical theorem
 below infers their exceptional behavior. Raw storage and admission never cast.
-No Rust dependency or custom native override is introduced.
 -/
 
 namespace Acorn.Conversion

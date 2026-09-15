@@ -11,8 +11,8 @@ import Std.Data.TreeMap.Lemmas
 
 This calculator folds admitted frames, including attempt-terminal captures when
 supplied. It does not capture telemetry, read clocks/RSS, publish files or execute
-an agent. The Rust observer remains the transition integration owner. Missing
-historical telemetry cannot be recovered by running this calculator.
+an agent. Its input frames and their transition correspondence are supplied by
+the caller.
 
 Counts and histogram ranks use unbounded naturals. Return/error accumulation is
 ordered binary64 arithmetic, with the standard native float implementation as a

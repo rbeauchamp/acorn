@@ -6,13 +6,11 @@ Authors: acorn contributors
 import AcornSpec.IntraOptionCredit
 
 /-!
-# The registered derived-exploration-rate result functional, in exact rationals
+# derived-exploration-rate analysis in exact rationals
 
-This module owns the derived-exploration-rate study's statistics. Its dossier
-preserves the protocol, registration materials and timing limitations.
-`lake exe derived-exploration-rate <rows-dir> <original-manifest.json>` evaluates
-this definition over the recorded rows. That is an ordinary calculator
-execution, not a kernel proof of the numerical result or a historical rerun.
+This module defines the derived-exploration-rate comparison over explicit paired rows.
+The functions below specify its reductions and thresholds; the caller supplies
+the observations and their provenance.
 
 Everything statistical is the agent-baseline registered machinery reused
 verbatim — `occScore`, `commonPrimary`, `stratifiedScore`, `winCredit`,

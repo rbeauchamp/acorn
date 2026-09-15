@@ -10,20 +10,15 @@ import AcornSpec.Exploration
 /-!
 # Executable specification: the agent
 
-Models the retained discounted, hand-authored-subtask evaluator construction
-from `src/agent/agent.rs` (the orchestrator: gaps, exploration
-preemption, the option lifecycle, the meta-controller, `act` under the
-`EvaluationMode` bound at construction), `src/agent/options.rs` (potential-shaped
-reward-respecting skills with interruption), `src/agent/demon.rs` +
-`src/handcrafted/cumulants.rs` (the 11-demon Horde), and
-`src/handcrafted/subtasks.rs` (the three skill potentials).
+This discounted, hand-authored-subtask evaluator composes gap accounting,
+exploration preemption, an option lifecycle and meta-controller under the
+`EvaluationMode` fixed at construction. Its skills use potential-shaped rewards
+and interruption, with an 11-demon Horde and three declared skill potentials.
 
-Observational state (the decision trace, lifetime statistics) never feeds a
-decision, the RNG, or a learner in the Rust source, and is omitted here;
-the historical evaluator carries its decision state here. This executable
-specification and the `agent-baseline` probe do not establish refinement of
-the current learned-subtask default or the differential research hierarchy.
-Their maintained local contracts live in `AcornVerif` and the Rust/Kani owners.
+The model carries decision state and omits observer state. Its contracts concern
+this construction; it does not establish refinement of the current learned-subtask
+or differential research compositions. The executing agent and its contracts
+live in `Acorn` and `AcornVerif.CurrentAgent`.
 -/
 
 namespace AcornSpec
@@ -586,7 +581,7 @@ def plan (metaCtl : Sarsa) (skills : Array Skill) (features : Array UInt32) : Sa
     pure m
 
 /-- `Agent::act_in_mode` — one decision of the full hierarchy under `mode`,
-the agent's own arm, in the exact priority order of the Rust orchestrator:
+the agent's own arm, in the declared priority order:
 exploration run in progress, active option, meta-controller, then the
 primitive layer. -/
 def actInMode (a : Agent) (obs : Obs) (res : StepRes) (mode : Mode) :

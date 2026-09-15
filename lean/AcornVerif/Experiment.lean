@@ -14,10 +14,8 @@ scope an equality proof rather than a prose promise. The frozen-transition
 result is polymorphic in the learning state: whatever the learner stores, its
 constructor carries that value through unchanged.
 
-These theorems specify the compiler contract implemented by `src/agent_baseline.rs` and
-`EvaluationMode`. They do not claim that an arbitrary external result file was
-produced by those transitions; exact-head provenance and a complete Rust
-transition refinement are separate obligations.
+These theorems concern the model definitions below. External results require
+their own source provenance and correspondence to these transitions.
 -/
 
 namespace AcornVerif
@@ -38,7 +36,7 @@ structure Opportunity where
   stepsPerAttempt : ℕ
   deriving DecidableEq, Repr
 
-/-- The opportunity record emitted from the Rust-owned constants. -/
+/-- The opportunity record built from the model constants. -/
 def shippedOpportunity : Opportunity where
   worldSide := studyWorldSide
   goals := studyGoals
@@ -73,13 +71,12 @@ def armSemantics : AgentBaselineArm → ArmSemantics
   | .ablatedGoalRelation => ⟨true, false, true, false⟩
   | .ablatedTemporalAbstraction => ⟨true, true, false, false⟩
 
-/-- Tuple spelling used by the generated Rust-to-Lean arm bridge. -/
+/-- Tuple spelling of the four model switches. -/
 def ArmSemantics.asTuple (semantics : ArmSemantics) : Bool × Bool × Bool × Bool :=
   (semantics.learns, semantics.reachRelation, semantics.temporalAbstraction,
     semantics.randomPolicy)
 
-/-- The complete Lean arm mapping is byte-for-value linked to the Rust arm
-methods emitted by `acorn emit-lean`. -/
+/-- The closed arm mapping equals the model constant table. -/
 theorem arm_semantics_match_rust :
     AgentBaselineArm.all.map (fun arm => (armSemantics arm).asTuple) = studyArmSemantics := by
   decide

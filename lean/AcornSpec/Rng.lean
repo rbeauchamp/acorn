@@ -7,12 +7,10 @@ Authors: acorn contributors
 /-!
 # Executable specification: deterministic pseudo-randomness and hashing
 
-Mirrors `src/rng.rs` function by function. Every definition is a total pure
-function over fixed-width words; `UInt64` arithmetic in Lean is wrapping, the
-same as the Rust source's `wrapping_*` operations. This module is part of
-`AcornSpec`, the definitional owner of "the specified Acorn system" for the
-agent-baseline performance claim. The Rust binary is an untrusted accelerator
-bound to these definitions by the action-transcript fold gate.
+Every definition is a total pure function over fixed-width words. `UInt64`
+arithmetic wraps modulo 2⁶⁴. These definitions supply the streams and hashes of
+the specification evaluator; action-transcript digests detect changes but do not
+establish correspondence with a separate implementation.
 -/
 
 namespace AcornSpec
@@ -32,7 +30,7 @@ def mix64 (x : UInt64) : UInt64 :=
   x ^^^ (x >>> 31)
 
 /-- `rng::SplitMix64` — the seeded source of stream keys. The state is the
-single `u64` the Rust struct holds. -/
+single `UInt64` word. -/
 structure SplitMix64 where
   /-- Generator state. -/
   state : UInt64
@@ -101,17 +99,16 @@ def mulHi64 (a b : UInt64) : UInt64 :=
   hihi + (hilo >>> 32) + (cross >>> 32)
 
 /-- `Xoshiro256::next_below`: near-uniform pseudorandom integer in `[0, n)`
-via multiply-shift. The Rust signature takes `NonZeroU64`; every call site in
-the mirrored system passes a positive constant, and `AcornVerif.Rng` carries
-the `< n` range proof for the identical formula. -/
+via multiply-shift. The range claim requires `n > 0`; `AcornVerif.Rng`
+proves the mathematical multiply-shift bound. Machine execution correspondence
+is a separate obligation. -/
 @[inline]
 def Xoshiro256.nextBelow (g : Xoshiro256) (n : UInt64) : UInt64 × Xoshiro256 :=
   let (x, g) := g.next
   (mulHi64 x n, g)
 
 /-- `rng::hash2` — position-stable hash of two signed coordinates plus a
-seed. Coordinates arrive as their two's-complement `u64` images, exactly the
-`x as u64` reinterpretation the Rust source performs. -/
+seed. Coordinates arrive as their two's-complement `u64` images. -/
 @[inline]
 def hash2 (x y : UInt64) (seed : UInt64) : UInt64 :=
   let h := seed ^^^ 0x9E3779B97F4A7C15
@@ -131,9 +128,7 @@ compile-time stream-tag constants (`fnv1a(b"...")`); never on a hot path. -/
 def fnv1a (bytes : List UInt8) : UInt64 :=
   bytes.foldl (fun h b => (h ^^^ b.toUInt64) * 0x00000100000001B3) 0xCBF29CE484222325
 
-/-- `fnv1a` of a string's UTF-8 bytes — the form the Rust byte-string tags
-take. Every tag in the system is ASCII, where UTF-8 bytes are the code
-points. -/
+/-- `fnv1a` of a string's UTF-8 bytes. ASCII characters encode as their code points. -/
 def fnv1aStr (s : String) : UInt64 :=
   fnv1a (s.toUTF8.toList)
 

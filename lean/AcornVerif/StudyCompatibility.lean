@@ -8,9 +8,9 @@ import AcornSpec.Collapse
 /-!
 # Historical study domains and their generated numeric identities
 
-Every registered domain is a constructor of the Rust-generated closed type.
+Every compatibility domain is a constructor of the closed type.
 The first theorem checks all constructors with the kernel, using the exact
-Rust-generated UTF-8 bytes and wrapping UInt64 FNV arithmetic. The stream and analysis
+stored UTF-8 bytes and wrapping UInt64 FNV arithmetic. The stream and analysis
 identities then follow by substitution for every seed and input population;
 neither executes a world, a learner, or a bootstrap. These are compatibility
 identities, not evidence of registration timing or of empirical usefulness.
@@ -28,8 +28,8 @@ theorem historical_domain_identity (domain : Constants.Compatibility.Domain) :
   cases domain <;> decide
 
 /-- Domain substitution preserves every stream key at every UInt64 base seed.
-This proves the initialization identity; it does not claim a Rust/Lean
-refinement of either language's full learner or world. -/
+This proves the initialization identity over the declared constants; full-agent
+execution correspondence is a separate property. -/
 theorem historical_stream_identity (seed : UInt64) (domain : Constants.Compatibility.Domain) :
     Xoshiro256.streamKey seed domain.value =
       Xoshiro256.streamKey seed (fnv1a domain.bytes) := by

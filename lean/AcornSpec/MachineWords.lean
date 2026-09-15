@@ -13,9 +13,8 @@ execution. These definitions do not depend on floating-point operations.
 
 namespace AcornSpec
 
-/-- The two's-complement `u64` image of an integer — Rust's `x as u64` on an
-`i64`. Total for every integer; on the `i64` domain it is exactly the
-reinterpretation. -/
+/-- The two's-complement `u64` image of an integer. Total for every integer;
+on the signed 64-bit domain it is exactly the bit reinterpretation. -/
 @[inline]
 def i64bits (n : Int) : UInt64 :=
   if 0 ≤ n then n.toNat.toUInt64 else 0 - (-n).toNat.toUInt64

@@ -11,7 +11,7 @@ import AcornSpec.IntraOptionCredit
 The baseline report exposes seven named conjuncts as well as their conjunction.
 This core-only adapter makes the conjunction depend on those same flags. The
 proof-layer bridge in `AcornVerif.AgentBaselineSemantics` binds the flags to
-`AcornVerif.AgentBaselineAcceptance` and its Rust-generated thresholds without
+`AcornVerif.AgentBaselineAcceptance` and its model thresholds without
 linking the proof library into the native analysis calculator.
 -/
 

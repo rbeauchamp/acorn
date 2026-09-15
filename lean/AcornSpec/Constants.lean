@@ -128,13 +128,12 @@ def bootstrapSeedValue : UInt64 := 0x000000015b0057a9
 the specification's decidable crosscheck of its own tag computation. -/
 def bootstrapTagFnvValue : UInt64 := 0xb86ea26d9f8eb1bd
 
-/-! Sealed historical compatibility data. These encodings are not active
-study names. Rust owns their bytes and numeric identities; the kernel
-checks the correspondence in `AcornVerif.StudyCompatibility`. -/
+/-! Compatibility domains: explicit byte strings and numeric identities. The
+kernel checks their correspondence in `AcornVerif.StudyCompatibility`. -/
 
 namespace Compatibility
 
-/-- The complete registered domain set, generated from Rust. -/
+/-- The complete compatibility domain set. -/
 inductive Domain where
   /-- Historical `actionFold` domain. -/
   | actionFold
@@ -218,7 +217,7 @@ def derivedExplorationRateNoValue : String := "collapse28: NO VALUE — an empty
 def stompPlanningNoValue : String := "collapse30: NO VALUE — an empty required stratum (registered hard failure)"
 
 end Compatibility
-/-- Differential-control study population, derived by Rust. -/
+/-- Differential-control model population. -/
 def averageRewardSeeds : List Nat := [17398715263585586064, 2039201990969981266, 8163707731031670308, 861121861259781844, 11725299783053946930, 232674698427835041, 5459730271191926315, 9152024572230751724]
 
 /-- Differential-control study cycle count. -/
@@ -248,7 +247,7 @@ def averageRewardRssBudget : Nat := 2147483648
 /-- Differential-control study raw output budget, in bytes. -/
 def averageRewardRawBudget : Nat := 536870912
 
-/-- Revised differential-control study population, derived by Rust. -/
+/-- Second differential-control model population. -/
 def averageRewardRevisionSeeds : List Nat := [18233659390142340353, 12475207274233935420, 7310888561924176371, 239988586019406723, 6897438374650800621, 5229332303366468230, 114735174369132775, 106886276994699673, 17843530178709329386, 6604739643961507034, 48814801905999895, 14966468741004622142, 14011820953792392275, 18010148010172030318, 11427834556704071050, 2859612306292544068, 15668215832784454518, 4568955728924258961, 3195770332396127673, 1603147715334887284]
 
 /-- Revised differential-control raw output budget, in bytes. -/

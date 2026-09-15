@@ -36,7 +36,7 @@ inductive TaskFeatureMode where
   deriving DecidableEq
 
 /-- `encoding::split_i128` — two's-complement words of an exact signed
-displacement (`i128` in Rust; exact `Int` here, wrapped at 2¹²⁸). -/
+displacement (`Int`, wrapped at 2¹²⁸). -/
 def splitI128 (value : Int) : UInt64 × UInt64 :=
   let m : Nat := (value % (2 : Int) ^ 128).toNat
   ((m % 2 ^ 64).toUInt64, (m / 2 ^ 64).toUInt64)
@@ -82,7 +82,7 @@ def cumulantDiscount (d : Nat) : Discount :=
 
 /-- `encoding::observation_words` (with the evaluator's task mode) — the
 window channels, proprioception, task words and demon-prediction channels,
-in the exact Rust push order. `demonPreds` holds the 11 prediction bits. -/
+in that concatenation order. `demonPreds` holds the 11 prediction bits. -/
 def observationWordsWindowGo (obs : Obs) (out : Array (UInt64 × UInt64))
     (i : Nat) : Nat → Array (UInt64 × UInt64)
   | 0 => out
@@ -110,7 +110,7 @@ def observationWordsDemonsGo (demonPreds : Array UInt32)
 
 /-- `encoding::observation_words` (with the evaluator's task mode) — the
 window channels, proprioception, task words and demon-prediction channels,
-in the exact Rust push order. `demonPreds` holds the 11 prediction bits. -/
+in that concatenation order. `demonPreds` holds the 11 prediction bits. -/
 def observationWords (obs : Obs) (demonPreds : Array UInt32)
     (mode : TaskFeatureMode) : Array (UInt64 × UInt64) :=
   let out : Array (UInt64 × UInt64) := Array.emptyWithCapacity 256

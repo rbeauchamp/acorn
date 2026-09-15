@@ -11,7 +11,7 @@ import AcornSpec.Float
 /-!
 # Executable specification: the big world
 
-Mirrors `src/world.rs` construct by construct: the pure terrain function
+Defines the pure terrain function
 (`TileKind::at` and its noise stack), the agent body, energy, inventory,
 goals and their exact relations, the observation, and the step/advance
 dynamics.
@@ -27,8 +27,7 @@ Two representation choices that change nothing observable:
   is far inside `i32`.
 
 The harvest log is a hash map used only through `get`/`insert` (never
-iterated), exactly like the Rust `HashMap`, so its internal order is
-unobservable.
+iterated), so its internal order is unobservable.
 -/
 
 namespace AcornSpec
@@ -212,7 +211,7 @@ def smooth (t : Float32) : Float32 :=
   t * t * (natF32 3 - natF32 2 * t)
 
 /-- `TileKind::lattice` — value noise at integer lattice points. The scale
-constant is the Rust expression `1.0 / 4_294_967_296.0`, an exact `f32`. -/
+constant is `1.0 / 4_294_967_296.0`, an exact `f32`. -/
 @[inline]
 def lattice (x y : Int) (seed : UInt64) : Float32 :=
   let h := hash2 (i64bits x) (i64bits y) seed
@@ -237,7 +236,7 @@ def valueNoise (x y : Int) (scale : Float32) (seed : UInt64) : Float32 :=
   top + (bot - top) * ty
 
 /-- `TileKind::fbm` — four-octave value noise. The loop is unrolled to the
-same four accumulations the Rust `for _ in 0..4` performs, in order. -/
+four ordered accumulations. -/
 def fbm (x y : Int) (seed : UInt64) (baseScale : Float32) : Float32 :=
   let half := Float32.ofBits 0x3F000000
   let two := natF32 2
@@ -287,8 +286,7 @@ def GoalKind.cue : GoalKind → UInt64
   | .craft c => hash3 3 c.code 0
   | .survive steps => hash3 4 steps 0
 
-/-- `world::ReachRelation` — exact signed displacement (`i128` in Rust, exact
-`Int` here) plus the derived region distance and scale. -/
+/-- Reach relation — exact signed displacement (`Int`) plus the derived region distance and scale. -/
 structure ReachRel where
   /-- Signed x displacement. -/
   dx : Int
@@ -344,11 +342,11 @@ def TaskObs.isSatisfied : TaskObs → Bool
 /-! ## Observation and step result -/
 
 /-- One observed tile, packed: kind code in bits 0–2, food flag bit 3, deer
-flag bit 4 — a bounded snapshot equal in content to Rust's `TileObs`. -/
+flag bit 4. -/
 abbrev PackedTile := UInt8
 
-/-- `world::Observation` — the agent's view: an 11×11 window (row-major, the
-Rust iteration order), proprioception, typed task semantics, and the
+/-- The agent's view: an 11×11 row-major window, proprioception, typed
+task semantics, and the
 inventory snapshot. -/
 structure Obs where
   /-- 121 packed tiles, row-major. -/
@@ -600,8 +598,7 @@ def windowGo (w : World) (x0 y0 : Int) (t : ByteArray) (i : Nat) : Nat → ByteA
     windowGo w x0 y0 t (i + 1) fuel
 
 /-- Tail-recursive occupancy stamp for `observe`: set `bit` on the window
-cell of every entity inside it — extensionally the Rust occupancy map's
-content. -/
+cell of every entity inside it. -/
 def stampGo (x0 y0 : Int) (arr : Array UInt64) (bit : UInt8) (t : ByteArray)
     (i : Nat) : Nat → ByteArray
   | 0 => t
@@ -617,7 +614,7 @@ def stampGo (x0 y0 : Int) (arr : Array UInt64) (bit : UInt8) (t : ByteArray)
 /-- `World::observe` — the 11×11 window, proprioception, task and inventory.
 The occupancy index is realized as a direct window scan over the entity
 lists: for each food/deer item inside the window the corresponding packed
-flag is set, which is extensionally the Rust occupancy map's content. -/
+flag is set. -/
 def observe (w : World) : Obs :=
   let x0 := w.bx - 5
   let y0 := w.by' - 5
@@ -763,7 +760,7 @@ def new (seed : UInt64) (side : Int) : World :=
       deer := #[], food := #[]
       rng := Xoshiro256.new (Xoshiro256.streamKey seed 0x0001)
       tOrigin, tSide, table }
-  -- Deterministic spiral search for the spawn tile, exactly the Rust loop:
+  -- Deterministic spiral search for the spawn tile:
   -- radius 0..side, four directions, k in -radius..=radius, first walkable
   -- candidate with ≥ 2 trees near wins; otherwise the best-scoring walkable.
   let centre := side / 2
@@ -794,7 +791,7 @@ def new (seed : UInt64) (side : Int) : World :=
                 sx := px
                 sy := py
                 found := true
-    -- The Rust epilogue overrides unconditionally: whenever any walkable
+    -- The final pass overrides unconditionally: whenever any walkable
     -- candidate was seen, the spawn is the best-scoring one — the trees ≥ 2
     -- break only ends the search early.
     if let some (px, py, _) := best then

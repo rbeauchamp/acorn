@@ -18,10 +18,10 @@ import AcornSpec.AgentBaselineAcceptance
 This file owns the decidable mathematics of the frozen agent-baseline protocol. It
 does not assume or assert that the shipped learner passes. The conclusion of a
 positive performance claim depends on the exact occurrence outcomes produced
-by the coupled Rust learner and world; those values enter only through
+by the coupled learner and world; those values enter only through
 `StudyResult`.
 
-The benchmark population is the fixed generated list of 30 Rust seeds. It is
+The benchmark population is the fixed list of 30 model seeds. It is
 not a theorem about arbitrary worlds or a sampling claim about a wider seed
 distribution. Scores are rational, so no floating-point rounding is hidden in
 the mathematical owner.
@@ -31,7 +31,7 @@ namespace AcornVerif
 
 open AcornVerif.Generated
 
-/-- Closed evaluator arms, in the Rust execution order. -/
+/-- Closed evaluator arms in their declared order. -/
 inductive AgentBaselineArm where
   /-- Shipped hierarchical learner. -/
   | final
@@ -90,7 +90,7 @@ theorem study_goal_cap_is_derived :
     studyStepsPerGoal = studyAttemptsPerGoal * studyStepsPerAttempt := by
   norm_num [studyStepsPerGoal, studyAttemptsPerGoal, studyStepsPerAttempt]
 
-/-- The generated Rust seed list has exactly the generated population size. -/
+/-- The model seed list has exactly the declared population size. -/
 theorem study_seed_population_is_closed :
     studySeeds.length = studySeedCount := by
   norm_num [studySeeds, studySeedCount]
@@ -99,7 +99,7 @@ theorem study_seed_population_is_closed :
 theorem study_seed_population_is_nodup : studySeeds.Nodup := by
   decide
 
-/-- The Lean arm enumeration has the generated Rust arm count. -/
+/-- The arm enumeration has the declared model arm count. -/
 theorem study_arm_domain_is_closed :
     AgentBaselineArm.all.length = studyArmCount := by
   norm_num [AgentBaselineArm.all, studyArmCount]

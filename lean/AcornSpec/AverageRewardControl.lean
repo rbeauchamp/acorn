@@ -10,12 +10,11 @@ import Init.Data.Rat
 /-!
 # Exact analysis of the differential-control comparison
 
-The protocols are `studies/average-reward-control/protocols/{v1,v2}/protocol.md`.
-This is a small untrusted calculator over all paired summaries, not a
-reflection proof of agent performance. Source-derived population and schedule
-constants come from Rust through `acorn emit-lean`. Input admission binds the
-whole population, each arm, the complete cycle shape and shared provenance.
-The enclosing dossier binds raw observations and summary contents by hash.
+This calculator reduces explicit paired summaries using the population and
+schedule constants in `AcornSpec.Constants`. Input admission checks the whole
+population, each arm, the complete cycle shape and shared provenance fields.
+The caller supplies the summaries; matching fields alone does not establish
+that their values were observed.
 
 The paired score is host achievements divided by actual environment steps.
 An exact two-sided sign tail describes paired-win evidence; it is not an
@@ -38,7 +37,7 @@ def Protocol.schema : Protocol → String
   | .v1 => "acorn-average-reward-control-observations-v1"
   | .v2 => "acorn-average-reward-control-observations-v2"
 
-/-- Complete population, generated from the Rust owner for each revision. -/
+/-- Complete population from the model constants for each revision. -/
 def Protocol.seeds : Protocol → List Nat
   | .v1 => Constants.averageRewardSeeds
   | .v2 => Constants.averageRewardRevisionSeeds
@@ -56,7 +55,7 @@ def natField (json : Lean.Json) (key : String) : Except String Nat := do
 def strField (json : Lean.Json) (key : String) : Except String String := do
   ((← json.getObjVal? key).getStr?).mapError (fun error => s!"{key}: {error}")
 
-/-- Fixed-width lowercase seed spelling used by the Rust writer. -/
+/-- Fixed-width lowercase seed spelling used by the summary format. -/
 def seedHex (seed : Nat) : String :=
   let digits := String.ofList (Nat.toDigits 16 seed)
   String.ofList (List.replicate (16 - digits.length) '0') ++ digits

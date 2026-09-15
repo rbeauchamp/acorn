@@ -6,11 +6,9 @@ Authors: acorn contributors
 import AcornSpec.StudySchema
 
 /-!
-# The registered agent-baseline result functional, in exact rationals
+# Agent-baseline analysis in exact rationals
 
-This exact-ℚ definition owns the analysis recorded in
-`studies/agent-baseline/protocols/v1/protocol.md`. Its registration materials and
-timing limitations belong to that dossier. The functional computes:
+This functional computes over explicit paired inputs:
 
 - occurrences collapse to capped cumulative first-success times
   (`elapsed = min(cap, Σ steps)`), failure scores exactly zero;

@@ -101,14 +101,10 @@ theorem exhaustion_rate_bound (l : Ledger) (capacity rest cmax : ℚ)
   have h := exhausted_bound l capacity rest 0 cmax hcons hcost
   simpa [hnoeat] using h
 
-/-- The bound at **this build's** constants, taken from `acorn emit-lean` rather
-than retyped: `X · 24 ≤ 2000 + 4·N`.
-
-So an agent that never eats loses at most one step in six to exhaustion, once
-the `2000/N` transient is small — `energyMaxStepCost / (energyRestRecover +
-energyMaxStepCost) = 4/24 = 1/6`. Raising an action's cost past
-`Energy::REST_RECOVER` would break the companion build gate in `src/world.rs`
-before it could weaken this. -/
+/-- The bound at the model constants: `X · 24 ≤ 2000 + 4·N`.
+Under the no-eating, conservation and cost hypotheses, exhausted steps have
+asymptotic upper fraction `4/24 = 1/6`. The finite bound includes the capacity
+transient. Current constant compatibility is checked in `AcornVerif.CurrentConstants`. -/
 theorem exhaustion_rate_at_build (l : Ledger)
     (hnoeat : l.eats = 0)
     (hcons : l.conserved (energyMax : ℚ) (energyRestRecover : ℚ) 0)
@@ -119,11 +115,8 @@ theorem exhaustion_rate_at_build (l : Ledger)
   norm_num [energyMax, energyRestRecover, energyMaxStepCost] at h
   linarith
 
-/-- Resting pays for at least one action at this build's constants:
-`energyMaxStepCost ≤ energyRestRecover`. This is the Lean counterpart of the
-`const _: () = assert!` in `src/world.rs`, and it is what makes exhaustion a
-*tax* rather than a terminal state — a spent agent can always act again on the
-step after resting. -/
+/-- At the model constants, recovery covers the maximum cost of one action:
+`energyMaxStepCost ≤ energyRestRecover`. -/
 theorem rest_pays_for_an_action : energyMaxStepCost ≤ energyRestRecover := by
   norm_num [energyMaxStepCost, energyRestRecover]
 

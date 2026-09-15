@@ -95,7 +95,7 @@ theorem refuted_iff (counts : Tally) (mean : Rat) :
   split_ifs <;> simp_all
   omega
 
-/-- The dossier verdict and directional label always describe the same assessment. -/
+/-- The verdict and directional label always describe the same assessment. -/
 theorem assessment_labels (result : Assessment) :
     (result.verdict = "supported" ↔ result.direction = "positive") ∧
     (result.verdict = "refuted" ↔ result.direction = "negative") ∧

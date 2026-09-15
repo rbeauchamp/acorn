@@ -12,11 +12,7 @@ import Mathlib.Tactic.Ring
 
 The tester's threshold is `θ = ε · 1/(1−γ)` — PAR-1's relative
 negligibility, applied to the Weight projection's γ-derived horizon.
-Rust writes that product as `SwiftTdConfig::disruption_bound`. These
-theorems are the identities that product claims, universally over ℝ.
-
-No `native_decide`. Each argument is an algebraic identity or a one-line
-rearrangement.
+These theorems characterize that product universally over ℝ.
 -/
 
 namespace AcornVerif
@@ -24,8 +20,7 @@ namespace AcornVerif
 /-- The derived retirement bound: ε times the discount's horizon. -/
 noncomputable def theta (ε γ : ℝ) : ℝ := ε * (1 / (1 - γ))
 
-/-- `θ = ε / (1−γ)` whenever `γ ≠ 1` — the same product the Rust
-`const fn` writes as `epsilon * discount.horizon()`. -/
+/-- `θ = ε / (1−γ)` whenever `γ ≠ 1`. -/
 theorem theta_eq_epsilon_div_one_sub_gamma (ε γ : ℝ) (hγ : γ ≠ 1) :
     theta ε γ = ε / (1 - γ) := by
   have h : 1 - γ ≠ 0 := sub_ne_zero.mpr (Ne.symm hγ)
@@ -68,10 +63,8 @@ def After (previous : Option ℕ) (step : ℕ) : Prop :=
   | none => True
   | some p => p < step
 
-/-- The loop performed by `RetirementProgress::from_events`. The complete-body
-source bridge in `gates/src/retirement_contract.rs` pins its capacity precheck,
-initial predecessor, ordered traversal, rejection and predecessor update. Kani
-`retirement_transcript_admission` refines each transition over all Rust words. -/
+/-- Ordered transcript admission over natural-number event steps, with an optional
+predecessor. Machine-word representation and saturation need separate correspondence. -/
 def admitsFrom (units steps : ℕ) (previous : Option ℕ) : List Event → Prop
   | [] => True
   | e :: es => e.2 < units ∧ e.1 ≤ steps ∧ After previous e.1 ∧
@@ -116,7 +109,7 @@ def finalStep (previous : Option ℕ) : List Event → Option ℕ
   | e :: es => finalStep (some e.1) es
 
 /-- Raising the lifetime bound preserves every admitted transcript, for every
-length. Rust's saturating successor is monotone over every `u64` by Kani. -/
+length, over the natural-number model. -/
 theorem clock_advance_preserves (units steps next : ℕ) (previous : Option ℕ)
     (events : List Event) (hnext : steps ≤ next)
     (h : admitsFrom units steps previous events) :
@@ -137,7 +130,7 @@ theorem append_admission_iff (units steps : ℕ) (previous : Option ℕ)
   | cons e es ih => simp [admitsFrom, finalStep, ih, and_assoc]
 
 /-- With no incoming predecessor, the loop state is the actual final event's
-step. This connects the append theorem to Rust's `events.last()`. -/
+step. -/
 theorem finalStep_eq_last (previous : Option ℕ) (events : List Event) :
     finalStep previous events =
       (events.getLast?.map Prod.fst).or previous := by

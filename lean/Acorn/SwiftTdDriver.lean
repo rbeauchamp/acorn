@@ -9,9 +9,8 @@ import Acorn.SwiftTd
 # Native current-learner driver
 
 A small command-line consumer of the admitted learner and its actual TD entry.
-The tail-recursive traversal retains only the current learner. It does not
-retain a trajectory, compare sampled answers with Rust, or measure learning
-benefit. Its output is an execution observation, not a correctness oracle.
+The tail-recursive traversal retains only the current learner. Its output
+describes that execution.
 The learner's citations and mathematical/implementation boundaries are owned
 by `Acorn.SwiftTd` and `AcornVerif.CurrentLearner`.
 -/

@@ -21,15 +21,9 @@ acorn_verify_checks() {
   cd "$(dirname "$1")/.."
   git diff --check
   git diff --cached --check
-  local shell_scripts=(scripts/verify.sh scripts/lean.sh scripts/verify-lean.sh scripts/start.sh)
-  case "$(cat verification-profile)" in
-    private) shell_scripts+=(scripts/reproduce-studies.sh) ;;
-    public) ;;
-    *) echo "verification-profile must be private or public" >&2; exit 1 ;;
-  esac
-  shellcheck "${shell_scripts[@]}"
+  shellcheck scripts/verify.sh scripts/lean.sh scripts/start.sh
   shift 2
-  ./scripts/verify-lean.sh "$@"
+  ./scripts/lean.sh exe acorn-gates "$@"
 }
 export -f acorn_verify_checks
 

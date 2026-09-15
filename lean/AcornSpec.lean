@@ -21,21 +21,16 @@ import AcornSpec.Solvability
 import AcornSpec.AverageRewardControl
 
 /-!
-# AcornSpec: preserved-data analysis and a historical evaluator
+# AcornSpec: specification and analysis definitions
 
-Current calculators consume preserved shard/row data through `StudySchema`,
-`WorldSchema`, `MachineWords`, `Collapse` and the study-specific reductions.
-These imports do not execute or compile the historical world, learner or agent.
+The world, learner and agent modules define a discounted, hand-authored-subtask
+evaluator. This is a separate model from the executing `Acorn` library; its
+contracts concern its own definitions, with no full-agent refinement asserted.
 
-The separate world/learner/agent implementation owns the baseline's specified
-historical system and supports `specprobe` diagnostics. The original baseline
-certification source and result remain in its dossier. Integer action folds
-are mutation/localization evidence, not universal correspondence to the current
-Rust agent or an identified historical Rust commit. No such matching commit is
-claimed. Native calculator execution is neither kernel certification nor a
-historical experiment rerun.
+`StudySchema`, `WorldSchema`, `MachineWords`, `Collapse` and the comparison
+reductions define analysis over explicit inputs. Their results depend on those
+inputs; the repository supplies no observations for them.
 
 These modules use Lean core without Mathlib. Native targets compile their own
-transitive imports; building the entire library also checks the retained
-evaluator. Current executable agent ownership is the separate `Acorn` library.
+transitive imports; the complete suite also checks every specification module.
 -/

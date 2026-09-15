@@ -25,8 +25,8 @@ the registered population shape, an arm the manifest does not register, a
 shard header that names another shard, a coordinate outside the protocol
 grid, and any occurrence whose rows are not one canonical attempt sequence.
 The original configuration manifest contains no row hashes, and a row carries
-no seed. This reader binds shape and index; the enclosing dossier validator
-separately verifies content identities against the versioned run manifest.
+no seed. This reader binds shape and index; the caller must establish content
+identity and provenance separately.
 
 The renderer produces every comparison's complete block from its key and
 its `PairedSummary`, so a report cannot omit a line or label one with the
@@ -41,8 +41,8 @@ open AcornSpec
 
 /-- The population shape an original configuration manifest records. Its provenance fields
 (`commit`, `audit_digest`, `held_out_seeds`) name the run; nothing in a rows
-twin can be checked against them. The reader binds shape and index; dossier
-validation owns the separate content-hash inventory. -/
+twin can be checked against them. The reader binds shape and index; content
+identity is a separate caller obligation. -/
 structure Manifest where
   /-- `seed_count`. -/
   seedCount : Nat

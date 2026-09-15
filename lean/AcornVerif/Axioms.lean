@@ -59,18 +59,15 @@ import AcornVerif.TemporalSupport
 import AcornVerif.CurrentFloor
 import AcornVerif.CurrentWorld
 import AcornVerif.CurrentRunner
-import AcornVerif.StudyAdmission
 import AcornVerif.Endurance
 
 /-!
 # Axiom audit
 
-The package hand-declares no axioms, and every theorem-or-lemma rests only on
-Lean's three kernel axioms (`propext`, `Classical.choice`, `Quot.sound`) —
-compiler-trust proofs (`native_decide` and its per-theorem minted axioms) are
-banned package-wide by `gates/src/main.rs`. The guarded invariant is that each
-theorem's axiom set is exactly the enumerated one. Asserted in prose, that is
-the kind of claim nothing ever checks.
+The complete theorem inventory admits only dependencies on `propext`,
+`Classical.choice` and `Quot.sound`. Source and compiled admission reject
+project-owned axioms and unchecked native proof replacements. The guards below
+pin the exact dependency sets of selected named theorems.
 
 `#guard_msgs` makes it a build failure: if an `axiom` is introduced, or an
 import starts dragging one in, the message printed by `#print axioms` changes

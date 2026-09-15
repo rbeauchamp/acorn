@@ -9,9 +9,8 @@ import Mathlib.Algebra.Order.GroupWithZero.Basic
 /-!
 # Eligibility-trace invariants of SwiftTD
 
-Machine-checked counterparts of the trace mechanics in
-`src/agent/swifttd.rs` (`learn_first_loop` / `learn_second_loop`):
-decay, the geometric bound, and the soundness of trace pruning.
+Real-arithmetic contracts for trace decay, geometric bounds and pruning.
+The model separates pure decay from the active-loop trace increment.
 -/
 
 namespace AcornVerif
@@ -25,7 +24,7 @@ sequence `z₀ * c^n` never grows.
 
 Scope, because the obvious reading is wrong: this does **not** say traces never
 grow in the algorithm. `learn_second_loop` grows them on every step
-(`self.z[idx] += self.z_delta[idx] * (1.0 - t)`, `src/agent/swifttd.rs`); that
+(`z += z_delta * (1 - t)`); that
 increment is modelled separately as `traceIncrement` in `StepSize.lean`. What is
 proven here is that the decay factor alone is non-increasing. -/
 theorem trace_decay_monotone (z₀ c : ℝ) (hz : 0 ≤ z₀) (hc0 : 0 ≤ c) (hc1 : c ≤ 1) :
@@ -50,7 +49,7 @@ theorem trace_geometric_bound (z₀ c : ℝ) (hz : 0 ≤ z₀) (hc0 : 0 ≤ c) (
 `≤ ε · lastAlpha` with `ε ≤ 1` and `lastAlpha ≥ 0`, then `z ≤ lastAlpha`.
 
 Read the bound literally. The proof discards the `ε` factor, so what is
-established is "at most one `lastAlpha`", *not* "negligible" — with the Rust
+established is "at most one `lastAlpha`", *not* "negligible" — with
 `ε = 1e-5` the true bound is far tighter than this theorem states. `0 < ε` is
 not a hypothesis. The name is weaker than it sounds, so cite the statement
 rather than the name when relying on it. -/

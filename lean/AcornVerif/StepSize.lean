@@ -8,16 +8,14 @@ import Mathlib.Analysis.SpecialFunctions.Log.Basic
 /-!
 # Step-size invariants of SwiftTD
 
-Machine-checked counterparts of the update equations in `src/agent/swifttd.rs`,
-which implements Algorithm 1 of Javed, Sharifnassab & Sutton (RLJ/RLC 2024).
-Every theorem mirrors one guard or bound in that code and names the
-corresponding Rust function. The meta-gradient registers are covered separately
-in `AcornVerif.MetaGradient`.
+Real-arithmetic models of Algorithm 1 in Javed, Sharifnassab & Sutton,
+*SwiftTD: A Fast and Robust Algorithm for Temporal Difference Learning*,
+Reinforcement Learning Journal, vol. 2 (2024), pp. 840–863.
+The meta-gradient recurrence is covered separately in `AcornVerif.MetaGradient`.
 
-These are real-arithmetic models. Where a Rust guard exists to prevent an `f32`
-effect that the reals cannot express — underflow of `exp β` to `0.0`, for
-instance — the model cannot capture it, and the docstring says so rather than
-implying the theorem covers it.
+Theorems here concern real guards and bounds. Machine effects such as underflow
+of `exp β` to zero require separate execution contracts; these real models do
+not establish a refinement of the rounded learner.
 -/
 
 namespace AcornVerif
@@ -27,7 +25,7 @@ open Real
 noncomputable section
 
 /-- The step-size clip of SwiftTD's first loop
-(`src/agent/swifttd.rs`, `learn_first_loop`): if the step size
+(the first update loop): if the step size
 `exp β` exceeds the budget `η`, reset `β := log η`; if it falls below
 the floor `ηmin`, reset `β := log ηmin`; otherwise leave `β` unchanged. -/
 def clipBeta (β η ηmin : ℝ) : ℝ :=
@@ -75,7 +73,7 @@ theorem step_size_lower_after_clip (β η ηmin : ℝ) (hm : 0 < ηmin) (h : ηm
 
 /-- The effective-rate denominator: `E = max η (Σ α φ²)` with `φ ∈ {0,1}`
 after construction unique, so this is the deployed sum of
-`src/agent/swifttd.rs` `learn_second_loop`. Paper eq. (7), RLJ vol. 2
+The second update loop. Paper eq. (7), RLJ vol. 2
 p. 845: `τ_t = Σ_i α_t[i] φ_t[i]²`. The scalar `rate` *is* that sum. -/
 def overshootE (η rate : ℝ) : ℝ := max η rate
 

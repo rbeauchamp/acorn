@@ -9,35 +9,12 @@ import AcornTools.Corpus.Browser
 
 /-! # Compiled declaration and document path admission
 
-Code spans identify maintained declarations or complete path claims. Historical
-citations resolve only through the admitted source catalogs. Compiler-owned names
-replace lexical declaration inference; IO and Lean environment loading are the
-reviewed tooling boundary.
+Code spans identify maintained declarations or complete path claims. Compiler-owned
+names replace lexical declaration inference; IO and Lean environment loading are
+the reviewed tooling boundary.
 -/
 namespace AcornDocument
 open Lean
-
-private def historicalSymbols : List String := [
-  "eps_start",
-  "eps_min",
-  "eps_decay",
-  "set_rate",
-  "EpsilonSchedule::set_rate",
-  "EzGreedy::set_rate",
-  "OptionParams::eps",
-  "min_len",
-  "qfeat",
-  "qerr",
-  "AcornVerif.Reflect",
-  "reach_connected",
-  "reach_connected_NN",
-  "shardNN_arm_eq",
-  "registered_eq_literal",
-  "literal_result_value",
-  "issue15_verdict",
-  "issue15_fails_control_random",
-  "issue15_fails_*",
-  "registeredValue"]
 
 private def externalSymbols : List String := [
   "libc",
@@ -240,22 +217,7 @@ private def braceExpand (path : String) : Except String (List String) := do
     return (choices.splitOn ",").map (fun c => head ++ c.trimAscii.toString ++ tail)
   | _ => throw "more than one path brace group"
 
-/-- Historical references have an explicit evidence owner. Source-only admission
-uses the refusing defaults; private admission derives callbacks from its complete
-validated dossier registry. These callbacks are part of the trusted document gate. -/
-structure EvidenceReferences where
-  /-- Resolve an immutable revision and member path. -/
-  archive : String → String → Bool := fun _ _ => false
-  /-- Resolve a path in a preserved protocol's own source inventory. -/
-  protocolPath : String → String → Bool := fun _ _ => false
-  /-- A registered protocol describes its preserved implementation's symbols. -/
-  protocol : String → Bool := fun _ => false
-  /-- Admit the explicit historical symbol vocabulary in private research prose. -/
-  historicalVocabulary : Bool := false
-  /-- Resolve a full study/protocol/run/comparison citation. -/
-  citation : String → Bool := fun _ => false
-
-private def pathClaim (evidence : EvidenceReferences) (document span : String) : IO Unit := do
+private def pathClaim (span : String) : IO Unit := do
   let (path, revision, lines) ← match span.splitOn "@" with
     | [plain] => match plain.splitOn ":" with
       | [path] => pure (path, none, none)
@@ -278,10 +240,9 @@ private def pathClaim (evidence : EvidenceReferences) (document span : String) :
   unless path.toList.all (fun c => c.isAlphanum || "_./-*{},".contains c) do
     throw (IO.userError "unreadable path claim")
   for path in ← IO.ofExcept (braceExpand path) do
-    if let some revision := revision then
-      unless evidence.archive revision path do throw (IO.userError "not an admitted archive member")
+    if revision.isSome then
+      throw (IO.userError "archived path references are not part of the maintained source")
     else
-      if evidence.protocolPath document path then continue
       let path := if path.contains '*' then
           String.intercalate "/" (((path.splitOn "*").headD "").splitOn "/").dropLast
         else path
@@ -366,17 +327,16 @@ unsafe def symbols (selection : Array Name := AcornOwnership.modules) : IO (Std.
               names := names.insert (String.intercalate "." (suffix.take count))
   return names
 
-private def resolves (historicalVocabulary : Bool) (names : Std.HashSet String) (name : String) : Bool :=
+private def resolves (names : Std.HashSet String) (name : String) : Bool :=
   let name := name.replace "::" "."
-  (historicalVocabulary && listed (historicalSymbols.map (·.replace "::" ".")) name) ||
-    listed (externalSymbols.map (·.replace "::" ".")) name ||
+  listed (externalSymbols.map (·.replace "::" ".")) name ||
     (proseTokens ++ keywords ++ standardMacros).contains name || names.contains name ||
     (name.endsWith "_*" && names.toArray.any (fun candidate =>
       candidate.startsWith (name.dropEnd 1).toString))
 
 /-- Every applicable path and declaration claim is checked, reporting all stale
-references together. Historical references require the selected evidence owner. -/
-unsafe def check (evidence : EvidenceReferences) (documents : Array (String × String))
+references together; archive paths and external study citations are refused. -/
+unsafe def check (documents : Array (String × String))
     (selection : Array Name := AcornOwnership.modules) : IO Unit := do
   let names ← symbols selection
   let mut failures := 0
@@ -384,14 +344,11 @@ unsafe def check (evidence : EvidenceReferences) (documents : Array (String × S
     for span in (spans text).eraseDups do
       try
         if pathPrefixes.any (fun lead => span.startsWith lead) && !pathPrefixes.contains span then
-          pathClaim evidence path span
+          pathClaim span
         else if span.startsWith "study:" then
-          unless evidence.citation span do throw (IO.userError "unresolved study citation")
+          throw (IO.userError "unresolved study citation")
         else if let some name := symbol span then
-          -- Protocols describe their registered implementation. Integrity admission
-          -- owns their preserved meaning; current compiler names cannot rewrite it.
-          unless evidence.protocol path do
-            unless resolves evidence.historicalVocabulary names name do throw (IO.userError "unresolved maintained declaration")
+          unless resolves names name do throw (IO.userError "unresolved maintained declaration")
       catch error =>
         IO.eprintln s!"{path}: `{span}`: {error}"
         failures := failures + 1

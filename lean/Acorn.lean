@@ -28,8 +28,7 @@ and seeded word streams are maintained here, together with the complete
 current SwiftTD learner (`Acorn.SwiftTd`) and receiver-owned feature encoding,
 ranking, refresh, retirement and restoration. The host modules supply the current
 world, tasks, CLI admission and streaming runner with explicit full-agent callbacks.
-Declared host/profile composition
-is imported only at this root. The constants-only generated
-`AcornSpec.Constants` module remains shared during migration. This root does
-not yet supply the complete application entry point.
+Declared host/profile composition enters through the reviewed composition roots.
+`AcornSpec.Constants` supplies the shared constant interface. Native application
+entry points live in `NativeApp`.
 -/

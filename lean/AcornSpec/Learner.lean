@@ -7,20 +7,18 @@ import AcornSpec.Float
 import AcornSpec.FeatureSpace
 
 /-!
-# Executable specification: `SwiftTD`
+# Executable specification: SwiftTD
 
-Mirrors `src/agent/swifttd.rs` — the closed `Discount` set, the total
-`project`/`saturate` projections, the `Weight`/`LogStepSize` refinements (as
-functions here: every write goes through them, exactly as the Rust types
-force), and the two update loops of Algorithm 1 with this crate's declared
-departures (projection re-anchoring, total β saturation, ε-pruning that also
-clears the meta-gradient registers).
+This model defines a closed discount set, total weight and log-step-size
+projections, and the two SwiftTD update loops. Declared adaptations include
+projection re-anchoring, total beta saturation and pruning that also clears
+meta-gradient registers. Every modeled knowledge write uses its projection.
 
-Learner arrays hold `f32` bit patterns (`Array UInt32`): Lean boxes a bare
-`Float32` per array slot, while a `UInt32` is an immediate — the
-`ofBits`/`toBits` at each access is a reinterpretation, so the numerics are
-untouched. `LogStepSize::set` recomputes its `ln` bounds per call and
-`alpha()` recomputes `exp β` per read, exactly as the Rust source does.
+Learner arrays hold binary32 storage words (`Array UInt32`). Reads and writes
+reinterpret these words with `ofBits` and `toBits`. Log-step-size admission
+recomputes logarithmic bounds per call, and each step-size read computes the
+local exponential. Current execution and its proof-bearing state live in
+`Acorn.SwiftTd`; correspondence to this separate specification is not automatic.
 -/
 
 namespace AcornSpec
@@ -44,8 +42,7 @@ def Discount.gamma : Discount → Float32
   | .g95 => Float32.ofBits gamma95Bits
   | .g99 => Float32.ofBits gamma99Bits
 
-/-- `Discount::horizon` — `1.0 / (1.0 - gamma)`, the same `f32` expression
-the Rust `const fn` folds. -/
+/-- Discount horizon: `1.0 / (1.0 - gamma)` in binary32. -/
 @[inline]
 def Discount.horizon (d : Discount) : Float32 :=
   natF32 1 / (natF32 1 - d.gamma)
@@ -122,7 +119,7 @@ def gamma (c : SwiftCfg) : Float32 := c.discount.gamma
 def horizon (c : SwiftCfg) : Float32 := c.discount.horizon
 
 /-- `LogStepSize::set` — saturate β into `[ln η_min, ln η]`, recomputing both
-bounds per call as the Rust constructor does. -/
+bounds per call. -/
 @[inline]
 def logStepSet (c : SwiftCfg) (beta : Float32) : Float32 :=
   let lo := ln32 (Float32.ofBits c.etaMin)
@@ -334,9 +331,8 @@ private def firstLoopGo (delta vDeltaArg traceDecay : Float32)
 
 /-- `SwiftTd::learn_first_loop`. The per-element pure constants — the meta
 step size, pruning ε, projection horizon, β saturation bounds and the
-re-anchor value — are computed once per invocation; the Rust source
-recomputes them per element with identical results (they are pure functions
-of the fixed configuration). -/
+re-anchor value — are computed once per invocation as pure functions of the
+fixed configuration. -/
 def learnFirstLoop (td : SwiftTd) (delta vDeltaArg traceDecay : Float32) : SwiftTd :=
   let ⟨cfg, w, beta, z, zDelta, deltaW, h, hOld, hTemp, zBar, p, lastAlpha,
        eligible, vD, vO⟩ := td

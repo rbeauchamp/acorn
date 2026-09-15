@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import AcornTools.VerificationProfile
+import Lean
 
 /-! # Maintained ownership obligations
 
@@ -19,7 +19,7 @@ namespace AcornOwnership
 open Lean
 
 /-- All reviewed maintained modules; filesystem discovery rejects missing or extra owners. -/
-def allModules : Array Name := #[
+def modules : Array Name := #[
   `AcornTools,
   `Acorn, `Acorn.Admission, `Acorn.AgentDriver,
   `Acorn.Arithmetic, `Acorn.Average, `Acorn.Control,
@@ -61,20 +61,17 @@ def allModules : Array Name := #[
   `Acorn.SwiftTd, `Acorn.SwiftTdDriver, `Acorn.Temporal,
   `Acorn.TemporalDriver, `Acorn.Word, `Acorn.WorldDriver,
   `AcornSpec, `AcornSpec.Agent, `AcornSpec.AgentBaseline,
-  `AcornSpec.AgentBaselineAcceptance, `AcornSpec.AgentBaselineMain, `AcornSpec.AverageRewardControl,
-  `AcornSpec.AverageRewardControlMain, `AcornSpec.Collapse, `AcornSpec.Constants,
-  `AcornSpec.DerivedExplorationRate, `AcornSpec.DerivedExplorationRateMain, `AcornSpec.Exploration,
+  `AcornSpec.AgentBaselineAcceptance, `AcornSpec.AverageRewardControl,
+  `AcornSpec.Collapse, `AcornSpec.Constants,
+  `AcornSpec.DerivedExplorationRate, `AcornSpec.Exploration,
   `AcornSpec.FeatureSpace, `AcornSpec.Features, `AcornSpec.Float,
-  `AcornSpec.HistoricalEncoding, `AcornSpec.IntraOptionCredit, `AcornSpec.IntraOptionCreditMain,
-  `AcornSpec.Learner, `AcornSpec.MachineWords, `AcornSpec.Probe,
+  `AcornSpec.HistoricalEncoding, `AcornSpec.IntraOptionCredit,
+  `AcornSpec.Learner, `AcornSpec.MachineWords,
   `AcornSpec.Rng, `AcornSpec.Rows, `AcornSpec.Sarsa,
-  `AcornSpec.Solvability, `AcornSpec.StompPlanning, `AcornSpec.StompPlanningMain,
+  `AcornSpec.Solvability, `AcornSpec.StompPlanning,
   `AcornSpec.StudySchedule, `AcornSpec.StudySchema, `AcornSpec.World, `AcornSpec.WorldSchema,
-  `AcornStudy, `AcornStudy.Admission, `AcornStudy.Archive,
-  `AcornStudy.Comparisons, `AcornStudy.Dossier, `AcornStudy.Files,
-  `AcornStudy.GitEvidence, `Acorn.Json, `AcornStudy.Main,
-  `AcornStudy.Publication, `AcornStudy.Provenance, `AcornStudy.Registration, `AcornStudy.Run,
-  `AcornStudy.Schema, `AcornStudy.SourcePackage, `AcornVerif,
+  `Acorn.Json,
+  `AcornVerif,
   `AcornVerif.AgreementLifecycle, `AcornVerif.AgreementInterpretation, `AcornVerif.AgreementPrecision,
   `AcornVerif.AgreementReturn, `AcornVerif.AgreementTelemetryPrecision, `AcornVerif.CurrentAgreement,
   `AcornVerif.AgentBaselineSemantics, `AcornVerif.AverageReward, `AcornVerif.AverageRewardControlSemantics,
@@ -94,53 +91,36 @@ def allModules : Array Name := #[
   `AcornVerif.Generated, `AcornVerif.MetaGradient, `AcornVerif.Options,
   `AcornVerif.Outcome, `AcornVerif.Performance, `AcornVerif.Projection,
   `AcornVerif.Retirement, `AcornVerif.Rng, `AcornVerif.StepSize,
-  `AcornVerif.StudyAdmission, `AcornVerif.StudyCompatibility, `AcornVerif.TemporalSupport,
+  `AcornVerif.StudyCompatibility, `AcornVerif.TemporalSupport,
   `AcornVerif.Traces, `AcornVerif.WorldGoals, `Bootstrap,
-  `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Corpus.Studies, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Gate, `AcornTools.ModuleInventory,
+  `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Gate, `AcornTools.ModuleInventory,
   `NativeApp, `NativeApp.Assets, `NativeApp.BrowserKernel,
-  `NativeResearch.AverageWorker, `NativeResearch.AverageCommand, `NativeResearch.ScientificTime, `NativeResearch.EnduranceCommand,
-  `NativeApp.Build, `NativeApp.Core, `NativeApp.Main, `NativeResearch, `NativeResearch.Build, `NativeResearch.Main, `NativeApp.Report, `NativeApp.MutationAudit,
-  `Acorn.Host.Viewer.NativeResources, `NativeResearch.ExecutionIdentity, `NativeResearch.StudyCommand, `Acorn.Host.Study, `AcornTools.Native.Audit,
+  `NativeApp.Build, `NativeApp.Core, `NativeApp.Main, `NativeApp.Report, `NativeApp.MutationAudit,
+  `Acorn.Host.Viewer.NativeResources, `Acorn.Host.Study, `AcornTools.Native.Audit,
   `AcornVerif.Resource.WordKernel,
   `AcornTools.Native.Resources, `AcornTools.Native.Routes, `NativeApp.Viewer, `AcornTools.Ownership,
-  `AcornTools.OwnershipAudit, `AcornTools.TheoremCount, `AcornTools.VerificationProfile, `AcornTools.Corpus.Publication
+  `AcornTools.OwnershipAudit, `AcornTools.TheoremCount
 ]
 
-/-- Complete module inventory for the explicitly selected source profile. -/
-def modules : Array Name := allModules.filter AcornVerificationProfile.selected
-
 /-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/
-def allExecutables : Array (String × Name) := #[
-  ("publication-audit", `AcornTools.Corpus.Publication),
-  ("study-tool", `AcornStudy.Main),
-  ("specprobe", `AcornSpec.Probe),
+def executables : Array (String × Name) := #[
   ("swifttd-native", `Acorn.SwiftTdDriver),
   ("feature-native", `Acorn.FeatureDriver),
   ("control-native", `Acorn.ControlDriver),
   ("temporal-native", `Acorn.TemporalDriver),
   ("agent-native", `Acorn.AgentDriver),
   ("acorn-core", `NativeApp.Main),
-  ("acorn-research", `NativeResearch.Main),
   ("acorn-viewer", `NativeApp.Viewer),
   ("browser-kernel", `NativeApp.BrowserKernel),
   ("checkpoint-native", `Acorn.Host.CheckpointDriver),
   ("world-native", `Acorn.WorldDriver),
-  ("agent-baseline", `AcornSpec.AgentBaselineMain),
   ("theorem-count", `AcornTools.TheoremCount),
   ("lean-boundary-audit", `AcornTools.Boundary.Main),
   ("native-audit", `AcornTools.Native.Audit),
-  ("intra-option-credit", `AcornSpec.IntraOptionCreditMain),
-  ("derived-exploration-rate", `AcornSpec.DerivedExplorationRateMain),
-  ("stomp-planning", `AcornSpec.StompPlanningMain),
-  ("average-reward-control", `AcornSpec.AverageRewardControlMain),
   ("ownership-audit", `AcornTools.OwnershipAudit),
   ("corpus-audit", `AcornTools.Corpus.Main),
-  ("study-corpus-audit", `AcornTools.Corpus.Studies),
   ("acorn-gates", `AcornTools.Gate)
 ]
-
-/-- Every selected native entry retains its Lake and compiled ownership checks. -/
-def executables : Array (String × Name) := allExecutables.filter (fun entry => AcornVerificationProfile.selected entry.2)
 
 /-- Required composition statements must retain their actual execution references.
 These are critical entry/transition obligations, not a quota or a claim that
@@ -176,15 +156,12 @@ def anchors : Array (Name × Name × Name) := #[
 /-- Required native entry dependencies after proof erasure. These are routing
 obligations; the IR graph alone does not prove control-flow or argument semantics.
 Erased ANSI and checksum parameters select the compiler's reduced-arity owners. -/
-def allEntryUses : Array (Name × Array Name) := #[
-  (`AcornTools.Corpus.Publication, #[`AcornPublication.audit]),
+def entryUses : Array (Name × Array Name) := #[
   (`NativeApp.Main, #[`NativeApp.streamingOptions, `Acorn.Host.Viewer.runNativeCampaign,
     `Acorn.Host.StopFlag.withCommands._redArg,
     `Acorn.Handcrafted.Agent.callbacks, `Acorn.Checkpoint.Store.hooks,
     `Acorn.Host.runAnsi._redArg, `Acorn.Host.agentChecksum._redArg, `NativeApp.runMutationAudit,
     `NativeApp.AuditArm.construction]),
-  (`NativeResearch.Main, #[`NativeResearch.run, `NativeApp.runStudyCommand, `NativeApp.runExecutionIdentity, `NativeApp.runEndurance,
-    `NativeApp.Average.run, `NativeApp.Average.runWorker, `Acorn.Host.Study.run]),
   (`NativeApp.Viewer, #[`NativeApp.runViewer, `Acorn.Host.Viewer.ViewerOptions.decode,
     `Acorn.Host.Viewer.Supervisor.new, `Acorn.Host.Viewer.Supervisor.step]),
   (`NativeApp.BrowserKernel, #[`Acorn.Host.Viewer.browserKernelJavascript]),
@@ -195,23 +172,12 @@ def allEntryUses : Array (Name × Array Name) := #[
   (`Acorn.AgentDriver, #[`Acorn.AgentDriver.execute]),
   (`Acorn.WorldDriver, #[`Acorn.WorldDriver.execute]),
   (`Acorn.Host.CheckpointDriver, #[`Acorn.Host.CheckpointDriver.dispatch]),
-  (`AcornStudy.Main, #[`AcornStudy.command]),
-  (`AcornSpec.Probe, #[`AcornSpec.Probe.probeSpec]),
-  (`AcornSpec.AgentBaselineMain, #[`AcornSpec.collapseResult]),
-  (`AcornSpec.IntraOptionCreditMain, #[`AcornSpec.intraOptionCreditResult]),
-  (`AcornSpec.DerivedExplorationRateMain, #[`AcornSpec.derivedExplorationRateResult]),
-  (`AcornSpec.StompPlanningMain, #[`AcornSpec.stompPlanningResult]),
-  (`AcornSpec.AverageRewardControlMain, #[`AcornSpec.AverageRewardControl.analyze]),
   (`AcornTools.Boundary.Main, #[`AcornBoundaryAudit.command]),
   (`AcornTools.TheoremCount, #[`AcornTheoremCount.inventory]),
   (`AcornTools.Native.Audit, #[`AcornNativeAudit.audit]),
   (`AcornTools.OwnershipAudit, #[`AcornOwnershipAudit.compiled]),
   (`AcornTools.Corpus.Main, #[`AcornCorpus.check]),
-  (`AcornTools.Corpus.Studies, #[`AcornStudyCorpus.check, `AcornCorpus.check, `AcornStudy.discover]),
   (`AcornTools.Gate, #[`AcornGate.verify])
 ]
-
-/-- Profile selection preserves every retained native entry obligation. -/
-def entryUses : Array (Name × Array Name) := allEntryUses.filter (fun entry => AcornVerificationProfile.selected entry.1)
 
 end AcornOwnership

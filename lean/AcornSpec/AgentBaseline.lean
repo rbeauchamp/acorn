@@ -8,19 +8,18 @@ import AcornSpec.Agent
 import AcornSpec.StudySchema
 
 /-!
-# Executable specification: the agent-baseline study protocol
+# Executable specification: the agent-baseline protocol
 
-Retained discounted evaluator for the five historical arms and their shared
-opportunity loop. StudySchema owns the maintained row types and frozen protocol
-constants consumed by replay-free calculators. This module supplies the legacy
-reflection emitter and action-fold diagnostic, not current Rust correspondence.
-Its exact historical Rust equivalence has not been established.
+Discounted evaluator for five arms with a shared opportunity loop. `StudySchema`
+owns the row types and fixed protocol constants used by the analysis definitions.
+This evaluator specifies its own transitions; correspondence to any observed
+execution requires separate evidence.
 
-The declared loop carries one world/agent stream per (seed, arm), carries
-inventory across attempts/goals/cycles, sets a goal once per occurrence, and
-ends an attempt at 4,000 steps or achievement. Its action fold uses the generated
-historical `Constants.Compatibility.Domain.actionFold` identity. Equality of a
-fold is a lossy observation and cannot establish transition equivalence.
+The loop carries one world/agent stream per (seed, arm), carries inventory across
+attempts, goals and cycles, sets a goal once per occurrence, and ends an attempt
+at 4,000 steps or achievement. Its action fold uses the
+`Constants.Compatibility.Domain.actionFold` identity. Fold equality is a lossy
+observation and cannot establish transition equivalence.
 -/
 
 namespace AcornSpec

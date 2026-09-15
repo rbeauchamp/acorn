@@ -7,32 +7,23 @@ import AcornSpec.Constants
 import AcornSpec.MachineWords
 
 /-!
-# Executable specification: platform-identical float vocabulary
+# Executable specification: float operations
 
-Mirrors the float operations the Rust study path is allowed to use. Acorn's
-own discipline (`clippy.toml` bans every libm-backed method; `src/float.rs`
-builds `exp`/`ln`/`pow` from IEEE-required primitives) restricts the system to
-exactly the subset Lean v4.33's bit-level kernel float model specifies —
-`add/sub/mul/div/neg`, comparisons, `ofBits/toBits`, and the integer→float
-conversions. The remaining Rust vocabulary (width conversions, `floor`, the
-saturating `as` casts) is **defined here from those modeled primitives by bit
-manipulation**, so no opaque float operation appears anywhere in `AcornSpec`:
-every arithmetic step of the specified system has machine-independent kernel
-meaning.
+The model uses Lean's bit-level meaning for primitive arithmetic, comparisons,
+bit reinterpretation and integer conversions. Width conversions, floor and
+saturating casts are defined below by bit manipulation:
 
-Rust semantics mirrored exactly:
+- exact binary32-to-binary64 widening;
+- nearest-even narrowing, with canonical quiet NaN for NaN inputs;
+- rounding toward negative infinity for floor;
+- float-to-integer conversion that maps NaN to zero, truncates and saturates;
+- nearest-even integer-to-float conversion;
+- maximum that returns the other operand for NaN and positive zero for mixed zeros.
 
-- `f64::from(f32)` — exact widening (`widen`);
-- `x as f32` on `f64` — round-to-nearest-even narrowing (`narrow`);
-- `f32::floor` / `f64::floor` — round toward −∞ (`floor32`, `floor64`);
-- float→integer `as` casts — NaN ↦ 0, truncate toward zero, saturate at the
-  target range (`rustF64toI32` and friends);
-- integer→float `as` casts — round to nearest, even ties (delegated to the
-  modeled `UInt64.toFloat32`/`UInt64.toFloat` with a sign symmetry for the
-  signed cases);
-- `f32::max` — IEEE maxNum as this platform's `fmaxnm` computes it: a NaN
-  operand yields the other, and a `(+0, −0)` pair yields `+0`;
-- `Portable::{exp, ln, pow}` — transcribed from `src/float.rs` line by line.
+Local exponential, logarithm and integer-power recipes compose these operations.
+Their bit-level definitions specify this model; equivalence to platform-native
+operations, NaN payload behavior and ideal transcendental accuracy require
+separate correspondence arguments.
 -/
 
 namespace AcornSpec
@@ -47,7 +38,7 @@ def f32InfBits : UInt32 := 0x7F800000
 def f32Inf : Float32 := Float32.ofBits f32InfBits
 /-- `f32::NEG_INFINITY`. -/
 def f32NegInf : Float32 := Float32.ofBits 0xFF800000
-/-- `f32::NAN` (Rust's quiet-NaN constant bits). -/
+/-- Canonical binary32 quiet-NaN bits. -/
 def f32NaN : Float32 := Float32.ofBits 0x7FC00000
 /-- `0.0f32`. -/
 def f32zero : Float32 := Float32.ofBits 0
@@ -63,14 +54,14 @@ def natF32 (n : Nat) : Float32 := UInt64.toFloat32 n.toUInt64
 @[inline]
 def natF64 (n : Nat) : Float := UInt64.toFloat n.toUInt64
 
-/-- Rust `x as f32` on an `i64`: round to nearest, ties to even. Negative
+/-- Signed 64-bit integer to binary32 conversion: round to nearest, ties to even. Negative
 values go through the sign symmetry of round-to-nearest. -/
 @[inline]
 def i64ToF32 (n : Int) : Float32 :=
   if 0 ≤ n then UInt64.toFloat32 n.toNat.toUInt64
   else Float32.neg (UInt64.toFloat32 (-n).toNat.toUInt64)
 
-/-- Rust `f64::from(k)` on an `i32`-ranged integer: exact. -/
+/-- Binary64 conversion of a signed 32-bit integer: exact. -/
 @[inline]
 def intToF64 (n : Int) : Float :=
   if 0 ≤ n then UInt64.toFloat n.toNat.toUInt64
@@ -78,7 +69,7 @@ def intToF64 (n : Int) : Float :=
 
 /-! ## Width conversions from the bit model -/
 
-/-- Exact `f32 → f64` widening — Rust's `f64::from(x)`. Defined from
+/-- Exact `f32 → f64` widening. Defined from
 `toBits`/`ofBits` alone: normals rebias, subnormals normalize (every `f32`
 subnormal is an `f64` normal), infinities and NaNs keep their class and
 payload. -/
@@ -100,11 +91,9 @@ def widen (x : Float32) : Float :=
   else
     Float.ofBits (sign ||| ((e.toUInt64 + 896) <<< 52) ||| (f <<< 29))
 
-/-- Round-to-nearest-even `f64 → f32` narrowing — Rust's `x as f32`. Defined
+/-- Round-to-nearest-even `f64 → f32` narrowing. Defined
 from the bit model, in fixed-width arithmetic. NaN input yields the
-canonical quiet NaN (the payload a NaN narrowing carries is unobservable on
-the study path: no NaN is ever narrowed there, and payloads never reach a
-decision). -/
+canonical quiet NaN. -/
 def narrow (y : Float) : Float32 :=
   let b := y.toBits
   let sign32 : UInt32 := ((b >>> 63).toUInt32) <<< 31
@@ -145,7 +134,7 @@ def narrow (y : Float) : Float32 :=
 
 /-! ## Floor and the saturating casts -/
 
-/-- Rust `f64::floor`: round toward −∞. Defined from the bit model. -/
+/-- Binary64 floor: round toward −∞. Defined from the bit model. -/
 def floor64 (y : Float) : Float :=
   let b := y.toBits
   let e : UInt64 := (b >>> 52) &&& 0x7FF
@@ -163,7 +152,7 @@ def floor64 (y : Float) : Float :=
       else if b >>> 63 == 1 then Float.ofBits ((b &&& (~~~mask)) + (mask + 1))
       else Float.ofBits (b &&& (~~~mask))
 
-/-- Rust `f32::floor`: round toward −∞. -/
+/-- Binary32 floor: round toward −∞. -/
 def floor32 (x : Float32) : Float32 :=
   let b := x.toBits
   let e : UInt32 := (b >>> 23) &&& 0xFF
@@ -207,7 +196,7 @@ def truncF32 (x : Float32) : Int :=
       else ((S >>> (23 - E).toNat.toUInt32).toNat : Int)
     if b >>> 31 == 1 then -mag else mag
 
-/-- Rust `x as i32` on `f64`: NaN ↦ 0, truncate toward zero, saturate. -/
+/-- Binary64 to signed 32-bit integer: NaN ↦ 0, truncate toward zero, saturate. -/
 def rustF64toI32 (y : Float) : Int :=
   if y.isNaN then 0
   else if y.isInf then (if y < f64zero then -2147483648 else 2147483647)
@@ -217,7 +206,7 @@ def rustF64toI32 (y : Float) : Int :=
     else if t < -2147483648 then -2147483648
     else t
 
-/-- Rust `x as i64` on `f32`: NaN ↦ 0, truncate toward zero, saturate. -/
+/-- Binary32 to signed 64-bit integer: NaN ↦ 0, truncate toward zero, saturate. -/
 def rustF32toI64 (x : Float32) : Int :=
   if x.isNaN then 0
   else if x.isInf then
@@ -228,7 +217,7 @@ def rustF32toI64 (x : Float32) : Int :=
     else if t < -9223372036854775808 then -9223372036854775808
     else t
 
-/-- Rust `x as u8` on `f32`: NaN ↦ 0, truncate toward zero, saturate to
+/-- Binary32 to unsigned 8-bit integer: NaN ↦ 0, truncate toward zero, saturate to
 `[0, 255]`. -/
 def rustF32toU8 (x : Float32) : UInt8 :=
   if x.isNaN then 0
@@ -237,7 +226,7 @@ def rustF32toU8 (x : Float32) : UInt8 :=
     let t := truncF32 x
     if t ≤ 0 then 0 else if t ≥ 255 then 255 else t.toNat.toUInt8
 
-/-- Rust `x as u32` on `f64`: NaN ↦ 0, truncate toward zero, saturate to
+/-- Binary64 to unsigned 32-bit integer: NaN ↦ 0, truncate toward zero, saturate to
 `[0, 2³² − 1]`. -/
 def rustF64toU32 (y : Float) : UInt32 :=
   if y.isNaN then 0
@@ -246,14 +235,12 @@ def rustF64toU32 (y : Float) : UInt32 :=
     let t := truncF64 y
     if t ≤ 0 then 0 else if t ≥ 4294967295 then 0xFFFFFFFF else t.toNat.toUInt32
 
-/-- Rust `f32::is_finite`: neither NaN nor infinite. -/
+/-- Binary32 finiteness: neither NaN nor infinite. -/
 @[inline]
 def isFinite32 (x : Float32) : Bool := !x.isNaN && !x.isInf
 
-/-- Rust `f32::max` as this platform computes it (`fmaxnm`): a NaN operand
-yields the other operand, and a `(+0, −0)` pair yields `+0`. Values on the
-study path never present the signed-zero pair (predictions are `+0`-seeded
-sums), so only the IEEE maxNum half is ever exercised. -/
+/-- Binary32 maximum: a NaN operand yields the other operand, and a
+`(+0, −0)` pair yields `+0`. -/
 @[inline]
 def rustMax32 (a b : Float32) : Float32 :=
   if a.isNaN then b
@@ -262,7 +249,7 @@ def rustMax32 (a b : Float32) : Float32 :=
   else if b < a then a
   else if a.toBits >>> 31 == 1 then b else a
 
-/-- Rust `y as i32` as its two's-complement `u64` image, in fixed-width
+/-- Signed 32-bit conversion as its two's-complement `u64` image, in fixed-width
 arithmetic. The common path (|y| < 2³¹) never allocates; NaN, infinities and
 saturation delegate to `rustF64toI32`, whose semantics this agrees with
 everywhere. -/
@@ -282,19 +269,19 @@ def f64toI32Wrapped (y : Float) : UInt64 :=
 def i32WrappedToF64 (kb : UInt64) : Float :=
   if kb >>> 63 == 1 then Float.neg (UInt64.toFloat (0 - kb)) else UInt64.toFloat kb
 
-/-! ## `Portable` — `src/float.rs` transcribed -/
+/-! ## Local exponential, logarithm and integer power -/
 
-/-- `float.rs LN2_HI`. -/
+/-- High part of ln 2. -/
 def ln2Hi : Float := Float.ofBits ln2HiBits
-/-- `float.rs LN2_LO`. -/
+/-- Low part of ln 2. -/
 def ln2Lo : Float := Float.ofBits ln2LoBits
 /-- `core::f64::consts::LOG2_E`. -/
 def log2e : Float := Float.ofBits log2eBits
 /-- `core::f64::consts::SQRT_2`. -/
 def sqrt2 : Float := Float.ofBits sqrt2Bits
-/-- `float.rs EXP_OVERFLOW` (89.0f32). -/
+/-- Exponential overflow threshold (89.0f32). -/
 def expOverflow : Float32 := Float32.ofBits expOverflowBits
-/-- `float.rs EXP_UNDERFLOW` (−104.0f32). -/
+/-- Exponential underflow threshold (−104.0f32). -/
 def expUnderflow : Float32 := Float32.ofBits expUnderflowBits
 /-- `0.5f64` (the rounding half of `exp32`'s reduction). -/
 def half64 : Float := Float.ofBits 0x3FE0000000000000
@@ -303,9 +290,7 @@ def negHalf64 : Float := Float.ofBits 0xBFE0000000000000
 /-- `0.5f64` again under the mantissa-centring name `ln32` uses. -/
 def pointFive64 : Float := Float.ofBits 0x3FE0000000000000
 
-/-- `float.rs EXP_TAYLOR[0] = 1/10!` — the exact correctly-rounded `f64`
-quotient the Rust constant expression folds to (the divisions here are the
-same IEEE divisions rustc performs at compile time). -/
+/-- `EXP_TAYLOR[0] = 1/10!` as a rounded binary64 division. -/
 def expC0 : Float := natF64 1 / natF64 3628800
 /-- `1/9!`. -/
 def expC1 : Float := natF64 1 / natF64 362880
@@ -326,7 +311,7 @@ def expC8 : Float := natF64 1 / natF64 2
 /-- The linear and constant Taylor terms. -/
 def expC9 : Float := natF64 1
 
-/-- `float.rs LN_SERIES` entries, highest power first — exact quotients. -/
+/-- Logarithm series entries, highest power first — exact quotients. -/
 def lnC0 : Float := natF64 1 / natF64 15
 /-- `1/13`. -/
 def lnC1 : Float := natF64 1 / natF64 13
@@ -343,15 +328,14 @@ def lnC6 : Float := natF64 1 / natF64 3
 /-- The final series term. -/
 def lnC7 : Float := natF64 1
 
-/-- `float.rs exp2i`: `2^k` as an exact `f64` via the exponent field, over
-the two's-complement image of `k`. Total; on the reduction range
-`k ∈ [−151, 129]` it is the Rust expression bit for bit (the wrapping add
-mirrors `(k + 1023) as u64`). -/
+/-- `2^k` via the binary64 exponent field, over the two's-complement
+image of `k`. On the reduction range `k ∈ [−151, 129]`, adding the bias 1023
+selects the exact normal exponent. -/
 @[inline]
 def exp2i (kb : UInt64) : Float :=
   Float.ofBits ((kb + 1023) <<< 52)
 
-/-- `float.rs exp32` — `e^x` for `f32`, evaluated in `f64`. -/
+/-- Local exponential approximation — `e^x` for `f32`, evaluated in `f64`. -/
 def exp32 (x : Float32) : Float32 :=
   if x.isNaN then x
   else if expOverflow ≤ x then f32Inf
@@ -377,7 +361,7 @@ def exp32 (x : Float32) : Float32 :=
     let poly := poly * rem + expC9
     narrow (poly * exp2i kb)
 
-/-- `float.rs ln32` — `ln x` for `f32`, evaluated in `f64`. -/
+/-- Local logarithm approximation — `ln x` for `f32`, evaluated in `f64`. -/
 def ln32 (x : Float32) : Float32 :=
   if x.isNaN || x < f32zero then f32NaN
   else if x == f32zero then f32NegInf
@@ -407,8 +391,7 @@ def ln32 (x : Float32) : Float32 :=
     narrow (exponent * ln2Hi + (exponent * ln2Lo + lnMantissa))
 
 /-- Binary-exponentiation loop of `pow32`, structurally on a 32-step fuel —
-one step per bit of a `u32` exponent, exiting exactly where the Rust
-`while remaining > 0` loop exits. -/
+one step per bit of a `u32` exponent, stopping when the remaining exponent is zero. -/
 def pow32Go (acc squared : Float) (remaining : UInt32) : Nat → Float
   | 0 => acc
   | fuel + 1 =>
@@ -417,7 +400,7 @@ def pow32Go (acc squared : Float) (remaining : UInt32) : Nat → Float
       let acc := if remaining &&& 1 == 1 then acc * squared else acc
       pow32Go acc (squared * squared) (remaining >>> 1) fuel
 
-/-- `float.rs pow32` — `base^exp` for a non-negative integer exponent, by
+/-- Integer power — `base^exp` for a non-negative integer exponent, by
 squaring, accumulated in `f64`. -/
 def pow32 (base : Float32) (exp : UInt32) : Float32 :=
   narrow (pow32Go (natF64 1) (widen base) exp 32)

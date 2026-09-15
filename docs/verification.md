@@ -91,8 +91,7 @@ checked declarations. Every proof passes through the kernel.
 Acorn's current executable definitions are under lean/Acorn.
 The AcornVerif modules import the definitions they verify. AcornSpec contains
 mathematical/specification definitions used by proofs, including pure analysis
-semantics. AcornStudy retains shared schema/admission contracts used by proofs.
-
+semantics.
 
 Each theorem's actual type owns its domain, hypotheses and guarantee. Binary32
 and Binary64 proofs concern admitted finite words or explicitly stated conversion
@@ -103,13 +102,11 @@ reviewed build/gate tools, cryptographic tools and OS remain trusted boundaries.
 
 ## Build and source inventory
 
-The mandatory `verification-profile` file selects the source inventory checked
-by the build tools. This is separate from the runtime `--research-profile`, which
-selects agent mechanisms. Keep its checked-in value, **public**.
-Invalid or missing profiles fail before Lake. The inventory includes all
-shared application/proof owners, native resource/route/flag admission, browser
-byte generation, corpus and declaration checks. Missing files never select a
-smaller suite.
+The build tools check one explicit source inventory, including every shared
+application/proof owner and native entry. Runtime `--research-profile` selects
+agent mechanisms; it does not change verification. Resource, route and compiler
+flag admission, browser byte generation, corpus and declaration checks always
+run. Missing files fail admission.
 
 Numerical proofs use the executing Lean definitions. Native admission checks
 their compiler IR, primitive calls, resource contracts and compiler flags.

@@ -10,10 +10,9 @@ import AcornSpec.Constants
 /-!
 # Executable local exponential, logarithm and integer power
 
-The constants-only generated module links the retained Rust owner during
-migration; no Rust executable is called. Arithmetic and conversions are the
-current definitions in `Acorn`, not the historical evaluator. Each polynomial
-is an ordered Horner fold with separate primitive rounding boundaries.
+Arithmetic and conversions use the executable definitions in `Acorn`. Each
+polynomial is an ordered Horner fold with separate primitive rounding boundaries;
+coefficients come from the shared `AcornSpec.Constants` interface.
 
 These are approximation recipes, not opaque transcendental functions. Their
 ideal-function errors and the native primitive correspondence remain separate

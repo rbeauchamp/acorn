@@ -6,13 +6,11 @@ Authors: acorn contributors
 import AcornSpec.IntraOptionCredit
 
 /-!
-# The registered stomp-planning result functional, in exact rationals
+# stomp-planning analysis in exact rationals
 
-This module owns the stomp-planning study's statistics. Its dossier
-preserves the protocol, registration materials and timing limitations.
-`lake exe stomp-planning <rows-dir> <original-manifest.json>` evaluates
-this definition over the recorded rows. That is an ordinary calculator
-execution, not a kernel proof of the numerical result or a historical rerun.
+This module defines the stomp-planning comparison over explicit paired rows.
+The functions below specify its reductions and thresholds; the caller supplies
+the observations and their provenance.
 
 Everything statistical is the agent-baseline registered machinery reused
 verbatim — `occScore`, `commonPrimary`, `stratifiedScore`, `winCredit`,
@@ -24,7 +22,7 @@ twins carry. There are two registered differences from derived-exploration-rate:
   `Constants.Compatibility.Domain.stompPlanningBootstrap.value` at the same base seed;
 - the thresholded conjunction is over final vs
   `ablated_hand_authored_subtasks` (the primary ablation: the incumbent
-  hand-authored spatial regions in `src/handcrafted/subtasks.rs`),
+  hand-authored spatial regions),
   final vs frozen and final vs random. The `ablated_temporal_abstraction`
   comparison and the continual-improvement lower bound are computed and
   reported as registered observational values with no threshold.
