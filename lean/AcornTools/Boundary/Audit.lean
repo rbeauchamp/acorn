@@ -23,13 +23,12 @@ open Lean
 /-- Explicit composition roots may join learned and declared code. -/
 def compositionRoots : Array Name := #[`Acorn, `Acorn.SwiftTdDriver, `Acorn.FeatureDriver, `Acorn.WorldDriver, `Acorn.ControlDriver, `Acorn.TemporalDriver, `Acorn.AgentDriver]
 
-/-- Current sources, including the generated constant leaf they import. -/
+/-- Executing application sources and their shared constant leaf. -/
 def governed (name : Name) : Bool := (`Acorn).isPrefixOf name ||
-  (`NativeApp).isPrefixOf name || name == `AcornSpec.Constants || name == `AcornSpec.StudySchedule
+  (`NativeApp).isPrefixOf name
 
-/-- Mathematical proofs and retained calculators have separate import admission. -/
-def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name ||
-  ((`AcornSpec).isPrefixOf name && name != `AcornSpec.Constants && name != `AcornSpec.StudySchedule)
+/-- Mathematical proofs have separate import admission. -/
+def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name
 
 /-- Native entry/resource owners are checked as host code, never learned algorithms. -/
 def nativeBootstrap (name : Name) : Bool := (`NativeApp).isPrefixOf name
@@ -49,14 +48,12 @@ def importAllowed (owner imported : Name) : Bool :=
   if (`Init).isPrefixOf imported then true
   else if proofOwner owner then
     !#[`Mathlib, `Mathlib.Tactic].contains imported &&
-      #[`Acorn, `AcornVerif, `AcornSpec, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported)
+      #[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported)
   else if nativeBootstrap owner then
-    (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported ||
-      imported == `AcornSpec.Constants || imported == `AcornSpec.StudySchedule
+    (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
+  else if owner == `Acorn.Constants then false
   else if (`Std).isPrefixOf imported then
     (`Acorn.Host).isPrefixOf owner || compositionRoots.contains owner
-  else if owner == `AcornSpec.Constants || owner == `AcornSpec.StudySchedule then false
-  else if imported == `AcornSpec.Constants || imported == `AcornSpec.StudySchedule then true
   else if !(`Acorn).isPrefixOf imported then false
   else if learned owner then learned imported else true
 

@@ -115,7 +115,8 @@ MIT licensed; see [LICENSE](LICENSE). Dependencies retain their own licenses.
 
 ## Lean package layout
 
-The `lean/` package contains application modules in `Acorn/`, specifications in
-`AcornSpec/`, proofs in `AcornVerif/`, and build/verification tools in
+The `lean/` package contains the executing agent and its proof-bearing definitions
+in `Acorn/`, implementation contracts and supporting mathematics in `AcornVerif/`,
+and build/verification tools in
 `AcornTools/`. Native entry points live in `NativeApp/`; its `Viewer.lean` module
 starts the viewer. `Bootstrap.lean` is the directly invoked build bootstrap.

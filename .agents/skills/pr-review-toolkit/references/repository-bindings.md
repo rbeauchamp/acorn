@@ -10,13 +10,13 @@ audit mutations. In this repository those categories have concrete owners:
 | Typed invariant / compiler refinement | current proof-bearing Lean state, private construction and typed admission | `./scripts/lean.sh build acorn-core acorn-viewer`; the complete suite checks every discovered module |
 | Deterministic audit mutation | `Acorn.Host.AuditPins` and printed pin/checksum pairs | explicit `./scripts/verify.sh diagnostics` runs the derived, annealed and differential arms; a moved digest on a semantics-preserving change is a finding, not a re-pin |
 | Gate tamper-sensitivity | actual changed Lean gate owner | use a disposable missing-owner, bypass or stale-dependency mutation where it bears on the changed admission contract; restore before the final pass |
-| Constant identity | direct imports of owning constants; `AcornVerif.CurrentConstants` for the retained model interface | the complete Lean compiler and axiom checks; current constants have no cross-language emitter |
+| Constant identity | direct imports of owning constants; `AcornVerif.CurrentConstants` for the stated rational and dimensional interface | the complete Lean compiler and axiom checks; current constants have no cross-language emitter |
 
 Prospective scientific evidence follows
 [CONTRIBUTING](../../../../CONTRIBUTING.md#scientific-evidence), including protocol
 revisions, run identities, source/configuration provenance, observation retention,
-uncertainty and negative or inconclusive results. Shared specification and pure analysis definitions establish contracts over
-explicit inputs and hypotheses.
+uncertainty and negative or inconclusive results. Supporting mathematical definitions establish contracts over explicit inputs
+and hypotheses.
 The complete local merge command is `./scripts/verify.sh`. Optional mutation
 diagnostics use `./scripts/verify.sh diagnostics`; neither substitutes for proofs
 or constitutes a scientific study. Both modes retain the hard 300-second budget.

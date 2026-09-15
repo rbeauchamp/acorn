@@ -23,15 +23,8 @@ import AcornVerif.Rng
 import AcornVerif.StepSize
 import AcornVerif.Traces
 import AcornVerif.Retirement
-import AcornVerif.AgentBaselineSemantics
-import AcornVerif.StudyCompatibility
-import AcornVerif.Experiment
 import AcornVerif.WorldGoals
-import AcornVerif.Performance
-import AcornSpec.Features
-import AcornVerif.Outcome
 import AcornVerif.AverageReward
-import AcornVerif.AverageRewardControlSemantics
 import Acorn
 import AcornVerif.CurrentRng
 import AcornVerif.CurrentFloat
@@ -279,29 +272,6 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 /-- info: 'AcornVerif.option_model_terminal_discount_correction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms option_model_terminal_discount_correction
-
-/-- info: 'AcornVerif.historical_domain_identity' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms historical_domain_identity
-
-/-- info: 'AcornVerif.historical_stream_identity' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms historical_stream_identity
-
-/-- info: 'AcornVerif.historical_analysis_identity' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms historical_analysis_identity
-
-/-- info: 'AcornVerif.baseline_acceptance_flags' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms baseline_acceptance_flags
-
-/-- info: 'AcornVerif.baseline_acceptance_iff' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms baseline_acceptance_iff
 
 /-- info: 'AcornVerif.horizon_covers_true_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -607,102 +577,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms planning_weight_convex_step_bounded
 
-/-- info: 'AcornVerif.study_goal_cap_is_derived' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms study_goal_cap_is_derived
-
-/-- info: 'AcornVerif.study_seed_population_is_closed' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms study_seed_population_is_closed
-
-/-- info: 'AcornVerif.study_seed_population_is_nodup' does not depend on any axioms -/
-#guard_msgs in
-#print axioms study_seed_population_is_nodup
-
-/-- info: 'AcornVerif.study_arm_domain_is_closed' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms study_arm_domain_is_closed
-
-/-- info: 'AcornVerif.goal_efficiency_mem_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms goal_efficiency_mem_unit
-
-/-- info: 'AcornVerif.goal_efficiency_failure' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms goal_efficiency_failure
-
-/-- info: 'AcornVerif.reach_capped_time_failure' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms reach_capped_time_failure
-
-/-- info: 'AcornVerif.reach_capped_time_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms reach_capped_time_bounds
-
-/-- info: 'AcornVerif.goal_efficiency_antitone' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms goal_efficiency_antitone
-
-/-- info: 'AcornVerif.goal_efficiency_strict_antitone' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms goal_efficiency_strict_antitone
-
-/-- info: 'AcornVerif.primary_eligibility_symmetric' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms primary_eligibility_symmetric
-
-/-- info: 'AcornVerif.win_credit_mem_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms win_credit_mem_unit
-
-/-- info: 'AcornVerif.rational_sum_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms rational_sum_bounds
-
-/-- info: 'AcornVerif.rational_mean_mem_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms rational_mean_mem_unit
-
-/-- info: 'AcornVerif.stratified_score_mem_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms stratified_score_mem_unit
-
-/-- info: 'AcornVerif.every_arm_has_equal_opportunity' does not depend on any axioms -/
-#guard_msgs in
-#print axioms every_arm_has_equal_opportunity
-
-/-- info: 'AcornVerif.arm_semantics_match_rust' does not depend on any axioms -/
-#guard_msgs in
-#print axioms arm_semantics_match_rust
-
-/-- info: 'AcornVerif.frozen_is_exact_learning_ablation' does not depend on any axioms -/
-#guard_msgs in
-#print axioms frozen_is_exact_learning_ablation
-
-/-- info: 'AcornVerif.goal_relation_is_exact_ablation' does not depend on any axioms -/
-#guard_msgs in
-#print axioms goal_relation_is_exact_ablation
-
-/-- info: 'AcornVerif.temporal_abstraction_is_exact_ablation' does not depend on any axioms -/
-#guard_msgs in
-#print axioms temporal_abstraction_is_exact_ablation
-
-/-- info: 'AcornVerif.final_frozen_initialization_is_identical' does not depend on any axioms -/
-#guard_msgs in
-#print axioms final_frozen_initialization_is_identical
-
-/-- info: 'AcornVerif.agent_initialization_is_world_seed_independent' does not depend on any axioms -/
-#guard_msgs in
-#print axioms agent_initialization_is_world_seed_independent
-
-/-- info: 'AcornVerif.frozen_transition_preserves_learning' does not depend on any axioms -/
-#guard_msgs in
-#print axioms frozen_transition_preserves_learning
-
-/-- info: 'AcornVerif.structural_config_is_seed_independent' does not depend on any axioms -/
-#guard_msgs in
-#print axioms structural_config_is_seed_independent
-
 /-- info: 'AcornVerif.reach_remaining_zero_iff' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms reach_remaining_zero_iff
@@ -726,189 +600,6 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.chebyshev_reduces_when_x_reduces' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms chebyshev_reduces_when_x_reduces
-
-/-- info: 'AcornVerif.fieldwise_result_envelope_has_every_coordinate_combination' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms fieldwise_result_envelope_has_every_coordinate_combination
-
-/-- info: 'AcornVerif.agent_baseline_acceptance_iff_outcomes' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms agent_baseline_acceptance_iff_outcomes
-
-/-- info: 'AcornVerif.performance_certificate_sound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms performance_certificate_sound
-
-/-- info: 'AcornVerif.required_win_units_at_build' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms required_win_units_at_build
-
-/-- info: 'AcornVerif.paired_probability_threshold_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms paired_probability_threshold_iff
-
-/-- info: 'AcornVerif.study_max_transitions_at_build' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms study_max_transitions_at_build
-
-/-- info: 'AcornVerif.paired_point_futility' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms paired_point_futility
-
-/-- info: 'AcornVerif.paired_probability_futility' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms paired_probability_futility
-
-/-- info: 'AcornVerif.winCredit_eq_registered' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms winCredit_eq_registered
-
-/-- info: 'AcornVerif.tally_record_seeds' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms tally_record_seeds
-
-/-- info: 'AcornVerif.tally_record_credit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms tally_record_credit
-
-/-- info: 'AcornVerif.tally_foldl_seeds' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms tally_foldl_seeds
-
-/-- info: 'AcornVerif.tally_foldl_credit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms tally_foldl_credit
-
-/-- info: 'AcornVerif.tally_partitions' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms tally_partitions
-
-/-- info: 'AcornVerif.foldl_add_eq_sum' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms foldl_add_eq_sum
-
-/-- info: 'AcornVerif.tally_poi_eq_mean_credit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms tally_poi_eq_mean_credit
-
-/-- info: 'AcornVerif.pairedSummary_poi_is_tally' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms pairedSummary_poi_is_tally
--- The executable specification's own theorems (`AcornSpec/Features.lean`):
--- the unique pass, its packed-word mirror, and the equivalence between them.
-
-/-- info: 'AcornSpec.Featurizer.firstOccurrences_sublist' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.firstOccurrences_sublist
-
-/-- info: 'AcornSpec.Featurizer.firstOccurrences_not_mem_seen' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.firstOccurrences_not_mem_seen
-
-/-- info: 'AcornSpec.Featurizer.firstOccurrences_nodup' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.firstOccurrences_nodup
-
-/-- info: 'AcornSpec.Featurizer.wordOf_lt' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.wordOf_lt
-
-/-- info: 'AcornSpec.Featurizer.and_two_pow_ne_zero_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.and_two_pow_ne_zero_iff
-
-/-- info: 'AcornSpec.Featurizer.uint64_ne_zero_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.uint64_ne_zero_iff
-
-/-- info: 'AcornSpec.Featurizer.toNat_bitOf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.toNat_bitOf
-
-/-- info: 'AcornSpec.Featurizer.wordOf_eq_div' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.wordOf_eq_div
-
-/-- info: 'AcornSpec.Featurizer.seenBit_markSeen' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.seenBit_markSeen
-
-/-- info: 'AcornSpec.Featurizer.not_seenBit_replicate_zero' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.not_seenBit_replicate_zero
-
-/-- info: 'AcornSpec.Featurizer.foldl_uniqueStep_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.foldl_uniqueStep_eq
-
-/-- info: 'AcornSpec.Featurizer.uniqueIndices_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.uniqueIndices_eq
-
-/-- info: 'AcornSpec.Featurizer.uniqueIndices_nodup' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.uniqueIndices_nodup
-
-/-- info: 'AcornSpec.Featurizer.uniqueIndices_sublist' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.uniqueIndices_sublist
-
-/-- info: 'AcornSpec.Featurizer.mask_lt' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.mask_lt
-
-/-- info: 'AcornSpec.Featurizer.encodeWordsGo_lt' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.encodeWordsGo_lt
-
-/-- info: 'AcornSpec.Featurizer.encodeTilingsGo_lt' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.encodeTilingsGo_lt
-
-/-- info: 'AcornSpec.Featurizer.imprintPush_lt' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.imprintPush_lt
-
-/-- info: 'AcornSpec.Featurizer.imprintUnitsGo_lt' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.imprintUnitsGo_lt
-
-/-- info: 'AcornSpec.Featurizer.rawEncode_lt' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.rawEncode_lt
-
-/-- info: 'AcornSpec.Featurizer.encode_nodup' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.encode_nodup
-
-/-- info: 'AcornSpec.Featurizer.encode_sublist_raw' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornSpec.Featurizer.encode_sublist_raw
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.successes_le_length' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.successes_le_length
-/-- info: 'AcornVerif.AverageRewardControlSemantics.complete_goals_exposure' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.complete_goals_exposure
-/-- info: 'AcornVerif.AverageRewardControlSemantics.admitted_cycle_exposure' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.admitted_cycle_exposure
-/-- info: 'AcornVerif.AverageRewardControlSemantics.admitted_cycle_latency' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.admitted_cycle_latency
-/-- info: 'AcornVerif.AverageRewardControlSemantics.supported_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.supported_iff
-/-- info: 'AcornVerif.AverageRewardControlSemantics.refuted_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.refuted_iff
-/-- info: 'AcornVerif.AverageRewardControlSemantics.assessment_labels' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.assessment_labels
-/-- info: 'AcornVerif.AverageRewardControlSemantics.complete_report_population' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.complete_report_population
 
 /-- info: 'AcornVerif.capped_fold_invariant' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
@@ -937,39 +628,6 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.ema_horizon_squared_mass' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.ema_horizon_squared_mass
-
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.admitted_process_peak' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.admitted_process_peak
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.factorial_correct' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.factorial_correct
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.binomial_correct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.binomial_correct
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.binomial_pascal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.binomial_pascal
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.revision_sign_threshold' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.revision_sign_threshold
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.revision_large_effect_resolution' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.revision_large_effect_resolution
-
-/-- info: 'AcornVerif.AverageRewardControlSemantics.admitted_invocation_complete' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.AverageRewardControlSemantics.admitted_invocation_complete
 
 /-- info: 'AcornVerif.Checkpoint.identity_accepted_iff' depends on axioms: [propext] -/
 #guard_msgs in
@@ -2517,7 +2175,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLogarithm.ln_total_contract
 
-
 /-- info: 'AcornVerif.CurrentPrediction.model_round_uniform_error_strict' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
@@ -2564,7 +2221,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentPrediction.legal_weight_sum_bound
 
-
 /-- info: 'AcornVerif.CurrentState.discount_numeric_contract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentState.discount_numeric_contract
@@ -2576,7 +2232,6 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentState.log_step_alpha_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentState.log_step_alpha_unit
-
 
 /-- info: 'Acorn.Rounding.nearestEven_word_large_shift' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
@@ -3068,7 +2723,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.TemporalSupport.served_other_mass_zero
 
-
 /-- info: 'AcornVerif.CurrentAgent.initialization' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentAgent.initialization
@@ -3132,10 +2786,6 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentConstants.dimensions' does not depend on any axioms -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentConstants.dimensions
-
-/-- info: 'AcornVerif.CurrentConstants.study_inputs' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConstants.study_inputs
 
 /-- info: 'AcornVerif.CurrentRetirement.zero_add_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -3230,7 +2880,6 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentTemporal.terminal_coordinate_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentTemporal.terminal_coordinate_exact
-
 
 /-- info: 'AcornVerif.CurrentBackupBounds.nearest_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

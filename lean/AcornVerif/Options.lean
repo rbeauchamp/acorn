@@ -5,7 +5,7 @@ Authors: acorn contributors
 -/
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import AcornVerif.Generated
+import AcornVerif.ModelConstants
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.LinearCombination
@@ -37,7 +37,7 @@ list of rewards and potentials. It establishes that the shaped return plus the
 current potential is exactly the unshaped task-reward return. That identity is
 what permits the interruption rule to compare `Q_shaped + Φ(current)` with the
 unshaped meta-controller value. `controller_discounts_match` separately binds
-the two sides to the rational controller constants in `AcornVerif.Generated`.
+the two sides to the rational controller constants in `AcornVerif.ModelConstants`.
 -/
 
 namespace AcornVerif
@@ -182,8 +182,8 @@ are identical, so the corrected values have the same reward horizon as well as
 the same shaping coordinate.
 -/
 theorem controller_discounts_match :
-    Generated.optionGamma = Generated.metaGamma := by
-  norm_num [Generated.optionGamma, Generated.metaGamma]
+    ModelConstants.optionGamma = ModelConstants.metaGamma := by
+  norm_num [ModelConstants.optionGamma, ModelConstants.metaGamma]
 
 /-- Skip-accumulate state of `Gap` over exact reals: after `n` skipped
 primitive steps the pair is `(∑_{i=0}^{n-1} γ^i r i, n)`. Each skip does

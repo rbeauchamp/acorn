@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import AcornVerif.Generated
+import AcornVerif.ModelConstants
 import Mathlib.Algebra.Order.Floor.Defs
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
@@ -90,10 +90,10 @@ theorem ez_remaining_zero_at_cap_one {u : ℝ} (h0 : 0 < u) (h1 : u ≤ 1) :
     ezDuration u 1 - 1 = 0 := by
   rw [ez_contains_epsilon_greedy h0 h1]; ring
 
-/-- The bound at the model cap in `Generated.ezMaxDuration`. Current constant
+/-- The bound at the model cap in `ModelConstants.ezMaxDuration`. Current constant
 compatibility is checked separately by `AcornVerif.CurrentConstants`. -/
 theorem ez_duration_le_shipped_cap (u : ℝ) :
-    ezDuration u (Generated.ezMaxDuration : ℤ) ≤ (Generated.ezMaxDuration : ℤ) :=
+    ezDuration u (ModelConstants.ezMaxDuration : ℤ) ≤ (ModelConstants.ezMaxDuration : ℤ) :=
   ez_duration_le_cap u _
 
 -- Non-vacuity: the hypotheses are inhabited, and the cap does bind.

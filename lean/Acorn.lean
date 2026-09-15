@@ -5,7 +5,6 @@ Authors: acorn contributors
 -/
 import Acorn.Host.AgentAdmission
 import Acorn.Host.AgentAudit
-import Acorn.Host.Study
 import Acorn.Host.Checkpoint.IO
 import Acorn.Average
 import Acorn.Handcrafted.PredictionControl
@@ -29,6 +28,6 @@ current SwiftTD learner (`Acorn.SwiftTd`) and receiver-owned feature encoding,
 ranking, refresh, retirement and restoration. The host modules supply the current
 world, tasks, CLI admission and streaming runner with explicit full-agent callbacks.
 Declared host/profile composition enters through the reviewed composition roots.
-`AcornSpec.Constants` supplies the shared constant interface. Native application
+`Acorn.Constants` supplies the shared constant interface. Native application
 entry points live in `NativeApp`.
 -/

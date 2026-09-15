@@ -88,10 +88,11 @@ project theorem is checked for axiom dependencies; only propext,
 Classical.choice and Quot.sound are admitted. The theorem inventory reports the
 checked declarations. Every proof passes through the kernel.
 
-Acorn's current executable definitions are under lean/Acorn.
-The AcornVerif modules import the definitions they verify. AcornSpec contains
-mathematical/specification definitions used by proofs, including pure analysis
-semantics.
+Acorn's executable definitions and their state invariants are under lean/Acorn.
+AcornVerif contains contracts importing those definitions and supporting
+mathematics with explicit hypotheses. Acorn.Constants owns the shared machine
+words; CurrentConstants checks the stated correspondence with rational and
+dimensional inputs used by the mathematical proofs.
 
 Each theorem's actual type owns its domain, hypotheses and guarantee. Binary32
 and Binary64 proofs concern admitted finite words or explicitly stated conversion

@@ -304,12 +304,12 @@ theorem exp_admitted_reduction (value : Binary32) (admitted : Portable.expSatura
       |numerical64 reduced.2|≤349/1000 ∧ (numerical32 value≤0 → reduced.1≤0) := by
   have classifier := AcornVerif.CurrentExponential.expSaturation_ends value
   rw [admitted] at classifier
-  have lowerFinite : (Binary32.mk AcornSpec.Constants.expUnderflowBits).Finite := by decide
-  have upperFinite : (Binary32.mk AcornSpec.Constants.expOverflowBits).Finite := by decide
-  have lowerValue : numerical32 (Binary32.mk AcornSpec.Constants.expUnderflowBits)= -104 := by
+  have lowerFinite : (Binary32.mk Acorn.Constants.expUnderflowBits).Finite := by decide
+  have upperFinite : (Binary32.mk Acorn.Constants.expOverflowBits).Finite := by decide
+  have lowerValue : numerical32 (Binary32.mk Acorn.Constants.expUnderflowBits)= -104 := by
     change (-1:ℚ)*13631488*(2:ℚ)^(-17:Int)= -104
     norm_num
-  have upperValue : numerical32 (Binary32.mk AcornSpec.Constants.expOverflowBits)=89 := by
+  have upperValue : numerical32 (Binary32.mk Acorn.Constants.expOverflowBits)=89 := by
     change (1:ℚ)*11665408*(2:ℚ)^(-17:Int)=89
     norm_num
   have lower := classifier.2.1

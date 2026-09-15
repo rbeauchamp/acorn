@@ -1,89 +1,79 @@
 # Session context: Acorn content review
 
 **Date:** 2026-09-15
-**Source branch / starting basis:** `codex/repository-trim-review` /
-`999b67786b856c3d0eca3360424f3548d5b3a8a0`
-**Persistence / resume authority:** The signed commit containing this handoff on
-`codex/repository-trim-review`, pushed to `origin`. Resolve the actual branch tip
-when resuming; the hash above is the starting basis, not the saved commit.
+**Branch / starting basis for this cleanup:** `codex/repository-trim-review` /
+`7ff461a22f9fed2c4ec15c21d043cd6a6f2715e7`
+**Persistence / resume authority:** The commit containing this handoff, pushed to
+`origin`. Resolve the actual branch tip when resuming; the hash above is the
+starting basis, not this saved commit.
 **Primary checkout:** `/Users/richard/Developer/github/acorn`
 **Remote:** `https://github.com/rbeauchamp/acorn.git` — private when checked.
-**Active focus:** Continue the owner's meticulous review of Acorn's contents.
+**Active focus:** Owner-led review of Acorn's contents, starting minimal with
+what the executing agent uses and what supports its mission and current proofs.
 
 ## Completed cleanup
 
-- Removed the optional root NOTICE and its README link; LICENSE and source
-  copyright/license notices remain.
-- Removed AcornStudy and its sole dedicated external proof owner,
-  AcornVerif.StudyAdmission. Removed their ownership/import/process allowances.
-- Removed the source verification-profile switch, absent private Lake targets,
-  protocol-provenance branch and private archive/citation exemptions. The source
-  checker now has one explicit complete module and native-entry inventory.
-- Folded verify-lean.sh into verify.sh inside the existing 300-second timeout.
-  The ordinary suite still checks every source/native entry, compiled ownership,
-  proof axioms, native routes/resources, browser generation and maintained corpus.
-  The corpus tool retains its focused `documents` mode; ordinary verification
-  always runs complete corpus admission.
-- Consolidated contributor policy in AGENTS, with scientific recordkeeping in
-  CONTRIBUTING and focused review questions in the shipped skills. Updated
-  README, verification and performance documentation accordingly.
-- Replaced obsolete Rust/Kani/migration narration with current Lean ownership and
-  model-domain descriptions. All retained Lean mathematics and application bodies
-  are unchanged except three WorldDriver admission diagnostic messages.
+The earlier cleanup removed AcornStudy, its dedicated StudyAdmission proofs,
+the optional NOTICE and private/public verification switches; it consolidated
+ordinary verification in `scripts/verify.sh` under the hard 300-second deadline.
 
-## Decisions and evidence
+The owner then approved removing superfluous content: “i would rather start
+minimal with the what is truly used (no dead code) and useful to our mission.”
+The current cleanup removes the separate AcornSpec evaluator, its study schemas,
+reducers and six dedicated verification modules, plus the unused Acorn.Host.Study
+runner. Their imports, ownership entries, obsolete constant identities and axiom
+message guards are removed together.
 
-AcornStudy had no application importers. Its only external proof importer was
-StudyAdmission. Keep Acorn.Json: the viewer uses it. Keep AcornSpec.Constants,
-StudySchedule, StudyCompatibility and the other retained specification/analysis
-modules: they have real application or proof users. Removing those requires a
-separate dependency and semantic review; their names alone do not make them dead.
-Model identities do not automatically establish current execution correspondence.
+The 30 live machine-word definitions moved unchanged to `Acorn.Constants`.
+Surviving application bodies are unchanged apart from that namespace relocation;
+comments and direct imports were updated. The rational/dimensional proof inputs
+now live in `AcornVerif.ModelConstants`, with historical protocol constants and
+two unused prediction constants removed. Useful current implementation contracts
+and supporting mathematical identities remain.
 
-One independent proof-first reviewer checked the actual diff. Both findings were
-fixed: i64ToF32 documentation again states its signed-64-bit input domain, and
-MetaGradient no longer claims to import model constants when its inputs are
-symbolic. Compiler checks caught and closed the obsolete Corpus.Main call after
-removal of the evidence parameters.
+README, verification documentation and the shipped review reference describe the
+current layout. BigWorld and Energy comments now state their exact mathematical
+scope: fixed formula arithmetic and conditional ledger inequalities. They do not
+claim unproved state reachability, checkpoint introspection or execution linkage.
+No learning study, dynamics rerun, audit-pin change or runtime/checkpoint edit
+was performed. Acorn-dev was not accessed or modified.
 
-The complete `./scripts/verify.sh` passed in the actual checkout in **110.39 s**
-under the unchanged hard 300-second deadline, before these session files were
-added. Observed scope: 241 maintained modules, 16 native entries, 14 required
-execution/proof links, 117 native routes; 2,360 AcornVerif, 427 AcornSpec,
-4,145 Acorn and 31 NativeApp theorem declarations, total **6,963**. The decrease
-from 7,066 consists of AcornStudy's 96 and StudyAdmission's 7 declarations.
-Counts describe checked scope, not correctness or learning quality.
+## Review and verification
 
-Disposable admission mutations were rejected for missing and extra modules,
-an extra evaluated native entry, an archived document path, a stale published
-pin, and the removed studies command. All original bytes were restored before
-the final suite. An initial extra-entry diagnostic reused an existing executable
-root and was rejected earlier by Lake; using a distinct root exercised the
-intended ownership refusal. These are gate diagnostics, not scenario tests.
-No learning study, dynamics rerun or audit-pin change was performed.
+One independent proof-first reviewer checked the diff and dependency/gate
+boundaries. All findings were fixed: unused constants, stale model/execution
+claims, an unproved state-product reachability claim and wording about binary64
+approximations. The reviewer rechecked those repairs with no unresolved finding.
 
-No GitHub CI result is claimed for this branch. No PR was opened or merged.
-The user is still reviewing contents; hosted checks apply when the final PR is
-prepared. No separate roadmap or issue owns this editorial review, so this
-handoff holds the next step without introducing a planning system.
+The complete `./scripts/verify.sh` passed in the actual checkout under the
+unchanged hard 300-second process-group deadline. Observed scope: **210 modules,
+16 native entries, 14 required execution/proof links and 117 native routes**.
+Compiler-owned theorem declarations: **2,152 AcornVerif, 4,110 Acorn and 31
+NativeApp; total 6,293**. Counts describe checked scope, not correctness or
+learning quality. The first build found two line-length violations introduced by
+the module rename; both were repaired before the passing complete suite.
+
+No hosted CI result is claimed. No PR was opened or merged during this cleanup;
+the owner is still reviewing content. Hosted checks apply to the exact proposed
+head when the final PR is prepared. No separate roadmap or issue owns this
+editorial review; this handoff holds the continuation point.
 
 ## Local work to preserve
 
-Separate formatting edits appeared during this task in:
+Separate formatting edits remain unstaged and uncommitted in:
 
 - docs/design.md
 - docs/frontier.md
 - docs/prior-art-review.md
 - docs/viewer-ux.md
 
-These four files remain **unstaged and uncommitted**, preserved in this checkout;
-they are not part of the cleanup commit. They mostly change table spacing, blank
-lines and URL markup. The viewer-spec diff also removes spaces around three code
-spans in one table cell; inspect that hunk in the next review. Do not reset or
-silently stage these separately owned edits. The complete suite above saw these
-local formatting changes. A fresh clone will not contain them.
+All four were preserved byte-for-byte throughout this cleanup and were present
+for the full suite. Do not reset or silently stage them. They are absent from a
+fresh clone. The viewer-spec edit removes spaces around three code spans in one
+table cell; that small editorial issue remains for its owner's next selection.
 
 ## Standing owner directives
+
 
 - “you do not need to update acorn-dev anymore. that is now immutable.”
   Acorn is the go-forward repository. Do not edit, synchronize, rebuild or clean
@@ -109,14 +99,17 @@ local formatting changes. A fresh clone will not contain them.
 
 ## Next action
 
-Read the actual branch status and preserve the four local formatting edits above.
-Then reread README as a newcomer and review the remaining top-level content with
-the owner. Begin with the retained lean/AcornSpec and lean/AcornVerif roles: explain
-what supports the executing agent, what is a separate mathematical/evaluator
-model, and identify any further removal or wording proposals with their concrete
-users and consequences. Present recommendations before materially broader
-removals. Follow the owner's next selected file or topic; this is an editorial
-review, not authorization for algorithm changes or new studies.
+Revalidate the actual branch, remote and local edits. Continue the owner's
+content review from the updated README and follow their next selected file or
+topic. AcornSpec and the unused study runner have been removed; do not restore
+historical machinery merely because it appeared in an earlier handoff.
 
-Useful entry points: README.md, AGENTS.md, CONTRIBUTING.md, docs/verification.md,
-lean/AcornSpec.lean, lean/AcornVerif.lean and lean/AcornTools/Ownership.lean.
+The remaining layout is `lean/Acorn` for execution and proof-bearing state,
+`lean/AcornVerif` for implementation contracts and supporting mathematics,
+`lean/AcornTools` for verification, and `lean/NativeApp` for native entry points.
+Further cleanup should identify concrete consumers or mission value, preserve
+current invariants and check execution linkage. This pass removed the separate
+evaluator/study dependency group; it is not a repository-wide theorem that every
+remaining declaration is necessary. Present materially broader removals before
+proceeding. Algorithm changes and new scientific campaigns remain outside this
+editorial review.

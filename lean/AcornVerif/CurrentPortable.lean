@@ -128,11 +128,11 @@ theorem exp_nonpositive_unit (value : Binary32) (finite : value.Finite)
     simp only [notNaN,Bool.false_eq_true,↓reduceIte] at ends
     have expression : Portable.exp value = result := by simp only [Portable.exp_eq_spec, saturation]
     rw [expression]
-    have upperFinite : (Binary32.mk AcornSpec.Constants.expOverflowBits).Finite := by decide
-    have upperValue : numerical32 (Binary32.mk AcornSpec.Constants.expOverflowBits) = 89 := by
+    have upperFinite : (Binary32.mk Acorn.Constants.expOverflowBits).Finite := by decide
+    have upperValue : numerical32 (Binary32.mk Acorn.Constants.expOverflowBits) = 89 := by
       change (1:ℚ)*11665408*(2:ℚ)^(-17:Int) = _
       norm_num
-    have less : value.less ⟨AcornSpec.Constants.expOverflowBits⟩ = true := by
+    have less : value.less ⟨Acorn.Constants.expOverflowBits⟩ = true := by
       rw [numerical32_less _ _ finite upperFinite,decide_eq_true_eq,upperValue]
       linarith only [nonpositive]
     simp only [less,Bool.not_true,Bool.false_eq_true,↓reduceIte] at ends

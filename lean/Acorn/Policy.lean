@@ -17,7 +17,7 @@ are nominal binary32 epsilon masses, not exact probabilities of those bins.
 namespace Acorn.Features
 
 /-- The generated binary32 tie-window word. -/
-def tieWindow : Binary32 := ⟨AcornSpec.Constants.tie1e6Bits⟩
+def tieWindow : Binary32 := ⟨Acorn.Constants.tie1e6Bits⟩
 
 /-- Frozen raw values and bounded epsilon over a nonempty machine action space. -/
 structure PolicySnapshot (count : Word.Count) where

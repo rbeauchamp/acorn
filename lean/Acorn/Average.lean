@@ -20,7 +20,7 @@ convergence guarantee under persistent noise.
 namespace Acorn
 
 /-- The independent host-transition lag budget used by the current tracker. -/
-def gainTrackingHorizon : UInt32 := AcornSpec.Constants.gainTrackingHorizon
+def gainTrackingHorizon : UInt32 := Acorn.Constants.gainTrackingHorizon
 
 /-- Gain is derived from the same declared horizon in binary32 arithmetic. -/
 def gainTrackingStep : Binary32 :=

@@ -65,10 +65,6 @@ Native compilation includes the same admission definitions used by the proofs. -
 lean_lib «Acorn» where
   moreLeancArgs := nativeFloatFlags
 
-/-- Preserved-data schemas and calculators, alongside the explicitly retained
-historical evaluator. Native targets compile only their transitive imports. -/
-lean_lib «AcornSpec»
-
 /-- Native entry points embed provenance after their complete source dependency is built.
 This bootstrap is a build/OS boundary, outside the current algorithm library. -/
 lean_lib «NativeApp» where

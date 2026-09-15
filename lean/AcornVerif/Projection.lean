@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
-import AcornVerif.Generated
+import AcornVerif.ModelConstants
 
 /-!
 # The value-range projection
@@ -15,7 +15,7 @@ in `[0, 1/(1-γ)]`. `projectR` models symmetric projection onto `[-b,b]` over
 explicitly; non-expansiveness requires the target to lie in the interval.
 
 `horizon_covers_true_bound` checks the rational discount/horizon pairs in
-`AcornVerif.Generated`. The current finite constant interface is checked in
+`AcornVerif.ModelConstants`. The current finite constant interface is checked in
 `AcornVerif.CurrentConstants`. Machine-word totality, NaNs, infinities and
 rounding require the executable admission and arithmetic contracts; they are
 outside this real-arithmetic projection model.
@@ -23,7 +23,7 @@ outside this real-arithmetic projection model.
 
 namespace AcornVerif
 
-open AcornVerif.Generated
+open AcornVerif.ModelConstants
 
 /-- Symmetric real projection: clamp `v` into `[-b, b]`. -/
 def projectR (b v : ℝ) : ℝ := max (-b) (min b v)
@@ -67,16 +67,16 @@ theorem project_nonexpansive (b v t : ℝ) (ht1 : -b ≤ t) (ht2 : t ≤ b) :
         abs_of_nonneg (by linarith : 0 ≤ v - t)]
       linarith
 
-/-- Every rational discount/horizon pair in `Generated.discounts` bounds the
+/-- Every rational discount/horizon pair in `ModelConstants.discounts` bounds the
 corresponding real discounted return. Current constant compatibility is checked
 separately by `AcornVerif.CurrentConstants`. -/
 theorem horizon_covers_true_bound :
-    ∀ p ∈ Generated.discounts, 1 / (1 - p.1) ≤ p.2 := by
+    ∀ p ∈ ModelConstants.discounts, 1 / (1 - p.1) ≤ p.2 := by
   intro p hp
-  simp only [Generated.discounts] at hp
+  simp only [ModelConstants.discounts] at hp
   fin_cases hp <;>
-    norm_num [Generated.gammaG90, Generated.gammaG95, Generated.gammaG99,
-      Generated.horizonG90, Generated.horizonG95, Generated.horizonG99]
+    norm_num [ModelConstants.gammaG90, ModelConstants.gammaG95, ModelConstants.gammaG99,
+      ModelConstants.horizonG90, ModelConstants.horizonG95, ModelConstants.horizonG99]
 
 /-- **The fixed point of a constant-cumulant GVF.**
 
@@ -107,10 +107,10 @@ theorem constant_cumulant_fixed_point_unique (c γ v : ℝ) (hγ : γ < 1)
 
 /-- Every discount in the closed set is a proper contraction. -/
 theorem gamma_is_contraction :
-    ∀ p ∈ Generated.discounts, 0 < p.1 ∧ p.1 < 1 := by
+    ∀ p ∈ ModelConstants.discounts, 0 < p.1 ∧ p.1 < 1 := by
   intro p hp
-  simp only [Generated.discounts] at hp
+  simp only [ModelConstants.discounts] at hp
   fin_cases hp <;>
-    norm_num [Generated.gammaG90, Generated.gammaG95, Generated.gammaG99]
+    norm_num [ModelConstants.gammaG90, ModelConstants.gammaG95, ModelConstants.gammaG99]
 
 end AcornVerif

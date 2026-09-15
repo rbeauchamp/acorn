@@ -4,8 +4,8 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Arithmetic
+import Acorn.Constants
 import Acorn.Portable
-import AcornSpec.Constants
 
 /-!
 # Immutable numeric state domains
@@ -31,9 +31,9 @@ inductive Discount where
 
 /-- Each discount selects its generated machine encoding. -/
 def Discount.gamma : Discount → Binary32
-  | .g90 => ⟨AcornSpec.Constants.gamma90Bits⟩
-  | .g95 => ⟨AcornSpec.Constants.gamma95Bits⟩
-  | .g99 => ⟨AcornSpec.Constants.gamma99Bits⟩
+  | .g90 => ⟨Acorn.Constants.gamma90Bits⟩
+  | .g95 => ⟨Acorn.Constants.gamma95Bits⟩
+  | .g99 => ⟨Acorn.Constants.gamma99Bits⟩
 
 /-- The machine horizon is derived with the same two rounding boundaries as
 the numeric owner; no caller can provide a wider replacement. -/
@@ -158,35 +158,35 @@ structure Config where
 /-- Role-specific trace parameter, using generated source constants. -/
 def Config.lambda (config : Config) : Binary32 :=
   match config.role with
-  | .demon => ⟨AcornSpec.Constants.gamma95Bits⟩
-  | .control | .optionSkill => ⟨AcornSpec.Constants.gamma90Bits⟩
+  | .demon => ⟨Acorn.Constants.gamma95Bits⟩
+  | .control | .optionSkill => ⟨Acorn.Constants.gamma90Bits⟩
 
 /-- Role-specific initial step size. -/
 def Config.alphaInitial (config : Config) : Binary32 :=
   match config.role with
-  | .demon | .control => ⟨AcornSpec.Constants.alphaInit5e5Bits⟩
-  | .optionSkill => ⟨AcornSpec.Constants.alphaInit1e4Bits⟩
+  | .demon | .control => ⟨Acorn.Constants.alphaInit5e5Bits⟩
+  | .optionSkill => ⟨Acorn.Constants.alphaInit1e4Bits⟩
 
 /-- Role-specific step-size budget. -/
 def Config.eta (config : Config) : Binary32 :=
   match config.role with
-  | .demon | .control => ⟨AcornSpec.Constants.eta01Bits⟩
-  | .optionSkill => ⟨AcornSpec.Constants.eta025Bits⟩
+  | .demon | .control => ⟨Acorn.Constants.eta01Bits⟩
+  | .optionSkill => ⟨Acorn.Constants.eta025Bits⟩
 
 /-- The minimum rate is part of the closed configuration, not caller input. -/
-def Config.etaMin (_config : Config) : Binary32 := ⟨AcornSpec.Constants.etaMin1e10Bits⟩
+def Config.etaMin (_config : Config) : Binary32 := ⟨Acorn.Constants.etaMin1e10Bits⟩
 
 /-- Shared trace-pruning threshold. -/
-def Config.epsilon (_config : Config) : Binary32 := ⟨AcornSpec.Constants.epsilon1e5Bits⟩
+def Config.epsilon (_config : Config) : Binary32 := ⟨Acorn.Constants.epsilon1e5Bits⟩
 
 /-- Shared step-size decay, applied through portable logarithm. -/
-def Config.decay (_config : Config) : Binary32 := ⟨AcornSpec.Constants.decay0999Bits⟩
+def Config.decay (_config : Config) : Binary32 := ⟨Acorn.Constants.decay0999Bits⟩
 
 /-- Role-dependent meta step size. -/
 def Config.metaStep (config : Config) : Binary32 :=
   match config.role with
-  | .demon | .control => ⟨AcornSpec.Constants.meta1e3Bits⟩
-  | .optionSkill => ⟨AcornSpec.Constants.meta3e2Bits⟩
+  | .demon | .control => ⟨Acorn.Constants.meta1e3Bits⟩
+  | .optionSkill => ⟨Acorn.Constants.meta3e2Bits⟩
 
 /-- An immutable pair of log-space rails derived from one configuration.
 The equality fields bind every endpoint to the actual portable evaluation. -/
