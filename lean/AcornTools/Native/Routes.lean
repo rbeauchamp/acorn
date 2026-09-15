@@ -1,0 +1,147 @@
+/-
+Copyright (c) 2026 acorn contributors. All rights reserved.
+Released under the MIT license as described in the repository LICENSE.
+Authors: acorn contributors
+-/
+import Init
+
+/-! # Reviewed native call routes
+
+These compiler-symbol sequences retain the native boundary's existing routing
+obligations. They detect replacement drift, not correctness of the generated C.
+The owning Lean definitions and their proofs establish the semantic contracts.
+-/
+namespace AcornNativeRoutes
+
+/-- Module, compiled function, and ordered calls of each reviewed native route. -/
+def routes : Array (String × String × Array String) := #[
+  ("Host/Control", "lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_closeCommandSource", #["lean_io_cancel", "lean_io_process_child_try_wait", "lean_io_process_child_kill", "lean_io_process_child_wait"]),
+  ("Host/Control", "lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_ClosedCommandSource_join", #["lean_task_get_own"]),
+  ("Host/Control", "lp_acorn_Acorn_Host_StopFlag_withCommands___redArg___lam__1", #["lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_closeCommandSource", "lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_ClosedCommandSource_join"]),
+  ("Host/Control", "lp_acorn_Acorn_Host_StopFlag_withCommands___redArg", #["lean_io_process_spawn", "lean_io_as_task", "lp_acorn_Acorn_Host_StopFlag_withCommands___redArg___lam__1", "lp_acorn_Acorn_Host_StopFlag_withCommands___redArg___lam__1"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary32_ofUInt64", #["lean_uint64_to_float32", "lean_float32_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary32_add", #["lean_float32_of_bits", "lean_float32_of_bits", "lean_float32_add", "lean_float32_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary32_sub", #["lean_float32_of_bits", "lean_float32_of_bits", "lean_float32_sub", "lean_float32_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary32_mul", #["lean_float32_of_bits", "lean_float32_of_bits", "lean_float32_mul", "lean_float32_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary32_div", #["lean_float32_of_bits", "lean_float32_of_bits", "lean_float32_div", "lean_float32_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary64_ofUInt64", #["lean_uint64_to_float", "lean_float_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary64_add", #["lean_float_of_bits", "lean_float_of_bits", "lean_float_add", "lean_float_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary64_sub", #["lean_float_of_bits", "lean_float_of_bits", "lean_float_sub", "lean_float_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary64_mul", #["lean_float_of_bits", "lean_float_of_bits", "lean_float_mul", "lean_float_to_bits"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary64_div", #["lean_float_of_bits", "lean_float_of_bits", "lean_float_div", "lean_float_to_bits"]),
+  ("Conversion", "lp_acorn_Acorn_Conversion_toI32", #["lp_acorn_Acorn_Conversion_toI32Word", "lean_int32_to_int"]),
+  ("Conversion", "lp_acorn_Acorn_Conversion_signedCast", #["lp_acorn_Acorn_Binary64_isNaN", "lp_acorn_Acorn_Binary64_magnitude", "lp_acorn_Acorn_Conversion_trunc64", "lp_acorn_Acorn_Conversion_clampInt"]),
+  ("Conversion", "lp_acorn_Acorn_Conversion_ofInt", #["lean_uint64_to_float", "lean_float_to_bits"]),
+  ("Rng", "lp_acorn_Acorn_Rng_Fraction53_toBinary64", #["lp_acorn_Acorn_Binary64_ofUInt64", "lp_acorn_Acorn_Binary64_mul"]),
+  ("Rng", "lp_acorn_Acorn_Rng_Xoshiro256_nextFraction", #["lp_acorn_Acorn_Rng_Xoshiro256_next", "lp_acorn_Acorn_Rng_Fraction53_ofWord"]),
+  ("Rng", "lp_acorn_Acorn_Rng_Xoshiro256_nextF64", #["lp_acorn_Acorn_Rng_Xoshiro256_nextFraction", "lp_acorn_Acorn_Rng_Fraction53_toBinary64"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary64_hornerStep", #["lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_add"]),
+  ("Arithmetic", "lp_acorn_Acorn_Bounded32_addProjected", #["lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Interval32_saturate"]),
+  ("Average", "lp_acorn_Acorn_AverageRewardTracker_observe", #["lp_acorn_Acorn_RewardRate_project", "lp_acorn_Acorn_Binary32_sub", "lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_RewardRate_project"]),
+  ("Portable", "lp_acorn_Acorn_Portable_expScaleWord", #["lp_acorn_Acorn_Portable_powerOfTwoWord", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Conversion_narrow"]),
+  ("Portable", "lp_acorn_Acorn_Portable_expScale", #["lp_acorn_Acorn_Portable_powerOfTwo", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Conversion_narrow"]),
+  ("Portable", "lp_acorn_Acorn_Portable_exp", #["lp_acorn_Acorn_Binary32_isNaN", "lp_acorn_Acorn_Binary32_less", "lp_acorn_Acorn_Binary32_less", "lp_acorn_Acorn_Conversion_widen", "lp_acorn_Acorn_Portable_expExponent", "lp_acorn_Acorn_Portable_expRemainder", "lp_acorn_Acorn_Portable_expSeries", "lp_acorn_Acorn_Portable_expScaleWord"]),
+  ("Portable", "lp_acorn_Acorn_Portable_expReduceWord", #["lp_acorn_Acorn_Portable_expExponent", "lp_acorn_Acorn_Portable_expRemainder"]),
+  ("Portable", "lp_acorn_Acorn_Portable_pow", #["lp_acorn_Acorn_Conversion_widen", "lp_acorn_Acorn_Portable_powLoopWord", "lp_acorn_Acorn_Conversion_narrow"]),
+  ("Portable", "lp_acorn_Acorn_Portable_powLoop", #["lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul"]),
+  ("Portable", "lp_acorn_Acorn_Portable_powLoopWord", #["lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul"]),
+  ("State", "lp_acorn_Acorn_Weight_project", #["lp_acorn_Acorn_ValueRule_domain", "lp_acorn_Acorn_Bounded32_projectSymmetric"]),
+  ("State", "lp_acorn_Acorn_Prediction_project", #["lp_acorn_Acorn_Discount_predictionRange", "lp_acorn_Acorn_Interval32_saturate"]),
+  ("State", "lp_acorn_Acorn_LogStepSize_project", #["lp_acorn_Acorn_Interval32_saturate"]),
+  ("State", "lp_acorn_Acorn_NumericState_writeWeight___redArg", #["lp_acorn_Acorn_Weight_project"]),
+  ("State", "lp_acorn_Acorn_NumericState_writeBeta___redArg", #["lp_acorn_Acorn_Interval32_saturate"]),
+  ("Conversion", "lp_acorn_Acorn_Conversion_widenNaN", #["lean_float32_of_bits", "lean_float32_to_float", "lean_float_to_bits"]),
+  ("Conversion", "lp_acorn_Acorn_Conversion_narrowNaN", #["lean_float_of_bits", "lean_float_to_float32", "lean_float32_to_bits"]),
+  ("Conversion", "lp_acorn_Acorn_Conversion_widen", #["lp_acorn_Acorn_Conversion_widenSign", "lp_acorn_Acorn_Conversion_widenFraction", "lp_acorn_Acorn_Conversion_widenSubnormalFraction", "lp_acorn_Acorn_Conversion_widenNaN"]),
+  ("Conversion", "lp_acorn_Acorn_Conversion_narrow", #["lp_acorn_Acorn_Conversion_narrowSign", "lp_acorn_Acorn_Conversion_subnormalFractionWord", "lp_acorn_Acorn_Conversion_normalMagnitude", "lp_acorn_Acorn_Conversion_narrowNaN"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary32_sumFrom", #["lp_acorn_List_foldl___at___00Acorn_Binary32_sumFrom_spec__0"]),
+  ("Arithmetic", "lp_acorn_List_foldl___at___00Acorn_Binary32_sumFrom_spec__0", #["lp_acorn_Acorn_Binary32_add"]),
+  ("Arithmetic", "lp_acorn_Acorn_Binary64_hornerFrom", #["lp_acorn_List_foldl___at___00Acorn_Binary64_hornerFrom_spec__0"]),
+  ("Arithmetic", "lp_acorn_List_foldl___at___00Acorn_Binary64_hornerFrom_spec__0", #["lp_acorn_Acorn_Binary64_hornerStep"]),
+  ("Portable", "lp_acorn_Acorn_Portable_expSeries", #["lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep"]),
+  ("Portable", "lp_acorn_Acorn_Portable_ln", #["lp_acorn_Acorn_Binary32_isNaN", "lp_acorn_Acorn_Binary32_less", "lp_acorn_Acorn_Binary64_sub", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary64_div", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Portable_lnSeries", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Conversion_narrow", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary32_magnitudeEq", "lp_acorn_Acorn_Binary32_magnitudeEq", "lp_acorn_Acorn_Conversion_widen", "lp_acorn_Acorn_Portable_logarithmExponent", "lp_acorn_Acorn_Conversion_ofI32Word", "lp_acorn_Acorn_Binary64_less", "lp_acorn_Acorn_Binary64_mul"]),
+  ("Portable", "lp_acorn_Acorn_Portable_lnSeries", #["lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep"]),
+  ("SwiftTd", "lp_acorn_Acorn_NumericState_firstLoopElement___redArg", #["lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_sub", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Weight_project", "lp_acorn_Acorn_Binary32_numericallyEqual", "lp_acorn_Acorn_StepSizeRails_initial", "lp_acorn_Acorn_Binary32_lessOrEqual", "lp_acorn_Acorn_Portable_exp", "lp_acorn_Acorn_Binary32_div", "lp_acorn_Acorn_Interval32_saturate"]),
+  ("SwiftTd", "lp_acorn_Acorn_NumericState_secondLoopElement___redArg", #["lp_acorn_Acorn_Binary32_isZero", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Config_eta", "lp_acorn_Acorn_Binary32_div", "lp_acorn_Acorn_Portable_exp", "lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_StepSizeRails_decay", "lp_acorn_Acorn_Interval32_saturate"]),
+  ("SwiftTd", "lp_acorn_Acorn_NumericState_learnFirstLoopGo___redArg", #["lp_acorn_Acorn_NumericState_firstLoopElement___redArg", "lp_acorn_Acorn_NumericState_clearFeatureRegisters___redArg", "lp_acorn_Acorn_SwiftTd_swapRemove___redArg"]),
+  ("SwiftTd", "lp_acorn_Acorn_NumericState_step", #["lp_acorn_Acorn_NumericState_linearPrediction___redArg", "lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Binary32_sub", "lp_acorn_Acorn_NumericState_learnFirstLoop___redArg", "lp_acorn_Acorn_NumericState_learnSecondLoop"]),
+  ("SwiftTd", "lp_acorn_Acorn_SwiftTd_Entry_apply", #["lp_acorn_Acorn_NumericState_learnFirstLoop___redArg", "lp_acorn_Acorn_NumericState_learnSecondLoop", "lp_acorn_Acorn_NumericState_step", "lp_acorn_Acorn_NumericState_beginTrajectory", "lp_acorn_Acorn_NumericState_terminalStep", "lp_acorn_Acorn_NumericState_planStep", "lp_acorn_Acorn_NumericState_retireIndex", "lp_acorn_Acorn_NumericState_restoreWeights", "lp_acorn_Acorn_NumericState_restoreLogStepSizes", "lp_acorn_Acorn_NumericState_installRestored", "lp_acorn_Acorn_NumericState_clearTransient___redArg"]),
+  ("SwiftTdDriver", "lp_acorn_Acorn_SwiftTdDriver_run", #["lp_acorn_Acorn_FeatIdx_fromHash", "lp_acorn_Acorn_SwiftTd_Entry_apply"]),
+  ("SwiftTdDriver", "lp_acorn_Acorn_SwiftTdDriver_execute", #["lp_acorn_Acorn_NumericState_initial", "lp_acorn_Acorn_SwiftTdDriver_run"]),
+  ("SwiftTd", "lp_acorn_Acorn_NumericState_learnSecondLoop", #["lp_acorn_List_foldl___at___00Acorn_NumericState_learnSecondLoop_spec__2___redArg"]),
+  ("SwiftTd", "lp_acorn_List_foldl___at___00Acorn_NumericState_learnSecondLoop_spec__2___redArg", #["lp_acorn_Acorn_NumericState_secondLoopElement___redArg"]),
+  ("Features", "lp_acorn_Acorn_Features_encode", #["lp_acorn_Acorn_Features_rawEncode", "lp_acorn_Acorn_Features_unique"]),
+  ("FeatureLifecycle", "lp_acorn_Acorn_Features_Lifecycle_tryRetire", #["lp_acorn_Acorn_Features_instDecidableCanRecord___aux__1", "lp_acorn_Acorn_Features_Lifecycle_candidate___redArg", "lp_acorn_Acorn_Features_Lifecycle_replace___redArg"]),
+  ("FeatureLifecycle", "lp_acorn_Acorn_Features_Lifecycle_replace___redArg", #["lp_acorn_Acorn_Features_Representation_replace___redArg", "lp_acorn_Acorn_Features_unitFeature", "lp_acorn_Acorn_Features_Ensemble_retire___redArg"]),
+  ("FeatureHistory", "lp_acorn_Acorn_Features_Representation_replace___redArg", #["lp_acorn_Acorn_Features_Progress_record___redArg", "lp_acorn_Acorn_Features_Bank_replace___redArg"]),
+  ("FeatureConsumers", "lp_acorn_Acorn_Features_Managed_retire", #["lp_acorn_Acorn_Features_Managed_apply___redArg"]),
+  ("FeatureRefresh", "lp_acorn_Acorn_Features_FreeDispatch_refreshRanked___redArg", #["lp_acorn_Acorn_Features_Refresh_take", "lp_acorn_Acorn_Features_DemonBank_rankingWeights___redArg", "lp_acorn_Acorn_Features_rankAssignments"]),
+  ("FeatureDriver", "lp_acorn_Acorn_FeatureDriver_execute", #["lp_acorn_Acorn_Features_Representation_initial", "lp_acorn_Acorn_Features_Ensemble_initial", "lp_acorn_Acorn_Handcrafted_FeatureProfile_encode", "lp_acorn_Acorn_Features_FeatureRuntime_retire___redArg", "lp_acorn_Acorn_Features_FeatureRuntime_refreshAtFree___redArg", "lp_acorn_Acorn_Features_Bank_checksum___redArg"]),
+  ("Handcrafted/Observation", "lp_acorn_Acorn_Handcrafted_predictionBucket", #["lp_acorn_Acorn_Binary32_div", "lp_acorn_Acorn_Binary32_saturate", "lp_acorn_Acorn_Binary32_mul", "lean_float32_of_bits", "floorf", "lean_float32_to_uint8"]),
+  ("Sarsa", "lp_acorn_Acorn_Features_Controller_step___redArg", #["lp_acorn_Acorn_Features_Controller_predictAll___redArg", "lp_acorn_Acorn_Features_Controller_valuesStep___redArg"]),
+  ("Demon", "lp_acorn_Acorn_Features_DemonBank_step___redArg", #["lp_acorn_Acorn_NumericState_step", "lp_acorn_Acorn_Prediction_project"]),
+  ("ControlDriver", "lp_acorn_Acorn_ControlDriver_execute", #["lp_acorn_Acorn_Handcrafted_PredictionControl_initial", "lp_acorn_Acorn_Handcrafted_PredictionControl_encode___redArg", "lp_acorn_Acorn_Features_Controller_snapshot___redArg", "lp_acorn_Acorn_Features_PolicySnapshot_draw", "lp_acorn_Acorn_Handcrafted_PredictionControl_advance"]),
+  ("Sarsa", "lp_acorn_Acorn_Features_Controller_valuesStep___redArg", #["lp_acorn___private_Init_Data_Array_Basic_0__Array_mapMUnsafe_map___at___00Acorn_Features_Controller_valuesStep_spec__0", "lp_acorn_Acorn_NumericState_learnSecondLoop"]),
+  ("Options", "lp_acorn_Acorn_Features_Skill_beginOption___redArg", #["lp_acorn_Acorn_Features_Controller_clear___redArg", "lp_acorn_Acorn_Features_ConsumerRate_resolve", "lp_acorn_Acorn_Features_Controller_snapshot___redArg"]),
+  ("Options", "lp_acorn_Acorn_Features_Skill_optionStep___redArg", #["lp_acorn_Acorn_Features_PolicySnapshot_draw", "lp_acorn_Acorn_Features_Criterion_center", "lp_acorn_Acorn_Features_shapedCumulant", "lp_acorn_Acorn_Features_Controller_policyStep___redArg", "lp_acorn_Acorn_Features_ModelAge_advance"]),
+  ("Options", "lp_acorn_Acorn_Features_Skill_terminateOption___redArg", #["lp_acorn_Acorn_Features_Criterion_center", "lp_acorn_Acorn_Features_Interest_stoppingValue___redArg", "lp_acorn_Acorn_Features_terminalCumulant", "lp_acorn_Acorn_Features_Controller_terminal"]),
+  ("Exploration", "lp_acorn_Acorn_Features_beginExploration", #["lp_acorn_Acorn_Rng_Xoshiro256_nextF64", "lp_acorn_Acorn_Conversion_widen", "lp_acorn_Acorn_Binary64_less", "lp_acorn_Acorn_Rng_Xoshiro256_nextF64", "lp_acorn_Acorn_Features_uniformAction"]),
+  ("Exploration", "lp_acorn_Acorn_Features_durationRemaining", #["lp_acorn_Acorn_Features_durationWord"]),
+  ("Exploration", "lp_acorn_Acorn_Features_durationWord", #["lp_acorn_Acorn_Features_durationCountWord"]),
+  ("Exploration", "lp_acorn_Acorn_Features_durationCountWord", #["lp_acorn_Acorn_Binary64_sub", "lp_acorn_Acorn_Binary64_div", "lp_acorn_Acorn_Binary64_less", "lp_acorn_Acorn_Conversion_cappedTrunc128"]),
+  ("Handcrafted/TemporalControl", "lp_acorn_Acorn_Handcrafted_TemporalControl_atBoundary", #["lp_acorn_Acorn_Handcrafted_TemporalControl_refreshFree___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_planFree___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_drawMeta___redArg", "lp_acorn_Acorn_Features_PolicyDecision_continuation___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_closeOption___redArg"]),
+  ("Handcrafted/TemporalControl", "lp_acorn_Acorn_Handcrafted_TemporalControl_step", #["lp_acorn_Acorn_Handcrafted_spatialPotentials", "lp_acorn_Acorn_Handcrafted_TemporalControl_select", "lp_acorn_Acorn_Handcrafted_TemporalControl_finish___redArg"]),
+  ("Handcrafted/TemporalControl", "lp_acorn_Acorn_Handcrafted_TemporalControl_finish___redArg", #["lp_acorn_Acorn_Features_TemporalDecision_episodeEnd", "lp_acorn_Acorn_Lifetime_recordOptions", "lean_alloc_ctor", "lean_alloc_ctor", "lp_acorn_Acorn_Features_TemporalDecision_own", "lp_acorn_Acorn_Handcrafted_PredictionControl_advance"]),
+  ("TemporalDriver", "lp_acorn_Acorn_TemporalDriver_execute", #["lp_acorn_Acorn_Features_Skill_beginTemporal___redArg", "lp_acorn_Acorn_Features_Skill_stepTemporal___redArg", "lp_acorn_Acorn_Features_Skill_decideOption___redArg", "lp_acorn_Acorn_Features_Skill_endTemporal___redArg", "lp_acorn_Acorn_Features_PolicySnapshot_drawPersistent", "lp_acorn_Acorn_Features_planningBoundary"]),
+  ("Models", "lp_acorn_Acorn_Features_Model_begin", #["lp_acorn_Acorn_Features_modelInput", "lp_acorn_Acorn_Features_Managed_apply___redArg"]),
+  ("Models", "lp_acorn_Acorn_Features_Model_step", #["lp_acorn_Acorn_Features_modelInput", "lp_acorn_Acorn_Features_Managed_apply___redArg"]),
+  ("Models", "lp_acorn_Acorn_Features_Model_terminal", #["lp_acorn_Acorn_Features_Criterion_modelTerminal", "lp_acorn_Acorn_Features_Managed_apply___redArg"]),
+  ("Planning", "lp_acorn_Acorn_Features_Controller_plan___redArg", #["lp_acorn_Acorn_NumericState_planStep"]),
+  ("Planning", "lp_acorn_Acorn_Features_PlanningResult_backup___redArg", #["lp_acorn_Acorn_Features_Model_predict", "lp_acorn_Acorn_Features_metaOfSkill", "lp_acorn_Acorn_Features_ModelPrediction_target", "lp_acorn_Acorn_Features_Controller_plan___redArg", "lp_acorn_Acorn_Features_ModelPrediction_cache___redArg"]),
+  ("Handcrafted/TemporalControl", "lp_acorn_Acorn_Handcrafted_TemporalControl_select", #["lp_acorn_Acorn_Features_modelOperations", "lp_acorn_Acorn_Handcrafted_TemporalControl_selectWithOperations"]),
+  ("AgentDriver", "lp_acorn_Acorn_AgentDriver_execute", #["lp_acorn_Acorn_Handcrafted_AgentConstruction_execute", "lp_acorn_Acorn_Handcrafted_Agent_observe___redArg"]),
+  ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_execute", #["lp_acorn_Acorn_Handcrafted_AgentConstruction_initial", "lp_acorn_Acorn_Handcrafted_Agent_runPrefix"]),
+  ("Handcrafted/Agent", "lp_acorn_Acorn_Handcrafted_Agent_act", #["lp_acorn_Acorn_Handcrafted_Agent_advanceClock___redArg", "lp_acorn_Acorn_Handcrafted_Agent_frame___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedStep___redArg", "lp_acorn_Acorn_Handcrafted_Agent_retire___redArg"]),
+  ("Host/AgentPrefix", "lp_acorn_Acorn_Handcrafted_Agent_runPrefix", #["lp_acorn_Acorn_Handcrafted_Agent_input"]),
+  ("Host/Checkpoint/Frame", "lp_acorn_Acorn_Checkpoint_encode", #["lp_acorn_Acorn_Checkpoint_payloadCodec", "lp_acorn_Acorn_Rng_fnv"]),
+  ("Host/Checkpoint/Frame", "lp_acorn_Acorn_Checkpoint_decode", #["lp_acorn_Acorn_Checkpoint_payloadCodec", "lp_acorn_Acorn_Rng_fnv"]),
+  ("Host/Checkpoint/Admission", "lp_acorn_Acorn_Checkpoint_loadCandidate", #["lp_acorn_Acorn_Checkpoint_admitHeader", "lp_acorn_Acorn_Checkpoint_decode", "lp_acorn_Acorn_Checkpoint_admitPayload"]),
+  ("Host/Checkpoint/Admission", "lp_acorn_Acorn_Checkpoint_admitPayload", #["lp_acorn_Acorn_Checkpoint_admitHeader", "lp_acorn_Acorn_Features_FeatureImage_admit___redArg", "lp_acorn_Acorn_Checkpoint_admitLifetime"]),
+  ("Host/Checkpoint/Admission", "lp_acorn_Acorn_Checkpoint_load", #["lp_acorn_Acorn_Checkpoint_loadCandidate", "lp_acorn_Acorn_Handcrafted_Agent_restore___redArg"]),
+  ("Host/Checkpoint/Snapshot", "lp_acorn_Acorn_Checkpoint_saveBytes", #["lp_acorn_Acorn_Handcrafted_FeatureProfile_checkpointSupported", "lp_acorn_Acorn_Checkpoint_snapshot", "lp_acorn_Acorn_Checkpoint_encode"]),
+  ("Host/Checkpoint/IO", "lp_acorn_Acorn_Checkpoint_loadFile", #["lp_acorn_Acorn_Checkpoint_readBounded", "lp_acorn_Acorn_Checkpoint_load"]),
+  ("Host/Checkpoint/IO", "lp_acorn_Acorn_Checkpoint_Store_save", #["lp_acorn_Acorn_Checkpoint_saveBytes", "lp_acorn___private_Acorn_Host_Checkpoint_IO_0__Acorn_Checkpoint_Store_reserve", "lp_acorn___private_Acorn_Host_Checkpoint_IO_0__Acorn_Checkpoint_Temporary_write", "lp_acorn___private_Acorn_Host_Checkpoint_IO_0__Acorn_Checkpoint_Temporary_flush", "lp_acorn___private_Acorn_Host_Checkpoint_IO_0__Acorn_Checkpoint_Temporary_sync", "lp_acorn___private_Acorn_Host_Checkpoint_IO_0__Acorn_Checkpoint_Temporary_publish"]),
+  ("WorldDriver", "lp_acorn_Acorn_WorldDriver_execute", #["lp_acorn_Acorn_Host_WorldConfig_standard", "lp_acorn_Acorn_Host_World_initial", "lp_acorn_Acorn_Host_World_advanceActions", "lp_acorn_Acorn_Host_World_observe"]),
+  ("Host/WorldGeneration", "lp_acorn_Acorn_Host_World_initial", #["lp_acorn_Acorn_Host_World_empty", "lp_acorn_Acorn_Host_selectSpawn", "lp_acorn_Acorn_Host_initializeDeer"]),
+  ("Host/WorldDynamics", "lp_acorn_Acorn_Host_World_step", #["lp_acorn_Acorn_Host_payAndAct", "lp_acorn_Acorn_Host_World_applyActive___redArg", "lp_acorn_Acorn_Host_passiveChange", "lp_acorn_Acorn_Host_World_applyPassive___redArg", "lp_acorn_Acorn_Host_World_goalSatisfied___redArg"]),
+  ("Host/Terrain", "lp_acorn_Acorn_Host_valueNoise", #["lp_acorn_Acorn_Host_coordinateFloat", "lp_acorn_Acorn_Binary32_div", "lp_acorn_Acorn_Host_floor32", "lp_acorn_Acorn_Binary32_sub", "lp_acorn_Acorn_Host_coordinateCast", "lp_acorn_Acorn_Host_Coordinate_checked"]),
+  ("Host/Attempt", "lp_acorn_Acorn_Host_PreparedStep_commit___redArg", #["lp_acorn_Acorn_Host_PreparedStep_environment___redArg", "lp_acorn_Acorn_Host_EnvironmentStep_record___redArg"]),
+  ("Host/Attempt", "lp_acorn_Acorn_Host_PreparedStep_environment___redArg", #["lp_acorn_Acorn_Host_World_step"]),
+  ("Host/Attempt", "lp_acorn_Acorn_Host_EnvironmentStep_record___redArg", #["lp_acorn_Acorn_Host_StepResult_reward", "lp_acorn_Acorn_Host_foldAction", "lp_acorn_Acorn_Binary32_add"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runCampaign___redArg", #["lp_acorn_Acorn_Host_ResearchProfile_resumable", "lp_acorn_Acorn_Host_standardCurriculum", "lp_acorn_Acorn_Host_CampaignPlan_admit", "lp_acorn_Acorn_Host_World_initial"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runCampaign___redArg___lam__1", #["lp_acorn_Acorn_Host_WritableCheckpoint_admit"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runCampaign___redArg___lam__0", #["lp_acorn_Acorn_Host_runAdmittedCampaign___redArg"]),
+  ("Host/Attempt", "lp_acorn_Acorn_Host_DecisionInput_selectOwned___redArg", #["lean_apply_3"]),
+  ("Host/Attempt", "lp_acorn_Acorn_Host_OwnedStep_frame___redArg", #["lp_acorn_Acorn_Host_captureFrame___redArg"]),
+  ("Host/Attempt", "lp_acorn_Acorn_Host_OwnedStep_environment___redArg", #["lp_acorn_Acorn_Host_World_step"]),
+  ("Host/Attempt", "lp_acorn_Acorn_Host_OwnedEnvironment_record___redArg", #["lp_acorn_Acorn_Host_StepResult_reward", "lean_apply_3", "lp_acorn_Acorn_Host_foldAction", "lp_acorn_Acorn_Binary32_add"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAttempt___redArg", #["lp_acorn_Acorn_Host_runAttemptSteps___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg", #["lp_acorn_Acorn_Host_Attempt_sense___redArg", "l_IO_lazyPure___redArg", "lean_alloc_closure", "lp_acorn_Acorn_Host_notifyObserver", "l_IO_lazyPure___redArg", "lp_acorn_Acorn_Host_OwnedEnvironment_record___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__1", #["lp_acorn_Acorn_Host_DecisionInput_selectOwned___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__2", #["lp_acorn_Acorn_Host_OwnedStep_frame___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__3", #["lp_acorn_Acorn_Host_OwnedStep_environment___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_StreamObserver_deliverStep___redArg", #["lean_apply_1", "lean_apply_3"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_finishAttempt___redArg", #["lp_acorn_Acorn_Host_Attempt_finish___redArg", "lp_acorn_Acorn_Host_notifyObserver"])
+]
+
+/-- Ordered closure code pointers connect deferred IO and capture to the same
+reviewed owners; checking a detached lambda alone does not establish that link. -/
+def closures : Array (String × String × Array String) := #[
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg", #[
+    "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__1",
+    "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__2",
+    "lp_acorn_Acorn_Host_StreamObserver_deliverStep___boxed",
+    "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__3"])
+]
+
+end AcornNativeRoutes

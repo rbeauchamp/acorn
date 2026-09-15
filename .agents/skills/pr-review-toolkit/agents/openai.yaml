@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Review Toolkit"
+  short_description: "Evidence-bounded review and simplification"
+  default_prompt: "Use $pr-review-toolkit to review and fix my current changes with exhaustive frozen-scope discovery, risk-scaled targeted closure, and its self-contained three-lens simplification workflow."

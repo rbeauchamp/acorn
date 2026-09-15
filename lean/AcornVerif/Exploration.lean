@@ -1,0 +1,117 @@
+/-
+Copyright (c) 2026 acorn contributors. All rights reserved.
+Released under the MIT license as described in the repository LICENSE.
+Authors: acorn contributors
+-/
+import AcornVerif.Generated
+import Mathlib.Algebra.Order.Floor.Defs
+import Mathlib.Analysis.SpecialFunctions.Log.Basic
+
+/-!
+# The εz-greedy duration law
+
+Machine-checked counterparts of `EzGreedy::begin` in
+`src/handcrafted/exploration.rs`, which draws `u ∈ (0,1]`, takes `⌊1/u⌋`, and
+caps the result at `EzGreedy::MAX_DURATION`.
+
+**Prior-art pin (PAR-8 / D3).** Dabney, Ostrovski & Barreto,
+*Temporally-Extended ε-Greedy Exploration*, ICLR 2021, arXiv:2006.01782v1
+opened. No running page number on that PDF's face. File page 5 of 20, §4.2:
+the option `ω_a^n` "takes action a for n steps and then terminates". File
+page 14 Algorithm 1 serves n+1. **Status:** this file proves the *surrogate*
+duration this crate ships (`⌊1/u⌋`, cap), not ζ(μ=2). Containment at `cap = 1`
+is the family including plain ε-greedy.
+
+Two facts, different in kind:
+
+* **Bounded work.** A duration is at least one step and never exceeds the cap, so
+  a single draw cannot commit the agent for an unbounded stretch. The Rust doc
+  comment claims this; here it is a theorem rather than a claim.
+* **Containment.** At `cap = 1` the law returns `1` for *every* admissible `u`, so
+  every exploratory run is a single step — which is plain ε-greedy exactly. This
+  discharges the first claim of the adoption rule in
+  `docs/learned-only-binding.md` §4: the replacement's family contains the rule it
+  replaced, so εz-greedy can do whatever ε-greedy does.
+
+Honest scope. Containment says the family *can* reproduce ε-greedy. It says
+nothing about whether the shipped `cap = 128` earns more reward, and nothing about
+returns at all — that is not decidable from the algorithm, and the register keeps
+it as an open empirical question rather than a settled one. The model is real
+arithmetic; the Rust draws an `f64` and converts to `u32`, so it does not cover
+the saturating cast, which the code makes total by construction instead. And
+containment is about the *policy*, not the stream: `begin` draws a second
+`next_f64()` for the duration where `SwiftSarsa::epsilon_greedy` draws none, so
+the two consume the generator differently even at `cap = 1`.
+-/
+
+namespace AcornVerif
+
+noncomputable section
+
+/-- The duration `EzGreedy::begin` commits to: `⌊1/u⌋`, capped.
+
+`u` is `1 - next_f64()`, so it ranges over `(0, 1]` and the reciprocal is finite —
+the Rust relies on that same fact to avoid a division-by-zero branch. -/
+noncomputable def ezDuration (u : ℝ) (cap : ℤ) : ℤ :=
+  if ⌊(1 : ℝ) / u⌋ ≥ cap then cap else ⌊(1 : ℝ) / u⌋
+
+/-- The draw is at least one: for `u ∈ (0, 1]`, `1 ≤ ⌊1/u⌋`.
+
+This is what makes the reciprocal's floor a usable duration without a guard —
+it cannot come out zero or negative anywhere on the admissible range. -/
+theorem one_le_floor_inv {u : ℝ} (h0 : 0 < u) (h1 : u ≤ 1) : 1 ≤ ⌊(1 : ℝ) / u⌋ := by
+  have h : (1 : ℝ) ≤ 1 / u := one_le_one_div h0 h1
+  exact Int.le_floor.mpr (by exact_mod_cast h)
+
+/-- A duration never exceeds the cap, so `EzGreedy::MAX_DURATION` is a bound on
+per-step commitment rather than a hope about a heavy-tailed draw. -/
+theorem ez_duration_le_cap (u : ℝ) (cap : ℤ) : ezDuration u cap ≤ cap := by
+  unfold ezDuration
+  split_ifs with h
+  · exact le_refl cap
+  · exact le_of_lt (lt_of_not_ge h)
+
+/-- A duration is at least one step, so `begin` always has an action to serve. -/
+theorem ez_duration_pos {u : ℝ} {cap : ℤ} (h0 : 0 < u) (h1 : u ≤ 1) (hc : 1 ≤ cap) :
+    1 ≤ ezDuration u cap := by
+  unfold ezDuration
+  split_ifs with h
+  · exact hc
+  · exact one_le_floor_inv h0 h1
+
+/-- **Containment.** At `cap = 1` the duration law is constantly `1` over the whole
+admissible range of `u`, so every exploratory run lasts exactly one step.
+
+That is plain ε-greedy. εz-greedy's family therefore contains the rule it
+replaced, at one parameter setting and for *every* draw rather than a sampled few
+— which is the one part of "at least as well as" that is provable before any
+measurement. -/
+theorem ez_contains_epsilon_greedy {u : ℝ} (h0 : 0 < u) (h1 : u ≤ 1) :
+    ezDuration u 1 = 1 := by
+  unfold ezDuration
+  rw [if_pos (one_le_floor_inv h0 h1)]
+
+/-- And so the residual run length is zero: the action is served once and the next
+step is a fresh decision point. `EzGreedy::serve` returns `None` at
+`remaining = 0`, which is ε-greedy's behaviour exactly. -/
+theorem ez_remaining_zero_at_cap_one {u : ℝ} (h0 : 0 < u) (h1 : u ≤ 1) :
+    ezDuration u 1 - 1 = 0 := by
+  rw [ez_contains_epsilon_greedy h0 h1]; ring
+
+/-- The bound, restated at the cap this build actually runs at.
+
+`Generated.ezMaxDuration` is emitted from `EzGreedy::MAX_DURATION` by
+`acorn emit-lean`, and CI fails if the emitted file is stale — so this is a
+statement about the shipped constant rather than about a number retyped into a
+proof, which is the standard the rest of the package already holds itself to. -/
+theorem ez_duration_le_shipped_cap (u : ℝ) :
+    ezDuration u (Generated.ezMaxDuration : ℤ) ≤ (Generated.ezMaxDuration : ℤ) :=
+  ez_duration_le_cap u _
+
+-- Non-vacuity: the hypotheses are inhabited, and the cap does bind.
+example : ezDuration 1 1 = 1 := by norm_num [ezDuration]
+example : ezDuration (1 / 1000) 128 = 128 := by norm_num [ezDuration]
+
+end
+
+end AcornVerif

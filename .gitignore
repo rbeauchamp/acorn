@@ -1,0 +1,11 @@
+.lake/
+lake-packages/
+*.olean
+*.ilean
+*.ndjson
+.DS_Store
+*.ckpt
+*.ckpt.tmp
+/acorn-run/
+/acorn-run.archive/
+/.acorn-launch/

@@ -1,0 +1,4 @@
+interface:
+  display_name: "UX Review"
+  short_description: "Independent nine-lens review of the viewer as its audience reads it"
+  default_prompt: "Use $ux-review to review the viewer page as Sutton, Javed and the Oak Lab team would read it: capture the spec's geometries and lifecycle states, run the nine lenses independently, validate against docs/viewer-ux.md, and report what the audience would still stumble on."
