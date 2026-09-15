@@ -12,8 +12,7 @@ import NativeApp.Report
 
 Each arm executes the current full agent, with the retained seed, world and
 campaign limits. Both the action digest and knowledge checksum must match.
-These are mutation detectors; a matching receipt establishes neither semantic
-equivalence nor learning benefit. No scientific observation is produced here.
+The fixed executions are compared through these paired digests.
 -/
 namespace NativeApp
 open Acorn Acorn.Host Acorn.Host.Viewer Acorn.Handcrafted

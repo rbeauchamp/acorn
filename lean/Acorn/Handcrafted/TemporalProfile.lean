@@ -12,8 +12,7 @@ import Acorn.Host.Terrain
 
 D2 is the raw spatial indicator; D3 supplies the annealed comparison and
 persistent-duration law. Ranked targets and per-consumer rates reuse their
-learned owners. These declarations preserve research choices without promoting
-any profile or claiming a new exploration law.
+learned owners. These declarations select the recorded research profiles.
 -/
 namespace Acorn.Handcrafted
 open Features

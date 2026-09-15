@@ -11,8 +11,8 @@ import AcornVerif.CurrentLearner
 # Current checkpoint admission and installation laws
 
 These statements concern the actual format-14 parser, writer, legal-state
-constructors and full-agent restoration. Pure byte laws do not assert filesystem
-atomicity, power-loss durability, continuity of world state or learning benefit.
+constructors and full-agent restoration. The laws describe parsing, serialization
+and pure restoration. Native persistence relies on the filesystem and OS.
 -/
 namespace AcornVerif.CurrentCheckpoint
 open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime

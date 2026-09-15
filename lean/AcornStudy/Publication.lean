@@ -8,7 +8,7 @@ import AcornStudy.Dossier
 /-! # Scientific publication admission
 
 Every printed comparison carries its exact tally and semantic run identity.
-This checks correspondence to retained canonical records, not scientific truth.
+Admission checks correspondence to retained canonical records.
 The parser consumes characters, so wrapped prose and UTF-8 glosses share one
 coordinate system with the trigger and population scans.
 -/

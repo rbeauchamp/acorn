@@ -9,8 +9,8 @@ import Acorn.Host.Campaign
 # Current host curriculum
 
 This is externally declared task content, outside the learned core. Targets
-retain their deterministic seed/hash and two distance scales. Construction
-does not assert reachability or learning benefit, including for custom boxes.
+retain their deterministic seed/hash and two distance scales. The host defines
+the target predicates; reachability depends on the generated world and box.
 -/
 namespace Acorn.Host
 

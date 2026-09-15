@@ -13,7 +13,7 @@ proof-review lens.
 
 A newcomer from Sutton, Javed, and the Oak Lab team should see within ten seconds
 what the system is, what it is trying to do, and how it is doing.
-Code correctness alone does not establish this.
+Inspect the rendered page to assess that first experience.
 
 ## Standard and evidence
 

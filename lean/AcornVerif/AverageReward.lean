@@ -22,8 +22,7 @@ Sutton and Barto, *Reinforcement Learning: An Introduction*, 2nd ed.,
 MIT Press (2018), §10.3 Exercise 10.8, p. 252, admits the reward-residual
 gain update. Its constant-step affine recurrence is characterized below.
 
-These are algebraic contracts over real numbers, not a convergence theorem
-for an adaptive learner or a floating-point implementation. The two-state
+These algebraic contracts are over real numbers. The two-state
 identities characterize an entire family: bounded rewards alone supply no
 transition-independent bound on differential value span. A numerical
 projection therefore declares its numerical budget separately from true-value

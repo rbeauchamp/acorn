@@ -4,8 +4,11 @@ Acorn is an independent research implementation inspired by Oak Lab's mission
 and the Alberta Plan. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
 qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.
-No composition is qualified for implicit default use. Do not imply endorsement,
-learning effectiveness or completion of the Alberta Plan.
+Core calls select an explicit research profile. The prior-art register records
+current qualification decisions. Describe implemented behavior, proof hypotheses
+and research questions directly; use citations for attribution and concrete
+results for claims. Omit affiliation disclaimers and repeated assurances about
+what the project is not.
 
 ## Correct by construction
 
@@ -37,7 +40,7 @@ engineering. Preserve original observations separately from presentations.
 ## Learned-only and research admission
 
 Every hand-authored action-path bias requires its actual departure declaration.
-A provenance witness is a declaration, not proof that it is honest. Source and
+Review checks each provenance declaration against the producing code. Source and
 compiled ownership enforce the learned/host/handcrafted boundary and explicit
 composition roots. The viewer observes telemetry and sends lifecycle stop only;
 it cannot alter learning decisions.

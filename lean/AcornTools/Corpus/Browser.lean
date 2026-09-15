@@ -12,7 +12,7 @@ import Acorn.Host.Viewer.SupervisedProcess
 
 The generated kernel owns numeric programs and whole-frame admission. This
 lexical gate binds the handwritten observer to those owners and holds its
-request/timer inventory. It is not a proof of JavaScript or DOM execution.
+request/timer inventory. Rendered browser behavior is inspected separately.
 -/
 namespace AcornBrowserAudit
 open Acorn.Host.Viewer

@@ -71,4 +71,3 @@ Every empirical citation must identify study, protocol revision, run and
 comparison. Canonical calculations must resolve to the retained observations and
 executed calculator owner. Preserve negative/inconclusive records. Qualification
 requires the separate [promotion standard](docs/prior-art-review.md#default-promotion-and-demotion).
-No positive result follows from a formally well-typed record or analysis formula.

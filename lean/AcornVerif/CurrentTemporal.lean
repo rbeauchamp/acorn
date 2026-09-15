@@ -192,7 +192,7 @@ def runPrefix (planning : PlanningSelection)
     runPrefix planning result.1 rest
 
 /-- Every admitted finite prefix retains the actual primary controller's managed
-schedule and storage bound; this is not infinite-run liveness or learning benefit. -/
+schedule and storage bound. -/
 theorem finite_prefix_schedule (planning : PlanningSelection)
     (state result : TemporalControl profile config criterion dimension) (frames : List (Frame
       dimension))

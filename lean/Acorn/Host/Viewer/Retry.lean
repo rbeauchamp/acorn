@@ -11,8 +11,7 @@ import Init
 Three consecutive short failures stop automatic restart. A run exceeding the
 30-second operational threshold begins a new failure sequence at one. Backoff
 is derived from the admitted failure count, so no arbitrary shift or unbounded
-failure counter enters scheduling. These are preserved operational policies,
-not claims about the speed or scientific quality of a learner.
+failure counter enters scheduling.
 -/
 namespace Acorn.Host.Viewer
 

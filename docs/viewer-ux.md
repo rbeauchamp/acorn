@@ -80,7 +80,7 @@ What a newcomer must be able to say without scrolling.
   its controls in a compact row; their height cannot leave a long empty column. Start/Stop stay
   in the top bar; the introduction explains cooperative Stop and checkpoint
   resume without promising a successful save.
-  The independent research status and no-endorsement statement remain visible.
+  The introduction describes the agent, its current goal and the viewer controls.
   Algorithm terminology, the five-stage progression, mission tiles and detailed
   analysis live in an initially closed, keyboard-accessible **Inside the agent**
   disclosure below the main view. Existing measurements, definitions and sources
@@ -119,8 +119,7 @@ What a newcomer must be able to say without scrolling.
   outcome order suppresses the score. Goal achievement rounds down to one decimal percent.
   A disclosure names the attempt/step budget, population and process scope,
   Oak Lab mission and Javed/Sutton Big World research rationale. This operational
-  fraction is not an OaK research index, mission-completion percentage, proof of
-  learning benefit or a claim of generality beyond this curriculum/world/budget.
+  fraction describes the selected curriculum, world and attempt budget.
   The research disclosure carries the standing claim
   `One agent · one unbroken stream · no replay buffer`, and one paragraph: OaK
   is **O**ptions **a**nd **K**nowledge — from one stream of experience, batch
@@ -129,18 +128,14 @@ What a newcomer must be able to say without scrolling.
   with them; every weight has its own meta-learned step size — followed by the
   mission sentence quoted from oaklab.ai/mission (*algorithms that allow
   agents to achieve goals in big worlds*) with the link. A fine-print line
-  says that nothing on the page reaches the agent, that its figures are the
-  core's telemetry or the page's labelled arithmetic over it, that live rates
-  and shares are means over the last `WIN` frames while every other figure
-  names its own window, and — visibly, not in a disclosure — that this is an
-  independent implementation with no endorsement by Oak Lab, Sutton or Javed:
-  the page carries the architecture's name and the lab's mission as its
-  masthead, and a visitor from that lab must not have to open anything to
-  learn whose page it is. A `sources` disclosure names the FC-STOMP
+  identifies figures as core telemetry or the page's labelled arithmetic.
+  Live rates and shares are means over the last `WIN` frames; every other
+  figure names its own window. Describe Acorn's implementation directly,
+  with citations for the research it draws on. A `sources` disclosure names the FC-STOMP
   progression (Sutton, *The OaK Architecture: A Vision of SuperIntelligence
   from Experience*, RLC 2025 keynote), the STOMP progression (Sutton, Machado
   et al., AIJ 324 (2023) 104001, arXiv:2202.03466v4), Alberta Plan Step 1 for
-  per-weight step sizes, and repeats the no-endorsement statement. The
+  per-weight step sizes. The
   live observer carries no historical benchmark link or result (UX-48).
 - **UX-4 · OaK's five stages.** The panel is headed *OaK's five stages — the
   FC-STOMP progression*, followed by the display state word (UX-6). It is a
@@ -196,10 +191,9 @@ What a newcomer must be able to say without scrolling.
   green when the direction is the good one for that quantity (reward up,
   error down) and red when it is not, with a hover text saying the same in
   words (rose or fell, the wanted or the unwanted direction). The arrow waits
-  for evidence (UX-12). **No tile claims that learning has happened.** The
-  arrows compare two named windows of one run; there is no baseline in the
-  stream, and the goals tile's hover text states that counts alone do not
-  establish a learning benefit (UX-48). When the display is detached
+  for sufficient data (UX-12). The arrows compare two named windows of one run;
+  the goals tile's hover text names its counters, families and lifetime/current-pass
+  scope. When the display is detached
   from the live edge the panel heading says which moment each tile reads: goals
   read the cursor's frame, the other three the newest one.
 - **UX-6 · The display state is written where the first screen shows it.**
@@ -332,28 +326,19 @@ Rules that apply to every number, label and colour on the page.
   it: a bin that has just opened against a bin of millions would draw an arrow
   from noise at every doubling of the lifetime, and the caption says `too few
   to compare`.
-- **UX-13 · Coverage is not the thesis.** The sensed meter, the top-bar
-  percentage and the `world seen · terrain coverage` tile report tiles the run
-  has sensed, out of the whole world. The agent's features are egocentric — the
-  11×11 window, proprioception, task relation, inventory and the demons'
-  predictions (`Acorn.Handcrafted.Observation`) — and carry no absolute
-  position, so the extent of the map is not something the agent represents or
-  can exhaust; a run that has sensed most of the terrain has not thereby
-  modelled it. The claim that the agent is much smaller than its world is
-  established elsewhere and on other terms: the theorem
-  [`big_world_margin_holds`](../lean/AcornVerif/BigWorld.lean) counts the
-  states the agent must value against its parameters. The big-world panel's
-  lede says so by name — the Big World Hypothesis (Javed & Sutton 2024) is
-  about the agent's size relative to its world, which this number does not
-  measure — and the page must never present the coverage figure as that claim.
-- **UX-14 · No learning claim.** The page reports what the stream says.
-  Direction and magnitude with their windows are shown; "learning is
-  happening" is a study's claim (see the [promotion standard](prior-art-review.md#default-promotion-and-demotion)), never a
-  caption's. Captions do not attribute a mechanism the stream does not
-  support: the ribbon's flicker is options being interrupted and re-chosen at
-  decision boundaries, which its end counter shows, not "exploration"; a
-  non-finite value is named by field, and whether a learner is diverging is
-  the reader's to establish.
+- **UX-13 · Terrain coverage.** The sensed meter, top-bar percentage and
+  `world seen · terrain coverage` tile report tiles sensed out of the whole world.
+  The viewer retains this map from telemetry. The agent receives egocentric
+  features: the 11×11 window, proprioception, task relation, inventory and demon
+  predictions (`Acorn.Handcrafted.Observation`). The panel explains that scope
+  directly. The [BigWorld proofs](../lean/AcornVerif/BigWorld.lean) separately
+  compare explicit state counts and representation sizes.
+- **UX-14 · Describe the observed quantity.** Captions name the reported
+  mechanism, value and window. The ribbon's end counter reports option
+  interruptions and reselections at decision boundaries; non-finite values are
+  identified by field. Use precise definitions instead of broad learning claims
+  or disclaimers. The [promotion standard](prior-art-review.md#default-promotion-and-demotion)
+  owns claims about comparative benefit.
 - **UX-15 · Colour and shape.** Red is reserved for faults: a refused frame,
   a non-finite value, a stale stream, a stopped core the operator did not
   stop, a refused command. Identity and evidence badges use the colours of
@@ -715,7 +700,7 @@ What each panel must show. How it draws it is the code's.
   Expandable rows expose the active step size and eligible-feature count for
   every learner, including each option/action pair: a family mean never
   substitutes for the selective-credit state it summarises. The panel is that
-  α, not a claim about the SwiftTD paper's results (§10). Model arrays reserve
+  α, with its source attribution in §10. Model arrays reserve
   reward, continuation and duration slots per option; discounted control marks
   duration slots unused, not learned zero-valued duration estimates.
 - **UX-35 · Surprise.** Mean absolute TD-form residual across the demons,
@@ -1115,11 +1100,11 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Background planning (Dyna) | behaviour panel | PAR-14 Background Planning: Dyna planning backups over learned option models into meta-controller `q̂_meta`. Sutton 1990/1991; Sutton, Machado et al., AIJ 324 (2023) 104001, §5 eq. (19) (arXiv:2202.03466v4 PDF p. 16 eq. (19)); Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 & §3. Emitted as `planning_steps` backups (since process start / latest restore) and `planning_errors[3]` per skill. |
 | G31 terminal target `c + z` | **out of viewer scope** | RRS **PDF p. 5 eq. (5)** `δ(c, z, v, v′, β) .= c + β z + γ(1−β) v′ − v`; at `β = 1` this is `c + z − v`. GVF return **PDF p. 3 eq. (2)**. SPS99 **§3, PDF p. 10 / journal p. 190 eqs. (8)–(9)** gives the option Bellman decomposition. Its eq. (14) is an improvement inequality, not the terminal target. |
 | Goal achievement | thesis | Assigned goals achieved within admitted attempt/step budgets. Oak Lab mission and Javed/Sutton Big World research motivate outcome-based evaluation; the curriculum fraction is Acorn's operational choice. |
-| Predictive agreement | Knowledge | Repository-defined equal-question finite-return RMSE complement. Oak Lab mission and Horde supply context, not this score or a knowledge-percentage interpretation; eleven questions remain D5. |
-| Step-size curves | plasticity panel | Alberta Plan Step 1 **PDF p. 6** (quote above). SwiftTD paper pages: not this panel’s claim. |
-| intra-option-credit / derived-exploration-rate studies | **out of viewer scope** | **No prior-art claim** on the missing UI. Content is PAR-9 / PAR-10, pinned above. |
-| Screenshot matrix / CI vs local Kani-Lean | **no prior-art claim** | AC-R4 geometries and AC-R6 receipts are instrument hygiene. |
-| `FLOAT_FIELDS` ⊆ emit keys | gate, not a surface | **No prior-art claim.** `AcornTools.Corpus.Browser` binds conversion keys to `browserSchema`. |
+| Predictive agreement | Knowledge | Acorn-defined equal-question finite-return RMSE complement over eleven fixed questions (D5). Oak Lab mission and Horde supply the research context. |
+| Step-size curves | plasticity panel | Alberta Plan Step 1 **PDF p. 6** (quote above). The panel plots Acorn’s current step sizes. |
+| intra-option-credit / derived-exploration-rate studies | **out of viewer scope** | PAR-9 / PAR-10 identify the mechanisms, pinned above. |
+| Rendered inspection and compiler checks | contributor verification | AC-R4 geometries and AC-R6 check results cover presentation and implementation. |
+| `FLOAT_FIELDS` ⊆ emit keys | gate, not a surface | `AcornTools.Corpus.Browser` binds conversion keys to `browserSchema`. |
 
 ## Appendix A · Constants this document quotes
 
@@ -1143,10 +1128,8 @@ Durations are milliseconds unless the name denotes another unit.
 
 ### Research eligibility and launch selection
 
-The mission panel identifies the viewed system as an explicitly selected
-research configuration and states that live activity/proofs do not establish
-improved goal achievement. No current agent configuration is qualified as an
-implicit default. Viewer launch requires `--research-profile ranked` for its
+The mission panel describes the running mechanisms and cites their sources.
+Viewer launch requires `--research-profile ranked` for its
 managed command or an explicit `--cmd`; the two are mutually exclusive.
 The core CLI also requires a research profile. Existing field windows, lifecycle
 controls and timers keep their specified semantics. Source explanations identify

@@ -13,8 +13,7 @@ import AcornVerif.CurrentPrediction
 These theorems reuse the actual numeric learner and its admitted schedule.
 The action update is Javed & Sutton, *Swift-Sarsa*, arXiv:2507.19539v1 (2025),
 Algorithm 1 / equation (4), with the PAR-2 meta-gradient adaptation owned by
-`MetaGradient`. Machine containment and ideal-real identities are separate;
-no convergence, learning-benefit or whole-agent theorem follows from this slice.
+`MetaGradient`. Each theorem identifies its machine-word or ideal-real domain.
 -/
 namespace AcornVerif.CurrentControl
 open Acorn Acorn.Features AcornVerif.CurrentFeatureConsumers AcornVerif.CurrentLearner

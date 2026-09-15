@@ -19,10 +19,10 @@ preferences:
 - **Every number names its window.** A mean says what it averages over; a
   trend says which two ranges it compares; a live figure says it is live; a
   count says whether it is the run's or this browser's.
-- **No learning claim.** The page reports what the stream says. "Learning is
-  happening" is a study's claim ([scientific evidence guidance](../../../../CONTRIBUTING.md#scientific-evidence)), never a
-  caption's. Verdict tiles show direction and magnitude with their windows;
-  the reader draws the conclusion.
+- **Describe the observed quantity.** Name the reported mechanism, value and
+  window. Distinguish execution activity, forecasts and outcomes by defining
+  each measure directly. Comparative benefit follows the promotion standard;
+  captions use concrete descriptions and omit repeated disclaimers.
 - **Every algorithm surface names its source** (`docs/viewer-ux.md` §10):
   work, equation, fetched page and a short quote, or a statement that the
   quantity is out of viewer scope. A source may sit one click away; it may not

@@ -37,12 +37,10 @@ def clipBeta (β η ηmin : ℝ) : ℝ :=
 
 /-- After clipping, the step size is strictly positive: `α = exp β > 0`.
 
-Honest scope: over the reals this holds for *every* `β`, so the statement is
-provable by `Real.exp_pos` alone and neither hypothesis nor `clipBeta` is
-load-bearing. It does **not** establish that the `ηmin` floor does anything —
-the risk that floor addresses is `f32` underflow of `exp β` to `0.0`, which the
-reals cannot represent. Kept as a sanity statement of the intended range, not as
-evidence the guard works. -/
+Over the reals, `Real.exp_pos` establishes positivity for every `β`, independently
+of clipping and the hypotheses. The `ηmin` floor addresses floating-point
+underflow of `exp β` to `0.0`; that machine-arithmetic behavior lies outside this
+real-arithmetic model. -/
 theorem step_size_pos_after_clip (β η ηmin : ℝ) (hη : 0 < η) (hm : 0 < ηmin) :
     0 < Real.exp (clipBeta β η ηmin) := by
   unfold clipBeta
