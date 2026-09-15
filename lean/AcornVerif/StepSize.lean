@@ -73,7 +73,7 @@ theorem step_size_lower_after_clip (β η ηmin : ℝ) (hm : 0 < ηmin) (h : ηm
 
 /-- The effective-rate denominator: `E = max η (Σ α φ²)` with `φ ∈ {0,1}`
 after construction unique, so this is the deployed sum of
-The second update loop. Paper eq. (7), RLJ vol. 2
+the second update loop. Paper eq. (7), RLJ vol. 2
 p. 845: `τ_t = Σ_i α_t[i] φ_t[i]²`. The scalar `rate` *is* that sum. -/
 def overshootE (η rate : ℝ) : ℝ := max η rate
 

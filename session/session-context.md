@@ -1,15 +1,17 @@
-# Session context: Acorn content review
+# Session context: Acorn content review and delivery
 
 **Date:** 2026-09-15
 **Branch / starting basis for this cleanup:** `codex/repository-trim-review` /
 `7ff461a22f9fed2c4ec15c21d043cd6a6f2715e7`
-**Persistence / resume authority:** The commit containing this handoff, pushed to
-`origin`. Resolve the actual branch tip when resuming; the hash above is the
-starting basis, not this saved commit.
+**Persistence / resume authority:** Git and the live PR for this branch. Resolve
+its actual delivery state when resuming; the hash above is the cleanup's starting
+basis. After a verified merge, use `main` and its current tip.
 **Primary checkout:** `/Users/richard/Developer/github/acorn`
 **Remote:** `https://github.com/rbeauchamp/acorn.git` — private when checked.
-**Active focus:** Owner-led review of Acorn's contents, starting minimal with
-what the executing agent uses and what supports its mission and current proofs.
+**Active instruction:** The owner authorized stopping the agent and viewer,
+committing and pushing the reviewed changes, creating a PR, and merging once CI
+passes. Complete required reviews and exact-head checks. This supersedes the
+earlier temporary instruction to keep the content-review branch unmerged.
 
 ## Completed cleanup
 
@@ -25,8 +27,8 @@ runner. Their imports, ownership entries, obsolete constant identities and axiom
 message guards are removed together.
 
 The 30 live machine-word definitions moved unchanged to `Acorn.Constants`.
-Surviving application bodies are unchanged apart from that namespace relocation;
-comments and direct imports were updated. The rational/dimensional proof inputs
+For this evaluator removal, surviving application bodies are unchanged apart
+from that namespace relocation; comments and direct imports were updated. The rational/dimensional proof inputs
 now live in `AcornVerif.ModelConstants`, with historical protocol constants and
 two unused prediction constants removed. Useful current implementation contracts
 and supporting mathematical identities remain.
@@ -35,8 +37,20 @@ README, verification documentation and the shipped review reference describe the
 current layout. BigWorld and Energy comments now state their exact mathematical
 scope: fixed formula arithmetic and conditional ledger inequalities. They do not
 claim unproved state reachability, checkpoint introspection or execution linkage.
-No learning study, dynamics rerun, audit-pin change or runtime/checkpoint edit
-was performed. Acorn-dev was not accessed or modified.
+No learning study, audit-pin change or checkpoint-format change was performed.
+Acorn-dev was not accessed or modified.
+
+README, AGENTS and the GitHub About description now state Acorn's mission
+directly. The viewer distinguishes checkpoint-persistent agent lifetime from
+current-world steps and renders quantity-aware collection goals such as
+“Hold at least 2 stones.” Counter labels stack above values so the healthy
+desktop header remains one row.
+
+The requested live operational check observed advancing telemetry, populated
+agent panels, successful checkpoint saves and resumed lifetime counts. Wide and
+compact rendered views were inspected. These observations concern operation,
+not learning quality. The agent and viewer were then stopped at the owner's
+request; the final checkpoint saved successfully and the viewer port closed.
 
 ## Review and verification
 
@@ -53,24 +67,28 @@ NativeApp; total 6,293**. Counts describe checked scope, not correctness or
 learning quality. The first build found two line-length violations introduced by
 the module rename; both were repaired before the passing complete suite.
 
-No hosted CI result is claimed. No PR was opened or merged during this cleanup;
-the owner is still reviewing content. Hosted checks apply to the exact proposed
-head when the final PR is prepared. No separate roadmap or issue owns this
-editorial review; this handoff holds the continuation point.
+The publication review covers the aggregate branch diff. CI explicitly checks
+out the proposed PR head and confirms its SHA before verification; push and
+manual runs use their event SHA. Recheck the final local result and the live PR's
+checks, reviews and merge state when continuing. GitHub owns the current hosted
+CI and merge results. No separate issue owns this editorial review.
 
 ## Local work to preserve
 
-Separate formatting edits remain unstaged and uncommitted in:
+Separate formatting edits belong to the local worktree, outside this PR:
 
 - docs/design.md
 - docs/frontier.md
 - docs/prior-art-review.md
 - docs/viewer-ux.md
 
-All four were preserved byte-for-byte throughout this cleanup and were present
-for the full suite. Do not reset or silently stage them. They are absent from a
-fresh clone. The viewer-spec edit removes spaces around three code spans in one
-table cell; that small editorial issue remains for its owner's next selection.
+They are temporarily stashed for clean-head verification and merge, then restored
+on `main`. If closeout is interrupted, locate the stash named
+`Acorn: preserve preexisting documentation formatting during PR closeout` and
+restore it only after checking the current worktree. Do not reset or silently
+commit these edits. They are absent from a fresh clone. The viewer-spec edit
+removes spaces around three code spans in one table cell; that editorial issue
+remains for its owner's next selection.
 
 ## Standing owner directives
 
@@ -79,11 +97,11 @@ table cell; that small editorial issue remains for its owner's next selection.
   Acorn is the go-forward repository. Do not edit, synchronize, rebuild or clean
   `/Users/richard/Developer/github/acorn-dev`; consult it only when the owner
   explicitly asks to draw from it.
-- “do not merge the acorn PR.” Keep this branch unmerged during content review.
-  Do not treat general standing merge authorization as overriding this direction.
-- “we will continue meticulously reviewing the content of acorn in a fresh session.”
-  Continue collaborating on content; do not autonomously publish a final release
-  or change repository visibility. The repository is private for these revisions.
+- The owner now explicitly authorizes this PR's merge after CI passes. Preserve
+  branch protections and required reviews. No release or visibility change is
+  authorized; the repository remains private.
+- Keep the agent and viewer stopped after delivery. Preserve saved learning and
+  local run files for a later owner-requested launch.
 - Use direct, inviting language for OaK lab members, researchers and newcomers.
   Let code, documentation and artifacts speak without repeated defensive
   disclaimers or unsupported claims. Preserve exact scientific qualifications
@@ -99,10 +117,12 @@ table cell; that small editorial issue remains for its owner's next selection.
 
 ## Next action
 
-Revalidate the actual branch, remote and local edits. Continue the owner's
-content review from the updated README and follow their next selected file or
-topic. AcornSpec and the unused study runner have been removed; do not restore
-historical machinery merely because it appeared in an earlier handoff.
+Revalidate the checkout and live PR for `codex/repository-trim-review`. If delivery
+is pending, finish signed publication, exact-head local/hosted verification,
+required review, squash merge and primary-checkout cleanup. If merged, verify
+the merge is on `origin/main`, use `main`, and preserve the separate local edits.
+Then follow the owner's next selected topic; no next implementation task is
+selected. Do not restore removed machinery merely because an older handoff named it.
 
 The remaining layout is `lean/Acorn` for execution and proof-bearing state,
 `lean/AcornVerif` for implementation contracts and supporting mathematics,
