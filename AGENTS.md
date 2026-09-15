@@ -1,7 +1,8 @@
 # Working on Acorn
 
-Acorn is an independent research implementation inspired by Oak Lab's mission
-and the Alberta Plan. [Design](docs/design.md) owns implementation coverage;
+Acorn pursues Oak Lab's mission: agents that learn from experience to achieve
+goals in big worlds. The Alberta Plan guides its work on continual learning and
+planning in Lean. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
 qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.
 Core calls select an explicit research profile. The prior-art register records

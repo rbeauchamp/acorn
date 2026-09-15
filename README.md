@@ -1,13 +1,14 @@
 # Acorn
 
+Acorn pursues [Oak Lab's mission](https://oaklab.ai/mission): agents that learn
+from experience to achieve goals in big worlds. We tackle the challenges of the
+[Alberta Plan](https://arxiv.org/abs/2208.11173v3) by developing and verifying
+continual learning and planning algorithms in Lean. The agent learns one
+observation at a time, without replay buffers or curated training data.
+
 Watch an agent explore a tile world, gather resources and attempt tasks while
 learning from one continuous stream of experience. Acorn's browser viewer lets
 you inspect its predictions, chosen actions, options and planning as it runs.
-
-Acorn is an independent, experimental Lean implementation inspired by
-[Oak Lab's mission](https://oaklab.ai/mission) and the
-[Alberta Plan](https://arxiv.org/abs/2208.11173v3). Its learning algorithms update
-one observation at a time, without replay buffers or curated training data.
 
 ## Start with the live viewer
 
