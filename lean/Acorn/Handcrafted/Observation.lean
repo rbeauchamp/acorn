@@ -13,7 +13,7 @@ import Acorn.Provenance
 This composition boundary declares the hand-authored layout in
 `docs/learned-only-binding.md`. The learned coder receives only opaque words.
 Resource counts and predictions are bucketed; the imprint patch contains kind
-alone. These interfaces do not claim lossless reconstruction of observations.
+alone. This channel encoding is lossy.
 -/
 namespace Acorn.Handcrafted
 open Features Host

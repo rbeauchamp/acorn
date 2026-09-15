@@ -12,8 +12,8 @@ import Acorn.Agreement
 The durable record and process-local pending returns are separate. All updates
 consume observations; no policy reads this record. Counters saturate, histories
 have fixed shapes, and each pending return belongs to its prediction horizon.
-These are observations of the experienced stream, not a replay buffer or a
-learning-benefit certificate. File serialization belongs to the persistence owner.
+The record summarizes the experienced stream. File serialization belongs to
+the persistence owner.
 -/
 set_option maxRecDepth 4096
 

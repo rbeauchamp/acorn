@@ -11,8 +11,7 @@ import Acorn.Host.AgentArguments
 This diagnostic entry admits the full feature-size domain and calls the actual
 initialization, finite-prefix transition and current observation definitions.
 Caller-supplied words provide raw sensory and feedback inputs; output records
-execution, not scientific improvement or a correctness oracle. The application
-CLI and delivered IO retain their separate migration owners.
+execution. The application CLI and delivered IO have separate owners.
 -/
 namespace Acorn.AgentDriver
 open Features Handcrafted

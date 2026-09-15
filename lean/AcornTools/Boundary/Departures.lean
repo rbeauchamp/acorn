@@ -11,7 +11,7 @@ import AcornTools.Ownership
 The closed departure type and complete compiled quarantine-module/type inventory
 are bound to the maintained register. Composite state types declare all consumed
 origins here; signal producers additionally carry their executable Provenance
-contracts. Neither mechanism establishes that a declaration is scientifically true.
+contracts. Review checks each declared origin against the producing code.
 -/
 namespace AcornDepartureAudit
 open Lean Acorn

@@ -15,7 +15,7 @@ slot order and applies the signed error through the current SwiftTD planning
 entry. Wan, Naik & Sutton, *Average-Reward Learning and Planning with Options*,
 NeurIPS 34 (2021), section 5, equations (18)–(23), supplies reward minus gain
 times duration plus continuation; Acorn's gain belongs to real primitive credit.
-Changing scalar models supply no contraction or planning-benefit guarantee.
+The models and their targets evolve during the run.
 -/
 namespace Acorn.Features
 

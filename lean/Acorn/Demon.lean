@@ -13,7 +13,7 @@ Sutton, Modayil et al., *Horde: A Scalable Real-Time Architecture for Learning
 Knowledge from Unsupervised Sensorimotor Interaction*, AAMAS (2011), pp. 761–768,
 p. 764, describes demons and inter-demon questions. Acorn's PAR-3 specialization
 uses current on-policy SwiftTD, constant discounts and predictions as subsequent
-controller features. It does not establish the paper's off-policy convergence.
+controller features.
 -/
 namespace Acorn.Features
 

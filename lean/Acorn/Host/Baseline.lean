@@ -10,8 +10,7 @@ import Acorn.Host.Runner
 
 This is the current explicitly requested demo comparison, not an agent callback
 or substitute for the learned composition. It consumes its separate seeded RNG
-and resets the result at every goal. Defining it does not run a comparison or
-claim learning benefit. Its caller owns the finite supplied goal array.
+and resets the result at every goal. Its caller owns the finite supplied goal array.
 -/
 namespace Acorn.Host
 

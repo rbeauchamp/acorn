@@ -8,7 +8,6 @@ Acorn is an independent, experimental Lean implementation inspired by
 [Oak Lab's mission](https://oaklab.ai/mission) and the
 [Alberta Plan](https://arxiv.org/abs/2208.11173v3). Its learning algorithms update
 one observation at a time, without replay buffers or curated training data.
-It is not affiliated with or endorsed by Oak Lab, Richard Sutton or Khurram Javed.
 
 ## Start with the live viewer
 
@@ -48,9 +47,8 @@ source archive, then run the launcher from that directory.
 - **Look inside.** Open **Inside the agent** when you want predictions, action values, temporally
   extended actions called **options**, and learning and planning activity.
 
-Some plots need experience before values appear. Goal failures and uncertain
-predictions are useful things to inspect; a live score describes this run and
-is not evidence of an advantage over another agent.
+Some plots need experience before values appear. Follow goal outcomes and
+predictions as the run develops.
 
 ### Stop, resume or start fresh
 
@@ -79,14 +77,11 @@ to understand its panels. Then explore:
 | Build manually, use a headless machine or resolve setup problems | [Setup and troubleshooting](docs/verification.md#platform-setup) |
 
 The launcher explicitly selects the `ranked` configuration with discounted
-rewards, a 1024 × 1024 world, the 13-goal curriculum and checkpointing. These
-are walkthrough settings, not a claim that this is the best-performing agent.
+rewards, a 1024 × 1024 world, the 13-goal curriculum and checkpointing.
 The core supports additional research configurations.
 
-Lean is both the implementation language and the proof assistant. The proofs
-establish specific implementation properties, not learning effectiveness or
-whole-agent convergence. Acorn implements selected mechanisms, not the complete
-OaK architecture.
+Lean is both the implementation language and the proof assistant. Follow the
+[verification guide](docs/verification.md) to the properties checked by its proofs.
 
 ## Explore the research
 
@@ -94,13 +89,12 @@ You can read the design without installing Lean.
 
 - **New to OaK?** Start with [Oak Lab's mission](https://oaklab.ai/mission), then
   Acorn's [learning loop and terminology](docs/design.md#the-learning-loop).
-  Acorn implements selected mechanisms; it does not implement the complete OaK vision.
 - **Assessing the implementation?** Read the [scope map](docs/design.md#implementation-scope),
   then follow [mechanism owners](docs/design.md#mechanism-owners) to the source
   and [prior-art contracts](docs/prior-art-review.md).
 - **Looking for research questions?** Read the [frontier](docs/frontier.md).
   The repository offers executable mechanisms, implementation-linked proofs
-  and an observation tool. It does not demonstrate a learning-performance advantage.
+  and an observation tool.
 
 ## What to inspect
 

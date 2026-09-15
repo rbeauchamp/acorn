@@ -11,8 +11,7 @@ OaK's architecture is introduced in Richard Sutton's
 [RLC 2025 talk](https://oaklab.ai/posts/the-oak-architecture). The
 [Amii overview](https://www.amii.ca/videos/oak-architecture-rich-sutton-rlc2025)
 describes the FC-STOMP progression: feature construction, subtasks, options,
-models and planning. Acorn provides an experimental implementation of selected
-parts of that progression, with the limitations below.
+models and planning. Acorn implements the components described below.
 
 The host environment supplies an observation and task reward. The agent turns
 the observation into features, updates its predictions and action values, and
@@ -27,16 +26,14 @@ In the `ranked` configuration, these mechanisms work together:
    function (GVF)** specifies a signal to predict, a policy and a horizon; Acorn
    uses a fixed collection of on-policy questions.
 3. **Subtasks** attach goals to candidate behaviors. Ranked learned feature
-   weights supply a proxy for choosing them; this proxy is not established as
-   useful subtask discovery.
+   weights supply the ranking used to choose them.
 4. **Options** are policies that can act over several steps. A higher-level
    controller chooses between primitive control and an option, and can interrupt
    an option using learned value estimates.
 5. **Models and planning** estimate option outcomes and use those estimates to
    update the higher-level action values without replaying stored experience.
 
-This is an orientation to the components, not a claim that every component
-runs in this numbered order on every step. Exact update order belongs to
+Exact update order belongs to
 [the agent driver](../lean/Acorn/Handcrafted/Agent.lean). The complete OaK
 feedback loop, general learned state and learned prediction questions remain
 outside this implementation; see [the frontier](frontier.md).
@@ -55,7 +52,7 @@ See [observations](../lean/Acorn/Host/Observation.lean),
 ## Implementation scope
 
 The [Alberta Plan](https://arxiv.org/abs/2208.11173v3), by Sutton, Bowling and
-Pilarski (2023), supplies the roadmap, not a claim that Acorn completes it.
+Pilarski (2023), supplies the roadmap.
 The focus column paraphrases its twelve steps; the status column describes Acorn.
 
 | Step | Focus | Acorn's implementation scope |
@@ -84,8 +81,8 @@ Here, **implemented** means the mechanism has an executable owner.
 **Admitted** means it meets the stated technical integration contract.
 **Qualified for default use** would mean the complete configuration has a
 supported benefit under declared conditions and an explicit promotion decision.
-No current agent configuration has that qualification. Proofs of individual
-properties do not establish that the combined agent learns effectively.
+Current decisions are recorded in the
+[qualification register](prior-art-review.md#current-default-qualification).
 
 The register labels are navigation aids: **PAR** identifies a prior-art or local
 mechanism entry, **D** an authored departure from the learned-only discipline,
@@ -98,7 +95,7 @@ not need to select these flags to use it; this section is for investigating the
 configuration or running the core directly.
 
 A **research profile** is a named combination of agent mechanisms, selected with
-`--research-profile`. It does not select a dataset, trained model or saved run.
+`--research-profile`.
 An **option** is a policy that can choose actions over several steps; a
 **subtask** gives such a policy a goal. **Credit assignment** determines which
 predictions or action values receive an update from experience.
@@ -113,10 +110,8 @@ The `acorn-core demo` command accepts these five profiles:
 | `annealed` | Uses the ranked hierarchy with a prescribed exploration-rate schedule. | Unsupported |
 | `spatial` | Uses the hierarchy with hand-authored spatial subtasks instead of learned subtask selection. | Unsupported |
 
-The four alternatives are comparison configurations. Their presence does not
-establish that a mechanism helps or hurts learning. The examples use `ranked` to
-expose the implemented hierarchy; this is an example selection, not a claim that
-it is the best-performing agent. Omitting the profile is an error.
+The four alternatives vary particular mechanisms for comparison. The examples
+use `ranked` to expose the hierarchy. The core requires an explicit profile.
 The credit-policy comparison concerns primitive-action values; it does not
 defer all prediction updates or make higher-level control update every step.
 
@@ -127,8 +122,8 @@ The core's `--criterion` flag is independent of the profile:
 - `discounted` weights future rewards by a discount factor. This is the default
   criterion when the flag is omitted.
 - `average-reward` uses differential control: updates account for reward relative
-  to a learned average reward per step. It is an experimental alternative with
-  unresolved qualification; see [research limitations](frontier.md).
+  to a learned average reward per step. See [continuing control](frontier.md#f4--continuing-control-and-exploration)
+  for the research questions around this criterion.
 
 For example, to select both explicitly in a bounded terminal run:
 
@@ -181,26 +176,24 @@ lean/.lake/build/bin/acorn-core demo --research-profile ranked --side 64 --steps
 This runs one attempt at the first goal, which asks the agent to survive for
 200 steps. The 250-step cap permits that goal to finish. The terminal reports
 achievement or timeout, followed by a campaign summary and diagnostic checksum.
-Timeout is a task outcome, not an execution error. This short demonstration is
-not a learning evaluation.
+Timeout means the attempt used its step budget before achieving the goal.
 
 ## Reading the viewer
 
 The viewer is an observation tool for the active run:
 
 - **World and goals:** what the agent has observed and which assigned goals it
-  has achieved within the attempt budgets. The map is not information supplied
-  back to the learner.
+  has achieved within the attempt budgets. The viewer retains the map from
+  telemetry; the learner receives its local observation.
 - **Predictions:** estimates for the fixed prediction questions. Predictive
-  agreement compares predictions with settled finite returns; it is not a
-  percentage of all knowledge or evidence of general intelligence.
+  agreement compares predictions with settled finite returns.
 - **Behavior and options:** action values, option selections, boundaries and
-  learned model estimates. An estimated value is not an observed outcome.
+  learned model estimates.
 - **Learning and resources:** step sizes, feature activity, planning updates and
-  execution diagnostics. Activity alone does not establish useful learning.
+  execution diagnostics.
 
-An empty or pending measure has insufficient data; it is not a zero score.
-Goal outcomes describe this run, not improvement over a comparison agent.
+An empty or pending measure is waiting for sufficient data. Goal outcomes
+describe the selected run and its attempt budgets.
 The [viewer specification](viewer-ux.md) is the detailed contributor reference
 for fields, rendering, process lifecycle and persistence.
 
@@ -230,9 +223,7 @@ code cannot import host/handcrafted owners except at explicit composition roots.
 A provenance witness declares an origin; review must assess whether it is honest.
 The viewer receives telemetry and requests lifecycle stop only.
 
-No configuration is recommended as a qualified default; callers must select a
-research profile. Differential control remains available only as a research
-alternative and is not approved for default use. Prior-art identities retain their hypotheses;
-changing policies, projected values and approximate models do not inherit
-unqualified convergence or optimality results. See the detailed source comments,
+Core calls select an explicit research profile. The [prior-art register](prior-art-review.md#current-default-qualification)
+records qualification decisions. Each proof states its hypotheses, including
+conditions on policies, value projection and models. See the source comments,
 [learned-only binding](learned-only-binding.md) and [verification](verification.md).

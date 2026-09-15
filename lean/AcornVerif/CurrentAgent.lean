@@ -14,8 +14,7 @@ All constructed states carry source alignment, managed learner admission and
 activation/episode ownership. Lifetime totals use the proved machine arithmetic;
 representation identity and bounded history are supplied by their current owners.
 Every finite-prefix edge calls the same receiver-bound transition as the native
-consumer. These are safety and exact scheduling/observation contracts, not
-infinite liveness, convergence, learning benefit or delivered IO guarantees.
+consumer. The contracts cover finite-prefix safety, scheduling and observations.
 -/
 namespace AcornVerif.CurrentAgent
 open Acorn Acorn.Features Acorn.Handcrafted

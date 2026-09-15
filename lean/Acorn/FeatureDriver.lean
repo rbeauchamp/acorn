@@ -11,8 +11,7 @@ import Acorn.Handcrafted.FeatureProfile
 
 This executable calls the current encoder, receiver-bound retirement and ranked
 refresh directly. It retains only current storage and emits integral execution
-observations. The output is not a correctness oracle or a learning-benefit claim;
-universal guarantees belong to the called proof-bearing definitions.
+observations. Universal guarantees belong to the called proof-bearing definitions.
 -/
 namespace Acorn.FeatureDriver
 open Features

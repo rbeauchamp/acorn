@@ -12,9 +12,9 @@ The actual primitive operations, exact widening, finite truncation and
 source-generated constants bound the chosen exponent and the ordered two-part
 remainder. The polynomial input interval and nonpositive exponent conclusion
 hold for every admitted machine input. At exponent zero the remainder retains
-the input numerical value, including either zero sign. These are contracts for
-the approximation recipe, with the declared native primitive/compiler trust;
-they make no claim about ideal exponential accuracy.
+the input numerical value, including either zero sign. These contracts bound
+argument reduction in the approximation recipe, under the declared native
+primitive/compiler trust.
 -/
 open Acorn
 open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmetic

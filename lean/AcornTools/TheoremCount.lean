@@ -17,8 +17,7 @@ a declaration is a theorem. Imported Lean and Mathlib theorems are excluded by
 their owning module, even if their declaration names resemble project names.
 
 The inventory includes compiler-generated auxiliary theorem declarations and
-private theorems. It is a count of compiled declarations, not a claim that every
-declaration is an independently authored theorem or a new scientific result.
+private theorems. Counts report this complete scope of compiled declarations.
 -/
 
 namespace AcornTheoremCount

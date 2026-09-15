@@ -16,7 +16,7 @@ required by equation (15). The retained universal
 Wan, Naik & Sutton, *Average-Reward Learning and Planning with Options*,
 NeurIPS 34 (2021), section 5, equations (18)–(23), supplies the differential
 reward, duration and continuation targets. The scalar continuation tracks a
-changing controller; neither vector-model equality nor convergence is assumed.
+changing controller through scalar approximations.
 Every update uses existing managed, criterion-indexed storage, so retirement
 and assignment replacement reach the same state. Raw transient words are retained.
 -/

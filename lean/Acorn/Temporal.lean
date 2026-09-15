@@ -13,8 +13,7 @@ import Acorn.FeatureReferences
 The option policy kernel uses current managed storage. These internal interfaces
 confine model and planning operations to their own storage. The public temporal
 entry point instantiates them with `Acorn.Models` and `Acorn.Planning`; generic
-dispatch proofs retain their storage-boundary scope. No planning benefit follows
-from that confinement or from the concrete model execution contracts.
+dispatch proofs describe the storage boundaries.
 -/
 namespace Acorn.Features
 

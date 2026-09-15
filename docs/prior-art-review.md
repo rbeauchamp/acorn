@@ -16,8 +16,7 @@ benchmark does not make its algorithm environment-specific. Reject on an actual
 incompatible dependency or assumption, with evidence of where it enters the
 mechanism. Reproducing published benchmark scores is an optional diagnostic,
 not an admission requirement; reproducing the mechanism and accounting for its
-assumptions are required. Admission does not assert performance improvement or
-whole-agent convergence.
+assumptions are required.
 
 **The admission bar.** Five criteria must all pass: **sound** (the derivation
 reproduces), **in-setting** (one unbroken stream, batch size one, no replay, no
@@ -76,8 +75,7 @@ Admission permits an explicitly selectable research integration. It does not
 promote that integration into an implicit ordinary-runtime selection. An
 admission verdict of **adopt** below means the mechanism satisfies its stated
 technical contract; current default qualification is recorded separately.
-Neither a paper citation, a proof of an update identity, a green build, nor an
-implemented Alberta Plan component establishes a useful default agent.
+Default selection requires the qualification decisions below.
 
 Before promotion, record all five decisions in the relevant PAR entry:
 
@@ -129,7 +127,7 @@ reward/control criteria or selection rules require reconsideration. Prove
 equivalence when available; otherwise disclose what evidence no longer
 transfers and keep the changed mechanism experimental pending qualification.
 Review the decision with a fresh-context refutation attempt. A deterministic
-audit pins the chosen behavior; it does not establish benefit.
+audit pins the chosen behavior.
 
 
 ### Current default qualification
@@ -143,33 +141,31 @@ labels below distinguish technical integration from evidence of useful learning:
   default qualification.
 - **demoted:** explicitly ineligible for default use; retained for research.
 
-PAR-9, PAR-10 and PAR-12 are research-only; PAR-15 remains demoted. No empirical
-performance result accompanies this source release. Publishing these mechanisms
-neither reverses a negative decision nor qualifies a changed composition.
+PAR-9, PAR-10 and PAR-12 are research-only; PAR-15 remains demoted.
 
 | PAR | Decision | Intended mechanism | Limit | Next step |
 |---|---|---|---|---|
-| PAR-1 | provisional-reference | SwiftTD | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-2 | provisional-reference | Swift-Sarsa | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-3 | provisional-reference | Horde | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-4 | provisional-reference | Generate and test | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-5 | provisional-reference | Reward-respecting subtasks | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-6 | provisional-reference | Potential-based shaping | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-7 | provisional-reference | Options and interruption | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-8 | provisional-reference | Temporally extended exploration | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-9 | research-only | Intra-option value learning | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-10 | research-only | Derived exploration rate | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-11 | provisional-reference | Bounded-disruption retirement | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-12 | research-only | Ranked learned subtasks | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-13 | provisional-reference | Option models | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-14 | provisional-reference | Background planning | No qualified current benefit | Preserve contracts; qualify prospectively. |
-| PAR-15 | demoted | Differential control | No qualified current benefit | Preserve contracts; qualify prospectively. |
+| PAR-1 | provisional-reference | SwiftTD | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-2 | provisional-reference | Swift-Sarsa | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-3 | provisional-reference | Horde | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-4 | provisional-reference | Generate and test | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-5 | provisional-reference | Reward-respecting subtasks | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-6 | provisional-reference | Potential-based shaping | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-7 | provisional-reference | Options and interruption | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-8 | provisional-reference | Temporally extended exploration | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-9 | research-only | Intra-option value learning | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-10 | research-only | Derived exploration rate | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-11 | provisional-reference | Bounded-disruption retirement | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-12 | research-only | Ranked learned subtasks | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-13 | provisional-reference | Option models | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-14 | provisional-reference | Background planning | Qualification pending | Preserve contracts; qualify prospectively. |
+| PAR-15 | demoted | Differential control | Qualification pending | Preserve contracts; qualify prospectively. |
 
 ### PAR-1 · SwiftTD
 
 [Source](https://rlj.cs.umass.edu/2024/papers/RLJ_RLC_2024_111.pdf). Execution owner: `Acorn.SwiftTd`.
 
-Adaptive sparse TD with per-feature step sizes. Projection, trace pruning and meta-register re-anchoring are declared adaptations; finite-word state safety does not transfer unconstrained convergence.
+Adaptive sparse TD with per-feature step sizes. Projection, trace pruning and meta-register re-anchoring are declared adaptations. The contracts below describe their finite-word state and update semantics.
 
 **Adaptation and rationale.** Binary unique ActiveSet inputs specialize the paper’s feature factors to one on the active set; sparse eligible-set iteration avoids full sweeps. The scaled trace increment is bounded by the overshoot budget, not the sum of raw step sizes. Projection admits stored weights; pruning and re-anchoring control finite-state storage but alter the unconstrained recurrence.
 
@@ -185,9 +181,9 @@ On-policy per-action learners with semi-Markov credit. The declared Sarsa substi
 
 **Adaptation and rationale.** One persistent value-difference register and per-action learners specialize the step-size machinery to on-policy control. Semi-Markov duration catch-up is needed at meta decisions; primitive credit uses executed actions each learning step. The eligibility set, not only the active feature set, owns update cost.
 
-**Contract and composition.** AcornVerif.CurrentControl and AcornVerif.CurrentTemporal connect to execution. AcornVerif.CurrentPower.pow_one_word supplies the one-step power reduction. Tie handling uses the admitted numerical band, not a claim of exact mathematical maxima. The corrected meta-register recurrence is a stated departure from the printed listing.
+**Contract and composition.** AcornVerif.CurrentControl and AcornVerif.CurrentTemporal connect to execution. AcornVerif.CurrentPower.pow_one_word supplies the one-step power reduction. Tie handling treats values within the admitted numerical band as tied. The corrected meta-register recurrence is a stated departure from the printed listing.
 
-**Refutation attempt.** Independent review checked the chosen-action update, shared register and one-step reductions, and found the undeclared register deviation, eligible-set cost unit and approximate tie band. The public claim includes those limitations; agreement with a printed listing is not asserted for the corrected register discipline.
+**Refutation attempt.** Independent review checked the chosen-action update, shared register and one-step reductions, and found the undeclared register deviation, eligible-set cost unit and approximate tie band. The corrected register discipline is the recorded source adaptation.
 
 ### PAR-3 · Horde
 
@@ -197,7 +193,7 @@ Parallel GVF prediction enters representation. Cumulants and horizons are declar
 
 **Adaptation and rationale.** Parallel bounded GVFs specialize the broader Horde architecture; predictions feed other features to support an online representation. Fixed horizons/targets are D5 and on-policy updates replace the full general off-policy construction. Changing predictions, policies and adaptive steps violate fixed-feature/stationary assumptions.
 
-**Contract and composition.** AcornVerif.CurrentPrediction and Acorn.Handcrafted.PredictionControl own bounded predictions and their use. Bucket-range admission does not prove every bucket is reachable. No stationary-distribution or classical TD convergence result is transferred to this changing composition.
+**Contract and composition.** AcornVerif.CurrentPrediction and Acorn.Handcrafted.PredictionControl own bounded predictions and their use. Bucket admission constrains the output range; reachability is a separate property. The policy, representation and step sizes evolve during the run.
 
 **Refutation attempt.** Independent review challenged attribution, convergence hypotheses, target specializations and reachability. It rejected applying fixed-policy analysis with adapted steps and rejected inferring reachability from a range proof. The terms predictions as knowledge describe this implementation rather than a quoted paper theorem.
 
@@ -211,17 +207,17 @@ Fixed random projection generation over a hand-authored channel layout. Generati
 
 **Contract and composition.** Acorn.Features and Acorn.FeatureLifecycle admit dimensions, unique active indices and replacement identity. The construction does not implement every tester in the source; tester selection must respect continuing operation and absence of additional tuned thresholds.
 
-**Refutation attempt.** Independent review checked generator/reset mechanics and rejected the argument that fixed random units cannot be tested because they have no learned parameters: their output weights are learned. The admitted partial mechanism is bounded generation; useful representation remains unqualified.
+**Refutation attempt.** Independent review checked generator/reset mechanics and rejected the argument that fixed random units cannot be tested because they have no learned parameters: their output weights are learned. The admitted mechanism is bounded generation; representation quality is the subject of F3.
 
 ### PAR-5 · Reward-respecting subtasks
 
 [Source](https://arxiv.org/abs/2202.03466). Execution owner: `Acorn.Options`.
 
-Skills receive host reward with learned stopping bonuses. Ranked hashed slots are a proxy for useful subtasks; an accurate stopping estimate and useful hierarchy are not established.
+Skills receive host reward with learned stopping bonuses. Ranked hashed slots select candidate subtasks using learned magnitudes.
 
 **Adaptation and rationale.** Host reward remains in each skill’s cumulant, with a learned feature-specific attainment bonus where ranking finds a candidate. This supports reward-respecting subtasks without a manually selected subgoal list. The hashed-slot magnitude is a proxy, and the neutral fallback differs from the paper’s nonzero prescribed stopping value.
 
-**Contract and composition.** Acorn.Options and Acorn.FeatureRanking own the stopping/selection definitions; AcornVerif.Options states the return identities. Bonus and host-value coordinates must match the policy/sample owner. Algebra does not establish accurate stopping values or useful discovery.
+**Contract and composition.** Acorn.Options and Acorn.FeatureRanking own the stopping/selection definitions; AcornVerif.Options states the return identities. Bonus and host-value coordinates must match the policy/sample owner.
 
 **Refutation attempt.** Source review checked strict comparison, stopping equations and neutral fallback. It classified the stopping function as an adaptation rather than an exact instance of the paper at zero bonus; subsequent composition review traced the policy/sample ownership instead of inferring learned-value accuracy from return algebra.
 
@@ -241,7 +237,7 @@ Finite-return coordinate identities preserve the stated terminal and bootstrap t
 
 [Source](http://www.incompleteideas.net/papers/SPS-aij.pdf). Execution owner: `Acorn.Temporal`.
 
-Typed option lifecycle and semi-Markov updates retain actual accumulated reward and duration. Shared units and strict advantage govern interruption; useful temporal abstraction is unqualified.
+Typed option lifecycle and semi-Markov updates retain actual accumulated reward and duration. Shared units and strict advantage govern interruption.
 
 **Adaptation and rationale.** Option-selecting updates accumulate actual reward and duration at decision boundaries. Trace catch-up is a local extension that decays registers without intermediate increments; it is not attributed wholesale to the options theorem. Primitive control uses PAR-9 credit rather than a second catch-up update.
 
@@ -257,9 +253,9 @@ Persistent exploration has a bounded duration. The local capped duration law is 
 
 **Adaptation and rationale.** Persistent action runs follow a capped floor-inverse-uniform duration law. It is a tail-equivalent surrogate for the published zeta law, chosen as the explicit local D3 construction; it is not exact source sampling. Serving a run is deterministic, so a universal positive support floor is unavailable at those steps.
 
-**Contract and composition.** Acorn.Exploration and AcornVerif.Exploration own the actual duration/range definitions and stated mathematical distribution scope. A bound and normalization identity do not establish performance or extend to arbitrary action-set sizes beyond the theorem.
+**Contract and composition.** Acorn.Exploration and AcornVerif.Exploration own the actual duration/range definitions and stated mathematical distribution scope. The duration and normalization theorems state their action-set and distribution assumptions.
 
-**Refutation attempt.** Independent review checked the inverse-uniform off-by-one and normalization argument, and rejected exact-zeta, implicit-cap and overbroad action-domain wording. It also rejected unsupported preregistration assertions; none is made for this release.
+**Refutation attempt.** Independent review checked the inverse-uniform off-by-one and normalization argument, and rejected exact-zeta, implicit-cap and overbroad action-domain wording.
 
 ### PAR-9 · Intra-option value learning
 
@@ -277,7 +273,7 @@ Primitive action learners receive the executed stream, including option steps. T
 
 [Source](https://arxiv.org/abs/2006.01782). Execution owner: `Acorn.Exploration`.
 
-The rate is derived from active optimizer state; duration remains D3. Empty eligibility, optimizer coupling, support and resource limits are explicit. The local derivation is not a prior-art performance guarantee.
+The rate is derived from active optimizer state; duration remains D3. Empty eligibility, optimizer coupling, support and resource limits are explicit.
 
 **Adaptation and rationale.** This is a local construction, not a rate formula taken from the cited duration paper. It derives a receiving controller’s probability from active optimizer state to remove a clock schedule without adding a separate intrinsic-reward channel or replay memory. It remains coupled to optimizer parameters; no universal exploration floor or independent tuning claim follows.
 
@@ -305,9 +301,9 @@ Streaming ranking over GVF weight slots drives coalesced refresh at a free decis
 
 **Adaptation and rationale.** Ranking uses learned predictive weight magnitude to choose distinct tied blocks and derive attainment bonuses. Coalescing requests until a free boundary preserves an ending activation’s objective; full assignment identity invalidates dependent knowledge even when only the bonus changes. The rationale is bounded streaming discovery without an authored subgoal list.
 
-**Contract and composition.** Acorn.FeatureRanking, Acorn.FeatureRefresh and AcornVerif.CurrentFeatureConsumers own selection/refresh and identity. Zero scores yield neutral skills rather than arbitrary noise. Hash-slot magnitude remains a proxy; equality of scalar scores must not be overread as semantic identity of features.
+**Contract and composition.** Acorn.FeatureRanking, Acorn.FeatureRefresh and AcornVerif.CurrentFeatureConsumers own selection/refresh and identity. Zero scores yield neutral skills rather than arbitrary noise. Scalar scores identify magnitudes; feature identity belongs to the assignment key.
 
-**Refutation attempt.** Independent review challenged tied candidates, bonus-only changes, early-stream zeros and stopping invariance. It retained block exclusivity and neutral fallback, required complete assignment invalidation, and limited shaping invariance to trajectories with the same stopping value. A bounded learned bonus does not itself establish useful subtask selection.
+**Refutation attempt.** Independent review challenged tied candidates, bonus-only changes, early-stream zeros and stopping invariance. It retained block exclusivity and neutral fallback, required complete assignment invalidation, and limited shaping invariance to trajectories with the same stopping value.
 
 ### PAR-13 · Option models
 
@@ -325,22 +321,22 @@ Scalar models use bounded storage and explicit reward, duration and continuation
 
 [Source](https://arxiv.org/abs/2202.03466). Execution owner: `Acorn.Planning`.
 
-A fixed number of signed model backups occurs at decision boundaries without replay. Bounded writes and correct units do not establish model quality, planning benefit or convergence with changing models.
+A fixed number of signed model backups occurs at decision boundaries without replay.
 
-**Adaptation and rationale.** A fixed number of model backups at decision boundaries supplies planning without replay. Signed correction permits downward as well as upward value adjustment, while projection preserves stored-weight legality and trace registers remain unchanged. This bounds work without asserting that inaccurate models improve action choice.
+**Adaptation and rationale.** A fixed number of model backups at decision boundaries supplies planning without replay. Signed correction permits downward as well as upward value adjustment, while projection preserves stored-weight legality and trace registers remain unchanged.
 
 **Contract and composition.** Acorn.Planning and AcornVerif.CurrentModels bind the three-backup schedule, primitive separation and preserved trace/lag registers to execution. Scalar continuation models and moving targets preclude an inherited fixed-point or coupled convergence guarantee.
 
-**Refutation attempt.** Independent review examined error propagation, moving targets, trace ownership, work bounds and one-sided correction. It distinguished numerical containment from model quality and retained signed updates without claiming a fixed point or measured advantage.
+**Refutation attempt.** Independent review examined error propagation, moving targets, trace ownership, work bounds and one-sided correction. The review retained signed updates and distinguished numerical containment from model quality.
 
 ### PAR-15 · Differential control
 
 [Source](http://www.incompleteideas.net/book/the-book-2nd.html). Execution owner: `Acorn.Average`.
 
-Reward minus estimated gain times duration supplies the continuing criterion. Gamma is one; existing rails are numerical approximations, not bounds on all true differential values. The reward-residual gain update and changing models carry no whole-system convergence guarantee.
+Reward minus estimated gain times duration supplies the continuing criterion. Gamma is one; existing rails impose a numerical budget. The reward-residual gain update and changing scalar models are specified below.
 
 **Adaptation and rationale.** The continuing criterion uses reward minus estimated gain times duration with gamma one. The reward-residual gain variant is used with a shared control criterion; existing value rails are a local numerical approximation because general differential values have no discount-derived bound. Model queries carry actual policy/sample and activation-age meaning.
 
-**Contract and composition.** Acorn.Average, Acorn.Models, Acorn.Planning, AcornVerif.AverageReward and AcornVerif.CurrentModelArithmetic own gain/return identities, the bound obstruction, model targets and stored arithmetic. A finite rail does not prove the unconstrained quantity is bounded or that coupled learning converges.
+**Contract and composition.** Acorn.Average, Acorn.Models, Acorn.Planning, AcornVerif.AverageReward and AcornVerif.CurrentModelArithmetic own gain/return identities, the bound obstruction, model targets and stored arithmetic. The two-state family characterizes the obstruction to a transition-independent differential-value bound; the stored rail is an explicit numerical approximation.
 
-**Refutation attempt.** Independent review traced every gain/value write, post-planning action ownership, repeated activation, raw target units and age-zero queries. Discrepancy identities distinguish known semantic incompatibilities from unmeasured usefulness. The integration remains demoted; no compensating benefit or qualified fallback is asserted.
+**Refutation attempt.** Independent review traced every gain/value write, post-planning action ownership, repeated activation, raw target units and age-zero queries. Discrepancy identities distinguish known semantic incompatibilities from unmeasured usefulness. The integration remains demoted.

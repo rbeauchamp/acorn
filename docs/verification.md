@@ -1,16 +1,15 @@
 # Verification
 
-This guide describes what Acorn's checks establish and where their guarantees
-end. For installation and a first run, start with the [README](../README.md#start-with-the-live-viewer).
-Lean checks proofs about declared properties of the implementation; it does
-not certify useful learning merely because the project builds.
+This guide describes Acorn's compiler, proof and execution checks. Each theorem
+states the property and assumptions it checks. For installation and a first run,
+start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
 Lean/Mathlib dependencies, a C compiler, OpenSSL 3, ShellCheck and GNU coreutils.
 The hard 300-second deadline includes project compilation and every ordinary
 check. It uses process-group SIGKILL with no grace period or budget override;
 missing, skipped or timed-out checks fail. OS scheduling and signal delivery
-remain trusted mechanisms, not a hard real-time theorem.
+are the trusted mechanisms that enforce this deadline.
 
 ## Platform setup
 
@@ -23,9 +22,8 @@ The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
-The CI workflow targets Ubuntu 24.04. That workflow configuration is
-not evidence of a hosted pass: the public launch revision still needs successful
-local and hosted verification. No Windows setup is documented here.
+The [CI workflow](../.github/workflows/verify.yml) runs on macOS 15 with Apple
+Silicon. Automatic local setup supports macOS and Ubuntu/Debian Linux.
 
 For manual setup, install macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
@@ -34,8 +32,7 @@ For manual setup, install macOS command-line tools and the packages below
 brew install coreutils shellcheck openssl@3 elan
 ```
 
-Ubuntu uses the same prerequisites as the
-[checked-in workflow](../.github/workflows/verify.yml):
+For Ubuntu, install:
 
 ```sh
 sudo apt-get update
@@ -79,8 +76,7 @@ If a tool is missing, install the named prerequisite before retrying. On macOS,
 check that `xcode-select -p` points to an installed, usable developer toolchain.
 If verification reaches its 300-second deadline, retain the failing command
 and diagnostic for a focused report; do not raise the limit or treat a partial
-run as a pass. A successful application build alone does not establish that
-the complete verification suite passed.
+run as a pass. Run the complete command to check all verification owners.
 
 ## Compiler and execution boundary
 
@@ -89,15 +85,14 @@ ownership inventory. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners. Source/compiled admission
 checks imports, capability owners, artifact origins and native routes. Every
 project theorem is checked for axiom dependencies; only propext,
-Classical.choice and Quot.sound are admitted. No theorem count is a correctness
-score. The kernel is never skipped; scenario tests and sampled agreement do not
-establish universal correctness.
+Classical.choice and Quot.sound are admitted. The theorem inventory reports the
+checked declarations. Every proof passes through the kernel.
 
 Acorn's current executable definitions are under lean/Acorn.
 The AcornVerif modules import the definitions they verify. AcornSpec contains
 mathematical/specification definitions used by proofs, including pure analysis
 semantics. AcornStudy retains shared schema/admission contracts used by proofs.
-These modules provide definitions and contracts, not observed learning results.
+
 
 Each theorem's actual type owns its domain, hypotheses and guarantee. Binary32
 and Binary64 proofs concern admitted finite words or explicitly stated conversion
@@ -123,8 +118,7 @@ Primitive IEEE interpretation remains a native assumption.
 CI provisions dependencies separately and runs the identical ordinary command
 with cold project outputs. It has read-only repository permissions, no secrets,
 no privileged pull-request trigger, and pinned action revisions. The workflow
-must pass on the exact launch commit before public visibility. A prepared
-workflow or private-checkout pass is not evidence of that future hosted result.
+must pass on the exact proposed head before merge.
 
 ## Mutation diagnostics
 
@@ -135,18 +129,18 @@ lean/.lake/build/bin/acorn-core audit --expect 829aef890c81afaf
 ```
 
 Paired checksum `b1a076b6ac5884f0`. The optional ./scripts/verify.sh diagnostics
-command runs all three fixed arms under the same deadline. These digests detect
-behavioral mutation, not correctness, preregistration or scientific benefit.
-They are not required to establish an unchanged implementation on every edit.
+command runs all three fixed arms under the same deadline. The fixed audit arms
+are compared through these paired digests. Run these optional diagnostics
+when investigating a dynamics change.
 
 ## Checkpoint admission
 
 Format 14 preserves admitted learner state, assignments and pending ranking
 requests for supported ranked profiles. Restore checks dimensions, identifiers,
 criterion and value domains before admitting state. An incompatible image is
-refused and writes to that file are disabled. The codec's proved contracts do
-not assert complete host/process-state resume or universally atomic filesystem
-behavior. The narrow C fsync helper and native IO are explicit trust boundaries.
+refused and writes to that file are disabled. Learner state resumes; the world
+and transient process state restart. Filesystem persistence relies on the narrow
+C fsync helper, native IO and the operating system.
 
 ## Viewer ownership boundaries
 
@@ -154,6 +148,5 @@ The viewer observes telemetry and supervises process lifecycle. Only a stop
 request enters the core, at an attempt boundary. Source/compiled ownership
 prevents learned code from reaching host control. Browser numeric and lifecycle
 contracts have executable owners and generated bytes; see viewer-ux.md.
-Predictive agreement is process-scoped supporting evidence, not overall knowledge
-or proof of learning benefit. Incomplete horizons and unavailable state remain
-unknown rather than becoming zero.
+Predictive agreement compares forecasts with settled finite returns within the
+current process. Incomplete horizons and unavailable state are reported as unknown.

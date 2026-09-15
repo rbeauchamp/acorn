@@ -2,30 +2,25 @@
 
 This is the durable policy for balancing execution efficiency with algorithmic
 progress, correctness and scientific qualification. Apply it when selecting
-work, designing shared abstractions and reviewing changes. The explicitly scoped work item owns priorities and budgets; this document
-is not another backlog.
+work, designing shared abstractions and reviewing changes. The scoped work item
+owns priorities and budgets.
 
 ## What performance is for
 
 [Oak Lab's mission](https://oaklab.ai/mission) includes continual, batch-size-one
 learning and planning in real time with low compute and energy use. Correctness,
-useful learning and feasible resource consumption all matter. The mission's
-efficiency aspirations are not demonstrated properties of Acorn. Language
-choice, proof counts and isolated speedups are not measures of research success.
+useful learning and feasible resource consumption guide the requirements below.
 
 Performance work is warranted when it enables an identified research or
 operating requirement, prevents a material resource regression, or addresses an
-explicitly prioritized performance contract. A language-comparison ratio alone
-does not determine which mission-critical work should happen next. Conversely,
-a large slowdown must not be dismissed as premature optimization when it makes
-the intended research or interaction impractical.
+explicitly prioritized performance contract. Prioritize costs that affect the
+intended research or interaction.
 
 ## Select and bound the work
 
 Set performance requirements from each research or operating milestone's
-throughput, latency and memory needs. No blanket cross-language ratio is a
-current acceptance gate. This does not establish performance adequacy, parity
-or a waiver of a separately specified operating contract.
+throughput, latency and memory needs. Each specified operating contract retains
+its own acceptance criteria.
 
 Before substantial optimization, state the decision in the active issue:
 
@@ -65,10 +60,8 @@ There is no fixed percentage of project effort reserved for optimization.
 
 ## Lean implementation practices
 
-Lean provides documented techniques for efficient native execution. They do not
-guarantee Rust parity for this agent or establish equal development cost for
-dense numerical workloads. Check the pinned compiler/runtime when applying the
-upstream guidance; an idiom's spelling does not prove its generated behavior.
+Check the pinned compiler and runtime when applying Lean's native execution
+guidance. Inspect the generated behavior for the workload being optimized.
 
 - **Ownership:** consume state so updated arrays can be uniquely owned. Avoid
   retaining an entire prior state through a closure or observer when only small
@@ -115,17 +108,14 @@ many numeric fields use generic arrays. See [Arithmetic](../lean/Acorn/Arithmeti
 [State](../lean/Acorn/State.lean) and
 [Attempt](../lean/Acorn/Host/Attempt.lean).
 
-An authorized observation may identify infrastructure to examine. Such observations neither establish an unavoidable Lean slowdown nor show that
-the remaining gap has an easy remedy. Partial profiles do not fully attribute
-the gap; finite comparisons do not prove whole-agent cross-language equivalence
-or lifetime resource bounds. Do not duplicate benchmark tables here or create a
-new study for ordinary engineering. Scientific benefit remains subject to its
-own [qualification and evidence requirements](prior-art-review.md#default-promotion-and-demotion).
+Use workload-specific observations to identify infrastructure worth examining.
+State the measured scope, unresolved costs and relevant implementation contracts.
+Keep results with their owning work item. Scientific benefit follows the
+[qualification and evidence requirements](prior-art-review.md#default-promotion-and-demotion).
 
-Other explicit commitments remain binding until the owner changes them. Pausing
-their implementation is not completion. Changing execution language or trusted
-boundaries requires an owner decision and accounting for the guarantees that must reach the new execution;
-existing Lean proofs do not automatically verify a Rust replacement.
+Other explicit commitments remain binding until the owner changes them. Changes
+to execution language or trusted boundaries require an owner decision and
+correspondence arguments connecting the required guarantees to the new execution.
 
 ## Proof before performance claims
 
@@ -139,8 +129,6 @@ platform or regime. State why no derivation reaches the claim, define the smalle
 informative design and fix acceptance rules, budgets and uncertainty handling
 before execution. Difficulty proving a property does not make it empirical.
 
-This source release includes no historical performance observations or certified
-benchmark verdict. Retained pure analysis/proof definitions are contracts over
-inputs and hypotheses, not evidence that those inputs were observed. No useful
-learning, physical performance parity or current default qualification is claimed.
-Follow the [scientific evidence guidance](../CONTRIBUTING.md#scientific-evidence).
+Pure analysis definitions state contracts over explicit inputs and hypotheses.
+Measured results name their workload, environment and observations under the
+[scientific evidence guidance](../CONTRIBUTING.md#scientific-evidence).

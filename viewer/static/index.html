@@ -352,7 +352,6 @@
 <section id="welcome" aria-label="Welcome to Acorn">
   <div><h2>Watch an agent find its way.</h2>
     <p>The marker in the center is your agent. The Current goal card above the map says what it is trying to do. For travel goals, look for the gold target or direction arrow.</p>
-    <p class="fine">Acorn is an independent OaK research implementation; no endorsement by Oak Lab, Sutton or Javed.</p>
   </div>
   <p>Watch for a while. <b>Stop</b> finishes the current attempt; <b>Start</b> resumes saved learning when available.
     <a href="#research">Explore what's happening inside ↓</a></p>
@@ -462,8 +461,7 @@
           motivates judging the integrated agent by goal achievement.
           <a href="https://oaklab.ai/posts/the-big-world-hypothesis" target="_blank" rel="noopener">Javed and Sutton (2024), The Big World Hypothesis</a>
           connects limited understanding to useful decisions and makes the environment and resource
-          constraints part of the evaluation. This fraction describes this curriculum, seed and budget;
-          it is not a percentage of the Oak mission completed or proof of learning benefit.</p>
+          constraints part of the evaluation. This fraction describes the selected curriculum, seed and budget.</p>
       </details>
     </div>
     </div>
@@ -486,10 +484,8 @@
 
     <div class="panel">
       <h2>The big world</h2>
-      <div class="lede">Retained sensed tiles across the world. Coverage is the observer's
-        statistic: the agent senses only its 11×11 window and carries no absolute position, so what it
-        has modelled is not what it has walked over. The Big World Hypothesis (Javed &amp; Sutton 2024) is
-        about the agent's size relative to its world, which this number does not measure.</div>
+      <div class="lede">Tiles observed over the run, retained by the viewer. The agent receives
+        an 11×11 local window; the overview shows where it has sensed terrain.</div>
       <canvas id="overview" class="block" width="330" height="330"></canvas>
       <div class="kv" style="margin-top:7px"><span>sensed</span><b id="w_seen">—</b></div>
       <div class="meter"><div id="w_meter" style="width:0%"></div></div>
@@ -512,12 +508,9 @@
       that achieve them, learn models of those options, plan with them. Every weight has its own
       meta-learned step size. Mission: <i>algorithms that allow agents to achieve goals in big worlds</i> —
       <a href="https://oaklab.ai/mission" target="_blank" rel="noopener">oaklab.ai/mission</a>.</p>
-    <p class="fine"><b>Research configuration.</b> No agent configuration is qualified as a default.
-      Live activity and local proofs do not establish improved goal achievement.</p>
-    <p class="fine">Read-only: nothing here reaches the agent. Figures are the core's telemetry or this
-      page's labelled arithmetic over it; live rates and shares are means over the last <span id="m_win">—</span>
-      (including terminal snapshots), and every other figure names its own window. An independent implementation (acorn): no
-      endorsement by Oak Lab, Sutton or Javed.</p>
+    <p class="fine">Figures come from the core's telemetry and the viewer's labelled calculations.
+      Live rates and shares are means over the last <span id="m_win">—</span>
+      (including terminal snapshots); every other figure names its own window.</p>
     <details class="cite" style="margin:6px 0 0"><summary>sources</summary><div class="body">The five stages are
       the FC-STOMP progression — feature construction, subtask, option, model, planning — of
       Sutton, <i>The OaK Architecture: A Vision of SuperIntelligence from Experience</i>, RLC 2025
@@ -525,13 +518,12 @@
       and the STOMP progression of Sutton, Machado et al., <i>Reward-Respecting Subtasks
       for Model-Based Reinforcement Learning</i>, AIJ 324 (2023) 104001 (arXiv:2202.03466v4).
       Per-weight step sizes: Alberta Plan Step 1, arXiv:2208.11173v3 PDF p. 6. This repository
-      implements selected mechanisms with declared departures (<code>docs/learned-only-binding.md</code>);
-      it claims no endorsement by Oak Lab, Richard Sutton or Khurram Javed.</div></details>
+      implements the mechanisms and authored choices described in <code>docs/learned-only-binding.md</code>.</div></details>
   </div>
   <div class="panel">
     <h2>OaK's five stages — the FC-STOMP progression · <span id="loop_state">connecting…</span></h2>
     <div id="loop">
-      <div class="node" id="n_features" title="Imprint units are the generated features: 512 random ±1 projections of the sensed window (PAR-4), added to 8 fixed tilings over a hand-authored channel layout (D1). Only the 512 are generated-and-tested — Mahmood & Sutton, Representation Search through Generate and Test, AAAI 2013 workshop, file p. 3 of 6: 'The search method then replaces a small fraction ρ of the features that are least useful with newly generated features.' (PAR-4 generate half, PAR-11 test half). The word is Javed's (thesis ch. 9, Feature Generation by Continual Imprinting); that mechanism is not this bank's. A retired unit is replaced; the count is lifetime.">
+      <div class="node" id="n_features" title="Imprint units are the generated features: 512 random ±1 projections of the sensed window (PAR-4), added to 8 fixed tilings over a hand-authored channel layout (D1). Only the 512 are generated-and-tested — Mahmood & Sutton, Representation Search through Generate and Test, AAAI 2013 workshop, file p. 3 of 6: 'The search method then replaces a small fraction ρ of the features that are least useful with newly generated features.' (PAR-4 generate half, PAR-11 test half). Acorn calls these random projection units imprints. Javed's thesis ch. 9 describes the distinct Feature Generation by Continual Imprinting mechanism. A retired unit is replaced; the count is lifetime.">
         <div class="t">features</div>
         <div class="v" id="n_features_v">—</div>
         <div class="c" id="n_features_c">tile coding + imprint units, generate-and-test</div>
@@ -541,7 +533,7 @@
         <div class="v" id="n_subtasks_v">—</div>
         <div class="c" id="n_subtasks_c">configured subtask slots</div>
       </div>
-      <div class="node" id="n_options" title="Three option controllers, one per subtask slot, each paid the task reward plus a potential-based shaping term γΦ(s′) − Φ(s) — Ng, Harada & Russell, Policy invariance under reward transformations, ICML 1999, file p. 4 Theorem 1 eq. (2) (PAR-6) — with the selected feature indicator as Φ for learned subtasks and the attainment bonus in the stopping value. Differential research centers task reward by its gain estimate. Interrupted when learned estimates favor stopping; SPS99 Theorem 2 (AIJ 112 (1999), PDF p. 17) assumes exact option values and does not guarantee improvement for these estimates.">
+      <div class="node" id="n_options" title="Three option controllers, one per subtask slot, each paid the task reward plus a potential-based shaping term γΦ(s′) − Φ(s) — Ng, Harada & Russell, Policy invariance under reward transformations, ICML 1999, file p. 4 Theorem 1 eq. (2) (PAR-6) — with the selected feature indicator as Φ for learned subtasks and the attainment bonus in the stopping value. Differential research centers task reward by its gain estimate. Interrupted when learned estimates favor stopping. The related SPS99 Theorem 2 (AIJ 112 (1999), PDF p. 17) applies to exact option values; Acorn uses learned estimates.">
         <div class="t">options</div>
         <div class="v" id="n_options_v">—</div>
         <div class="c" id="n_options_c">temporal abstraction · Swift-Sarsa</div>
@@ -563,7 +555,7 @@
   <div class="panel">
     <h2>Against the mission <span class="mode" id="tiles_state"></span></h2>
     <div class="tiles">
-      <div class="tile" title="Lifetime goal attempts that ended in success, all families, from the core's checkpoint-persistent totals; and current-pass goals achieved from the latest core snapshot. There is no baseline in this stream; goal counts alone do not establish a learning benefit.">
+      <div class="tile" title="Lifetime goal attempts that ended in success, all families, from the core's checkpoint-persistent totals; and current-pass goals achieved from the latest core snapshot.">
         <div class="k">goals achieved</div>
         <div class="v" id="t_goals_v">—</div>
         <div class="d" id="t_goals_d">lifetime attempts · this cycle</div>
@@ -598,13 +590,13 @@
     </div>
     <div class="lede">Eleven hand-authored questions (D5), checked against the continuation this agent
       actually experiences. Forecasts are captured before their future arrives. Each question has equal
-      weight in the aggregate, irrespective of its settlement count. This is a bounded evaluation
-      convention, not a percentage of the world known or a probability of correctness.</div>
+      weight in the aggregate, irrespective of its settlement count. The score below summarizes
+      normalized forecast error across these questions.</div>
     <div class="kv"><span>Normalized finite-return RMSE · lower is better</span><b id="k_err">—</b></div>
     <p id="agreement-session" class="fine">New evaluator each core process, including checkpoint resume.</p>
     <canvas id="kerr" class="block" width="560" height="110" aria-label="Cumulative predictive agreement by agent lifetime step"></canvas>
     <p class="legend">Cumulative agreement since evaluator start · bounded history on the agent lifetime
-      clock (logarithmic axis). Old experience remains in every subsequent point; this is not a recent-adaptation curve.</p>
+      clock (logarithmic axis). Each point includes all settled experience since the evaluator started.</p>
     <div id="agreement-channels" class="agreement-channels"></div>
     <details class="cite"><summary>Interpretation, precision and limits</summary><div class="body">
       For question i, q = ((forecast − finite return) / Eᵢ)², Mᵢ = Σq / nᵢ,
@@ -616,22 +608,21 @@
         The core reports separate conservative normalized tail and rounded-return allowances below.
         Each is a bound on RMSE displacement; the maximum across questions also bounds aggregate
         displacement. Agreement endpoints reverse: an RMSE interval [L,U] gives
-        [100(1 − U),100(1 − L)]. Bounds are not confidence intervals or estimates of noise.</p>
+        [100(1 − U),100(1 − L)]. These are deterministic truncation and rounding bounds.</p>
       <p>Exact integer sums and rational aggregation precede display projection. RMSE projection is
         downward by less than 0.000001 normalized units (0.0001 agreement points).
         Text shows hundredths of a point; &gt;99.99 and &lt;0.01 preserve nonzero endpoint distinctions.
-        A literal 100 means zero measured finite-return discrepancy, not complete knowledge.</p>
+        A literal 100 means zero measured finite-return discrepancy.</p>
       <p>Squared loss decomposes into forecast-to-conditional-mean discrepancy plus conditional
         outcome variance; the conditional mean minimizes it. Unpredictable outcomes can therefore
-        lower agreement even for a correct mean forecast. There is no noise estimator here.</p>
-      <p>The stream follows evolving behavior, not a frozen target policy. Policy changes, distribution
-        changes and censored futures limit comparisons. A stop or world discontinuity discards pending
-        futures and reports censoring; it does not manufacture a terminal return. Reward and world
-        coverage are separate evidence, not components of this score.</p>
+        lower agreement even for a correct mean forecast. The displayed score includes both terms.</p>
+      <p>The stream follows evolving behavior. Comparisons must account for policy changes,
+        distribution changes and censored futures. A stop or world discontinuity discards pending
+        futures and reports censoring. Reward and terrain coverage have their own panels.</p>
       <p>Context: <a href="https://oaklab.ai/mission" target="_blank" rel="noopener">Oak Lab mission</a>,
         <a href="https://oaklab.ai/posts/learning-from-experience-instead-of-curated-datasets" target="_blank" rel="noopener">learning from experience</a>,
         and <a href="https://spaces.facsci.ualberta.ca/rlai/projects/the-horde-architecture-for-learning-knowledge-grounded-in-sensorimotor-experience/" target="_blank" rel="noopener">Horde</a>.
-        This evaluator is this repository's convention, not a metric attributed to those sources.</p>
+        The formulas above define Acorn's evaluator.</p>
     </div></details>
     <div class="kv"><span>SwiftTD lifetime MSE (settled empirical returns)</span>
       <b id="k_life">—</b></div>
@@ -659,7 +650,7 @@
       The explicit PAR-15 research criterion uses the differential target r − reward-rate + next value
       (Sutton &amp; Barto, <i>Reinforcement Learning: An Introduction</i>, 2nd ed., MIT Press 2018,
       §10.3 pp. 251–252); its host reward-residual gain update follows Exercise 10.8. The discounted
-      research criterion uses no gain estimate. These are integration equations, not a convergence claim.</div></details>
+      research criterion uses no gain estimate. </div></details>
     <div class="kv wrap"><span id="p_source_k">decision chain</span><b id="p_source">—</b></div>
     <div class="kv"><span id="p_prob_k">selected action probability</span><b id="p_prob">—</b></div>
     <div class="kv wrap" title="End reason only (goal / duration cap / interruption). Sutton, Precup &amp; Singh, AIJ 112 (1999) §3, PDF p. 10 / journal p. 190 eqs. (8)–(9), gives the option Bellman decomposition; eq. (14) is an improvement inequality, not a terminal target. The G31 terminal target c + z is out of viewer scope (Sutton, Machado et al. AIJ 324 PDF p. 5 eq. (5) at β = 1: δ .= c + βz + γ(1−β)v′ − v)."><span id="p_option_k">option boundary</span><b id="p_option">—</b></div>
@@ -701,7 +692,7 @@
         currently being adapted, on a log scale.</div>
       <details class="cite"><summary>sources</summary><div class="body">Javed, Sharifnassab &amp; Sutton,
         <i>SwiftTD: A Fast and Robust Algorithm for Temporal Difference Learning</i>, RLJ/RLC 2024;
-        this panel is the α the meta-algorithm set, not a claim about that paper's Atari plots.
+        this panel plots the α values set by Acorn's meta-algorithm.
         Alberta Plan Step 1, arXiv:2208.11173v3 PDF p. 6:
         “All of that user expertise should be replaced by a meta-algorithm for setting the
         step-size parameter so that the same method can be used on any problem …”</div></details>
@@ -2070,7 +2061,7 @@ function drawHud(f) {
     const dx = f.gx-f.x, dy = f.gy-f.y;
     const direction = [dy < 0 ? "north" : dy > 0 ? "south" : "", dx < 0 ? "west" : dx > 0 ? "east" : ""].join("");
     $("hud-ghint").textContent = direction
-      ? `Gold target ${direction} · ${Math.round(Math.hypot(dx,dy))} tiles in a straight line (not route length)`
+      ? `Gold target ${direction} · ${Math.round(Math.hypot(dx,dy))} tiles in a straight line`
       : "At the gold target";
   } else {
     $("hud-ghint").textContent = f.gkind === 0 ? "Waiting for a goal" : "No fixed map destination for this goal";
@@ -2389,7 +2380,7 @@ function drawMission(f, st, fast) {
   $("n_subtasks_v").textContent = SUBTASK_POLICY === "hand_authored"
     ? `${N_SKILL} hand-authored (D2)` : `${assigned} / ${N_SKILL} assigned`;
   $("n_subtasks_c").textContent = SUBTASK_POLICY === "hand_authored"
-    ? "incumbent study arm: region potentials, not learned"
+    ? "spatial profile: authored region potentials"
     : assigned ? "task reward + stopping bonus" : "neutral · no ranked feature yet";
   const lit = streamIsLive();
   $("n_subtasks").classList.toggle("on", lit && A.subtaskChangedAt >= 0 && id - A.subtaskChangedAt < WIN && A.subtaskChangedAt <= id);
@@ -2508,8 +2499,8 @@ function drawMission(f, st, fast) {
 // What the world-seen figure is and is not, on the tile's hover text.
 const WORLD_TILE_NOTE =
   "The viewer shares its retained explored map with each connection, merged with what " +
-  "this browser restored from its own storage. Coverage of the terrain, not a measure of the " +
-  "world's size relative to the agent: the agent has no absolute position.";
+  "this browser restored from its own storage. The agent receives an egocentric observation; " +
+  "this map is retained by the viewer.";
 $("t_world").title = WORLD_TILE_NOTE;
 
 /* ---------- sensor window ---------- */

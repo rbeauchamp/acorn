@@ -20,8 +20,7 @@ reward objective. Khurram Javed and Richard S. Sutton, The Big World Hypothesis
 and its Ramifications for Artificial Intelligence, Oak Lab research article
 (2024), sections "The Big World Hypothesis" and "Benchmarking Algorithms in Big
 Worlds": limited understanding is judged by decisions in a specified environment.
-This curriculum fraction is Acorn's operational choice, not an OaK index or a
-measure of overall intelligence, causal learning benefit, or research completion.
+Acorn defines the curriculum fraction above for the admitted goals and budgets.
 -/
 namespace Acorn.Host.Viewer.GoalAchievement
 

@@ -16,10 +16,8 @@ registers rather than a history, because equation (32) of the paper needs both
 `h_{t−1}` and `h_{t−2}` at once, and equation (30) supplies the second:
 `∂δ′_t/∂β[i] ≈ −h_{t−2}[i]·ϕ_{t−1}[i]`.
 
-Which register holds which lag is the whole content of the scheme, and it is
-invisible from the assignment statements alone. That is what this file makes
-machine-checked: the update in `src/agent/swifttd.rs` is the recurrence the
-paper derives, for every input — not for a sample of them.
+The definitions track which register holds each lag and prove the recurrence
+for every input in the real-arithmetic model.
 
 Reference: Javed, Sharifnassab & Sutton, *SwiftTD: A Fast and Robust Algorithm
 for Temporal Difference Learning*, Reinforcement Learning Journal, vol. 2
@@ -34,25 +32,19 @@ is printed page 18: `"The final h_t[i] update is:"`. Companion HTML
 on this PDF's face. **Status:** this file is the proof owner of that
 recurrence over ℝ. The Lean↔Rust transcription match is **assumed**.
 
-## What this file does and does not establish
+## Model domain and correspondence
 
-The definitions below are a **hand transcription** of the register updates in
-`src/agent/swifttd.rs`. Lean checks the algebra; that the transcription matches
-the Rust is *assumed*, and reviewed by reading the two side by side. The
-generated constants in `AcornVerif.Generated` exist because that class of drift is
-real — the dynamics get no such treatment, and a reader should hold this file to
-the weaker standard accordingly.
+The definitions are a hand transcription of the predecessor register updates in
+`src/agent/swifttd.rs`. Lean checks their real-arithmetic algebra; correspondence
+to that implementation is a reviewed assumption. `AcornVerif.Generated` owns the
+retained constants separately from this transcription.
 
-Scope of the model, stated so it is not read as more: it covers a feature that
-runs **both** loops on a step — eligible and active. A feature that is active
-but not eligible runs only the second loop; pruning clears every register for
-such a feature (`SwiftTd::drop_from_eligible`), so it re-enters with all three
-at zero, which is the state `run` starts from. The clip re-anchor and the
-step-size decay branch both zero registers rather than evolving them, and are
-outside the model.
-
-Everything here is real arithmetic. `f32` rounding is outside the model, and
-nothing below should be read as covering it.
+The model covers a feature that runs both the eligible and active loops on a
+step. An active but ineligible feature runs only the second loop. Pruning clears
+its registers (`SwiftTd::drop_from_eligible`), and `run` starts with all three at
+zero. The clip re-anchor and step-size decay branches reset registers and are
+outside this recurrence. The arithmetic domain is ℝ; machine rounding has
+separate implementation and proof owners.
 -/
 
 namespace AcornVerif

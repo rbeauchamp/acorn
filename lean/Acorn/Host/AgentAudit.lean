@@ -11,8 +11,7 @@ import Acorn.Host.AgentAdmission
 The checksum reads learner knowledge, pending ranking, gain for differential
 control, planning count, seed, clock, bank, generator and retirement transcript.
 Transient credit, predictions, exploration state and observational lifetime
-records are outside this mutation receipt. Equality of hashes is not equality
-of state and supplies no correctness or learning-benefit claim.
+records are outside this checksum. A changed hash identifies a change in the selected fields.
 -/
 namespace Acorn.Host
 open Features Handcrafted
