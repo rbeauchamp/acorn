@@ -130,6 +130,11 @@ shared-error credit,
 terminal clearing and the snapshot/draw path. Its snapshot maximum supplies the
 old meta target in `zero_continuation_close_snapshot`; Demon-0 reward production,
 neutral ranking and identity-preserving neutral refresh have component proofs.
+`ZeroModel` covers both discounted scalar learners; their fresh predictions supply
+zero planning targets, and the actual scalar fold preserves the whole controller.
+`zero_gap_accumulate` reuses the universal portable-power bound for the actual
+stored gap duration. Neutral terminal policy credit uses its producing old meta
+snapshot, with false previous potential retained as an explicit premise.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the

@@ -1888,4 +1888,136 @@ theorem zero_continuation_close_snapshot
   exact zero_continuation_close state hz closing reward _
     (zero_snapshot_best (count := metaCount) _ hmeta features state.metaRate)
 
+/-- Both actual discounted scalar model learners have zero knowledge. Other
+raw registers, beta, caches and the current model age remain unrestricted. -/
+def ZeroModel (model : Model dimension .discounted) : Prop :=
+  match model with | .discounted r c => ZeroKnowledge r.state ∧ ZeroKnowledge c.state
+
+/-- Actual discounted model construction establishes both zero sectors. -/
+theorem zero_model_initial : ZeroModel (Model.initial dimension .discounted) :=
+  ⟨zero_initial, zero_initial⟩
+
+/-- Actual initiation primes both learners without changing zero knowledge. -/
+theorem zero_model_begin (model : Model dimension .discounted) (hz : ZeroModel model)
+    (features : SwiftTd.ActiveSet dimension) : ZeroModel (model.begin features) := by
+  cases model with
+  | discounted r c => exact ⟨zero_begin r.state hz.1 _, zero_begin c.state hz.2 _⟩
+
+/-- Actual continuing zero reward preserves both scalar learners for every
+age-augmented input, including arbitrary stored raw transients. -/
+theorem zero_model_step (model : Model dimension .discounted) (hz : ZeroModel model)
+    (features : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32)
+    (hr : SignedZero reward) : ZeroModel (model.step features age reward) := by
+  cases model with
+  | discounted r c => exact ⟨zero_step r.state hz.1 _ reward hr,
+      zero_continuation_step (.discounted r c) hz.2 features age reward⟩
+
+/-- Actual terminal credit uses zero reward and the supplied zero meta
+snapshot value; snapshot production is a separate controller obligation. -/
+theorem zero_model_terminal (model : Model dimension .discounted) (hz : ZeroModel model)
+    (reward terminal : Binary32) (hr : SignedZero reward) (ht : SignedZero terminal) :
+    ZeroModel (model.terminal reward terminal) := by
+  cases model with
+  | discounted r c => exact ⟨zero_terminal r.state hz.1 reward hr,
+      zero_continuation_terminal (.discounted r c) hz.2 reward terminal ht⟩
+
+/-- The fresh planning target is produced as zero by the actual two stored
+learners and projections. Cached predictions and gain do not enter this claim. -/
+theorem zero_model_target (model : Model dimension .discounted) (hz : ZeroModel model)
+    (features : SwiftTd.ActiveSet dimension) (age : ModelAge) (gain : RewardRate) :
+    SignedZero ((model.predict features age).target gain) := by
+  cases model with
+  | discounted r c =>
+    have hr := zero_prediction r.state hz.1 (modelInput .discounted features age)
+    have hc := zero_prediction c.state hz.2 (modelInput .discounted features age)
+    change SignedZero ((Prediction.project .g99
+      ((Bounded32.project Criterion.discounted.modelRewardRange
+        (r.state.predict (modelInput .discounted features age))).value.add
+        (Criterion.discounted.modelContinuation
+          (c.state.predict (modelInput .discounted features age))))).value)
+    rcases hr with h | h <;> rcases hc with hc | hc <;> rw [h, hc] <;> decide
+
+/-- A backup from actual zero models and zero controller rows preserves the
+whole controller. Cache and error observations may be overwritten. -/
+theorem zero_backup_controller (state : PlanningResult .discounted dimension)
+    (hz : CurrentControl.ZeroController state.controller)
+    (skills : Vector (Skill config .discounted dimension) Acorn.FeatureConstants.skillCount)
+    (hm : ∀ slot, ZeroModel (skills.get slot).model)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    (state.backup skills features gain slot).controller = state.controller := by
+  exact congrArg Prod.fst (CurrentControl.zero_controller_plan state.controller hz
+    (metaOfSkill slot) features _
+    (zero_model_target _ (hm slot) features ⟨0, by decide⟩ gain))
+
+/-- The actual ordered scalar-planning fold preserves the complete zero
+controller. This holds for either configured planning selection and arbitrary
+cache, error and clock words; those observation fields are not claimed equal. -/
+theorem zero_planning_controller (selection : PlanningSelection)
+    (state : PlanningResult .discounted dimension)
+    (hz : CurrentControl.ZeroController state.controller)
+    (skills : Vector (Skill config .discounted dimension) Acorn.FeatureConstants.skillCount)
+    (hm : ∀ slot, ZeroModel (skills.get slot).model)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) :
+    (planningBoundary selection state skills features gain).controller = state.controller := by
+  have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
+      (s : PlanningResult .discounted dimension)
+      (hs : CurrentControl.ZeroController s.controller) :
+      (slots.foldl (fun s slot => s.backup skills features gain slot) s).controller =
+        s.controller := by
+    induction slots generalizing s with
+    | nil => rfl
+    | cons slot rest ih =>
+      have he := zero_backup_controller s hs skills hm features gain slot
+      have hzNext : CurrentControl.ZeroController
+          (s.backup skills features gain slot).controller := by rw [he]; exact hs
+      exact (ih _ hzNext).trans he
+  cases selection with
+  | none => rfl
+  | scalar => exact fold planningSlots state hz
+
+/-- The actual neutral-interest producer returns false for every active set
+and declared observation payload, including hash aliases. -/
+theorem neutral_potential (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) :
+    (Interest.learned (.neutral : Assignment config)).potential features declared =
+      some false := rfl
+
+/-- Neutral continuing and terminal cumulants are zero under zero reward and
+zero old meta value, with the executed discounted operation order. -/
+theorem zero_neutral_targets (reward terminal : Binary32) (gain : RewardRate)
+    (hr : SignedZero reward) (ht : SignedZero terminal) :
+    SignedZero (Features.shapedCumulant (Criterion.discounted.center reward 1 gain)
+      Criterion.discounted.rule.gamma false false) ∧
+    SignedZero (Features.terminalCumulant (Criterion.discounted.center reward 1 gain)
+      ((Interest.learned (.neutral : Assignment config)).stoppingValue terminal false) false) := by
+  change SignedZero (Features.shapedCumulant reward Criterion.discounted.rule.gamma false false) ∧
+    SignedZero (Features.terminalCumulant reward
+      ((Interest.learned (.neutral : Assignment config)).stoppingValue terminal false) false)
+  simp only [Interest.stoppingValue, Assignment.stoppingValue, Assignment.bonus,
+    Potential.value, Bool.false_eq_true, if_false]
+  rcases hr with rfl | rfl <;> rcases ht with rfl | rfl <;> decide
+
+/-- Neutral option termination consumes the actual old meta snapshot, whose
+zero value follows from its stored controller. This includes frozen activation;
+the incoming previous-potential invariant remains an explicit scheduling premise. -/
+theorem zero_neutral_terminal_snapshot (skill : Skill config .discounted dimension)
+    (hz : ZeroController skill.policy) (hn : skill.interest = .learned .neutral)
+    {mode : Bool} (activation : OptionActivation mode) (hp : activation.previous = false)
+    (metaController :
+      Controller (Criterion.discounted.config .control) dimension metaCount.word.toNat)
+    (hm : ZeroController metaController) (features : SwiftTd.ActiveSet dimension)
+    (rate : SwiftTd.ExploreRate) (reward : Binary32) (hr : SignedZero reward) (gain : RewardRate) :
+    let terminal := comparisonValue .discounted
+      (metaController.snapshot (count := metaCount) features rate)
+    ZeroController (skill.terminateOption activation false reward terminal gain).policy := by
+  have ht := zero_snapshot_best (count := metaCount) metaController hm features rate
+  have target := (zero_neutral_targets (config := config) reward _ gain hr ht).2
+  dsimp only
+  unfold Skill.terminateOption
+  split
+  · apply zero_controller_terminal _ hz
+    simpa only [hn, hp, comparisonValue] using target
+  · exact hz
+
 end AcornVerif.CurrentReplacement

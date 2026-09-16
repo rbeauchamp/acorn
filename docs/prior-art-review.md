@@ -579,6 +579,28 @@ consumer/representation/cache/closing state; no assignment reset is introduced.
 These are actual component transitions from compatible zero-sector constructors,
 not an assembled native learning trajectory.
 
+`ZeroModel` covers both actual discounted scalar learners through construction,
+begin, continuing zero reward and zero-reward/zero-meta termination.
+`zero_model_target` derives the fresh projected planning target from those stored
+learners for arbitrary actual age-augmented inputs. `zero_plan_identity`,
+`zero_controller_plan` and `zero_planning_controller` then prove whole numerical
+state, controller and ordered planning-fold identities respectively. Cache,
+error and planning-clock observations may change; cached predictions never supply
+the target. These identities require incoming zero sectors, without constraining
+beta, traces, caches or gain.
+
+`zero_gap_accumulate` preserves signed-zero deferred reward at every stored
+byte age under each current value rule. It reuses `CurrentPower.pow_unit` for all
+UInt32 exponents and checks only the four closed rule choices; finite-power
+multiplication preserves both IEEE zero signs. Closed/skip/close retain or clear
+the reward by construction, including saturation of the byte counter.
+`neutral_potential` identifies the actual neutral-interest coordinate;
+`zero_neutral_targets` checks the executed discounted cumulants.
+`zero_neutral_terminal_snapshot` consumes the actual old meta snapshot and
+preserves the neutral option policy, including frozen activation, assuming its
+previous potential is false. Continuing-decision snapshot linkage and preservation
+of that previous-potential premise through dispatch remain composition obligations.
+
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal
 meta snapshot is read before close, refresh, planning and new meta credit; a

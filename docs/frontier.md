@@ -72,6 +72,11 @@ Shared-error control now preserves the zero sector through its actual snapshot,
 draw, credit and restart order. The close target is derived from that controller's
 stored rows. Actual Demon-0 credit preserves zero ranking on zero-reward callbacks;
 refreshing already-neutral skills then preserves their complete storage.
+Both discounted model learners preserve zero knowledge under zero reward and
+zero terminal meta value. Their fresh targets make actual scalar planning an
+identity on the controller. Deferred reward accumulation stays zero at every
+stored gap age, and neutral option termination consumes the produced old meta
+snapshot under an explicit false previous-potential premise.
 This checks component closure and the produced-snapshot endpoint, not the full
 native zero-reward prefix or its first-positive callback. Establishing the incoming
 zero sectors along that prefix, the actual goal-action owner and later continuation

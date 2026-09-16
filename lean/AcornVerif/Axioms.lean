@@ -3296,4 +3296,67 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.Resource.HalvingExec.cost_bound
 
+
+/-- info: 'AcornVerif.CurrentRetirement.zero_mul_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.zero_mul_finite
+
+/-- info: 'AcornVerif.CurrentRetirement.zero_plan_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.zero_plan_identity
+
+/-- info: 'AcornVerif.CurrentControl.rule_power_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.rule_power_finite
+
+/-- info: 'AcornVerif.CurrentControl.zero_gap_accumulate' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_gap_accumulate
+
+/-- info: 'AcornVerif.CurrentControl.zero_controller_plan' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_controller_plan
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_model_initial' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_model_initial
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_model_begin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_model_begin
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_model_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_model_step
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_model_terminal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_model_terminal
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_model_target' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_model_target
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_backup_controller' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_backup_controller
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_planning_controller' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_planning_controller
+
+/-- info: 'AcornVerif.CurrentReplacement.neutral_potential' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.neutral_potential
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_neutral_targets' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_neutral_targets
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_neutral_terminal_snapshot' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_neutral_terminal_snapshot
+
 end AcornVerif

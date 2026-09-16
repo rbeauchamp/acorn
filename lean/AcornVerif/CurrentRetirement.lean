@@ -943,6 +943,26 @@ theorem retirement_predicate_reachable {config : Config} {dimension : Dimension}
 
 /-- Either finite IEEE zero encoding, with no identification of NaNs as numerical zero. -/
 abbrev SignedZero (x : Binary32) : Prop := x = .zero ∨ x = ⟨0x80000000⟩
+
+/-- Multiplication of either zero sign by a finite raw word remains signed
+zero. The finiteness premise excludes IEEE invalid zero-times-infinity. -/
+theorem zero_mul_finite (zero word : Binary32) (hz : SignedZero zero)
+    (finite : word.Finite) : SignedZero (zero.mul word) := by
+  have admitted := (model_decoded32_finite word).mpr finite
+  rcases hz with rfl | rfl
+  all_goals
+    change SignedZero (Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+      (UnpackedFloat.mul Format.binary32 (.zero _)
+        (Float32.Model.ofBits word.bits).unpack))))
+    rw [model_ofBits32_decoded word finite]
+    generalize equation : decoded32 word = unpacked at admitted ⊢
+    cases unpacked with
+    | notANumber => contradiction
+    | infinity sign => contradiction
+    | zero sign => cases sign <;> first | exact Or.inl rfl | exact Or.inr rfl
+    | finite sign mantissa exponent positive =>
+      cases sign <;> first | exact Or.inl rfl | exact Or.inr rfl
+
 -- This private classification uses the standard logical float model
 -- canonical NaN. Public conclusions concern only finite zero storage.
 -- Native NaN payload choices remain within Arithmetic's trusted boundary.
@@ -1244,5 +1264,16 @@ theorem zero_terminal (state : NumericState config dimension) (hz : ZeroKnowledg
     (target : Binary32) (ht : SignedZero target) :
     ZeroKnowledge (state.terminalStep config target).1 :=
   zero_clear _ (zero_first_loop state hz _ _ _ (zero_sub _ _ ht hz.old) hz.delta)
+
+/-- Planning toward a zero target from zero stored knowledge takes the
+executed zero-error refusal branch, preserving the entire numerical state. -/
+theorem zero_plan_identity (state : NumericState config dimension) (hz : ZeroKnowledge state)
+    (features : ActiveSet dimension) (target : Binary32) (ht : SignedZero target) :
+    state.planStep config features target = (state, .zero) := by
+  have hp := zero_prediction state hz features
+  have hd := zero_sub _ _ ht hp
+  have he : (target.sub (state.predict features)).numericallyEqual .zero = true := by
+    rcases hd with h | h <;> rw [h] <;> decide
+  simp only [NumericState.planStep, he, Bool.or_true, if_true]
 
 end AcornVerif.CurrentRetirement

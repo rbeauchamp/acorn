@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Handcrafted.PredictionControl
+import Acorn.Planning
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentPrediction
 import AcornVerif.CurrentRetirement
@@ -300,5 +301,39 @@ theorem zero_draw_policy_step (controller : Controller config dimension count.wo
     rw [PolicySnapshot.draw_snapshot]
     exact zero_predict_all controller hz features action
   · exact hr
+
+/-- The actual rule's bootstrap power is finite for every stored duration. -/
+theorem rule_power_finite (rule : ValueRule) (duration : UInt32) :
+    (Portable.pow rule.gamma duration).Finite := by
+  apply (CurrentPower.pow_unit _ duration ?_ ?_).1
+  · cases rule with
+    | discounted discount => cases discount <;> decide
+    | differential => decide
+  · cases rule with
+    | discounted discount => cases discount <;> decide
+    | differential => decide
+
+/-- Accumulation preserves zero reward for every saturating gap age and rule. -/
+theorem zero_gap_accumulate (gap : CreditGap) (hz : SignedZero gap.reward)
+    (reward : Binary32) (hr : SignedZero reward) (rule : ValueRule) :
+    SignedZero (gap.accumulate reward rule.gamma).reward := by
+  have hm := zero_mul_finite reward _ hr (rule_power_finite rule gap.steps.toUInt32)
+  change SignedZero (gap.reward.add _)
+  rcases hz with h | h <;> rcases hm with hm | hm <;> rw [h, hm] <;> decide
+
+/-- A zero-target backup from zero rows preserves the complete controller,
+including trajectory lags, phases, admission and restart state. -/
+theorem zero_controller_plan (controller : Controller config dimension actions)
+    (hz : ZeroController controller) (action : Action actions)
+    (features : SwiftTd.ActiveSet dimension) (target : Binary32) (ht : SignedZero target) :
+    controller.plan action features target = (controller, .zero) := by
+  simp only [Controller.plan, zero_plan_identity _ (hz.learners action) features target ht]
+  congr 2
+  apply Vector.ext
+  intro i hi
+  by_cases he : i = action.val
+  · subst i
+    simp [Vector.get]
+  · simp [Ne.symm he]
 
 end AcornVerif.CurrentControl
