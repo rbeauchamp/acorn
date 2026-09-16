@@ -636,7 +636,18 @@ sector on that old owner. `zero_skill_state_close_active` derives the previous
 coordinate and owner from stored occupancy, then clears phase and closes with
 that old snapshot, leaving idle occupancy. This is still a partial state
 invariant: primitive/meta learners, ranking demons, gaps, refresh and retirement
-need their own joined callback composition and initialized linkage.
+need their own joined callback composition.
+
+`ZeroRankedState` joins the skill table/phase sector, primitive and meta
+controllers, Demon-0 and the actual deferred meta reward. `zero_ranked_initial`
+proves this predicate of `Agent.initial` with the current host
+`researchProfile .ranked` and discounted criterion, for every feature
+configuration, dimension and planning selection. The proof composes existing
+constructor results and the actual neutral-interest table; it supplies no
+favorable restored state, token or action. The other ten demons, beta and
+unconstrained raw registers remain outside the predicate. This establishes the
+constructor base case only. Preservation through `TemporalControl.prepareSelection`
+and subsequent selection, credit and retirement still needs joined proofs.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal

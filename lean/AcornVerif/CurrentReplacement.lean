@@ -2423,4 +2423,43 @@ theorem zero_skill_state_close_active
   intro retained
   exact ⟨hz.phase slot activation phase, rfl⟩
 
+/-- Joined zero sector for the actual ordinary ranked discounted control state.
+The other ten prediction demons, other raw registers, beta, rates, caches and
+representation are unrestricted. This predicate alone supplies neither callback
+preservation nor complete-reader retirement eligibility. -/
+structure ZeroRankedState
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension) : Prop where
+  /-- Neutral skills, their complete policy/model storage and stored option coordinate. -/
+  skills : ZeroSkillState state
+  /-- Every primitive row and its shared Sarsa lags. -/
+  control : ZeroController state.runtime.lifecycle.consumers.control
+  /-- Every meta row and its shared Sarsa lags. -/
+  metaController : ZeroController state.runtime.lifecycle.consumers.metaController
+  /-- The actual prediction learner used to rank replacement objectives. -/
+  ranking : ZeroRanking state.runtime.lifecycle.consumers.demons
+  /-- Deferred meta reward in the receiver's actual byte-bounded gap. -/
+  gap : SignedZero state.gap.reward
+
+/-- Cold construction of the current public ranked profile establishes the
+joined predicate for every admitted feature configuration, dimension and planning
+selection. This is the actual constructor base case, not a restored-state witness
+or a proof that a subsequent callback preserves the predicate. -/
+theorem zero_ranked_initial (config : Features.Config) (dimension : Dimension)
+    (planning : PlanningSelection) :
+    ZeroRankedState
+      (Agent.initial (researchProfile .ranked) config .discounted dimension planning).control := by
+  constructor
+  · constructor
+    · intro slot
+      simp only [Agent.initial, TemporalControl.initial, Ensemble.initial,
+        FeatureProfile.interests, researchProfile, CurrentLearner.vector_get,
+        Vector.getElem_map, Vector.getElem_ofFn]
+      exact zero_neutral_skill_initial
+    · intro slot activation phase
+      cases phase
+  · exact zero_controller_initial
+  · exact zero_meta_agent_initial _ _ _ _
+  · exact zero_ranking_initial _
+  · exact Or.inl rfl
+
 end AcornVerif.CurrentReplacement

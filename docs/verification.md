@@ -144,6 +144,10 @@ comes from the selected actual table entry; a detached closed owner's result is
 discarded without a zero-sector assumption. The active close uses the pre-close
 meta snapshot and leaves idle occupancy. Other learners and the joined callback
 invariant remain outside this skill-table/phase result.
+`ZeroRankedState` joins it with both controllers, Demon-0 and the actual deferred
+meta reward. `zero_ranked_initial` proves the actual public ranked discounted
+constructor base case for every configuration, dimension and planning choice;
+the other ten demons remain unrestricted. Joined callback preservation is pending.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the

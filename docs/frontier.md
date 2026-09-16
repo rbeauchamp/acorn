@@ -85,6 +85,10 @@ the continuing snapshot is derived from its actual decision producer.
 dispatch, continuing phase updates and retained/discarded-owner close. It covers
 all stored skills and the active option's previous coordinate, while other
 learners remain outside this invariant.
+`ZeroRankedState` joins that skill sector with both controllers, Demon-0 and
+the deferred meta reward. `zero_ranked_initial` establishes the join from the
+actual public ranked discounted constructor for every feature configuration,
+dimension and planning selection. The other ten demons remain unrestricted.
 This checks component closure and the produced-snapshot endpoint, not the full
 native zero-reward prefix or its first-positive callback. Establishing the incoming
 zero sectors along that prefix, the actual goal-action owner and later continuation
