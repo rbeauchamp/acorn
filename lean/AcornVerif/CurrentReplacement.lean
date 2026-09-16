@@ -1770,4 +1770,122 @@ theorem zero_continuation_close {profile : FeatureProfile}
         state.average.rate ht
     · exact hz slot
 
+/-- Zero weights exclude every actual bank candidate, including aliases, so
+the complete current ranking consists of neutral assignments. -/
+theorem zero_rank_assignments (config : Features.Config)
+    (weights : WeightArray (.discounted .g99) dimension)
+    (hz : ∀ idx, SignedZero (weights.get idx).value) :
+    rankAssignments dimension config weights = Vector.replicate _ .neutral := by
+  have absent (unit : Fin config.units.count) :
+      candidateOfWeight config weights unit = none := by
+    have hn : ¬ 0 < (weights.get (unitFeature dimension config unit)).value.abs.key := by
+      rcases hz (unitFeature dimension config unit) with h | h <;> rw [h] <;> decide
+    simp [candidateOfWeight, hn]
+  have empty : (List.finRange config.units.count).filterMap
+      (candidateOfWeight config weights) = [] := by
+    simp only [List.filterMap_eq_nil_iff]
+    intro unit _; exact absent unit
+  have rankedEmpty : ranked Acorn.FeatureConstants.skillCount
+      ([] : List (Candidate config)) = [] := rfl
+  simp only [rankAssignments, empty, rankedEmpty]
+  apply Vector.ext
+  intro idx hi
+  simp
+
+/-- Zero knowledge of the actual structurally selected Demon-0 learner.
+Other prediction learners and feedback values are unrestricted. -/
+def ZeroRanking {discounts : List Discount}
+    (bank : DemonBank dimension (.g99 :: discounts)) : Prop :=
+  match bank with | .cons learner _ => ZeroKnowledge learner.state
+
+/-- The actual bank constructor establishes zero knowledge in its ranking head. -/
+theorem zero_ranking_initial (discounts : List Discount) :
+    ZeroRanking (DemonBank.initial dimension (.g99 :: discounts)) := zero_initial
+
+/-- The sole ranking reader produces neutral targets from its zero knowledge. -/
+theorem zero_ranking_assignments {discounts : List Discount}
+    (bank : DemonBank dimension (.g99 :: discounts)) (hz : ZeroRanking bank)
+    (config : Features.Config) :
+    rankAssignments dimension config bank.rankingWeights = Vector.replicate _ .neutral := by
+  cases bank with
+  | cons learner rest => exact zero_rank_assignments config _ hz.weights
+
+/-- Actual prediction/control completion preserves Demon-0 zero knowledge on
+a zero-reward callback. Its cumulant is derived from the real reward indicator;
+all other observation-dependent demons and frozen-mode behavior remain actual. -/
+theorem zero_ranking_advance {profile : FeatureProfile} {criterion : Criterion}
+    (state : PredictionControl profile criterion dimension) (hz : ZeroRanking state.demons)
+    (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
+    (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool) (clock : UInt64)
+    (hr : SignedZero reward) :
+    ZeroRanking (state.advance features obs reward action own clock).demons := by
+  have signal : Cumulant.eval ⟨0, by decide⟩ obs reward = .zero := by
+    rcases hr with h | h <;> rw [h] <;> rfl
+  unfold PredictionControl.advance
+  split
+  · exact hz
+  · cases hb : state.demons with
+    | cons learner rest =>
+      have hn : ZeroKnowledge learner.state := by
+        rw [hb] at hz
+        exact hz
+      change ZeroKnowledge (learner.state.step _ features
+        (Cumulant.eval ⟨0, by decide⟩ obs reward)).1
+      rw [signal]
+      exact zero_step learner.state hn features .zero (Or.inl rfl)
+
+/-- When the actual ranking head is zero and existing skills are neutral,
+refresh only acknowledges its request. The real installation fold preserves
+all consumers, transient state, caches, representation and closing ownership. -/
+theorem zero_neutral_refresh {shape : PatchShape} {config : Features.Config}
+    {criterion : Criterion}
+    {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (hz : ZeroRanking state.lifecycle.consumers.demons)
+    (hn : ∀ slot, (state.lifecycle.consumers.skills.get slot).interest = .learned .neutral) :
+    state.refreshRanked = { state with refresh := state.refresh.take.2 } := by
+  let taken := { state with refresh := state.refresh.take.2 }
+  have installed (slot : Fin Acorn.FeatureConstants.skillCount) :
+      taken.install slot .neutral = taken := by
+    apply FreeDispatch.install_same
+    apply (Interest.sameAssignment_iff _ _).mpr
+    exact hn slot
+  have fold (slots : List (Fin Acorn.FeatureConstants.skillCount)) :
+      slots.foldl (fun current slot => current.install slot .neutral) taken = taken := by
+    induction slots with
+    | nil => rfl
+    | cons slot rest ih => simpa only [List.foldl_cons, installed] using ih
+  simp only [FreeDispatch.refreshRanked, zero_ranking_assignments _ hz config,
+    Vector.getElem_replicate]
+  split
+  · exact fold _
+  · rfl
+
+open AcornVerif.CurrentControl
+
+/-- Actual agent construction establishes zero meta-controller rows and lags. -/
+theorem zero_meta_agent_initial (profile : FeatureProfile) (config : Features.Config)
+    (dimension : Dimension) (planning : PlanningSelection) :
+    let agent := Agent.initial profile config .discounted dimension planning
+    ZeroController agent.control.runtime.lifecycle.consumers.metaController := by
+  simp only [Agent.initial, TemporalControl.initial, Ensemble.initial]
+  exact zero_controller_initial
+
+/-- The executed old meta snapshot supplies the zero continuation target.
+This removes the independent terminal-word premise at the close boundary, but
+full native-prefix preservation of the incoming zero sectors remains separate. -/
+theorem zero_continuation_close_snapshot
+    (state : TemporalControl profile config .discounted dimension)
+    (hz : ∀ slot, ZeroContinuation (state.runtime.lifecycle.consumers.skills.get slot).model)
+    (hmeta : ZeroController state.runtime.lifecycle.consumers.metaController)
+    (closing : Closing config .discounted dimension (EndingPayload (profile.mode != .frozen)))
+    (features : SwiftTd.ActiveSet dimension) (reward : Binary32) :
+    let snapshot := state.runtime.lifecycle.consumers.metaController.snapshot
+      (count := metaCount) features state.metaRate
+    let result := state.closeOption (modelOperations .discounted dimension)
+      closing reward (comparisonValue .discounted snapshot)
+    ∀ slot, ZeroContinuation (result.1.runtime.lifecycle.consumers.skills.get slot).model := by
+  exact zero_continuation_close state hz closing reward _
+    (zero_snapshot_best (count := metaCount) _ hmeta features state.metaRate)
+
 end AcornVerif.CurrentReplacement

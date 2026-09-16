@@ -68,9 +68,14 @@ It does not cover a sole changed assignment selected in that dispatch.
 sector is preserved by actual zero-target SwiftTD credit, without finite-trace
 assumptions. Discounted continuation models stay in that sector through actual
 skill begin/step and zero-meta-value close, even with positive reward credit.
-This checks component closure and the conditional endpoint, not the full native
-zero-reward prefix or its first-positive callback. Deriving the actual meta
-snapshot, goal-action owner and later continuation bootstrap remains unresolved.
+Shared-error control now preserves the zero sector through its actual snapshot,
+draw, credit and restart order. The close target is derived from that controller's
+stored rows. Actual Demon-0 credit preserves zero ranking on zero-reward callbacks;
+refreshing already-neutral skills then preserves their complete storage.
+This checks component closure and the produced-snapshot endpoint, not the full
+native zero-reward prefix or its first-positive callback. Establishing the incoming
+zero sectors along that prefix, the actual goal-action owner and later continuation
+bootstrap remains unresolved.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

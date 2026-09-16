@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Acorn.Handcrafted.PredictionControl
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentPrediction
+import AcornVerif.CurrentRetirement
 
 /-!
 # Contracts of the executing prediction/control composition
@@ -158,5 +159,146 @@ theorem demon_step_capacity {discounts : List Discount} (bank : DemonBank dimens
     (reader : PackedLearner dimension)
     (_member : reader ∈ (bank.step features rewards).bank.readers) :
     reader.2.state.eligibleCount ≤ dimension.capacity := managed_capacity reader.2
+
+open AcornVerif.CurrentRetirement
+
+/-- Zero numeric rows and shared Sarsa lags, with no condition on action
+selection, exploration rates, restart flags, beta or other raw registers. -/
+structure ZeroController (controller : Controller config dimension actions) : Prop where
+  /-- All physical action learners inhabit the numerical zero sector. -/
+  learners : ∀ action, ZeroKnowledge (controller.learners.get action).state
+  /-- The shared preceding prediction is zero. -/
+  old : SignedZero controller.vOld
+  /-- The shared preceding update accumulator is zero. -/
+  delta : SignedZero controller.vDelta
+
+/-- Actual controller construction establishes the zero sector for every row. -/
+theorem zero_controller_initial : ZeroController (Controller.initial config dimension actions) := by
+  refine ⟨?_, Or.inl rfl, Or.inl rfl⟩
+  intro action
+  simpa only [Controller.initial, Managed.initial,
+    CurrentLearner.vector_get, Vector.getElem_ofFn] using
+    (zero_initial (config := config) (dimension := dimension))
+
+/-- The actual ordered pre-update prediction is zero for every action. -/
+theorem zero_predict_all (controller : Controller config dimension actions)
+    (hz : ZeroController controller) (features : SwiftTd.ActiveSet dimension)
+    (action : Fin actions) :
+    SignedZero ((controller.predictAll features).get action) := by
+  simpa only [Controller.predictAll, NumericState.predict,
+    CurrentLearner.vector_get, Vector.getElem_map] using
+    zero_prediction _ (hz.learners action) features
+
+/-- Controller clearing preserves zero knowledge and clears both shared lags. -/
+theorem zero_controller_clear (controller : Controller config dimension actions)
+    (hz : ZeroController controller) : ZeroController controller.clear := by
+  refine ⟨?_, Or.inl rfl, Or.inl rfl⟩
+  intro action
+  simpa only [Controller.clear, Managed.apply, SwiftTd.Entry.apply,
+    CurrentLearner.vector_get, Vector.getElem_map] using
+    zero_clear _ (hz.learners action)
+
+private theorem zero_credit_snapshot (learner : Managed config dimension)
+    (hz : ZeroKnowledge learner.state) (reward value old vd bootstrap decay : Binary32)
+    (restart : Bool) (hr : SignedZero reward) (hvalue : SignedZero value)
+    (hold : SignedZero old) (hv : SignedZero vd) :
+    ZeroKnowledge
+      (learner.credit ((reward.add (bootstrap.mul value)).sub old) vd decay restart).val.state := by
+  have hf := zero_first_snapshot learner.state hz reward value old vd bootstrap decay
+    hr hvalue hold hv
+  cases restart <;> simp only [Managed.credit, Bool.false_eq_true, if_false, if_true,
+    Managed.apply, SwiftTd.Entry.apply]
+  · exact hf
+  · exact zero_clear _ hf
+
+/-- Actual shared-error credit preserves zero rows and shared lags when the
+frozen snapshot and reward are zero. Every row receives first-loop credit before
+a pending restart clears it; only the selected row receives second-loop credit.
+Bootstrap and decay are arbitrary raw words, including exceptional results. -/
+theorem zero_values_step (controller : Controller config dimension actions)
+    (hz : ZeroController controller) (features : SwiftTd.ActiveSet dimension)
+    (values : Vector Binary32 actions) (hvalues : ∀ i, SignedZero (values.get i))
+    (action : Action actions) (reward bootstrap decay : Binary32) (hr : SignedZero reward) :
+    ZeroController (controller.valuesStep features values action reward bootstrap decay) := by
+  have rows (i : Fin actions) := zero_credit_snapshot (controller.learners.get i) (hz.learners i)
+    reward (values.get action) controller.vOld controller.vDelta bootstrap decay
+    controller.restartPending hr (hvalues action) hz.old hz.delta
+  have second := zero_second_loop _ (rows action) features .zero (Or.inl rfl)
+  constructor
+  · intro other
+    by_cases h : other = action
+    · subst other
+      rw [selected_row]
+      exact second.1
+    · rw [unselected_row _ _ _ _ _ h]
+      exact rows other
+  · exact hvalues action
+  · simpa only [Controller.valuesStep, CurrentLearner.vector_get, Vector.getElem_map] using second.2
+
+/-- Primitive control derives its zero snapshot from the actual prior rows
+and preserves the sector for every selected action and zero reward. -/
+theorem zero_controller_step (controller : Controller config dimension actions)
+    (hz : ZeroController controller) (features : SwiftTd.ActiveSet dimension)
+    (action : Action actions) (reward : Binary32) (hr : SignedZero reward) :
+    ZeroController (controller.step features action reward).1 :=
+  zero_values_step controller hz features _ (zero_predict_all controller hz features) action
+    reward _ _ hr
+
+/-- Actual terminal credit preserves the zero sector and clears shared lags. -/
+theorem zero_controller_terminal (controller : Controller config dimension actions)
+    (hz : ZeroController controller) (reward : Binary32) (hr : SignedZero reward) :
+    ZeroController (controller.terminal reward) := by
+  have hd : SignedZero (reward.sub controller.vOld) := by
+    rcases hr with h | h <;> rcases hz.old with ho | ho <;> rw [h, ho] <;> decide
+  apply zero_controller_clear
+  refine ⟨?_, hz.old, hz.delta⟩
+  intro action
+  simpa only [Managed.apply, SwiftTd.Entry.apply,
+    CurrentLearner.vector_get, Vector.getElem_map] using
+    zero_first_loop (controller.learners.get action).state (hz.learners action)
+      (reward.sub controller.vOld) controller.vDelta controller.traceDecay hd hz.delta
+
+variable {count : Word.Count}
+/-- The actual snapshot maximum is zero when its producing controller has
+zero rows. No independent terminal value, rate or action premise is introduced. -/
+theorem zero_snapshot_best (controller : Controller config dimension count.word.toNat)
+    (hz : ZeroController controller) (features : SwiftTd.ActiveSet dimension)
+    (rate : SwiftTd.ExploreRate) : SignedZero (controller.snapshot features rate).best := by
+  have fold (values : List Binary32) (best : Binary32)
+      (hvalues : ∀ v ∈ values, SignedZero v) (hb : SignedZero best) :
+      SignedZero
+        (values.foldl (fun best value => if best.less value then value else best) best) := by
+    induction values generalizing best with
+    | nil => exact hb
+    | cons v rest ih =>
+      apply ih
+      · intro w hw; exact hvalues w (List.mem_cons_of_mem _ hw)
+      · dsimp only
+        split
+        · exact hvalues v (by simp)
+        · exact hb
+  apply fold
+  · intro value hv
+    have hm := List.mem_of_mem_drop hv
+    have hmvec : value ∈ (controller.snapshot features rate).values := by simpa using hm
+    obtain ⟨i, hi, heq⟩ := Vector.mem_iff_getElem.mp hmvec
+    rw [← heq]
+    exact zero_predict_all controller hz features ⟨i, hi⟩
+  · exact zero_predict_all controller hz features (firstAction count)
+
+/-- The executed policy draw retains its producing zero snapshot, so its
+SMDP credit preserves zero knowledge for every actual RNG state and duration.
+The portable bootstrap is used as executed; no power-finiteness premise is needed. -/
+theorem zero_draw_policy_step (controller : Controller config dimension count.word.toNat)
+    (hz : ZeroController controller) (features : SwiftTd.ActiveSet dimension)
+    (rate : SwiftTd.ExploreRate) (rng : Rng.Xoshiro256) (reward : Binary32)
+    (duration : UInt32) (hr : SignedZero reward) :
+    let decision := ((controller.snapshot features rate).draw rng).1
+    ZeroController (controller.policyStep features decision reward duration) := by
+  apply zero_values_step controller hz
+  · intro action
+    rw [PolicySnapshot.draw_snapshot]
+    exact zero_predict_all controller hz features action
+  · exact hr
 
 end AcornVerif.CurrentControl

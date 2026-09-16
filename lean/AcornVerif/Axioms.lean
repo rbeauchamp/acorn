@@ -2824,6 +2824,76 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.add_zero_numeric
 
+/-- info: 'AcornVerif.CurrentRetirement.zero_first_snapshot' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.zero_first_snapshot
+
+/-- info: 'AcornVerif.CurrentRetirement.zero_clear' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.zero_clear
+
+/-- info: 'AcornVerif.CurrentRetirement.zero_prediction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.zero_prediction
+
+/-- info: 'AcornVerif.CurrentControl.zero_controller_initial' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_controller_initial
+
+/-- info: 'AcornVerif.CurrentControl.zero_predict_all' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_predict_all
+
+/-- info: 'AcornVerif.CurrentControl.zero_controller_clear' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_controller_clear
+
+/-- info: 'AcornVerif.CurrentControl.zero_values_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_values_step
+
+/-- info: 'AcornVerif.CurrentControl.zero_controller_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_controller_step
+
+/-- info: 'AcornVerif.CurrentControl.zero_controller_terminal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_controller_terminal
+
+/-- info: 'AcornVerif.CurrentControl.zero_snapshot_best' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_snapshot_best
+
+/-- info: 'AcornVerif.CurrentControl.zero_draw_policy_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_draw_policy_step
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_rank_assignments' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_rank_assignments
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranking_initial' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranking_initial
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranking_advance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranking_advance
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_neutral_refresh' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_neutral_refresh
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_meta_agent_initial' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_meta_agent_initial
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_continuation_close_snapshot' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_continuation_close_snapshot
+
 /-- info: 'AcornVerif.CurrentRetirement.zero_initial' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.zero_initial

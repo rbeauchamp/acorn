@@ -125,8 +125,13 @@ numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted
 continuation proofs connect actual agent construction and skill begin/step/close
 owners; a zero terminal meta value preserves continuation zero knowledge for
-arbitrary rewards. The full initialized native prefix and first-positive callback
-are not yet proved, and these component results imply no beta-floor progress.
+arbitrary rewards. `CurrentControl.ZeroController` additionally checks actual
+shared-error credit,
+terminal clearing and the snapshot/draw path. Its snapshot maximum supplies the
+old meta target in `zero_continuation_close_snapshot`; Demon-0 reward production,
+neutral ranking and identity-preserving neutral refresh have component proofs.
+The full initialized native prefix and first-positive callback are not yet
+proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

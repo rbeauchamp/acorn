@@ -559,6 +559,26 @@ executed targets. `zero_continuation_close` preserves all retained continuation
 learners through the actual close, including discarded detached-owner results.
 These statements impose no independently selected action or finite-trace premise.
 
+`CurrentControl.ZeroController` carries the zero numerical rows and shared Sarsa
+lags. `zero_values_step` follows the actual all-row first credit, optional restart
+clearing, and selected-row second loop. The old snapshot and reward being zero
+suffice even for arbitrary bootstrap and decay words: `zero_first_snapshot`
+includes zero-or-NaN errors in the projection/clipping argument, avoiding a
+separate portable-power finiteness assumption for this controller property.
+`zero_draw_policy_step` uses the actual RNG draw and its producing snapshot for
+arbitrary duration. `zero_snapshot_best` derives the old maximum from stored rows;
+`zero_continuation_close_snapshot` uses precisely that old meta snapshot in the
+actual discounted close, rather than postulating an independent terminal word.
+
+`zero_ranking_advance` derives Demon-0's zero target from the actual reward
+indicator in `PredictionControl.advance`, while leaving all other demons and
+observation-dependent feedback unrestricted. Its zero weights exclude every
+candidate in `rankAssignments`, including aliases. `zero_neutral_refresh` then
+proves that consuming a request with already-neutral skills preserves the entire
+consumer/representation/cache/closing state; no assignment reset is introduced.
+These are actual component transitions from compatible zero-sector constructors,
+not an assembled native learning trajectory.
+
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal
 meta snapshot is read before close, refresh, planning and new meta credit; a
