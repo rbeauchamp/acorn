@@ -150,7 +150,8 @@ def priorArtTexts (reviewText design frontier : String) : IO Unit := do
 
 /-- Ordinary admission checks every maintained file. The focused document mode
 retains document checks and cannot substitute for the complete suite. -/
-unsafe def check (documentsOnly : Bool := false) : IO Unit := do
+unsafe def check (documentsOnly : Bool := false)
+    (env? : Option Lean.Environment := none) : IO Unit := do
   let paths ← files
   unless documentsOnly do
     for path in paths do language path
@@ -160,7 +161,7 @@ unsafe def check (documentsOnly : Bool := false) : IO Unit := do
     pure (path, ← IO.FS.readFile path)
   AcornBrowserAudit.check
   AcornPinAudit.check documents
-  AcornDocument.check documents
+  AcornDocument.check documents (env? := env?)
   IO.println (if documentsOnly then "corpus: document references and prior-art qualifications admitted"
     else "corpus: language, document references and prior-art qualifications admitted")
 

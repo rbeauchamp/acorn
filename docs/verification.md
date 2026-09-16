@@ -118,6 +118,15 @@ with cold project outputs. It has read-only repository permissions, no secrets,
 no privileged pull-request trigger, and pinned action revisions. The workflow
 must pass on the exact proposed head before merge.
 
+Ordinary verification shares a compiler environment for ownership, theorem/axiom
+and document-symbol admission. Executable entries retain isolated `main` owners
+and reuse loaded dependency regions. Each IR reference must belong to that
+entry's actual compiled import closure; data loaded for another entry cannot
+satisfy this check. Shared regions live only for the audit process, and no prior
+acceptance result is cached. Source, boundary, native-route and browser checks
+remain required. Standalone ownership, theorem and corpus commands remain
+available for focused diagnostics.
+
 ## Mutation diagnostics
 
 **Pinned digest: `829aef890c81afaf`**

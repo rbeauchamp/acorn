@@ -276,6 +276,45 @@ private def symbol (span : String) : Option String := do
   guard (!(name.splitOn ".").any (fun part => part.toList.head?.any Char.isDigit))
   return name
 
+/-- Derive document symbols from the admitted compiler environment. Every selected
+non-entry owner must be present; unrelated imports cannot supply owned names. -/
+def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet String) := do
+  let owners := selection.filter fun owner =>
+    !AcornOwnership.executables.any (fun entry => entry.2 == owner)
+  for owner in owners do
+    unless (env.getModuleIdx? owner).isSome do
+      throw (IO.userError s!"document symbols: missing compiled owner {owner}")
+  let mut names : Std.HashSet String := {}
+  for (command, owner) in AcornOwnership.executables do
+    if selection.contains owner then names := names.insert command
+  for owner in selection do
+    let parts := owner.toString.splitOn "."
+    for start in [:parts.length] do
+      names := names.insert (String.intercalate "." (parts.drop start))
+  for (key, _) in Acorn.Host.Viewer.browserSchema do names := names.insert key
+  for (key, rule) in Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules do
+    names := names.insert key
+    if let .tags tags := rule then
+      for tag in tags do names := names.insert tag
+  names := names.insert "main"
+  let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
+  let words := (String.ofList (browser.toList.map (fun c =>
+    if c.isAlphanum || c == '_' || c == '$' then c else ' '))).splitOn " " |>.filter (!·.isEmpty)
+  for index in [:words.length] do
+    if ["const", "let", "function", "class"].contains (words[index]?.getD "") then
+      if let some name := words[index+1]? then names := names.insert name
+  let selected := owners.foldl (fun set owner => set.insert owner) ({} : NameSet)
+  for (name, _) in env.constants do
+    if let some index := env.getModuleIdxFor? name then
+      if let some owner := (env.header.modules[index.toNat]?).map (·.module) then
+        if selected.contains owner then
+          let parts := name.toString.splitOn "."
+          for start in [:parts.length] do
+            let suffix := parts.drop start
+            for count in [1:suffix.length+1] do
+              names := names.insert (String.intercalate "." (suffix.take count))
+  return names
+
 /-- Load compiler declarations once, excluding executable `main` collisions.
 Only maintained module owners contribute names; imported libraries do not make
 an otherwise missing project declaration appear present. -/
@@ -297,35 +336,7 @@ unsafe def symbols (selection : Array Name := AcornOwnership.modules) : IO (Std.
     !AcornOwnership.executables.any (fun entry => entry.2 == owner)
   let env ← importModules (owners.map fun owner => { module := owner }) {}
     (leakEnv := true) (loadExts := true)
-  let mut names : Std.HashSet String := {}
-  for (command, owner) in AcornOwnership.executables do
-    if selection.contains owner then names := names.insert command
-  for owner in selection do
-    let parts := owner.toString.splitOn "."
-    for start in [:parts.length] do
-      names := names.insert (String.intercalate "." (parts.drop start))
-  for (key, _) in Acorn.Host.Viewer.browserSchema do names := names.insert key
-  for (key, rule) in Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules do
-    names := names.insert key
-    if let .tags tags := rule then
-      for tag in tags do names := names.insert tag
-  names := names.insert "main"
-  let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
-  let words := (String.ofList (browser.toList.map (fun c =>
-    if c.isAlphanum || c == '_' || c == '$' then c else ' '))).splitOn " " |>.filter (!·.isEmpty)
-  for index in [:words.length] do
-    if ["const", "let", "function", "class"].contains (words[index]?.getD "") then
-      if let some name := words[index+1]? then names := names.insert name
-  for (name, _) in env.constants do
-    if let some index := env.getModuleIdxFor? name then
-      if let some owner := (env.header.modules[index.toNat]?).map (·.module) then
-        if owners.contains owner then
-          let parts := name.toString.splitOn "."
-          for start in [:parts.length] do
-            let suffix := parts.drop start
-            for count in [1:suffix.length+1] do
-              names := names.insert (String.intercalate "." (suffix.take count))
-  return names
+  symbolsFrom env selection
 
 private def resolves (names : Std.HashSet String) (name : String) : Bool :=
   let name := name.replace "::" "."
@@ -337,8 +348,11 @@ private def resolves (names : Std.HashSet String) (name : String) : Bool :=
 /-- Every applicable path and declaration claim is checked, reporting all stale
 references together; archive paths and external study citations are refused. -/
 unsafe def check (documents : Array (String × String))
-    (selection : Array Name := AcornOwnership.modules) : IO Unit := do
-  let names ← symbols selection
+    (selection : Array Name := AcornOwnership.modules)
+    (env? : Option Environment := none) : IO Unit := do
+  let names ← match env? with
+    | some env => symbolsFrom env selection
+    | none => symbols selection
   let mut failures := 0
   for (path, text) in documents do
     for span in (spans text).eraseDups do

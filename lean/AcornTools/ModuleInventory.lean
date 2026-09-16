@@ -12,7 +12,7 @@ open Lean
 /-- Reviewed verification/bootstrap modules are explicit trust boundaries. New
 root tools do not acquire an exemption merely by living outside `Acorn`. -/
 def toolingModules : Array Name := #[`AcornTools, `Bootstrap, `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.ModuleInventory,
-  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.TheoremCount, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
+  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
 
 /-- Discover all maintained Lean sources, including root tools and new directories.
 Only the package's generated/dependency directories and Lake configuration are
