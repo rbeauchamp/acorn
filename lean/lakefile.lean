@@ -28,13 +28,32 @@ partial def nativeSources (root : System.FilePath) : IO (Array System.FilePath) 
     | _ => throw (IO.userError s!"native source is not a regular entry: {entry.path}")
   return files.qsort (fun left right => left.toString < right.toString)
 
-/-- Build-time hashing uses the provisioned OpenSSL; no runtime hashing process is needed. -/
+/-- Hash each source with provisioned OpenSSL in one process. Admit exactly one
+SHA-256 result per input, in order and with the complete matching filename.
+Newline-containing paths cannot be represented in the source inventory. -/
+def nativeDigests (paths : Array System.FilePath) : IO (Array (System.FilePath × String)) := do
+  if paths.isEmpty then return #[]
+  for path in paths do
+    if path.toString.contains '\n' then
+      throw (IO.userError s!"native source path contains a newline: {path}")
+  let output ← IO.Process.output {
+    cmd := "openssl", args := #["dgst", "-sha256", "-r"] ++ paths.map (·.toString) }
+  let lines := (output.stdout.splitOn "\n").toArray
+  unless output.exitCode == 0 && lines.size == paths.size + 1 && lines.back? == some "" do
+    throw (IO.userError s!"native source hashing failed: {output.stderr}")
+  paths.mapIdxM fun i path => do
+    let some line := lines[i]? | throw (IO.userError "missing native source digest")
+    let digest := String.ofList (line.toList.take 64)
+    unless digest.length == 64 &&
+        digest.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) &&
+        line == digest ++ " *" ++ path.toString do
+      throw (IO.userError s!"malformed native source digest: {path}")
+    return (path, digest)
+
+/-- Singleton hashing shares the source batch's complete output admission. -/
 def nativeDigest (path : System.FilePath) : IO String := do
-  let output ← IO.Process.output { cmd := "openssl", args := #["dgst", "-sha256", "-r", path.toString] }
-  let digest := String.ofList (output.stdout.toList.take 64)
-  unless output.exitCode == 0 && digest.length == 64 &&
-      digest.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) do
-    throw (IO.userError s!"native source hashing failed: {path}: {output.stderr}")
+  let #[(_, digest)] ← nativeDigests #[path]
+    | throw (IO.userError "missing native source digest")
   return digest
 
 package acorn where
@@ -94,11 +113,11 @@ def provenanceJob (pkg : Package) : FetchM (Job System.FilePath) := do
   buildFileAfterDep output (Job.collectArray dependencies) (fun files => do
     IO.FS.createDirAll pkg.buildDir
     let mut inventory := "acorn-lean-source-v2\n"
-    for path in files do
+    for (path, digest) in ← nativeDigests files do
       let absolute ← IO.FS.realPath path
       unless absolute.toString.startsWith (root.toString ++ "/") do
         error "native source lies outside repository"
-      inventory := inventory ++ (← nativeDigest path) ++ "  " ++
+      inventory := inventory ++ digest ++ "  " ++
         String.ofList (absolute.toString.toList.drop (root.toString.length + 1)) ++ "\n"
     let scratch := pkg.buildDir / "native-source-inventory.txt"
     IO.FS.writeFile scratch inventory

@@ -108,8 +108,10 @@ def run (args : List String) : IO UInt32 := do
     throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")
   let path : System.FilePath := ".lake/acorn-path-packages.json"
   IO.FS.writeFile path (contents.compress ++ "\n")
+  -- Lake validates its configuration trace against source and toolchain changes;
+  -- explicit dependency overrides are resolved again on every invocation.
   let child ← IO.Process.spawn {
-    cmd := "lake", args := #["--no-cache", "--reconfigure", s!"--packages={path}"] ++ args.toArray,
+    cmd := "lake", args := #["--no-cache", s!"--packages={path}"] ++ args.toArray,
     stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
   child.wait
 
