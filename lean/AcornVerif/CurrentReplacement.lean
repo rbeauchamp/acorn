@@ -1649,4 +1649,125 @@ theorem act_two_refresh_changes (state : Agent profile config .discounted dimens
   exact ⟨cold_model_veto _ slot cold,
     congrArg (fun representation => representation.progress.events) kept.2⟩
 
+open AcornVerif.CurrentRetirement
+
+/-- Zero weight/update-lag sector of the actual discounted continuation learner.
+The reward model, policy, beta and other transient registers are unrestricted. -/
+def ZeroContinuation (model : Model dimension .discounted) : Prop :=
+  match model with | .discounted _ continuation => ZeroKnowledge continuation.state
+
+/-- The discounted model constructor initializes its continuation sector. -/
+theorem zero_continuation_initial : ZeroContinuation (Model.initial dimension .discounted) :=
+  zero_initial
+
+/-- Starting actual model traces preserves the zero continuation sector. -/
+theorem zero_continuation_begin (model : Model dimension .discounted)
+    (hz : ZeroContinuation model) (features : SwiftTd.ActiveSet dimension) :
+    ZeroContinuation (model.begin features) := by
+  cases model with
+  | discounted r c => exact zero_begin c.state hz _
+
+/-- Continuing model credit uses zero continuation cumulant even when the
+executed reward is positive or exceptional. -/
+theorem zero_continuation_step (model : Model dimension .discounted)
+    (hz : ZeroContinuation model) (features : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) (reward : Binary32) : ZeroContinuation (model.step features age reward) := by
+  cases model with
+  | discounted r c => exact zero_step c.state hz _ .zero (Or.inl rfl)
+
+/-- A zero terminal meta value leaves continuation knowledge zero for every
+reward word. Positive reward credit alone does not bootstrap this learner. -/
+theorem zero_continuation_terminal (model : Model dimension .discounted)
+    (hz : ZeroContinuation model) (reward terminal : Binary32) (ht : SignedZero terminal) :
+    ZeroContinuation (model.terminal reward terminal) := by
+  have target : SignedZero (Criterion.discounted.modelTerminal terminal) := by
+    rcases ht with rfl | rfl <;> decide
+  cases model with
+  | discounted r c => exact zero_terminal c.state hz _ target
+
+/-- Actual skill termination preserves zero continuation knowledge when its
+terminal meta value is zero, including frozen activation and arbitrary interests. -/
+theorem zero_continuation_end (skill : Skill config .discounted dimension)
+    (hz : ZeroContinuation skill.model) {mode : Bool} (ending : EndingPayload mode)
+    (reward terminal : Binary32) (gain : RewardRate) (ht : SignedZero terminal) :
+    ZeroContinuation (skill.endTemporal (modelOperations .discounted dimension)
+      ending reward terminal gain).model := by
+  unfold Skill.endTemporal
+  split
+  · change ZeroContinuation
+      (Model.terminal
+        (skill.terminateOption ending.activation ending.potential reward terminal gain).model
+        reward terminal)
+    rw [(Skill.terminal_owners skill ending.activation ending.potential reward terminal gain).2]
+    exact zero_continuation_terminal _ hz reward terminal ht
+  · rw [(Skill.terminal_owners skill ending.activation ending.potential reward terminal gain).2]
+    exact hz
+
+/-- Every actual initialized discounted agent skill has zero continuation
+knowledge, without a premise prescribing actions, targets or learned state. -/
+theorem zero_continuation_agent_initial (profile : FeatureProfile)
+    (config : Features.Config) (dimension : Dimension) (planning : PlanningSelection)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    let agent := Agent.initial profile config .discounted dimension planning
+    ZeroContinuation (agent.control.runtime.lifecycle.consumers.skills.get slot).model := by
+  simp only [Agent.initial, TemporalControl.initial, Ensemble.initial,
+    CurrentLearner.vector_get, Vector.getElem_map,
+    Skill.initial]
+  exact zero_continuation_initial
+
+/-- The executed skill-start owner preserves the continuation sector in both
+learning and frozen modes. -/
+theorem zero_continuation_skill_begin (skill : Skill config .discounted dimension)
+    (hz : ZeroContinuation skill.model) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
+    ZeroContinuation (skill.beginTemporal (modelOperations .discounted dimension)
+      features potential learning rate).1.model := by
+  cases learning <;> simp only [Skill.beginTemporal, Skill.beginOption, Bool.false_eq_true,
+    if_false, if_true, modelOperations]
+  · exact hz
+  · exact zero_continuation_begin _ hz features
+
+/-- The executed option action preserves the continuation sector for every
+actual draw and reward, including the age-zero model no-op. -/
+theorem zero_continuation_skill_step (skill : Skill config .discounted dimension)
+    (hz : ZeroContinuation skill.model) {mode : Bool} (activation : OptionActivation mode)
+    (next : OptionContinuation dimension activation) (reward : Binary32) (gain : RewardRate)
+    (rng : Rng.Xoshiro256) :
+    ZeroContinuation (skill.stepTemporal (modelOperations .discounted dimension)
+      activation next reward gain rng).1.model := by
+  have hm : (skill.optionStep activation next reward gain rng).1.model = skill.model := by
+    unfold Skill.optionStep
+    split <;> rfl
+  unfold Skill.stepTemporal
+  split
+  · change ZeroContinuation ((skill.optionStep activation next reward gain rng).1.model.step
+      next.features activation.age reward)
+    rw [hm]
+    exact zero_continuation_step _ hz _ _ reward
+  · rw [hm]
+    exact hz
+
+/-- The actual close operation preserves all retained continuation learners
+under zero terminal meta value. Detached old-owner results remain discarded.
+This conditional endpoint does not derive the meta value from a native prefix. -/
+theorem zero_continuation_close {profile : FeatureProfile}
+    (state : TemporalControl profile config .discounted dimension)
+    (hz : ∀ slot, ZeroContinuation (state.runtime.lifecycle.consumers.skills.get slot).model)
+    (closing : Closing config .discounted dimension (EndingPayload (profile.mode != .frozen)))
+    (reward terminal : Binary32) (ht : SignedZero terminal) :
+    ∀ slot, ZeroContinuation ((state.closeOption (modelOperations .discounted dimension)
+      closing reward terminal).1.runtime.lifecycle.consumers.skills.get slot).model := by
+  intro slot
+  cases ho : closing.oldOwner with
+  | some old => simpa only [TemporalControl.closeOption, ho] using hz slot
+  | none =>
+    simp only [TemporalControl.closeOption, ho, Option.getD, TemporalControl.withSkill,
+      CurrentLearner.vector_get, Vector.getElem_set]
+    split
+    · have hs : closing.slot = slot := Fin.ext (by assumption)
+      subst slot
+      exact zero_continuation_end _ (hz closing.slot) closing.activation reward terminal
+        state.average.rate ht
+    · exact hz slot
+
 end AcornVerif.CurrentReplacement

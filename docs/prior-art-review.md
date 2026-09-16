@@ -532,6 +532,44 @@ eligibility window: such a window cannot coincide with this refresh class. It
 neither settles longer invocations nor establishes permanent blockage, positive
 complete-reader reachability, or necessity of a new utility architecture.
 
+**Initialized zero sector and continuation bootstrap.**
+`CurrentRetirement.ZeroKnowledge` constrains stored weights, per-index
+`deltaWeight`, and carried `vOld`/`vDelta` to the two finite zero encodings.
+The actual constructor satisfies it. The executed first-loop traversal, including
+swap-remove pruning, preserves it under zero error and update accumulator;
+the second loop preserves zero weights and sums only zero updates. Consequently
+actual zero-reward `step`, `beginTrajectory`, and zero-target `terminalStep`
+preserve this sector for arbitrary active sets and raw trace/sensitivity words.
+No beta-initiality, floor attainment or raw-register finiteness follows.
+
+The arithmetic proof includes exceptional operands: zero products yield signed
+zero or NaN, and the actual weight projection maps NaN to zero while clipping
+clears `deltaWeight`. Private intermediate classification uses the standard
+logical float model's canonical NaN. Public conclusions concern finite zero
+storage; native IEEE arithmetic, NaN classification/projection, and compiler
+correspondence retain the trust boundary in `Acorn.Arithmetic`. The proof uses
+unpacked constructor cases, not word or trajectory enumeration.
+
+`zero_continuation_agent_initial` connects this sector to every actual initialized
+discounted skill's continuation learner. `zero_continuation_skill_begin`,
+`zero_continuation_skill_step`, and `zero_continuation_end` follow the concrete
+model operations. A positive reward alone cannot change continuation weights
+when the terminal meta value is zero: reward and continuation have different
+executed targets. `zero_continuation_close` preserves all retained continuation
+learners through the actual close, including discarded detached-owner results.
+These statements impose no independently selected action or finite-trace premise.
+
+Full initialized native zero-sector composition and the first-positive endpoint
+remain unproved. In the ordinary discounted option-ending branch, the terminal
+meta snapshot is read before close, refresh, planning and new meta credit; a
+later positive meta update cannot change that earlier continuation target.
+Served primitive exploration has priority over the goal check and may defer a
+pending refresh until after Demon-0 reward learning. Thus a first goal does not
+universally imply a free boundary or neutral ranking. The actual goal-action
+owner, produced meta snapshot, and later policy/model bootstrap must be derived;
+component zero closure does not supply those premises or a common eligibility
+window for all 57 physical learners. No runtime behavior or disposition changes.
+
 **Lifetime and persistence.** Every success appends exactly one event.
 `FeatureHistory.LegalHistory`, `record_count`, `full_refuses`,
 `record_excludes_same_clock` and `saturated_record_refuses_forever` limit ordinary

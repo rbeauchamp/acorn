@@ -941,4 +941,279 @@ theorem retirement_predicate_reachable {config : Config} {dimension : Dimension}
     CurrentLearner.vector_get, Vector.getElem_set_self, Weight.project,
     Bounded32.projectSymmetric, Weight.value, zero, theta, Bool.true_and] using floor
 
+/-- Either finite IEEE zero encoding, with no identification of NaNs as numerical zero. -/
+abbrev SignedZero (x : Binary32) : Prop := x = .zero ∨ x = ⟨0x80000000⟩
+-- This private classification uses the standard logical float model
+-- canonical NaN. Public conclusions concern only finite zero storage.
+-- Native NaN payload choices remain within Arithmetic's trusted boundary.
+private abbrev ZeroOrNaN (x : Binary32) : Prop := SignedZero x ∨ x = ⟨0x7fc00000⟩
+private theorem mul_zero_raw (x : Binary32) : ZeroOrNaN (x.mul .zero) := by
+  change ZeroOrNaN (Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+    (UnpackedFloat.mul Format.binary32 (Float32.Model.ofBits x.bits).unpack
+      (.zero .positive)))))
+  generalize (Float32.Model.ofBits x.bits).unpack = raw
+  cases raw with
+  | notANumber => exact Or.inr rfl
+  | infinity sign => cases sign <;> exact Or.inr rfl
+  | zero sign => cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+  | finite sign mantissa exponent positive =>
+    cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+
+private theorem zero_mul_raw (x : Binary32) : ZeroOrNaN (Binary32.zero.mul x) := by
+  change ZeroOrNaN (Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+    (UnpackedFloat.mul Format.binary32 (.zero .positive)
+      (Float32.Model.ofBits x.bits).unpack))))
+  generalize (Float32.Model.ofBits x.bits).unpack = raw
+  cases raw with
+  | notANumber => exact Or.inr rfl
+  | infinity sign => cases sign <;> exact Or.inr rfl
+  | zero sign => cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+  | finite sign mantissa exponent positive =>
+    cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+
+private theorem mul_signed_zero (x z : Binary32) (hz : SignedZero z) :
+    ZeroOrNaN (x.mul z) ∧ ZeroOrNaN (z.mul x) := by
+  rcases hz with rfl | rfl
+  · exact ⟨mul_zero_raw x, zero_mul_raw x⟩
+  · constructor
+    · change ZeroOrNaN (Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+        (UnpackedFloat.mul Format.binary32 (Float32.Model.ofBits x.bits).unpack
+          (.zero .negative)))))
+      generalize (Float32.Model.ofBits x.bits).unpack = raw
+      cases raw with
+      | notANumber => exact Or.inr rfl
+      | infinity sign => cases sign <;> exact Or.inr rfl
+      | zero sign => cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+      | finite sign mantissa exponent positive =>
+        cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+    · change ZeroOrNaN (Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+        (UnpackedFloat.mul Format.binary32 (.zero .negative)
+          (Float32.Model.ofBits x.bits).unpack))))
+      generalize (Float32.Model.ofBits x.bits).unpack = raw
+      cases raw with
+      | notANumber => exact Or.inr rfl
+      | infinity sign => cases sign <;> exact Or.inr rfl
+      | zero sign => cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+      | finite sign mantissa exponent positive =>
+        cases sign <;> first | exact Or.inl (Or.inl rfl) | exact Or.inl (Or.inr rfl)
+
+private theorem zero_nan_sub (a b : Binary32) (ha : ZeroOrNaN a) (hb : ZeroOrNaN b) :
+    ZeroOrNaN (a.sub b) := by
+  rcases ha with (rfl | rfl) | rfl <;> rcases hb with (rfl | rfl) | rfl <;>
+    decide
+
+private theorem project_zero (rule : ValueRule) (x : Binary32) (hx : SignedZero x) :
+    (Weight.project rule x).value = x := by
+  apply rule.domain.symmetric_project_identity
+  rcases hx with rfl | rfl
+  · exact rule.domain.zeroLegal
+  · exact ⟨by decide, rule.domain.zeroLegal.2.1, rule.domain.zeroLegal.2.2⟩
+
+private theorem zero_weight_write (rule : ValueRule) (w delta z zd vd : Binary32)
+    (hw : SignedZero w) (hd : SignedZero delta) (hv : SignedZero vd) :
+    let dw := (delta.mul z).sub (zd.mul vd)
+    let raw := w.add dw
+    let projected := (Weight.project rule raw).value
+    SignedZero projected ∧
+      SignedZero (if !(projected.numericallyEqual raw) then .zero else dw) := by
+  have hdw := zero_nan_sub _ _ (mul_signed_zero z delta hd).2 (mul_signed_zero zd vd hv).1
+  rcases hdw with hzero | hnan
+  · have rawzero : SignedZero (w.add ((delta.mul z).sub (zd.mul vd))) := by
+      rcases hw with rfl | rfl <;> rcases hzero with h | h <;> rw [h] <;> decide
+    dsimp only
+    rw [project_zero rule _ rawzero]
+    refine ⟨rawzero, ?_⟩
+    split <;> first | exact Or.inl rfl | exact hzero
+  · dsimp only
+    rw [hnan]
+    have addnan : w.add ⟨0x7fc00000⟩ = ⟨0x7fc00000⟩ := by
+      rcases hw with rfl | rfl <;> rfl
+    rw [addnan]
+    have projectnan : (Weight.project rule ⟨0x7fc00000⟩).value = .zero := rfl
+    rw [projectnan]
+    decide
+
+variable {config : Config} {dimension : Dimension}
+/-- Zero learned weights and update lags. All other raw registers and beta words
+remain unconstrained; this predicate does not imply eligibility or cold beta. -/
+structure ZeroKnowledge (state : NumericState config dimension) : Prop where
+  /-- Every stored prediction weight is zero. -/
+  weights : ∀ idx, SignedZero (state.weights.get idx).value
+  /-- Every carried per-index weight update is zero. -/
+  updates : ∀ idx, SignedZero (state.transient.deltaWeight.get idx).value
+  /-- The previous prediction anchor is zero. -/
+  old : SignedZero state.transient.vOld
+  /-- The previous update accumulator is zero. -/
+  delta : SignedZero state.transient.vDelta
+
+/-- Actual cold construction starts in the zero-weight and zero-lag sector. -/
+theorem zero_initial : ZeroKnowledge (NumericState.initial config dimension) := by
+  constructor
+  · intro idx
+    simp only [NumericState.initial, CurrentLearner.vector_get, Vector.getElem_replicate]
+    rw [project_zero config.rule _ (Or.inl rfl)]
+    exact Or.inl rfl
+  · intro idx; simp [NumericState.initial, TransientState.zero, Vector.get, SignedZero]
+  · exact Or.inl rfl
+  · exact Or.inl rfl
+
+private theorem zero_first_element (state : NumericState config dimension)
+    (hz : ZeroKnowledge state)
+    (idx : FeatIdx dimension) (delta vd decay : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    ZeroKnowledge (state.firstLoopElement idx delta vd decay).1 := by
+  have write := zero_weight_write config.rule _ delta (state.transient.z.get idx).value
+    (state.transient.zDelta.get idx).value vd (hz.weights idx) hd hv
+  constructor
+  · intro other
+    by_cases heq : idx = other
+    · subst other
+      simpa only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+        Vector.getElem_set_self] using write.1
+    · have distinct : idx.val ≠ other.val := fun same => heq (Fin.ext same)
+      simpa only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+        Vector.getElem_set, distinct, if_false] using hz.weights other
+  · intro other
+    by_cases heq : idx = other
+    · subst other
+      simpa only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+        Vector.getElem_set_self] using write.2
+    · have distinct : idx.val ≠ other.val := fun same => heq (Fin.ext same)
+      simpa only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+        Vector.getElem_set, distinct, if_false] using hz.updates other
+  · exact hz.old
+  · exact hz.delta
+
+private theorem zero_clear_feature (state : NumericState config dimension)
+    (hz : ZeroKnowledge state)
+    (idx : FeatIdx dimension) : ZeroKnowledge (state.clearFeatureRegisters idx) := by
+  constructor
+  · intro other
+    simpa only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+      NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+      NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+      NumericState.writeLastAlpha] using hz.weights other
+  · intro other
+    simp only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+      NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+      NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+      NumericState.writeLastAlpha, CurrentLearner.vector_get, Vector.getElem_set]
+    split
+    · exact Or.inl rfl
+    · exact hz.updates other
+  · simpa only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+      NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+      NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+      NumericState.writeLastAlpha] using hz.old
+  · simpa only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+      NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+      NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+      NumericState.writeLastAlpha] using hz.delta
+
+private theorem zero_first_go (state : NumericState config dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) (delta vd decay : Binary32)
+    (hz : ZeroKnowledge state) (hd : SignedZero delta) (hv : SignedZero vd) :
+    ZeroKnowledge (NumericState.learnFirstLoopGo config delta vd decay state work pos) := by
+  induction state, work, pos using NumericState.learnFirstLoopGo.induct config delta vd decay with
+  | case1 state work pos valid idx next equation ih =>
+    dsimp only [idx] at equation ih
+    have hn : ZeroKnowledge next := by
+      simpa only [equation] using zero_first_element state hz work[pos] delta vd decay hd hv
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, ite_true] using ih (zero_clear_feature next hn work[pos])
+  | case2 state work pos valid idx next prune equation noPrune ih =>
+    dsimp only [idx] at equation ih
+    have hn : ZeroKnowledge next := by
+      simpa only [equation] using zero_first_element state hz work[pos] delta vd decay hd hv
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, if_neg noPrune] using ih hn
+  | case3 state work pos finished =>
+    rw [NumericState.learnFirstLoopGo, dif_neg finished]
+    exact ⟨hz.weights, hz.updates, hz.old, hz.delta⟩
+
+/-- Zero error and update accumulator preserve the sector through the actual
+first-loop worklist, including pruning and exceptional trace operands. -/
+theorem zero_first_loop (state : NumericState config dimension) (hz : ZeroKnowledge state)
+    (delta vd decay : Binary32) (hd : SignedZero delta) (hv : SignedZero vd) :
+    ZeroKnowledge (state.learnFirstLoop config delta vd decay) :=
+  zero_first_go _ _ _ _ _ _ ⟨hz.weights, hz.updates, hz.old, hz.delta⟩ hd hv
+
+private theorem zero_add (a b : Binary32) (ha : SignedZero a) (hb : SignedZero b) :
+    SignedZero (a.add b) := by
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;> decide
+
+private theorem zero_sub (a b : Binary32) (ha : SignedZero a) (hb : SignedZero b) :
+    SignedZero (a.sub b) := by
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;> decide
+
+/-- The actual ordered active loop preserves zero weights and carries only
+zero updates, independently of overshoot, beta and raw trace values. -/
+theorem zero_second_loop (state : NumericState config dimension) (hz : ZeroKnowledge state)
+    (features : ActiveSet dimension) (vd : Binary32) (hv : SignedZero vd) :
+    ZeroKnowledge (state.learnSecondLoop config features vd).1 ∧
+      SignedZero (state.learnSecondLoop config features vd).2 := by
+  have fold (indices : List (FeatIdx dimension)) (current : NumericState config dimension)
+      (acc e t : Binary32) (overshoot : Bool) (hc : ZeroKnowledge current) (ha : SignedZero acc) :
+      let result := indices.foldl (fun (s, v) idx =>
+        NumericState.secondLoopElement config overshoot e t s v idx) (current, acc)
+      ZeroKnowledge result.1 ∧ SignedZero result.2 := by
+    induction indices generalizing current acc with
+    | nil => exact ⟨hc, ha⟩
+    | cons idx rest ih =>
+      apply ih
+      · exact ⟨hc.weights, hc.updates, hc.old, hc.delta⟩
+      · exact zero_add _ _ ha (hc.updates idx)
+  exact fold _ _ _ _ _ _ hz hv
+
+private theorem zero_clear (state : NumericState config dimension)
+    (hz : ZeroKnowledge state) :
+    ZeroKnowledge state.clearTransient := by
+  refine ⟨hz.weights, ?_, Or.inl rfl, Or.inl rfl⟩
+  intro idx
+  simp [NumericState.clearTransient, TransientState.zero, Vector.get, SignedZero]
+
+private theorem zero_prediction (state : NumericState config dimension)
+    (hz : ZeroKnowledge state)
+    (features : ActiveSet dimension) : SignedZero (state.predict features) := by
+  have fold (indices : List (FeatIdx dimension)) (acc : Binary32) (ha : SignedZero acc) :
+      SignedZero (indices.foldl (fun a idx => a.add (state.weights.get idx).value) acc) := by
+    induction indices generalizing acc with
+    | nil => exact ha
+    | cons idx rest ih => exact ih _ (zero_add _ _ ha (hz.weights idx))
+  exact fold features.indices .zero (Or.inl rfl)
+
+private theorem gamma_zero (rule : ValueRule) (x : Binary32) (hx : SignedZero x) :
+    SignedZero (rule.gamma.mul x) := by
+  rcases hx with rfl | rfl <;> cases rule with
+  | discounted discount => cases discount <;> decide
+  | differential => decide
+
+/-- A zero-reward single-learner update preserves the initialized sector for
+every active set. This is a numerical transition theorem; the full agent must
+still derive this reward and its other learner targets from executed producers. -/
+theorem zero_step (state : NumericState config dimension) (hz : ZeroKnowledge state)
+    (features : ActiveSet dimension) (reward : Binary32) (hr : SignedZero reward) :
+    ZeroKnowledge (state.step config features reward).1 := by
+  have prediction := zero_prediction state hz features
+  have delta := zero_sub _ _ (zero_add _ _ hr (gamma_zero config.rule _ prediction)) hz.old
+  have first := zero_first_loop state hz _ _
+    (config.rule.gamma.mul config.lambda) delta hz.delta
+  have second := zero_second_loop _ first features .zero (Or.inl rfl)
+  exact ⟨second.1.weights, second.1.updates, prediction, second.2⟩
+
+/-- Actual trajectory initialization preserves zero knowledge while freely
+changing traces and step sizes. -/
+theorem zero_begin (state : NumericState config dimension) (hz : ZeroKnowledge state)
+    (features : ActiveSet dimension) : ZeroKnowledge (state.beginTrajectory config features) := by
+  have cleared := zero_clear state hz
+  have second := zero_second_loop _ cleared features .zero (Or.inl rfl)
+  exact ⟨second.1.weights, second.1.updates, zero_prediction _ cleared features, second.2⟩
+
+/-- Zero terminal credit preserves zero knowledge, including when arbitrary
+raw trace intermediates become NaN and trigger the actual clipping reset. -/
+theorem zero_terminal (state : NumericState config dimension) (hz : ZeroKnowledge state)
+    (target : Binary32) (ht : SignedZero target) :
+    ZeroKnowledge (state.terminalStep config target).1 :=
+  zero_clear _ (zero_first_loop state hz _ _ _ (zero_sub _ _ ht hz.old) hz.delta)
+
 end AcornVerif.CurrentRetirement

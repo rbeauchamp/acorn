@@ -64,6 +64,14 @@ premises compare actual assignment identities and observe the returned
 meta-decision; occurrence along initialized native execution remains unproved.
 It does not cover a sole changed assignment selected in that dispatch.
 
+`ZeroKnowledge` now proves the initialized numerical zero-weight/update-lag
+sector is preserved by actual zero-target SwiftTD credit, without finite-trace
+assumptions. Discounted continuation models stay in that sector through actual
+skill begin/step and zero-meta-value close, even with positive reward credit.
+This checks component closure and the conditional endpoint, not the full native
+zero-reward prefix or its first-positive callback. Deriving the actual meta
+snapshot, goal-action owner and later continuation bootstrap remains unresolved.
+
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
 the predicate. First-match selection permanently excludes later units sharing

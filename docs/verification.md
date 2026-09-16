@@ -120,6 +120,13 @@ complete assignments retains an unselected cold model through completion. The
 proof derives refusal before the actual retirement call and unchanged event
 history, for arbitrary input words without a feature-count bound. It does not
 prove that initialized native paths realize these assignment-change premises.
+`CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
+numeric begin/step/terminal closure through the actual loops, including NaN
+projection and clipping without trace-finiteness assumptions. The discounted
+continuation proofs connect actual agent construction and skill begin/step/close
+owners; a zero terminal meta value preserves continuation zero knowledge for
+arbitrary rewards. The full initialized native prefix and first-positive callback
+are not yet proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming
