@@ -48,7 +48,12 @@ features; a default-size patch without food/deer channels has at most 1712.
 The complete short-invocation scheduling argument and its admitted-input domain
 are stated in PAR-11. It does not assert that the endogenous world always
 produces short invocations. Retaining sensitivity across boundaries would require
-a derived reset/pruning/support contract before changing the learner.
+a derived reset/pruning/support contract before changing the learner. The local
+`episode_sensitivity_anchor` identity specifies how aligned `h`/`hTemp` reach
+the next meta-gradient in the existing binary32 second loop. It supplies no
+complete-reader progress window. PAR-11 records the candidate boundary contract
+and why neither unexcited no-food observations nor independently prescribed
+signed targets realize that window through the coupled callbacks.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

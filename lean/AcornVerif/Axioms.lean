@@ -2812,6 +2812,10 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.initial_above_floor
 
+/-- info: 'AcornVerif.CurrentRetirement.episode_sensitivity_anchor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.episode_sensitivity_anchor
+
 /-- info: 'AcornVerif.CurrentRetirement.one_action_trajectory_cold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.one_action_trajectory_cold

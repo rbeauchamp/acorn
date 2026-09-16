@@ -109,6 +109,11 @@ schedule is a source-linked structural argument, with explicit exposure and
 input conditions. Neither result proves positive complete-reader reachability,
 fair selection of every unit, or learning benefit. The exact local transaction,
 alias ordering and finite history/clock limits retain their own proof owners.
+`CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
+executing second-loop element, including the ordered binary32 sensitivity
+correction and finite meta-gradient transfer. It assumes aligned incoming
+registers; no installed boundary or initialized execution path establishes those
+premises. The proposed boundary and progress margins in PAR-11 remain obligations.
 
 ## Build and source inventory
 

@@ -405,6 +405,63 @@ No such behavioral correction is implemented here. A separate utility or
 maturation criterion would require its own semantics and admission; deleting
 the floor condition or a reader is not a justified repair.
 
+**Candidate episode boundary and realization gap.** The local machine identity
+`CurrentRetirement.episode_sensitivity_anchor` makes the alignment obligation
+precise. If trajectory registers `p`, `z`, `zBar` and `hOld` are zero and both
+`h` and `hTemp` contain the same finite word H, the existing non-overshooting
+second-loop element gives a finite `p` numerically equal to H and leaves beta
+unchanged. Write `a = (eta / eta) * exp(beta)` and
+`z = 0 + a * (1 - 0)`, with every operation evaluated in binary32. Its exact
+stored `hTemp` is `(H - 0 * (z - a)) - H * a`, and `zBar` is
+`0 + a * ((1 - 0) - 0)`. These are ordered word expressions; the theorem does
+not replace them with real arithmetic or assert that all intermediate words
+are finite. The next unclipped first-loop visit reads this `p` in
+`project(beta + ((metaStep / exp(beta)) * (delta - vDelta)) * p)` and assembles
+`(hTemp + delta * zBar) - zDelta * vDelta` before pruning. Clipping instead
+reanchors beta and zeros the incoming sensitivity terms. This is a conditional
+local law, not a modified episode callback or a path from initialization.
+
+A candidate boundary would transfer the post-credit `hTemp` to both `h` and
+`hTemp`, clear `hOld`, the six trajectory registers, eligibility and aggregates,
+and retain weights/beta. Its proposed support contract separates those six
+trajectory registers from the three sensitivity registers; readiness still
+requires unique eligibility and nonzero eligible traces. Pruning, clipping,
+retirement, objective replacement and restore retain their deliberate forgetting
+semantics. This requires deriving the transfer *after* clipping/pruning, not
+recovering discarded pre-credit sensitivity. The existing full-reset `clear`
+contract is unchanged. Policy `beginOption`/`Controller.terminal` need a separate
+shared-error, off-row derivation as well as model begin/terminal: aligning only
+models cannot establish complete-reader progress. None of this proposed boundary
+contract is installed in executing code.
+
+The positive composition obligation is a stable ownership window in which every
+physical reader receives sufficiently many actual finite meta increments m with
+`-1 <= m <= -2^-18`, other beta writes do not increase it, and the same hashed
+slot's weights are strictly below each receiver's threshold at a common scan.
+The proposed addition margin `betaNext <= max(floor, beta - 3*2^-20)` and the
+realization of its premises both remain unproved; neither is an admitted progress
+theorem. In particular, two candidate input constructions fail:
+
+- The sparse no-food observations used above give the `near_food` demon only
+  zero cumulants (`Cumulant.eval`, signal 5). In the finite-arithmetic branch of
+  a zero-knowledge trajectory, zero prediction/error and sensitivity propagate
+  zero meta increments. Such a visit has m = 0, contradicting `m <= -2^-18`.
+  With initial beta, the existing sparse-sum bound also excludes overshoot.
+  This rejects that candidate under its regularity premise; it does not supply
+  a new universal trace-finiteness or full-agent persistence theorem.
+- Independently prescribing alternating signed targets is incompatible with the
+  callbacks. Every demon cumulant is an indicator, and the discounted model's
+  continuation target is gamma times the projected nonnegative meta-policy
+  maximum. Native goal endings additionally force reward one, so forcing every
+  invocation to end by goal cannot independently alternate its reward-model
+  terminal targets. Raw callback admission is broader than native-world output.
+
+A realizable family must therefore derive negative residual-times-sensitivity
+products from these coupled targets and actual policy draws, with simultaneous
+small weights and stable ownership. The anchor identity does not discharge that
+obligation, justify a behavior change, or select disposition A, B or C. These
+failed candidate premises do not establish that substantial redesign is needed.
+
 **Lifetime and persistence.** Every success appends exactly one event.
 `FeatureHistory.LegalHistory`, `record_count`, `full_refuses`,
 `record_excludes_same_clock` and `saturated_record_refuses_forever` limit ordinary

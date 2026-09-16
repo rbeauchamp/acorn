@@ -222,6 +222,38 @@ theorem second_loop_beta_fixed {config : Config} {dimension : Dimension}
   rw [noOvershoot]
   exact fold _ _ _ _ _
 
+/-- Operational anchor contract for the current second-loop element. The incoming
+`h` and `hTemp` must name the same retained sensitivity. Every arithmetic operation
+on the right is binary32 in execution order; in particular no distributivity or
+zero-product simplification is assumed for the unconstrained intermediate words.
+This is a local conditional identity, not construction of a learning path. -/
+theorem episode_sensitivity_anchor {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (idx : FeatIdx dimension) (sensitivity : Binary32)
+    (finite : sensitivity.Finite)
+    (zeroP : (state.transient.p.get idx).value = .zero)
+    (zeroZ : (state.transient.z.get idx).value = .zero)
+    (zeroZBar : (state.transient.zBar.get idx).value = .zero)
+    (zeroOld : (state.transient.hOld.get idx).value = .zero)
+    (alignedH : (state.transient.h.get idx).value = sensitivity)
+    (alignedTemp : (state.transient.hTemp.get idx).value = sensitivity) :
+    let zd := (config.eta.div config.eta).mul (state.beta.get idx).alpha
+    let z := Binary32.zero.add (zd.mul (Binary32.one.sub .zero))
+    let next := (NumericState.secondLoopElement config false config.eta .zero state .zero idx).1
+    next.beta = state.beta ∧
+      (next.transient.p.get idx).value.Finite ∧
+      numerical32 (next.transient.p.get idx).value = numerical32 sensitivity ∧
+      (next.transient.z.get idx).value = z ∧
+      (next.transient.zBar.get idx).value =
+        Binary32.zero.add (zd.mul ((Binary32.one.sub .zero).sub .zero)) ∧
+      (next.transient.hTemp.get idx).value =
+        (sensitivity.sub (Binary32.zero.mul (z.sub zd))).sub (sensitivity.mul zd) := by
+  have added := zero_add_numeric sensitivity finite
+  simp only [CurrentLearner.vector_get] at zeroP zeroZ zeroZBar zeroOld alignedH alignedTemp
+  simp only [NumericState.secondLoopElement, Bool.false_eq_true, if_false,
+    CurrentLearner.vector_get, Vector.getElem_set_self, zeroP, zeroZ, zeroZBar,
+    zeroOld, alignedH, alignedTemp]
+  exact ⟨rfl, added.1, added.2, rfl, rfl, rfl⟩
+
 /-- Initial step sizes and absent meta-gradient, without restrictions on weights
 or the other trace registers. This is a transient exposure invariant. -/
 def ColdMeta {config : Config} {dimension : Dimension}

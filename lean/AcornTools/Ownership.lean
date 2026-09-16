@@ -127,6 +127,8 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.NumericState.beginTrajectory),
   (`AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirement.one_action_trajectory_cold,
     `Acorn.NumericState.terminalStep),
+  (`AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirement.episode_sensitivity_anchor,
+    `Acorn.NumericState.secondLoopElement),
   (`Acorn.Host.AgentAdmission, `Acorn.Handcrafted.AgentConstruction.admit_iff,
     `Acorn.Handcrafted.AgentConstruction.admit),
   (`Acorn.Host.AgentPrefix, `Acorn.Handcrafted.Agent.prefix_path,
