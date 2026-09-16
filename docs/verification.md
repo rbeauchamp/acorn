@@ -101,6 +101,15 @@ rounding equivalence. Universal program properties are limited to their checked
 implementation linkage. Compiler/native runtime, filesystem stability, the
 reviewed build/gate tools, cryptographic tools and OS remain trusted boundaries.
 
+`CurrentReplacement` separates replacement predicate inhabitation from learning
+execution. Its omitted-primitive result uses the actual `AgentPath` relation;
+its short-invocation result composes the executing model begin/terminal callbacks
+with machine arithmetic in `CurrentRetirement`. The latter's enclosing temporal
+schedule is a source-linked structural argument, with explicit exposure and
+input conditions. Neither result proves positive complete-reader reachability,
+fair selection of every unit, or learning benefit. The exact local transaction,
+alias ordering and finite history/clock limits retain their own proof owners.
+
 ## Build and source inventory
 
 The build tools check one explicit source inventory, including every shared

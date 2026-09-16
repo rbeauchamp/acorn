@@ -285,13 +285,153 @@ The rate is derived from active optimizer state; duration remains D3. Empty elig
 
 [Source](http://www.incompleteideas.net/papers/MS-AAAIws-2013.pdf). Execution owner: `Acorn.FeatureLifecycle`.
 
-A conditional checked transaction replaces an eligible imprint feature and clears dependent state. Its guard preserves the admitted disruption budget; reachability and useful turnover remain unqualified.
+A conditional checked transaction replaces an eligible imprint projection and
+clears dependent state. The exact machine prediction-change theorem concerns a
+singleton active feature. Autonomous positive reachability and useful turnover
+remain unqualified.
 
 **Adaptation and rationale.** The local tester derives a receiving learner’s disruption threshold and requires small weight plus minimum step size in every consumer. Replacement-in-place bounds bank size; all trace and meta registers are cleared through the retirement transaction. A per-learner observation alone would admit a bypass.
 
-**Contract and composition.** Acorn.FeatureLifecycle and AcornVerif.CurrentRetirement/CurrentRetirementRounding own the actual all-consumer guard, finite-word rounding and state transition. Conditional safety is separate from autonomous reachability, useful turnover and eventual retirement.
+**Contract and composition.** `Acorn.FeatureLifecycle.success_iff`, `refusal_iff`
+and `candidate_first` own the receiver-bound, atomic transaction. At the actual
+post-learning `Agent.retire` boundary, replacement occurs exactly when the mode
+is not frozen, history has unused capacity and a strictly newer clock, and some
+bank unit's hashed slot satisfies every reader's strict weight-magnitude bound
+and numerical lower-rail equality. The first such unit is selected immediately;
+this conditional selection statement assumes no future adaptation or fairness.
+`CurrentReplacement.retirement_enabled_iff`, `agent_retirement_count` and
+`act_history_count` compose those owners with the executing schedule. `Agent.act`
+advances the clock, encodes the current bank with prior prediction feedback,
+executes temporal selection and primitive/demon learning, then attempts retirement.
+`Agent.act_execution` and `Agent.prefix_path` connect the same definitions to the
+host input fold; callbacks and compiled native-route admission retain their
+existing trust boundaries.
+
+The scan includes nine primitive rows, four meta rows, all three skills' nine
+policy rows and three model reader positions, and eleven demons: 60 reader
+positions. Discounted models alias reward in the duration position, giving 57
+physical learners; no stored consumer is bypassed. A unit is a projection-bank
+position, whereas its hashed slot is shared weight storage. Replacing a projection
+retains that unit-to-slot hash. `candidate_alias_minimal` proves that a later alias
+can never be first candidate, for any state. Other early units can also precede a
+particular candidate repeatedly if they become eligible again; there is no
+fairness or distinct-unit retirement quota.
+
+`CurrentRetirement` and `CurrentRetirementRounding` supply the singleton active
+feature's exact rounded prediction change, not a bound for arbitrary ordered
+binary32 sums, new generated activations, action selection or long-run return.
+`CurrentLearner.retire_registers` and the complete-consumer/reset owners cover
+stored legality, knowledge and transient clearing; feature-reference and refresh
+owners retain temporal/objective identity and fresh encoding order. These safety
+claims do not establish sufficient evaluation, utility, or eventual floor learning.
+
+**Exposure and writes.** The following boundaries determine the actual stored
+reader's adaptation history; inactive features and inactive readers differ.
+
+| Owner/boundary | Effect relevant to reachability |
+|---|---|
+| `NumericState.initial` | Zero weights and role-derived portable-log initial beta. `initial_above_floor` checks strict machine ordering for all three roles, independent of the criterion. |
+| `firstLoopElement` | Updates only eligible indices. Projects weights and beta; weight clipping reanchors beta and clears the local meta-gradient inputs. Rounded meta-updates need not decrease beta. |
+| `secondLoopElement` | Updates active indices of the selected learner; decreases beta only when the ordered active-alpha sum strictly exceeds its receiving budget. Pruning and trajectory clear remove transients, not learned weights/beta. |
+| Primitive/meta control | Each credited controller visits all rows' existing eligibility; only its chosen row runs loop two. A cold unselected primitive row has no eligibility, so even arbitrary shared error cannot adapt it. Meta credit occurs at meta boundaries, not every primitive action. |
+| Skill policy/model | Only invoked skills learn. Begin clears policy transients and primes model traces; the first returned action skips a completed model transition. Later steps use actual activation age; terminal credit closes that owner. Neutral skills remain readers. Discounted model input is the base set; differential input also includes the age indicator. |
+| Planning | Updates meta option weights, not beta or primitive learners. Model prediction is read-only. |
+| Assignment refresh | Complete identity includes the bonus word. A change installs a fresh skill policy/model and resets its meta row. Detached terminal credit belongs to the old objective. `installed_veto` identifies the immediate cold-model veto; subsequent learning is a separate boundary. |
+| Retirement/restore | Retirement resets every reader of the slot to zero weight and initial beta with all per-index registers cleared. Restore admits primary knowledge and clears transients, preserves admitted history, and starts models cold. `restored_veto` rules out immediate eligibility from primary checkpoint admission alone. |
+
+`CurrentControl.credit_initial` and `CurrentReplacement.initialized_path_refuses`
+prove the cold primitive-row obstruction on actual finite input paths, with no
+reward-sign, numeric-regularity or policy-fairness premise. Inputs may include
+environment accounting, attempt-triggered refresh requests and stop; clear and
+restore delimit a different exposure history. The omitted action is read from
+executed decisions, not supplied as a policy choice. `short_prefix_refuses` proves
+non-vacuity for every action prefix of length below nine; the induction also covers
+longer prefixes omitting an action. This is a class of executions, not permanent
+global blockage. An inactive slot may still have eligibility from prior exposure,
+and another projection or authored feature may activate the same hash slot.
+
+**Short invocations.** A second obstruction persists through terminal weight
+credit. A demon reader with initial beta has an actual portable alpha below
+1/19990. `CurrentRetirement.initial_demon_no_overshoot` bounds the ordered rounded
+sum and excludes overshoot on at most 1900 active slots. Starting a model
+trajectory clears `p` and `h`; its first returned option action performs no model
+step. If it then ends, terminal credit sees zero `p`, so the finite meta product
+adds zero to beta. Clipping also reanchors beta to the same initial word. The
+terminal clear removes the sensitivity assembled during that credit before the
+next invocation. `one_action_trajectory_cold` proves this with a finite target
+of magnitude at most 2^32 and arbitrary legally stored weights, deriving the
+intermediate finiteness from the actual initialization, prediction and arithmetic.
+It assumes neither zero reward nor a guard outcome.
+
+`CurrentReplacement.first_option_model`, `ending_option_model`,
+`one_action_models_beta` and `model_begin_beta` connect the result to the actual
+model callbacks and every finite repetition. `reward_model_veto` then blocks the
+complete ensemble regardless of other consumers' exposure or stored weights.
+The enclosing full-agent scheduling argument is structural, as set out beside
+these proofs: idle and primitive decisions, served exploration, planning and
+prediction reads leave models alone; only invoked skills receive these callbacks;
+unchanged assignments retain the model, changed assignments create another cold
+one, and detached credit cannot rewrite its replacement. Induction before a
+putative first retirement therefore rules it out when all option invocations end
+before a second returned action and their initiation encodings satisfy the bound.
+This enclosing short-invocation argument is not a separate machine-checked
+`AgentPath` theorem; the omitted-primitive result above is.
+
+These input/exposure conditions are non-circular and describe an inhabited class
+at the admitted callback interface. `Skill.goal_ends` makes goal feedback a
+sufficient early-ending condition independently of the selected action.
+`quiet_patch_sparse` bounds every default-size observation with both optional
+food/deer tile channels absent by 1712 encoded features, allowing all imprint
+units to activate and arbitrary kinds, task coordinates, inventory and cached
+predictions. Every world-produced reward meets the finite target premise
+(`world_reward_regular`). This does not prove that the endogenous world and
+curriculum generate every such callback sequence, or that short invocations
+occur forever. Longer invocations and denser encodings are outside this result.
+
+The causal limitation is trajectory sensitivity being cleared while learned
+weights persist, combined with a tester that requires a lower-rail beta in every
+reader. Mere invocation count, primitive action coverage, nonzero terminal credit
+or small weight does not remove it. A possible correction must derive which
+sensitivity state belongs to stored weights across an invocation boundary.
+[SwiftTD](https://rlj.cs.umass.edu/2024/papers/RLJ_RLC_2024_111.pdf) Appendix A.2,
+equations (28)–(32), and Algorithms 1 and 3 supply the
+sensitivity recurrence; they do not specify Acorn's begin/terminal/pruning reset
+policy. Retaining an auxiliary register alone would conflict with
+`CurrentLearner.Supported`, which currently requires all nine registers to be
+zero outside eligibility. A corrected boundary would need a revised support and
+readiness contract, an exact machine update correspondence, clipping/pruning and
+objective-reset laws, and a progress result for the complete consumer schedule.
+No such behavioral correction is implemented here. A separate utility or
+maturation criterion would require its own semantics and admission; deleting
+the floor condition or a reader is not a justified repair.
+
+**Lifetime and persistence.** Every success appends exactly one event.
+`FeatureHistory.LegalHistory`, `record_count`, `full_refuses`,
+`record_excludes_same_clock` and `saturated_record_refuses_forever` limit ordinary
+learning to the remaining bank-sized event quota and strictly increasing UInt64
+timestamps. After recording at the saturated clock, no clock advance admits
+another event. `Representation.identity` binds the bank and generator continuation
+to reconstruction from the original seed and the entire event sequence; restoring
+that admitted sequence does not renew it. Clearing or truncating history is not
+a compatible replenishment scheme. Renewable turnover requires a separately
+specified bounded reconstruction/persistence authority.
+
+With bank size U, reader count R and storage dimension D, a scan visits at most
+U times R slot predicates. Reset traverses those readers and their bounded eligible
+storage; generator work draws 32 samples. The retained transcript has at most U
+events, and reconstruction makes at most U replacement draws after bank creation.
+These structural bounds do not imply indefinite liveness or physical latency.
 
 **Refutation attempt.** Review attacked candidate thresholds on units and the all-consumer condition. It rejected using a pruning increment or a horizon-times-step scale as the threshold and found that every consumer must satisfy the predicate. The admitted derived guard introduces no new tuned interval or replacement rate.
+
+The direct-write `retirement_predicate_reachable` theorem establishes single-reader
+predicate inhabitation; it supplies no learning prefix. Positive reachability after
+all readers receive adequate exposure remains **UNRESOLVED**, including simultaneous
+floor attainment in the ordinary ranked discounted composition. The omitted-primitive
+obstruction above also applies to other profiles/criteria because their actual
+selection and credit branches preserve the proved primitive-row invariant. No
+reward benefit, convergence, default promotion or change of utility semantics is
+inferred from these proofs.
 
 ### PAR-12 · Ranked learned subtasks
 

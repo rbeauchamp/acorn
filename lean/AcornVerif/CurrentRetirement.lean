@@ -124,6 +124,563 @@ theorem rail_floor_word {config : Config} (rails : StepSizeRails config) :
   simp only [Config.etaMin]
   decide
 
+set_option maxRecDepth 8192 in
+/-- Every role starts strictly above its floor in the executed binary32 order.
+This exhausts the three-role configuration, evaluating the same portable
+logarithms and projection as initialization; it does not enumerate streams. -/
+theorem initial_above_floor {config : Config} (rails : StepSizeRails config) :
+    rails.range.lower.key < rails.initial.value.key := by
+  simp only [StepSizeRails.initial, LogStepSize.project, Bounded32.project,
+    Interval32.saturate, rails.lowerIdentity, rails.upperIdentity]
+  rcases config with ⟨role, rule⟩
+  cases role <;> simp only [Config.etaMin, Config.alphaInitial, Config.eta] <;> decide
+
+/-- A re-anchored step size vetoes retirement, independently of its weight. -/
+theorem initial_beta_veto {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (feature : FeatIdx dimension)
+    (initial : (state.beta.get feature).value = state.rails.initial.value) :
+    state.unitIsNegligible feature = false := by
+  have above := initial_above_floor state.rails
+  have different : state.rails.initial.value.key ≠ state.rails.range.lower.key := by omega
+  simp [NumericState.unitIsNegligible, NumericState.unitIsNegligibleUnder,
+    NumericState.negligibility, initial, Binary32.numericallyEqual_eq_key, different]
+
+/-- A finite multiplier times positive zero produces one of the two zero
+words. Finiteness matters: exceptional multiplication cannot justify this step. -/
+theorem mul_zero_words (word : Binary32) (finite : word.Finite) :
+    word.mul .zero = .zero ∨ word.mul .zero = ⟨0x80000000⟩ := by
+  have admitted := (model_decoded32_finite word).mpr finite
+  change Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+    (UnpackedFloat.mul Format.binary32 (Float32.Model.ofBits word.bits).unpack
+      (.zero .positive)))) = .zero ∨
+    Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+      (UnpackedFloat.mul Format.binary32 (Float32.Model.ofBits word.bits).unpack
+        (.zero .positive)))) = ⟨0x80000000⟩
+  rw [model_ofBits32_decoded word finite]
+  generalize equation : decoded32 word = unpacked at admitted ⊢
+  cases unpacked with
+  | notANumber => contradiction
+  | infinity sign => contradiction
+  | zero sign => cases sign <;> first | exact Or.inl rfl | exact Or.inr rfl
+  | finite sign mantissa exponent positive =>
+    cases sign <;> first | exact Or.inl rfl | exact Or.inr rfl
+
+set_option maxRecDepth 8192 in
+/-- Both zero signs leave the actual initial log word unchanged. This checks
+six closed role/zero-sign cases, not input trajectories. -/
+theorem initial_add_zero_word {config : Config} (rails : StepSizeRails config)
+    (word : Binary32) (zero : word = .zero ∨ word = ⟨0x80000000⟩) :
+    rails.initial.value.add word = rails.initial.value := by
+  rcases zero with rfl | rfl
+  all_goals
+    simp only [StepSizeRails.initial, LogStepSize.project, Bounded32.project,
+      Interval32.saturate, rails.lowerIdentity, rails.upperIdentity]
+    rcases config with ⟨role, rule⟩
+    cases role <;> simp only [Config.etaMin, Config.alphaInitial, Config.eta] <;> decide
+
+/-- A zero meta-gradient preserves initial beta through a credited first-loop
+visit, including its clipping branch, when the pre-zero multiplier is finite.
+The explicit regularity premise cannot be dropped for raw machine inputs. -/
+theorem initial_zero_meta_first {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (idx : FeatIdx dimension)
+    (delta vDelta decay : Binary32)
+    (cold : state.beta.get idx = state.rails.initial)
+    (zeroMeta : (state.transient.p.get idx).value = .zero)
+    (regular : ((config.metaStep.div state.rails.initial.alpha).mul
+      (delta.sub vDelta)).Finite) :
+    ((state.firstLoopElement idx delta vDelta decay).1.beta.get idx).value =
+      state.rails.initial.value := by
+  have product := mul_zero_words _ regular
+  have unchanged := initial_add_zero_word state.rails _ product
+  simp only [CurrentLearner.vector_get] at cold zeroMeta
+  simp only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+    Vector.getElem_set_self, cold, zeroMeta, ite_self]
+  rw [unchanged]
+  exact state.rails.range.saturate_identity _ state.rails.initial.legal
+
+/-- Without overshoot, the entire executed second loop preserves every beta,
+including active slots. Exposure alone is not a step-size decrement. -/
+theorem second_loop_beta_fixed {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (features : ActiveSet dimension) (vDelta : Binary32)
+    (noOvershoot : config.eta.less (Binary32.sumMap .zero features.indices
+      (fun idx => (state.beta.get idx).alpha)) = false) (idx : FeatIdx dimension) :
+    ((state.learnSecondLoop config features vDelta).1.beta.get idx).value =
+      (state.beta.get idx).value := by
+  have fold (indices : List (FeatIdx dimension)) (current : NumericState config dimension)
+      (vd denominator total : Binary32) :
+      ((indices.foldl (fun (s, acc) feature =>
+        NumericState.secondLoopElement config false denominator total s acc feature)
+          (current, vd)).1.beta.get idx).value = (current.beta.get idx).value := by
+    induction indices generalizing current vd with
+    | nil => rfl
+    | cons feature rest ih =>
+      dsimp only [List.foldl_cons]
+      rw [ih]
+      rfl
+  unfold NumericState.learnSecondLoop
+  dsimp only
+  rw [noOvershoot]
+  exact fold _ _ _ _ _
+
+/-- Initial step sizes and absent meta-gradient, without restrictions on weights
+or the other trace registers. This is a transient exposure invariant. -/
+def ColdMeta {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) : Prop :=
+  ∀ idx, (state.beta.get idx).value = state.rails.initial.value ∧
+    (state.transient.p.get idx).value = .zero
+
+private theorem beta_of_value {config : Config} (rails : StepSizeRails config)
+    (beta : LogStepSize rails) (same : beta.value = rails.initial.value) :
+    beta = rails.initial := by
+  have injective {range : Interval32} (left right : Bounded32 range)
+      (value : left.value = right.value) : left = right := by
+    cases left
+    cases right
+    cases value
+    rfl
+  exact injective _ _ same
+
+/-- Clearing one slot preserves the exposure invariant without changing beta. -/
+theorem cold_meta_clear {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (cold : ColdMeta state) (idx : FeatIdx dimension) :
+    ColdMeta (state.clearFeatureRegisters idx) := by
+  intro other
+  have entry := cold other
+  simp only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+    NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+    NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+    NumericState.writeLastAlpha, CurrentLearner.vector_get, Vector.getElem_set]
+  constructor
+  · exact entry.1
+  · split <;> first | rfl | exact entry.2
+
+/-- One credited visit with a finite pre-meta product cannot mature a cold
+meta-gradient. A positive finite trajectory decay preserves its exact zero. -/
+theorem cold_meta_first {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (cold : ColdMeta state) (idx : FeatIdx dimension)
+    (delta vDelta decay : Binary32) (zeroDecay : Binary32.zero.mul decay = .zero)
+    (regular : ((config.metaStep.div state.rails.initial.alpha).mul
+      (delta.sub vDelta)).Finite) : ColdMeta (state.firstLoopElement idx delta vDelta decay).1 := by
+  intro other
+  by_cases same : idx = other
+  · subst other
+    have entry := cold idx
+    have beta := initial_zero_meta_first state idx delta vDelta decay
+      (beta_of_value _ _ entry.1) entry.2 regular
+    refine ⟨beta, ?_⟩
+    simp only [CurrentLearner.vector_get] at entry
+    simp only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+      Vector.getElem_set_self, entry.2, ite_self, zeroDecay]
+  · have frame := CurrentLearner.first_element_frame state idx other same delta vDelta decay
+    have metaWord := congrArg (fun words : Vector Binary32 9 => words[8]) frame.2.2
+    change ((state.firstLoopElement idx delta vDelta decay).1.transient.p.get other).value =
+      (state.transient.p.get other).value at metaWord
+    exact ⟨frame.2.1.trans (cold other).1, metaWord.trans (cold other).2⟩
+
+/-- Register clearing preserves the receiver object by construction. -/
+theorem clear_feature_rails {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (idx : FeatIdx dimension) :
+    (state.clearFeatureRegisters idx).rails = state.rails := by
+  simp only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+    NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+    NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+    NumericState.writeLastAlpha]
+
+/-- A first-loop element never reconstructs or replaces its receiver object. -/
+theorem first_element_rails {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (idx : FeatIdx dimension)
+    (delta vDelta decay : Binary32) :
+    (state.firstLoopElement idx delta vDelta decay).1.rails = state.rails := rfl
+
+/-- The executed first-loop worklist preserves a cold meta-gradient even
+through pruning and repeated indices. Regularity refers to the fixed receiver,
+so the induction uses rail preservation rather than reevaluating its recipe. -/
+theorem cold_meta_first_go {config : Config} {dimension : Dimension}
+    (rails : StepSizeRails config) (state : NumericState config dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) (delta vDelta decay : Binary32)
+    (zeroDecay : Binary32.zero.mul decay = .zero)
+    (regular : ((config.metaStep.div rails.initial.alpha).mul (delta.sub vDelta)).Finite)
+    (cold : ColdMeta state) (sameRails : state.rails = rails) :
+    ColdMeta (NumericState.learnFirstLoopGo config delta vDelta decay state work pos) := by
+  induction state, work, pos using
+      NumericState.learnFirstLoopGo.induct config delta vDelta decay with
+  | case1 state work pos valid idx next equation ih =>
+    dsimp only [idx] at equation ih
+    have stateRegular : ((config.metaStep.div state.rails.initial.alpha).mul
+        (delta.sub vDelta)).Finite := by rw [sameRails]; exact regular
+    have nextCold : ColdMeta next := by
+      simpa only [equation] using
+        cold_meta_first state cold work[pos] delta vDelta decay zeroDecay stateRegular
+    have nextRails : next.rails = rails := by
+      have preserved := first_element_rails state work[pos] delta vDelta decay
+      rw [equation] at preserved
+      exact preserved.trans sameRails
+    have clearedRails : (next.clearFeatureRegisters work[pos]).rails = rails :=
+      (clear_feature_rails next work[pos]).trans nextRails
+    have result := ih (cold_meta_clear next nextCold work[pos]) clearedRails
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, ite_true] using result
+  | case2 state work pos valid idx next prune equation noPrune ih =>
+    dsimp only [idx] at equation ih
+    have stateRegular : ((config.metaStep.div state.rails.initial.alpha).mul
+        (delta.sub vDelta)).Finite := by rw [sameRails]; exact regular
+    have nextCold : ColdMeta next := by
+      simpa only [equation] using
+        cold_meta_first state cold work[pos] delta vDelta decay zeroDecay stateRegular
+    have nextRails : next.rails = rails := by
+      have preserved := first_element_rails state work[pos] delta vDelta decay
+      rw [equation] at preserved
+      exact preserved.trans sameRails
+    have result := ih nextCold nextRails
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, if_neg noPrune] using result
+  | case3 state work pos finished =>
+    rw [NumericState.learnFirstLoopGo, dif_neg finished]
+    exact cold
+
+/-- Crediting a cold meta-gradient leaves initial beta fixed, even while
+weights and other registers learn. This uses the actual pruning traversal. -/
+theorem cold_meta_first_loop {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (delta vDelta decay : Binary32)
+    (cold : ColdMeta state) (zeroDecay : Binary32.zero.mul decay = .zero)
+    (regular : ((config.metaStep.div state.rails.initial.alpha).mul
+      (delta.sub vDelta)).Finite) : ColdMeta (state.learnFirstLoop config delta vDelta decay) :=
+  cold_meta_first_go state.rails _ _ _ _ _ _ zeroDecay regular cold rfl
+
+/-- Ordered small-word sums retain a linear envelope with explicit rounding
+slack. The induction covers arbitrary values and lengths within its bound. -/
+private theorem small_sum (count : Nat) (initial : Binary32) (values : List Binary32)
+    (small : count + values.length ≤ 1900) (finite : initial.Finite)
+    (start : |numerical32 initial| ≤ count / (19000 : ℚ))
+    (bounds : ∀ word ∈ values, word.Finite ∧ |numerical32 word| ≤ 1 / (19990 : ℚ)) :
+    (Binary32.sumFrom initial values).Finite ∧
+      |numerical32 (Binary32.sumFrom initial values)| ≤
+        (count + values.length) / (19000 : ℚ) := by
+  induction values generalizing count initial with
+  | nil => simpa [Binary32.sumFrom] using And.intro finite start
+  | cons word rest ih =>
+    have current := bounds word (by simp)
+    have countBound : (count : ℚ) ≤ 1900 := by exact_mod_cast (show count ≤ 1900 by omega)
+    have triangle := abs_add_le (numerical32 initial) (numerical32 word)
+    have operation := CurrentPrediction.binary32_add_finite_strict_error initial word
+      finite current.1 0 (by decide) (by norm_num; linarith only [triangle, start,
+        current.2, countBound])
+    have error : |numerical32 (initial.add word) -
+        (numerical32 initial + numerical32 word)| ≤ 1 / (33554432 : ℚ) := by
+      convert operation.2 using 1
+      norm_num
+    have next : |numerical32 (initial.add word)| ≤ (count + 1) / (19000 : ℚ) := by
+      have roundTriangle := abs_add_le
+        (numerical32 (initial.add word) - (numerical32 initial + numerical32 word))
+        (numerical32 initial + numerical32 word)
+      rw [sub_add_cancel] at roundTriangle
+      linarith only [roundTriangle, error, triangle, start, current.2]
+    have result := ih (count + 1) (initial.add word)
+      (by simp only [List.length_cons] at small; omega)
+      operation.1 (by simpa using next) (fun value member => bounds value (by simp [member]))
+    simpa [Binary32.sumFrom, Nat.cast_add, Nat.cast_one, add_assoc, add_comm, add_left_comm]
+      using result
+
+set_option maxRecDepth 8192 in
+/-- The current demon role's initialized portable alpha is below 1/19990.
+Only its fixed log/exp recipe is reduced; feature sets and streams stay symbolic. -/
+theorem initial_demon_alpha_small (rule : ValueRule) (rails : StepSizeRails ⟨.demon, rule⟩) :
+    rails.initial.alpha.Finite ∧ |numerical32 rails.initial.alpha| ≤ 1 / (19990 : ℚ) := by
+  have numeric := CurrentLearnerArithmetic.alpha_numeric rails.initial
+  have raw : rails.initial.alpha.bits.toNat ≤ 0x3851c000 := by
+    simp only [LogStepSize.alpha, StepSizeRails.initial, LogStepSize.project, Bounded32.project,
+      Interval32.saturate, rails.lowerIdentity, rails.upperIdentity, Config.etaMin,
+      Config.alphaInitial, Config.eta]
+    decide
+  have magnitude : rails.initial.alpha.magnitude ≤ (Binary32.mk 0x3851c000).magnitude :=
+    Nat.le_trans Nat.and_le_left raw
+  have bound := (numerical32_magnitude_order rails.initial.alpha
+    (Binary32.mk 0x3851c000) numeric.1 (by decide)).mpr magnitude
+  have value : numerical32 (Binary32.mk 0x3851c000) = 13746176 / (274877906944 : ℚ) := by
+    change (1 : ℚ) * 13746176 * 2 ^ (-38 : Int) = _
+    norm_num
+  refine ⟨numeric.1, le_trans bound ?_⟩
+  rw [value]
+  norm_num
+
+/-- A cold-beta demon cannot overshoot on at most 1900 active slots. This
+derived exposure condition uses the actual ordered sum, not real reassociation. -/
+theorem initial_demon_no_overshoot {dimension : Dimension} (rule : ValueRule)
+    (state : NumericState ⟨.demon, rule⟩ dimension) (features : ActiveSet dimension)
+    (cold : ∀ idx, state.beta.get idx = state.rails.initial)
+    (sparse : features.indices.length ≤ 1900) :
+    (Config.mk .demon rule).eta.less (Binary32.sumMap .zero features.indices
+      (fun idx => (state.beta.get idx).alpha)) = false := by
+  have alpha := initial_demon_alpha_small rule state.rails
+  have sum := small_sum 0 .zero (features.indices.map fun idx => (state.beta.get idx).alpha)
+    (by simpa using sparse) (by decide) (by change |(0 : ℚ)| ≤ 0 / (19000 : ℚ); norm_num) (by
+      intro word member
+      obtain ⟨idx, _, rfl⟩ := List.mem_map.mp member
+      simpa only [cold] using alpha)
+  rw [Binary32.sumMap_eq]
+  rw [numerical32_less _ _ (CurrentLearnerArithmetic.eta_numeric _).1 sum.1,
+    decide_eq_false_iff_not]
+  have countBound : (features.indices.length : ℚ) ≤ 1900 := by exact_mod_cast sparse
+  have upper := le_trans (le_abs_self _) sum.2
+  have eta : (1 : ℚ) / 10 ≤ numerical32 (Config.mk .demon rule).eta := by
+    simp only [Config.eta]
+    change (1 : ℚ) / 10 ≤ unpackedValue (.finite .positive 13421773 (-27) (by decide))
+    norm_num [unpackedValue, signCoefficient]
+  simp only [List.length_map, Nat.cast_zero, zero_add] at upper
+  linarith only [upper, countBound, eta]
+
+/-- A second-loop visit cannot create a meta-gradient from zero `p` and `h`.
+With no overshoot it also preserves the initial beta. Other registers may change. -/
+theorem cold_meta_second_element {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (cold : ColdMeta state)
+    (zeroH : ∀ idx, (state.transient.h.get idx).value = .zero)
+    (e t vd : Binary32) (idx : FeatIdx dimension) :
+    let next := (NumericState.secondLoopElement config false e t state vd idx).1
+    ColdMeta next ∧ ∀ other, (next.transient.h.get other).value = .zero := by
+  constructor
+  · intro other
+    constructor
+    · exact (cold other).1
+    · have entry := (cold other).2
+      simp only [CurrentLearner.vector_get] at entry zeroH
+      simp only [NumericState.secondLoopElement, Bool.false_eq_true, if_false,
+        CurrentLearner.vector_get, Vector.getElem_set]
+      split
+      · rename_i same
+        have equal : idx = other := Fin.ext same
+        subst other
+        simp only [entry, zeroH]
+        rfl
+      · exact entry
+  · exact zeroH
+
+/-- The second-loop fold retains this invariant on every feature list. -/
+theorem cold_meta_second_loop {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (features : ActiveSet dimension) (vd : Binary32)
+    (cold : ColdMeta state) (zeroH : ∀ idx, (state.transient.h.get idx).value = .zero)
+    (noOvershoot : config.eta.less (Binary32.sumMap .zero features.indices
+      (fun idx => (state.beta.get idx).alpha)) = false) :
+    ColdMeta (state.learnSecondLoop config features vd).1 ∧
+      ∀ idx, ((state.learnSecondLoop config features vd).1.transient.h.get idx).value = .zero := by
+  have fold (indices : List (FeatIdx dimension)) (current : NumericState config dimension)
+      (acc e t : Binary32) (hc : ColdMeta current)
+      (hh : ∀ idx, (current.transient.h.get idx).value = .zero) :
+      let next := (indices.foldl (fun (s, v) idx =>
+        NumericState.secondLoopElement config false e t s v idx) (current, acc)).1
+      ColdMeta next ∧ ∀ idx, (next.transient.h.get idx).value = .zero := by
+    induction indices generalizing current acc with
+    | nil => exact ⟨hc, hh⟩
+    | cons idx rest ih =>
+      have next := cold_meta_second_element current hc hh e t acc idx
+      exact ih _ _ next.1 next.2
+  unfold NumericState.learnSecondLoop
+  dsimp only
+  rw [noOvershoot]
+  exact fold _ _ _ _ _ cold zeroH
+
+/-- A sufficiently sparse initiation leaves every demon beta at its initial
+word and its meta-gradient zero, regardless of the stored learned weights. -/
+theorem short_begin_cold {dimension : Dimension} (rule : ValueRule)
+    (state : NumericState ⟨.demon, rule⟩ dimension) (features : ActiveSet dimension)
+    (cold : ∀ idx, (state.beta.get idx).value = state.rails.initial.value)
+    (sparse : features.indices.length ≤ 1900) :
+    ColdMeta (state.beginTrajectory ⟨.demon, rule⟩ features) := by
+  have clearCold : ColdMeta state.clearTransient := by
+    intro idx
+    exact ⟨cold idx, by simp [NumericState.clearTransient, TransientState.zero, Vector.get]⟩
+  have clearH : ∀ idx, (state.clearTransient.transient.h.get idx).value = .zero := by
+    simp [NumericState.clearTransient, TransientState.zero, Vector.get]
+  have noOvershoot := initial_demon_no_overshoot rule state.clearTransient features
+    (fun idx => beta_of_value _ _ (cold idx)) sparse
+  exact (cold_meta_second_loop state.clearTransient features .zero
+    clearCold clearH noOvershoot).1
+
+/-- Closing a trajectory before a nonzero meta-gradient has been assembled
+preserves initial beta through the actual terminal credit and transient clear. -/
+theorem short_terminal_cold {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (target : Binary32) (cold : ColdMeta state)
+    (zeroDecay : Binary32.zero.mul (config.rule.gamma.mul config.lambda) = .zero)
+    (regular : ((config.metaStep.div state.rails.initial.alpha).mul
+      ((target.sub state.transient.vOld).sub state.transient.vDelta)).Finite) :
+    ColdMeta (state.terminalStep config target).1 := by
+  have result := cold_meta_first_loop state (target.sub state.transient.vOld)
+    state.transient.vDelta (config.rule.gamma.mul config.lambda) cold zeroDecay regular
+  intro idx
+  exact ⟨(result idx).1, by simp [NumericState.terminalStep, NumericState.clearTransient,
+    TransientState.zero, Vector.get]⟩
+
+/-- Initiation's accumulator is zero: every second-loop contribution reads
+`deltaWeight` from the just-cleared trajectory, and that loop never writes it. -/
+theorem begin_accumulator_zero {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (features : ActiveSet dimension) :
+    (state.beginTrajectory config features).transient.vDelta = .zero := by
+  have fold (indices : List (FeatIdx dimension)) (current : NumericState config dimension)
+      (acc e t : Binary32) (overshoot : Bool)
+      (known : ∀ idx, (current.transient.deltaWeight.get idx).value = .zero)
+      (zero : acc = .zero) :
+      (indices.foldl (fun (s, v) idx =>
+        NumericState.secondLoopElement config overshoot e t s v idx) (current, acc)).2 =
+        Binary32.zero := by
+    induction indices generalizing current acc with
+    | nil => exact zero
+    | cons idx rest ih =>
+      apply ih
+      · exact known
+      · rw [known, zero]
+        rfl
+  unfold NumericState.beginTrajectory NumericState.learnSecondLoop
+  dsimp only
+  apply fold
+  · simp [NumericState.clearTransient, TransientState.zero, Vector.get]
+  · rfl
+
+/-- The trajectory anchor is the current prediction before any terminal
+learning; starting traces neither projects nor replaces that machine sum. -/
+theorem begin_anchor {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (features : ActiveSet dimension) :
+    (state.beginTrajectory config features).transient.vOld = state.predict features := rfl
+
+/-- Subtraction in the universal prediction envelope cannot overflow.
+The loose doubled output bound is sufficient for the following meta product. -/
+theorem prediction_difference_finite (left right : Binary32)
+    (hl : left.Finite) (hr : right.Finite)
+    (bl : |numerical32 left| ≤ 4294967296) (br : |numerical32 right| ≤ 4294967296) :
+    (left.sub right).Finite ∧ |numerical32 (left.sub right)| ≤ 17179869184 := by
+  have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
+    ((model_decoded32_finite left).mpr hl)).1
+  have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
+    ((model_decoded32_finite right).mpr hr)).1
+  have bound : |numerical32 left - numerical32 right| ≤ (2 : ℚ) ^ (33 : Int) := by
+    have triangle := abs_sub_le (numerical32 left) 0 (numerical32 right)
+    norm_num at triangle ⊢
+    linarith only [triangle, bl, br]
+  have operation := CurrentOperations.model_sub_dyadic_local Format.binary32
+    (decoded32 left) (decoded32 right) ln rn 33 bound
+  have error : |unpackedValue (UnpackedFloat.sub Format.binary32
+      (decoded32 left) (decoded32 right)) - (numerical32 left - numerical32 right)| ≤ 512 := by
+    convert operation.2 using 1 <;>
+      norm_num [numerical32, Format.mantissaBits, Format.minExponent]
+  have output : |unpackedValue (UnpackedFloat.sub Format.binary32
+      (decoded32 left) (decoded32 right))| ≤ 17179869184 := by
+    have triangle := abs_add_le
+      (unpackedValue (UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right)) -
+        (numerical32 left - numerical32 right)) (numerical32 left - numerical32 right)
+    rw [sub_add_cancel] at triangle
+    norm_num at bound
+    linarith only [triangle, error, bound]
+  have fits := model_fits_of_value_bound Format.binary32 _
+    (model_normalized_finite _ _ operation.1) 34 (by decide) (by norm_num; exact output)
+  have decoded : decoded32 (left.sub right) =
+      UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right) := by
+    change unpack Format.binary32 (pack Format.binary32
+      (UnpackedFloat.sub Format.binary32 (Float32.Model.ofBits left.bits).unpack
+        (Float32.Model.ofBits right.bits).unpack)) = _
+    rw [model_ofBits32_decoded left hl, model_ofBits32_decoded right hr]
+    exact model_unpack_pack_normalized _ _ operation.1 fits
+  constructor
+  · rw [← model_decoded32_finite, decoded]
+    exact model_normalized_finite _ _ operation.1
+  · simpa only [numerical32, decoded] using output
+
+set_option maxRecDepth 8192 in
+/-- The current demon's initial meta multiplier is finite and at most 32.
+This evaluates only the single fixed role recipe, under arbitrary value rules. -/
+theorem initial_demon_meta_bound (rule : ValueRule) (rails : StepSizeRails ⟨.demon, rule⟩) :
+    ((Config.mk .demon rule).metaStep.div rails.initial.alpha).Finite ∧
+      |numerical32 ((Config.mk .demon rule).metaStep.div rails.initial.alpha)| ≤ 32 := by
+  let scale := (Config.mk .demon rule).metaStep.div rails.initial.alpha
+  have raw : scale.Finite ∧ scale.magnitude ≤ (Binary32.mk 0x42000000).magnitude := by
+    simp only [scale, LogStepSize.alpha, StepSizeRails.initial, LogStepSize.project,
+      Bounded32.project, Interval32.saturate, rails.lowerIdentity, rails.upperIdentity,
+      Config.etaMin, Config.alphaInitial, Config.eta, Config.metaStep]
+    decide
+  have bound := (numerical32_magnitude_order scale (Binary32.mk 0x42000000)
+    raw.1 (by decide)).mpr raw.2
+  have value : numerical32 (Binary32.mk 0x42000000) = 32 := by
+    change (1 : ℚ) * 8388608 * 2 ^ (-18 : Int) = _
+    norm_num
+  exact ⟨raw.1, by simpa [value] using bound⟩
+
+/-- A bounded terminal error times the actual initial meta multiplier is
+finite. This closes the pre-zero arithmetic obligation without assuming a
+bounded transient state after arbitrary long learning. -/
+theorem initial_demon_meta_finite (rule : ValueRule) (rails : StepSizeRails ⟨.demon, rule⟩)
+    (error : Binary32) (finite : error.Finite) (bound : |numerical32 error| ≤ 17179869184) :
+    (((Config.mk .demon rule).metaStep.div rails.initial.alpha).mul error).Finite := by
+  let scale := (Config.mk .demon rule).metaStep.div rails.initial.alpha
+  have known := initial_demon_meta_bound rule rails
+  have sn := (model_unpack_format Format.binary32 (by decide) scale.bits.toBitVec
+    ((model_decoded32_finite scale).mpr known.1)).1
+  have en := (model_unpack_format Format.binary32 (by decide) error.bits.toBitVec
+    ((model_decoded32_finite error).mpr finite)).1
+  have product : |numerical32 scale * numerical32 error| ≤ (2 : ℚ) ^ (40 : Int) := by
+    rw [abs_mul]
+    have result := mul_le_mul known.2 bound (abs_nonneg _) (by norm_num : (0 : ℚ) ≤ 32)
+    norm_num
+    linarith only [result]
+  have operation := model_mul_dyadic_local Format.binary32 (decoded32 scale) (decoded32 error)
+    sn en 40 product
+  have roundBound : |unpackedValue (UnpackedFloat.mul Format.binary32
+      (decoded32 scale) (decoded32 error)) - numerical32 scale * numerical32 error| ≤ 65536 := by
+    convert operation.2 using 1 <;>
+      norm_num [numerical32, Format.mantissaBits, Format.minExponent]
+  have fits := model_fits_of_value_bound Format.binary32 _
+    (model_normalized_finite _ _ operation.1) 41 (by decide) (by
+      have triangle := abs_add_le
+        (unpackedValue (UnpackedFloat.mul Format.binary32 (decoded32 scale) (decoded32 error)) -
+          numerical32 scale * numerical32 error) (numerical32 scale * numerical32 error)
+      rw [sub_add_cancel] at triangle
+      change |numerical32 scale * numerical32 error| ≤ 1099511627776 at product
+      change |unpackedValue (UnpackedFloat.mul Format.binary32
+        (decoded32 scale) (decoded32 error))| ≤ 2199023255552
+      linarith only [triangle, roundBound, product])
+  have decoded := CurrentLearnerArithmetic.mul32_decoded scale error known.1 finite
+    operation.1 fits
+  apply (model_decoded32_finite _).mp
+  rw [decoded]
+  exact model_normalized_finite _ _ operation.1
+
+/-- Every current trajectory decay preserves the positive zero word.
+This is the closed role/criterion domain, not an assumption about raw caller decay. -/
+theorem trajectory_zero_decay (config : Config) :
+    Binary32.zero.mul (config.rule.gamma.mul config.lambda) = .zero := by
+  rcases config with ⟨role, rule⟩
+  cases rule with
+  | discounted discount =>
+    cases role <;> cases discount <;>
+      simp only [Config.lambda, ValueRule.gamma, Discount.gamma] <;> decide
+  | differential =>
+    cases role <;> simp only [Config.lambda, ValueRule.gamma] <;> decide
+
+/-- A begin/terminal trajectory has no meta-adaptation, for every sparse
+feature set, every previously learned weight array, and every finite terminal
+target within the universal prediction envelope. These are input conditions,
+not a premise that the retirement guard holds or fails. -/
+theorem one_action_trajectory_cold {dimension : Dimension} (rule : ValueRule)
+    (state : NumericState ⟨.demon, rule⟩ dimension) (features : ActiveSet dimension)
+    (target : Binary32) (finite : target.Finite) (bound : |numerical32 target| ≤ 4294967296)
+    (cold : ∀ idx, (state.beta.get idx).value = state.rails.initial.value)
+    (sparse : features.indices.length ≤ 1900) :
+    ColdMeta ((state.beginTrajectory ⟨.demon, rule⟩ features).terminalStep
+      ⟨.demon, rule⟩ target).1 := by
+  have prediction := CurrentLearner.prediction_bound state features
+  have predictionBound : |numerical32 (state.predict features)| ≤ 4294967296 := by
+    apply le_trans prediction.2
+    have count := Nat.min_le_right features.indices.length (2 ^ 24)
+    have lifted : ((min features.indices.length (2 ^ 24) : Nat) : ℚ) ≤ 16777216 := by
+      exact_mod_cast count
+    unfold CurrentPrediction.predictionRadius
+    linarith only [lifted]
+  have difference := prediction_difference_finite target (state.predict features)
+    finite prediction.1 bound predictionBound
+  have zero := sub_zero_numeric _ difference.1
+  have regular := initial_demon_meta_finite rule
+    (state.beginTrajectory ⟨.demon, rule⟩ features).rails
+    ((target.sub (state.predict features)).sub .zero) zero.1 (by rw [zero.2]; exact difference.2)
+  apply short_terminal_cold _ target (short_begin_cold rule state features cold sparse)
+    (trajectory_zero_decay _)
+  simpa only [begin_anchor, begin_accumulator_zero] using regular
+
 /-- The derived floor has exact finite signed components; this closed
 identity is checked against the portable logarithm that constructs the rails. -/
 theorem rail_floor_decoded {config : Config} (rails : StepSizeRails config) :
@@ -304,7 +861,8 @@ theorem zero_below_disruption (config : Config) :
 
 /-- A downward meta-update from the floor and a zero weight inhabit the actual
 retirement predicate, for all raw finite nonpositive deltas, configurations,
-state dimensions and feature indices. -/
+state dimensions and feature indices. The direct writes prove predicate
+inhabitation, not a trajectory from initialization or complete-reader eligibility. -/
 theorem retirement_predicate_reachable {config : Config} {dimension : Dimension}
     (state : NumericState config dimension) (idx : FeatIdx dimension)
     (delta : Binary32) (finite : delta.Finite) (nonpositive : delta.key ≤ 0) :

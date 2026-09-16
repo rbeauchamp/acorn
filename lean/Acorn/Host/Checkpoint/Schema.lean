@@ -143,7 +143,8 @@ def primaryCount : Nat := Acorn.FeatureConstants.primitiveCount + Acorn.FeatureC
 /-- Replacement event: lifetime step, then bank unit. -/
 def eventCodec : Codec (UInt64 × UInt16) := u64Codec.pair u16Codec
 
-/-- A format-level count has at most one event per largest admitted bank slot. -/
+/-- Format-level event-count cap for the largest admitted bank. Events may
+name the same unit repeatedly; this is not a distinct-unit bound. -/
 abbrev Transcript := { events : List (UInt64 × UInt16) // events.length ≤ 65535 }
 
 /-- The count is admitted before any variable-length decoding loop starts. -/

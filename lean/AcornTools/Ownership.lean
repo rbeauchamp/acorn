@@ -67,6 +67,7 @@ def modules : Array Name := #[
   `AcornVerif.AverageReward,
   `AcornVerif.Axioms, `AcornVerif.BigWorld, `AcornVerif.Checkpoint,
   `AcornVerif.CurrentBackupBounds, `AcornVerif.CurrentConstants, `AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirementRounding,
+  `AcornVerif.CurrentReplacement,
   `AcornVerif.CurrentAgent, `AcornVerif.CurrentArithmetic, `AcornVerif.CurrentCheckpoint,
   `AcornVerif.CurrentControl, `AcornVerif.CurrentDivision, `AcornVerif.CurrentExponential,
   `AcornVerif.CurrentFeatureConsumers, `AcornVerif.CurrentFloat, `AcornVerif.CurrentFloor,
@@ -116,6 +117,16 @@ def executables : Array (String × Name) := #[
 These are critical entry/transition obligations, not a quota or a claim that
 all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.retirement_enabled_iff,
+    `Acorn.Features.Lifecycle.tryRetire),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.act_history_count,
+    `Acorn.Handcrafted.Agent.act),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.first_option_model,
+    `Acorn.Features.Skill.stepTemporal),
+  (`AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirement.one_action_trajectory_cold,
+    `Acorn.NumericState.beginTrajectory),
+  (`AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirement.one_action_trajectory_cold,
+    `Acorn.NumericState.terminalStep),
   (`Acorn.Host.AgentAdmission, `Acorn.Handcrafted.AgentConstruction.admit_iff,
     `Acorn.Handcrafted.AgentConstruction.admit),
   (`Acorn.Host.AgentPrefix, `Acorn.Handcrafted.Agent.prefix_path,

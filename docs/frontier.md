@@ -31,13 +31,46 @@ measured effect to planning.
 
 **Can the agent replace features safely, autonomously and usefully?**
 
-Retirement preserves its conditional safety contract. The open questions are
-whether its guard becomes reachable and whether replacement helps the agent.
-Only imprint features are retired; input channels and tile features remain
-authored. General learned agent state is a further extension.
+Retirement preserves its conditional transaction and singleton-prediction
+contracts. `CurrentReplacement` connects exposure obstructions to the actual
+agent: a primitive action never selected since cold initialization retains an
+initial reader that vetoes every unit. This holds for arbitrary finite ordinary
+input paths, including attempt requests and stop, excluding clear/restore. Every
+cold action prefix shorter than nine decisions therefore records zero
+replacements; longer omitted-action prefixes satisfy the same result. It does
+not establish that a primitive action remains omitted forever.
 
-*Refutation attempt.* Trace every admission/write boundary and characterize
-reachability analytically before measuring turnover.
+Repeated one-action option invocations have a further obstruction: terminal
+weight credit executes, but the model's meta-gradient is cleared before it can
+change initial beta. The actual begin/terminal callback proof covers finite
+rewards within the prediction envelope and at most 1900 active initiation
+features; a default-size patch without food/deer channels has at most 1712.
+The complete short-invocation scheduling argument and its admitted-input domain
+are stated in PAR-11. It does not assert that the endogenous world always
+produces short invocations. Retaining sensitivity across boundaries would require
+a derived reset/pruning/support contract before changing the learner.
+
+Structural restoration restarts option models cold, so it cannot by itself
+enable immediate retirement even when primary weights and step sizes satisfy
+the predicate. First-match selection permanently excludes later units sharing
+an earlier unit's hashed slot. The separate lifetime history admits at most
+`config.units.count` total events (512 for the default bank), including repeated
+replacement of one unit. Strict timestamp order and the saturating UInt64 clock
+can refuse earlier; advancing or restoring does not replenish capacity.
+
+Positive complete-reader reachability after sufficient exposure remains
+**UNRESOLVED**. Small weights and minimum step sizes do not prove sufficient
+evaluation or utility. Improved learning from replacement is **UNKNOWN**:
+coupled representation changes alter future experience, and the safety contracts
+do not determine learning benefit. Only imprint projections are replaced; input
+channels and tile features remain authored.
+
+*Refutation attempt.* The execution-linked obstruction, alias result and local
+success condition are specified in
+[PAR-11](prior-art-review.md#par-11--bounded-disruption-retirement). A positive
+learning argument must account for all receiving storage, rounded adaptation,
+reset interference and remaining history/clock capacity. The direct-write
+predicate-inhabitation theorem supplies none of those trajectory premises.
 
 ## F4 · Continuing control and exploration
 

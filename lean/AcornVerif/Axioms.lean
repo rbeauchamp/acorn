@@ -10,6 +10,7 @@ import AcornVerif.AgreementInterpretation
 import AcornVerif.CurrentBackupBounds
 import AcornVerif.CurrentConstants
 import AcornVerif.CurrentRetirement
+import AcornVerif.CurrentReplacement
 import AcornVerif.CurrentRetirementRounding
 import AcornVerif.Resource.WordKernel
 import AcornVerif.BigWorld
@@ -2806,6 +2807,50 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentRetirement.rail_floor_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.rail_floor_word
+
+/-- info: 'AcornVerif.CurrentRetirement.initial_above_floor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.initial_above_floor
+
+/-- info: 'AcornVerif.CurrentRetirement.one_action_trajectory_cold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.one_action_trajectory_cold
+
+/-- info: 'AcornVerif.CurrentReplacement.first_option_model' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.first_option_model
+
+/-- info: 'AcornVerif.CurrentReplacement.one_action_models_beta' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.one_action_models_beta
+
+/-- info: 'AcornVerif.CurrentReplacement.quiet_patch_sparse' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.quiet_patch_sparse
+
+/-- info: 'AcornVerif.CurrentReplacement.initialized_path_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.initialized_path_refuses
+
+/-- info: 'AcornVerif.CurrentReplacement.candidate_alias_minimal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.candidate_alias_minimal
+
+/-- info: 'AcornVerif.CurrentReplacement.act_history_count' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.act_history_count
+
+/-- info: 'AcornVerif.CurrentReplacement.restored_veto' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.restored_veto
+
+/-- info: 'AcornVerif.CurrentReplacement.installed_veto' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.installed_veto
+
+/-- info: 'AcornVerif.CurrentReplacement.retirement_enabled_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.retirement_enabled_iff
 
 /-- info: 'AcornVerif.CurrentRetirement.rail_floor_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

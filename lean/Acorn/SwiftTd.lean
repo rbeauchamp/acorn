@@ -148,7 +148,7 @@ its θ and its step-size floor, both functions of the configuration alone. -/
 structure Negligibility {config : Config} (rails : StepSizeRails config) where
   /-- The direct-term bound `ε · ValueRule.bound`. -/
   theta : Binary32
-  /-- The rail a finished unit's step size sits on. -/
+  /-- The required lower rail; equality does not certify sufficient evaluation. -/
   floor : LogStepSize rails
 
 /-- An exploration rate is a probability: inside `[0, 1]` at storage. The
@@ -548,8 +548,9 @@ def negligibility (state : NumericState config dimension) : Negligibility state.
 
 /-- Whether `feat` is negligible under retirement words `theta` and `floor`:
 weight magnitude below θ and the step size exactly on the floor. Both
-conjuncts are required; a small weight still adapting has not finished being
-tested. The words are consumed raw, as the every-consumer scan does. -/
+conjuncts are required by this local tester. Neither conjunct establishes
+utility or sufficient exposure. The words are consumed raw, as the complete
+consumer scan does. -/
 def unitIsNegligibleUnder (state : NumericState config dimension) (theta floor : Binary32)
     (feat : FeatIdx dimension) : Bool :=
   ((state.weights.get feat).value.abs.less theta) &&

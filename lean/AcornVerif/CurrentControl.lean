@@ -67,6 +67,50 @@ theorem unselected_row (controller : Controller config dimension actions)
   have indices : other.val ≠ action.val := fun h => different (Fin.ext h)
   simp [Controller.valuesStep, Vector.get, Fin.cast, Ne.symm indices]
 
+/-- An empty worklist performs no numerical operation, for arbitrary stored
+state and raw first-loop arguments. Rewrite this whole-state identity before
+projecting dependent beta storage. -/
+theorem first_loop_empty (state : NumericState config dimension)
+    (empty : state.transient.eligible = #[]) (delta vd decay : Binary32) :
+    state.learnFirstLoop config delta vd decay = state := by
+  unfold NumericState.learnFirstLoop
+  rw [empty, NumericState.learnFirstLoopGo]
+  simp only [Array.size_empty, Nat.lt_irrefl, ↓reduceDIte]
+  cases state with
+  | mk rails weights beta transient =>
+    cases transient
+    simp_all
+
+/-- Empty initial eligibility makes first-loop credit an identity, for every
+error, lag, decay and restart flag. In particular, merely receiving the common
+Sarsa error cannot expose a row that has never run the second loop. -/
+theorem credit_initial (learner : Managed config dimension)
+    (cold : learner.state = NumericState.initial config dimension)
+    (delta vd decay : Binary32) (restart : Bool) :
+    (learner.credit delta vd decay restart).val.state = NumericState.initial config dimension := by
+  have first : learner.state.learnFirstLoop config delta vd decay =
+      NumericState.initial config dimension := by
+    rw [first_loop_empty _ (by rw [cold]; rfl), cold]
+  cases restart with
+  | false => exact first
+  | true =>
+    change (learner.state.learnFirstLoop config delta vd decay).clearTransient = _
+    rw [first]
+    rfl
+
+/-- Until selection, a fresh action row remains exactly fresh under the actual
+shared-error update, even if every other row is learning or restart is pending. -/
+theorem unselected_initial (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
+    (action other : Action actions) (different : other ≠ action)
+    (cold : (controller.learners.get other).state = NumericState.initial config dimension)
+    (reward bootstrap decay : Binary32) :
+    ((controller.valuesStep features values action reward bootstrap decay).learners.get
+      other).state =
+      NumericState.initial config dimension := by
+  rw [unselected_row controller features values action other different]
+  exact credit_initial _ cold _ _ _ _
+
 /-- Terminal closeout clears all trajectory registers in every action row. -/
 theorem terminal_clears (controller : Controller config dimension actions)
     (reward : Binary32)
