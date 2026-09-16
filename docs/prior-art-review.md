@@ -598,8 +598,24 @@ the reward by construction, including saturation of the byte counter.
 `zero_neutral_targets` checks the executed discounted cumulants.
 `zero_neutral_terminal_snapshot` consumes the actual old meta snapshot and
 preserves the neutral option policy, including frozen activation, assuming its
-previous potential is false. Continuing-decision snapshot linkage and preservation
-of that previous-potential premise through dispatch remain composition obligations.
+previous potential is false.
+
+`ZeroNeutralSkill` combines the actual neutral interest, all policy rows/shared
+lags and both discounted model learners. `zero_neutral_skill_initial` derives it
+from the real constructor. `zero_neutral_skill_begin` composes the actual
+begin/first-action result: the token freezes the cleared or frozen policy, model
+begin primes both learners, and the age-zero action omits model credit. The
+result has age one and false previous potential, for arbitrary rate and RNG.
+`zero_neutral_skill_continuing` inverts the actual continuing decision to identify
+its features, neutral potential and producing policy snapshot, then follows that
+token through credit and the pre-increment model-age guard. This proves branch
+closure; it does not assert that the branch occurs or supplies action coverage.
+`zero_neutral_skill_end_snapshot` preserves the whole skill through termination:
+policy and continuation use the same old meta value, while the reward model
+consumes raw reward. Frozen modes and all terminal reasons retain their actual
+write behavior. These endpoints preserve objective identity using the existing
+owner equations. Installing their results into the actual dispatch state and
+preserving its phase/coordinate invariant remain composition obligations.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal

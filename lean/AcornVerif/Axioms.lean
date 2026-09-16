@@ -3359,4 +3359,22 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.zero_neutral_terminal_snapshot
 
+/-- info: 'AcornVerif.CurrentReplacement.zero_neutral_skill_initial' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_neutral_skill_initial
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_neutral_skill_begin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_neutral_skill_begin
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_neutral_skill_continuing' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_neutral_skill_continuing
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_neutral_skill_end_snapshot' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_neutral_skill_end_snapshot
+
 end AcornVerif

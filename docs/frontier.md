@@ -77,6 +77,10 @@ zero terminal meta value. Their fresh targets make actual scalar planning an
 identity on the controller. Deferred reward accumulation stays zero at every
 stored gap age, and neutral option termination consumes the produced old meta
 snapshot under an explicit false previous-potential premise.
+`ZeroNeutralSkill` connects neutral construction, actual begin/first action,
+continuing-token credit and old-meta termination across the policy and both
+model learners. Begin and continuing steps return false previous potential;
+the continuing snapshot is derived from its actual decision producer.
 This checks component closure and the produced-snapshot endpoint, not the full
 native zero-reward prefix or its first-positive callback. Establishing the incoming
 zero sectors along that prefix, the actual goal-action owner and later continuation

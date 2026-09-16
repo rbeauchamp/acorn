@@ -2020,4 +2020,190 @@ theorem zero_neutral_terminal_snapshot (skill : Skill config .discounted dimensi
     simpa only [hn, hp, comparisonValue] using target
   · exact hz
 
+/-- One neutral discounted objective and its actual policy/model zero sectors.
+No constraint is placed on beta, other raw registers, rates or cached predictions. -/
+structure ZeroNeutralSkill (skill : Skill config .discounted dimension) : Prop where
+  /-- The actual interest produces the neutral coordinate. -/
+  neutral : skill.interest = .learned .neutral
+  /-- Every physical policy row and shared Sarsa lag is zero. -/
+  policy : ZeroController skill.policy
+  /-- Both physical discounted model learners are zero. -/
+  model : ZeroModel skill.model
+
+/-- Actual neutral skill construction establishes all three sector fields. -/
+theorem zero_neutral_skill_initial :
+    ZeroNeutralSkill (Skill.initial config .discounted dimension (.learned .neutral)) :=
+  ⟨rfl, zero_controller_initial, zero_model_initial⟩
+
+private theorem continuation_produced (skill : Skill config criterion dimension)
+    {mode : Bool} (activation : OptionActivation mode)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential)
+    (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (next : OptionContinuation dimension activation)
+    (produced : skill.decideOption activation features potential goal estimate rate =
+      .continuing next) :
+    next.features = features ∧ next.potential = potential ∧
+    next.policy = skill.policy.snapshot (count := primitiveCount) features
+      (rate.resolve fun _ => skill.policy.exploreRate (count := primitiveCount)) := by
+  unfold Skill.decideOption at produced
+  split at produced
+  · cases produced
+  · split at produced
+    · dsimp only at produced
+      split at produced
+      · cases produced
+      · cases produced
+        exact ⟨rfl, rfl, rfl⟩
+    · cases produced
+
+private theorem zero_neutral_skill_step (skill : Skill config .discounted dimension)
+    (hz : ZeroNeutralSkill skill) {mode : Bool} (activation : OptionActivation mode)
+    (next : OptionContinuation dimension activation) (hp : activation.previous = false)
+    (hn : next.potential = false) (rate : SwiftTd.ExploreRate)
+    (snapshot : next.policy = skill.policy.snapshot (count := primitiveCount) next.features rate)
+    (reward : Binary32) (hr : SignedZero reward) (gain : RewardRate) (rng : Rng.Xoshiro256) :
+    let result := skill.stepTemporal (modelOperations .discounted dimension)
+      activation next reward gain rng
+    ZeroNeutralSkill result.1 ∧ result.2.1.previous = false := by
+  have target : SignedZero (Features.shapedCumulant (Criterion.discounted.center reward 1 gain)
+      Criterion.discounted.rule.gamma next.potential activation.previous) := by
+    simpa only [hn, hp] using
+      (zero_neutral_targets (config := config) reward .zero gain hr (Or.inl rfl)).1
+  have credited : ZeroController (actions := Acorn.FeatureConstants.primitiveCount)
+      (skill.policy.policyStep next.features (next.policy.draw rng).1
+      (Features.shapedCumulant (Criterion.discounted.center reward 1 gain)
+        Criterion.discounted.rule.gamma next.potential activation.previous) 1) := by
+    rw [snapshot]
+    exact zero_draw_policy_step (count := primitiveCount) skill.policy hz.policy
+      next.features rate rng _ 1 target
+  have policy : ZeroController (skill.optionStep activation next reward gain rng).1.policy := by
+    by_cases learning : activation.learning = true
+    · simpa only [Skill.optionStep, learning, if_true] using credited
+    · simpa only [Skill.optionStep, learning, Bool.false_eq_true, if_false] using hz.policy
+  have model : ZeroModel (skill.stepTemporal (modelOperations .discounted dimension)
+      activation next reward gain rng).1.model := by
+    by_cases learning : activation.learning = true
+    · by_cases first : activation.age.val = 0
+      · rw [CurrentModels.first_model_omitted _ _ _ _ _ _ first]
+        exact hz.model
+      · rw [CurrentModels.continuing_model_owner _ _ _ _ _ _ learning (by omega)]
+        exact zero_model_step _ hz.model next.features activation.age reward hr
+    · have frozen : activation.learning = false := by
+        cases h : activation.learning <;> simp_all
+      simp only [Skill.stepTemporal, frozen, Bool.false_and, Bool.false_eq_true, if_false]
+      rw [Skill.step_frozen _ _ _ _ _ _ frozen]
+      exact hz.model
+  dsimp only
+  constructor
+  · constructor
+    · rw [Skill.stepTemporal_interest]
+      exact hz.neutral
+    · rw [(skill.stepTemporal_policy (modelOperations .discounted dimension)
+        activation next reward gain rng).1]
+      exact policy
+    · exact model
+  · rw [(skill.stepTemporal_policy (modelOperations .discounted dimension)
+      activation next reward gain rng).2]
+    exact hn
+
+private theorem zero_neutral_skill_begun (skill : Skill config .discounted dimension)
+    (hz : ZeroNeutralSkill skill) (features : SwiftTd.ActiveSet dimension)
+    (learning : Bool) (rate : ConsumerRate) :
+    ZeroNeutralSkill (skill.beginTemporal (modelOperations .discounted dimension)
+      features false learning rate).1 := by
+  constructor
+  · rw [Skill.beginTemporal_interest]
+    exact hz.neutral
+  · cases learning with
+    | false => exact hz.policy
+    | true => exact zero_controller_clear _ hz.policy
+  · cases learning with
+    | false => exact hz.model
+    | true => exact zero_model_begin _ hz.model features
+
+/-- The actual begin token freezes the cleared or frozen policy and immediately
+returns its first action. Both model learners remain in their begun zero sector;
+no age-zero model credit is manufactured. RNG and rate selection are unrestricted. -/
+theorem zero_neutral_skill_begin (skill : Skill config .discounted dimension)
+    (hz : ZeroNeutralSkill skill) (features : SwiftTd.ActiveSet dimension)
+    (learning : Bool) (rate : ConsumerRate) (reward : Binary32) (hr : SignedZero reward)
+    (gain : RewardRate) (rng : Rng.Xoshiro256) :
+    let begun := skill.beginTemporal (modelOperations .discounted dimension)
+      features false learning rate
+    let result := begun.1.stepTemporal (modelOperations .discounted dimension)
+      begun.2.1 begun.2.2 reward gain rng
+    ZeroNeutralSkill result.1 ∧ result.2.1.previous = false ∧ result.2.1.age.val = 1 := by
+  let begun := skill.beginTemporal (modelOperations .discounted dimension)
+    features false learning rate
+  have hb : ZeroNeutralSkill begun.1 := zero_neutral_skill_begun skill hz features learning rate
+  let resolved := rate.resolve fun _ => begun.1.policy.exploreRate (count := primitiveCount)
+  have snapshot : begun.2.2.policy = begun.1.policy.snapshot (count := primitiveCount)
+      begun.2.2.features resolved := by
+    cases learning <;> rfl
+  have stepped := zero_neutral_skill_step begun.1 hb begun.2.1 begun.2.2
+    (by rfl) (by rfl) resolved snapshot reward hr gain rng
+  refine ⟨stepped.1, stepped.2, ?_⟩
+  rw [(begun.1.stepTemporal_policy (modelOperations .discounted dimension)
+    begun.2.1 begun.2.2 reward gain rng).2]
+  simpa only [show begun.2.1.age.val = 0 from rfl, Nat.zero_add] using
+    begun.1.step_age begun.2.1 begun.2.2 reward gain rng
+
+/-- An actual continuing decision carries the incoming policy's snapshot and
+neutral coordinate into the exact step. The branch equality identifies its
+producer; it asserts neither eventual continuation nor action coverage. -/
+theorem zero_neutral_skill_continuing (skill : Skill config .discounted dimension)
+    (hz : ZeroNeutralSkill skill) {mode : Bool} (activation : OptionActivation mode)
+    (hp : activation.previous = false) (features : SwiftTd.ActiveSet dimension)
+    (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (next : OptionContinuation dimension activation)
+    (produced : skill.decideOption activation features false goal estimate rate = .continuing next)
+    (reward : Binary32) (hr : SignedZero reward) (gain : RewardRate) (rng : Rng.Xoshiro256) :
+    let result := skill.stepTemporal (modelOperations .discounted dimension)
+      activation next reward gain rng
+    ZeroNeutralSkill result.1 ∧ result.2.1.previous = false := by
+  obtain ⟨hf, hn, hs⟩ := continuation_produced skill activation features false goal estimate rate
+    next produced
+  have snapshot : next.policy = skill.policy.snapshot (count := primitiveCount) next.features
+      (rate.resolve fun _ => skill.policy.exploreRate (count := primitiveCount)) := by
+    simpa only [hf] using hs
+  exact zero_neutral_skill_step skill hz activation next hp hn _ snapshot reward hr gain rng
+
+/-- Terminal policy and continuation use the same old meta snapshot; the reward
+model consumes raw reward. Neutral coordinate premises belong to the incoming
+activation and current interest producer, before later refresh or meta credit. -/
+theorem zero_neutral_skill_end_snapshot (skill : Skill config .discounted dimension)
+    (hz : ZeroNeutralSkill skill) {mode : Bool} (ending : EndingPayload mode)
+    (hp : ending.activation.previous = false) (hn : ending.potential = false)
+    (metaController :
+      Controller (Criterion.discounted.config .control) dimension metaCount.word.toNat)
+    (hm : ZeroController metaController) (features : SwiftTd.ActiveSet dimension)
+    (rate : SwiftTd.ExploreRate) (reward : Binary32) (hr : SignedZero reward) (gain : RewardRate) :
+    let terminal := comparisonValue .discounted
+      (metaController.snapshot (count := metaCount) features rate)
+    ZeroNeutralSkill (skill.endTemporal (modelOperations .discounted dimension)
+      ending reward terminal gain) := by
+  let terminal := comparisonValue .discounted
+    (metaController.snapshot (count := metaCount) features rate)
+  have ht : SignedZero terminal :=
+    zero_snapshot_best (count := metaCount) metaController hm features rate
+  have policy : ZeroController
+      (skill.terminateOption ending.activation ending.potential reward terminal gain).policy := by
+    rw [hn]
+    exact zero_neutral_terminal_snapshot skill hz.policy hz.neutral ending.activation hp
+      metaController hm features rate reward hr gain
+  constructor
+  · rw [Skill.endTemporal_interest]
+    exact hz.neutral
+  · dsimp only [Skill.endTemporal]
+    split <;> exact policy
+  · unfold Skill.endTemporal
+    split
+    · change ZeroModel (Model.terminal
+        (skill.terminateOption ending.activation ending.potential reward terminal gain).model
+        reward terminal)
+      rw [(skill.terminal_owners ending.activation ending.potential reward terminal gain).2]
+      exact zero_model_terminal _ hz.model reward terminal hr ht
+    · rw [(skill.terminal_owners ending.activation ending.potential reward terminal gain).2]
+      exact hz.model
+
 end AcornVerif.CurrentReplacement

@@ -135,6 +135,11 @@ zero planning targets, and the actual scalar fold preserves the whole controller
 `zero_gap_accumulate` reuses the universal portable-power bound for the actual
 stored gap duration. Neutral terminal policy credit uses its producing old meta
 snapshot, with false previous potential retained as an explicit premise.
+`ZeroNeutralSkill` checks construction and concrete whole-Skill begin/first-action,
+actual continuing-token and old-meta-ending composition. Its producer inversion
+binds the continuing snapshot; begin and continuing endpoints return false
+previous potential. Actual dispatch installation and phase preservation remain
+outside these local endpoints.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
