@@ -28,12 +28,8 @@ open Lean
 structure Counts where
   /-- Theorem declarations owned by `AcornVerif` modules. -/
   verification : Nat := 0
-  /-- Theorem declarations owned by `AcornSpec` modules. -/
-  specification : Nat := 0
   /-- Theorem declarations owned by current executable `Acorn` modules. -/
   current : Nat := 0
-  /-- Theorem declarations owned by preserved-study admission modules. -/
-  study : Nat := 0
   /-- Theorem declarations owned by native application bootstrap modules. -/
   application : Nat := 0
 
@@ -67,13 +63,9 @@ def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
           throw (IO.userError s!"{owner}: {name} depends on unreviewed axiom {axiomName}")
       if (`AcornVerif).isPrefixOf owner then
         counts := { counts with verification := counts.verification + 1 }
-      else if (`AcornSpec).isPrefixOf owner then
-        counts := { counts with specification := counts.specification + 1 }
       else if (`Acorn).isPrefixOf owner then
         counts := { counts with current := counts.current + 1 }
-      else if (`AcornStudy).isPrefixOf owner then
-        counts := { counts with study := counts.study + 1 }
-      else if (`NativeApp).isPrefixOf owner || (`NativeResearch).isPrefixOf owner then
+      else if (`NativeApp).isPrefixOf owner then
         counts := { counts with application := counts.application + 1 }
       else
         throw (IO.userError s!"{owner}: unexpected project module")
@@ -99,9 +91,7 @@ unsafe def inventory : IO Counts := do
         throw (IO.userError s!"{name}: compiled module did not enter the environment")
       let extra ← countEnvironment other #[name]
       counts := { verification := counts.verification + extra.verification
-                  specification := counts.specification + extra.specification
                   current := counts.current + extra.current
-                  study := counts.study + extra.study
                   application := counts.application + extra.application }
   pure counts
 
@@ -114,9 +104,7 @@ unsafe def main (args : List String) : IO UInt32 := do
     return 1
   let counts ← AcornTheoremCount.inventory
   IO.println s!"theorem-count AcornVerif={counts.verification}"
-  IO.println s!"theorem-count AcornSpec={counts.specification}"
   IO.println s!"theorem-count Acorn={counts.current}"
-  IO.println s!"theorem-count AcornStudy={counts.study}"
-  IO.println s!"theorem-count NativeApp/NativeResearch={counts.application}"
-  IO.println s!"theorem-count total={counts.verification + counts.specification + counts.current + counts.study + counts.application}"
+  IO.println s!"theorem-count NativeApp={counts.application}"
+  IO.println s!"theorem-count total={counts.verification + counts.current + counts.application}"
   return 0

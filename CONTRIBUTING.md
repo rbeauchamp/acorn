@@ -12,31 +12,15 @@ semantics, assumptions and implementation owner in the pull request. Use
 
 ## Working on code and proofs
 
-Read [AGENTS](AGENTS.md), [the learned-only binding](docs/learned-only-binding.md)
-and the relevant [prior-art contract](docs/prior-art-review.md). For a bug, identify
-all state construction, restoration and update boundaries. Prefer types,
-derivation and universal proofs over sampled examples. Scenario tests are not the
-correctness policy of this repository. Counterexamples diagnose a missing
-contract; close the whole class at its actual implementation owner.
+[AGENTS](AGENTS.md) is the engineering and review policy: proof-first correctness,
+learned-only boundaries, prior-art admission, and delivery requirements. Follow
+its [review and delivery](AGENTS.md#review-and-delivery) section for checks,
+signed commits and independent review. The shipped skills under .agents/skills
+provide the review workflow and proof-specific questions.
 
-Keep proofs linked to executed definitions. Identify the machine-word or
-mathematical domain and hypotheses. Preserve signal provenance, admission at
-every write, observer isolation, notices and documented research limitations.
-Paper-based mechanisms require verified citations and justified material
-adaptations, including semantic compatibility in composition. Technical admission
-and promotion to a default are distinct decisions.
-
-Run `./scripts/verify.sh` in the actual checkout. Do not bypass its 300-second
-limit or remove required checks. CI must pass for the exact proposed head. Use
-one independent review under the shipped proof-review skill; use ux-review for
-viewer or normative viewer-spec changes. The skills under `.agents/skills/`
-publish the repository's review standards for contributors and coding assistants.
-
-Describe what changed, why, the actual checks and their limits in the PR. Sign
-commits. Resolve review conversations and honor required status/signature/PR
-protections; never bypass them. Benchmark reruns, new studies, releases and
-external publication need their own scope and authorization. Do not upload
-local run state, credentials, private records or proprietary material.
+For each change, explain the intended behavior, its implementation and proof
+owners, and any assumptions in the PR. Run `./scripts/verify.sh` from the checkout
+and report its actual result and material limits.
 
 ## Scientific evidence
 

@@ -33,8 +33,7 @@ Before substantial optimization, state the decision in the active issue:
   the question. If adequacy is unknown, identify the smallest authorized check
   that can resolve it; do not presume either adequacy or a blocker. For an
   irreducibly empirical physical effect, name the platform-dependent `UNKNOWN`
-  and why deduction cannot settle it. An unresolved proof obligation does not
-  become empirical because its proof is difficult.
+  and why deduction cannot settle it.
 - **Cost and decision:** the expected enabling benefit, competing algorithmic
   or qualification work, and a bounded budget for implementation, proofs,
   review and measurement. Include assistant compute cost and recurring
@@ -95,9 +94,7 @@ Proof terms and subtype predicates are erased; required admission checks and
 computational representations can still cost work. Keep refinements and prove
 correspondence at reusable implementation boundaries. Do not weaken guarantees
 to improve a benchmark. [Subtypes](https://lean-lang.org/doc/reference/latest/Basic-Types/Subtypes/).
-The proof-first ordering, compiled-route checks and review requirements in
-[AGENTS.md](../AGENTS.md) remain authoritative. Measurement is not a substitute
-for correctness proofs; shorter elapsed time or lower RSS is not an energy proof.
+Shorter elapsed time or lower RSS is not an energy proof.
 
 ## What our evidence supports
 
@@ -117,18 +114,9 @@ Other explicit commitments remain binding until the owner changes them. Changes
 to execution language or trusted boundaries require an owner decision and
 correspondence arguments connecting the required guarantees to the new execution.
 
-## Proof before performance claims
+## Evidence for performance claims
 
-Use types, derivations and implementation-linked universal proofs for identities,
-bounds and state legality. A sampled result or mutation digest cannot establish
-them. Prefer structural arguments to certified re-execution; estimate the initial
-and recurring cost before choosing reflection.
-
-Measurements answer irreducibly empirical questions about a specified workload,
-platform or regime. State why no derivation reaches the claim, define the smallest
-informative design and fix acceptance rules, budgets and uncertainty handling
-before execution. Difficulty proving a property does not make it empirical.
-
-Pure analysis definitions state contracts over explicit inputs and hypotheses.
-Measured results name their workload, environment and observations under the
-[scientific evidence guidance](../CONTRIBUTING.md#scientific-evidence).
+Apply the [proof-first policy](../AGENTS.md#correct-by-construction) to correctness
+and resource claims. Pure analysis definitions state contracts over explicit
+inputs and hypotheses. Physical measurements name their workload, environment
+and observations under the [scientific evidence guidance](../CONTRIBUTING.md#scientific-evidence).

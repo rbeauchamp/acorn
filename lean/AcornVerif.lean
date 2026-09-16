@@ -36,8 +36,7 @@ import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentModels
 import AcornVerif.Checkpoint
 import AcornVerif.AverageReward
-import AcornVerif.AverageRewardControlSemantics
-import AcornVerif.Generated
+import AcornVerif.ModelConstants
 import AcornVerif.Projection
 import AcornVerif.StepSize
 import AcornVerif.MetaGradient
@@ -48,20 +47,15 @@ import AcornVerif.Traces
 import AcornVerif.Retirement
 import AcornVerif.BigWorld
 import AcornVerif.Rng
-import AcornVerif.AgentBaselineSemantics
-import AcornVerif.StudyCompatibility
-import AcornVerif.Experiment
 import AcornVerif.WorldGoals
-import AcornVerif.Performance
-import AcornVerif.Outcome
 
 /-!
 # Executable contracts and mathematical analysis
 
 Current* modules verify the imported Lean execution owners. Other modules retain
-mathematical identities, specification semantics, schema admission and conditional
-analysis contracts used by those proofs. A theorem about analysis inputs does not
-assert that those inputs were observed or qualify a research composition.
+mathematical identities and conditional algorithm contracts supporting the
+current mechanisms. Each theorem states its domain and hypotheses; mathematical
+identities establish execution properties only through their checked linkage.
 
 Every maintained theorem enters the compiler-owned axiom inventory. The only
 admitted axiom dependencies are propext, Classical.choice and Quot.sound. Native

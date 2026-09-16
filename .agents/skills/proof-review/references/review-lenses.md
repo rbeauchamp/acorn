@@ -63,35 +63,14 @@ surface cannot exercise it; do not audit unrelated repository code.
    convergence are not admission requirements. Record the refutation attempt
    against the actual adaptation contract.
 
-8. **Portable scientific evidence** — apply the
-   [deliverable placement policy](../../../../CONTRIBUTING.md#deliverable-placement)
-   to added files: check scientific ownership, shared implementation reuse, and
-   whether temporary engineering records are being committed as research.
-   Discover every dossier and resolve each
-   published study/protocol/run/comparison citation. Check immutable protocol
-   revisions, complete inventories, distinct run identities, interrupted-run
-   records, and original bytes versus semantic presentations. Kind, lifecycle,
-   and outcome must remain separate typed dimensions; a completed refutation
-   is not an aborted run, and a draft needs no fabricated result. Preserve
-   registered streams, observations, thresholds, canonical outputs, and audit
-   pins during relocation. No new study or scenario test closes a rename.
-   Apply the canonical essential-evidence/secondary-trace distinction: every
-   study declares what supports its claims, whether full step traces are
-   needed, and what reproduction means. Do not require full trajectories
-   merely because a runner can emit them. Verify retained secondary archives
-   against original member identities; do not treat a current packaging
-   decision as preregistration or a rerun as the original observation.
-   Review content integrity separately from analysis reproduction, historical
-   rerun support, and registration timing. Hash-only preregistration and
-   self-authored trust anchors are findings. Future timestamps use OpenSSL 3
-   against the independent external `ACORN_REGISTRATION_TRUST` policy only
-   when optional timestamp authentication is claimed; routine gates need no CA;
-   historical Git objects retain timing and blindness limitations. Ordinary
-   verification runs in the Git checkout with provisioned tools.
-   Verify future empirical protocols against the complete research requirements
-   in the dossier standard, including resource equality and prior data access.
-
-
+8. **Scientific evidence** — for changes to empirical claims or records, apply
+   [CONTRIBUTING](../../../../CONTRIBUTING.md#scientific-evidence). Check that each
+   claim resolves to its protocol revision, run, comparison and original inputs;
+   canonical calculations must use those inputs. Separate integrity, reproduction
+   and timing claims. Preserve original observations and negative results. A
+   completed refutation differs from an aborted run; a draft needs no fabricated
+   result. Retain the records needed for the stated claim without demanding full
+   trajectories merely because a runner can emit them.
 
 Apply the canonical [admission and promotion standard](../../../../docs/prior-art-review.md#default-promotion-and-demotion).
 Admission permits research integration; it does not promote a default. Review

@@ -5,7 +5,7 @@ Authors: acorn contributors
 -/
 import Mathlib.Data.Int.Basic
 import Mathlib.Tactic.NormNum
-import AcornVerif.Generated
+import AcornVerif.ModelConstants
 
 /-!
 # Goal-error semantics
@@ -22,7 +22,7 @@ that the shipped learner selects actions that reduce the error.
 
 namespace AcornVerif
 
-open AcornVerif.Generated
+open AcornVerif.ModelConstants
 
 /-- Exact remaining distance to the completed Reach region. -/
 def reachRemaining (dx dy : ℤ) : ℕ :=

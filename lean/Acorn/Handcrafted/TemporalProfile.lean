@@ -27,7 +27,7 @@ def spatialPotentials (obs : Host.Observation) : DeclaredPotentials :=
 
 /-- The schedule stores its actual closed interval, including the minimum. -/
 def annealedRange : Interval32 :=
-  ⟨⟨AcornSpec.Constants.epsMinBits⟩, .one, by decide, by decide, by decide⟩
+  ⟨⟨Acorn.Constants.epsMinBits⟩, .one, by decide, by decide, by decide⟩
 
 /-- Schedule state exists only in the schedule-carrying rate policy. -/
 inductive RateState : RatePolicy → Type where
@@ -44,14 +44,14 @@ instance (policy : RatePolicy) : Provenance (RateState policy) := ⟨some .explo
 def RateState.initial : (policy : RatePolicy) → RateState policy
   | .perLearner => .perLearner
   | .shared => .shared
-  | .annealed => .annealed (Bounded32.project annealedRange ⟨AcornSpec.Constants.epsStartBits⟩)
+  | .annealed => .annealed (Bounded32.project annealedRange ⟨Acorn.Constants.epsStartBits⟩)
 
 /-- Advance once per decision, before either the primitive-only or hierarchy path. -/
 def RateState.advance {policy : RatePolicy} : RateState policy → RateState policy
   | .perLearner => .perLearner
   | .shared => .shared
   | .annealed rate => .annealed (Bounded32.project annealedRange
-      (rate.value.mul ⟨AcornSpec.Constants.epsDecayBits⟩))
+      (rate.value.mul ⟨Acorn.Constants.epsDecayBits⟩))
 
 /-- Controller rates are resolved lazily under the immutable policy. -/
 def RateState.controller {policy : RatePolicy} (state : RateState policy)
@@ -67,12 +67,12 @@ def RateState.skill {policy : RatePolicy} (state : RateState policy)
   match state with
   | .perLearner => .own
   | .shared => .fixed (primitive ())
-  | .annealed _ => .fixed (SwiftTd.ExploreRate.project ⟨AcornSpec.Constants.optionEpsilonBits⟩)
+  | .annealed _ => .fixed (SwiftTd.ExploreRate.project ⟨Acorn.Constants.optionEpsilonBits⟩)
 
 /-- The actual schedule write is bounded at storage for all prior legal rates. -/
 theorem annealed_write (rate : Bounded32 annealedRange) :
     annealedRange.Contains (Bounded32.project annealedRange
-      (rate.value.mul ⟨AcornSpec.Constants.epsDecayBits⟩)).value := Bounded32.legal _
+      (rate.value.mul ⟨Acorn.Constants.epsDecayBits⟩)).value := Bounded32.legal _
 
 /-- Declared spatial producers match every current spatial assignment. -/
 theorem spatial_admitted {config : Features.Config} {dimension : Dimension}

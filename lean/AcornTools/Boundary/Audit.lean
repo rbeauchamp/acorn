@@ -23,16 +23,15 @@ open Lean
 /-- Explicit composition roots may join learned and declared code. -/
 def compositionRoots : Array Name := #[`Acorn, `Acorn.SwiftTdDriver, `Acorn.FeatureDriver, `Acorn.WorldDriver, `Acorn.ControlDriver, `Acorn.TemporalDriver, `Acorn.AgentDriver]
 
-/-- Current sources, including the generated constant leaf they import. -/
-def governed (name : Name) : Bool := (`Acorn).isPrefixOf name || (`AcornStudy).isPrefixOf name ||
-  (`NativeApp).isPrefixOf name || (`NativeResearch).isPrefixOf name || name == `AcornSpec.Constants || name == `AcornSpec.StudySchedule
+/-- Executing application sources and their shared constant leaf. -/
+def governed (name : Name) : Bool := (`Acorn).isPrefixOf name ||
+  (`NativeApp).isPrefixOf name
 
-/-- Mathematical proofs and retained calculators have separate import admission. -/
-def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name ||
-  ((`AcornSpec).isPrefixOf name && name != `AcornSpec.Constants && name != `AcornSpec.StudySchedule)
+/-- Mathematical proofs have separate import admission. -/
+def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name
 
 /-- Native entry/resource owners are checked as host code, never learned algorithms. -/
-def nativeBootstrap (name : Name) : Bool := (`NativeApp).isPrefixOf name || (`NativeResearch).isPrefixOf name
+def nativeBootstrap (name : Name) : Bool := (`NativeApp).isPrefixOf name
 
 /-- Host and declared modules are quarantined by their owning module, not namespaces. -/
 def quarantined (name : Name) : Bool :=
@@ -49,18 +48,12 @@ def importAllowed (owner imported : Name) : Bool :=
   if (`Init).isPrefixOf imported then true
   else if proofOwner owner then
     !#[`Mathlib, `Mathlib.Tactic].contains imported &&
-      #[`Acorn, `AcornVerif, `AcornSpec, `AcornStudy, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported)
-  else if (`NativeResearch).isPrefixOf owner then
-    nativeBootstrap imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported ||
-      (`AcornStudy).isPrefixOf imported || imported == `AcornSpec.Constants || imported == `AcornSpec.StudySchedule
+      #[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported)
   else if nativeBootstrap owner then
-    (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported ||
-      imported == `AcornSpec.Constants || imported == `AcornSpec.StudySchedule
-  else if (`AcornStudy).isPrefixOf owner then (`AcornStudy).isPrefixOf imported || imported == `Acorn.Json
+    (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
+  else if owner == `Acorn.Constants then false
   else if (`Std).isPrefixOf imported then
     (`Acorn.Host).isPrefixOf owner || compositionRoots.contains owner
-  else if owner == `AcornSpec.Constants || owner == `AcornSpec.StudySchedule then false
-  else if imported == `AcornSpec.Constants || imported == `AcornSpec.StudySchedule then true
   else if !(`Acorn).isPrefixOf imported then false
   else if learned owner then learned imported else true
 
@@ -75,11 +68,9 @@ def allowedAttributes : Array Name := #[`simp, `inline, `noinline, `reducible, `
 def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiation.threshold]
 
 /-- Only these admitted host boundaries may create or inspect native subprocesses. -/
-def processOwners : Array Name := #[`AcornStudy.Files, `AcornStudy.Archive,
-  `AcornStudy.Registration, `AcornStudy.Main, `Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
+def processOwners : Array Name := #[`Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
   `Acorn.Host.Viewer.RunDirectory, `Acorn.Host.Viewer.ProcessOwner,
-  `Acorn.Host.Viewer.NativeResources, `NativeApp.Viewer, `NativeResearch.ExecutionIdentity,
-  `NativeResearch.EnduranceCommand, `NativeResearch.AverageCommand]
+  `Acorn.Host.Viewer.NativeResources, `NativeApp.Viewer]
 
 /-- Native effects cannot be smuggled into learned modules through Init aliases. -/
 def capabilityAllowed (owner dependency : Name) : Bool :=
@@ -179,7 +170,7 @@ def inspectSource (parserEnv : Environment) (library : System.FilePath)
     if !proofOwner owner && (`Std).isPrefixOf imported.module &&
         !(#[`Std.Data.TreeMap.Lemmas, `Std.Sync.Mutex].contains imported.module) &&
         !(owner == `Acorn.Host.Viewer.HttpServer && imported.module == `Std.Http.Server) &&
-        !(#[`Acorn.Host.Viewer.NativeContext, `NativeResearch.ExecutionIdentity].contains owner &&
+        !(owner == `Acorn.Host.Viewer.NativeContext &&
           imported.module == `Std.Time.DateTime.Timestamp) then
       reject owner s!"unreviewed direct standard import {imported.module}"
     if (`Init).isPrefixOf imported.module || (`Std).isPrefixOf imported.module then
@@ -315,7 +306,7 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
         reject owner "compiled module did not enter the environment"
       checkImports imports owner
     inspectDeclarations env selected
-  let included ← withImportModules #[{ module := `Acorn }, { module := `AcornStudy },
+  let included ← withImportModules #[{ module := `Acorn },
       { module := `NativeApp }] {} fun common => do
     let included := owners.filter fun owner => (common.getModuleIdx? owner).isSome
     inspect common included

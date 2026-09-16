@@ -113,8 +113,8 @@ theorem geometric_domain (discount : Discount) :
     simp only at values <;>
     obtain ⟨gamma, horizon⟩ := Prod.mk.inj values <;>
     rw [gamma, horizon] <;>
-    norm_num [Generated.gammaG90, Generated.gammaG95, Generated.gammaG99,
-      Generated.horizonG90, Generated.horizonG95, Generated.horizonG99]
+    norm_num [ModelConstants.gammaG90, ModelConstants.gammaG95, ModelConstants.gammaG99,
+      ModelConstants.horizonG90, ModelConstants.horizonG95, ModelConstants.horizonG99]
 
 /-- Exact discounted reference state: remaining mass times the geometric horizon
 plus accumulated return cannot exceed that horizon. -/

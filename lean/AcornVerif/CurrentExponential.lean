@@ -279,26 +279,26 @@ theorem expSaturation_ends (value : Binary32) :
     match Portable.expSaturation value with
     | some result =>
       if value.isNaN then result = value
-      else if !value.less ⟨AcornSpec.Constants.expOverflowBits⟩ then result = ⟨0x7f800000⟩
-      else !(Binary32.mk AcornSpec.Constants.expUnderflowBits).less value ∧ result = .zero
+      else if !value.less ⟨Acorn.Constants.expOverflowBits⟩ then result = ⟨0x7f800000⟩
+      else !(Binary32.mk Acorn.Constants.expUnderflowBits).less value ∧ result = .zero
     | none => value.Finite ∧
-        (Binary32.mk AcornSpec.Constants.expUnderflowBits).less value = true ∧
-        value.less ⟨AcornSpec.Constants.expOverflowBits⟩ = true := by
+        (Binary32.mk Acorn.Constants.expUnderflowBits).less value = true ∧
+        value.less ⟨Acorn.Constants.expOverflowBits⟩ = true := by
   by_cases nan : value.isNaN = true
   · simp [Portable.expSaturation, nan]
-  · by_cases high : (!value.less ⟨AcornSpec.Constants.expOverflowBits⟩) = true
+  · by_cases high : (!value.less ⟨Acorn.Constants.expOverflowBits⟩) = true
     · simp [Portable.expSaturation, nan, high]
-    · by_cases low : (!(Binary32.mk AcornSpec.Constants.expUnderflowBits).less value) = true
+    · by_cases low : (!(Binary32.mk Acorn.Constants.expUnderflowBits).less value) = true
       · simp [Portable.expSaturation, nan, high, low]
       · simp only [Portable.expSaturation, nan, high, low]
         have hn : value.isNaN = false := by simpa using nan
-        have hh : value.less ⟨AcornSpec.Constants.expOverflowBits⟩ = true := by simpa using high
-        have hl : (Binary32.mk AcornSpec.Constants.expUnderflowBits).less value = true := by simpa using low
+        have hh : value.less ⟨Acorn.Constants.expOverflowBits⟩ = true := by simpa using high
+        have hl : (Binary32.mk Acorn.Constants.expUnderflowBits).less value = true := by simpa using low
         refine ⟨?_, hl, hh⟩
-        have hhn : (Binary32.mk AcornSpec.Constants.expOverflowBits).isNaN = false := rfl
-        have hln : (Binary32.mk AcornSpec.Constants.expUnderflowBits).isNaN = false := rfl
-        have hhk : (Binary32.mk AcornSpec.Constants.expOverflowBits).key = 0x42b20000 := rfl
-        have hlk : (Binary32.mk AcornSpec.Constants.expUnderflowBits).key = -0x42d00000 := rfl
+        have hhn : (Binary32.mk Acorn.Constants.expOverflowBits).isNaN = false := rfl
+        have hln : (Binary32.mk Acorn.Constants.expUnderflowBits).isNaN = false := rfl
+        have hhk : (Binary32.mk Acorn.Constants.expOverflowBits).key = 0x42b20000 := rfl
+        have hlk : (Binary32.mk Acorn.Constants.expUnderflowBits).key = -0x42d00000 := rfl
         simp only [Binary32.less_eq_key, hn, hhn, Bool.not_false, Bool.true_and, decide_eq_true_eq] at hh
         simp only [Binary32.less_eq_key, hn, hln, Bool.not_false, Bool.true_and, decide_eq_true_eq] at hl
         rw [hhk] at hh

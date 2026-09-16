@@ -8,9 +8,8 @@ import AcornTools.Ownership
 
 /-! # Ordinary Lean verification
 
-Run in the package through `scripts/verify-lean.sh`. This tool invokes only
-the provisioned Lean/Lake/native tools. The complete merge suite adds shell,
-Git whitespace and shell admission in `scripts/verify.sh`.
+The complete suite in `scripts/verify.sh` invokes this tool after shell and Git
+whitespace checks. It uses the provisioned Lean/Lake/native tools.
 -/
 namespace AcornGate
 
@@ -53,8 +52,7 @@ def audits : IO Unit := do
     throw (IO.userError (String.intercalate "\n" failures.reverse))
 
 /-- Source admission precedes application compilation; every discovered module is built.
-Native targets include the dossier calculators, so reproduction never runs a
-stale agent or fetches a hidden Rust prerequisite. -/
+Every declared native entry retains compilation and execution-route admission. -/
 def verify : IO Unit := do
   lake #["build", "ownership-audit", "lean-boundary-audit"]
   run ".lake/build/bin/ownership-audit" #["source"]
@@ -69,13 +67,10 @@ def verify : IO Unit := do
   run ".lake/build/bin/lean-boundary-audit" #["compiled"]
   run ".lake/build/bin/ownership-audit" #["compiled"]
   run ".lake/build/bin/native-audit"
-  if AcornVerificationProfile.privateEvidence then
-    run ".lake/build/bin/publication-audit"
   browserKernel
   run ".lake/build/bin/theorem-count"
-  let corpus := if AcornVerificationProfile.privateEvidence then "study-corpus-audit" else "corpus-audit"
-  run ("lean/.lake/build/bin/" ++ corpus) #[] (some "..")
-  IO.println "All required Lean checks passed, including proof, execution, evidence and corpus admission."
+  run "lean/.lake/build/bin/corpus-audit" #[] (some "..")
+  IO.println "All required Lean checks passed, including proof, execution and corpus admission."
 
 end AcornGate
 
@@ -88,14 +83,7 @@ def main (args : List String) : IO UInt32 := do
       AcornGate.lake #["build", "acorn-core"]
       AcornGate.audits
       IO.println "Optional mutation diagnostics passed; this is not ordinary merge verification."
-    | ["studies"] =>
-      unless AcornVerificationProfile.privateEvidence do
-        throw (IO.userError "preserved-data reproduction is private-only")
-      AcornGate.lake #["build", "study-tool"]
-      AcornGate.run "lean/.lake/build/bin/study-tool"
-        #["build-verify"] (some "..")
-      IO.println "Preserved-data reproduction passed; this is not ordinary merge verification."
-    | _ => throw (IO.userError "usage: acorn-gates [diagnostics|studies]")
+    | _ => throw (IO.userError "usage: acorn-gates [diagnostics]")
     return 0
   catch error =>
     IO.eprintln s!"acorn-gates: {error}"

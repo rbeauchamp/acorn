@@ -32,8 +32,8 @@ containment. Acorn retains the existing control weight rail (PAR-15).
 namespace AcornVerif
 
 /-- Compose a growing-step invariant and its capped endpoint over every finite
-ordered fold. Kani owns the binary32 addition premises for `LinearPrediction`;
-this induction owns arbitrary lengths without certified trajectory execution. -/
+ordered fold. The induction assumes the stated step premises; binary32
+addition correspondence is a separate execution obligation. -/
 theorem capped_fold_invariant {State Input : Type}
     (valid : ℕ → State → Prop) (step : State → Input → State) (cap : ℕ)
     (hgrow : ∀ n, n < cap → ∀ s w, valid n s → valid (n + 1) (step s w))
@@ -176,7 +176,7 @@ theorem reward_rate_step_convex (step rate reward : ℝ) :
   ring
 
 /-- Every legal gain/reward pair stays in [0,1] under every convex step.
-The floating-point constructor and restore path are owned separately by Kani. -/
+Floating-point construction and restoration require separate execution contracts. -/
 theorem reward_rate_step_bounded (step rate reward : ℝ)
     (ha : 0 ≤ step) (ha1 : step ≤ 1) (hg : 0 ≤ rate) (hg1 : rate ≤ 1)
     (hr : 0 ≤ reward) (hr1 : reward ≤ 1) :

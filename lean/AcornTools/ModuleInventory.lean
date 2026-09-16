@@ -11,8 +11,8 @@ open Lean
 
 /-- Reviewed verification/bootstrap modules are explicit trust boundaries. New
 root tools do not acquire an exemption merely by living outside `Acorn`. -/
-def toolingModules : Array Name := #[`AcornTools, `AcornTools.VerificationProfile, `AcornTools.Corpus.Publication, `Bootstrap, `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.ModuleInventory,
-  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Corpus.Studies, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.TheoremCount, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
+def toolingModules : Array Name := #[`AcornTools, `Bootstrap, `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.ModuleInventory,
+  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.TheoremCount, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
 
 /-- Discover all maintained Lean sources, including root tools and new directories.
 Only the package's generated/dependency directories and Lake configuration are
@@ -46,6 +46,6 @@ def projectModules : IO (Array Name) := do
 /-- Every current native module needs an actual object and compiler trace, even
 when no executable imports its library root. -/
 def nativeModule (owner : Name) : Bool :=
-  (`Acorn).isPrefixOf owner || (`NativeApp).isPrefixOf owner || (`NativeResearch).isPrefixOf owner
+  (`Acorn).isPrefixOf owner || (`NativeApp).isPrefixOf owner
 
 end AcornModuleInventory

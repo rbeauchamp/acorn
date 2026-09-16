@@ -11,11 +11,9 @@ import Mathlib.Tactic.Ring
 /-!
 # RNG range and distribution contracts
 
-Machine-checked counterpart of `Xoshiro256::next_below` in `src/rng.rs`
-(Lemire's multiply-shift method: the high 64 bits of `x·n` for a 64-bit
-word `x`, that is `⌊x·n / 2^64⌋`). Symbolic 128-bit multiplication does not
-discharge in bounded time on Kani's backend, so these properties live where
-they are short arithmetic arguments: in Lean.
+Arithmetic contracts for multiply-shift selection: the high 64 bits of `x·n`
+for a 64-bit word `x`, that is `⌊x·n / 2^64⌋`. The proofs use integer arithmetic
+and interval cardinalities.
 
 Two contracts, both over the *shipped* map rather than an ideal-uniform
 model of it, and both generalized over the word size `W` so nothing here

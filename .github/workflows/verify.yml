@@ -11,18 +11,20 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    # The private development repository retains its local-only acceptance policy.
-    # This workflow becomes active in the separately authorized public-source repo.
-    if: github.repository == 'rbeauchamp/acorn'
-    # The standard Apple Silicon runner has three cores for private launch
-    # validation as well as public CI; the complete cold suite retains its deadline.
+    # The standard Apple Silicon runner has three cores; the complete cold suite
+    # retains the same deadline as local verification.
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ env.ACORN_VERIFY_SHA }}
           persist-credentials: false
           fetch-depth: 1
+      - name: Confirm checked-out commit
+        run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
       - name: Provision system tools
         run: |
           brew install coreutils elan openssl@3 shellcheck
@@ -39,6 +41,4 @@ jobs:
         working-directory: lean
         run: lake exe cache get
       - name: Verify exact source with cold project outputs
-        run: |
-          test "$(cat verification-profile)" = public
-          ./scripts/verify.sh
+        run: ./scripts/verify.sh

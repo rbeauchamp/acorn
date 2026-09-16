@@ -9,7 +9,7 @@ import Acorn.State
 /-!
 # The complete current SwiftTD learner
 
-Executable owner of `src/agent/swifttd.rs`: **Algorithm 1** of
+Executable implementation of **Algorithm 1** of
 
 Javed, Sharifnassab & Sutton (2024), *SwiftTD: A Fast and Robust Algorithm for
 Temporal Difference Learning*, Reinforcement Learning Journal, vol. 2,
@@ -40,9 +40,8 @@ actual transitions in `AcornVerif.CurrentLearner`, not assumed here.
 Every per-index trace and meta-gradient register remains a raw word by design:
 weight/beta projection does not bound traces or meta-gradients. Ordered sums
 and comparisons keep their machine rounding; reassociation is not part of any
-definition. The audit checksum's multiplicative and rotation words are the
-learner-local mixing constants of `src/agent/swifttd.rs`; they are not shared
-Lean↔Rust emitted constants.
+definition. The audit checksum's multiplicative and rotation words are learner-local
+mixing constants.
 -/
 
 namespace Acorn

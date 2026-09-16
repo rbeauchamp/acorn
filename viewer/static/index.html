@@ -36,7 +36,7 @@
   }
   #top h1 { font-size:15px; color:var(--accent); letter-spacing:1.5px; margin-right:4px; }
   #top .sub { color:var(--faint); font-size:11px; letter-spacing:.5px; }
-  .stat { display:flex; gap:6px; align-items:baseline; }
+  .stat { display:flex; flex-direction:column; align-items:flex-start; }
   .stat .k { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.5px; }
   .stat .v { color:var(--ink); font-variant-numeric:tabular-nums; }
   .spacer { flex:1; }
@@ -191,6 +191,7 @@
   #hud-time { margin-left:auto; text-align:right; }
   #hud-time .t { font-size:15px; font-variant-numeric:tabular-nums; }
   #hud-time .lbl { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:1px; }
+  #hud-time .hint { color:var(--dim); font-size:10.5px; }
   #hud-vitals { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   #hud-skill { margin-left:auto; text-align:right; }
   #hud-skill .lbl { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:1px; }
@@ -326,7 +327,7 @@
   <h1>◈ OAK</h1>
   <span class="pill live" id="evidence-mode">LIVE RUN · single stream</span>
   <div class="stat"><span class="k">world</span><span class="v" id="s_world">—</span></div>
-  <div class="stat"><span class="k">lifetime</span><span class="v" id="s_life">—</span></div>
+  <div class="stat" title="Total agent steps, restored from its saved checkpoint on resume."><span class="k">agent lifetime</span><span class="v" id="s_life">—</span></div>
   <div class="stat"><span class="k">core</span><span class="v" id="s_rate">— frames/s</span></div>
   <div class="stat"><span class="k">seen</span><span class="v" id="s_seen">—</span></div>
   <!-- Identity, health, controls and connection wrap together, so a fault
@@ -352,6 +353,7 @@
 <section id="welcome" aria-label="Welcome to Acorn">
   <div><h2>Watch an agent find its way.</h2>
     <p>The marker in the center is your agent. The Current goal card above the map says what it is trying to do. For travel goals, look for the gold target or direction arrow.</p>
+    <p>Agent lifetime counts total experience. Current world counts steps since the world restarted. Resume restores saved experience and starts a new world clock.</p>
   </div>
   <p>Watch for a while. <b>Stop</b> finishes the current attempt; <b>Start</b> resumes saved learning when available.
     <a href="#research">Explore what's happening inside ↓</a></p>
@@ -368,8 +370,9 @@
           <div class="meta" id="hud-gmeta"></div>
         </div>
         <div class="hudbox" id="hud-time">
-          <div class="lbl">world time <span id="hud-mode"></span></div>
+          <div class="lbl">current world <span id="hud-mode"></span></div>
           <div class="t"><span id="hud-t">—</span> <span id="hud-tod">—</span></div>
+          <div class="hint">Resets when the world restarts</div>
         </div>
       </div>
       <div id="map-surface">

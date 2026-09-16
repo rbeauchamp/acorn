@@ -125,7 +125,7 @@ def required (arguments : List String) (name : String) : Except Error String := 
   if (trimControlLine text).isEmpty || text.startsWith "--" then .error (.invalid name text)
   else return text
 
-/-- Rust decimal unsigned syntax includes an optional leading plus but no whitespace. -/
+/-- Decimal unsigned syntax includes an optional leading plus but no whitespace. -/
 def natural (text : String) : Option Nat :=
   let digits := if text.startsWith "+" then String.ofList text.toList.tail else text
   if digits.isEmpty || !digits.toList.all (fun c => '0' ≤ c && c ≤ '9') then none

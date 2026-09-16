@@ -4,16 +4,15 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Arithmetic
+import Acorn.Constants
 import Acorn.Conversion
-import AcornSpec.Constants
 
 /-!
 # Executable local exponential, logarithm and integer power
 
-The constants-only generated module links the retained Rust owner during
-migration; no Rust executable is called. Arithmetic and conversions are the
-current definitions in `Acorn`, not the historical evaluator. Each polynomial
-is an ordered Horner fold with separate primitive rounding boundaries.
+Arithmetic and conversions use the executable definitions in `Acorn`. Each
+polynomial is an ordered Horner fold with separate primitive rounding boundaries;
+coefficients come from the shared `Acorn.Constants` interface.
 
 These are approximation recipes, not opaque transcendental functions. Their
 ideal-function errors and the native primitive correspondence remain separate
@@ -25,13 +24,13 @@ native cast policy. No cross-platform payload equivalence is asserted.
 namespace Acorn.Portable
 
 /-- High part of the generated binary64 ln(2) split. -/
-def ln2Hi : Binary64 := ⟨AcornSpec.Constants.ln2HiBits⟩
+def ln2Hi : Binary64 := ⟨Acorn.Constants.ln2HiBits⟩
 /-- Low part of the same split. -/
-def ln2Lo : Binary64 := ⟨AcornSpec.Constants.ln2LoBits⟩
-/-- Generated binary64 log2(e). -/
-def log2e : Binary64 := ⟨AcornSpec.Constants.log2eBits⟩
-/-- Generated binary64 sqrt(2), used only as a comparison threshold. -/
-def sqrt2 : Binary64 := ⟨AcornSpec.Constants.sqrt2Bits⟩
+def ln2Lo : Binary64 := ⟨Acorn.Constants.ln2LoBits⟩
+/-- Binary64 approximation of log2(e). -/
+def log2e : Binary64 := ⟨Acorn.Constants.log2eBits⟩
+/-- Binary64 approximation of sqrt(2), used only as a comparison threshold. -/
+def sqrt2 : Binary64 := ⟨Acorn.Constants.sqrt2Bits⟩
 
 /-- A coefficient uses the same separate binary64 conversion and division
 boundaries in both the scalar executable and the retained list interface. -/
@@ -52,8 +51,8 @@ def lnCoefficients : List Binary64 :=
 /-- Exponential's exceptional and saturation branches, before any conversion. -/
 def expSaturation (value : Binary32) : Option Binary32 :=
   if value.isNaN then some value
-  else if !value.less ⟨AcornSpec.Constants.expOverflowBits⟩ then some ⟨0x7f800000⟩
-  else if !(Binary32.mk AcornSpec.Constants.expUnderflowBits).less value then some .zero
+  else if !value.less ⟨Acorn.Constants.expOverflowBits⟩ then some ⟨0x7f800000⟩
+  else if !(Binary32.mk Acorn.Constants.expUnderflowBits).less value then some .zero
   else none
 
 /-- Half-away integer selection keeps the exponent in a native signed word. -/
@@ -164,8 +163,8 @@ def expScaleWord (polynomial : Binary64) (exponent : Int32) : Binary32 :=
 no option or pair allocation is needed on the executing numerical path. -/
 def exp (value : Binary32) : Binary32 :=
   if value.isNaN then value
-  else if !value.less ⟨AcornSpec.Constants.expOverflowBits⟩ then ⟨0x7f800000⟩
-  else if !(Binary32.mk AcornSpec.Constants.expUnderflowBits).less value then .zero
+  else if !value.less ⟨Acorn.Constants.expOverflowBits⟩ then ⟨0x7f800000⟩
+  else if !(Binary32.mk Acorn.Constants.expUnderflowBits).less value then .zero
   else
     let wide := Conversion.widen value
     let exponent := expExponent wide

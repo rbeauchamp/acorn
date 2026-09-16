@@ -1,26 +1,8 @@
 # Proof scoring standard
 
-
-> If a property matters, the compiler must check it — in Lean, against the executed definitions.
-> Proofs must verify the *absence* of bugs. Every "test gap" is a missing
-> universal theorem, typed invariant, compiler-enforced refinement, or
-> deterministic-audit mutation. Counterexamples are adversarial diagnostics
-> only; their permanent closure must be a proof or an oracle/compiler contract
-> that makes the bad state **or the bypass** uninhabitable. Code must be
-> **correct by construction**.
-
-And the ordering that goes with it:
-
-1. a **type** whose inhabitants are exactly the legal values
-2. **derivation** over assertion (a relation made definitionally true needs no check)
-3. **exhaustion** over a closed domain the compiler enumerates
-4. a **proof** — Lean for bit-precise, inductive and mathematical contracts.
-   Ranked internally, math first, computation last: analytic/structural
-   argument → small closed kernel `decide` → reflection (`native_decide`),
-   which certifies re-execution and is the last resort *inside* proof
-5. a **runtime guard**, last resort, and only when its predicate is *derived
-   from the invariant* — a guard on the wrong set is worse than none
-6. **measurement** — an *absolute* last resort, below the guard
+Apply [AGENTS: Correct by construction](../../../../AGENTS.md#correct-by-construction)
+for the evidence ordering, implementation linkage and compute-frugality policy.
+This document supplies the questions that turn that policy into a review.
 
 ### Match the claim to its evidence
 
@@ -67,33 +49,13 @@ the diagnostic is not permanent closure. Do not reject an honestly bounded
 guarantee for lacking an unclaimed universal, or inflate proof bounds to replace
 an available inductive argument.
 
-### Compute-frugality is part of the standard
+### Evidence and compute cost
 
-An ounce of math is worth a pound of computation. Flag as findings: a
-reflection proof where an analytic argument or a small static `decide` was in
-reach; and any reflection-based proof program whose total certification
-compute (including the recurring re-proof tax on spec edits) is not estimated
-against the empirical run it replaces, or costs no less than it, without a
-recorded owner decision. Decidability permits decision procedures; it is
-neither required for mathematical proof nor a justification for its cost.
-Certified re-execution must still justify its compute against a structural
-argument.
-
-### Proof first, measurement last
-
-Before accepting a measured claim, classify its evidence obligation.
-Conformance, identities, bounds, invariants, expected values and counting claims
-require formal evidence when claimed universally; these general classes are
-not necessarily decidable. A measured instance cannot establish a universal,
-even when its number is right. Name the missing universal obligation and its
-appropriate owner. An unresolved proof obligation remains unresolved; it does
-not become irreducibly empirical because a proof is difficult.
-
-Measurement is legitimate only for the **irreducibly empirical**: a constant of
-the world, a regime, an effect size. Those must be labelled `UNKNOWN` at the
-point of use with the reason no derivation reaches them, reported as
-**observed** with their run and configuration, and carry a threshold fixed
-*before* the run.
+Flag measured universals and unnecessary certified re-execution under the
+[engineering policy](../../../../AGENTS.md#correct-by-construction). Check that
+empirical claims follow [CONTRIBUTING](../../../../CONTRIBUTING.md#scientific-evidence),
+including prospective criteria, run identity and uncertainty. Name a missing
+proof obligation rather than replacing it with a measurement.
 
 ### A witness is still a test, whatever language it is in
 

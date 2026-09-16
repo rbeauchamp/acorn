@@ -5,7 +5,7 @@ Authors: acorn contributors
 -/
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import AcornVerif.Generated
+import AcornVerif.ModelConstants
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.LinearCombination
@@ -13,10 +13,10 @@ import Mathlib.Tactic.LinearCombination
 /-!
 # Option lifecycle and shaping equations
 
-These equations own the option-controller correction in `src/agent/options.rs`.
+These equations model option lifecycle and reward shaping over ℝ.
 An active option learns the host reward plus potential shaping. A terminated
 activation bootstraps the stopping value `z` — the reward-respecting subtask
-rule `δ = c + βz + γ(1−β)v′ − v` at `β = 1` — so the Rust terminal update
+rule `δ = c + βz + γ(1−β)v′ − v` at `β = 1` — so the terminal equation
 uses `reward + stopping - previousPotential` with no new action trace.
 
 **Prior-art pin (PAR-5 / G31).** Sutton, Machado, Holland, David Szepesvari, Timbers,
@@ -37,7 +37,7 @@ list of rewards and potentials. It establishes that the shaped return plus the
 current potential is exactly the unshaped task-reward return. That identity is
 what permits the interruption rule to compare `Q_shaped + Φ(current)` with the
 unshaped meta-controller value. `controller_discounts_match` separately binds
-the two sides to the exact controller constants emitted from the Rust build.
+the two sides to the rational controller constants in `AcornVerif.ModelConstants`.
 -/
 
 namespace AcornVerif
@@ -79,7 +79,7 @@ theorem terminal_correction (reward stopping potential : ℝ) :
   simp [terminalCumulant]
 
 /--
-The shaped fold the Rust option controller performs over one whole learning
+The shaped fold over one whole learning
 activation: the non-terminal transitions each contribute `shapedCumulant`,
 and the boundary consumes the final reward through the bootstrapped terminal
 cumulant. `finalReward` is threaded so the boundary lands at the same
@@ -123,7 +123,7 @@ final reward — and differ only in their potential sequence — have equal
 shaped returns plus their own initial potentials. A conditional identity
 over finite returns, and no more: there is no MDP, policy, expectation or
 action maximisation here, and nothing links the shared `z` to the three
-Rust `stopping_value` arms. This corollary of
+implemented stopping-value cases. This corollary of
 `finite_activation_bootstrap_correction` establishes that shared-stopping
 return identity; it does not establish common host-optimal policies for
 subtasks with different attained-feature bonuses.
@@ -177,13 +177,13 @@ theorem corrected_interruption_iff
   constructor <;> intro h <;> linarith
 
 /--
-The option and meta-controller discounts read from the constructed Rust agent
+The option and meta-controller discounts in the model constant table
 are identical, so the corrected values have the same reward horizon as well as
 the same shaping coordinate.
 -/
 theorem controller_discounts_match :
-    Generated.optionGamma = Generated.metaGamma := by
-  norm_num [Generated.optionGamma, Generated.metaGamma]
+    ModelConstants.optionGamma = ModelConstants.metaGamma := by
+  norm_num [ModelConstants.optionGamma, ModelConstants.metaGamma]
 
 /-- Skip-accumulate state of `Gap` over exact reals: after `n` skipped
 primitive steps the pair is `(∑_{i=0}^{n-1} γ^i r i, n)`. Each skip does
@@ -206,13 +206,9 @@ exactly the SMDP backup `(∑_{i=0}^{k} γ^i r i, k+1)` — the discounted sum
 over the gap and its span, not the undiscounted primitive return
 `(∑ r i, k+1)`.
 
-This theorem is over exact `ℝ` and unbounded `ℕ`, and owns only the closed
-form of the recurrence. That the shipped transition *is* one step of this
-recurrence — in rounded `f32`, `Portable::pow` and a saturating `u32` span —
-is owned bit-precisely by the Kani harness `gap_step_is_smdp_recurrence` in
-`src/proofs.rs`, from every state, reward and discount in the closed set;
-discounting a skipped reward by any power but the gap's own span fails
-there. -/
+This theorem is over exact `ℝ` and unbounded `ℕ`, and owns the closed
+form of the recurrence. Rounded arithmetic, integer-power implementation and
+bounded spans require separate execution correspondence. -/
 theorem gap_close_is_smdp_backup (γ : ℝ) (r : ℕ → ℝ) (k : ℕ) :
     gapRun γ r k = (∑ i ∈ Finset.range (k + 1), γ ^ i * r i, k + 1) := by
   have acc : ∀ n, gapAcc γ r n = (∑ i ∈ Finset.range n, γ ^ i * r i, n) := by
@@ -405,13 +401,11 @@ theorem planning_weight_convex_step_bounded
 
 /-! ## Coalesced refresh and identity boundaries
 
-These structural contracts describe the production dispatch in `agent.rs`.
-`gates::refresh_contract` binds the complete dispatcher, replacement transaction,
-and Sarsa close/begin ordering to the reviewed Rust bodies. Kani establishes
-bounded machine request transitions and exact bonus-word identity. A closing
-owner is retained independently of its replacement slot, so the differential
-terminal update uses the original objective and the actual next policy draw.
-The contracts establish lifecycle correctness, not useful subtask selection.
+These structural contracts model dispatch and replacement ordering. A closing
+owner is retained independently of its replacement slot, so the model's terminal
+update uses the original objective and next policy draw. Machine request
+transitions and bonus-word identity require separate execution correspondence;
+these model contracts concern lifecycle semantics.
 -/
 
 namespace Refresh

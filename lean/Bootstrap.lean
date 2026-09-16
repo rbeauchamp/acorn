@@ -100,11 +100,6 @@ def run (args : List String) : IO UInt32 := do
   unless args == ["provision-status"] || (!args.isEmpty && (#["build", "exe", "env", "query"].contains (args.headD "") ||
       args == ["script", "run", "acornTargets"])) do
     throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
-  regularFile "../verification-profile"
-  let profile ← IO.FS.readFile "../verification-profile"
-  unless profile == "private\n" || profile == "public\n" do
-    throw (IO.userError "verification-profile must be exactly private or public")
-  let privateEvidence := if profile == "private\n" then "true" else "false"
   let (contents, available) ← overrides
   -- This read-only status is the launcher's sole provisioning admission:
   -- 0 means ready, 2 means missing dependencies, and every refusal returns 1.
@@ -114,7 +109,7 @@ def run (args : List String) : IO UInt32 := do
   let path : System.FilePath := ".lake/acorn-path-packages.json"
   IO.FS.writeFile path (contents.compress ++ "\n")
   let child ← IO.Process.spawn {
-    cmd := "lake", args := #["--no-cache", "--reconfigure", s!"--packages={path}", "-K", s!"privateEvidence={privateEvidence}"] ++ args.toArray,
+    cmd := "lake", args := #["--no-cache", "--reconfigure", s!"--packages={path}"] ++ args.toArray,
     stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
   child.wait
 

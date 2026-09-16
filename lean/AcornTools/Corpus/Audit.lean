@@ -11,9 +11,9 @@ import AcornTools.Corpus.Browser
 
 /-! # Maintained corpus admission
 
-Language boundaries, document references and scientific publications are checked
-against the complete regular-file corpus and explicit evidence references. Source
-and compiled Lean policy remain AcornTools.Boundary.Audit's responsibility.
+Language boundaries, document references and prior-art qualifications are checked
+against the complete regular-file corpus. Source and compiled Lean policy remain
+AcornTools.Boundary.Audit's responsibility.
 -/
 namespace AcornCorpus
 
@@ -44,37 +44,34 @@ private def pythonToken (text : String) : Bool :=
   (text.splitOn " ").any fun word =>
     ["python", "python2", "python3", "pypy", "pypy3"].contains word || word.startsWith "python3."
 
-private def language (archivalFile : String → Bool) (path : String) : IO Unit := do
-  unless archivalFile path do
-    let bytes ← IO.FS.readBinFile path
-    let ext := ((System.FilePath.mk path).extension.getD "").toLower
-    require (!["rs", "py", "pyw", "pyi", "pyc", "pyo", "ipynb", "pyz", "tar", "zip", "gz", "tgz", "xz", "bz2", "7z",
-      "rb", "pl", "pm", "lua", "go", "java", "cpp", "cc", "cxx", "h", "hpp", "swift", "jl", "r", "php", "bash", "zsh", "fish"].contains ext)
-      s!"{path}: source/archive outside maintained Lean or inventoried evidence boundary"
-    if ext == "c" then
-      require (path == "lean/os/checkpoint-sync.c")
-        s!"{path}: C source outside reviewed fsync primitive"
-    if ["js", "ts", "jsx", "tsx", "mjs", "cjs"].contains ext then
-      require (path.startsWith "viewer/static/") s!"{path}: browser code outside observer assets"
-    if let some text := String.fromUTF8? bytes then
-      let first := (text.splitOn "\n").headD ""
-      let shell := ext == "sh" || first.startsWith "#!/bin/sh" || first.startsWith "#!/bin/bash"
-      let infrastructure := ["scripts/", ".github/", ".cursor/"].any (fun p => path.startsWith p)
-      require (!shell || infrastructure) s!"{path}: shell outside infrastructure"
-      require (!first.startsWith "#!" || (shell && infrastructure)) s!"{path}: unreviewed interpreter entry"
-      if shell || ["yml", "yaml", "toml"].contains ext then
-        for line in text.splitOn "\n" do
-          unless line.trimAscii.toString.startsWith "#" do
-            let tokens := String.ofList (line.toList.map fun c => if c.isAlphanum || c == '_' || c == '.' then c else ' ')
-            require (!pythonToken tokens) s!"{path}: Python interpreter in maintained infrastructure"
+private def language (path : String) : IO Unit := do
+  let bytes ← IO.FS.readBinFile path
+  let ext := ((System.FilePath.mk path).extension.getD "").toLower
+  require (!["rs", "py", "pyw", "pyi", "pyc", "pyo", "ipynb", "pyz", "tar", "zip", "gz", "tgz", "xz", "bz2", "7z",
+    "rb", "pl", "pm", "lua", "go", "java", "cpp", "cc", "cxx", "h", "hpp", "swift", "jl", "r", "php", "bash", "zsh", "fish"].contains ext)
+    s!"{path}: source/archive outside maintained Lean boundary"
+  if ext == "c" then
+    require (path == "lean/os/checkpoint-sync.c")
+      s!"{path}: C source outside reviewed fsync primitive"
+  if ["js", "ts", "jsx", "tsx", "mjs", "cjs"].contains ext then
+    require (path.startsWith "viewer/static/") s!"{path}: browser code outside observer assets"
+  if let some text := String.fromUTF8? bytes then
+    let first := (text.splitOn "\n").headD ""
+    let shell := ext == "sh" || first.startsWith "#!/bin/sh" || first.startsWith "#!/bin/bash"
+    let infrastructure := ["scripts/", ".github/", ".cursor/"].any (fun p => path.startsWith p)
+    require (!shell || infrastructure) s!"{path}: shell outside infrastructure"
+    require (!first.startsWith "#!" || (shell && infrastructure)) s!"{path}: unreviewed interpreter entry"
+    if shell || ["yml", "yaml", "toml"].contains ext then
+      for line in text.splitOn "\n" do
+        unless line.trimAscii.toString.startsWith "#" do
+          let tokens := String.ofList (line.toList.map fun c => if c.isAlphanum || c == '_' || c == '.' then c else ' ')
+          require (!pythonToken tokens) s!"{path}: Python interpreter in maintained infrastructure"
 
-/-- Maintained prose owners, including the private dossier presentation surface. -/
+/-- Maintained documentation and contributor guidance. -/
 def prose (path : String) : Bool :=
-  (["README.md", "AGENTS.md", "plans/roadmap.md"].contains path) ||
+  (["README.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md"].contains path) ||
   (path.startsWith "docs/" && path.endsWith ".md" &&
-    !((System.FilePath.mk path).fileName.getD "").startsWith "_") ||
-  (path.startsWith "studies/" && ((path.endsWith "/README.md" && (path.splitOn "/").length ≤ 3) ||
-    (path.endsWith "/protocol.md" && (path.splitOn "/").length == 5)))
+    !((System.FilePath.mk path).fileName.getD "").startsWith "_")
 
 private def numberAfter (lead : String) (text : String) : List String :=
   (text.splitOn lead).drop 1 |>.filterMap fun part =>
@@ -122,7 +119,7 @@ private def refutations (lines : List String) (heading : String → Bool) : IO U
       found := false
     else if line.contains "*Refutation attempt.*" then found := true
 
-/-- The same register obligations apply to prepared and installed public prose. -/
+/-- Admit the complete prior-art and current qualification register. -/
 def priorArtTexts (reviewText design frontier : String) : IO Unit := do
   let review ← visible reviewText
   let entries := review.filterMap fun line =>
@@ -151,21 +148,19 @@ def priorArtTexts (reviewText design frontier : String) : IO Unit := do
   refutations (← visible frontier)
     (fun line => line.startsWith "## F" && (line.drop 4).toString.toList.head?.any Char.isDigit)
 
-/-- Shared maintained-source checks. Historical exemptions must be supplied by an
-admitted private registry; source-only checks refuse dossier citations and archived path references.
-Filesystem discovery remains complete in either case. -/
-unsafe def check (evidence : AcornDocument.EvidenceReferences := {})
-    (archivalFile : String → Bool := fun _ => false) (documentsOnly : Bool := false) : IO Unit := do
+/-- Ordinary admission checks every maintained file. The focused document mode
+retains document checks and cannot substitute for the complete suite. -/
+unsafe def check (documentsOnly : Bool := false) : IO Unit := do
   let paths ← files
   unless documentsOnly do
-    for path in paths do language archivalFile path
+    for path in paths do language path
   priorArtTexts (← IO.FS.readFile "docs/prior-art-review.md")
     (← IO.FS.readFile "docs/design.md") (← IO.FS.readFile "docs/frontier.md")
   let documents ← (paths.filter prose).mapM fun (path : String) => do
     pure (path, ← IO.FS.readFile path)
   AcornBrowserAudit.check
   AcornPinAudit.check documents
-  AcornDocument.check evidence documents
+  AcornDocument.check documents
   IO.println (if documentsOnly then "corpus: document references and prior-art qualifications admitted"
     else "corpus: language, document references and prior-art qualifications admitted")
 

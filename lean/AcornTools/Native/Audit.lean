@@ -75,13 +75,7 @@ def primitiveAllowed (owner : Name) (token : String) : Bool :=
       "lean_float32_of_nat", "lean_float_of_nat"].contains token) ||
   (owner == `Acorn.Host.Viewer.BrowserMath &&
     #["lean_float_of_nat", "lean_float_isnan", "lean_float_isinf", "lean_float_decLt",
-      "lean_float_negate", "lean_float_beq"].contains token) ||
-  -- Observer summaries and wall-time admission do not enter agent arithmetic.
-  (owner == `NativeResearch.EnduranceCommand &&
-    #["lean_float_of_nat", "lean_float_decLe"].contains token) ||
-  (owner == `NativeResearch.ScientificTime &&
-    #["lean_float_of_nat", "lean_float_decLt", "lean_float_isfinite",
-      "lean_float_to_string"].contains token)
+      "lean_float_negate", "lean_float_beq"].contains token)
 
 /-- A newly introduced primitive is refused in every discovered native module. -/
 def primitives (owner : Name) (source : String) : IO Unit := do

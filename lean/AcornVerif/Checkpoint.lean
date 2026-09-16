@@ -8,34 +8,27 @@ import Mathlib.Data.List.Basic
 /-!
 # Receiver-bound checkpoint contracts
 
-These are structural specifications of `src/agent/checkpoint.rs` and the
-`WritableCheckpoint` capability in `src/runtime.rs`, not extracted Rust proofs.
-The receiver index models the exclusive mutable borrow retained by
-`ValidatedCheckpoint`; Rust privacy and borrowing must enforce that binding.
-The image contains admitted values: byte decoding, checksum/length checks,
-assignment legality, and each learner's numeric projection remain Rust/Kani
-obligations. Primary knowledge includes both weights and log step sizes in the
-canonical learner order. Durable state includes steps, gain, lifetime and bank
-progress; transient state includes models, traces, RNG and execution state.
+These structural specifications model a receiver-indexed checkpoint capability
+and admitted images. The receiver index represents exclusive ownership. Byte
+decoding, checksums, length checks, assignment legality and numerical admission
+are separate execution obligations; the current implementation linkage lives in
+`AcornVerif.CurrentCheckpoint` and the proof-bearing `Acorn.Host.Checkpoint` modules.
 
-The commit definition copies assignments and primary knowledge pointwise,
-without a ranking function or a controller reset. Rust must establish that
-`install_bank`, assignment installation and transient reset preserve that
-knowledge. Refusal is modeled as a pure admission result; Rust must establish
-that parsing has no writes, including on every early return.
+Primary knowledge includes weights and log step sizes in canonical learner order.
+Durable state includes steps, gain, lifetime and bank progress; transient state
+includes models, traces, RNG and execution state. The commit definition copies
+assignments and primary knowledge pointwise, without ranking or controller reset.
+Refusal is a pure admission result. An implementation must preserve these
+properties through parsing, installation and transient reset.
 
-Identity is equality of every represented component, not hash equality.
-Natural-number tags abstract exact, injective encodings of the supported
-criterion and deployed policy, not a claim that arbitrary policies are
-resumable. The Rust parser must reject unsupported policies and check the
-format version separately. Counts and scheduling naturals abstract bounded
-unsigned Rust values; the Kani schedule contract owns that representation link.
+Identity is equality of every represented component. Natural-number tags abstract
+injective encodings of supported criteria and policies; supported-policy and
+format-version admission are separate obligations. Counts and schedules use
+unbounded naturals here, so bounded machine representations need correspondence.
 
-The filename result concerns arbitrary finite lists of name units. Mapping
-`OsString::push` to list append, separator-free suffixes, sibling construction,
-filesystem name equivalence, exclusive creation, synchronization and rename
-semantics are platform obligations. No theorem here proves OS rename atomicity,
-crash durability, or absence of aliases on a filesystem.
+Filename results concern finite lists of name units. Separator-free suffixes,
+sibling construction, filesystem name equivalence, exclusive creation,
+synchronization and rename semantics remain platform obligations.
 -/
 
 namespace AcornVerif.Checkpoint
@@ -44,7 +37,7 @@ namespace AcornVerif.Checkpoint
 def campaignAccepted (maxGoals curriculumLen cycles : Nat) : Prop :=
   cycles ≠ 0 ∨ min maxGoals curriculumLen ≠ 0
 
-/-- Executable campaign domain; Rust represents this disjunction with nonzero variants. -/
+/-- Campaign domain with positive finite counts or continuous execution. -/
 structure AdmittedCampaign where
   /-- Goal count after clipping to the curriculum length. -/
   goals : Nat

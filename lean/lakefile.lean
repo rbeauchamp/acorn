@@ -37,34 +37,6 @@ def nativeDigest (path : System.FilePath) : IO String := do
     throw (IO.userError s!"native source hashing failed: {path}: {output.stderr}")
   return digest
 
-/-- Scientific invocations bind the selected protocol's original bytes before execution. -/
-def nativeProtocols (root : System.FilePath) : IO (Array System.FilePath) := do
-  let mut pending := #[]
-  for entry in ← root.readDir do
-    if (← entry.path.symlinkMetadata).type == .symlink then
-      throw (IO.userError s!"study source is a symlink: {entry.path}")
-    if (← entry.path.symlinkMetadata).type == .dir then
-      let protocols := entry.path / "protocols"
-      try
-        unless (← protocols.symlinkMetadata).type == .dir do
-          throw (IO.userError s!"protocol source is not a directory: {protocols}")
-        pending := pending.push protocols
-      catch error =>
-        match error with
-        | .noFileOrDirectory .. => pure ()
-        | _ => throw error
-  let mut files := #[]
-  while !pending.isEmpty do
-    let some directory := pending.back? | throw (IO.userError "protocol directory queue is empty")
-    pending := pending.pop
-    for entry in ← directory.readDir do
-      if entry.fileName == ".DS_Store" then continue
-      match (← entry.path.symlinkMetadata).type with
-      | .dir => pending := pending.push entry.path
-      | .file => files := files.push entry.path
-      | _ => throw (IO.userError s!"protocol source is not regular: {entry.path}")
-  return files.qsort (fun left right => left.toString < right.toString)
-
 package acorn where
   version := v!"0.1.0"
   leanOptions := #[
@@ -86,19 +58,12 @@ package acorn where
 
 lean_lib «AcornVerif»
 
-/-- Current executable Acorn foundations, separate from the historical evaluator.
+/-- Executable Acorn foundations.
 Executable targets and native admission request their object files explicitly;
 importing a proof or tooling leaf does not eagerly compile the whole library.
 Native compilation includes the same admission definitions used by the proofs. -/
 lean_lib «Acorn» where
   moreLeancArgs := nativeFloatFlags
-
-/-- Preserved-data schemas and calculators, alongside the explicitly retained
-historical evaluator. Native targets compile only their transitive imports. -/
-lean_lib «AcornSpec»
-
-/-- Study metadata admission and preserved-byte identity tooling. -/
-lean_lib «AcornStudy»
 
 /-- Native entry points embed provenance after their complete source dependency is built.
 This bootstrap is a build/OS boundary, outside the current algorithm library. -/
@@ -106,21 +71,13 @@ lean_lib «NativeApp» where
   extraDepTargets := #[`nativeProvenance, `checkpointSync]
   moreLeancArgs := nativeFloatFlags
 
-meta if get_config? privateEvidence == some "true" then
-  /-- Private scientific adapters have a separate compile-bound protocol dependency. -/
-  lean_lib «NativeResearch» where
-    extraDepTargets := #[`researchProvenance, `checkpointSync]
-    moreLeancArgs := nativeFloatFlags
-
 /-- Raw source identity and actual toolchain identity embedded into native entry points.
 The inventory covers every Lean/C source in this package and the declared audit pin owner.
 Digests establish byte identity, not authenticity or a correctness theorem. -/
-def provenanceJob (pkg : Package) (research : Bool) : FetchM (Job System.FilePath) := do
+def provenanceJob (pkg : Package) : FetchM (Job System.FilePath) := do
   let sources ← nativeSources pkg.dir
   let pinOwner := pkg.dir / "Acorn/Host/AuditPins.lean"
-  let protocols ← if research then nativeProtocols (pkg.dir / "../studies") else pure #[]
-  let sources := sources ++ #[pkg.dir / "../viewer/static/index.html", pkg.dir / "../verification-profile"] ++ protocols
-  let outputPrefix := if research then "research" else "native"
+  let sources := sources ++ #[pkg.dir / "../viewer/static/index.html"]
   let root ← IO.FS.realPath (pkg.dir / "..")
   let sources ← (sources.mapM IO.FS.realPath : IO (Array System.FilePath))
   let sources := sources.qsort (fun left right => left.toString < right.toString)
@@ -133,7 +90,7 @@ def provenanceJob (pkg : Package) (research : Bool) : FetchM (Job System.FilePat
   let settings := "acorn-lean-build-v1\n" ++ toString nativeFloatFlags ++ "\n" ++
     compiler.stdout ++ nativeCompiler.stdout ++ "checkpoint-sync\n" ++
     toString checkpointFlags ++ "\n" ++ helperCompiler.stdout
-  let output := pkg.buildDir / (outputPrefix ++ "-provenance.txt")
+  let output := pkg.buildDir / "native-provenance.txt"
   buildFileAfterDep output (Job.collectArray dependencies) (fun files => do
     IO.FS.createDirAll pkg.buildDir
     let mut inventory := "acorn-lean-source-v2\n"
@@ -143,10 +100,10 @@ def provenanceJob (pkg : Package) (research : Bool) : FetchM (Job System.FilePat
         error "native source lies outside repository"
       inventory := inventory ++ (← nativeDigest path) ++ "  " ++
         String.ofList (absolute.toString.toList.drop (root.toString.length + 1)) ++ "\n"
-    let scratch := pkg.buildDir / (outputPrefix ++ "-source-inventory.txt")
+    let scratch := pkg.buildDir / "native-source-inventory.txt"
     IO.FS.writeFile scratch inventory
     let source ← nativeDigest scratch
-    let buildRecord := pkg.buildDir / (outputPrefix ++ "-build-identity.txt")
+    let buildRecord := pkg.buildDir / "native-build-identity.txt"
     IO.FS.writeFile buildRecord (settings ++ "source=" ++ source ++ "\n")
     let build ← nativeDigest buildRecord
     let pinText ← IO.FS.readFile pinOwner
@@ -160,23 +117,8 @@ def provenanceJob (pkg : Package) (research : Bool) : FetchM (Job System.FilePat
     IO.FS.writeFile output (source ++ "\n" ++ build ++ "\n" ++ audit ++ "\n"))
     (extraDepTrace := pure (.ofHash ⟨hash (settings, sources.map (·.toString))⟩))
 
-/-- Shared application provenance has no dependency on historical study records. -/
-target nativeProvenance pkg : System.FilePath := provenanceJob pkg false
-
-/-- Private scientific provenance includes every original protocol before compilation. -/
-target researchProvenance pkg : System.FilePath := provenanceJob pkg true
-
-meta if get_config? privateEvidence == some "true" then
-  /-- Native dossier admission, integrity, indexing and canonical reproduction. -/
-  lean_exe «study-tool» where
-    root := `AcornStudy.Main
-
-meta if get_config? privateEvidence == some "true" then
-  /-- Untrusted development tool around the specification: the probe, for
-  step-level divergence localization against the Rust binary. Never part of any
-  theorem's trusted base. -/
-  lean_exe «specprobe» where
-    root := `AcornSpec.Probe
+/-- Complete source and compiler identity embedded in the application. -/
+target nativeProvenance pkg : System.FilePath := provenanceJob pkg
 
 /-- Native consumer of the current proof-bearing learner, with the same
 strict floating-operation options as the executing library. -/
@@ -222,13 +164,6 @@ lean_exe «acorn-core» where
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
 
-meta if get_config? privateEvidence == some "true" then
-  /-- Private scientific execution uses compile-bound protocols and the same algorithm owners. -/
-  lean_exe «acorn-research» where
-    root := `NativeResearch.Main
-    moreLeancArgs := nativeFloatFlags
-    extraDepTargets := #[`checkpointSync, `researchProvenance]
-
 /-- Loopback observer and durable supervisor for the native core. -/
 lean_exe «acorn-viewer» where
   root := `NativeApp.Viewer
@@ -236,7 +171,7 @@ lean_exe «acorn-viewer» where
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
   needs := #[PartialBuildKey.mk (.targetFacet .anonymous `«acorn-core» `exe)]
 
-/-- Deterministic observer calculation source for the retained Rust host. -/
+/-- Deterministic JavaScript kernel generated for the viewer. -/
 lean_exe «browser-kernel» where
   root := `NativeApp.BrowserKernel
   moreLeancArgs := nativeFloatFlags
@@ -251,12 +186,6 @@ lean_exe «checkpoint-native» where
 lean_exe «world-native» where
   root := `Acorn.WorldDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
-
-meta if get_config? privateEvidence == some "true" then
-  /-- Offline calculator over the baseline's preserved, untrusted shard literals.
-  It compares the registered result with the original report before printing it. -/
-  lean_exe «agent-baseline» where
-    root := `AcornSpec.AgentBaselineMain
 
 /-- Inventory theorem declarations from compiled project modules, scoped by
 the compiler's owning-module index rather than source text or name prefixes. -/
@@ -288,12 +217,6 @@ lean_exe «ownership-audit» where
 lean_exe «acorn-gates» where
   root := `AcornTools.Gate
 
-meta if get_config? privateEvidence == some "true" then
-  /-- Private dossier and canonical-publication admission. -/
-  lean_exe «study-corpus-audit» where
-    root := `AcornTools.Corpus.Studies
-    supportInterpreter := true
-
 /-- Source-only maintained-corpus admission. -/
 lean_exe «corpus-audit» where
   root := `AcornTools.Corpus.Main
@@ -309,40 +232,5 @@ script acornTargets do
   IO.println (Lean.toJson entries).compress
   return 0
 
-meta if get_config? privateEvidence == some "true" then
-  /-- The registered intra-option-credit analysis runner: evaluates the registered
-  functional `AcornSpec.intraOptionCreditResult` over the recorded rows twins.
-  A calculator for the registered definition; never part of any theorem's
-  trusted base. -/
-  lean_exe «intra-option-credit» where
-    root := `AcornSpec.IntraOptionCreditMain
-
-meta if get_config? privateEvidence == some "true" then
-  /-- The registered derived-exploration-rate analysis runner: evaluates the registered
-  functional `AcornSpec.derivedExplorationRateResult` over the recorded rows twins.
-  A calculator for the registered definition; never part of any theorem's
-  trusted base. -/
-  lean_exe «derived-exploration-rate» where
-    root := `AcornSpec.DerivedExplorationRateMain
-
-meta if get_config? privateEvidence == some "true" then
-  /-- The registered stomp-planning analysis runner: evaluates the registered
-  functional `AcornSpec.stompPlanningResult` over the recorded rows twins.
-  A calculator for the registered definition; never part of any theorem's
-  trusted base. -/
-  lean_exe «stomp-planning» where
-    root := `AcornSpec.StompPlanningMain
-
-meta if get_config? privateEvidence == some "true" then
-  /-- Exact-rational paired analysis of the differential-control protocol. -/
-  lean_exe «average-reward-control» where
-    root := `AcornSpec.AverageRewardControlMain
-
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.33.0"
-
-meta if get_config? privateEvidence == some "true" then
-  /-- Read-only admission of the prepared publication mapping. -/
-  lean_exe «publication-audit» where
-    root := `AcornTools.Corpus.Publication
-    supportInterpreter := true
