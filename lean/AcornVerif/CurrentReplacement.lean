@@ -7,6 +7,7 @@ import Acorn.Host.AgentPrefix
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentRetirement
 import AcornVerif.CurrentBackupBounds
+import Mathlib.Tactic.FinCases
 
 /-!
 # Autonomous replacement: execution-linked obstructions
