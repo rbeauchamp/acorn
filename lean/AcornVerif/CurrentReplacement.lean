@@ -56,6 +56,18 @@ Weight credit and primitive-action coverage do not remove this obstruction;
 longer invocations, other inputs and positive complete-ensemble reachability
 remain separate questions. No utility criterion is inferred from beta alone.
 
+A separate one-callback obstruction follows assignment replacement itself.
+`TwoRefreshChanges` reads the pending flag and compares two existing complete
+assignment identities with the actual Demon-0 ranking. At a discounted free
+dispatch, both replacements start cold, and at most one can receive option
+credit. The other model remains cold through common completion.
+`act_two_refresh_changes` follows the actual `Agent.act` call and proves refusal
+before retirement, then unchanged event history. Its free-boundary premise reads
+the returned meta-decision; it assumes neither a chosen action nor eligibility.
+The result has no sparsity or reward-magnitude premise. Occurrence of these
+assignment changes along an initialized native path remains a separate obligation;
+this conditional obstruction does not discharge complete-reader reachability.
+
 The history quota is separate from eligibility. Neither structural checkpoint
 admission nor the direct-write predicate-inhabitation theorem supplies a learning
 trajectory. Compiler/native numeric primitives and host input production retain
@@ -1208,5 +1220,433 @@ theorem initialized_path_refuses {after : Agent profile config criterion dimensi
   exact (path_cold path other omitted (by
     simp [Agent.initial, TemporalControl.initial, Ensemble.initial, Controller.initial,
       Managed.initial, Vector.get])).2
+
+/-- Pending ranking changes two distinct complete objective identities. The
+comparison reads the actual receiving Demon-0 weights, including bonus bits. -/
+def TwoRefreshChanges (state : TemporalControl profile config .discounted dimension) : Prop :=
+  state.runtime.refresh.pending = true ∧
+  ∃ left right : Fin Acorn.FeatureConstants.skillCount,
+    left ≠ right ∧
+    (state.runtime.lifecycle.consumers.skills.get left).interest.sameAssignment
+      ((rankAssignments dimension config
+        state.runtime.lifecycle.consumers.demons.rankingWeights).get left) = false ∧
+    (state.runtime.lifecycle.consumers.skills.get right).interest.sameAssignment
+      ((rankAssignments dimension config
+        state.runtime.lifecycle.consumers.demons.rankingWeights).get right) = false
+
+private theorem install_fold_other
+    {shape : PatchShape} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slots : List (Fin Acorn.FeatureConstants.skillCount))
+    (targets : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (other : Fin Acorn.FeatureConstants.skillCount) (absent : other ∉ slots) :
+    ((slots.foldl (fun current slot => current.install slot (targets.get slot))
+      state).lifecycle.consumers.skills.get other) =
+      state.lifecycle.consumers.skills.get other := by
+  induction slots generalizing state with
+  | nil => rfl
+  | cons slot tail ih =>
+    have different : other ≠ slot := fun same => absent (by simp [same])
+    have missing : other ∉ tail := fun member => absent (List.mem_cons_of_mem _ member)
+    dsimp only [List.foldl_cons]
+    rw [ih _ missing]
+    exact (state.install_other slot other (targets.get slot) different).1
+
+private theorem install_fold_changed
+    {shape : PatchShape} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slots : List (Fin Acorn.FeatureConstants.skillCount))
+    (targets : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (unique : slots.Nodup) (member : slot ∈ slots)
+    (changed : (state.lifecycle.consumers.skills.get slot).interest.sameAssignment
+      (targets.get slot) = false) :
+    ((slots.foldl (fun current index => current.install index (targets.get index))
+      state).lifecycle.consumers.skills.get slot) =
+      Skill.initial config criterion dimension (.learned (targets.get slot)) := by
+  induction slots generalizing state with
+  | nil => simp at member
+  | cons head tail ih =>
+    obtain ⟨missing, distinct⟩ := List.nodup_cons.mp unique
+    dsimp only [List.foldl_cons]
+    rcases List.mem_cons.mp member with same | member
+    · subst head
+      rw [install_fold_other _ tail targets slot missing]
+      change state.lifecycle.consumers.skills[slot.val].interest.sameAssignment
+        targets[slot.val] = false at changed
+      change (state.install slot targets[slot.val]).lifecycle.consumers.skills[slot.val] = _
+      simp only [FreeDispatch.install, changed, Bool.false_eq_true, ↓reduceIte,
+        Vector.getElem_set_self]
+      rfl
+    · have different : slot ≠ head := fun same => missing (same ▸ member)
+      apply ih _ distinct member
+      have kept : (state.install head (targets.get head)).lifecycle.consumers.skills.get slot =
+          state.lifecycle.consumers.skills.get slot :=
+        (state.install_other head slot (targets.get head) different).1
+      rw [kept]
+      exact changed
+
+private theorem refresh_changed_model
+    {shape : PatchShape} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (pending : state.refresh.pending = true)
+    (changed : (state.lifecycle.consumers.skills.get slot).interest.sameAssignment
+      ((rankAssignments dimension config
+        state.lifecycle.consumers.demons.rankingWeights).get slot) = false) :
+    (state.refreshRanked.lifecycle.consumers.skills.get slot).model =
+      Model.initial dimension criterion := by
+  unfold FreeDispatch.refreshRanked
+  dsimp only [Refresh.take]
+  rw [pending]
+  have fresh := install_fold_changed
+    { state with refresh := { state.refresh with pending := false } }
+    (List.finRange Acorn.FeatureConstants.skillCount)
+    (rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights)
+    slot (List.nodup_finRange _) (List.mem_finRange slot) changed
+  exact congrArg Skill.model fresh
+
+private theorem refresh_closing_none
+    {shape : PatchShape} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (empty : state.closing = none) : state.refreshRanked.closing = none := by
+  unfold FreeDispatch.refreshRanked
+  dsimp only [Refresh.take]
+  split
+  · generalize rankAssignments dimension config
+      state.lifecycle.consumers.demons.rankingWeights = targets
+    have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
+        (current : FreeDispatch shape config criterion dimension discounts payload)
+        (empty : current.closing = none) :
+        (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).closing =
+          none := by
+      induction slots generalizing current with
+      | nil => exact empty
+      | cons slot tail ih =>
+        dsimp only [List.foldl_cons]
+        apply ih
+        unfold FreeDispatch.install
+        dsimp only
+        split <;> simp [empty]
+    exact fold _ _ empty
+  · exact empty
+
+private theorem withSkill_other_skill
+    (state : TemporalControl profile config criterion dimension)
+    (slot other : Fin Acorn.FeatureConstants.skillCount)
+    (skill : Skill config criterion dimension) (different : other ≠ slot) :
+    (state.withSkill slot skill).runtime.lifecycle.consumers.skills.get other =
+      state.runtime.lifecycle.consumers.skills.get other := by
+  have values : slot.val ≠ other.val := fun same => different (Fin.ext same.symm)
+  change (state.runtime.lifecycle.consumers.skills.set slot.val skill slot.isLt)[other.val] = _
+  rw [Vector.getElem_set]
+  simp only [values, if_false]
+  rfl
+
+private theorem stepOption_other_skill
+    (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (metaValues : Vector Binary32 metaCount.word.toNat)
+    (metaDecision : Option (PolicyDecision metaCount)) (started : Bool)
+    (ended : Option EndEvent) (other : Fin Acorn.FeatureConstants.skillCount)
+    (different : other ≠ slot) :
+    let result := state.stepOption models slot activation next reward metaValues metaDecision
+      started ended
+    result.1.runtime.lifecycle.consumers.skills.get other =
+      state.runtime.lifecycle.consumers.skills.get other := by
+  unfold TemporalControl.stepOption
+  dsimp only
+  exact withSkill_other_skill state slot other _ different
+
+private theorem dispatch_other_skill
+    (state next : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (reward : Binary32) (metaDecision : PolicyDecision metaCount)
+    (ended : Option EndEvent) (decision : TemporalDecision)
+    (other : Fin Acorn.FeatureConstants.skillCount)
+    (omitted : skillOfMeta metaDecision.action ≠ some other)
+    (executed : state.dispatchMeta models features declared reward metaDecision ended =
+      some (next, decision)) :
+    next.runtime.lifecycle.consumers.skills.get other =
+      state.runtime.lifecycle.consumers.skills.get other := by
+  have credited : (state.learnMeta features metaDecision).runtime.lifecycle.consumers.skills =
+      state.runtime.lifecycle.consumers.skills := by
+    unfold TemporalControl.learnMeta
+    split <;> rfl
+  unfold TemporalControl.dispatchMeta at executed
+  dsimp only at executed
+  cases selected : skillOfMeta metaDecision.action with
+  | none =>
+    simp only [selected, pure, Option.some.injEq] at executed
+    have same := congrArg Prod.fst executed
+    dsimp only at same
+    rw [← same]
+    exact congrArg (fun skills => skills.get other) credited
+  | some slot =>
+    have different : other ≠ slot := by
+      intro same
+      exact omitted (same ▸ selected)
+    simp only [selected, bind, Option.bind] at executed
+    cases potential : Interest.potential
+        (Vector.get (state.learnMeta features metaDecision).runtime.lifecycle.consumers.skills
+          slot).interest features declared with
+    | none => simp [potential] at executed
+    | some value =>
+      simp only [potential, pure, Option.some.injEq] at executed
+      have same := congrArg Prod.fst executed
+      dsimp only at same
+      rw [← same]
+      rw [stepOption_other_skill (different := different),
+        withSkill_other_skill (different := different)]
+      exact congrArg (fun skills => skills.get other) credited
+
+private theorem boundary_two_refresh_cold
+    (state next : TemporalControl profile config .discounted dimension)
+    (models : OptionModelOps .discounted dimension)
+    (plan : PlanBoundary config .discounted dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (reward : Binary32) (ended : Option EndEvent) (decision : TemporalDecision)
+    (changed : TwoRefreshChanges state)
+    (executed : state.atBoundary models plan features declared reward none ended =
+      some (next, decision)) :
+    ∃ slot : Fin Acorn.FeatureConstants.skillCount,
+      (next.runtime.lifecycle.consumers.skills.get slot).model =
+        Model.initial dimension .discounted := by
+  obtain ⟨pending, left, right, different, changedLeft, changedRight⟩ := changed
+  let free : FreeDispatch Host.patchShape config .discounted dimension demonLayout.tail
+      (EndingPayload (profile.mode != .frozen)) :=
+    ⟨state.runtime.lifecycle, state.runtime.refresh,
+      state.runtime.references.modelPredictions, none⟩
+  have empty : (state.refreshFree none).2 = none := by
+    change free.refreshRanked.closing = none
+    exact refresh_closing_none (config := config) (criterion := .discounted)
+      (dimension := dimension) (shape := Host.patchShape) (discounts := demonLayout.tail)
+      (payload := EndingPayload (profile.mode != .frozen)) (state := free) rfl
+  have freePending : free.refresh.pending = true := pending
+  have freeLeft : (free.lifecycle.consumers.skills.get left).interest.sameAssignment
+      ((rankAssignments dimension config free.lifecycle.consumers.demons.rankingWeights).get
+        left) = false := changedLeft
+  have freeRight : (free.lifecycle.consumers.skills.get right).interest.sameAssignment
+      ((rankAssignments dimension config free.lifecycle.consumers.demons.rankingWeights).get
+        right) = false := changedRight
+  have leftCold := refresh_changed_model (config := config) (criterion := .discounted)
+    (dimension := dimension) (shape := Host.patchShape) (discounts := demonLayout.tail)
+    (payload := EndingPayload (profile.mode != .frozen)) (state := free)
+    left freePending freeLeft
+  have rightCold := refresh_changed_model (config := config) (criterion := .discounted)
+    (dimension := dimension) (shape := Host.patchShape) (discounts := demonLayout.tail)
+    (payload := EndingPayload (profile.mode != .frozen)) (state := free)
+    right freePending freeRight
+  let drawn := ((state.refreshFree none).1.planFree plan features).drawMeta features
+  have skills : drawn.1.runtime.lifecycle.consumers.skills =
+      free.refreshRanked.lifecycle.consumers.skills := rfl
+  obtain ⟨slot, cold, omitted⟩ : ∃ slot : Fin Acorn.FeatureConstants.skillCount,
+      (drawn.1.runtime.lifecycle.consumers.skills.get slot).model =
+        Model.initial dimension .discounted ∧
+      skillOfMeta drawn.2.action ≠ some slot := by
+    by_cases chosen : skillOfMeta drawn.2.action = some left
+    · refine ⟨right, ?_, ?_⟩
+      · rw [skills]; exact rightCold
+      · intro both
+        exact different (Option.some.inj (chosen.symm.trans both))
+    · refine ⟨left, ?_, chosen⟩
+      rw [skills]; exact leftCold
+  unfold TemporalControl.atBoundary at executed
+  dsimp only at executed
+  rw [empty] at executed
+  have kept := dispatch_other_skill drawn.1 next models features declared reward drawn.2
+    ended decision slot omitted executed
+  exact ⟨slot, (congrArg Skill.model kept).trans cold⟩
+
+
+private theorem prepare_two_changes
+    (state : TemporalControl profile config .discounted dimension)
+    (models : OptionModelOps .discounted dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (changed : TwoRefreshChanges state) :
+    TwoRefreshChanges (state.prepareSelection models features reward) := by
+  unfold TemporalControl.prepareSelection
+  dsimp only
+  split <;> split <;> exact changed
+
+private theorem close_two_changes
+    (state : TemporalControl profile config .discounted dimension)
+    (models : OptionModelOps .discounted dimension)
+    (closing : Closing config .discounted dimension (EndingPayload (profile.mode != .frozen)))
+    (reward terminal : Binary32) (changed : TwoRefreshChanges state) :
+    TwoRefreshChanges (state.closeOption models closing reward terminal).1 := by
+  have interests (slot : Fin Acorn.FeatureConstants.skillCount) :
+      ((state.closeOption models closing reward terminal).1.runtime.lifecycle.consumers.skills.get
+        slot).interest = (state.runtime.lifecycle.consumers.skills.get slot).interest := by
+    unfold TemporalControl.closeOption
+    dsimp only
+    cases owner : closing.oldOwner with
+    | some skill => rfl
+    | none =>
+      dsimp only [Option.getD]
+      by_cases same : slot = closing.slot
+      · subst slot
+        change ((state.runtime.lifecycle.consumers.skills.set closing.slot.val _
+          closing.slot.isLt)[closing.slot.val]).interest = _
+        rw [Vector.getElem_set_self]
+        unfold Skill.endTemporal
+        split <;> exact (Skill.terminal_owners _ _ _ _ _ _).1
+      · exact congrArg Skill.interest (withSkill_other_skill state closing.slot slot _ same)
+  have pending : (state.closeOption models closing reward terminal).1.runtime.refresh =
+      state.runtime.refresh := by
+    unfold TemporalControl.closeOption
+    dsimp only
+    cases closing.oldOwner <;> rfl
+  have demons :
+      (state.closeOption models closing reward terminal).1.runtime.lifecycle.consumers.demons =
+        state.runtime.lifecycle.consumers.demons := by
+    unfold TemporalControl.closeOption
+    dsimp only
+    cases closing.oldOwner <;> rfl
+  obtain ⟨requested, left, right, different, leftChanged, rightChanged⟩ := changed
+  refine ⟨?_, left, right, different, ?_, ?_⟩
+  · rw [pending]; exact requested
+  · rw [interests, demons]; exact leftChanged
+  · rw [interests, demons]; exact rightChanged
+
+private theorem serve_no_meta (state next : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
+    (executed : state.serve features = some (next, decision)) : decision.metaDecision = none := by
+  unfold TemporalControl.serve at executed
+  split at executed
+  · rename_i run phase
+    cases served : run.serve with
+    | none => simp [served, bind, Option.bind] at executed
+    | some pair =>
+      simp only [served, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at executed
+      rw [← executed.2]
+  · contradiction
+  · contradiction
+
+private theorem select_two_refresh_cold
+    (state next : TemporalControl profile config .discounted dimension)
+    (models : OptionModelOps .discounted dimension)
+    (plan : PlanBoundary config .discounted dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
+    (changed : TwoRefreshChanges state) (boundary : decision.metaDecision.isSome = true)
+    (executed : state.selectWithOperations models plan features declared reward goal =
+      some (next, decision)) :
+    ∃ slot : Fin Acorn.FeatureConstants.skillCount,
+      (next.runtime.lifecycle.consumers.skills.get slot).model =
+        Model.initial dimension .discounted := by
+  unfold TemporalControl.selectWithOperations at executed
+  generalize preparedEq : state.prepareSelection models features reward = prepared at executed
+  have preparedChanged : TwoRefreshChanges prepared := by
+    rw [← preparedEq]
+    exact prepare_two_changes state models features reward changed
+  have idleChanged : TwoRefreshChanges (prepared.withPhase .idle) := preparedChanged
+  dsimp only at executed
+  cases served : prepared.serve features with
+  | some result =>
+    simp only [served] at executed
+    cases executed
+    rw [serve_no_meta prepared next features decision served] at boundary
+    contradiction
+  | none =>
+    simp only [served] at executed
+    split at executed
+    · cases executed
+      contradiction
+    · split at executed
+      · exact boundary_two_refresh_cold (prepared.withPhase .idle) next models plan features
+          declared reward none decision idleChanged executed
+      · exact boundary_two_refresh_cold (prepared.withPhase .idle) next models plan features
+          declared reward none decision idleChanged executed
+      · rename_i slot activation phase
+        cases potential : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+            slot).interest.potential features declared with
+        | none => simp [potential, bind, Option.bind] at executed
+        | some value =>
+          simp only [potential, bind, Option.bind] at executed
+          split at executed
+          · simp only [pure, Option.some.injEq, Prod.mk.injEq] at executed
+            rw [← executed.2] at boundary
+            contradiction
+          · refine boundary_two_refresh_cold _ next models plan features declared reward _
+              decision ?_ executed
+            exact close_two_changes (prepared.withPhase .idle) models _ reward _ idleChanged
+
+/-- A free discounted dispatch that changes two assignments leaves at least one
+fresh model untouched through common credit. Selection uses the actual policy draw. -/
+theorem step_two_refresh_cold (state next : TemporalControl profile config .discounted dimension)
+    (selection : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+    (observation : Host.Observation) (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
+    (changed : TwoRefreshChanges state) (boundary : decision.metaDecision.isSome = true)
+    (executed : state.step selection features observation reward goal = some (next, decision)) :
+    (∃ slot : Fin Acorn.FeatureConstants.skillCount,
+      (next.runtime.lifecycle.consumers.skills.get slot).model =
+        Model.initial dimension .discounted) ∧
+    next.runtime.lifecycle.representation = state.runtime.lifecycle.representation := by
+  unfold TemporalControl.step at executed
+  cases chosen : state.select selection features (spatialPotentials observation) reward goal with
+  | none => simp [chosen, bind, Option.bind] at executed
+  | some selected =>
+    simp only [chosen, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at executed
+    rcases executed with ⟨rfl, rfl⟩
+    obtain ⟨slot, cold⟩ := select_two_refresh_cold state selected.1
+      (modelOperations .discounted dimension) (planningBoundary selection) features
+      (spatialPotentials observation) reward goal selected.2 changed boundary chosen
+    have storage := select_storage state selected.1 (modelOperations .discounted dimension)
+      (planningBoundary selection) features (spatialPotentials observation) reward goal
+      selected.2 chosen
+    refine ⟨⟨slot, ?_⟩, congrArg Prod.snd storage⟩
+    rw [TemporalControl.finish_eq]
+    exact cold
+
+/-- A fresh stored skill model rejects every bank unit before the transaction,
+including aliases. Capacity and clock admission cannot override this veto. -/
+theorem cold_model_refuses
+    (state : Lifecycle Host.patchShape config criterion dimension demonLayout)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (cold : (state.consumers.skills.get slot).model = Model.initial dimension criterion) :
+    state.tryRetire = none := by
+  apply state.refusal_iff.mpr
+  right
+  apply List.find?_eq_none.mpr
+  intro unit _
+  rw [cold_model_veto state.consumers slot cold]
+  exact Bool.false_ne_true
+
+/-- A pre-retirement cold model makes the full-agent retirement operation an identity. -/
+theorem retire_cold_model (state : Agent profile config criterion dimension planning)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (cold : (state.control.runtime.lifecycle.consumers.skills.get slot).model =
+      Model.initial dimension criterion) : state.retire = state := by
+  have refused := cold_model_refuses state.control.runtime.lifecycle slot cold
+  unfold Agent.retire
+  split
+  · rfl
+  · simp only [FeatureRuntime.retire, refused]
+
+/-- Two actual assignment changes at a discounted free boundary force refusal of
+that callback's retirement scan. The cold reader is derived before retirement;
+no feature encoding, action choice, or eligibility hypothesis is supplied. This
+conditional obstruction does not establish that initialized executions meet its premise. -/
+theorem act_two_refresh_changes (state : Agent profile config .discounted dimension planning)
+    (observation : Host.Observation) (reward : Binary32) (goal : Bool)
+    (changed : TwoRefreshChanges state.control)
+    (boundary : (state.act observation reward goal).2.metaDecision.isSome = true) :
+    let next := (state.act observation reward goal).1
+    (∀ feature, next.control.runtime.lifecycle.consumers.negligible feature = false) ∧
+    next.control.runtime.lifecycle.representation.progress.events =
+      state.control.runtime.lifecycle.representation.progress.events := by
+  obtain ⟨next, aligned, episodes, executed, actual⟩ := state.act_execution observation reward goal
+  have kept := step_two_refresh_cold state.advanceClock.control next planning
+    (state.advanceClock.frame observation).active observation reward goal _ changed boundary
+    executed
+  obtain ⟨slot, cold⟩ := kept.1
+  dsimp only
+  rw [actual, retire_cold_model _ slot cold]
+  exact ⟨cold_model_veto _ slot cold,
+    congrArg (fun representation => representation.progress.events) kept.2⟩
 
 end AcornVerif.CurrentReplacement

@@ -114,6 +114,12 @@ Its `first_option_policy` theorem connects the executed begin/first temporal
 action to unchanged policy weights, the actual drawn action's saved prediction
 and a zero shared accumulator, for either criterion and arbitrary raw credit.
 It does not establish the later terminal-error sign or progress margins.
+`act_two_refresh_changes` is a separate machine-checked full-agent obstruction:
+a discounted free-dispatch callback with a pending refresh that changes two
+complete assignments retains an unselected cold model through completion. The
+proof derives refusal before the actual retirement call and unchanged event
+history, for arbitrary input words without a feature-count bound. It does not
+prove that initialized native paths realize these assignment-change premises.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

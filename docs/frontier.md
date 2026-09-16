@@ -55,6 +55,15 @@ complete-reader progress window. PAR-11 records the candidate boundary contract
 and why neither unexcited no-food observations nor independently prescribed
 signed targets realize that window through the coupled callbacks.
 
+A pending free dispatch that changes at least two complete skill assignments
+also refuses its ensuing scan (`act_two_refresh_changes`). In the actual
+discounted callback, at most one newly initialized model receives option credit;
+the other stays cold through completion and vetoes every hashed slot before
+retirement. This requires no feature-count or reward-magnitude bound. Its
+premises compare actual assignment identities and observe the returned
+meta-decision; occurrence along initialized native execution remains unproved.
+It does not cover a sole changed assignment selected in that dispatch.
+
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
 the predicate. First-match selection permanently excludes later units sharing

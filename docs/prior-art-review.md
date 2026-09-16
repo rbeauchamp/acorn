@@ -505,6 +505,33 @@ aliases, bank-order selection, event capacity and clock admission still apply.
 These auxiliary contracts do not establish initialized joint progress or justify
 any runtime correction.
 
+**Refresh interference at the executed scan.**
+`CurrentReplacement.TwoRefreshChanges` requires a pending refresh and two distinct
+skill slots whose full `sameAssignment` comparisons against the current
+Demon-0 `rankAssignments` are false, including the stored bonus bits.
+`act_two_refresh_changes` proves that, for the discounted criterion, a callback
+with these incoming conditions and a returned meta-decision records no retirement
+and leaves every slot ineligible. The actual `selectWithOperations` closes a
+previous option before refreshing, preserving its objective identity and the
+ranking inputs. The installation fold initializes both changed models; planning
+and meta credit preserve them, and dispatch writes at most one skill. The other
+model survives `finish` cold. `cold_model_refuses` therefore rejects the
+**pre-retirement** transaction, and `retire_cold_model` makes the actual retirement
+call an identity. This is not an inference from a post-replacement reset.
+
+The proof follows `TemporalControl.step` and `Agent.act`, including the actual
+encoding, policy draw, closing path and common credit. Its domain allows arbitrary
+observations and raw reward words and requires no sparse encoding, fairness or
+assumed floor attainment. The returned meta-decision identifies an executed free
+boundary; served exploration, hierarchy-disabled selection and continuing options
+return none. Two changed identities ensure an untouched witness regardless of
+the draw. A sole changed-and-selected skill is outside this obstruction. The
+premises are operational comparisons, but no initialized native path realizing
+them is established here. This conditional result narrows a candidate common
+eligibility window: such a window cannot coincide with this refresh class. It
+neither settles longer invocations nor establishes permanent blockage, positive
+complete-reader reachability, or necessity of a new utility architecture.
+
 **Lifetime and persistence.** Every success appends exactly one event.
 `FeatureHistory.LegalHistory`, `record_count`, `full_refuses`,
 `record_excludes_same_clock` and `saturated_record_refuses_forever` limit ordinary
