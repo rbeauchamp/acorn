@@ -3521,4 +3521,53 @@ info: 'AcornVerif.CurrentReplacement.finish_carried' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.finish_carried
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_config_exists' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_config_exists
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_body_translation' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_body_translation
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_spiral_coordinates' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_spiral_coordinates
+
+/--
+info: 'AcornVerif.CurrentRunner.survival_plan_exists' depends on axioms:
+[propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.survival_plan_exists
+
+/--
+info: 'AcornVerif.CurrentRunner.initial_cursor_exists' depends on axioms:
+[propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.initial_cursor_exists
+
+/--
+info: 'AcornVerif.CurrentRunner.achieved_next_goal' depends on axioms:
+[propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.achieved_next_goal
+
+/--
+info: 'AcornVerif.CurrentRunner.standard_first_goals' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.standard_first_goals
+
 end AcornVerif

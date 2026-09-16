@@ -179,8 +179,14 @@ actual cold agent and successful world constructor through the goal-producing
 action. It assumes the successful prefix; it proves neither nonempty execution
 nor a later positive callback. `finish_carried` and `Attempt.start_carried` retain
 terminal reward across a continued attempt/goal boundary. A final campaign
-boundary supplies no extra learning callback. Zero-sector preservation implies
-no beta-floor progress or complete-reader eligibility.
+boundary supplies no extra learning callback. Zero-sector preservation establishes
+neither beta-floor progress nor complete-reader eligibility.
+`CurrentRunner.survival_plan_exists`, `initial_cursor_exists`, `achieved_next_goal`
+and `standard_first_goals` check actual plan admission and cursor/curriculum
+choices. `CurrentWorld.standard_config_exists`, `standard_body_translation` and
+`standard_spiral_coordinates` cover standard configuration and signed coordinate
+admission. Successful terrain, complete world construction and nonempty callback
+execution remain unproved; no runtime feasibility claim follows from these bounds.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

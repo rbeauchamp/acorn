@@ -117,6 +117,20 @@ def executables : Array (String × Name) := #[
 These are critical entry/transition obligations, not a quota or a claim that
 all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
+  (`AcornVerif.CurrentWorld, `AcornVerif.CurrentWorld.standard_config_exists,
+    `Acorn.Host.WorldConfig.standard),
+  (`AcornVerif.CurrentWorld, `AcornVerif.CurrentWorld.standard_body_translation,
+    `Acorn.Host.Position.translate),
+  (`AcornVerif.CurrentWorld, `AcornVerif.CurrentWorld.standard_spiral_coordinates,
+    `Acorn.Host.Coordinate.checked),
+  (`AcornVerif.CurrentRunner, `AcornVerif.CurrentRunner.survival_plan_exists,
+    `Acorn.Host.CampaignPlan.admit),
+  (`AcornVerif.CurrentRunner, `AcornVerif.CurrentRunner.initial_cursor_exists,
+    `Acorn.Host.CampaignPlan.initial),
+  (`AcornVerif.CurrentRunner, `AcornVerif.CurrentRunner.achieved_next_goal,
+    `Acorn.Host.atAttemptBoundary),
+  (`AcornVerif.CurrentRunner, `AcornVerif.CurrentRunner.standard_first_goals,
+    `Acorn.Host.standardCurriculum),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.survival_completion,
     `Acorn.Host.World.goalSatisfied),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.survival_prefix_clock,

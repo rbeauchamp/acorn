@@ -114,6 +114,12 @@ The next callback, if admitted, consumes the terminal reward under the next goal
 achievement advances goals rather than repeating the successful attempt.
 The first-positive goal-action owner and later continuation bootstrap remain
 unresolved. A final campaign boundary performs no additional learning callback.
+`CurrentRunner.survival_plan_exists` derives actual admission for requests with
+at least 200 steps and two goals; the actual initial and achievement cursors
+select survival then wood collection. Standard configuration and body/spawn
+coordinate admissions are checked in `CurrentWorld`. Terrain success and its
+bounded traversal composition still block a proved nonempty completion prefix;
+configuration admission alone does not establish successful world construction.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

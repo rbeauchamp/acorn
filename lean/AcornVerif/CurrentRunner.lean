@@ -71,4 +71,41 @@ theorem empty_unbounded_refused (size : Nat) (steps attempts : UInt64) :
       .error (if 0 < steps.toNat then .emptyUnbounded else .stepCapZero) := by
   by_cases h : 0 < steps.toNat <;> simp [CampaignPlan.admit, h]
 
+/-- Positive survival-length and two-goal requests are actually admitted for
+any curriculum containing two goals. Attempts and cycles need no extra premise. -/
+theorem survival_plan_exists (size : Nat) (spec : CampaignSpec)
+    (population : 2 ≤ size) (steps : 200 ≤ spec.steps.toNat)
+    (goals : 2 ≤ spec.goals.toNat) :
+    ∃ plan, CampaignPlan.admit size spec = .ok plan ∧
+      200 ≤ plan.stepCap.toNat ∧ 2 ≤ plan.goals.val := by
+  have positive : 0 < spec.steps.toNat := by omega
+  have productive : spec.cycles.toNat ≠ 0 ∨ 0 < min spec.goals.toNat size := by
+    right; omega
+  simp only [CampaignPlan.admit, positive, ↓reduceDIte, productive]
+  exact ⟨_, rfl, steps, by dsimp; omega⟩
+
+/-- A nonempty admitted plan constructs its actual first cursor at goal zero. -/
+theorem initial_cursor_exists {size : Nat} (plan : CampaignPlan size)
+    (nonempty : 0 < plan.goals.val) :
+    ∃ cursor, plan.initial = .continue cursor ∧ cursor.goal.val = 0 := by
+  simp only [CampaignPlan.initial, nonempty, ↓reduceDIte]
+  exact ⟨_, rfl, rfl⟩
+
+/-- Achievement with another admitted goal advances the actual cursor,
+regardless of attempts per goal. This is a boundary fact, not achievement existence. -/
+theorem achieved_next_goal {size : Nat} {plan : CampaignPlan size}
+    (cursor : CampaignCursor plan) (room : cursor.goal.val + 1 < plan.goals.val) :
+    ∃ next, atAttemptBoundary cursor true false = .continue next ∧
+      next.goal.val = cursor.goal.val + 1 ∧ next.attempt.val = 0 ∧ next.cycle = cursor.cycle := by
+  simp only [atAttemptBoundary, Bool.false_eq_true, Bool.not_true, ↓reduceIte,
+    atAttemptBoundary.nextGoal, room, ↓reduceDIte]
+  exact ⟨_, rfl, rfl, rfl, rfl⟩
+
+/-- Every standard native curriculum begins with survival, then wood collection;
+seed and geometry do not select a repeated successful survival attempt. -/
+theorem standard_first_goals (config : WorldConfig) (seed : UInt64) :
+    (standardCurriculum config seed)[0]? = some (.survive 200, 0) ∧
+      (standardCurriculum config seed)[1]? = some (.collect .wood 2, 0) := by
+  exact ⟨rfl, rfl⟩
+
 end AcornVerif.CurrentRunner

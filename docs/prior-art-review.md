@@ -751,6 +751,22 @@ Reach, collect and craft goals use the same completion-to-reward producer and
 carry path; their actual body/inventory predicates can produce positive rewards.
 The survival counter argument does not assert all native rewards are zero.
 
+`CurrentRunner.survival_plan_exists` proves actual campaign admission for any
+curriculum with at least two entries and a request with at least 200 steps and
+two goals, including attempt-count normalization. `initial_cursor_exists` and
+`achieved_next_goal` derive the actual cursor choices; `standard_first_goals`
+identifies survival then wood collection for every seed and standard world.
+These resolve plan admission and conditional boundary progression, not goal
+achievement or a subsequent callback's existence.
+`CurrentWorld.standard_config_exists` admits every supported standard side;
+`standard_body_translation` excludes signed overflow within the actual sensor
+radius, and `standard_spiral_coordinates` covers all actual spiral offsets and
+closed cardinal directions. These geometric results do not establish terrain
+success. The remaining constructor/step obligation is to bound actual binary32
+coordinate conversion, octave scales, division, floor and signed lattice casts
+on the standard-world margin, then compose the existing bounded traversals.
+Custom raw scales remain outside that proposed success domain.
+
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal
 meta snapshot is read before close, refresh, planning and new meta credit; a
