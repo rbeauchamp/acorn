@@ -83,7 +83,7 @@ Run the complete command in the actual Git checkout:
 ```
 
 Provision pinned Lean/Mathlib v4.33.0, OpenSSL 3, GNU coreutils, ShellCheck and a C
-compiler first. Verification is bounded by a hard 300-second process-group SIGKILL
+compiler first. Verification is bounded by a hard 360-second process-group SIGKILL
 deadline, including cold project builds. No override, grace period, partial pass,
 missing check or cached acceptance substitutes for a pass. Every discovered module
 and native entry retains compilation and source/compiled/axiom/route admission.

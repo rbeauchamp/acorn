@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Projection
+import Mathlib.Data.Fintype.Card
 
 /-!
 # Differential return contracts

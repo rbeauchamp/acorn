@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornTools.ModuleInventory
-import AcornTools.Ownership
+import AcornTools.OwnershipSource
 
 /-! # Ordinary Lean verification
 
@@ -54,8 +54,10 @@ def audits : IO Unit := do
 /-- Source admission precedes application compilation; every discovered module is built.
 Every declared native entry retains compilation and execution-route admission. -/
 def verify : IO Unit := do
-  lake #["build", "ownership-audit", "lean-boundary-audit"]
-  run ".lake/build/bin/ownership-audit" #["source"]
+  lake #["build", "lean-boundary-audit"]
+  discard AcornOwnershipAudit.sources
+  discard AcornOwnershipAudit.targets
+  IO.println "ownership: source modules and Lake entries admitted"
   run ".lake/build/bin/lean-boundary-audit" #["source"]
   run ".lake/build/bin/lean-boundary-audit" #["proof-source"]
   let modules ← AcornModuleInventory.allModules
@@ -63,13 +65,13 @@ def verify : IO Unit := do
   let nativeTargets := (modules.filter AcornModuleInventory.nativeModule).map
     fun name => "+" ++ name.toString ++ ":c.o.export"
   let executableTargets := AcornOwnership.executables.map (·.1)
-  lake (#["build"] ++ moduleTargets ++ nativeTargets ++ executableTargets)
+  -- Lake fetches targets in order and can wait for imports while doing so.
+  -- Request native work first so C compilation/linking can overlap proof builds.
+  lake (#["build"] ++ executableTargets ++ nativeTargets ++ moduleTargets)
   run ".lake/build/bin/lean-boundary-audit" #["compiled"]
-  run ".lake/build/bin/ownership-audit" #["compiled"]
   run ".lake/build/bin/native-audit"
   browserKernel
-  run ".lake/build/bin/theorem-count"
-  run "lean/.lake/build/bin/corpus-audit" #[] (some "..")
+  run ".lake/build/bin/ownership-audit" #["complete"]
   IO.println "All required Lean checks passed, including proof, execution and corpus admission."
 
 end AcornGate

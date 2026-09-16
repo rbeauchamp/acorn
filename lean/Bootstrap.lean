@@ -3,7 +3,8 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Lean
+import Lean.Data.Json.Parser
+import Lean.Data.Json.FromToJson.Basic
 
 /-! # Provisioned, offline Lake invocation
 
@@ -108,8 +109,10 @@ def run (args : List String) : IO UInt32 := do
     throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")
   let path : System.FilePath := ".lake/acorn-path-packages.json"
   IO.FS.writeFile path (contents.compress ++ "\n")
+  -- Lake validates its configuration trace against source and toolchain changes;
+  -- explicit dependency overrides are resolved again on every invocation.
   let child ← IO.Process.spawn {
-    cmd := "lake", args := #["--no-cache", "--reconfigure", s!"--packages={path}"] ++ args.toArray,
+    cmd := "lake", args := #["--no-cache", s!"--packages={path}"] ++ args.toArray,
     stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
   child.wait
 

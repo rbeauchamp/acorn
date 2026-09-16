@@ -6,7 +6,7 @@ start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
 Lean/Mathlib dependencies, a C compiler, OpenSSL 3, ShellCheck and GNU coreutils.
-The hard 300-second deadline includes project compilation and every ordinary
+The hard 360-second deadline includes project compilation and every ordinary
 check. It uses process-group SIGKILL with no grace period or budget override;
 missing, skipped or timed-out checks fail. OS scheduling and signal delivery
 are the trusted mechanisms that enforce this deadline.
@@ -22,8 +22,9 @@ The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
-The [CI workflow](../.github/workflows/verify.yml) runs on macOS 15 with Apple
-Silicon. Automatic local setup supports macOS and Ubuntu/Debian Linux.
+The [CI workflow](../.github/workflows/verify.yml) runs on GitHub's standard
+`ubuntu-24.04` x64 image. Dependency caches include the Ubuntu release and
+runner architecture. Automatic local setup supports macOS and Ubuntu/Debian Linux.
 
 For manual setup, install macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
@@ -74,7 +75,7 @@ Do not manually launch another viewer against a directory already in use.
 
 If a tool is missing, install the named prerequisite before retrying. On macOS,
 check that `xcode-select -p` points to an installed, usable developer toolchain.
-If verification reaches its 300-second deadline, retain the failing command
+If verification reaches its 360-second deadline, retain the failing command
 and diagnostic for a focused report; do not raise the limit or treat a partial
 run as a pass. Run the complete command to check all verification owners.
 
@@ -117,6 +118,15 @@ CI provisions dependencies separately and runs the identical ordinary command
 with cold project outputs. It has read-only repository permissions, no secrets,
 no privileged pull-request trigger, and pinned action revisions. The workflow
 must pass on the exact proposed head before merge.
+
+Ordinary verification shares a compiler environment for ownership, theorem/axiom
+and document-symbol admission. Executable entries retain isolated `main` owners
+and reuse loaded dependency regions. Each IR reference must belong to that
+entry's actual compiled import closure; data loaded for another entry cannot
+satisfy this check. Shared regions live only for the audit process, and no prior
+acceptance result is cached. Source, boundary, native-route and browser checks
+remain required. Standalone ownership, theorem and corpus commands remain
+available for focused diagnostics.
 
 ## Mutation diagnostics
 

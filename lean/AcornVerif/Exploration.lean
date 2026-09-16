@@ -5,7 +5,9 @@ Authors: acorn contributors
 -/
 import AcornVerif.ModelConstants
 import Mathlib.Algebra.Order.Floor.Defs
-import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.Algebra.Order.Archimedean.Real.Basic
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Ring
 
 /-!
 # The εz-greedy duration law

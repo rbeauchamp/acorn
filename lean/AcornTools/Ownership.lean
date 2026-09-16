@@ -89,7 +89,7 @@ def modules : Array Name := #[
   `Acorn.Host.Viewer.NativeResources, `AcornTools.Native.Audit,
   `AcornVerif.Resource.WordKernel,
   `AcornTools.Native.Resources, `AcornTools.Native.Routes, `NativeApp.Viewer, `AcornTools.Ownership,
-  `AcornTools.OwnershipAudit, `AcornTools.TheoremCount
+  `AcornTools.OwnershipAudit, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount
 ]
 
 /-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/

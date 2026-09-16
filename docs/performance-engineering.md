@@ -116,6 +116,23 @@ correspondence arguments connecting the required guarantees to the new execution
 
 ## Evidence for performance claims
 
+Keep contributor verification economical within its full admission contract.
+CI caches only pinned dependencies, keyed by runner image family, architecture,
+toolchain and dependency manifest; an exact hit avoids repeated provisioning.
+Admit restored dependencies and save newly provisioned dependencies before the
+project gate, so a project failure does not discard useful provisioning work.
+Project outputs still build cold under the fixed deadline. Reuse Lake's
+source/toolchain-validated configuration trace and batch independent source
+hashes while checking every result's filename and digest. Neither mechanism
+reuses a previous verification result or substitutes a digest for correctness.
+Import only the mathematics and tooling a module uses. Request native targets
+early enough that their compilation can overlap independent proof builds;
+request order must retain the complete discovered module and target inventory.
+Within one verification process, reuse imported compiler data across consumers
+and isolated entry environments. Retain compiler ownership, duplicate-declaration
+refusals and each entry's actual import closure. Shared memory must outlive every
+consumer; never free one environment's regions while a sibling still uses them.
+
 Apply the [proof-first policy](../AGENTS.md#correct-by-construction) to correctness
 and resource claims. Pure analysis definitions state contracts over explicit
 inputs and hypotheses. Physical measurements name their workload, environment
