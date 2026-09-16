@@ -117,6 +117,22 @@ def executables : Array (String × Name) := #[
 These are critical entry/transition obligations, not a quota or a claim that
 all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.survival_completion,
+    `Acorn.Host.World.goalSatisfied),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.survival_prefix_clock,
+    `Acorn.Host.World.time),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.ranked_survival_native_step,
+    `Acorn.Host.DecisionInput.selectOwned),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.ranked_survival_native_step,
+    `Acorn.Host.OwnedStep.environment),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.ranked_survival_native_step,
+    `Acorn.Host.OwnedEnvironment.record),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_ranked_initial_survival,
+    `Acorn.Handcrafted.Agent.initial),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_ranked_initial_survival,
+    `Acorn.Host.World.initial),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.finish_carried,
+    `Acorn.Host.Attempt.finish),
   (`AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirement.zero_retire,
     `Acorn.NumericState.retireIndex),
   (`AcornVerif.CurrentControl, `AcornVerif.CurrentControl.zero_controller_retire,

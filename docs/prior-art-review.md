@@ -716,11 +716,43 @@ There is no distinct-hash-slot assumption and no zero-weight retirement veto.
 `Agent.act_execution` correspondence. Its features are the advanced receiver's
 current-bank frame; the correspondence supplies the actual local step and its
 alignment/episode witnesses before retirement. One zero-reward action therefore
-preserves the joined predicate for arbitrary observation and goal. Native
-World/Attempt prefix linkage and positive-reward behavior remain separate.
+preserves the joined predicate for arbitrary observation and goal.
 
-Full initialized native zero-sector composition and the first-positive endpoint
-remain unproved. In the ordinary discounted option-ending branch, the terminal
+`RankedSurvivalPrefix` records successful edges of the actual first survival
+attempt. Each edge requires successful `Attempt.sense`, uses its actual callback
+choice, and requires that action's actual world transition before accounting.
+`ranked_survival_native_step` checks correspondence with the optimized native
+selection/environment stages; IO scheduling, observer delivery and successful
+execution remain external boundaries. The relation adds no runtime history.
+`survival_prefix_clock` derives physical time equal to the bounded attempt counter
+from initial time zero. The UInt64 cap prevents wrap in this attempt; actual
+survival completion produces zero reward before its positive duration and exactly
+one at completion. `zero_ranked_initial_survival` specializes the resulting
+zero-sector induction to successful `World.initial` and actual `Agent.initial`.
+The action producing the terminal reward still consumes the previous zero reward.
+The standard curriculum starts with survival duration 200. These are conditional
+invariants of successful prefixes, not proofs that a nonempty prefix, survival
+achievement, a later callback or complete-reader eligibility exists. Restored
+knowledge is outside this cold-construction result.
+
+`finish_carried` proves successful attempt finalization retains the entire raw
+result for every goal family. Existing `Attempt.start_carried` retains it when
+the next goal is installed; a nonempty new attempt ignores carried completion
+at counter zero. Thus its first successfully sensed callback consumes the old
+terminal reward with the new goal's observation. Achievement advances to the next
+goal; allowing two attempts does not repeat an achieved survival goal. A repeated
+survival epoch requires actual curriculum/cycle progression, not an attempt-count
+premise. At a final or stopping campaign boundary there is no extra learning
+callback: recording a positive environment/attempt reward alone does not establish
+positive learning exposure. A new campaign initializes its raw carry to zero,
+even when it loads admitted agent storage. This is a finite-invocation exposure
+limit, not permanent global replacement blockage or evidence for redesign.
+Reach, collect and craft goals use the same completion-to-reward producer and
+carry path; their actual body/inventory predicates can produce positive rewards.
+The survival counter argument does not assert all native rewards are zero.
+
+The first-positive callback's existence, goal-action owner and positive learner
+image remain unproved. In the ordinary discounted option-ending branch, the terminal
 meta snapshot is read before close, refresh, planning and new meta credit; a
 later positive meta update cannot change that earlier continuation target.
 Served primitive exploration has priority over the goal check and may defer a

@@ -3479,4 +3479,46 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.zero_ranked_act
 
+/--
+info: 'AcornVerif.CurrentReplacement.survival_completion' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.survival_completion
+
+/--
+info: 'AcornVerif.CurrentReplacement.survival_prefix_clock' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.survival_prefix_clock
+
+/--
+info: 'AcornVerif.CurrentReplacement.zero_ranked_survival_prefix' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_survival_prefix
+
+/--
+info: 'AcornVerif.CurrentReplacement.ranked_survival_native_step' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.ranked_survival_native_step
+
+/--
+info: 'AcornVerif.CurrentReplacement.zero_ranked_initial_survival' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_initial_survival
+
+/--
+info: 'AcornVerif.CurrentReplacement.finish_carried' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.finish_carried
+
 end AcornVerif

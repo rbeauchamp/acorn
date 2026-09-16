@@ -104,8 +104,16 @@ the actual token, and discounted ending uses the old pre-close meta snapshot.
 contract. `zero_ranked_retire` preserves the join through both refusal and actual
 receiver-bound replacement. `zero_ranked_act` composes clock advancement, the
 current-bank encoding, local step and retirement for one zero-reward action.
-The full initialized native zero-reward prefix, its first-positive goal-action
-owner and later continuation bootstrap remain unresolved.
+`zero_ranked_initial_survival` now covers every successful first-survival attempt
+prefix through the goal-producing action, using the actual cold/world constructors,
+sensing, callback choice, world transition and accounting. The reward is derived
+from the bounded physical clock, not supplied as a zero stream. This conditional
+result does not prove the existence of a nonempty successful prefix or a
+subsequent positive callback.
+The next callback, if admitted, consumes the terminal reward under the next goal;
+achievement advances goals rather than repeating the successful attempt.
+The first-positive goal-action owner and later continuation bootstrap remain
+unresolved. A final campaign boundary performs no additional learning callback.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

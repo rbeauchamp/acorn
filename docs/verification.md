@@ -170,9 +170,17 @@ composes the successful selector and its own completion;
 `zero_ranked_retire` covers both refusal and same-receiver replacement, including
 complete consumer resets and retained temporal references. `zero_ranked_act`
 composes actual clock/current-bank encoding, local step and retirement for one
-zero-reward action. The full initialized native prefix and first-positive
-callback are not yet proved, and zero-sector preservation implies no beta-floor
-progress or complete-reader eligibility.
+zero-reward action. `RankedSurvivalPrefix` and `ranked_survival_native_step` link
+successful sensing, actual callback choice and world/accounting stages to the
+native attempt loop. `survival_prefix_clock` derives the carried reward from the
+actual survival counter with no clock wrap under the finite attempt cap.
+`zero_ranked_initial_survival` covers successful first-attempt prefixes from the
+actual cold agent and successful world constructor through the goal-producing
+action. It assumes the successful prefix; it proves neither nonempty execution
+nor a later positive callback. `finish_carried` and `Attempt.start_carried` retain
+terminal reward across a continued attempt/goal boundary. A final campaign
+boundary supplies no extra learning callback. Zero-sector preservation implies
+no beta-floor progress or complete-reader eligibility.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

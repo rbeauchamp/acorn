@@ -2845,4 +2845,182 @@ theorem zero_ranked_act
   rw [actual]
   exact zero_ranked_retire ⟨next, aligned, episodes⟩ stepped
 
+open Host
+
+/-- Successful native attempt prefixes: actual sensing, actual callback choice,
+then its world transition and accounting. This proof relation stores no runtime
+history. `selectOwned_eq` and `owned_commit` connect its reference selection to
+`runAttemptSteps`; IO scheduling and external refusal remain boundaries. -/
+inductive RankedSurvivalPrefix {worldConfig : WorldConfig}
+    (initial : RunState worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning))
+    (duration cap : UInt64) :
+    Attempt worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning)
+      (.survive duration) cap → Prop where
+  /-- The actual attempt constructor preserves the supplied continual stream. -/
+  | start : RankedSurvivalPrefix initial duration cap
+      (Attempt.start initial (.survive duration) cap)
+  /-- One successfully sensed and executed native callback/world edge. -/
+  | step (input : DecisionInput worldConfig
+        (Agent (researchProfile .ranked) config .discounted dimension planning)
+        (.survive duration) cap)
+      (path : RankedSurvivalPrefix initial duration cap input.before)
+      (sensed : input.before.sense = .ok (some input))
+      (world : World worldConfig) (result : StepResult)
+      (executed : input.before.run.world.step (input.select Agent.callbacks).action =
+        .ok (world, result)) :
+      RankedSurvivalPrefix initial duration cap
+        ((OwnedEnvironment.mk (input.select Agent.callbacks).owned world result executed).record
+          Agent.callbacks)
+
+/-- Native world completion for an installed survival goal depends only on the
+actual bounded elapsed counter. No action, observation or reward is prescribed. -/
+theorem survival_completion {worldConfig : WorldConfig} (world : World worldConfig)
+    (duration : UInt64) (installed : world.goal = some (.survive duration))
+    (origin : world.goalStart = 0) :
+    world.goalSatisfied = decide (duration.toNat ≤ world.time.toNat) := by
+  simp only [World.goalSatisfied, World.taskObservation, installed, Goal.observe,
+    TaskObservation.satisfied, origin]
+  apply Bool.eq_iff_iff.mpr
+  simp only [beq_iff_eq, decide_eq_true_eq]
+  rw [← UInt64.toNat_inj]
+  simp only [Nat.toUInt64, UInt64.toNat_ofNat', UInt64.toNat_zero, Nat.sub_zero,
+    Nat.mod_eq_of_lt world.time.toNat_lt]
+  have bound : duration.toNat - world.time.toNat < 2^64 := by
+    have := duration.toNat_lt; omega
+  rw [Nat.mod_eq_of_lt bound]
+  omega
+
+/-- Every successful first-attempt path retains exact physical time and
+survival completion below the word bound. The last reward is produced by the
+world; the empty path has the runner's initial raw zero. -/
+theorem survival_prefix_clock {worldConfig : WorldConfig}
+    (initial : RunState worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning))
+    (origin : initial.world.time = 0) (raw : initial.carried = {})
+    (duration cap : UInt64) (positive : 0 < duration.toNat)
+    (attempt : Attempt worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning)
+      (.survive duration) cap)
+    (path : RankedSurvivalPrefix initial duration cap attempt) :
+    attempt.run.world.time.toNat = attempt.steps.val ∧
+      attempt.run.world.goalStart = 0 ∧
+      attempt.run.carried.reward =
+        (if duration.toNat ≤ attempt.steps.val then ⟨0x3f800000⟩ else ⟨0⟩) := by
+  induction path with
+  | start =>
+    simp [Attempt.start, World.setGoal, origin, raw, Nat.not_le_of_gt positive]
+  | step input path sensed world result executed ih =>
+    have clock := World.step_clock _ _ _ _ executed
+    have goals := World.step_goal _ _ _ _ executed
+    have done := World.step_completion _ _ _ _ executed
+    have room := input.remaining
+    have capBound := cap.toNat_lt
+    have nextTime : world.time.toNat = input.before.steps.val + 1 := by
+      rw [clock, UInt64.toNat_add, ih.1]
+      change (input.before.steps.val + 1) % 2^64 = _
+      exact Nat.mod_eq_of_lt (by omega)
+    have installed : world.goal = some (.survive duration) :=
+      goals.1.trans input.before.installed
+    have goalStart : world.goalStart = 0 := goals.2.trans ih.2.1
+    have completion := survival_completion world duration installed goalStart
+    simp only [OwnedEnvironment.record, SelectedStep.owned, DecisionInput.select]
+    refine ⟨nextTime, goalStart, ?_⟩
+    simp only [StepResult.raw, StepResult.reward, done, completion, nextTime,
+      decide_eq_true_eq]
+    rfl
+
+/-- From a cold ranked agent and the runner's actual zero initial raw result,
+every successful first survival-attempt path through its goal-producing action
+retains the zero sector. Success of sensing/world steps is explicit; this does
+not prove a nonempty execution, a first positive callback, or floor eligibility. -/
+theorem zero_ranked_survival_prefix {worldConfig : WorldConfig}
+    (initial : RunState worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning))
+    (origin : initial.world.time = 0) (raw : initial.carried = {})
+    (cold : ZeroRankedState initial.agent.control)
+    (duration cap : UInt64) (positive : 0 < duration.toNat)
+    (attempt : Attempt worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning)
+      (.survive duration) cap)
+    (path : RankedSurvivalPrefix initial duration cap attempt)
+    (beforePositive : attempt.steps.val ≤ duration.toNat) :
+    ZeroRankedState attempt.run.agent.control := by
+  induction path with
+  | start => exact cold
+  | step input path sensed world result executed ih =>
+    have bound : input.before.steps.val + 1 ≤ duration.toNat := beforePositive
+    have hz := ih (by omega)
+    have carried := (survival_prefix_clock initial origin raw duration cap positive
+      input.before path).2.2
+    have hr : SignedZero input.before.run.carried.reward := by
+      rw [carried, if_neg (by omega)]
+      exact Or.inl rfl
+    have action := zero_ranked_act input.before.run.agent hz input.observation
+      input.before.run.carried.reward hr input.before.run.carried.events.done
+    exact ⟨⟨action.skills.skills, action.skills.phase⟩, action.control,
+      action.metaController, action.ranking, action.gap⟩
+
+/-- The optimized native selection/environment stages produce exactly a path
+edge above. An admitted observation alone is insufficient: the actual sense
+and environment calls must both succeed. -/
+theorem ranked_survival_native_step {worldConfig : WorldConfig}
+    (initial : RunState worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning))
+    (duration cap : UInt64)
+    (input : DecisionInput worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning)
+      (.survive duration) cap)
+    (path : RankedSurvivalPrefix initial duration cap input.before)
+    (sensed : input.before.sense = .ok (some input))
+    (environment : OwnedEnvironment worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning)
+      (.survive duration) cap)
+    (executed : (input.selectOwned Agent.callbacks).environment = .ok environment) :
+    RankedSurvivalPrefix initial duration cap (environment.record Agent.callbacks) := by
+  rw [DecisionInput.selectOwned_eq] at executed
+  unfold OwnedStep.environment at executed
+  split at executed
+  · contradiction
+  · rename_i world result stepped
+    cases Except.ok.inj executed
+    exact .step input path sensed world result stepped
+
+/-- Specialization to the actual cold agent and successful world constructors.
+The native startup supplies exactly this raw zero and the unchanged behavior
+word. No restored state or separately prescribed action stream enters the path. -/
+theorem zero_ranked_initial_survival {worldConfig : WorldConfig}
+    (world : World worldConfig) (created : World.initial worldConfig = .ok world)
+    (config : Features.Config) (dimension : Dimension) (planning : PlanningSelection)
+    (behavior duration cap : UInt64) (positive : 0 < duration.toNat)
+    (attempt : Attempt worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning)
+      (.survive duration) cap)
+    (path : RankedSurvivalPrefix
+      ⟨world, Agent.initial (researchProfile .ranked) config .discounted dimension planning,
+        {}, behavior⟩ duration cap attempt)
+    (beforePositive : attempt.steps.val ≤ duration.toNat) :
+    ZeroRankedState attempt.run.agent.control :=
+  zero_ranked_survival_prefix _ (World.initial_fields _ _ created).1 rfl
+    (zero_ranked_initial config dimension planning) duration cap positive attempt path
+    beforePositive
+
+/-- Attempt finalization retains the carried result for every goal family.
+Together with `Attempt.start_carried`, a later admitted action consumes it even
+when the next goal changes. Finishing a campaign does not call the learner again. -/
+theorem finish_carried {worldConfig : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (attempt : Attempt worldConfig α goal cap)
+    (result : RunState worldConfig α × GoalOutcome × StepFrame β)
+    (finished : attempt.finish callbacks context = .ok result) :
+    result.1.carried = attempt.run.carried := by
+  unfold Attempt.finish at finished
+  cases sensed : attempt.run.world.observe with
+  | error error => simp [sensed, bind, Except.bind] at finished
+  | ok observation =>
+    simp only [sensed, bind, Except.bind, pure, Except.pure, Except.ok.injEq] at finished
+    cases finished
+    rfl
+
 end AcornVerif.CurrentReplacement
