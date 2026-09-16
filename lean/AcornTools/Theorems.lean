@@ -107,4 +107,3 @@ unsafe def inventory : IO Counts := do
   pure counts
 
 end AcornTheoremCount
-
