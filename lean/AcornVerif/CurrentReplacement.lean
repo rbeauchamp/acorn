@@ -2489,4 +2489,99 @@ theorem zero_ranked_draw_credit
     state.runtime.lifecycle.consumers.metaController hz.metaController features state.metaRate
     state.runtime.references.rng state.gap.reward state.gap.close.2 hz.gap
 
+/-- Actual neutral ranking acknowledges refresh without changing joined
+storage. The optional closing owner is carried by the existing refresh fold. -/
+theorem zero_ranked_refresh
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state)
+    (closing : Option (Closing config .discounted dimension (EndingPayload true))) :
+    ZeroRankedState (state.refreshFree closing).1 := by
+  dsimp only [TemporalControl.refreshFree]
+  rw [zero_neutral_refresh _ hz.ranking (fun slot => (hz.skills.skills slot).neutral)]
+  exact ⟨⟨hz.skills.skills, hz.skills.phase⟩, hz.control, hz.metaController, hz.ranking, hz.gap⟩
+
+/-- The configured concrete planning boundary preserves the joined sector.
+Its fresh zero model targets preserve the whole meta controller; cache, error
+and planning-clock observations retain their actual unconstrained updates. -/
+theorem zero_ranked_plan
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (selection : PlanningSelection)
+    (features : SwiftTd.ActiveSet dimension) :
+    ZeroRankedState (state.planFree (planningBoundary selection) features) := by
+  refine ⟨⟨hz.skills.skills, hz.skills.phase⟩, hz.control, ?_, hz.ranking, hz.gap⟩
+  change ZeroController (planningBoundary selection _ _ features state.average.rate).controller
+  rw [zero_planning_controller selection _ hz.metaController _
+    (fun slot => (hz.skills.skills slot).model)]
+  exact hz.metaController
+
+/-- Actual dispatch after the receiver's own meta draw preserves the joined
+sector for every successful selected branch. Skill installation uses the real
+begin/first-action result; no meta decision is supplied independently. -/
+theorem zero_ranked_dispatch
+    (state final : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (hr : SignedZero reward)
+    (ended : Option EndEvent) (decision : TemporalDecision)
+    (executed : let drawn := state.drawMeta features
+      drawn.1.dispatchMeta (modelOperations .discounted dimension)
+        features declared reward drawn.2 ended = some (final, decision)) :
+    ZeroRankedState final := by
+  let drawn := state.drawMeta features
+  change drawn.1.dispatchMeta _ features declared reward drawn.2 ended = _ at executed
+  have hc := zero_ranked_draw_credit state hz features
+  have hs := zero_skill_state_dispatch drawn.1 final ⟨hz.skills.skills, hz.skills.phase⟩
+    features declared reward hr drawn.2 ended decision executed
+  unfold TemporalControl.dispatchMeta at executed
+  dsimp only at executed
+  cases selected : skillOfMeta drawn.2.action with
+  | none =>
+    simp only [selected, pure, Option.some.injEq] at executed
+    have same := congrArg Prod.fst executed
+    dsimp only at same
+    refine ⟨hs, ?_, ?_, ?_, ?_⟩ <;> rw [← same]
+    · exact hc.control
+    · exact hc.metaController
+    · exact hc.ranking
+    · exact hc.gap
+  | some slot =>
+    have potential := zero_skill_state_potential (drawn.1.learnMeta features drawn.2)
+      hc.skills slot features declared
+    simp only [selected, bind, Option.bind, potential, pure, Option.some.injEq] at executed
+    have same := congrArg Prod.fst executed
+    dsimp only at same
+    refine ⟨hs, ?_, ?_, ?_, ?_⟩ <;> rw [← same]
+    · exact hc.control
+    · exact hc.metaController
+    · exact hc.ranking
+    · exact hc.gap
+
+/-- The ordinary discounted free boundary with no pending close preserves the
+joined sector, through actual refresh, configured planning, meta draw and selected
+dispatch. An option ending must establish its pre-boundary sector separately. -/
+theorem zero_ranked_boundary
+    (state final : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (selection : PlanningSelection)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (reward : Binary32) (hr : SignedZero reward) (ended : Option EndEvent)
+    (decision : TemporalDecision)
+    (executed : state.atBoundary (modelOperations .discounted dimension)
+      (planningBoundary selection) features declared reward none ended =
+        some (final, decision)) :
+    ZeroRankedState final := by
+  let free : FreeDispatch Host.patchShape config .discounted dimension demonLayout.tail
+      (EndingPayload true) :=
+    ⟨state.runtime.lifecycle, state.runtime.refresh,
+      state.runtime.references.modelPredictions, none⟩
+  have empty : (state.refreshFree none).2 = none := by
+    change free.refreshRanked.closing = none
+    exact refresh_closing_none (config := config) (criterion := .discounted)
+      (dimension := dimension) (shape := Host.patchShape) (discounts := demonLayout.tail)
+      (payload := EndingPayload true) (state := free) rfl
+  have refreshed := zero_ranked_refresh state hz none
+  have planned := zero_ranked_plan (state.refreshFree none).1 refreshed selection features
+  unfold TemporalControl.atBoundary at executed
+  dsimp only at executed
+  rw [empty] at executed
+  exact zero_ranked_dispatch _ final planned features declared reward hr ended decision executed
+
 end AcornVerif.CurrentReplacement

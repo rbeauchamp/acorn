@@ -92,7 +92,11 @@ dimension and planning selection. The other ten demons remain unrestricted.
 `zero_ranked_prepare` preserves the join through actual selection preparation
 for arbitrary features and signed-zero reward. `zero_ranked_draw_credit` preserves
 it through consecutive actual meta draw/credit, using that snapshot and owed gap.
-Joined preservation across the remaining branches and retirement is still open.
+`zero_ranked_refresh`, `zero_ranked_plan` and `zero_ranked_dispatch` join neutral
+refresh, concrete configured planning and actual produced meta dispatch.
+`zero_ranked_boundary` composes the successful ordinary boundary with no pending
+close. Served exploration, active continuation/ending, final credit and retirement
+still need joined preservation.
 This checks component closure and the produced-snapshot endpoint, not the full
 native zero-reward prefix or its first-positive callback. Establishing the incoming
 zero sectors along that prefix, the actual goal-action owner and later continuation

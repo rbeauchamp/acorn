@@ -658,8 +658,22 @@ It uses `zero_draw_policy_step` with the same producing snapshot, receiver RNG,
 owed gap reward and closing duration. No independently supplied decision or
 reward creates a favorable endpoint. This theorem covers consecutive calls;
 intervening writes in general boundary composition need their own frames.
-Served exploration, neutral refresh/planning, selected skill branches, final
-primitive/Demon-0 credit and retirement still need joined composition proofs.
+`zero_ranked_refresh` lifts the existing neutral-refresh identity through actual
+`refreshFree`, preserving joined storage while acknowledging the request.
+`zero_ranked_plan` covers actual `planFree` with either concrete configured
+`planningBoundary`; zero model targets preserve the complete meta controller,
+while cache, error and planning-clock updates remain unconstrained.
+`zero_ranked_dispatch` starts with the receiver's actual meta draw and follows
+successful `dispatchMeta` through its own credit and selected primitive or skill
+installation. The existing skill-table theorem supplies the final phase and
+neutral skill sector; all other joined fields retain their actual credit result.
+`zero_ranked_boundary` composes these owners for a successful ordinary discounted
+`atBoundary` with no pending close. It uses `refresh_closing_none` to derive that
+refresh cannot insert an intervening close before the produced meta credit.
+These are preservation statements conditional on the executed successful result,
+not proofs of action coverage, eventual selection or complete callback reachability.
+Served exploration, active option continuation/ending, final primitive/Demon-0
+credit and retirement still need joined composition proofs.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal

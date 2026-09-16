@@ -151,7 +151,12 @@ the other ten demons remain unrestricted. `zero_ranked_prepare` preserves the
 join through actual rate/gap/model-observation preparation with arbitrary features
 and signed-zero reward. `zero_ranked_draw_credit` covers consecutive actual meta
 draw/credit, deriving the decision from its snapshot and reward from its owed gap.
-Joined preservation across all selected branches and retirement remains pending.
+`zero_ranked_refresh` and `zero_ranked_plan` frame actual neutral refresh and
+concrete configured planning. `zero_ranked_dispatch` joins the actual produced
+draw/credit with successful skill installation; `zero_ranked_boundary` composes
+the successful ordinary discounted boundary with no pending close, using the
+existing closing-preservation proof. Served exploration, active continuation and
+ending, final credit and retirement still require joined proofs.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
