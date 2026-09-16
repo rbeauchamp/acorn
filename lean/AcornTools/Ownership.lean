@@ -117,6 +117,12 @@ def executables : Array (String × Name) := #[
 These are critical entry/transition obligations, not a quota or a claim that
 all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_ranked_finish,
+    `Acorn.Handcrafted.TemporalControl.finish),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_ranked_step,
+    `Acorn.Handcrafted.TemporalControl.step),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_ranked_aligned_step,
+    `Acorn.Handcrafted.TemporalControl.alignedStep),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_ranked_serve,
     `Acorn.Handcrafted.TemporalControl.serve),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_ranked_continuing,

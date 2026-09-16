@@ -3447,4 +3447,16 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.zero_ranked_selection
 
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_finish' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_finish
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_step
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_aligned_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_aligned_step
+
 end AcornVerif

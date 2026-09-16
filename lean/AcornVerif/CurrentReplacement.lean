@@ -2704,4 +2704,68 @@ theorem zero_ranked_selection
         exact zero_ranked_boundary _ final closed.1 selection features declared reward hr
           _ decision executed
 
+private theorem zero_ranked_prediction_control
+    (state : PredictionControl (researchProfile .ranked) .discounted dimension)
+    (hz : ZeroController state.control.controller) (features : SwiftTd.ActiveSet dimension)
+    (obs : Host.Observation) (reward : Binary32) (hr : SignedZero reward)
+    (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool) (clock : UInt64) :
+    ZeroController (state.advance features obs reward action own clock).control.controller := by
+  have credit : state.control.credit = .perStep := by
+    have matched : creditKind state.control.credit = .perStep := state.creditMatches
+    cases current : state.control.credit <;> simp_all [creditKind]
+  change ZeroController (state.control.creditStep features action own reward).controller
+  simp only [PrimitiveControl.creditStep, credit, Criterion.center]
+  exact zero_controller_step state.control.controller hz features action reward hr
+
+/-- Actual completion preserves the join after the selected primitive action.
+The recorded prediction view supplies both primitive credit and Demon-0 credit;
+other demons and observational gain/accounting fields remain unconstrained. -/
+theorem zero_ranked_finish
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (features : SwiftTd.ActiveSet dimension)
+    (obs : Host.Observation) (reward : Binary32) (hr : SignedZero reward)
+    (decision : TemporalDecision) :
+    ZeroRankedState (state.finish features obs reward decision) := by
+  rw [TemporalControl.finish_eq]
+  let view := (state.recordEpisodes decision).predictionView
+  have control := zero_ranked_prediction_control view hz.control features obs reward hr
+    decision.action decision.own state.runtime.lifecycle.representation.progress.clock
+  have ranking := zero_ranking_advance view hz.ranking features obs reward
+    decision.action decision.own state.runtime.lifecycle.representation.progress.clock hr
+  exact ⟨⟨hz.skills.skills, hz.skills.phase⟩, control, hz.metaController, ranking, hz.gap⟩
+
+/-- A successful actual local step composes the selected result and its own
+completion, with the observation's real declared-potential producer. No action,
+feature stream or primitive-credit ownership is independently prescribed. -/
+theorem zero_ranked_step
+    (state final : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (selection : PlanningSelection)
+    (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation)
+    (reward : Binary32) (hr : SignedZero reward) (goal : Bool) (decision : TemporalDecision)
+    (executed : state.step selection features obs reward goal = some (final, decision)) :
+    ZeroRankedState final := by
+  unfold TemporalControl.step at executed
+  cases selected : state.select selection features (spatialPotentials obs) reward goal with
+  | none => simp [selected, bind, Option.bind] at executed
+  | some result =>
+    rcases result with ⟨selectedState, selectedDecision⟩
+    simp only [selected, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at executed
+    rw [← executed.1]
+    have hs := zero_ranked_selection state selectedState hz selection features
+      (spatialPotentials obs) reward hr goal selectedDecision selected
+    exact zero_ranked_finish selectedState hs features obs reward hr selectedDecision
+
+/-- The actual aligned wrapper carries the successful step equation in its
+result. This uses its existing totality/alignment contract; retirement and
+host/native prefix linkage are separate later owners. -/
+theorem zero_ranked_aligned_step
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (aligned : state.Aligned) (selection : PlanningSelection)
+    (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation)
+    (reward : Binary32) (hr : SignedZero reward) (goal : Bool) :
+    ZeroRankedState (state.alignedStep aligned selection features obs reward goal).val.1 := by
+  let result := state.alignedStep aligned selection features obs reward goal
+  exact zero_ranked_step state result.val.1 hz selection features obs reward hr goal result.val.2
+    result.property.1
+
 end AcornVerif.CurrentReplacement

@@ -98,11 +98,12 @@ refresh, concrete configured planning and actual produced meta dispatch.
 close. `zero_ranked_selection` now composes preparation and every successful
 selection branch: served exploration retains priority, continuing credit consumes
 the actual token, and discounted ending uses the old pre-close meta snapshot.
-Final primitive/Demon-0 credit and retirement still need joined preservation.
-This checks component closure and the produced-snapshot endpoint, not the full
-native zero-reward prefix or its first-positive callback. Establishing the incoming
-zero sectors along that prefix, the actual goal-action owner and later continuation
-bootstrap remains unresolved.
+`zero_ranked_finish` joins actual primitive and Demon-0 credit;
+`zero_ranked_step` composes successful selection and completion.
+`zero_ranked_aligned_step` uses the actual wrapper's existing success/alignment
+contract. Retirement preservation, the full initialized native zero-reward prefix,
+its first-positive goal-action owner and later continuation bootstrap remain
+unresolved.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

@@ -685,8 +685,23 @@ skill table, follows the actual continuing/ending result, and only dispatches a
 new boundary after discounted close. Features, goal, declared payload and RNG
 are unrestricted; incoming reward must be signed zero and the state must satisfy
 the joined predicate. The proof does not assert successful action coverage or
-that a goal callback escapes served exploration. Final primitive/Demon-0 credit
-and retirement still need joined composition proofs.
+that a goal callback escapes served exploration.
+
+`zero_ranked_finish` joins actual primitive and Demon-0 completion through
+`TemporalControl.finish_eq` and the recorded state's actual prediction view.
+The profile-bound `creditMatches` field forces primitive per-step credit;
+`zero_controller_step` covers its actual chosen action under either ownership
+flag and signed-zero reward. Discounted centering returns that reward, and the
+subsequent host gain/pending update preserves controller knowledge. The same
+`PredictionControl.advance` supplies the existing Demon-0 zero-target proof;
+other demons and observational fields remain unrestricted. Meta, skill/phase
+and gap sectors are framed through the actual completion writes.
+`zero_ranked_step` inverts successful actual selection and feeds its returned
+state and decision to that completion. `zero_ranked_aligned_step` then uses the
+actual wrapper's carried step equation under its explicit alignment premise,
+reusing existing totality instead of constructing a parallel execution witness.
+These establish local zero-reward step closure. Retirement and full native-prefix
+composition remain separate obligations.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal

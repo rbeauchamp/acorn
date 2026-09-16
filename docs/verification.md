@@ -159,8 +159,13 @@ existing closing-preservation proof. `zero_ranked_serve`,
 `zero_ranked_continuing` and `zero_ranked_close_active` cover actual served priority,
 stored continuing-token credit and old-meta discounted close.
 `zero_ranked_selection` joins preparation and all successful actual selection
-branches for arbitrary features and goal under signed-zero reward. Final
-primitive/Demon-0 credit and retirement still require joined proofs.
+branches for arbitrary features and goal under signed-zero reward.
+`zero_ranked_finish` combines the actual recorded prediction view's primitive and
+Demon-0 credit. Primitive per-step credit follows from the profile's stored credit
+invariant, without a selected-action or ownership restriction. `zero_ranked_step`
+composes the successful selector and its own completion;
+`zero_ranked_aligned_step` reuses the actual aligned wrapper's step equation.
+Retirement preservation remains open.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
