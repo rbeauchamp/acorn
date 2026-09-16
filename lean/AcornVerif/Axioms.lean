@@ -2848,6 +2848,14 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.first_option_model
 
+/-- info: 'AcornVerif.CurrentReplacement.clear_values_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.clear_values_step
+
+/-- info: 'AcornVerif.CurrentReplacement.first_option_policy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.first_option_policy
+
 /-- info: 'AcornVerif.CurrentReplacement.one_action_models_beta' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.one_action_models_beta

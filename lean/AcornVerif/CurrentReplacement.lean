@@ -464,6 +464,109 @@ theorem neutral_interruption_iff (skill : Skill config .discounted dimension)
     bestZero.2, estimateZero.2]
   split <;> simp_all
 
+private theorem second_loop_weights {numeric : Acorn.Config}
+    (state : NumericState numeric dimension) (features : SwiftTd.ActiveSet dimension)
+    (acc : Binary32) :
+    (state.learnSecondLoop numeric features acc).1.weights = state.weights := by
+  have fold (indices : List (FeatIdx dimension)) (current : NumericState numeric dimension)
+      (acc e t : Binary32) (overshoot : Bool) :
+      (indices.foldl (fun (s, v) idx =>
+        NumericState.secondLoopElement numeric overshoot e t s v idx)
+          (current, acc)).1.weights = current.weights := by
+    induction indices generalizing current acc with
+    | nil => rfl
+    | cons idx rest ih => exact ih _ _
+  unfold NumericState.learnSecondLoop
+  exact fold _ _ _ _ _ _
+
+private theorem clear_row_state {numeric : Acorn.Config} {actions : Nat}
+    (controller : Controller numeric dimension actions) (row : Action actions) :
+    (controller.clear.learners.get row).state =
+      (controller.learners.get row).state.clearTransient := by
+  simp [Controller.clear, Vector.get, Fin.cast, Managed.apply, SwiftTd.Entry.apply]
+
+private theorem credit_false_state {numeric : Acorn.Config}
+    (learner : Managed numeric dimension) (delta vd decay : Binary32) :
+    (learner.credit delta vd decay false).val.state =
+      learner.state.learnFirstLoop numeric delta vd decay := rfl
+
+private theorem clear_credit {numeric : Acorn.Config} {actions : Nat}
+    (controller : Controller numeric dimension actions) (row : Action actions)
+    (delta vd decay : Binary32) :
+    ((controller.clear.learners.get row).credit delta vd decay false).val.state =
+      (controller.learners.get row).state.clearTransient := by
+  rw [credit_false_state, clear_row_state]
+  exact CurrentControl.first_loop_empty _ rfl _ _ _
+
+private theorem values_step_accumulator {numeric : Acorn.Config} {actions : Nat}
+    (controller : Controller numeric dimension actions) (features : SwiftTd.ActiveSet dimension)
+    (values : Vector Binary32 actions) (action : Action actions)
+    (reward bootstrap decay : Binary32) :
+    (controller.valuesStep features values action reward bootstrap decay).vDelta =
+      (((controller.learners.get action).credit
+        ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld)
+        controller.vDelta decay controller.restartPending).val.state.learnSecondLoop
+          numeric features .zero).2 := by
+  simp [Controller.valuesStep, Vector.get, Fin.cast]
+
+/-- The first policy action after the actual clear preserves every weight,
+even for raw nonfinite credit inputs. Loop two changes adaptation registers,
+but writes neither weights nor the cleared delta-weight accumulator. -/
+theorem clear_values_step {numeric : Acorn.Config} {actions : Nat}
+    (controller : Controller numeric dimension actions) (features : SwiftTd.ActiveSet dimension)
+    (values : Vector Binary32 actions) (action : Action actions)
+    (reward bootstrap decay : Binary32) :
+    (∀ row,
+      ((controller.clear.valuesStep features values action reward bootstrap decay).learners.get
+        row).state.weights = (controller.learners.get row).state.weights) ∧
+    (controller.clear.valuesStep features values action reward bootstrap decay).vDelta = .zero := by
+  constructor
+  · intro row
+    by_cases selected : row = action
+    · subst row
+      rw [CurrentControl.selected_row, second_loop_weights]
+      change ((controller.clear.learners.get action).credit _ _ _ false).val.state.weights = _
+      rw [clear_credit]
+      rfl
+    · rw [CurrentControl.unselected_row _ _ _ _ _ selected]
+      change ((controller.clear.learners.get row).credit _ _ _ false).val.state.weights = _
+      rw [clear_credit]
+      rfl
+  · rw [values_step_accumulator]
+    simp only [show controller.clear.restartPending = false from rfl]
+    rw [clear_credit]
+    exact CurrentRetirement.begin_accumulator_zero (controller.learners.get action).state features
+
+/-- The executed begin/first-action composition retains every policy weight,
+saves the drawn action's original machine prediction, and keeps a zero shared
+accumulator. Model callbacks are confined to their separate storage. -/
+theorem first_option_policy (skill : Skill config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (rate : ConsumerRate) (reward : Binary32)
+    (gain : RewardRate) (rng : Rng.Xoshiro256) :
+    let begun := skill.beginTemporal models features potential true rate
+    let result := begun.1.stepTemporal models begun.2.1 begun.2.2 reward gain rng
+    (∀ row, (result.1.policy.learners.get row).state.weights =
+      (skill.policy.learners.get row).state.weights) ∧
+    result.1.policy.vOld = (skill.policy.predictAll features).get result.2.2.1.action ∧
+    result.1.policy.vDelta = .zero := by
+  simp only [Skill.beginTemporal, Skill.beginOption, Skill.stepTemporal,
+    Skill.optionStep, OptionActivation.learning, if_true]
+  simp only [Nat.lt_irrefl, decide_false, Bool.and_false, Bool.false_eq_true, if_false]
+  dsimp only [Controller.policyStep]
+  refine ⟨(clear_values_step _ _ _ _ _ _ _).1, ?_,
+    (clear_values_step _ _ _ _ _ _ _).2⟩
+  let drawn : PolicyDecision primitiveCount :=
+    ((skill.policy.clear.snapshot (count := primitiveCount) features
+      (rate.resolve fun _ =>
+        skill.policy.clear.exploreRate (count := primitiveCount))).draw rng).1
+  change
+    (skill.policy.clear.predictAll features).get drawn.action =
+      (skill.policy.predictAll features).get drawn.action
+  simp [Controller.predictAll, Controller.clear, Vector.get, Fin.cast,
+    Managed.apply, SwiftTd.Entry.apply, NumericState.linearPrediction,
+    NumericState.clearTransient]
+
 theorem neutral_terminal_error_nonnegative (estimate saved : Binary32)
     (finite : estimate.Finite) (savedFinite : saved.Finite)
     (ordered : CurrentArithmetic.numerical32 saved ≤ CurrentArithmetic.numerical32 estimate)

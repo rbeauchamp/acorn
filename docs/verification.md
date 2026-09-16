@@ -110,6 +110,10 @@ schedule is a source-linked structural argument, with explicit exposure and
 input conditions. Neither result proves positive complete-reader reachability,
 fair selection of every unit, or learning benefit. The exact local transaction,
 alias ordering and finite history/clock limits retain their own proof owners.
+Its `first_option_policy` theorem connects the executed begin/first temporal
+action to unchanged policy weights, the actual drawn action's saved prediction
+and a zero shared accumulator, for either criterion and arbitrary raw credit.
+It does not establish the later terminal-error sign or progress margins.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

@@ -483,10 +483,14 @@ uses the executed terminal shaping and binary32 subtraction: when the finite
 saved value is no greater than that estimate, their numerical difference has
 magnitude at most 512, and the carried `vDelta` is zero, the error is nonnegative.
 The 512 envelope is the existing rounded-subtraction theorem's domain, not an
-assertion about arbitrary predictions. These local facts do not yet compose
-begin, actual draw, first credit and terminal callbacks. In particular, the
-unchanged-weight/equal-encoding link to the saved selected value remains an
-obligation; no positive sensitivity is inferred from current `begin`.
+assertion about arbitrary predictions. `first_option_policy` composes the actual
+begin, draw and first temporal credit: all policy weights are unchanged, the
+saved value is the drawn action's original prediction, and the shared accumulator
+is zero. `clear_values_step` derives this from empty first-loop eligibility and
+the second loop's write set, for arbitrary raw credit words and either criterion.
+The remaining terminal composition must relate that saved prediction to the
+next ordered policy maximum and its stopping comparison; no positive sensitivity
+is inferred from current `begin`.
 
 Longer invocations remain a candidate under the current mechanism. The first
 returned action skips model credit, but later continuations execute the first

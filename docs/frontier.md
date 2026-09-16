@@ -81,7 +81,9 @@ The Boolean callback family in PAR-11 separates input admission from joint
 progress: its actual signals and 1656-slot encoding bound are specified through
 the existing encoder, and finite lists follow `Agent.runPrefix`. Neutral stopping
 and terminal-error order contracts retain their finite-arithmetic hypotheses.
-Neither supplies the missing initialized complete-reader eligibility window.
+The actual begin/first-action policy composition preserves every stored weight,
+saves the drawn action's pre-update prediction and retains a zero accumulator.
+These facts do not supply the missing initialized complete-reader eligibility window.
 Longer invocations remain open; the one-action obstruction does not settle them.
 
 ## F4 · Continuing control and exploration
