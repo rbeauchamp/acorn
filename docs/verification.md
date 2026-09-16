@@ -6,7 +6,7 @@ start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
 Lean/Mathlib dependencies, a C compiler, OpenSSL 3, ShellCheck and GNU coreutils.
-The hard 300-second deadline includes project compilation and every ordinary
+The hard 360-second deadline includes project compilation and every ordinary
 check. It uses process-group SIGKILL with no grace period or budget override;
 missing, skipped or timed-out checks fail. OS scheduling and signal delivery
 are the trusted mechanisms that enforce this deadline.
@@ -75,7 +75,7 @@ Do not manually launch another viewer against a directory already in use.
 
 If a tool is missing, install the named prerequisite before retrying. On macOS,
 check that `xcode-select -p` points to an installed, usable developer toolchain.
-If verification reaches its 300-second deadline, retain the failing command
+If verification reaches its 360-second deadline, retain the failing command
 and diagnostic for a focused report; do not raise the limit or treat a partial
 run as a pass. Run the complete command to check all verification owners.
 

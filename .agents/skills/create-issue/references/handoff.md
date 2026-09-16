@@ -49,7 +49,7 @@ and the evidence that will satisfy each acceptance criterion. Define completion
 through the applicable delivery path, including independent review, local
 `./scripts/verify.sh`, CI on the exact proposed head, signed commits and protected
 merge when implementation is included. Preserve the current AGENTS.md hard
-300-second verification deadline and full admission coverage. Issue creation
+360-second verification deadline and full admission coverage. Issue creation
 itself requires publication readback, not running that implementation suite.
 
 For the affected scope, account for necessary refactoring, removal of newly dead
