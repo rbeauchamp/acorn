@@ -181,6 +181,17 @@ theorem zero_controller_initial : ZeroController (Controller.initial config dime
     CurrentLearner.vector_get, Vector.getElem_ofFn] using
     (zero_initial (config := config) (dimension := dimension))
 
+/-- Actual retirement resets every stored action row and both shared lags.
+The same slot may represent several feature units; no distinctness is assumed. -/
+theorem zero_controller_retire (controller : Controller config dimension actions)
+    (hz : ZeroController controller) (feature : FeatIdx dimension) :
+    ZeroController (controller.retire feature) := by
+  refine ⟨?_, Or.inl rfl, Or.inl rfl⟩
+  intro action
+  simpa only [Controller.retire, CurrentLearner.vector_get, Vector.getElem_map,
+    Managed.retire, Managed.apply, SwiftTd.Entry.apply] using
+    zero_retire (controller.learners.get action).state (hz.learners action) feature
+
 /-- The actual ordered pre-update prediction is zero for every action. -/
 theorem zero_predict_all (controller : Controller config dimension actions)
     (hz : ZeroController controller) (features : SwiftTd.ActiveSet dimension)

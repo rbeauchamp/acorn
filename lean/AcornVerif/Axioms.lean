@@ -3459,4 +3459,24 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.zero_ranked_aligned_step
 
+/-- info: 'AcornVerif.CurrentRetirement.zero_retire' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.zero_retire
+
+/-- info: 'AcornVerif.CurrentControl.zero_controller_retire' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.zero_controller_retire
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_model_retire' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_model_retire
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_retire' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_retire
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_act' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_act
+
 end AcornVerif

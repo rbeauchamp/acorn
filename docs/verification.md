@@ -165,9 +165,14 @@ Demon-0 credit. Primitive per-step credit follows from the profile's stored cred
 invariant, without a selected-action or ownership restriction. `zero_ranked_step`
 composes the successful selector and its own completion;
 `zero_ranked_aligned_step` reuses the actual aligned wrapper's step equation.
-Retirement preservation remains open.
-The full initialized native prefix and first-positive callback are not yet
-proved, and these component results imply no beta-floor progress.
+`CurrentRetirement.zero_retire` checks the actual numeric slot reset;
+`zero_controller_retire` and `zero_model_retire` preserve the lifted zero sectors.
+`zero_ranked_retire` covers both refusal and same-receiver replacement, including
+complete consumer resets and retained temporal references. `zero_ranked_act`
+composes actual clock/current-bank encoding, local step and retirement for one
+zero-reward action. The full initialized native prefix and first-positive
+callback are not yet proved, and zero-sector preservation implies no beta-floor
+progress or complete-reader eligibility.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

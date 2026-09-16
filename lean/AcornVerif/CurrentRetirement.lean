@@ -1220,6 +1220,32 @@ theorem zero_clear (state : NumericState config dimension)
   intro idx
   simp [NumericState.clearTransient, TransientState.zero, Vector.get, SignedZero]
 
+/-- Receiver-slot retirement preserves zero knowledge while resetting that
+slot's registers and beta. No negligibility, cold-beta or distinct-slot premise
+is needed for this numerical reset property. -/
+theorem zero_retire (state : NumericState config dimension)
+    (hz : ZeroKnowledge state) (idx : FeatIdx dimension) :
+    ZeroKnowledge (state.retireIndex idx) := by
+  have reset (current : NumericState config dimension) (hc : ZeroKnowledge current) :
+      ZeroKnowledge ((current.clearFeatureRegisters idx).writeWeight idx .zero) := by
+    have cleared := zero_clear_feature current hc idx
+    refine ⟨?_, cleared.updates, cleared.old, cleared.delta⟩
+    intro other
+    simp only [NumericState.writeWeight, CurrentLearner.vector_get, Vector.getElem_set]
+    split
+    · rw [project_zero config.rule .zero (Or.inl rfl)]
+      exact Or.inl rfl
+    · exact cleared.weights other
+  unfold NumericState.retireIndex
+  split
+  · rename_i pos found
+    have valid := (Array.findIdx?_eq_some_iff_getElem.mp found).1
+    have kept := reset (state.removeEligibleAt pos valid)
+      ⟨hz.weights, hz.updates, hz.old, hz.delta⟩
+    exact ⟨kept.weights, kept.updates, Or.inl rfl, Or.inl rfl⟩
+  · have kept := reset state hz
+    exact ⟨kept.weights, kept.updates, Or.inl rfl, Or.inl rfl⟩
+
 /-- Every actual ordered active prediction is a signed zero in the zero sector. -/
 theorem zero_prediction (state : NumericState config dimension)
     (hz : ZeroKnowledge state)

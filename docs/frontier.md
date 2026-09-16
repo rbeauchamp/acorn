@@ -101,9 +101,11 @@ the actual token, and discounted ending uses the old pre-close meta snapshot.
 `zero_ranked_finish` joins actual primitive and Demon-0 credit;
 `zero_ranked_step` composes successful selection and completion.
 `zero_ranked_aligned_step` uses the actual wrapper's existing success/alignment
-contract. Retirement preservation, the full initialized native zero-reward prefix,
-its first-positive goal-action owner and later continuation bootstrap remain
-unresolved.
+contract. `zero_ranked_retire` preserves the join through both refusal and actual
+receiver-bound replacement. `zero_ranked_act` composes clock advancement, the
+current-bank encoding, local step and retirement for one zero-reward action.
+The full initialized native zero-reward prefix, its first-positive goal-action
+owner and later continuation bootstrap remain unresolved.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

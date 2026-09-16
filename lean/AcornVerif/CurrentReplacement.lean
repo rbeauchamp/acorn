@@ -2768,4 +2768,81 @@ theorem zero_ranked_aligned_step
   exact zero_ranked_step state result.val.1 hz selection features obs reward hr goal result.val.2
     result.property.1
 
+/-- Both actual discounted model learners preserve zero knowledge under the
+same hashed-slot reset, including the reward learner's duration-reader alias. -/
+theorem zero_model_retire (model : Model dimension .discounted) (hz : ZeroModel model)
+    (feature : FeatIdx dimension) : ZeroModel (model.retire feature) := by
+  cases model with
+  | discounted reward continuation =>
+    change ZeroKnowledge (reward.state.retireIndex feature) ∧
+      ZeroKnowledge (continuation.state.retireIndex feature)
+    exact ⟨zero_retire reward.state hz.1 feature, zero_retire continuation.state hz.2 feature⟩
+
+private theorem zero_neutral_skill_retire (skill : Skill config .discounted dimension)
+    (hz : ZeroNeutralSkill skill) (feature : FeatIdx dimension) :
+    ZeroNeutralSkill (skill.retire feature) :=
+  ⟨hz.neutral, zero_controller_retire skill.policy hz.policy feature,
+    zero_model_retire skill.model hz.model feature⟩
+
+private theorem zero_ranking_retire {discounts : List Discount}
+    (bank : DemonBank dimension (.g99 :: discounts)) (hz : ZeroRanking bank)
+    (feature : FeatIdx dimension) : ZeroRanking (bank.retire feature) := by
+  cases bank with
+  | cons learner rest =>
+    change ZeroKnowledge (learner.state.retireIndex feature)
+    exact zero_retire learner.state hz feature
+
+private theorem zero_ranked_replace
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (unit : Fin config.units.count)
+    (room : state.runtime.lifecycle.representation.progress.CanRecord)
+    (eligible : state.runtime.lifecycle.consumers.negligible
+      (unitFeature dimension config unit) = true) :
+    ZeroRankedState { state with runtime := { state.runtime with
+      lifecycle := state.runtime.lifecycle.replace unit room eligible } } := by
+  let feature := unitFeature dimension config unit
+  refine ⟨⟨?_, hz.skills.phase⟩,
+    zero_controller_retire _ hz.control feature,
+    zero_controller_retire _ hz.metaController feature,
+    zero_ranking_retire _ hz.ranking feature, hz.gap⟩
+  intro slot
+  simpa only [Lifecycle.replace, Ensemble.retire, CurrentLearner.vector_get,
+    Vector.getElem_map] using
+    zero_neutral_skill_retire (state.runtime.lifecycle.consumers.skills.get slot)
+      (hz.skills.skills slot) feature
+
+/-- Receiver-bound retirement preserves the joined sector on refusal and
+success. Success uses the actual admitted unit and complete consumer reset;
+no zero-weight veto or distinctness of hashed feature slots is assumed. -/
+theorem zero_ranked_retire
+    (state : Agent (researchProfile .ranked) config .discounted dimension planning)
+    (hz : ZeroRankedState state.control) : ZeroRankedState state.retire.control := by
+  change ZeroRankedState { state.control with runtime := state.control.runtime.retire }
+  unfold FeatureRuntime.retire
+  cases retired : state.control.runtime.lifecycle.tryRetire with
+  | none => exact hz
+  | some result =>
+    rcases result with ⟨unit, next⟩
+    obtain ⟨room, eligible, selected, same⟩ :=
+      (Lifecycle.success_iff state.control.runtime.lifecycle unit next).mp retired
+    rw [same]
+    exact zero_ranked_replace state.control hz unit room eligible
+
+/-- One actual ranked agent action preserves the zero sector under zero
+reward: clock advancement, current-bank encoding, actual aligned step, then
+receiver retirement. The execution correspondence supplies the real result and
+its alignment/episode witnesses; no independent feature stream is substituted. -/
+theorem zero_ranked_act
+    (state : Agent (researchProfile .ranked) config .discounted dimension planning)
+    (hz : ZeroRankedState state.control) (observation : Host.Observation)
+    (reward : Binary32) (hr : SignedZero reward) (goal : Bool) :
+    ZeroRankedState (state.act observation reward goal).1.control := by
+  have advanced : ZeroRankedState state.advanceClock.control :=
+    ⟨⟨hz.skills.skills, hz.skills.phase⟩, hz.control, hz.metaController, hz.ranking, hz.gap⟩
+  obtain ⟨next, aligned, episodes, executed, actual⟩ := state.act_execution observation reward goal
+  have stepped := zero_ranked_step state.advanceClock.control next advanced planning
+    (state.advanceClock.frame observation).active observation reward hr goal _ executed
+  rw [actual]
+  exact zero_ranked_retire ⟨next, aligned, episodes⟩ stepped
+
 end AcornVerif.CurrentReplacement

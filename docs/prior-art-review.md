@@ -700,8 +700,24 @@ and gap sectors are framed through the actual completion writes.
 state and decision to that completion. `zero_ranked_aligned_step` then uses the
 actual wrapper's carried step equation under its explicit alignment premise,
 reusing existing totality instead of constructing a parallel execution witness.
-These establish local zero-reward step closure. Retirement and full native-prefix
-composition remain separate obligations.
+These establish local zero-reward step closure.
+
+`CurrentRetirement.zero_retire` proves actual slot retirement preserves zero
+knowledge through eligibility removal, register clearing, zero weight projection,
+beta re-anchoring and aggregate clearing. It assumes no negligible/cold beta.
+`zero_controller_retire` and `zero_model_retire` lift that result through complete
+controller and discounted model storage, retaining the model's reader alias.
+`zero_ranked_retire` covers both outcomes of actual receiver-bound retirement:
+refusal is unchanged; success uses `Lifecycle.success_iff` to identify the actual
+admitted replacement, then follows its complete consumer reset. Skills retain
+neutral interests; the actual references retain phase and deferred reward.
+There is no distinct-hash-slot assumption and no zero-weight retirement veto.
+`zero_ranked_act` composes that result with clock advancement and the actual
+`Agent.act_execution` correspondence. Its features are the advanced receiver's
+current-bank frame; the correspondence supplies the actual local step and its
+alignment/episode witnesses before retirement. One zero-reward action therefore
+preserves the joined predicate for arbitrary observation and goal. Native
+World/Attempt prefix linkage and positive-reward behavior remain separate.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal
