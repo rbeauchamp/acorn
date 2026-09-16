@@ -13,7 +13,7 @@ jobs:
   verify:
     # The standard Apple Silicon runner has three cores; the complete cold suite
     # retains the same deadline as local verification.
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 30
     env:
       ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -26,7 +26,9 @@ jobs:
       - name: Confirm checked-out commit
         run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
       - name: Provision system tools
+        id: system
         run: |
+          echo "macos-major=$(sw_vers -productVersion | cut -d. -f1)" >> "$GITHUB_OUTPUT"
           brew install coreutils elan openssl@3 shellcheck
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
@@ -37,7 +39,7 @@ jobs:
           path: |
             ~/.elan
             lean/.lake/packages
-          key: lean-deps-v2-macos-15-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}
+          key: lean-deps-v2-macos-${{ steps.system.outputs.macos-major }}-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}
       - name: Provision pinned Lean and Mathlib
         if: steps.dependencies.outputs.cache-hit != 'true'
         working-directory: lean

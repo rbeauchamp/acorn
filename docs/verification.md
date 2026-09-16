@@ -22,8 +22,9 @@ The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
-The [CI workflow](../.github/workflows/verify.yml) runs on macOS 15 with Apple
-Silicon. Automatic local setup supports macOS and Ubuntu/Debian Linux.
+The [CI workflow](../.github/workflows/verify.yml) runs on GitHub's standard
+Apple Silicon `macos-latest` image. Dependency caches include the actual macOS
+major version. Automatic local setup supports macOS and Ubuntu/Debian Linux.
 
 For manual setup, install macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
