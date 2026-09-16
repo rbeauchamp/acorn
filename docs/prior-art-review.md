@@ -672,8 +672,21 @@ neutral skill sector; all other joined fields retain their actual credit result.
 refresh cannot insert an intervening close before the produced meta credit.
 These are preservation statements conditional on the executed successful result,
 not proofs of action coverage, eventual selection or complete callback reachability.
-Served exploration, active option continuation/ending, final primitive/Demon-0
-credit and retirement still need joined composition proofs.
+`zero_ranked_serve` preserves the join for every successfully served exploratory
+action, including its actual next phase, skipped meta span and cleared diagnostic
+fields. `zero_ranked_continuing` consumes the stored active phase and actual
+continuing token, using the same pre-step meta snapshot for comparison and reported
+values. `zero_ranked_close_active` lifts the stored-owner close result to the full
+join and idle phase; its terminal value is the old pre-close meta snapshot.
+`zero_ranked_selection` composes actual preparation and every successful
+`selectWithOperations` branch with the concrete model and planning owners.
+It keeps served exploration first, derives neutral potential from the current
+skill table, follows the actual continuing/ending result, and only dispatches a
+new boundary after discounted close. Features, goal, declared payload and RNG
+are unrestricted; incoming reward must be signed zero and the state must satisfy
+the joined predicate. The proof does not assert successful action coverage or
+that a goal callback escapes served exploration. Final primitive/Demon-0 credit
+and retirement still need joined composition proofs.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal

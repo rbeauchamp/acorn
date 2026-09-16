@@ -2584,4 +2584,124 @@ theorem zero_ranked_boundary
   rw [empty] at executed
   exact zero_ranked_dispatch _ final planned features declared reward hr ended decision executed
 
+/-- Served exploration retains priority and preserves the joined sector.
+Its actual next exploratory phase, gap skip and diagnostic clearing are framed;
+no assumption removes a served action from the selection schedule. -/
+theorem zero_ranked_serve
+    (state final : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (features : SwiftTd.ActiveSet dimension)
+    (decision : TemporalDecision) (executed : state.serve features = some (final, decision)) :
+    ZeroRankedState final := by
+  unfold TemporalControl.serve at executed
+  split at executed
+  · rename_i run phase
+    cases served : run.serve with
+    | none => simp [served, bind, Option.bind] at executed
+    | some pair =>
+      simp only [served, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at executed
+      rw [← executed.1]
+      refine ⟨⟨hz.skills.skills, ?_⟩, hz.control, hz.metaController, hz.ranking, hz.gap⟩
+      intro slot activation phase
+      change Occupancy.exploring _ = Occupancy.option slot activation at phase
+      cases phase
+  · contradiction
+  · contradiction
+
+/-- An actual continuing token from the stored active option preserves the
+join through phase clearing, step installation and skipped meta credit.
+The comparison and reported values come from the same old meta snapshot. -/
+theorem zero_ranked_continuing
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation true)
+    (phase : state.runtime.references.phase = .option slot activation)
+    (features : SwiftTd.ActiveSet dimension) (goal : Bool)
+    (next : OptionContinuation dimension activation)
+    (produced : (state.runtime.lifecycle.consumers.skills.get slot).decideOption activation
+      features false goal (comparisonValue .discounted
+        (state.runtime.lifecycle.consumers.metaController.snapshot
+          (count := metaCount) features state.metaRate)) state.skillRate = .continuing next)
+    (reward : Binary32) (hr : SignedZero reward) :
+    let snapshot := state.runtime.lifecycle.consumers.metaController.snapshot
+      (count := metaCount) features state.metaRate
+    ZeroRankedState (((state.withPhase .idle).withoutPlanning.stepOption
+      (modelOperations .discounted dimension) slot activation next reward snapshot.values
+      none false none).1.skipMeta) := by
+  refine ⟨?_, hz.control, hz.metaController, hz.ranking, hz.gap⟩
+  exact zero_skill_state_continuing state hz.skills slot activation phase features goal _ next
+    produced reward hr _
+
+/-- Close the actual stored discounted option using its old pre-close meta
+snapshot, then retain the joined sector at the now-idle boundary. The current
+neutral coordinate is the value produced by the skill table. -/
+theorem zero_ranked_close_active
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation true)
+    (phase : state.runtime.references.phase = .option slot activation)
+    (reason : OptionEnd) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (hr : SignedZero reward) :
+    let closing : Closing config .discounted dimension (EndingPayload true) :=
+      ⟨slot, ⟨activation, false, reason⟩, none⟩
+    let terminal := comparisonValue .discounted
+      (state.runtime.lifecycle.consumers.metaController.snapshot
+        (count := metaCount) features state.metaRate)
+    let result := (state.withPhase .idle).closeOption (modelOperations .discounted dimension)
+      closing reward terminal
+    ZeroRankedState result.1 ∧ result.1.runtime.references.phase = .idle := by
+  have hs := zero_skill_state_close_active state hz.skills hz.metaController slot activation
+    phase reason features reward hr
+  exact ⟨⟨hs.1, hz.control, hz.metaController, hz.ranking, hz.gap⟩, hs.2⟩
+
+/-- Successful actual ordinary selection preserves the joined sector across
+served exploration, inactive boundaries, continuing options and discounted
+endings. Features, goal and actual RNG remain arbitrary. Final primitive/demon
+credit and retirement are later owners, outside this selection theorem. -/
+theorem zero_ranked_selection
+    (state final : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (selection : PlanningSelection)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (reward : Binary32) (hr : SignedZero reward) (goal : Bool) (decision : TemporalDecision)
+    (executed : state.selectWithOperations (modelOperations .discounted dimension)
+      (planningBoundary selection) features declared reward goal = some (final, decision)) :
+    ZeroRankedState final := by
+  unfold TemporalControl.selectWithOperations at executed
+  generalize preparedEq : state.prepareSelection (modelOperations .discounted dimension)
+    features reward = prepared at executed
+  have hp : ZeroRankedState prepared := by
+    rw [← preparedEq]
+    exact zero_ranked_prepare state hz features reward hr
+  have idle : ZeroRankedState (prepared.withPhase .idle) :=
+    ⟨zero_skill_state_idle prepared hp.skills, hp.control,
+      hp.metaController, hp.ranking, hp.gap⟩
+  dsimp only at executed
+  cases served : prepared.serve features with
+  | some result =>
+    simp only [served] at executed
+    cases executed
+    exact zero_ranked_serve prepared final hp features decision served
+  | none =>
+    have hierarchy : (!(researchProfile .ranked).usesHierarchy) = false := rfl
+    simp only [served, hierarchy, Bool.false_eq_true, if_false] at executed
+    split at executed
+    · exact zero_ranked_boundary _ final idle selection features declared reward hr
+        none decision executed
+    · exact zero_ranked_boundary _ final idle selection features declared reward hr
+        none decision executed
+    · rename_i slot activation phase
+      have potential := zero_skill_state_potential (prepared.withPhase .idle)
+        idle.skills slot features declared
+      simp only [potential, bind, Option.bind] at executed
+      split at executed
+      · rename_i next produced
+        simp only [pure, Option.some.injEq, Prod.mk.injEq] at executed
+        rw [← executed.1]
+        exact zero_ranked_continuing prepared hp slot activation phase features goal next
+          produced reward hr
+      · rename_i reason produced
+        have closed := zero_ranked_close_active prepared hp slot activation phase reason
+          features reward hr
+        exact zero_ranked_boundary _ final closed.1 selection features declared reward hr
+          _ decision executed
+
 end AcornVerif.CurrentReplacement

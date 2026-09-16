@@ -155,8 +155,12 @@ draw/credit, deriving the decision from its snapshot and reward from its owed ga
 concrete configured planning. `zero_ranked_dispatch` joins the actual produced
 draw/credit with successful skill installation; `zero_ranked_boundary` composes
 the successful ordinary discounted boundary with no pending close, using the
-existing closing-preservation proof. Served exploration, active continuation and
-ending, final credit and retirement still require joined proofs.
+existing closing-preservation proof. `zero_ranked_serve`,
+`zero_ranked_continuing` and `zero_ranked_close_active` cover actual served priority,
+stored continuing-token credit and old-meta discounted close.
+`zero_ranked_selection` joins preparation and all successful actual selection
+branches for arbitrary features and goal under signed-zero reward. Final
+primitive/Demon-0 credit and retirement still require joined proofs.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the

@@ -3431,4 +3431,20 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.zero_ranked_boundary
 
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_serve' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_serve
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_continuing' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_continuing
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_close_active' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_close_active
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_selection' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_selection
+
 end AcornVerif

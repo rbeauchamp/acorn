@@ -95,8 +95,10 @@ it through consecutive actual meta draw/credit, using that snapshot and owed gap
 `zero_ranked_refresh`, `zero_ranked_plan` and `zero_ranked_dispatch` join neutral
 refresh, concrete configured planning and actual produced meta dispatch.
 `zero_ranked_boundary` composes the successful ordinary boundary with no pending
-close. Served exploration, active continuation/ending, final credit and retirement
-still need joined preservation.
+close. `zero_ranked_selection` now composes preparation and every successful
+selection branch: served exploration retains priority, continuing credit consumes
+the actual token, and discounted ending uses the old pre-close meta snapshot.
+Final primitive/Demon-0 credit and retirement still need joined preservation.
 This checks component closure and the produced-snapshot endpoint, not the full
 native zero-reward prefix or its first-positive callback. Establishing the incoming
 zero sectors along that prefix, the actual goal-action owner and later continuation
