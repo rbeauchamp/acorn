@@ -614,8 +614,29 @@ closure; it does not assert that the branch occurs or supplies action coverage.
 policy and continuation use the same old meta value, while the reward model
 consumes raw reward. Frozen modes and all terminal reasons retain their actual
 write behavior. These endpoints preserve objective identity using the existing
-owner equations. Installing their results into the actual dispatch state and
-preserving its phase/coordinate invariant remain composition obligations.
+owner equations.
+
+`ZeroSkillState` adds the actual table and stored-phase boundary: all retained
+skills satisfy that sector, and any stored active option has false previous
+potential. `zero_skill_state_with_skill` preserves other option slots and phase;
+`zero_skill_state_potential` derives admission from the actual selected table
+entry. `zero_skill_state_dispatch` covers every successful actual meta dispatch,
+including primitive selection, and follows the selected option's actual
+begin/token installation. `zero_skill_state_continuing` starts from the stored
+activation and actual continuing decision, clears occupancy, installs its step,
+and preserves the returned coordinate through the optional meta-span increment.
+These claims
+do not prescribe a favorable owner, action or token.
+
+`zero_skill_state_close_snapshot` preserves this table/phase invariant using the
+current pre-close meta snapshot, whose controller must separately satisfy
+`ZeroController`. Only a retained owner requires neutral coordinate premises;
+the detached-owner branch discards its terminal result without imposing a zero
+sector on that old owner. `zero_skill_state_close_active` derives the previous
+coordinate and owner from stored occupancy, then clears phase and closes with
+that old snapshot, leaving idle occupancy. This is still a partial state
+invariant: primitive/meta learners, ranking demons, gaps, refresh and retirement
+need their own joined callback composition and initialized linkage.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal

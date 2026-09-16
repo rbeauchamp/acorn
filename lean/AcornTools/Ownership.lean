@@ -117,6 +117,18 @@ def executables : Array (String × Name) := #[
 These are critical entry/transition obligations, not a quota or a claim that
 all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_skill_state_with_skill,
+    `Acorn.Handcrafted.TemporalControl.withSkill),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_skill_state_potential,
+    `Acorn.Features.Interest.potential),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_skill_state_continuing,
+    `Acorn.Handcrafted.TemporalControl.stepOption),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_skill_state_dispatch,
+    `Acorn.Handcrafted.TemporalControl.dispatchMeta),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_skill_state_close_snapshot,
+    `Acorn.Handcrafted.TemporalControl.closeOption),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_skill_state_close_active,
+    `Acorn.Handcrafted.TemporalControl.closeOption),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_neutral_skill_initial,
     `Acorn.Features.Skill.initial),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.zero_neutral_skill_begin,

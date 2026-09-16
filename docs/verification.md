@@ -138,8 +138,12 @@ snapshot, with false previous potential retained as an explicit premise.
 `ZeroNeutralSkill` checks construction and concrete whole-Skill begin/first-action,
 actual continuing-token and old-meta-ending composition. Its producer inversion
 binds the continuing snapshot; begin and continuing endpoints return false
-previous potential. Actual dispatch installation and phase preservation remain
-outside these local endpoints.
+previous potential. `ZeroSkillState` additionally checks actual table installation,
+meta dispatch, continuing phase update and close-owner frames. Neutral potential
+comes from the selected actual table entry; a detached closed owner's result is
+discarded without a zero-sector assumption. The active close uses the pre-close
+meta snapshot and leaves idle occupancy. Other learners and the joined callback
+invariant remain outside this skill-table/phase result.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the

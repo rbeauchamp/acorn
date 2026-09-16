@@ -2206,4 +2206,221 @@ theorem zero_neutral_skill_end_snapshot (skill : Skill config .discounted dimens
     · rw [(skill.terminal_owners ending.activation ending.potential reward terminal gain).2]
       exact hz.model
 
+/-- The actual retained skill table is neutral and zero; a stored active
+option carries false previous potential. Other learners and references are
+unrestricted, so this is not yet the complete callback zero-sector invariant. -/
+structure ZeroSkillState (state : TemporalControl profile config .discounted dimension) : Prop where
+  /-- All physical policies and both models at every retained slot. -/
+  skills : ∀ slot, ZeroNeutralSkill (state.runtime.lifecycle.consumers.skills.get slot)
+  /-- The actual stored activation, whenever an option occupies the phase. -/
+  phase : ∀ slot activation, state.runtime.references.phase = .option slot activation →
+    activation.previous = false
+
+private theorem withSkill_selected_skill
+    (state : TemporalControl profile config criterion dimension)
+    (slot : Fin Acorn.FeatureConstants.skillCount) (skill : Skill config criterion dimension) :
+    (state.withSkill slot skill).runtime.lifecycle.consumers.skills.get slot = skill := by
+  simp only [TemporalControl.withSkill, CurrentLearner.vector_get, Vector.getElem_set_self]
+
+/-- A same-slot installation preserves every other actual skill and the
+stored phase; its replacement already carries the complete neutral zero sector. -/
+theorem zero_skill_state_with_skill (state : TemporalControl profile config .discounted dimension)
+    (hz : ZeroSkillState state) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (skill : Skill config .discounted dimension) (hs : ZeroNeutralSkill skill) :
+    ZeroSkillState (state.withSkill slot skill) := by
+  constructor
+  · intro other
+    by_cases same : other = slot
+    · subst other
+      rw [withSkill_selected_skill]
+      exact hs
+    · rw [withSkill_other_skill _ _ _ _ same]
+      exact hz.skills other
+  · exact hz.phase
+
+/-- Neutral coordinate admission is derived from the actual retained table,
+for arbitrary encoded features and declared observation payload. -/
+theorem zero_skill_state_potential (state : TemporalControl profile config .discounted dimension)
+    (hz : ZeroSkillState state) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
+    (state.runtime.lifecycle.consumers.skills.get slot).interest.potential features declared =
+      some false := by
+  rw [(hz.skills slot).neutral]
+  exact neutral_potential features declared
+
+private theorem zero_skill_state_idle (state : TemporalControl profile config .discounted dimension)
+    (hz : ZeroSkillState state) : ZeroSkillState (state.withPhase .idle) := by
+  refine ⟨hz.skills, ?_⟩
+  intro slot activation phase
+  cases phase
+
+private theorem zero_skill_state_step_result
+    (state : TemporalControl profile config .discounted dimension) (hz : ZeroSkillState state)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (metaValues : Vector Binary32 metaCount.word.toNat)
+    (metaDecision : Option (PolicyDecision metaCount)) (started : Bool) (ended : Option EndEvent)
+    (kept :
+      let result := (state.runtime.lifecycle.consumers.skills.get slot).stepTemporal
+        (modelOperations .discounted dimension) activation next reward state.average.rate
+        state.runtime.references.rng
+      ZeroNeutralSkill result.1 ∧ result.2.1.previous = false) :
+    ZeroSkillState (state.stepOption (modelOperations .discounted dimension) slot activation next
+      reward metaValues metaDecision started ended).1 := by
+  have installed := zero_skill_state_with_skill state hz slot _ kept.1
+  constructor
+  · exact installed.skills
+  · intro current active phase
+    change Occupancy.option slot _ = Occupancy.option current active at phase
+    cases phase
+    exact kept.2
+
+/-- Continuing selection reads the actual stored activation, then clears the
+phase before installing the returned action. Its token is the actual decision's
+output; metadata arguments cannot choose a different receiving skill. -/
+theorem zero_skill_state_continuing
+    (state : TemporalControl profile config .discounted dimension) (hz : ZeroSkillState state)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (phase : state.runtime.references.phase = .option slot activation)
+    (features : SwiftTd.ActiveSet dimension) (goal : Bool) (estimate : Binary32)
+    (next : OptionContinuation dimension activation)
+    (produced : (state.runtime.lifecycle.consumers.skills.get slot).decideOption activation
+      features false goal estimate state.skillRate = .continuing next)
+    (reward : Binary32) (hr : SignedZero reward)
+    (metaValues : Vector Binary32 metaCount.word.toNat) :
+    ZeroSkillState (((state.withPhase .idle).withoutPlanning.stepOption
+      (modelOperations .discounted dimension) slot activation next reward metaValues
+      none false none).1.skipMeta) := by
+  have hp := hz.phase slot activation phase
+  have hs := zero_neutral_skill_continuing _ (hz.skills slot) activation hp features goal
+    estimate state.skillRate next produced reward hr state.average.rate state.runtime.references.rng
+  have idle := zero_skill_state_idle state hz
+  have free : ZeroSkillState (state.withPhase .idle).withoutPlanning :=
+    ⟨idle.skills, idle.phase⟩
+  have result := zero_skill_state_step_result (state.withPhase .idle).withoutPlanning free
+    slot activation next reward metaValues none false none hs
+  unfold TemporalControl.skipMeta
+  split
+  · exact ⟨result.skills, result.phase⟩
+  · exact result
+
+private theorem zero_skill_state_meta_credit
+    (state : TemporalControl profile config .discounted dimension) (hz : ZeroSkillState state)
+    (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
+    ZeroSkillState (state.learnMeta features decision) := by
+  unfold TemporalControl.learnMeta
+  split
+  · exact hz
+  · exact ⟨hz.skills, hz.phase⟩
+
+private theorem zero_skill_state_primitive
+    (state : TemporalControl profile config .discounted dimension) (hz : ZeroSkillState state)
+    (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 metaCount.word.toNat)
+    (decision : Option (PolicyDecision metaCount)) (ended : Option EndEvent) :
+    ZeroSkillState (state.choosePrimitive features values decision ended).1 := by
+  constructor
+  · exact hz.skills
+  · intro slot activation phase
+    dsimp only [TemporalControl.choosePrimitive, TemporalControl.withPhase] at phase
+    split at phase
+    · split at phase <;> cases phase
+    · cases phase
+
+/-- Actual meta dispatch derives neutral potential from the selected table
+entry, then installs that exact begin/first-action result. Primitive selection
+also preserves the table and leaves a non-option phase. This is a local dispatch
+property, with no favorable action, owner or token independently prescribed. -/
+theorem zero_skill_state_dispatch
+    (state final : TemporalControl profile config .discounted dimension) (hz : ZeroSkillState state)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (reward : Binary32) (hr : SignedZero reward) (metaDecision : PolicyDecision metaCount)
+    (ended : Option EndEvent) (decision : TemporalDecision)
+    (executed : state.dispatchMeta (modelOperations .discounted dimension)
+      features declared reward metaDecision ended = some (final, decision)) :
+    ZeroSkillState final := by
+  let credited := state.learnMeta features metaDecision
+  have hc : ZeroSkillState credited := zero_skill_state_meta_credit state hz features metaDecision
+  unfold TemporalControl.dispatchMeta at executed
+  dsimp only at executed
+  cases selected : skillOfMeta metaDecision.action with
+  | none =>
+    simp only [selected, pure, Option.some.injEq] at executed
+    have same := congrArg Prod.fst executed
+    dsimp only at same
+    rw [← same]
+    exact zero_skill_state_primitive credited hc features metaDecision.snapshot.values
+      (some metaDecision) ended
+  | some slot =>
+    have potential := zero_skill_state_potential credited hc slot features declared
+    dsimp only [credited] at potential
+    simp only [selected, bind, Option.bind, potential, pure, Option.some.injEq] at executed
+    have same := congrArg Prod.fst executed
+    dsimp only at same
+    rw [← same]
+    let skill := credited.runtime.lifecycle.consumers.skills.get slot
+    let begun := skill.beginTemporal (modelOperations .discounted dimension)
+      features false (profile.mode != .frozen) credited.skillRate
+    have hb : ZeroNeutralSkill begun.1 := zero_neutral_skill_begun skill (hc.skills slot)
+      features (profile.mode != .frozen) credited.skillRate
+    have hi := zero_skill_state_with_skill credited hc slot begun.1 hb
+    have first := zero_neutral_skill_begin skill (hc.skills slot) features
+      (profile.mode != .frozen) credited.skillRate reward hr credited.average.rate
+      credited.runtime.references.rng
+    apply zero_skill_state_step_result (credited.withSkill slot begun.1) hi slot
+      begun.2.1 begun.2.2 reward metaDecision.snapshot.values (some metaDecision) true ended
+    rw [withSkill_selected_skill]
+    exact ⟨first.1, first.2.1⟩
+
+/-- Close preserves the actual skill table/phase invariant using the current
+pre-close meta snapshot. Only a retained owner needs neutral coordinate premises;
+a detached owner's terminal result is discarded without any zero-sector premise. -/
+theorem zero_skill_state_close_snapshot
+    (state : TemporalControl profile config .discounted dimension) (hz : ZeroSkillState state)
+    (hm : ZeroController state.runtime.lifecycle.consumers.metaController)
+    (closing : Closing config .discounted dimension (EndingPayload (profile.mode != .frozen)))
+    (coordinates : closing.oldOwner = none →
+      closing.activation.activation.previous = false ∧ closing.activation.potential = false)
+    (features : SwiftTd.ActiveSet dimension) (reward : Binary32) (hr : SignedZero reward) :
+    let terminal := comparisonValue .discounted
+      (state.runtime.lifecycle.consumers.metaController.snapshot
+        (count := metaCount) features state.metaRate)
+    ZeroSkillState (state.closeOption (modelOperations .discounted dimension)
+      closing reward terminal).1 := by
+  cases owner : closing.oldOwner with
+  | some old => simpa only [TemporalControl.closeOption, owner] using hz
+  | none =>
+    simp only [TemporalControl.closeOption, owner, Option.getD]
+    apply zero_skill_state_with_skill state hz
+    exact zero_neutral_skill_end_snapshot _ (hz.skills closing.slot) closing.activation
+      (coordinates owner).1 (coordinates owner).2 _ hm features state.metaRate reward hr
+      state.average.rate
+
+/-- The actual stored active owner supplies the closing slot and previous
+coordinate. Clear occupancy, then close that retained owner with the old meta
+snapshot; every terminal reason obeys the same frame and leaves idle occupancy. -/
+theorem zero_skill_state_close_active
+    (state : TemporalControl profile config .discounted dimension) (hz : ZeroSkillState state)
+    (hm : ZeroController state.runtime.lifecycle.consumers.metaController)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (phase : state.runtime.references.phase = .option slot activation)
+    (reason : OptionEnd) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (hr : SignedZero reward) :
+    let closing : Closing config .discounted dimension
+        (EndingPayload (profile.mode != .frozen)) :=
+      ⟨slot, ⟨activation, false, reason⟩, none⟩
+    let terminal := comparisonValue .discounted
+      (state.runtime.lifecycle.consumers.metaController.snapshot
+        (count := metaCount) features state.metaRate)
+    let result := (state.withPhase .idle).closeOption (modelOperations .discounted dimension)
+      closing reward terminal
+    ZeroSkillState result.1 ∧ result.1.runtime.references.phase = .idle := by
+  have idle := zero_skill_state_idle state hz
+  refine ⟨zero_skill_state_close_snapshot (state.withPhase .idle) idle hm _ ?_
+    features reward hr, rfl⟩
+  intro retained
+  exact ⟨hz.phase slot activation phase, rfl⟩
+
 end AcornVerif.CurrentReplacement

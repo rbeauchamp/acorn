@@ -81,6 +81,10 @@ snapshot under an explicit false previous-potential premise.
 continuing-token credit and old-meta termination across the policy and both
 model learners. Begin and continuing steps return false previous potential;
 the continuing snapshot is derived from its actual decision producer.
+`ZeroSkillState` lifts those endpoints through actual table installation, meta
+dispatch, continuing phase updates and retained/discarded-owner close. It covers
+all stored skills and the active option's previous coordinate, while other
+learners remain outside this invariant.
 This checks component closure and the produced-snapshot endpoint, not the full
 native zero-reward prefix or its first-positive callback. Establishing the incoming
 zero sectors along that prefix, the actual goal-action owner and later continuation

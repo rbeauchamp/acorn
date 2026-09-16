@@ -3377,4 +3377,30 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.zero_neutral_skill_end_snapshot
 
+/-- info: 'AcornVerif.CurrentReplacement.zero_skill_state_with_skill' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_skill_state_with_skill
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_skill_state_potential' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_skill_state_potential
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_skill_state_continuing' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_skill_state_continuing
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_skill_state_dispatch' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_skill_state_dispatch
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_skill_state_close_snapshot' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_skill_state_close_snapshot
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_skill_state_close_active' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_skill_state_close_active
+
 end AcornVerif
