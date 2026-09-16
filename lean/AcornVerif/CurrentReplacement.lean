@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Acorn.Host.AgentPrefix
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentRetirement
+import AcornVerif.CurrentBackupBounds
 
 /-!
 # Autonomous replacement: execution-linked obstructions
@@ -318,6 +319,170 @@ theorem quiet_patch_sparse (bank : Bank Host.patchShape config) (observation : H
   change (encode dimension bank (observationWords observation predictions mode)
     (observationPatch observation)).indices.length ≤ 1712
   omega
+
+/-- Independent Boolean signals at the admitted observation boundary. -/
+def booleanObservation (bits : Vector Bool 11) : Host.Observation where
+  tiles := ⟨#[(#v[
+    ⟨if bits.get 1 then 4 else 2, 0, 0⟩,
+    ⟨if bits.get 2 then 6 else 2, 0, 0⟩,
+    ⟨if bits.get 3 then 7 else 2, 0, 0⟩,
+    ⟨if bits.get 4 then 0 else 2, 0, 0⟩,
+    ⟨2, if bits.get 5 then 1 else 0, 0⟩,
+    ⟨2, 0, 0⟩, ⟨2, 0, 0⟩, ⟨2, 0, 0⟩,
+    ⟨2, 0, 0⟩, ⟨2, 0, 0⟩, ⟨2, 0, 0⟩] : Vector Host.TileObservation 11)] ++
+    Array.replicate 10 (Vector.replicate 11 (⟨2, 0, 0⟩ : Host.TileObservation)),
+    by simp [Host.patchShape, Acorn.FeatureConstants.patchSide]⟩
+  energy := if bits.get 6 then 3 else 4
+  day := if bits.get 7 then 4 else 0
+  task := .none
+  inventory := ⟨if bits.get 8 then 1 else 0, if bits.get 9 then 1 else 0,
+    0, 0, bits.get 10, false⟩
+
+/-- Goal reward and done retain the host result coupling. -/
+def booleanResult (bits : Vector Bool 11) : Host.RawStepResult :=
+  Host.StepResult.raw { done := bits.get 0 }
+
+theorem boolean_cumulants (bits : Vector Bool 11) (signal : Cumulant) :
+    signal.eval (booleanObservation bits) (booleanResult bits).reward =
+      indicator (bits.get signal) := by
+  have choose_beq (b : Bool) (x y z : UInt8) :
+      ((if b then x else y) == z) = (if b then x == z else y == z) := by
+    cases b <;> rfl
+  have food_nonzero (b : Bool) : ((if b then (1 : UInt8) else 0) != 0) = b := by
+    cases b <;> rfl
+  have low_energy (b : Bool) : decide ((if b then (3 : UInt8) else 4) ≤ 3) = b := by
+    cases b <;> rfl
+  fin_cases signal
+  · change indicator (Binary32.zero.less (if bits.get 0 then .one else .zero)) =
+      indicator (bits.get 0)
+    cases bits.get 0 <;> rfl
+  all_goals
+    dsimp only [Cumulant.eval, booleanObservation, Host.TileKind.code,
+      Host.patchShape, Acorn.FeatureConstants.patchSide, Acorn.FeatureConstants.demonCount]
+    simp only [← Vector.any_toList]
+    simp [Vector.toList, choose_beq, food_nonzero, low_energy,
+      apply_ite, -Bool.if_false_right, -Array.any_toList]
+
+private theorem index_map {α β : Type} {n : Nat} (values : Vector α n) (f : α → β) :
+    (List.finRange n).map (fun i => f (values.get i)) = values.toList.map f := by
+  apply List.ext_getElem
+  · simp
+  · intro i hi hj
+    simp [Vector.get]
+
+private theorem indexed_tile_lengths (tiles : Vector Host.TileObservation Host.patchShape.side)
+    (row : Fin Host.patchShape.side) :
+    ((List.finRange Host.patchShape.side).flatMap
+      (fun col => tileWords row col (tiles.get col))).length =
+      (tiles.toList.map (fun tile => 1 + (if tile.food != 0 then 1 else 0) +
+        (if tile.deer != 0 then 1 else 0))).sum := by
+  simp only [List.length_flatMap, tileWords, List.length_append, List.length_cons,
+    List.length_nil, apply_ite, Nat.zero_add]
+  simpa only [apply_ite] using congrArg List.sum (index_map tiles
+    (fun tile => 1 + (if tile.food != 0 then 1 else 0) +
+      (if tile.deer != 0 then 1 else 0)))
+
+theorem boolean_encoding_bound (bits : Vector Bool 11) (bank : Bank Host.patchShape config)
+    (predictions : Predictions) (mode : TaskFeatureMode)
+    (tilings : config.tilings.toNat ≤ 8) (units : config.units.count ≤ 512) :
+    (encodeObservation dimension bank (booleanObservation bits) predictions mode).indices.length ≤
+      1656 := by
+  have cells : ((List.finRange Host.patchShape.side).flatMap (fun row =>
+      (List.finRange Host.patchShape.side).flatMap (fun col =>
+        tileWords row col (((booleanObservation bits).tiles.get row).get col)))).length ≤ 122 := by
+    rw [List.length_flatMap]
+    simp only [indexed_tile_lengths]
+    rw [index_map (booleanObservation bits).tiles (fun row =>
+      (row.toList.map (fun tile => 1 + (if tile.food != 0 then 1 else 0) +
+        (if tile.deer != 0 then 1 else 0))).sum)]
+    dsimp only [booleanObservation, Vector.toList, Host.patchShape,
+      Acorn.FeatureConstants.patchSide]
+    simp only [Vector.toArray_replicate,
+      Array.toList_append, Array.toList_replicate,
+      List.map_append, List.map_cons, List.map_nil, List.map_replicate,
+      List.sum_append, List.sum_cons, List.sum_nil, List.sum_replicate]
+    have foodWords : (if bits.get 5 then 2 else 1 : Nat) ≤ 2 := by
+      cases bits.get 5 <;> decide
+    have rowWords : 1 + (1 + (1 + (1 + ((if bits.get 5 then 2 else 1) + 6)))) ≤ 12 := by
+      omega
+    simpa [apply_ite, -Bool.if_false_right] using rowWords
+  have channels : (predictionWords predictions).length ≤ 11 := by
+    simpa [predictionWords, Acorn.FeatureConstants.demonCount] using predictions.bounded
+  have words : (observationWords (booleanObservation bits) predictions mode).length ≤ 143 := by
+    simp only [observationWords, List.length_append, List.length_cons, List.length_nil]
+    have tasks : (taskWords (booleanObservation bits).task mode).length = 2 := rfl
+    rw [tasks]
+    omega
+  have encoding := encode_length dimension bank
+    (observationWords (booleanObservation bits) predictions mode)
+    (observationPatch (booleanObservation bits))
+  have product := Nat.mul_le_mul tilings words
+  exact Nat.le_trans encoding (by omega)
+
+theorem boolean_prefix_admitted (state : Agent profile config criterion dimension planning)
+    (inputs : List (Vector Bool 11)) :
+    ∃ finalState, state.runPrefix
+      (inputs.map (fun bits => .act (booleanObservation bits) (booleanResult bits))) =
+        .ok (finalState, false) ∧
+      AgentPath state
+        (inputs.map (fun bits => .act (booleanObservation bits) (booleanResult bits)))
+        finalState false := by
+  have total : ∀ (start : Agent profile config criterion dimension planning)
+      (stream : List (Vector Bool 11)), ∃ finalState, start.runPrefix
+        (stream.map (fun bits => .act (booleanObservation bits) (booleanResult bits))) =
+          .ok (finalState, false) := by
+    intro start stream
+    induction stream generalizing start with
+    | nil => exact ⟨start, rfl⟩
+    | cons bits rest ih =>
+      exact ih (start.act (booleanObservation bits)
+        (booleanResult bits).reward (booleanResult bits).events.done).1
+  obtain ⟨finalState, executed⟩ := total state inputs
+  exact ⟨finalState, executed, state.prefix_path finalState _ false executed⟩
+
+theorem neutral_interruption_iff (skill : Skill config .discounted dimension)
+    {mode : Bool} (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
+    (estimate : Binary32) (rate : ConsumerRate)
+    (neutral : skill.interest = .learned .neutral)
+    (room : activation.age.val < Acorn.FeatureConstants.optionMaxDuration)
+    (finite : estimate.Finite)
+    (bestFinite : (skill.policy.snapshot (count := primitiveCount) features
+      (rate.resolve fun _ => skill.policy.exploreRate (count := primitiveCount))).best.Finite) :
+    skill.decideOption activation features false false estimate rate = .ending .interrupted ↔
+      CurrentArithmetic.numerical32 (skill.policy.snapshot (count := primitiveCount) features
+        (rate.resolve fun _ => skill.policy.exploreRate (count := primitiveCount))).best <
+          CurrentArithmetic.numerical32 estimate := by
+  have bestZero := CurrentRetirement.add_zero_numeric _ bestFinite
+  have estimateZero := CurrentRetirement.add_zero_numeric estimate finite
+  simp only [Skill.decideOption, Bool.false_eq_true, ↓reduceIte, room, ↓reduceDIte,
+    comparisonValue, Interest.stoppingValue, neutral, Assignment.stoppingValue,
+    Assignment.bonus, Potential.value]
+  change (if ((_ : Binary32).add .zero).less (estimate.add .zero) then
+    OptionDecision.ending .interrupted else _) = .ending .interrupted ↔ _
+  rw [CurrentOrder.numerical32_less _ _ bestZero.1 estimateZero.1,
+    bestZero.2, estimateZero.2]
+  split <;> simp_all
+
+theorem neutral_terminal_error_nonnegative (estimate saved : Binary32)
+    (finite : estimate.Finite) (savedFinite : saved.Finite)
+    (ordered : CurrentArithmetic.numerical32 saved ≤ CurrentArithmetic.numerical32 estimate)
+    (bound : |CurrentArithmetic.numerical32 estimate - CurrentArithmetic.numerical32 saved| ≤ 512) :
+    0 ≤ CurrentArithmetic.numerical32
+      (((Acorn.Features.terminalCumulant .zero
+        ((Interest.learned (Assignment.neutral (config := config))).stoppingValue
+          estimate false) false).sub saved).sub .zero) := by
+  have stopping := CurrentRetirement.add_zero_numeric estimate finite
+  have reward := CurrentRetirement.zero_add_numeric _ stopping.1
+  have shaped := CurrentRetirement.sub_zero_numeric _ reward.1
+  have difference := CurrentBackupBounds.binary32_rounded_sub _ saved shaped.1 savedFinite
+    (by rw [shaped.2, reward.2, stopping.2]; exact bound)
+  have error := CurrentRetirement.sub_zero_numeric _ difference.1
+  simp only [Acorn.Features.terminalCumulant, Interest.stoppingValue,
+    Assignment.stoppingValue, Assignment.bonus, Potential.value, Bool.false_eq_true,
+    ↓reduceIte, show Binary32.zero.mul .zero = .zero from rfl]
+  rw [error.2]
+  exact CurrentBackupBounds.Rounded.mono CurrentBackupBounds.rounded_zero difference.2
+    (by rw [shaped.2, reward.2, stopping.2]; exact sub_nonneg.mpr ordered)
 
 /-- A primitive action row is always part of the complete receiving scan. -/
 theorem control_reader_member (ensemble : Ensemble config criterion dimension demonLayout)

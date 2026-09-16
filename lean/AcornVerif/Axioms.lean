@@ -2820,6 +2820,30 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.one_action_trajectory_cold
 
+/-- info: 'AcornVerif.CurrentRetirement.add_zero_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.add_zero_numeric
+
+/-- info: 'AcornVerif.CurrentReplacement.boolean_cumulants' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.boolean_cumulants
+
+/-- info: 'AcornVerif.CurrentReplacement.boolean_encoding_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.boolean_encoding_bound
+
+/-- info: 'AcornVerif.CurrentReplacement.boolean_prefix_admitted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.boolean_prefix_admitted
+
+/-- info: 'AcornVerif.CurrentReplacement.neutral_interruption_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.neutral_interruption_iff
+
+/-- info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative
+
 /-- info: 'AcornVerif.CurrentReplacement.first_option_model' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.first_option_model

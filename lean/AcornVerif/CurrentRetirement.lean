@@ -49,6 +49,35 @@ theorem zero_add_numeric (word : Binary32) (finite : word.Finite) :
     | zero sign => cases sign <;> rfl
     | _ => rfl
 
+theorem add_zero_numeric (word : Binary32) (finite : word.Finite) :
+    (word.add Binary32.zero).Finite ∧
+      numerical32 (word.add Binary32.zero) = numerical32 word := by
+  have valid := model_unpack_format Format.binary32 (by decide) word.bits.toBitVec
+    ((model_decoded32_finite word).mpr finite)
+  change ModelNormalized Format.binary32 (decoded32 word) ∧
+    ModelFits Format.binary32 (decoded32 word) at valid
+  have normal : ModelNormalized Format.binary32
+      (UnpackedFloat.add Format.binary32 (decoded32 word) (.zero .positive)) := by
+    cases h : decoded32 word with
+    | zero sign => cases sign <;> trivial
+    | _ => simp_all [UnpackedFloat.add, ModelNormalized]
+  have fits : ModelFits Format.binary32
+      (UnpackedFloat.add Format.binary32 (decoded32 word) (.zero .positive)) := by
+    cases h : decoded32 word with
+    | zero sign => cases sign <;> trivial
+    | _ => simp_all [UnpackedFloat.add, ModelFits]
+  have decoded := model_add32_decoded word .zero finite (by decide) normal fits
+  refine ⟨(model_decoded32_finite _).mp ?_, ?_⟩
+  · rw [decoded]
+    exact model_normalized_finite _ _ normal
+  · change unpackedValue (decoded32 _) = _
+    rw [decoded]
+    change unpackedValue (UnpackedFloat.add Format.binary32 (decoded32 word) (.zero .positive)) =
+      unpackedValue (decoded32 word)
+    cases h : decoded32 word with
+    | zero sign => cases sign <;> rfl
+    | _ => rfl
+
 /-- Subtracting positive zero preserves every finite numerical value. -/
 theorem sub_zero_numeric (word : Binary32) (finite : word.Finite) :
     (word.sub Binary32.zero).Finite ∧

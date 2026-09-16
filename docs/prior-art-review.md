@@ -462,6 +462,45 @@ small weights and stable ownership. The anchor identity does not discharge that
 obligation, justify a behavior change, or select disposition A, B or C. These
 failed candidate premises do not establish that substantial redesign is needed.
 
+The symbolic `CurrentReplacement.booleanObservation` / `booleanResult` family
+uses eleven independent Boolean inputs at the admitted callback boundary.
+`boolean_cumulants` identifies every actual signal with its corresponding bit;
+`boolean_encoding_bound` bounds every resulting encoding by 1656 active slots
+when tilings are at most eight and bank size at most 512, for arbitrary admitted
+feedback predictions and bank contents. The count is 122 tile words, two
+energy/day words, two no-task words, six inventory words and at most eleven
+prediction words, followed by the existing encoder bound. `boolean_prefix_admitted`
+constructs an endpoint and `AgentPath` through the actual `Agent.runPrefix` for
+every finite Boolean input list, including from `Agent.initial`. Actions, RNG,
+planning writes, feedback and retirement remain those of the existing agent.
+This is an inhabited input language, not an eligibility or native-world witness:
+its independently chosen axe, day and goal bits need not obey world dynamics.
+
+`neutral_interruption_iff` gives the actual discounted neutral stopping comparison
+under finite predictions and remaining duration: current policy maximum is
+strictly below the stopping estimate. `neutral_terminal_error_nonnegative`
+uses the executed terminal shaping and binary32 subtraction: when the finite
+saved value is no greater than that estimate, their numerical difference has
+magnitude at most 512, and the carried `vDelta` is zero, the error is nonnegative.
+The 512 envelope is the existing rounded-subtraction theorem's domain, not an
+assertion about arbitrary predictions. These local facts do not yet compose
+begin, actual draw, first credit and terminal callbacks. In particular, the
+unchanged-weight/equal-encoding link to the saved selected value remains an
+obligation; no positive sensitivity is inferred from current `begin`.
+
+Longer invocations remain a candidate under the current mechanism. The first
+returned action skips model credit, but later continuations execute the first
+and second loops and can transfer `hTemp` through `h` into `p`. Their necessary
+progress condition uses the actual coupled model error, including saved
+prediction and `vDelta`; repeated exposure does not imply a negative product or
+a decrement that survives rounding. No initialized Boolean prefix currently
+establishes those margins and simultaneous strict-small-weight bounds for all
+57 physical learners (60 reader observations) at one retirement boundary.
+Staggered progress must also bound positive drift, planning writes and resets;
+aliases, bank-order selection, event capacity and clock admission still apply.
+These auxiliary contracts do not establish initialized joint progress or justify
+any runtime correction.
+
 **Lifetime and persistence.** Every success appends exactly one event.
 `FeatureHistory.LegalHistory`, `record_count`, `full_refuses`,
 `record_excludes_same_clock` and `saturated_record_refuses_forever` limit ordinary

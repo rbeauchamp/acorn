@@ -77,6 +77,13 @@ learning argument must account for all receiving storage, rounded adaptation,
 reset interference and remaining history/clock capacity. The direct-write
 predicate-inhabitation theorem supplies none of those trajectory premises.
 
+The Boolean callback family in PAR-11 separates input admission from joint
+progress: its actual signals and 1656-slot encoding bound are specified through
+the existing encoder, and finite lists follow `Agent.runPrefix`. Neutral stopping
+and terminal-error order contracts retain their finite-arithmetic hypotheses.
+Neither supplies the missing initialized complete-reader eligibility window.
+Longer invocations remain open; the one-action obstruction does not settle them.
+
 ## F4 · Continuing control and exploration
 
 **Which control and exploration mechanisms help over a continuing stream?**
