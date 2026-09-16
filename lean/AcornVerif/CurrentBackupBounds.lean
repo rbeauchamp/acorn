@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentRetirementRounding
+import Mathlib.Tactic.FieldSimp
 
 /-!
 # Machine rounding bounds for scalar backups

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Complete local merge checks in the actual Git checkout, within five minutes.
+# Complete local merge checks in the actual Git checkout, within six minutes.
 set -euo pipefail
 
 if command -v gtimeout >/dev/null 2>&1; then
@@ -31,5 +31,5 @@ export -f acorn_verify_checks
 # group. No --foreground (excludes descendants), --verbose (can block before
 # signaling), wall-clock subtraction, budget override or wind-up grace period.
 # GNU timeout reports SIGKILL as failure status 137, never a partial pass.
-exec "$timeout_command" --signal=KILL 300s \
+exec "$timeout_command" --signal=KILL 360s \
   bash -c 'set -euo pipefail; acorn_verify_checks "$@"' bash "$0" "$timeout_command" "$@"

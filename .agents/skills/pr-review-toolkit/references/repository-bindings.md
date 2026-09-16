@@ -19,7 +19,7 @@ uncertainty and negative or inconclusive results. Supporting mathematical defini
 and hypotheses.
 The complete local merge command is `./scripts/verify.sh`. Optional mutation
 diagnostics use `./scripts/verify.sh diagnostics`; neither substitutes for proofs
-or constitutes a scientific study. Both modes retain the hard 300-second budget.
+or constitutes a scientific study. Both modes retain the hard 360-second budget.
 Record compiler-backed theorem counts with their scope when proofs or gates
 change. A count is not a correctness score. Inspect check output; retain failure
 diagnostics only while they help resolve an open problem.

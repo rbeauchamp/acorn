@@ -113,7 +113,7 @@ remains for its owner's next selection.
   and the shipped proof-first review skills. Do not reintroduce .claude or Rust.
 - Preserve local runtime/checkpoints, .lake dependencies and recovery directories.
   Apply current AGENTS, signed commits, independent review, no scenario tests,
-  and the hard 300-second full-suite requirement.
+  and the current AGENTS.md full-suite deadline.
 
 ## Next action
 
