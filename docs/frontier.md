@@ -89,6 +89,10 @@ learners remain outside this invariant.
 the deferred meta reward. `zero_ranked_initial` establishes the join from the
 actual public ranked discounted constructor for every feature configuration,
 dimension and planning selection. The other ten demons remain unrestricted.
+`zero_ranked_prepare` preserves the join through actual selection preparation
+for arbitrary features and signed-zero reward. `zero_ranked_draw_credit` preserves
+it through consecutive actual meta draw/credit, using that snapshot and owed gap.
+Joined preservation across the remaining branches and retirement is still open.
 This checks component closure and the produced-snapshot endpoint, not the full
 native zero-reward prefix or its first-positive callback. Establishing the incoming
 zero sectors along that prefix, the actual goal-action owner and later continuation

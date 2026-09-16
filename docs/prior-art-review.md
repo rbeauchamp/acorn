@@ -646,8 +646,20 @@ configuration, dimension and planning selection. The proof composes existing
 constructor results and the actual neutral-interest table; it supplies no
 favorable restored state, token or action. The other ten demons, beta and
 unconstrained raw registers remain outside the predicate. This establishes the
-constructor base case only. Preservation through `TemporalControl.prepareSelection`
-and subsequent selection, credit and retirement still needs joined proofs.
+constructor base case only.
+
+`zero_ranked_prepare` preserves the joined predicate through actual
+`TemporalControl.prepareSelection` for arbitrary active features and signed-zero
+reward. Rate advancement and fresh model observations affect unconstrained
+fields; `zero_gap_accumulate` handles the actual reward accumulation at every
+stored gap age using the criterion's executed rule. `zero_ranked_draw_credit`
+then proves consecutive actual `drawMeta` and `learnMeta` preserve the full join.
+It uses `zero_draw_policy_step` with the same producing snapshot, receiver RNG,
+owed gap reward and closing duration. No independently supplied decision or
+reward creates a favorable endpoint. This theorem covers consecutive calls;
+intervening writes in general boundary composition need their own frames.
+Served exploration, neutral refresh/planning, selected skill branches, final
+primitive/Demon-0 credit and retirement still need joined composition proofs.
 
 Full initialized native zero-sector composition and the first-positive endpoint
 remain unproved. In the ordinary discounted option-ending branch, the terminal

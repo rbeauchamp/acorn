@@ -147,7 +147,11 @@ invariant remain outside this skill-table/phase result.
 `ZeroRankedState` joins it with both controllers, Demon-0 and the actual deferred
 meta reward. `zero_ranked_initial` proves the actual public ranked discounted
 constructor base case for every configuration, dimension and planning choice;
-the other ten demons remain unrestricted. Joined callback preservation is pending.
+the other ten demons remain unrestricted. `zero_ranked_prepare` preserves the
+join through actual rate/gap/model-observation preparation with arbitrary features
+and signed-zero reward. `zero_ranked_draw_credit` covers consecutive actual meta
+draw/credit, deriving the decision from its snapshot and reward from its owed gap.
+Joined preservation across all selected branches and retirement remains pending.
 The full initialized native prefix and first-positive callback are not yet
 proved, and these component results imply no beta-floor progress.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the

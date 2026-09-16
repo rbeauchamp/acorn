@@ -3407,4 +3407,12 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentReplacement.zero_ranked_initial
 
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_prepare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_prepare
+
+/-- info: 'AcornVerif.CurrentReplacement.zero_ranked_draw_credit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.zero_ranked_draw_credit
+
 end AcornVerif

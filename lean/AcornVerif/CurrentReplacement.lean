@@ -2462,4 +2462,31 @@ theorem zero_ranked_initial (config : Features.Config) (dimension : Dimension)
   · exact zero_ranking_initial _
   · exact Or.inl rfl
 
+/-- Preparing actual ranked selection changes rates and model observations,
+while zero reward preserves the receiver's accumulated meta gap. Features and
+all unconstrained cached/model observation values may vary on every call. -/
+theorem zero_ranked_prepare
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (hr : SignedZero reward) :
+    ZeroRankedState
+      (state.prepareSelection (modelOperations .discounted dimension) features reward) := by
+  refine ⟨⟨hz.skills.skills, hz.skills.phase⟩, hz.control, hz.metaController, hz.ranking, ?_⟩
+  exact zero_gap_accumulate state.gap hz.gap reward hr (Criterion.rule .discounted)
+
+/-- Consecutive actual meta draw and credit preserve the entire joined sector.
+The decision retains this receiver's producing snapshot and the reward comes
+from its own owed gap; neither is an independently supplied favorable input.
+This endpoint does not assert that every boundary performs those calls without
+intervening writes. -/
+theorem zero_ranked_draw_credit
+    (state : TemporalControl (researchProfile .ranked) config .discounted dimension)
+    (hz : ZeroRankedState state) (features : SwiftTd.ActiveSet dimension) :
+    let drawn := state.drawMeta features
+    ZeroRankedState (drawn.1.learnMeta features drawn.2) := by
+  refine ⟨⟨hz.skills.skills, hz.skills.phase⟩, hz.control, ?_, hz.ranking, Or.inl rfl⟩
+  exact zero_draw_policy_step (count := metaCount)
+    state.runtime.lifecycle.consumers.metaController hz.metaController features state.metaRate
+    state.runtime.references.rng state.gap.reward state.gap.close.2 hz.gap
+
 end AcornVerif.CurrentReplacement
