@@ -252,7 +252,7 @@ theorem episode_sensitivity_anchor {config : Config} {dimension : Dimension}
   simp only [NumericState.secondLoopElement, Bool.false_eq_true, if_false,
     CurrentLearner.vector_get, Vector.getElem_set_self, zeroP, zeroZ, zeroZBar,
     zeroOld, alignedH, alignedTemp]
-  exact ⟨rfl, added.1, added.2, rfl, rfl, rfl⟩
+  simpa only [true_and, and_true] using added
 
 /-- Initial step sizes and absent meta-gradient, without restrictions on weights
 or the other trace registers. This is a transient exposure invariant. -/
