@@ -63,7 +63,9 @@ def verify : IO Unit := do
   let nativeTargets := (modules.filter AcornModuleInventory.nativeModule).map
     fun name => "+" ++ name.toString ++ ":c.o.export"
   let executableTargets := AcornOwnership.executables.map (·.1)
-  lake (#["build"] ++ moduleTargets ++ nativeTargets ++ executableTargets)
+  -- Lake fetches targets in order and can wait for imports while doing so.
+  -- Request native work first so C compilation/linking can overlap proof builds.
+  lake (#["build"] ++ executableTargets ++ nativeTargets ++ moduleTargets)
   run ".lake/build/bin/lean-boundary-audit" #["compiled"]
   run ".lake/build/bin/ownership-audit" #["compiled"]
   run ".lake/build/bin/native-audit"

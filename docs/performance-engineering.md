@@ -125,6 +125,9 @@ Project outputs still build cold under the fixed deadline. Reuse Lake's
 source/toolchain-validated configuration trace and batch independent source
 hashes while checking every result's filename and digest. Neither mechanism
 reuses a previous verification result or substitutes a digest for correctness.
+Import only the mathematics and tooling a module uses. Request native targets
+early enough that their compilation can overlap independent proof builds;
+request order must retain the complete discovered module and target inventory.
 
 Apply the [proof-first policy](../AGENTS.md#correct-by-construction) to correctness
 and resource claims. Pure analysis definitions state contracts over explicit

@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.CurrentTemporal
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-!
 # Conditional action laws of actual temporal dispatch
