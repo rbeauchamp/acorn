@@ -3696,4 +3696,11 @@ info: 'AcornVerif.CurrentWorld.standard_considerSpawn_success' depends on axioms
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_considerSpawn_success
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_selectSpawn_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_selectSpawn_success
+
 end AcornVerif

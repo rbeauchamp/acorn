@@ -806,8 +806,14 @@ coordinate's terrain margin without enumerating the cells.
 `standard_considerSpawn_success` covers arbitrary signed coordinates and prior
 candidates. Out-of-box coordinates return before terrain; admitted coordinates
 complete both scans and the walkability/score branches. No minimum count,
-walkable candidate or improved score is assumed. The actual full spawn spiral
-and deer initialization are not yet composed into constructor success.
+walkable candidate or improved score is assumed. `standard_selectSpawn_success`
+composes all three actual spiral loops using the checked traversal bridge with
+the executed optional-return/current-best accumulator. The signed admissions
+come from `standard_spiral_coordinates`; candidate handling retains the box
+check before terrain access. Both loop continuation and early-return branches
+succeed, including the legal center fallback after a complete scan. This is
+spawn admission, not a terrain-quality or best-score guarantee. Deer
+initialization and its composition into world construction remain unproved.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal

@@ -655,45 +655,51 @@ theorem standard_observe_success (seed : UInt64) (side : Coordinate)
         world.occupancy row column))
   exact ⟨_, by simp only [World.observe, tilesEq]; rfl⟩
 
+/-- Structural success composition for the actual constructor traversals. -/
+private theorem listTraversal_success {β : Type} (indices : List Nat)
+    (body : Nat → β → Except WorldError (ForInStep β))
+    (success : ∀ index ∈ indices, ∀ state, ∃ step, body index state = .ok step)
+    (state : β) : ∃ result, forIn indices state body = .ok result := by
+  induction indices generalizing state with
+  | nil => exact ⟨state, rfl⟩
+  | cons index rest ih =>
+    obtain ⟨step, stepEq⟩ := success index (by simp) state
+    rw [List.forIn_cons, stepEq]
+    cases step with
+    | done next => exact ⟨next, rfl⟩
+    | yield next => exact ih (fun i hi => success i (by simp [hi])) next
+
+/-- Checked range/list correspondence retains early exits and iteration order. -/
+private theorem rangeTraversal_success {β : Type} (stop : Nat)
+    (body : Nat → β → Except WorldError (ForInStep β))
+    (success : ∀ index, index < stop → ∀ state, ∃ step, body index state = .ok step)
+    (state : β) :
+    ∃ result, forIn ([:stop] : Std.Legacy.Range) state body = .ok result := by
+  rw [Std.Legacy.Range.forIn_eq_forIn_range']
+  apply listTraversal_success
+  intro index member
+  exact success index (Std.Legacy.Range.mem_of_mem_range' member).2.1
+
+/-- Successful constructor stages compose through the actual exception bind. -/
+private theorem bind_success {α β : Type} (value : Except WorldError α)
+    (next : α → Except WorldError β) (admitted : ∃ a, value = .ok a)
+    (continues : ∀ a, ∃ b, next a = .ok b) : ∃ b, (value >>= next) = .ok b := by
+  obtain ⟨a, ha⟩ := admitted
+  obtain ⟨b, hb⟩ := continues a
+  exact ⟨b, by rw [ha]; exact hb⟩
+
 /-- The actual radius-four constructor scan admits every in-box center.
 The structural traversal proof preserves row/column order and all count branches. -/
 theorem standard_countKindNear_success (seed : UInt64) (side : Coordinate)
     (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
     (world : World config) (position : BoxPosition config) (kind : TileKind) :
     ∃ count, countKindNear world position.position 4 kind = .ok count := by
-  have listSuccess (indices : List Nat)
-      (body : Nat → Nat → Except WorldError (ForInStep Nat))
-      (success : ∀ index ∈ indices, ∀ count, ∃ step, body index count = .ok step)
-      (count : Nat) : ∃ result, forIn indices count body = .ok result := by
-    induction indices generalizing count with
-    | nil => exact ⟨count, rfl⟩
-    | cons index rest ih =>
-      obtain ⟨step, stepEq⟩ := success index (by simp) count
-      rw [List.forIn_cons, stepEq]
-      cases step with
-      | done next => exact ⟨next, rfl⟩
-      | yield next =>
-        exact ih (fun i hi => success i (by simp [hi])) next
-  have rangeSuccess (stop : Nat) (body : Nat → Nat → Except WorldError (ForInStep Nat))
-      (success : ∀ index, index < stop → ∀ count, ∃ step, body index count = .ok step)
-      (count : Nat) :
-      ∃ result, forIn ([:stop] : Std.Legacy.Range) count body = .ok result := by
-    rw [Std.Legacy.Range.forIn_eq_forIn_range']
-    apply listSuccess
-    intro index member
-    exact success index (Std.Legacy.Range.mem_of_mem_range' member).2.1
-  have bindSuccess {α β : Type} (value : Except WorldError α)
-      (next : α → Except WorldError β) (admitted : ∃ a, value = .ok a)
-      (continues : ∀ a, ∃ b, next a = .ok b) : ∃ b, (value >>= next) = .ok b := by
-    obtain ⟨a, ha⟩ := admitted
-    obtain ⟨b, hb⟩ := continues a
-    exact ⟨b, by rw [ha]; exact hb⟩
   unfold countKindNear
-  apply bindSuccess
-  · apply rangeSuccess
+  apply bind_success
+  · apply rangeTraversal_success
     intro row rowBound count
-    apply bindSuccess
-    · apply rangeSuccess
+    apply bind_success
+    · apply rangeTraversal_success
       intro column columnBound count
       have offset (index : Nat) (bound : index < 9) :
           -(patchShape.side / 2 : Nat) ≤ (index : Int) - 4 ∧
@@ -758,5 +764,46 @@ theorem standard_considerSpawn_success (seed : UInt64) (side : Coordinate)
     simp only [treesEq, stoneEq, kindEq, bind, Except.bind]
     split <;> exact ⟨_, _, rfl⟩
   · exact ⟨best, false, rfl⟩
+
+/-- The actual standard spawn spiral always returns a legal body position.
+Early exits preserve the current candidate; a complete scan may use the center
+fallback. No walkable candidate, score improvement or early exit is assumed. -/
+theorem standard_selectSpawn_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) : ∃ position, selectSpawn world = .ok position := by
+  unfold selectSpawn
+  apply bind_success
+  · apply rangeTraversal_success
+    intro radius radiusBound state
+    apply bind_success
+    · apply rangeTraversal_success
+      intro directionIndex directionBound state
+      dsimp only
+      apply bind_success
+      · apply rangeTraversal_success
+        intro offset offsetBound state
+        have coordinates := standard_spiral_coordinates seed side config standard
+          radius offset radiusBound offsetBound
+          (Direction.fromIndex ⟨directionIndex % 4, Nat.mod_lt _ (by decide)⟩)
+        dsimp only at coordinates
+        obtain ⟨x, y, xok, yok⟩ := coordinates
+        simp only [xok, yok]
+        apply bind_success
+        · obtain ⟨candidate, finished, admitted⟩ := standard_considerSpawn_success
+            seed side config standard world x.val y.val state.2
+          exact ⟨(candidate, finished), admitted⟩
+        · intro result
+          rcases result with ⟨candidate, finished⟩
+          dsimp only
+          split <;> exact ⟨_, rfl⟩
+      · intro result
+        rcases result with ⟨returned, best⟩
+        cases returned <;> exact ⟨_, rfl⟩
+    · intro result
+      rcases result with ⟨returned, best⟩
+      cases returned <;> exact ⟨_, rfl⟩
+  · intro result
+    rcases result with ⟨returned, best⟩
+    cases returned <;> exact ⟨_, rfl⟩
 
 end AcornVerif.CurrentWorld

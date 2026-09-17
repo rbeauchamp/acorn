@@ -132,9 +132,11 @@ input; `standard_start_sense_success` covers every positive-cap attempt start,
 including a carried terminal result. `CurrentWorld.standard_countKindNear_success`
 composes the actual radius-four scan, and `standard_considerSpawn_success` admits
 any candidate while retaining out-of-box rejection before terrain access.
-The full spawn spiral, deer initialization and world-step traversal composition
-still block a proved nonempty completion prefix. These admission results alone
-do not establish a learning execution.
+`standard_selectSpawn_success` composes the full actual spiral, including early
+returns and the typed center fallback, without assuming a walkable candidate.
+Deer initialization and world-step traversal composition still block a proved
+nonempty completion prefix. These admission results alone do not establish a
+learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
