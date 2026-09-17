@@ -979,4 +979,86 @@ theorem standard_wanderDeer_success (seed : UInt64) (side : Coordinate)
     · exact ⟨position, afterDirection, rfl, retained⟩
   · exact ⟨position, afterDraw, rfl, retained⟩
 
+/-- Actual population wandering retains input order, exact length and one
+sequential RNG, while each entry advances its coordinate envelope only once.
+The ordered witness uses the checked list correspondence of the same operation. -/
+theorem standard_wanderPopulation_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (steps : Nat) (bounded : steps < 200)
+    (inside : ∀ position ∈ world.deer.entries, PositionWithin config steps position) :
+    ∃ next nextRng, wanderPopulation world = .ok (next, nextRng) ∧
+      next.entries.size = world.deer.entries.size ∧
+      (∀ position ∈ next.entries, PositionWithin config (steps + 1) position) ∧
+      (world.deer.entries.toList.mapM
+        (m := StateT Rng.Xoshiro256 (Except WorldError))
+        (fun position rng => wanderDeer world position rng)).run world.rng =
+          .ok (next.entries.toList, nextRng) := by
+  let operation : Position → StateT Rng.Xoshiro256 (Except WorldError) Position :=
+    fun position rng => wanderDeer world position rng
+  have listSuccess (entries : List Position)
+      (inputBounds : ∀ position ∈ entries, PositionWithin config steps position)
+      (rng : Rng.Xoshiro256) :
+      ∃ outputs nextRng, (entries.mapM operation).run rng = .ok (outputs, nextRng) ∧
+        ∀ position ∈ outputs, PositionWithin config (steps + 1) position := by
+    induction entries generalizing rng with
+    | nil => exact ⟨[], rng, rfl, by simp⟩
+    | cons position rest ih =>
+      obtain ⟨next, afterFirst, firstEq, nextBound⟩ := standard_wanderDeer_success
+        seed side config standard world steps bounded position rng
+        (inputBounds position (by simp))
+      obtain ⟨outputs, nextRng, restEq, outputBounds⟩ :=
+        ih (fun position member => inputBounds position (by simp [member])) afterFirst
+      refine ⟨next :: outputs, nextRng, ?_, ?_⟩
+      · rw [List.mapM_cons]
+        simp only [StateT.run_bind, StateT.run_pure]
+        change (do
+          let first ← wanderDeer world position rng
+          let rest ← (rest.mapM operation).run first.2
+          pure (first.1 :: rest.1, rest.2)) = .ok (next :: outputs, nextRng)
+        simp only [firstEq, bind, Except.bind, restEq]
+        rfl
+      · intro position member
+        rcases List.mem_cons.mp member with same | member
+        · subst position
+          exact nextBound
+        · exact outputBounds position member
+  obtain ⟨outputs, nextRng, listEq, outputBounds⟩ :=
+    listSuccess world.deer.entries.toList (by simpa using inside) world.rng
+  let input : Vector Position world.deer.entries.size := ⟨world.deer.entries, rfl⟩
+  have morphism : Vector.toArray <$> input.mapM operation =
+      List.toArray <$> input.toArray.toList.mapM operation := by
+    rw [Vector.toArray_mapM, Array.mapM_eq_mapM_toList]
+  have correspondence := congrArg (fun action => action.run world.rng) morphism
+  cases actualEq : (input.mapM operation).run world.rng with
+  | error error =>
+    change (input.mapM operation) world.rng = .error error at actualEq
+    change (world.deer.entries.toList.mapM operation) world.rng =
+      .ok (outputs, nextRng) at listEq
+    simp only [Functor.map, StateT.map, StateT.run, input, actualEq, listEq,
+      bind, Except.bind] at correspondence
+    cases correspondence
+  | ok actual =>
+    rcases actual with ⟨moved, finalRng⟩
+    have vectorEq := actualEq
+    change (input.mapM operation) world.rng = .ok (moved, finalRng) at vectorEq
+    have actualListEq := listEq
+    change (world.deer.entries.toList.mapM operation) world.rng =
+      .ok (outputs, nextRng) at actualListEq
+    simp only [Functor.map, StateT.map, StateT.run, input, vectorEq, actualListEq,
+      bind, Except.bind, pure, Except.pure] at correspondence
+    obtain ⟨arrayEq, rngEq⟩ := Prod.mk.inj (Except.ok.inj correspondence)
+    cases rngEq
+    refine ⟨⟨moved.toArray, by simpa using world.deer.bounded⟩, nextRng, ?_, ?_, ?_, ?_⟩
+    · simp only [input, operation] at actualEq
+      simp only [wanderPopulation, actualEq, bind, Except.bind]
+      rfl
+    · simp
+    · intro position member
+      change position ∈ moved.toArray at member
+      rw [arrayEq] at member
+      exact outputBounds position (by simpa using member)
+    · change (world.deer.entries.toList.mapM operation).run world.rng =
+        .ok (moved.toArray.toList, nextRng)
+      rw [listEq, arrayEq]
+
 end AcornVerif.CurrentWorld

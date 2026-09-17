@@ -224,7 +224,11 @@ other fields. `PositionWithin` describes a signed coordinate envelope, with
 `deerInBox_iff_positionWithin` preserving its correspondence to initialized deer
 at zero steps. `standard_wanderDeer_success` proves actual single-deer admission
 and a one-step envelope expansion for `n < 200`, retaining the actual RNG result.
-Whole-population traversal/drift, world-step and nonempty callback execution
+`standard_wanderPopulation_success` composes actual ordered wandering through
+checked vector/array/list correspondence. Its result includes exact length,
+per-entry envelope advancement and the ordered actual-operation traversal with
+the same final RNG. The original world is fixed throughout the traversal.
+Active/food/passive composition, world-step and nonempty callback execution
 remain unproved. No runtime feasibility, terrain-quality or replacement-reachability
 claim follows from these guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the

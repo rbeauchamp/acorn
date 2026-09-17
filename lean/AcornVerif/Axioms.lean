@@ -3738,4 +3738,11 @@ info: 'AcornVerif.CurrentWorld.standard_wanderDeer_success' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_wanderDeer_success
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_wanderPopulation_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_wanderPopulation_success
+
 end AcornVerif

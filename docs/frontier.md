@@ -140,8 +140,11 @@ composes spawn and deer construction from empty storage into a successful
 standard world with that invariant. `standard_wanderDeer_success` admits one
 actual deer update from the coordinate envelope `[-n, side + n)` for `n < 200`,
 returning an entry in the envelope expanded by one and the actual produced RNG.
-Population traversal, world-step and initialized completion-prefix composition
-remain unproved; these component admissions do not establish a learning execution.
+`standard_wanderPopulation_success` composes the actual ordered vector traversal
+with one sequential RNG, preserving exact length and advancing each entry's
+envelope once. Active/food/passive and world-step composition, then initialized
+completion-prefix existence, remain unproved; these component admissions do not
+establish a learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

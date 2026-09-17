@@ -832,8 +832,15 @@ RNG under the stated envelope premise. Closed direction deltas and the standard
 side bound establish signed translation admission; the candidate fits the
 proved terrain margin. The actual movement and walkability branches retain
 their returned position and RNG without a probability or walkability premise.
-Whole-population drift, world-step success and nonempty learning-prefix
-composition remain unproved.
+`standard_wanderPopulation_success` lifts this result through the actual ordered
+vector traversal under the RNG state transformer. Checked vector/array/list
+correspondence and structural list induction retain the original world for
+every entry and thread one produced RNG into the next invocation. The theorem
+returns exact population length, the per-entry advanced envelope, and an
+explicit ordered list-traversal equality with the same final RNG. Each entry
+advances its envelope once, irrespective of population size. Active/food/passive
+composition, world-step success and nonempty learning-prefix existence remain
+unproved.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal
