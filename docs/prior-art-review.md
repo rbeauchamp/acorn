@@ -578,12 +578,20 @@ visited beta word. Strictly negative legal rails exclude zero-sign ambiguity in
 that word identity. `cold_first_trace` and `cold_first_registers` retain actual
 decay, rounding and pruning comparisons; `cold_first_pruned` combines the executed
 clear/retain branch with a finite visited trace in `[0,61]` and zero knowledge.
-These are element contracts, not a worklist invariant. Actual `learnFirstLoop`
-empties stored eligibility before traversing a separate worklist; composition must
-use its existing support/frame and unique swap-remove contracts, not assume
-`ColdBox` at every internal state. Full first/second-loop and begin/step/terminal
-preservation remain unproved. No beta progress or complete-reader replacement
-result follows.
+Actual `learnFirstLoop` empties stored eligibility before traversing a separate
+worklist. The proof-only `ColdWork` observes `ColdBox` with that worklist installed
+as eligibility, without changing the executing state. `cold_work_entry` and
+`cold_work_finish` bridge the actual entry/final installations;
+`cold_work_contract` supplies existing support, reference and uniqueness facts.
+`cold_work_first_element` transfers the local contracts without assuming an
+intermediate `ColdBox` of the executing state. `cold_work_first` and
+`cold_work_prune` preserve all bounds through one member visit and actual
+clear/swap-remove, using existing frame/support/uniqueness owners.
+Recursive first-loop preservation and all-word beta tracking remain unproved.
+The stronger final trace bounds `[0,61]` still require processed-prefix numeric
+bounds and dormant-support zero facts; `Ready` alone is not nonnegativity.
+Second-loop and begin/step/terminal preservation also remain unproved. No beta
+progress or complete-reader replacement result follows.
 
 The zero-knowledge proof includes exceptional operands: zero products yield signed
 zero or NaN, and the actual weight projection maps NaN to zero while clipping

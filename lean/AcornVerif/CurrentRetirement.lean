@@ -1661,4 +1661,184 @@ theorem cold_first_pruned (state : NumericState ⟨.demon, .discounted .g99⟩ d
     simp only [noPrune, Bool.false_eq_true, if_false]
     exact ⟨knowledge, betaNext, trace.1, trace.2.2.2 noPrune, trace.2.2.1⟩
 
+/-- The cold box viewed against the first loop's separate worklist. Only the
+proof observation reinstalls eligibility; the executing state is unchanged.
+This does not assert support relative to its possibly empty stored eligibility. -/
+def ColdWork (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) : Prop :=
+  ColdBox { state with transient := { state.transient with eligible := work } }
+
+/-- Clearing stored eligibility at the actual first-loop entry retains the
+cold bounds and support relative to the saved worklist. -/
+theorem cold_work_entry (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) :
+    ColdWork { state with transient := { state.transient with eligible := #[] } }
+      state.transient.eligible := box
+
+/-- The explicit-worklist observation supplies the existing traversal
+contracts, without requiring CoreInv over the executing state's stored list. -/
+theorem cold_work_contract (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (box : ColdWork state work) :
+    ZeroKnowledge state ∧ CurrentLearner.Supported state work ∧
+      CurrentLearner.ReferencesLegal state ∧ work.toList.Nodup :=
+  ⟨⟨box.knowledge.weights, box.knowledge.updates, box.knowledge.old, box.knowledge.delta⟩,
+    box.core.1, box.core.2, box.unique⟩
+
+/-- The traversal's actual final worklist installation converts a maintained
+worklist box back to the ordinary callback-boundary predicate. This is not a
+claim that the intervening traversal maintains the worklist box. -/
+theorem cold_work_finish (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (box : ColdWork state work) :
+    ColdBox { state with transient := { state.transient with eligible := work } } := box
+
+/-- Existing local element proofs apply to the actual internal state through
+its explicit worklist observation. Membership supplies existing support framing;
+no intermediate ColdBox of the executing state is assumed. This contract stops
+at the visited-slot bounds, not preservation through an entire worklist. -/
+theorem cold_work_first_element
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (box : ColdWork state work)
+    (idx : FeatIdx dimension) (member : idx ∈ work) (delta vd : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    let result := state.firstLoopElement idx delta vd (config.rule.gamma.mul config.lambda)
+    let next := result.1
+    ZeroKnowledge next ∧ CurrentLearner.Supported next work ∧
+      CurrentLearner.ReferencesLegal next ∧
+      (next.beta.get idx).value = (state.beta.get idx).value ∧
+      (next.transient.z.get idx).value.Finite ∧
+      -((2 : ℚ) ^ (21 : Int)) ≤ numerical32 (next.transient.z.get idx).value ∧
+      numerical32 (next.transient.z.get idx).value ≤ 61 ∧
+      (result.2 = false → 0 ≤ numerical32 (next.transient.z.get idx).value) ∧
+      SignedZero (next.transient.p.get idx).value ∧
+      SignedZero (next.transient.h.get idx).value ∧
+      SignedZero (next.transient.hOld.get idx).value ∧
+      SignedZero (next.transient.hTemp.get idx).value ∧
+      (next.transient.zBar.get idx).value.Finite ∧
+      |numerical32 (next.transient.zBar.get idx).value| ≤ (2 : ℚ) ^ (26 : Int) ∧
+      (next.transient.zDelta.get idx).value = .zero := by
+  let observed : NumericState ⟨.demon, .discounted .g99⟩ dimension :=
+    { state with transient := { state.transient with eligible := work } }
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  have contracts := cold_work_contract state work box
+  have knowledge := zero_first_element state contracts.1 idx delta vd decay (Or.inl hd) hv
+  have support := CurrentLearner.first_element_supported state work idx member delta vd decay
+    contracts.2.1
+  have references : CurrentLearner.ReferencesLegal
+      (state.firstLoopElement idx delta vd decay).1 := contracts.2.2.1
+  have beta := cold_first_beta observed box idx delta vd decay hd hv
+  have trace := cold_first_trace observed box idx delta vd
+  have registers := cold_first_registers observed box idx delta vd hd hv
+  exact ⟨knowledge, support, references, beta, trace.1, trace.2.1, trace.2.2.1,
+    trace.2.2.2, registers⟩
+
+/-- A worklist member's actual visit preserves all cold bounds and support
+against that same worklist; other slots use the existing register frame. -/
+theorem cold_work_first (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (box : ColdWork state work)
+    (idx : FeatIdx dimension) (member : idx ∈ work) (delta vd : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    ColdWork (state.firstLoopElement idx delta vd
+      ((Config.mk .demon (.discounted .g99)).rule.gamma.mul
+        (Config.mk .demon (.discounted .g99)).lambda)).1 work := by
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  let next := (state.firstLoopElement idx delta vd decay).1
+  obtain ⟨knowledge, support, references, _beta, zFinite, zLower, zUpper, _retained,
+      p, h, hOld, hTemp, barFinite, barBound, increment⟩ :=
+    cold_work_first_element state work box idx member delta vd hd hv
+  have frame (other : FeatIdx dimension) (different : idx ≠ other) :
+      CurrentLearner.registers next other = CurrentLearner.registers state other :=
+    (CurrentLearner.first_element_frame state idx other different delta vd decay).2.2
+  refine ⟨box.capacity, ⟨knowledge.weights, knowledge.updates, knowledge.old, knowledge.delta⟩,
+    ⟨support, references⟩, box.unique, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro other
+    by_cases same : idx = other
+    · subst other; exact p
+    · change SignedZero (CurrentLearner.registers next other)[8]
+      rw [frame other same]
+      exact box.p other
+  · intro other
+    by_cases same : idx = other
+    · subst other; exact h
+    · change SignedZero (CurrentLearner.registers next other)[5]
+      rw [frame other same]
+      exact box.h other
+  · intro other
+    by_cases same : idx = other
+    · subst other; exact hOld
+    · change SignedZero (CurrentLearner.registers next other)[6]
+      rw [frame other same]
+      exact box.hOld other
+  · intro other
+    by_cases same : idx = other
+    · subst other; exact hTemp
+    · change SignedZero (CurrentLearner.registers next other)[7]
+      rw [frame other same]
+      exact box.hTemp other
+  · intro other
+    by_cases same : idx = other
+    · subst other; exact ⟨zFinite, zLower, le_trans zUpper (by norm_num)⟩
+    · change (CurrentLearner.registers next other)[0].Finite ∧
+        -((2 : ℚ) ^ (21 : Int)) ≤ numerical32 (CurrentLearner.registers next other)[0] ∧
+        numerical32 (CurrentLearner.registers next other)[0] ≤ 64
+      rw [frame other same]
+      exact box.z other
+  · intro other
+    by_cases same : idx = other
+    · subst other; exact ⟨barFinite, barBound⟩
+    · change (CurrentLearner.registers next other)[2].Finite ∧
+        |numerical32 (CurrentLearner.registers next other)[2]| ≤ (2 : ℚ) ^ (26 : Int)
+      rw [frame other same]
+      exact box.zBar other
+  · intro other
+    by_cases same : idx = other
+    · subst other
+      change (next.transient.zDelta.get idx).value.Finite ∧
+        0 ≤ numerical32 (next.transient.zDelta.get idx).value ∧
+        numerical32 (next.transient.zDelta.get idx).value ≤ 101 / (100 : ℚ)
+      rw [increment]
+      exact ⟨by decide, le_refl 0, by change (0 : ℚ) ≤ 101 / 100; norm_num⟩
+    · change (CurrentLearner.registers next other)[1].Finite ∧
+        0 ≤ numerical32 (CurrentLearner.registers next other)[1] ∧
+        numerical32 (CurrentLearner.registers next other)[1] ≤ 101 / (100 : ℚ)
+      rw [frame other same]
+      exact box.zDelta other
+  · intro other
+    exact box.lastAlpha other
+
+/-- Clearing a pruned slot preserves cold bounds while the actual swap-remove
+changes the support worklist. Uniqueness is reused, not inferred from indices. -/
+theorem cold_work_prune (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (box : ColdWork state work)
+    (pos : Nat) (valid : pos < work.size) :
+    ColdWork (state.clearFeatureRegisters work[pos]) (swapRemove work pos valid) := by
+  have contracts := cold_work_contract state work box
+  have knowledge := zero_clear_feature state contracts.1 work[pos]
+  have support := CurrentLearner.prune_supported state work pos valid contracts.2.1
+  have references := CurrentLearner.clear_feature_references state work[pos] contracts.2.2.1
+  refine ⟨box.capacity, ⟨knowledge.weights, knowledge.updates, knowledge.old, knowledge.delta⟩,
+    ⟨support, references⟩, CurrentLearner.swap_remove_nodup work pos valid box.unique,
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals
+    intro other
+    simp only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+      NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+      NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+      NumericState.writeLastAlpha, CurrentLearner.vector_get, Vector.getElem_set]
+    split
+    · have finite : Binary32.zero.Finite := by decide
+      have value : numerical32 Binary32.zero = 0 := rfl
+      norm_num [SignedZero, finite, value]
+    · first
+      | exact box.p other
+      | exact box.h other
+      | exact box.hOld other
+      | exact box.hTemp other
+      | exact box.z other
+      | exact box.zBar other
+      | exact box.zDelta other
+      | exact box.lastAlpha other
+
 end AcornVerif.CurrentRetirement

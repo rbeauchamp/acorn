@@ -158,11 +158,19 @@ sensitivity zeros, finite Dutch-trace bound and zeroed trace increment.
 knowledge, unchanged visited beta word and finite trace in `[0,61]`. Its beta
 proof transports whole-state branch equalities through a nondependent raw-word
 observation, preserving the exact dependent storage semantics.
-These local contracts do not prove traversal closure: `learnFirstLoop` clears
-stored eligibility while traversing a separate worklist, so its existing
-`Supported state work` and uniqueness/frame contracts must be threaded explicitly.
-Learning-loop and begin/step/terminal closure, overshoot-count consequences and
-current-owner composition remain unproved.
+`ColdWork state work` is a proof-only `ColdBox` observation with `work` installed
+as eligibility. `cold_work_entry` derives it for the actual stored-empty entry;
+`cold_work_contract` recovers `Supported state work`, reference legality, zero
+knowledge and worklist uniqueness without assuming `CoreInv` over the empty list.
+`cold_work_finish` covers final worklist installation. `cold_work_first_element`
+transfers the local contracts; `cold_work_first` and `cold_work_prune` preserve
+the worklist box through one member visit and actual clear/swap-remove using
+existing framing, support and uniqueness proofs. Runtime storage is unchanged.
+These steps do not yet prove recursive traversal closure or all-word beta
+preservation. Final per-index trace bounds `[0,61]` require a processed-prefix
+numeric invariant and dormant-support zero facts; `Ready` alone supplies neither
+nonnegativity nor that upper bound. Second-loop and begin/step/terminal closure,
+overshoot-count consequences and current-owner composition remain unproved.
 `CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
 numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted
