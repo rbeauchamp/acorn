@@ -3703,4 +3703,25 @@ info: 'AcornVerif.CurrentWorld.standard_selectSpawn_success' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_selectSpawn_success
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_placeDeer_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_placeDeer_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_initializeDeer_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_initializeDeer_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_initial_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_initial_success
+
 end AcornVerif

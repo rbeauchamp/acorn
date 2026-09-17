@@ -655,30 +655,49 @@ theorem standard_observe_success (seed : UInt64) (side : Coordinate)
         world.occupancy row column))
   exact ⟨_, by simp only [World.observe, tilesEq]; rfl⟩
 
-/-- Structural success composition for the actual constructor traversals. -/
-private theorem listTraversal_success {β : Type} (indices : List Nat)
-    (body : Nat → β → Except WorldError (ForInStep β))
-    (success : ∀ index ∈ indices, ∀ state, ∃ step, body index state = .ok step)
-    (state : β) : ∃ result, forIn indices state body = .ok result := by
+/-- Structural invariant preservation for the actual constructor traversals. -/
+private theorem listTraversal_preserves {β : Type} (indices : List Nat)
+    (body : Nat → β → Except WorldError (ForInStep β)) (invariant : β → Prop)
+    (success : ∀ index ∈ indices, ∀ state, invariant state →
+      ∃ step, body index state = .ok step ∧
+        match step with | .done next => invariant next | .yield next => invariant next)
+    (state : β) (initial : invariant state) :
+    ∃ result, forIn indices state body = .ok result ∧ invariant result := by
   induction indices generalizing state with
-  | nil => exact ⟨state, rfl⟩
+  | nil => exact ⟨state, rfl, initial⟩
   | cons index rest ih =>
-    obtain ⟨step, stepEq⟩ := success index (by simp) state
+    obtain ⟨step, stepEq, preserved⟩ := success index (by simp) state initial
     rw [List.forIn_cons, stepEq]
     cases step with
-    | done next => exact ⟨next, rfl⟩
-    | yield next => exact ih (fun i hi => success i (by simp [hi])) next
+    | done next => exact ⟨next, rfl, preserved⟩
+    | yield next => exact ih (fun i hi => success i (by simp [hi])) next preserved
 
-/-- Checked range/list correspondence retains early exits and iteration order. -/
+/-- Checked range/list correspondence retains invariants at early exits and yields. -/
+private theorem rangeTraversal_preserves {β : Type} (stop : Nat)
+    (body : Nat → β → Except WorldError (ForInStep β)) (invariant : β → Prop)
+    (success : ∀ index, index < stop → ∀ state, invariant state →
+      ∃ step, body index state = .ok step ∧
+        match step with | .done next => invariant next | .yield next => invariant next)
+    (state : β) (initial : invariant state) :
+    ∃ result, forIn ([:stop] : Std.Legacy.Range) state body = .ok result ∧
+      invariant result := by
+  rw [Std.Legacy.Range.forIn_eq_forIn_range']
+  apply listTraversal_preserves _ _ invariant _ state initial
+  intro index member
+  exact success index (Std.Legacy.Range.mem_of_mem_range' member).2.1
+
+/-- Admission alone is the constant-invariant specialization used by spawn scans. -/
 private theorem rangeTraversal_success {β : Type} (stop : Nat)
     (body : Nat → β → Except WorldError (ForInStep β))
     (success : ∀ index, index < stop → ∀ state, ∃ step, body index state = .ok step)
     (state : β) :
     ∃ result, forIn ([:stop] : Std.Legacy.Range) state body = .ok result := by
-  rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  apply listTraversal_success
-  intro index member
-  exact success index (Std.Legacy.Range.mem_of_mem_range' member).2.1
+  obtain ⟨result, admitted, _⟩ := rangeTraversal_preserves stop body (fun _ => True)
+    (by
+      intro index member current _
+      obtain ⟨step, stepEq⟩ := success index member current
+      exact ⟨step, stepEq, by cases step <;> trivial⟩) state trivial
+  exact ⟨result, admitted⟩
 
 /-- Successful constructor stages compose through the actual exception bind. -/
 private theorem bind_success {α β : Type} (value : Except WorldError α)
@@ -805,5 +824,84 @@ theorem standard_selectSpawn_success (seed : UInt64) (side : Coordinate)
   · intro result
     rcases result with ⟨returned, best⟩
     cases returned <;> exact ⟨_, rfl⟩
+
+/-- Placement's coordinate invariant, distinct from the population capacity type.
+Arbitrary world states need not satisfy this property. -/
+def DeerInBox (config : WorldConfig)
+    (population : Population Position config.raw.deerCap.toNat) : Prop :=
+  ∀ position ∈ population.entries,
+    0 ≤ position.x.val ∧ position.x.val < (config.side : Int) ∧
+      0 ≤ position.y.val ∧ position.y.val < (config.side : Int)
+
+/-- An actual two-draw placement attempt succeeds and preserves in-box entries,
+including nonwalkable draws and full-capacity insertion refusal. -/
+theorem standard_placeDeer_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (population : Population Position config.raw.deerCap.toNat)
+    (rng : Rng.Xoshiro256) (inside : DeerInBox config population) :
+    ∃ next nextRng, placeDeer world population rng = .ok (next, nextRng) ∧
+      DeerInBox config next := by
+  unfold placeDeer
+  split
+  rename_i position nextRng drawn
+  have hx := position.x.isLt
+  have hy := position.y.isLt
+  have positionInside : 0 ≤ position.position.x.val ∧
+      position.position.x.val < (config.side : Int) ∧
+      0 ≤ position.position.y.val ∧ position.position.y.val < (config.side : Int) := by
+    dsimp only [BoxPosition.position]
+    omega
+  obtain ⟨kind, kindEq⟩ := standard_tileKind_success seed side config standard world
+    position.position (by omega) (by omega) (by omega) (by omega)
+  have inserted : DeerInBox config (population.push position.position) := by
+    unfold Population.push
+    split
+    · intro entry member
+      rcases Array.mem_push.mp member with old | same
+      · exact inside entry old
+      · subst entry
+        exact positionInside
+    · exact inside
+  simp only [kindEq, bind, Except.bind]
+  split
+  · exact ⟨_, nextRng, rfl, inserted⟩
+  · exact ⟨population, nextRng, rfl, inside⟩
+
+/-- The configured placement loop preserves in-box deer using the original
+world and the actual changing population/RNG accumulator. -/
+theorem standard_initializeDeer_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (inside : DeerInBox config world.deer) :
+    ∃ population rng, initializeDeer world = .ok (population, rng) ∧
+      DeerInBox config population := by
+  suffices result : ∃ result, initializeDeer world = .ok result ∧
+      DeerInBox config result.1 by
+    obtain ⟨⟨population, rng⟩, admitted, preserved⟩ := result
+    exact ⟨population, rng, admitted, preserved⟩
+  unfold initializeDeer
+  simp only [Prod.eta, bind_pure]
+  apply rangeTraversal_preserves
+    (β := Population Position config.raw.deerCap.toNat × Rng.Xoshiro256)
+    _ _ (fun state => DeerInBox config state.1) _ _ inside
+  intro index member state current
+  obtain ⟨population, rng, admitted, preserved⟩ := standard_placeDeer_success
+    seed side config standard world state.1 state.2 current
+  exact ⟨.yield (population, rng), by simp only [admitted, bind, Except.bind]; rfl,
+    preserved⟩
+
+/-- Actual standard construction succeeds with in-box initial deer. Other
+initial fields are characterized by the existing `World.initial_fields` theorem. -/
+theorem standard_initial_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config) :
+    ∃ world, World.initial config = .ok world ∧ DeerInBox config world.deer := by
+  have emptyInside : DeerInBox config (World.empty config).deer := by
+    intro entry member
+    simp [World.empty, Population.empty] at member
+  obtain ⟨position, spawned⟩ := standard_selectSpawn_success seed side config standard
+    (World.empty config)
+  obtain ⟨population, rng, initialized, inside⟩ := standard_initializeDeer_success
+    seed side config standard (World.empty config) emptyInside
+  simp only [World.initial, spawned, initialized, bind, Except.bind]
+  exact ⟨_, rfl, inside⟩
 
 end AcornVerif.CurrentWorld

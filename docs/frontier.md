@@ -134,9 +134,12 @@ composes the actual radius-four scan, and `standard_considerSpawn_success` admit
 any candidate while retaining out-of-box rejection before terrain access.
 `standard_selectSpawn_success` composes the full actual spiral, including early
 returns and the typed center fallback, without assuming a walkable candidate.
-Deer initialization and world-step traversal composition still block a proved
-nonempty completion prefix. These admission results alone do not establish a
-learning execution.
+`standard_placeDeer_success` and `standard_initializeDeer_success` preserve
+in-box deer through the actual placement loop. `standard_initial_success`
+composes spawn and deer construction from empty storage into a successful
+standard world with that invariant. World-step traversal and initialized
+completion-prefix composition remain unproved; constructor admission alone
+does not establish a learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

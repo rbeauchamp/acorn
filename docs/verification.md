@@ -214,9 +214,15 @@ values through the actual box check, scans and score branches, without assuming
 walkability. `standard_selectSpawn_success` composes all three actual spawn loops,
 including their optional-return/current-best accumulator and typed center
 fallback. The same structural traversal bridge serves the scan and spawn proofs.
-Deer initialization, full world construction, world-step traversal composition
-and nonempty callback execution remain unproved. No runtime feasibility, terrain-quality
-or replacement-reachability claim follows from these guarantees.
+`DeerInBox` adds a proof-only coordinate predicate for the placement result;
+arbitrary world states need not satisfy it. `standard_placeDeer_success` and
+`standard_initializeDeer_success` preserve it through actual placement and its
+finite loop, with the original world and changing population/RNG accumulator.
+`standard_initial_success` derives empty-population admission and composes
+actual spawn and deer construction. Existing `World.initial_fields` covers the
+other fields. World-step traversal, drift and nonempty callback execution remain
+unproved. No runtime feasibility, terrain-quality or replacement-reachability
+claim follows from these guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

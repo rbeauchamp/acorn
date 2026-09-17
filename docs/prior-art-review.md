@@ -781,9 +781,9 @@ discharges both actual lattice admissions and the sample hypotheses of
 It proves terrain success for every actual standard configuration, every salt
 and every position with both coordinates in `[-201, side + 201]`. It assumes
 neither sample success nor a chosen action/seed trajectory. No terrain quality,
-walkability or allocation feasibility follows. Successful world construction
-and world-step traversal composition remain separate obligations. Arbitrary
-custom raw scales remain outside this standard-configuration success theorem.
+walkability or allocation feasibility follows. World construction and world-step
+success require composition beyond this terrain result. Arbitrary custom raw
+scales remain outside this standard-configuration success theorem.
 
 `standard_tileKind_success` preserves terrain success through the actual regrowth
 classification. `standard_observeTile_success` derives each sensor coordinate
@@ -795,9 +795,8 @@ learning-reachability premise. `CurrentRunner.standard_sense_success` derives
 strict step room from the actual unfinished predicate and typed step bound,
 then constructs the same owned input returned by `Attempt.sense`.
 `standard_start_sense_success` discharges unfinishedness for any positive-cap
-`Attempt.start`, even with a carried terminal result. Successful world construction,
-environment steps, learner callbacks and nonempty initialized-prefix composition
-remain separate obligations.
+`Attempt.start`, even with a carried terminal result. Environment steps, learner
+callbacks and nonempty initialized-prefix composition remain separate obligations.
 
 `CurrentWorld.standard_countKindNear_success` proves the actual radius-four scan
 succeeds for any tile kind and in-box center, using structural induction through
@@ -812,8 +811,20 @@ the executed optional-return/current-best accumulator. The signed admissions
 come from `standard_spiral_coordinates`; candidate handling retains the box
 check before terrain access. Both loop continuation and early-return branches
 succeed, including the legal center fallback after a complete scan. This is
-spawn admission, not a terrain-quality or best-score guarantee. Deer
-initialization and its composition into world construction remain unproved.
+spawn admission, not a terrain-quality or best-score guarantee.
+
+`DeerInBox` describes every deer entry's coordinates in `[0, side)`, separately
+from the population's typed capacity bound. `standard_placeDeer_success`
+preserves this property from an in-box population through the actual two-draw
+placement, including nonwalkable draws and full-capacity insertion refusal.
+`standard_initializeDeer_success` carries it through the configured finite loop
+using the original world and the changing population/RNG pair. The existing
+range traversal proof now preserves an explicit invariant; its constant-true
+specialization serves the scan and spawn claims. `standard_initial_success`
+derives the empty population premise and composes both actual constructors,
+proving successful standard-world construction with in-box initial deer.
+The existing initial-fields theorem supplies the other construction fields.
+No step success, deer drift bound or nonempty learning prefix follows yet.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal
