@@ -194,10 +194,14 @@ actual binary32 division, including normalization and finite packing. These
 proofs use the existing format-parametric arithmetic correspondence; native
 floating-point/compiler implementations remain trusted boundaries.
 `octaveLoop_success_of_samples` and `standard_terrain_of_samples` are conditional
-control-flow composition: they retain sample-success hypotheses. Floor/cast
-neighbor admission, unconditional terrain success, complete world construction
-and nonempty callback execution remain unproved. No runtime feasibility or
-replacement-reachability claim follows from these bounds.
+control-flow composition: they retain sample-success hypotheses.
+`floor_cast_neighbor` excludes the maximal signed endpoint after actual floor
+and widening/cast, preserving the checked neighbor operation.
+`standard_terrain_success` discharges the sample hypotheses for every standard
+configuration and salt with both position coordinates in `[-201, side + 201]`.
+Complete world construction, traversal composition and nonempty callback
+execution remain unproved. No runtime feasibility, terrain-quality or
+replacement-reachability claim follows from these arithmetic guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

@@ -5,12 +5,13 @@ Authors: acorn contributors
 -/
 import Acorn.Host.WorldObservation
 import AcornVerif.CurrentLearnerArithmetic
+import AcornVerif.CurrentFloor
 import Mathlib.Data.Fintype.Card
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Tactic.Ring
 
 /-!
-# Executed current-world storage and work bounds
+# Executed current-world bounds and terrain admission
 
 These theorems concern the world used by `WorldDriver`, `Attempt` and `Runner`.
 Legal state is carried by receiving types, including at arbitrary public writes;
@@ -477,5 +478,104 @@ theorem coordinate_quotient_bound (coordinate : Coordinate)
   · change |unpackedValue (decoded32 ((coordinateFloat coordinate).div scale))| ≤ _
     rw [decoded]
     exact bound
+
+/-- A finite quotient in the terrain envelope cannot reach the maximal signed
+coordinate after floor and the executed widening/saturating cast. The proof
+needs only a magnitude enclosure, not an exact floor-to-integer identity. -/
+theorem floor_cast_neighbor (value : Binary32) (finite : value.Finite)
+    (bounded : |numerical32 value| ≤ 2 ^ 32) :
+    ∃ neighbor, Coordinate.checked ((coordinateCast (floor32 value)).val + 1) =
+      some neighbor := by
+  let reference : Binary32 := ⟨0x4f800000⟩
+  have referenceFinite : reference.Finite := by decide
+  have referenceValue : numerical32 reference = (2 : ℚ) ^ 32 := by
+    dsimp only [reference]
+    change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (9 : Int) = (2 : ℚ) ^ 32
+    norm_num
+  have magnitude : value.magnitude ≤ reference.magnitude := by
+    apply (numerical32_magnitude_order value reference finite referenceFinite).mp
+    rw [referenceValue, abs_of_nonneg (show (0 : ℚ) ≤ 2 ^ 32 by positivity)]
+    exact bounded
+  have units : Conversion.magnitudeUnits32 value ≤ Conversion.magnitudeUnits32 reference := by
+    rw [magnitudeUnits32_fieldUnits, magnitudeUnits32_fieldUnits]
+    exact Nat.mul_le_mul_right _ ((fieldUnits_order 23 _ _).mpr magnitude)
+  have referenceUnits : Conversion.magnitudeUnits32 reference = 2 ^ 32 * 2 ^ 1074 := by
+    have fields : fieldUnits 23 reference.magnitude = 2 ^ 23 * 2 ^ 158 := by
+      dsimp only [reference]
+      change (2 ^ 23 + 0) * 2 ^ (159 - 1) = 2 ^ 23 * 2 ^ 158
+      rw [Nat.add_zero]
+    have regroup (a b c d e : Nat) (exponents : a + b + c = d + e) :
+        ((2 : Nat) ^ a * 2 ^ b) * 2 ^ c = 2 ^ d * 2 ^ e := by
+      rw [← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add, exponents]
+    exact (magnitudeUnits32_fieldUnits reference).trans
+      ((congrArg (fun count : Nat => count * 2 ^ 925) fields).trans
+        (regroup 23 158 925 32 1074 (by omega)))
+  have sourceUnits : Conversion.magnitudeUnits32 value ≤ (2 : Nat) ^ 32 * 2 ^ 1074 :=
+    Nat.le_trans units referenceUnits.le
+  have floor := AcornVerif.CurrentFloor.floor_magnitude value finite
+  have quotientBound (unit input output : Nat) (positive : 0 < unit)
+      (bound : input ≤ 2 ^ 32 * unit)
+      (enclosure : if value.negative then input ≤ output ∧ output < input + unit
+        else output ≤ input ∧ input < output + unit) : output / unit < 2 ^ 32 + 1 := by
+    have upper : output < input + unit := by
+      split at enclosure
+      · exact enclosure.2
+      · exact lt_of_le_of_lt enclosure.1 (Nat.lt_add_of_pos_right positive)
+    apply (Nat.div_lt_iff_lt_mul positive).mpr
+    rw [Nat.add_mul, Nat.one_mul]
+    exact Nat.lt_of_lt_of_le upper (Nat.add_le_add_right bound unit)
+  -- Bridge power instances with a symbolic exponent before instantiating the large unit.
+  have positivePower (exponent : Nat) : (0 : Nat) < 2 ^ exponent := Nat.two_pow_pos exponent
+  have quotient := quotientBound (2 ^ 1074) (Conversion.magnitudeUnits32 value)
+    (Conversion.magnitudeUnits32 (floor32 value)) (positivePower 1074) sourceUnits floor.2.2.2
+  have castBound (unit amount : Nat) (bound : amount / unit < 2 ^ 32 + 1) (negative : Bool) :
+      Conversion.clampInt (if negative then -((amount / unit : Nat) : Int)
+        else ((amount / unit : Nat) : Int)) (-(2 ^ 63)) (2 ^ 63 - 1) < 2 ^ 63 - 1 := by
+    have quotientNonnegative : (0 : Int) ≤
+        (amount : Int) / (unit : Int) :=
+      Int.ediv_nonneg (Int.natCast_nonneg _) (Int.natCast_nonneg _)
+    unfold Conversion.clampInt
+    split <;> omega
+  have endpoint : (coordinateCast (floor32 value)).val < (2 : Int) ^ 63 - 1 := by
+    change Conversion.toI64 (Conversion.widen (floor32 value)) < (2 : Int) ^ 63 - 1
+    rw [Conversion.toI64_eq_signedCast,
+      Conversion.signedCast_finite_value _ _ (Conversion.widen_finite _ floor.1),
+      Conversion.widen_magnitude_exact _ floor.1]
+    -- The executed conversion uses the standard-library power instance; retain its meaning
+    -- without forcing ground reduction against Mathlib's power instance at exponent 1074.
+    have powerBridge (exponent : Nat) :
+        @HPow.hPow Nat Nat Nat (@instHPow Nat Nat (@instPowNat Nat instNatPowNat)) 2 exponent =
+          (2 : Nat) ^ exponent := by rfl
+    rw [powerBridge 1074]
+    exact castBound (2 ^ 1074) _ quotient _
+  have admitted : -(2 ^ 63 : Int) ≤ (coordinateCast (floor32 value)).val + 1 ∧
+      (coordinateCast (floor32 value)).val + 1 < 2 ^ 63 := by
+    have legal := (coordinateCast (floor32 value)).property
+    omega
+  exact ⟨⟨_, admitted⟩, dif_pos admitted⟩
+
+/-- The actual standard terrain operation succeeds throughout the signed margin
+needed by the bounded world geometry, for every terrain salt. This establishes
+arithmetic admission only, not successful world allocation or a learning prefix. -/
+theorem standard_terrain_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (position : Position) (salt : UInt64)
+    (xlow : -201 ≤ position.x.val) (xhigh : position.x.val ≤ (config.side : Int) + 201)
+    (ylow : -201 ≤ position.y.val) (yhigh : position.y.val ≤ (config.side : Int) + 201) :
+    ∃ kind, terrain position salt config.raw.baseScale = .ok kind := by
+  have fields := WorldConfig.standard_bounds seed side config standard
+  have size : config.side ≤ 3000000000 := by
+    simp only [WorldConfig.side, fields.1]
+    have upper : side.val ≤ 3000000000 := fields.2.2
+    omega
+  have xbound : position.x.val.natAbs ≤ 2 ^ 32 := by omega
+  have ybound : position.y.val.natAbs ≤ 2 ^ 32 := by omega
+  apply standard_terrain_of_samples seed side config standard position salt
+  intro scale finite lower _ sampleSeed
+  have xquotient := coordinate_quotient_bound position.x xbound scale finite lower
+  have yquotient := coordinate_quotient_bound position.y ybound scale finite lower
+  obtain ⟨xnext, xok⟩ := floor_cast_neighbor _ xquotient.1 xquotient.2
+  obtain ⟨ynext, yok⟩ := floor_cast_neighbor _ yquotient.1 yquotient.2
+  exact ⟨_, by simp only [valueNoise, xok, yok]; rfl⟩
 
 end AcornVerif.CurrentWorld

@@ -772,14 +772,18 @@ the actual sign-bit construction for coordinate magnitude at most `2^32`;
 at most `2^32` for any finite scale at least four. The coordinate domain contains
 the proposed standard-world margin `[-201, side + 201]`.
 
-These arithmetic results do not establish terrain success. `octaveLoop_success_of_samples`
-and `standard_terrain_of_samples` connect the actual recursive folds and final
-classification to explicitly assumed successful lattice samples. The outstanding
-arithmetic obligation is to carry the quotient bound through `floor32` and the
-executed widened signed cast, excluding the upper signed endpoint so both
-lattice-neighbor increments are admitted. Successful world construction and
-world-step traversal composition remain separate obligations. Arbitrary custom
-raw scales remain outside the standard constructor's positivity guarantee.
+`floor_cast_neighbor` carries the quotient bound through the existing floor
+magnitude enclosure, exact widening and executed signed quotient/clamp. Its
+unsigned integer quotient is below `2^32 + 1`, excluding the maximal signed
+endpoint and admitting the neighbor increment. `standard_terrain_success`
+discharges both actual lattice admissions and the sample hypotheses of
+`standard_terrain_of_samples`, using the existing recursive-fold composition.
+It proves terrain success for every actual standard configuration, every salt
+and every position with both coordinates in `[-201, side + 201]`. It assumes
+neither sample success nor a chosen action/seed trajectory. No terrain quality,
+walkability or allocation feasibility follows. Successful world construction
+and world-step traversal composition remain separate obligations. Arbitrary
+custom raw scales remain outside this standard-configuration success theorem.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal

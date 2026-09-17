@@ -3633,4 +3633,18 @@ info: 'AcornVerif.CurrentWorld.coordinate_quotient_bound' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.coordinate_quotient_bound
 
+/--
+info: 'AcornVerif.CurrentWorld.floor_cast_neighbor' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.floor_cast_neighbor
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_terrain_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_terrain_success
+
 end AcornVerif

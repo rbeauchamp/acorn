@@ -121,11 +121,12 @@ coordinate admissions are checked in `CurrentWorld`. Its `standard_octave_scales
 proves finite positive scales through all four actual multiplications, and
 `coordinate_quotient_bound` bounds the executed signed conversion/division for
 coordinate magnitude at most `2^32` and finite scale at least four. These bounds
-still need composition through floor, signed cast and checked lattice neighbors.
-`standard_terrain_of_samples` composes the actual octave folds but assumes sample
-success. Unconditional terrain success and world traversal composition still
-block a proved nonempty completion prefix; configuration admission alone does
-not establish successful world construction.
+compose through `floor_cast_neighbor` and the actual lattice admissions in
+`standard_terrain_success`: every actual standard configuration admits terrain
+at both coordinates in `[-201, side + 201]`, for every salt. The conditional
+`standard_terrain_of_samples` is discharged in this domain. World construction
+and traversal composition still block a proved nonempty completion prefix;
+terrain arithmetic success alone does not establish a learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
