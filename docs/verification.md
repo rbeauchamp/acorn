@@ -128,8 +128,17 @@ it assumes neither ideal exponential accuracy nor monotonicity.
 `0 <= q <= 1.01` for a finite rate and the actual receiving denominator. Existing
 ordered-alpha-sum finiteness supplies that premise in the learner. The explicit
 multiplication/division error wrappers retain their sign and packing proofs.
-These are numerical prerequisites, not a raw-register finiteness invariant or
-replacement-reachability result; the existing wider public contracts remain.
+`meta_scale_finite` checks the actual meta-step/alpha quotient is finite for every
+legal beta. `discounted_demon_decay` checks the configured g99 demon's executed
+decay is finite, positive and at most `0.941`. For integer `0 <= M <= 40`, the
+signed `mul32_finite_error` and `sub32_finite_error` wrappers require finite inputs
+and exact product/difference magnitude at most `2^M`, then derive finite packing
+and error at most `2^(M-24)`. `div32_finite_error` additionally requires a numerically
+nonzero denominator, bounds the exact quotient, and retains error `2^(M-22)`.
+No finiteness assumption about the rounded output replaces these packing proofs.
+These are numerical prerequisites, not a raw-register finiteness invariant,
+exclusion of exceptional later meta products or replacement-reachability result;
+the existing wider public contracts remain.
 `CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
 numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted

@@ -552,11 +552,18 @@ ideal-function approximation or alpha-monotonicity theorem.
 `mul32_nonnegative_error` and `div32_normalization_error` retain explicit
 `2^-20` local operation budgets; `trace_increment_small` composes the executing
 normalization denominator and alpha multiplication into `0 <= q <= 1.01`.
-The actual ordered alpha sum supplies its finite-rate premise. None of these
-contracts bounds arbitrary incoming traces/sensitivities, proves the meta
-quotient finite, or establishes an initialized cold-register invariant.
-Exceptional beta projection and overshoot therefore remain distinct mechanisms
-that an execution-linked reachability or obstruction argument must cover.
+The actual ordered alpha sum supplies its finite-rate premise.
+`meta_scale_finite` derives finite execution of the meta-step/alpha quotient for
+every legal beta. `discounted_demon_decay` checks the configured g99 demon's
+actual rounded product of gamma and lambda is finite and in `(0,0.941]`.
+For finite operands and exact intermediate magnitude at most `2^M`,
+`0 <= M <= 40`, `mul32_finite_error` and `sub32_finite_error` derive finite
+packing and error at most `2^(M-24)`. `div32_finite_error` retains the larger
+existing division radius `2^(M-22)` and requires a numerically nonzero denominator.
+None of these contracts bounds arbitrary incoming traces/sensitivities or
+establishes an initialized cold-register invariant. Exceptional later meta
+products, beta projection and overshoot remain mechanisms that an execution-linked
+reachability or obstruction argument must cover.
 
 The zero-knowledge proof includes exceptional operands: zero products yield signed
 zero or NaN, and the actual weight projection maps NaN to zero while clipping

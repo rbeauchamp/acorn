@@ -64,6 +64,128 @@ theorem local32_fits (value : UnpackedFloat) (exactValue : ℚ)
   norm_num
   linarith only [triangle, bound, error]
 
+/-- In the box's nonnegative exponent domain, the existing dyadic rounding
+radius has this direct power-of-two form. -/
+private theorem local32_round_radius (limit : Int) (nonnegative : 0 ≤ limit) :
+    (2 : ℚ)^(max (limit + 1 - Format.binary32.mantissaBits)
+      Format.binary32.minExponent) / 2 = (2 : ℚ)^(limit - 24) := by
+  change (2 : ℚ)^(max (limit + 1 - 24) (-149)) / 2 = _
+  rw [max_eq_left (by omega), show limit + 1 - 24 = (limit - 24) + 1 by omega,
+    zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
+  norm_num
+
+/-- A normalized local result through exponent 40 fits binary32, even with
+the larger division radius. This derives packing instead of assuming no overflow. -/
+private theorem local32_dyadic_fits (value : UnpackedFloat) (exactValue : ℚ)
+    (limit : Int) (range : limit ≤ 40) (normal : ModelNormalized Format.binary32 value)
+    (bound : |exactValue| ≤ (2 : ℚ) ^ limit)
+    (error : |unpackedValue value - exactValue| ≤ (2 : ℚ) ^ (limit - 22)) :
+    ModelFits Format.binary32 value := by
+  have valueBound := le_trans bound
+    (zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2) range)
+  have errorBound := le_trans error
+    (zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2)
+      (show limit - 22 ≤ 18 by omega))
+  apply model_fits_of_value_bound Format.binary32 value
+    (model_normalized_finite _ _ normal) 41 (by decide)
+  have triangle := abs_add_le (unpackedValue value - exactValue) exactValue
+  rw [sub_add_cancel] at triangle
+  norm_num at valueBound errorBound ⊢
+  linarith only [triangle, valueBound, errorBound]
+
+/-- Executed finite binary32 multiplication retains its dyadic local error
+through exponent 40. The exact-product premise is checked before rounding. -/
+theorem mul32_finite_error (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
+    (limit : Int) (nonnegative : 0 ≤ limit) (range : limit ≤ 40)
+    (bound : |numerical32 left * numerical32 right| ≤ (2 : ℚ) ^ limit) :
+    (left.mul right).Finite ∧
+      |numerical32 (left.mul right) - numerical32 left * numerical32 right| ≤
+        (2 : ℚ)^(limit - 24) := by
+  have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
+    ((model_decoded32_finite left).mpr hl)).1
+  have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
+    ((model_decoded32_finite right).mpr hr)).1
+  have operation := model_mul_dyadic_local Format.binary32 (decoded32 left) (decoded32 right)
+    ln rn limit bound
+  have error : |unpackedValue (UnpackedFloat.mul Format.binary32
+      (decoded32 left) (decoded32 right)) - numerical32 left * numerical32 right| ≤
+        (2 : ℚ)^(limit - 24) := by
+    simpa only [numerical32, local32_round_radius limit nonnegative] using operation.2
+  have fits := local32_dyadic_fits _ _ limit range operation.1 bound
+    (le_trans error (zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2) (by omega)))
+  have decoded := mul32_decoded left right hl hr operation.1 fits
+  constructor
+  · apply (model_decoded32_finite _).mp
+    rw [decoded]
+    exact model_normalized_finite _ _ operation.1
+  · simpa only [numerical32, decoded] using error
+
+/-- Executed finite binary32 subtraction has the same local radius as
+multiplication. Signed operands and cancellation retain their actual operation. -/
+theorem sub32_finite_error (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
+    (limit : Int) (nonnegative : 0 ≤ limit) (range : limit ≤ 40)
+    (bound : |numerical32 left - numerical32 right| ≤ (2 : ℚ) ^ limit) :
+    (left.sub right).Finite ∧
+      |numerical32 (left.sub right) - (numerical32 left - numerical32 right)| ≤
+        (2 : ℚ)^(limit - 24) := by
+  have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
+    ((model_decoded32_finite left).mpr hl)).1
+  have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
+    ((model_decoded32_finite right).mpr hr)).1
+  have operation := CurrentOperations.model_sub_dyadic_local Format.binary32
+    (decoded32 left) (decoded32 right) ln rn limit bound
+  have error : |unpackedValue (UnpackedFloat.sub Format.binary32
+      (decoded32 left) (decoded32 right)) - (numerical32 left - numerical32 right)| ≤
+        (2 : ℚ)^(limit - 24) := by
+    simpa only [numerical32, local32_round_radius limit nonnegative] using operation.2
+  have fits := local32_dyadic_fits _ _ limit range operation.1 bound
+    (le_trans error (zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2) (by omega)))
+  have decoded : decoded32 (left.sub right) =
+      UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right) := by
+    change unpack Format.binary32 (pack Format.binary32
+      (UnpackedFloat.sub Format.binary32 (Float32.Model.ofBits left.bits).unpack
+        (Float32.Model.ofBits right.bits).unpack)) = _
+    rw [model_ofBits32_decoded left hl, model_ofBits32_decoded right hr]
+    exact model_unpack_pack_normalized _ _ operation.1 fits
+  constructor
+  · apply (model_decoded32_finite _).mp
+    rw [decoded]
+    exact model_normalized_finite _ _ operation.1
+  · simpa only [numerical32, decoded] using error
+
+/-- Executed binary32 division keeps the existing division-specific error
+radius through exponent 40. The finite denominator must be numerically nonzero. -/
+theorem div32_finite_error (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
+    (nonzero : numerical32 right ≠ 0) (limit : Int) (nonnegative : 0 ≤ limit)
+    (range : limit ≤ 40)
+    (bound : |numerical32 left / numerical32 right| ≤ (2 : ℚ) ^ limit) :
+    (left.div right).Finite ∧
+      |numerical32 (left.div right) - numerical32 left / numerical32 right| ≤
+        (2 : ℚ)^(limit - 22) := by
+  have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
+    ((model_decoded32_finite left).mpr hl)).1
+  have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
+    ((model_decoded32_finite right).mpr hr)).1
+  have operation := model_div_dyadic_local Format.binary32 (decoded32 left) (decoded32 right)
+    ln rn nonzero limit bound
+  have radius : 2 * (2 : ℚ)^(max (limit + 1 - Format.binary32.mantissaBits)
+      Format.binary32.minExponent) = (2 : ℚ)^(limit - 22) := by
+    change 2 * (2 : ℚ)^(max (limit + 1 - 24) (-149)) = _
+    rw [max_eq_left (by omega), show limit - 22 = (limit + 1 - 24) + 1 by omega,
+      zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
+    norm_num; ring
+  have error : |unpackedValue (UnpackedFloat.div Format.binary32
+      (decoded32 left) (decoded32 right)) - numerical32 left / numerical32 right| ≤
+        (2 : ℚ)^(limit - 22) := by
+    simpa only [numerical32, radius] using operation.2
+  have fits := local32_dyadic_fits _ _ limit range operation.1 bound error
+  have decoded := div32_decoded left right hl hr operation.1 fits
+  constructor
+  · apply (model_decoded32_finite _).mp
+    rw [decoded]
+    exact model_normalized_finite _ _ operation.1
+  · simpa only [numerical32, decoded] using error
+
 /-- Positive-sign rounding produces a nonnegative value, including either
 mantissa branch and all residual accuracies. -/
 theorem round_nonnegative (spec : Format) (mantissa : Nat) (exponent : Int)
@@ -278,6 +400,49 @@ theorem alpha_lower {config : Config} {rails : StepSizeRails config}
   rw [cutoffValue, abs_of_nonneg (by norm_num : 0 ≤ 1 / (1099511627776 : ℚ)),
     abs_of_nonneg alpha.2.1] at order
   exact order
+
+/-- The meta-update's executing step-size quotient is finite for every
+legally stored beta. Later products still require their own operand bounds. -/
+theorem meta_scale_finite {config : Config} {rails : StepSizeRails config}
+    (beta : LogStepSize rails) : (config.metaStep.div beta.alpha).Finite := by
+  have raw : config.metaStep.Finite ∧ config.metaStep.bits.toNat ≤ 0x3f800000 := by
+    rcases config with ⟨role, rule⟩
+    cases role <;> simp only [Config.metaStep] <;> decide
+  have metaBound := word_unit_interval config.metaStep raw.1 raw.2
+  have alpha := alpha_numeric beta
+  have lower := alpha_lower beta
+  have positive : 0 < numerical32 beta.alpha := by linarith only [lower]
+  have bound : |numerical32 config.metaStep / numerical32 beta.alpha| ≤
+      (2 : ℚ)^(40 : Int) := by
+    rw [abs_of_nonneg (div_nonneg metaBound.1 positive.le)]
+    apply (div_le_iff₀ positive).mpr
+    norm_num
+    linarith only [metaBound.2, lower]
+  exact (div32_finite_error config.metaStep beta.alpha raw.1 alpha.1 (ne_of_gt positive)
+    40 (by decide) (by decide) bound).1
+
+set_option maxRecDepth 8192 in
+/-- The actual discounted model/demon decay is finite, positive and at most
+0.941. Only this closed configuration's primitive product is evaluated. -/
+theorem discounted_demon_decay :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    let decay := config.rule.gamma.mul config.lambda
+    decay.Finite ∧ 0 < numerical32 decay ∧ numerical32 decay ≤ 941 / (1000 : ℚ) := by
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  let cutoff : Binary32 := ⟨0x3f70e000⟩
+  have raw : decay.Finite ∧ Binary32.zero.key < decay.key ∧ decay.key ≤ cutoff.key := by
+    decide
+  have cutoffFinite : cutoff.Finite := by decide
+  have cutoffValue : numerical32 cutoff = 1927 / (2048 : ℚ) := by
+    dsimp only [cutoff]
+    change (1 : ℚ) * 15785984 * (2 : ℚ)^(-24 : Int) = _
+    norm_num
+  have positive := (numerical32_strict_order .zero decay (by decide) raw.1).mpr raw.2.1
+  have upper := (numerical32_order decay cutoff raw.1 cutoffFinite).mpr raw.2.2
+  refine ⟨raw.1, positive, ?_⟩
+  rw [cutoffValue] at upper
+  linarith only [upper]
 
 /-- Any finite list of stored alphas has a finite ordered sum; this reuses the
 universal prediction envelope and does not require a bound on list length. -/

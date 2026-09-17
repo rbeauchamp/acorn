@@ -175,9 +175,14 @@ Supporting numerical contracts bound the executed operations:
 an executed alpha at least `2^-40`; `trace_increment_small` bounds the actual
 normalized trace increment between zero and `1.01`. These use the portable
 reduction, ordered polynomial, scaling/narrowing and binary32 operation owners,
-not ideal exponential accuracy. They exclude a zero alpha divisor but do not
-prove raw transient finiteness, exclude exceptional meta updates, or establish
-beta progress. A cold zero-target register invariant remains unproved.
+not ideal exponential accuracy. `meta_scale_finite` also proves the actual
+meta-step/alpha quotient finite for every legal beta. `discounted_demon_decay`
+checks the configured g99 demon's actual decay is finite and in `(0,0.941]`.
+Local multiplication, subtraction and division wrappers derive finite packing
+and explicit error bounds from finite operands and bounded exact intermediates.
+These contracts do not prove raw transient finiteness, exclude exceptional
+later meta products, or establish beta progress. A cold zero-target register
+invariant remains unproved.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

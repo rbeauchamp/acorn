@@ -2274,6 +2274,18 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearnerArithmetic.local32_fits
 
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.mul32_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.mul32_finite_error
+
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.sub32_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.sub32_finite_error
+
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.div32_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.div32_finite_error
+
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.round_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearnerArithmetic.round_nonnegative
@@ -2319,6 +2331,14 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.alpha_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearnerArithmetic.alpha_lower
+
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.meta_scale_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.meta_scale_finite
+
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.discounted_demon_decay' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.discounted_demon_decay
 
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.alpha_sum_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
