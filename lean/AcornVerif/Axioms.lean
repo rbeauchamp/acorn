@@ -3570,4 +3570,67 @@ info: 'AcornVerif.CurrentRunner.standard_first_goals' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentRunner.standard_first_goals
 
+/--
+info: 'AcornVerif.CurrentWorld.word32_conversion' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.word32_conversion
+
+/--
+info: 'AcornVerif.CurrentWorld.scale_word_bounds' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.scale_word_bounds
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_scale_bounds' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_scale_bounds
+
+/--
+info: 'AcornVerif.CurrentWorld.octave_scale_double' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.octave_scale_double
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_octave_scales' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_octave_scales
+
+/--
+info: 'AcornVerif.CurrentWorld.octaveLoop_success_of_samples' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.octaveLoop_success_of_samples
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_terrain_of_samples' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_terrain_of_samples
+
+/--
+info: 'AcornVerif.CurrentWorld.coordinate_float_bound' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.coordinate_float_bound
+
+/--
+info: 'AcornVerif.CurrentWorld.coordinate_quotient_bound' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.coordinate_quotient_bound
+
 end AcornVerif

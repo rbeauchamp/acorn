@@ -185,8 +185,19 @@ neither beta-floor progress nor complete-reader eligibility.
 and `standard_first_goals` check actual plan admission and cursor/curriculum
 choices. `CurrentWorld.standard_config_exists`, `standard_body_translation` and
 `standard_spiral_coordinates` cover standard configuration and signed coordinate
-admission. Successful terrain, complete world construction and nonempty callback
-execution remain unproved; no runtime feasibility claim follows from these bounds.
+admission. `word32_conversion`, `scale_word_bounds` and `standard_scale_bounds`
+connect direct word conversion to the actual standard scale. `octave_scale_double`
+and `standard_octave_scales` prove finite positive bounds on the executed scale
+multiplications by structural induction. `coordinate_float_bound` follows actual
+signed ingress and sign-bit construction; `coordinate_quotient_bound` bounds
+actual binary32 division, including normalization and finite packing. These
+proofs use the existing format-parametric arithmetic correspondence; native
+floating-point/compiler implementations remain trusted boundaries.
+`octaveLoop_success_of_samples` and `standard_terrain_of_samples` are conditional
+control-flow composition: they retain sample-success hypotheses. Floor/cast
+neighbor admission, unconditional terrain success, complete world construction
+and nonempty callback execution remain unproved. No runtime feasibility or
+replacement-reachability claim follows from these bounds.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

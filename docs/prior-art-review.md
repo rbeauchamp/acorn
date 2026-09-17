@@ -761,11 +761,25 @@ achievement or a subsequent callback's existence.
 `CurrentWorld.standard_config_exists` admits every supported standard side;
 `standard_body_translation` excludes signed overflow within the actual sensor
 radius, and `standard_spiral_coordinates` covers all actual spiral offsets and
-closed cardinal directions. These geometric results do not establish terrain
-success. The remaining constructor/step obligation is to bound actual binary32
-coordinate conversion, octave scales, division, floor and signed lattice casts
-on the standard-world margin, then compose the existing bounded traversals.
-Custom raw scales remain outside that proposed success domain.
+closed cardinal directions. `word32_conversion` bounds the actual direct word
+conversion by existing normalization/packing correspondence. `standard_scale_bounds`
+places the actual constructor's scale in `[4, 2^29]`; `octave_scale_double` and
+`standard_octave_scales` retain finite positivity through four actual scale
+multiplications, with the loose upper bound `2^(29 + 2*count)`. This is a rounding
+envelope, not an assertion of exact doubling. `coordinate_float_bound` handles
+the actual sign-bit construction for coordinate magnitude at most `2^32`;
+`coordinate_quotient_bound` then proves finite division and quotient magnitude
+at most `2^32` for any finite scale at least four. The coordinate domain contains
+the proposed standard-world margin `[-201, side + 201]`.
+
+These arithmetic results do not establish terrain success. `octaveLoop_success_of_samples`
+and `standard_terrain_of_samples` connect the actual recursive folds and final
+classification to explicitly assumed successful lattice samples. The outstanding
+arithmetic obligation is to carry the quotient bound through `floor32` and the
+executed widened signed cast, excluding the upper signed endpoint so both
+lattice-neighbor increments are admitted. Successful world construction and
+world-step traversal composition remain separate obligations. Arbitrary custom
+raw scales remain outside the standard constructor's positivity guarantee.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal

@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.WorldObservation
+import AcornVerif.CurrentLearnerArithmetic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Tactic.Ring
@@ -136,5 +137,345 @@ theorem standard_spiral_coordinates (seed : UInt64) (side : Coordinate)
       add_zero] <;> omega
   exact ⟨⟨_, bounds.1⟩, ⟨_, bounds.2⟩, by
     simp only [Coordinate.checked, bounds.1, bounds.2, ↓reduceDIte, and_self]⟩
+
+open Float.Model (Format UnpackedFloat)
+open Float.Model.UnpackedFloat
+open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder
+open AcornVerif.CurrentLearnerArithmetic AcornVerif.CurrentDivision
+
+/-- The direct native word-to-binary32 conversion has a checked rounding envelope
+on the coordinate/scale integer domain. Packing finiteness is derived separately
+from the same normalized result; no binary64 conversion is substituted. -/
+theorem word32_conversion (word : UInt64) (limit : Nat) (small : limit ≤ 32)
+    (bounded : word.toNat ≤ 2 ^ limit) :
+    (Binary32.ofUInt64 word).Finite ∧
+      |numerical32 (Binary32.ofUInt64 word) - (word.toNat : ℚ)| ≤
+        (2 : ℚ) ^ (max ((limit : Int) + 1 - 24) (-149)) / 2 := by
+  let rounded := normalize Format.binary32 (word.toNat : Int) 0 .positive
+  have magnitude : |((word.toNat : Int) : ℚ) * (2 : ℚ) ^ 0| ≤ (2 : ℚ) ^ (limit : Int) := by
+    simpa using (show (word.toNat : ℚ) ≤ 2 ^ limit by exact_mod_cast bounded)
+  have model := model_signed_round_value Format.binary32 (word.toNat : Int) 0
+    .positive (limit : Int) magnitude
+  have error : |unpackedValue rounded - (word.toNat : ℚ)| ≤
+      (2 : ℚ) ^ (max ((limit : Int) + 1 - 24) (-149)) / 2 := by
+    simpa only [show Format.binary32.mantissaBits = 24 from rfl,
+      show Format.binary32.minExponent = -149 from rfl,
+      rounded, Nat.cast_ofNat, zpow_zero, mul_one, Int.cast_natCast] using model.2
+  have errorBound : (2 : ℚ) ^ (max ((limit : Int) + 1 - 24) (-149)) / 2 ≤ 256 := by
+    have exponent : max ((limit : Int) + 1 - 24) (-149) ≤ 9 := by omega
+    have powers := zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2) exponent
+    norm_num at powers
+    linarith
+  have integerBound : (word.toNat : ℚ) ≤ 2 ^ 32 := by
+    exact_mod_cast (le_trans bounded (Nat.pow_le_pow_right (by decide) small))
+  have total : |unpackedValue rounded| ≤ (2 : ℚ) ^ 33 := by
+    have triangle := abs_add_le (unpackedValue rounded - (word.toNat : ℚ)) (word.toNat : ℚ)
+    rw [sub_add_cancel,
+      abs_of_nonneg (show (0 : ℚ) ≤ word.toNat from Nat.cast_nonneg _)] at triangle
+    have := le_trans error errorBound
+    rw [show (2 : ℚ) ^ 32 = 4294967296 by norm_num] at integerBound
+    rw [show (2 : ℚ) ^ 33 = 8589934592 by norm_num]
+    linarith
+  have normal : ModelNormalized Format.binary32 rounded := model.1
+  have fits := model_fits_of_value_bound Format.binary32 rounded
+    (model_normalized_finite _ _ normal) 33 (by decide) total
+  have decoded : decoded32 (Binary32.ofUInt64 word) = rounded := by
+    change unpack Format.binary32 (pack Format.binary32 rounded) = rounded
+    exact model_unpack_pack_normalized _ _ normal fits
+  refine ⟨?_, ?_⟩
+  · apply (model_decoded32_finite _).mp
+    rw [decoded]
+    exact model_normalized_finite _ _ normal
+  · change |unpackedValue (decoded32 (Binary32.ofUInt64 word)) - (word.toNat : ℚ)| ≤ _
+    rw [decoded]
+    exact error
+
+/-- The standard scale's integer range remains strictly positive after the actual
+word conversion. The two magnitude bands avoid assuming exact conversion of all
+integers or using a large uniform rounding allowance near the lower endpoint. -/
+theorem scale_word_bounds (word : UInt64)
+    (lower : 8 ≤ word.toNat) (upper : word.toNat ≤ 2 ^ 28) :
+    (Binary32.ofUInt64 word).Finite ∧
+      4 ≤ numerical32 (Binary32.ofUInt64 word) ∧
+        numerical32 (Binary32.ofUInt64 word) ≤ 2 ^ 29 := by
+  have lowerQ : (8 : ℚ) ≤ word.toNat := by exact_mod_cast lower
+  have upperQ : (word.toNat : ℚ) ≤ 2 ^ 28 := by exact_mod_cast upper
+  rw [show (2 : ℚ) ^ 28 = 268435456 by norm_num] at upperQ
+  by_cases small : word.toNat ≤ 2 ^ 20
+  · have conversion := word32_conversion word 20 (by decide) small
+    have error := conversion.2
+    norm_num at error
+    have distance := abs_le.mp error
+    refine ⟨conversion.1, ?_, ?_⟩ <;> norm_num <;> linarith
+  · have conversion := word32_conversion word 28 (by decide) upper
+    have error := conversion.2
+    norm_num at error
+    have distance := abs_le.mp error
+    have largeQ : (2 : ℚ) ^ 20 < word.toNat := by exact_mod_cast (Nat.lt_of_not_ge small)
+    rw [show (2 : ℚ) ^ 20 = 1048576 by norm_num] at largeQ
+    refine ⟨conversion.1, ?_, ?_⟩ <;> norm_num <;> linarith
+
+/-- Every admitted standard constructor produces a finite, positive terrain
+scale. Arbitrary admitted custom configurations have no corresponding premise. -/
+theorem standard_scale_bounds (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config) :
+    config.raw.baseScale.Finite ∧ 4 ≤ numerical32 config.raw.baseScale ∧
+      numerical32 config.raw.baseScale ≤ 2 ^ 29 := by
+  unfold WorldConfig.standard at standard
+  split at standard
+  · contradiction
+  · rename_i lower
+    split at standard
+    · contradiction
+    · rename_i upper
+      cases Except.ok.inj standard
+      let amount := max FeatureConstants.worldMinScale
+        (side.val.toNat / FeatureConstants.worldScaleDivisor)
+      have amountBounds : 8 ≤ amount ∧ amount ≤ 2 ^ 28 := by
+        change ¬ side.val < 64 at lower
+        change ¬ side.val > 3000000000 at upper
+        dsimp [amount, FeatureConstants.worldMinScale, FeatureConstants.worldScaleDivisor]
+        omega
+      have word : amount.toUInt64.toNat = amount := by
+        simp only [Nat.toUInt64, UInt64.toNat_ofNat']
+        apply Nat.mod_eq_of_lt
+        omega
+      exact scale_word_bounds amount.toUInt64 (by rw [word]; exact amountBounds.1)
+        (by rw [word]; exact amountBounds.2)
+
+/-- The actual octave multiplier preserves positivity and a loose bounded growth
+envelope throughout the standard four-octave range. This does not assert exact
+doubling; normalization, packing and the executed multiplication are connected. -/
+theorem octave_scale_double (scale : Binary32) (finite : scale.Finite)
+    (lower : 4 ≤ numerical32 scale) (upper : numerical32 scale ≤ 2 ^ 38) :
+    (scale.mul ⟨0x40000000⟩).Finite ∧
+      numerical32 scale ≤ numerical32 (scale.mul ⟨0x40000000⟩) ∧
+        numerical32 (scale.mul ⟨0x40000000⟩) ≤ 4 * numerical32 scale := by
+  let two : Binary32 := ⟨0x40000000⟩
+  have twoFinite : two.Finite := by decide
+  have twoValue : numerical32 two = 2 := by
+    dsimp only [two]
+    change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (-22 : Int) = 2
+    norm_num
+  have leftNormal := (model_unpack_format Format.binary32 (by decide) scale.bits.toBitVec
+    ((model_decoded32_finite scale).mpr finite)).1
+  have rightNormal := (model_unpack_format Format.binary32 (by decide) two.bits.toBitVec
+    ((model_decoded32_finite two).mpr twoFinite)).1
+  let product := UnpackedFloat.mul Format.binary32 (decoded32 scale) (decoded32 two)
+  have magnitude : |numerical32 scale * numerical32 two| ≤ (2 : ℚ) ^ (39 : Int) := by
+    rw [twoValue, abs_of_nonneg (by linarith : 0 ≤ numerical32 scale * 2)]
+    norm_num at upper ⊢
+    linarith
+  have operation := model_mul_dyadic_local Format.binary32 _ _ leftNormal rightNormal
+    39 magnitude
+  have error : |unpackedValue product - numerical32 scale * 2| ≤ numerical32 scale := by
+    by_cases small : numerical32 scale ≤ 2 ^ 20
+    · have smallMagnitude : |numerical32 scale * numerical32 two| ≤
+          (2 : ℚ) ^ (21 : Int) := by
+        rw [twoValue, abs_of_nonneg (by linarith : 0 ≤ numerical32 scale * 2)]
+        norm_num at small ⊢
+        linarith
+      have smallOperation := model_mul_dyadic_local Format.binary32 _ _ leftNormal
+        rightNormal 21 smallMagnitude
+      have bound := smallOperation.2
+      change |unpackedValue product - numerical32 scale * numerical32 two| ≤ _ at bound
+      rw [twoValue] at bound
+      norm_num [Format.mantissaBits, Format.minExponent] at bound
+      linarith
+    · have bound := operation.2
+      change |unpackedValue product - numerical32 scale * numerical32 two| ≤ _ at bound
+      rw [twoValue] at bound
+      norm_num [Format.mantissaBits, Format.minExponent] at bound
+      norm_num at small
+      linarith
+  have distance := abs_le.mp error
+  have nonnegative : 0 ≤ unpackedValue product := by linarith
+  have bound : |unpackedValue product| ≤ (2 : ℚ) ^ (40 : Int) := by
+    rw [abs_of_nonneg nonnegative]
+    norm_num at upper ⊢
+    linarith
+  have fits := model_fits_of_value_bound Format.binary32 product
+    (model_normalized_finite _ _ operation.1) 40 (by decide) bound
+  have decoded := mul32_decoded scale two finite twoFinite operation.1 fits
+  refine ⟨?_, ?_, ?_⟩
+  · apply (model_decoded32_finite _).mp
+    rw [decoded]
+    exact model_normalized_finite _ _ operation.1
+  · change numerical32 scale ≤ unpackedValue (decoded32 (scale.mul two))
+    rw [decoded]
+    linarith
+  · change unpackedValue (decoded32 (scale.mul two)) ≤ 4 * numerical32 scale
+    rw [decoded]
+    linarith
+
+/-- Every prefix of the four actual octave scale multiplications stays finite
+and positive. The bound also covers the final scale computed but not sampled
+by the zero-count branch; it makes no claim about lattice admission. -/
+theorem standard_octave_scales (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (count : Nat) (within : count ≤ 4) :
+    let scale := (fun value : Binary32 => value.mul ⟨0x40000000⟩)^[count] config.raw.baseScale
+    scale.Finite ∧ 4 ≤ numerical32 scale ∧ numerical32 scale ≤ 2 ^ (29 + 2 * count) := by
+  induction count with
+  | zero => simpa using standard_scale_bounds seed side config standard
+  | succ count ih =>
+    have previous := ih (by omega)
+    dsimp only at previous ⊢
+    rw [Function.iterate_succ_apply']
+    have upper := le_trans previous.2.2
+      (pow_le_pow_right₀ (by norm_num : (1 : ℚ) ≤ 2)
+        (show 29 + 2 * count ≤ 38 by omega))
+    have next := octave_scale_double _ previous.1 previous.2.1 upper
+    refine ⟨next.1, le_trans previous.2.1 next.2.1, le_trans next.2.2 ?_⟩
+    have growth : (2 : ℚ) ^ (29 + 2 * (count + 1)) =
+        4 * (2 : ℚ) ^ (29 + 2 * count) := by
+      rw [show 29 + 2 * (count + 1) = (29 + 2 * count) + 2 by omega, pow_add]
+      ring
+    rw [growth]
+    exact mul_le_mul_of_nonneg_left previous.2.2 (by norm_num)
+
+/-- Successful samples at the actual successive scales imply success of the
+executed octave fold, for arbitrary accumulator/amplitude words. This is the
+control-flow composition only: its lattice-sample premise remains explicit. -/
+theorem octaveLoop_success_of_samples (count : Nat) (position : Position) (seed : UInt64)
+    (scale amplitude sum : Binary32)
+    (samples : ∀ index < count, ∃ noise,
+      valueNoise position ((fun value : Binary32 => value.mul ⟨0x40000000⟩)^[index] scale)
+        seed = .ok noise) :
+    ∃ result, octaveLoop count position seed scale amplitude sum = .ok result := by
+  induction count generalizing scale amplitude sum with
+  | zero => exact ⟨sum, rfl⟩
+  | succ count ih =>
+    obtain ⟨noise, sample⟩ := samples 0 (by omega)
+    simp only [Function.iterate_zero, id_eq] at sample
+    have remaining : ∀ index < count, ∃ noise,
+        valueNoise position
+          ((fun value : Binary32 => value.mul ⟨0x40000000⟩)^[index]
+            (scale.mul ⟨0x40000000⟩)) seed = .ok noise := by
+      intro index bound
+      simpa only [Function.iterate_succ_apply] using samples (index + 1) (by omega)
+    obtain ⟨result, rest⟩ := ih (scale.mul ⟨0x40000000⟩)
+      (amplitude.mul ⟨0x3f000000⟩) (sum.add (amplitude.mul noise)) remaining
+    exact ⟨result, by simp only [octaveLoop, sample]; exact rest⟩
+
+/-- Both executed terrain folds succeed once every sample at a finite positive
+standard-octave scale succeeds. The sample premise isolates the remaining
+coordinate/division/floor/lattice obligation; it is not a terrain-totality proof. -/
+theorem standard_terrain_of_samples (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (position : Position) (salt : UInt64)
+    (samples : ∀ scale : Binary32, scale.Finite → 4 ≤ numerical32 scale →
+      numerical32 scale ≤ 2 ^ 37 → ∀ sampleSeed, ∃ noise,
+        valueNoise position scale sampleSeed = .ok noise) :
+    ∃ kind, terrain position salt config.raw.baseScale = .ok kind := by
+  have field : ∀ sampleSeed, ∃ result, fbm position sampleSeed config.raw.baseScale =
+      .ok result := by
+    intro sampleSeed
+    apply octaveLoop_success_of_samples
+    intro index before
+    have scale := standard_octave_scales seed side config standard index (by omega)
+    exact samples _ scale.1 scale.2.1 (le_trans scale.2.2
+      (pow_le_pow_right₀ (by norm_num : (1 : ℚ) ≤ 2)
+        (show 29 + 2 * index ≤ 37 by omega))) sampleSeed
+  obtain ⟨elevation, elevationEq⟩ := field (salt ^^^ 0xe1e0e1e000000001)
+  obtain ⟨moisture, moistureEq⟩ := field (salt ^^^ 0xe1e0e1e000000002)
+  exact ⟨_, by simp only [terrain, elevationEq, moistureEq]; rfl⟩
+
+/-- Direct signed coordinate conversion retains a finite magnitude bound on the
+standard-world margin. The proof follows the actual sign-bit construction and
+single word conversion, including zero; no intermediate binary64 is introduced. -/
+theorem coordinate_float_bound (coordinate : Coordinate)
+    (bounded : coordinate.val.natAbs ≤ 2 ^ 32) :
+    (coordinateFloat coordinate).Finite ∧
+      |numerical32 (coordinateFloat coordinate)| ≤ 2 ^ 33 := by
+  have word : coordinate.val.natAbs.toUInt64.toNat = coordinate.val.natAbs := by
+    simp only [Nat.toUInt64, UInt64.toNat_ofNat']
+    apply Nat.mod_eq_of_lt
+    omega
+  have conversion := word32_conversion coordinate.val.natAbs.toUInt64 32 (by decide)
+    (by rw [word]; exact bounded)
+  let magnitude := Binary32.ofUInt64 coordinate.val.natAbs.toUInt64
+  have finite : magnitude.Finite := conversion.1
+  have error := conversion.2
+  rw [word] at error
+  have allowance : (2 : ℚ) ^ (max (((32 : Nat) : Int) + 1 - 24) (-149)) / 2 = 256 := by
+    norm_num
+  rw [allowance] at error
+  have integerBound : (coordinate.val.natAbs : ℚ) ≤ 4294967296 := by
+    exact_mod_cast bounded
+  have bound : |numerical32 magnitude| ≤ (2 : ℚ) ^ 33 := by
+    have triangle := abs_add_le
+      (numerical32 magnitude - (coordinate.val.natAbs : ℚ)) (coordinate.val.natAbs : ℚ)
+    rw [sub_add_cancel,
+      abs_of_nonneg (show (0 : ℚ) ≤ coordinate.val.natAbs from Nat.cast_nonneg _)] at triangle
+    norm_num
+    linarith
+  rw [coordinateFloat_eq]
+  split
+  · have same : (⟨magnitude.bits ^^^ 0x80000000⟩ : Binary32).magnitude =
+        magnitude.magnitude := by
+      simp only [Binary32.magnitude, UInt32.toNat_and, UInt32.toNat_xor,
+        Nat.and_xor_distrib_right]
+      change (magnitude.bits.toNat &&& 2147483647) ^^^ 0 = _
+      exact Nat.xor_zero _
+    have signedFinite : (⟨magnitude.bits ^^^ 0x80000000⟩ : Binary32).Finite := by
+      change _ < 0x7f800000
+      rw [same]
+      exact finite
+    refine ⟨signedFinite, ?_⟩
+    rw [numerical32_abs_units _ signedFinite, same, ← numerical32_abs_units _ finite]
+    exact bound
+  · exact ⟨finite, bound⟩
+
+/-- The executed terrain quotient stays finite and far inside the signed-cast
+range when the coordinate magnitude is bounded and the scale is at least four.
+This includes signed coordinates and uses the actual binary32 division error. -/
+theorem coordinate_quotient_bound (coordinate : Coordinate)
+    (bounded : coordinate.val.natAbs ≤ 2 ^ 32) (scale : Binary32)
+    (finite : scale.Finite) (lower : 4 ≤ numerical32 scale) :
+    ((coordinateFloat coordinate).div scale).Finite ∧
+      |numerical32 ((coordinateFloat coordinate).div scale)| ≤ 2 ^ 32 := by
+  have source := coordinate_float_bound coordinate bounded
+  have leftNormal := (model_unpack_format Format.binary32 (by decide)
+    (coordinateFloat coordinate).bits.toBitVec
+    ((model_decoded32_finite _).mpr source.1)).1
+  have rightNormal := (model_unpack_format Format.binary32 (by decide) scale.bits.toBitVec
+    ((model_decoded32_finite scale).mpr finite)).1
+  have positive : 0 < numerical32 scale := by linarith
+  have quotient : |numerical32 (coordinateFloat coordinate) / numerical32 scale| ≤
+      (2 : ℚ) ^ (31 : Int) := by
+    rw [abs_div, abs_of_pos positive]
+    apply (div_le_iff₀ positive).mpr
+    have bound := source.2
+    norm_num at bound ⊢
+    linarith
+  have operation := model_div_dyadic_local Format.binary32 _ _ leftNormal rightNormal
+    (ne_of_gt positive) 31 quotient
+  let divided := UnpackedFloat.div Format.binary32
+    (decoded32 (coordinateFloat coordinate)) (decoded32 scale)
+  have error : |unpackedValue divided -
+      numerical32 (coordinateFloat coordinate) / numerical32 scale| ≤ 512 := by
+    have allowance : 2 * (2 : ℚ) ^
+        (max ((31 : Int) + 1 - Format.binary32.mantissaBits) Format.binary32.minExponent) =
+          512 := by
+      norm_num [Format.mantissaBits, Format.minExponent]
+    simpa only [allowance, divided, numerical32, decoded32] using operation.2
+  have bound : |unpackedValue divided| ≤ (2 : ℚ) ^ (32 : Int) := by
+    have triangle := abs_add_le
+      (unpackedValue divided - numerical32 (coordinateFloat coordinate) / numerical32 scale)
+      (numerical32 (coordinateFloat coordinate) / numerical32 scale)
+    rw [sub_add_cancel] at triangle
+    norm_num at quotient ⊢
+    linarith
+  have fits := model_fits_of_value_bound Format.binary32 divided
+    (model_normalized_finite _ _ operation.1) 32 (by decide) bound
+  have decoded := div32_decoded (coordinateFloat coordinate) scale source.1 finite operation.1 fits
+  refine ⟨?_, ?_⟩
+  · apply (model_decoded32_finite _).mp
+    rw [decoded]
+    exact model_normalized_finite _ _ operation.1
+  · change |unpackedValue (decoded32 ((coordinateFloat coordinate).div scale))| ≤ _
+    rw [decoded]
+    exact bound
 
 end AcornVerif.CurrentWorld

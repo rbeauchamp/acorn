@@ -117,9 +117,15 @@ unresolved. A final campaign boundary performs no additional learning callback.
 `CurrentRunner.survival_plan_exists` derives actual admission for requests with
 at least 200 steps and two goals; the actual initial and achievement cursors
 select survival then wood collection. Standard configuration and body/spawn
-coordinate admissions are checked in `CurrentWorld`. Terrain success and its
-bounded traversal composition still block a proved nonempty completion prefix;
-configuration admission alone does not establish successful world construction.
+coordinate admissions are checked in `CurrentWorld`. Its `standard_octave_scales`
+proves finite positive scales through all four actual multiplications, and
+`coordinate_quotient_bound` bounds the executed signed conversion/division for
+coordinate magnitude at most `2^32` and finite scale at least four. These bounds
+still need composition through floor, signed cast and checked lattice neighbors.
+`standard_terrain_of_samples` composes the actual octave folds but assumes sample
+success. Unconditional terrain success and world traversal composition still
+block a proved nonempty completion prefix; configuration admission alone does
+not establish successful world construction.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
