@@ -3682,4 +3682,18 @@ info: 'AcornVerif.CurrentRunner.standard_start_sense_success' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentRunner.standard_start_sense_success
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_countKindNear_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_countKindNear_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_considerSpawn_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_considerSpawn_success
+
 end AcornVerif

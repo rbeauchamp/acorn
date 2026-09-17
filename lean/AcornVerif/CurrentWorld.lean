@@ -655,4 +655,108 @@ theorem standard_observe_success (seed : UInt64) (side : Coordinate)
         world.occupancy row column))
   exact ⟨_, by simp only [World.observe, tilesEq]; rfl⟩
 
+/-- The actual radius-four constructor scan admits every in-box center.
+The structural traversal proof preserves row/column order and all count branches. -/
+theorem standard_countKindNear_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (position : BoxPosition config) (kind : TileKind) :
+    ∃ count, countKindNear world position.position 4 kind = .ok count := by
+  have listSuccess (indices : List Nat)
+      (body : Nat → Nat → Except WorldError (ForInStep Nat))
+      (success : ∀ index ∈ indices, ∀ count, ∃ step, body index count = .ok step)
+      (count : Nat) : ∃ result, forIn indices count body = .ok result := by
+    induction indices generalizing count with
+    | nil => exact ⟨count, rfl⟩
+    | cons index rest ih =>
+      obtain ⟨step, stepEq⟩ := success index (by simp) count
+      rw [List.forIn_cons, stepEq]
+      cases step with
+      | done next => exact ⟨next, rfl⟩
+      | yield next =>
+        exact ih (fun i hi => success i (by simp [hi])) next
+  have rangeSuccess (stop : Nat) (body : Nat → Nat → Except WorldError (ForInStep Nat))
+      (success : ∀ index, index < stop → ∀ count, ∃ step, body index count = .ok step)
+      (count : Nat) :
+      ∃ result, forIn ([:stop] : Std.Legacy.Range) count body = .ok result := by
+    rw [Std.Legacy.Range.forIn_eq_forIn_range']
+    apply listSuccess
+    intro index member
+    exact success index (Std.Legacy.Range.mem_of_mem_range' member).2.1
+  have bindSuccess {α β : Type} (value : Except WorldError α)
+      (next : α → Except WorldError β) (admitted : ∃ a, value = .ok a)
+      (continues : ∀ a, ∃ b, next a = .ok b) : ∃ b, (value >>= next) = .ok b := by
+    obtain ⟨a, ha⟩ := admitted
+    obtain ⟨b, hb⟩ := continues a
+    exact ⟨b, by rw [ha]; exact hb⟩
+  unfold countKindNear
+  apply bindSuccess
+  · apply rangeSuccess
+    intro row rowBound count
+    apply bindSuccess
+    · apply rangeSuccess
+      intro column columnBound count
+      have offset (index : Nat) (bound : index < 9) :
+          -(patchShape.side / 2 : Nat) ≤ (index : Int) - 4 ∧
+            (index : Int) - 4 ≤ (patchShape.side / 2 : Nat) := by
+        change -(5 : Int) ≤ (index : Int) - 4 ∧ (index : Int) - 4 ≤ 5
+        omega
+      obtain ⟨tile, translated⟩ := standard_body_translation seed side config standard
+        position _ _ (offset column columnBound) (offset row rowBound)
+      have coordinates := translated
+      simp only [Position.translate, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def] at coordinates
+      obtain ⟨x, xok, y, yok, result⟩ := coordinates
+      have xexact := Coordinate.checked_exact _ x xok
+      have yexact := Coordinate.checked_exact _ y yok
+      have tileEq : (⟨x, y⟩ : Position) = tile := Option.some.inj result
+      have xbody := position.x.isLt
+      have ybody := position.y.isLt
+      have xmargin : -201 ≤ tile.x.val ∧ tile.x.val ≤ (config.side : Int) + 201 := by
+        rw [← tileEq]
+        change x.val = (position.x.val : Int) + ((column : Int) - 4) at xexact
+        dsimp only
+        omega
+      have ymargin : -201 ≤ tile.y.val ∧ tile.y.val ≤ (config.side : Int) + 201 := by
+        rw [← tileEq]
+        change y.val = (position.y.val : Int) + ((row : Int) - 4) at yexact
+        dsimp only
+        omega
+      obtain ⟨tileKind, tileKindEq⟩ := standard_tileKind_success seed side config standard
+        world tile xmargin.1 xmargin.2 ymargin.1 ymargin.2
+      split
+      · rename_i actual actualEq
+        have same := Option.some.inj (actualEq.symm.trans translated)
+        cases same
+        simp only [tileKindEq, bind, Except.bind]
+        split <;> exact ⟨_, rfl⟩
+      · rename_i refused
+        exact False.elim (refused tile translated)
+    · intro next
+      exact ⟨_, rfl⟩
+  · intro next
+    exact ⟨_, rfl⟩
+
+/-- Out-of-box candidates return before terrain access; every admitted candidate
+completes its actual scans and score branches without a walkability premise. -/
+theorem standard_considerSpawn_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (x y : Int) (best : Option (SpawnCandidate config)) :
+    ∃ next finished, considerSpawn world x y best = .ok (next, finished) := by
+  unfold considerSpawn
+  split
+  · rename_i position admitted
+    obtain ⟨trees, treesEq⟩ := standard_countKindNear_success seed side config standard
+      world position .tree
+    obtain ⟨stone, stoneEq⟩ := standard_countKindNear_success seed side config standard
+      world position .stone
+    have hx := position.x.isLt
+    have hy := position.y.isLt
+    obtain ⟨kind, kindEq⟩ := standard_tileKind_success seed side config standard world
+      position.position (by dsimp [BoxPosition.position]; omega)
+      (by dsimp [BoxPosition.position]; omega) (by dsimp [BoxPosition.position]; omega)
+      (by dsimp [BoxPosition.position]; omega)
+    simp only [treesEq, stoneEq, kindEq, bind, Except.bind]
+    split <;> exact ⟨_, _, rfl⟩
+  · exact ⟨best, false, rfl⟩
+
 end AcornVerif.CurrentWorld

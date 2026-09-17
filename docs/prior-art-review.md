@@ -799,6 +799,16 @@ then constructs the same owned input returned by `Attempt.sense`.
 environment steps, learner callbacks and nonempty initialized-prefix composition
 remain separate obligations.
 
+`CurrentWorld.standard_countKindNear_success` proves the actual radius-four scan
+succeeds for any tile kind and in-box center, using structural induction through
+the checked range/list traversal correspondence. It derives every translated
+coordinate's terrain margin without enumerating the cells.
+`standard_considerSpawn_success` covers arbitrary signed coordinates and prior
+candidates. Out-of-box coordinates return before terrain; admitted coordinates
+complete both scans and the walkability/score branches. No minimum count,
+walkable candidate or improved score is assumed. The actual full spawn spiral
+and deer initialization are not yet composed into constructor success.
+
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal
 meta snapshot is read before close, refresh, planning and new meta credit; a

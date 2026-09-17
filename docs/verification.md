@@ -206,10 +206,14 @@ row-major vector traversals for every standard-world state.
 actual unfinishedness, and returns the actual owned `Attempt.sense` input.
 `standard_start_sense_success` covers every positive-cap attempt start, regardless
 of the carried terminal flag. These pure admission proofs assume the existing
-compiler/runtime and allocation boundaries. Complete world construction,
-world-step traversal composition and nonempty callback execution remain
-unproved. No runtime feasibility, terrain-quality or replacement-reachability
-claim follows from these guarantees.
+compiler/runtime and allocation boundaries.
+`CurrentWorld.standard_countKindNear_success` structurally composes the actual
+two radius-four range traversals, retaining terrain and translation admissions.
+`standard_considerSpawn_success` covers all candidate coordinates and prior best
+values through the actual box check, scans and score branches, without assuming
+walkability. Full spawn/deer construction, world-step traversal composition and
+nonempty callback execution remain unproved. No runtime feasibility, terrain-quality
+or replacement-reachability claim follows from these guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

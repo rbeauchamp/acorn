@@ -129,9 +129,12 @@ sensor traversals compose in `standard_observe_success` for every standard-world
 state. `CurrentRunner.standard_sense_success` derives strict remaining capacity
 from typed steps and the actual unfinished predicate, then admits the owned
 input; `standard_start_sense_success` covers every positive-cap attempt start,
-including a carried terminal result. World construction and world-step traversal
-composition still block a proved nonempty completion prefix. Observation
-admission alone does not establish a learning execution.
+including a carried terminal result. `CurrentWorld.standard_countKindNear_success`
+composes the actual radius-four scan, and `standard_considerSpawn_success` admits
+any candidate while retaining out-of-box rejection before terrain access.
+The full spawn spiral, deer initialization and world-step traversal composition
+still block a proved nonempty completion prefix. These admission results alone
+do not establish a learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
