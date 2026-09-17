@@ -33,6 +33,14 @@ reflection. Before certified re-execution, estimate initial and recurring proof
 cost beside the proposed observation and obtain an owner decision if it does
 not cost clearly less. Difficulty proving a property does not make it empirical.
 
+Before extending retirement prerequisite proofs, state how the next result
+advances an initialized joint-reader retirement construction or an impossibility
+argument, the remaining gap, and a falsifier or stopping criterion. If that link
+cannot be justified, stop and reassess the route before adding prerequisites.
+Keep current evidence and limitations in the
+[retirement proof status](docs/frontier.md#retirement-proof-status), not here;
+helper theorem counts and compiler success do not establish mission progress.
+
 Measure only irreducibly empirical claims with explicit scope, budget, uncertainty
 and prospective decision criteria. Label the unresolved empirical quantity
 UNKNOWN with the reason deduction cannot settle it; report measurements as
@@ -102,3 +110,10 @@ file fails verification; it never selects a smaller suite.
 No release, visibility change, external submission or scientific campaign follows
 from permission to prepare or merge code. Keep local run state and credentials
 and private or proprietary material out of commits. Use [SECURITY](SECURITY.md) for vulnerability reporting.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
