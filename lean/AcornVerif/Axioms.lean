@@ -3745,4 +3745,25 @@ info: 'AcornVerif.CurrentWorld.standard_wanderPopulation_success' depends on axi
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_wanderPopulation_success
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_foodTrials_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_foodTrials_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_spawnFood_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_spawnFood_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_passiveChange_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_passiveChange_success
+
 end AcornVerif

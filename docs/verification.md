@@ -228,8 +228,12 @@ and a one-step envelope expansion for `n < 200`, retaining the actual RNG result
 checked vector/array/list correspondence. Its result includes exact length,
 per-entry envelope advancement and the ordered actual-operation traversal with
 the same final RNG. The original world is fixed throughout the traversal.
-Active/food/passive composition, world-step and nonempty callback execution
-remain unproved. No runtime feasibility, terrain-quality or replacement-reachability
+`standard_foodTrials_success` structurally admits the actual finite food search;
+`standard_spawnFood_success` preserves the due/capacity and optional insertion
+branches. `standard_passiveChange_success` composes the actual deer and food
+calls, preserving deer length/envelope and explicitly linking the intermediate
+RNG to the food result's final RNG. Active-action composition, world-step and
+nonempty callback execution remain unproved. No runtime feasibility, terrain-quality or replacement-reachability
 claim follows from these guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity

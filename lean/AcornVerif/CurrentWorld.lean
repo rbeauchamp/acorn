@@ -1061,4 +1061,60 @@ theorem standard_wanderPopulation_success (seed : UInt64) (side : Coordinate)
         .ok (moved.toArray.toList, nextRng)
       rw [listEq, arrayEq]
 
+/-- Every finite actual food search succeeds, without assuming grass exists.
+The recursive branch receives the RNG produced by the same ordered two draws. -/
+theorem standard_foodTrials_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (attempts : Nat) (rng : Rng.Xoshiro256) :
+    ∃ position nextRng, foodTrials world attempts rng = .ok (position, nextRng) := by
+  induction attempts generalizing rng with
+  | zero => exact ⟨none, rng, rfl⟩
+  | succ attempts ih =>
+    rw [foodTrials]
+    split
+    rename_i position afterDraw drawn
+    have hx := position.x.isLt
+    have hy := position.y.isLt
+    obtain ⟨kind, kindEq⟩ := standard_tileKind_success seed side config standard world
+      position.position (by dsimp [BoxPosition.position]; omega)
+      (by dsimp [BoxPosition.position]; omega) (by dsimp [BoxPosition.position]; omega)
+      (by dsimp [BoxPosition.position]; omega)
+    simp only [kindEq, bind, Except.bind]
+    split
+    · exact ⟨some position, afterDraw, rfl⟩
+    · exact ih afterDraw
+
+/-- The actual due/capacity guard either retains food and RNG without draws or
+admits the bounded search and its typed optional insertion. -/
+theorem standard_spawnFood_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (rng : Rng.Xoshiro256) :
+    ∃ food nextRng, spawnFood world rng = .ok (food, nextRng) := by
+  unfold spawnFood
+  split
+  · obtain ⟨position, nextRng, searched⟩ := standard_foodTrials_success
+      seed side config standard world 8 rng
+    simp only [searched, bind, Except.bind]
+    exact ⟨_, nextRng, rfl⟩
+  · exact ⟨world.food, rng, rfl⟩
+
+/-- Actual passive changes compose deer before food with the produced shared
+RNG. The intermediate deer RNG is distinguished from the final food RNG. -/
+theorem standard_passiveChange_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (steps : Nat) (bounded : steps < 200)
+    (inside : ∀ position ∈ world.deer.entries, PositionWithin config steps position) :
+    ∃ change, passiveChange world = .ok change ∧
+      change.deer.entries.size = world.deer.entries.size ∧
+      (∀ position ∈ change.deer.entries, PositionWithin config (steps + 1) position) ∧
+      ∃ afterDeer, wanderPopulation world = .ok (change.deer, afterDeer) ∧
+        spawnFood world afterDeer = .ok (change.food, change.rng) := by
+  obtain ⟨deer, afterDeer, wandered, length, advanced, _⟩ :=
+    standard_wanderPopulation_success seed side config standard world steps bounded inside
+  obtain ⟨food, afterFood, spawned⟩ := standard_spawnFood_success
+    seed side config standard world afterDeer
+  refine ⟨⟨deer, food, afterFood⟩, ?_, length, advanced, afterDeer, wandered, spawned⟩
+  simp only [passiveChange, wandered, spawned, bind, Except.bind]
+  rfl
+
 end AcornVerif.CurrentWorld

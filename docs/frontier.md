@@ -142,9 +142,12 @@ actual deer update from the coordinate envelope `[-n, side + n)` for `n < 200`,
 returning an entry in the envelope expanded by one and the actual produced RNG.
 `standard_wanderPopulation_success` composes the actual ordered vector traversal
 with one sequential RNG, preserving exact length and advancing each entry's
-envelope once. Active/food/passive and world-step composition, then initialized
-completion-prefix existence, remain unproved; these component admissions do not
-establish a learning execution.
+envelope once. `standard_foodTrials_success` and `standard_spawnFood_success`
+admit the actual food paths; `standard_passiveChange_success` composes deer
+before food and distinguishes the intermediate RNG from the final result.
+Active-action and world-step composition, then initialized completion-prefix
+existence, remain unproved; these component admissions do not establish a
+learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

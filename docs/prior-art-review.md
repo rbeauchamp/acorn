@@ -838,9 +838,18 @@ correspondence and structural list induction retain the original world for
 every entry and thread one produced RNG into the next invocation. The theorem
 returns exact population length, the per-entry advanced envelope, and an
 explicit ordered list-traversal equality with the same final RNG. Each entry
-advances its envelope once, irrespective of population size. Active/food/passive
-composition, world-step success and nonempty learning-prefix existence remain
-unproved.
+advances its envelope once, irrespective of population size.
+
+`standard_foodTrials_success` admits any finite actual food search for standard
+worlds and arbitrary RNG, retaining two-draw order and the first-grass-or-none
+branches without a grass-existence premise. `standard_spawnFood_success` retains
+the actual due/capacity guard, its branch without draws, and typed insertion.
+`standard_passiveChange_success` composes population wandering before food,
+preserving deer length and the advanced envelope. Its statement identifies the
+intermediate deer RNG and the subsequent food result separately; the final RNG
+may include food draws. World time, harvest state and goal carry no additional
+hypotheses. Active-action composition, world-step success and nonempty
+learning-prefix existence remain unproved.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal
