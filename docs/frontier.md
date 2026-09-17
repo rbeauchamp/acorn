@@ -145,9 +145,15 @@ with one sequential RNG, preserving exact length and advancing each entry's
 envelope once. `standard_foodTrials_success` and `standard_spawnFood_success`
 admit the actual food paths; `standard_passiveChange_success` composes deer
 before food and distinguishes the intermediate RNG from the final result.
-Active-action and world-step composition, then initialized completion-prefix
-existence, remain unproved; these component admissions do not establish a
-learning execution.
+`standard_performAction_success` and `standard_payAndAct_success` admit every
+actual action on arbitrary standard worlds, including ordinary movement,
+crafting, eating and exhaustion refusals. `standard_step_success` composes the
+active result with passive changes on the actual advanced-time reader. For
+input deer in the stated envelope with `n < 200`, every action returns a world
+with unchanged deer length and envelope `n + 1`. Existing `World.step_clock`,
+`step_goal` and `step_completion` retain the single wrapping clock increment,
+installed goal/origin and returned completion flag. Initialized completion-prefix
+existence remains unproved; these admissions do not establish a learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

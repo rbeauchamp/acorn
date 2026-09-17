@@ -1117,4 +1117,92 @@ theorem standard_passiveChange_success (seed : UInt64) (side : Coordinate)
   simp only [passiveChange, wandered, spawned, bind, Except.bind]
   rfl
 
+/-- Every action on an actual standard world returns an active change. Box,
+enterability and inventory refusals retain their ordinary successful returns. -/
+theorem standard_performAction_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (action : Action) :
+    ∃ change, performAction world action = .ok change := by
+  have facing (direction : Direction) :
+      ∃ kind, world.tileKind (world.body.position.facingPosition direction) = .ok kind := by
+    have hx := world.body.position.x.isLt
+    have hy := world.body.position.y.isLt
+    have xb : -1 ≤ (world.body.position.facingPosition direction).x.val ∧
+        (world.body.position.facingPosition direction).x.val ≤ config.side := by
+      cases direction <;> simp [BoxPosition.facingPosition, Direction.delta] <;> omega
+    have yb : -1 ≤ (world.body.position.facingPosition direction).y.val ∧
+        (world.body.position.facingPosition direction).y.val ≤ config.side := by
+      cases direction <;> simp [BoxPosition.facingPosition, Direction.delta] <;> omega
+    exact standard_tileKind_success seed side config standard world _
+      (by omega) (by omega) (by omega) (by omega)
+  unfold performAction
+  split
+  · rename_i direction directionEq
+    have dx : -(patchShape.side / 2 : Nat) ≤ direction.delta.1 ∧
+        direction.delta.1 ≤ (patchShape.side / 2 : Nat) := by cases direction <;> decide
+    have dy : -(patchShape.side / 2 : Nat) ≤ direction.delta.2 ∧
+        direction.delta.2 ≤ (patchShape.side / 2 : Nat) := by cases direction <;> decide
+    obtain ⟨candidate, translated⟩ := standard_body_translation
+      seed side config standard world.body.position _ _ dx dy
+    dsimp only
+    simp only [translated]
+    split
+    · rename_i position checked
+      have bounds : 0 ≤ candidate.x.val ∧ candidate.x.val < config.side ∧
+          0 ≤ candidate.y.val ∧ candidate.y.val < config.side := by
+        unfold BoxPosition.checked at checked
+        split at checked
+        · split at checked
+          · omega
+          · contradiction
+        · contradiction
+      obtain ⟨kind, kindEq⟩ := standard_tileKind_success seed side config standard
+        world candidate (by omega) (by omega) (by omega) (by omega)
+      simp only [World.enterable, kindEq, bind, Except.bind, pure, Except.pure]
+      split <;> split <;> exact ⟨_, rfl⟩
+    · exact ⟨_, rfl⟩
+  · rename_i directionEq
+    cases action <;> simp only [Action.direction] at directionEq
+    all_goals try contradiction
+    all_goals dsimp only
+    · exact ⟨_, rfl⟩
+    · obtain ⟨kind, kindEq⟩ := facing world.body.facing
+      simp only [kindEq, bind, Except.bind]
+      split <;> exact ⟨_, rfl⟩
+    · split <;> exact ⟨_, rfl⟩
+    · split <;> exact ⟨_, rfl⟩
+    · split <;> exact ⟨_, rfl⟩
+
+/-- Energy exhaustion is the existing recovery action; otherwise the actual
+energy-updated world admits every requested action. -/
+theorem standard_payAndAct_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (action : Action) :
+    ∃ change, payAndAct world action = .ok change := by
+  unfold payAndAct
+  split
+  · exact ⟨_, rfl⟩
+  · exact standard_performAction_success seed side config standard _ action
+
+/-- Every action admits an actual step while the input deer lie in the stated
+bounded envelope. The existing step clock, goal and completion theorems apply. -/
+theorem standard_step_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (steps : Nat) (bounded : steps < 200)
+    (inside : ∀ position ∈ world.deer.entries, PositionWithin config steps position)
+    (action : Action) :
+    ∃ next events, world.step action = .ok (next, events) ∧
+      next.deer.entries.size = world.deer.entries.size ∧
+      ∀ position ∈ next.deer.entries, PositionWithin config (steps + 1) position := by
+  obtain ⟨active, acted⟩ := standard_payAndAct_success seed side config standard world action
+  let passiveWorld := { world.applyActive active with time := (world.applyActive active).time + 1 }
+  obtain ⟨passive, changed, length, advanced, _⟩ := standard_passiveChange_success
+    seed side config standard passiveWorld steps bounded inside
+  let next := (world.applyActive active).applyPassive passive
+  refine ⟨next, { active.events with done := next.goalSatisfied }, ?_, length, advanced⟩
+  simp only [World.step, acted, bind, Except.bind]
+  change (passiveChange passiveWorld >>= _) = _
+  rw [changed]
+  rfl
+
 end AcornVerif.CurrentWorld

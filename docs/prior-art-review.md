@@ -781,8 +781,8 @@ discharges both actual lattice admissions and the sample hypotheses of
 It proves terrain success for every actual standard configuration, every salt
 and every position with both coordinates in `[-201, side + 201]`. It assumes
 neither sample success nor a chosen action/seed trajectory. No terrain quality,
-walkability or allocation feasibility follows. World construction and world-step
-success require composition beyond this terrain result. Arbitrary custom raw
+walkability or allocation feasibility follows. The construction and bounded-step
+compositions below use this terrain result. Arbitrary custom raw
 scales remain outside this standard-configuration success theorem.
 
 `standard_tileKind_success` preserves terrain success through the actual regrowth
@@ -795,8 +795,8 @@ learning-reachability premise. `CurrentRunner.standard_sense_success` derives
 strict step room from the actual unfinished predicate and typed step bound,
 then constructs the same owned input returned by `Attempt.sense`.
 `standard_start_sense_success` discharges unfinishedness for any positive-cap
-`Attempt.start`, even with a carried terminal result. Environment steps, learner
-callbacks and nonempty initialized-prefix composition remain separate obligations.
+`Attempt.start`, even with a carried terminal result. The bounded environment-step
+admission below is separate from learner callbacks and initialized-prefix composition.
 
 `CurrentWorld.standard_countKindNear_success` proves the actual radius-four scan
 succeeds for any tile kind and in-box center, using structural induction through
@@ -848,8 +848,23 @@ the actual due/capacity guard, its branch without draws, and typed insertion.
 preserving deer length and the advanced envelope. Its statement identifies the
 intermediate deer RNG and the subsequent food result separately; the final RNG
 may include food draws. World time, harvest state and goal carry no additional
-hypotheses. Active-action composition, world-step success and nonempty
-learning-prefix existence remain unproved.
+hypotheses.
+
+`standard_performAction_success` admits every actual action for arbitrary standard
+worlds. Movement retains box rejection before terrain access; accepted positions
+admit the actual enterable query, including boat/walkability refusal. Harvest uses
+the typed facing position and existing harvest-key admission. Crafting failure,
+insufficient food and bounded inventory/food operations retain their actual return
+branches. `standard_payAndAct_success` includes exhaustion recovery and otherwise
+uses the actual energy-updated world, without positive-energy assumptions.
+`standard_step_success` composes this active result with `passiveChange` on the
+actual acted world at its advanced time. Every action succeeds when input deer
+satisfy `PositionWithin n` with `n < 200`; output length is unchanged and every
+deer satisfies `PositionWithin (n + 1)`. Existing `World.step_clock`, `step_goal`
+and `step_completion` supply the single final wrapping increment, goal/origin
+preservation and returned completion flag. This is not a nonwrapping clock or
+arbitrary-time deer-envelope theorem. Initialized learning-prefix existence,
+callback and subsequent positive-reward learning composition remain unproved.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal

@@ -232,9 +232,17 @@ the same final RNG. The original world is fixed throughout the traversal.
 `standard_spawnFood_success` preserves the due/capacity and optional insertion
 branches. `standard_passiveChange_success` composes the actual deer and food
 calls, preserving deer length/envelope and explicitly linking the intermediate
-RNG to the food result's final RNG. Active-action composition, world-step and
-nonempty callback execution remain unproved. No runtime feasibility, terrain-quality or replacement-reachability
-claim follows from these guarantees.
+RNG to the food result's final RNG. `standard_performAction_success` admits all
+actual actions on arbitrary standard worlds, retaining box rejection before
+terrain and the actual harvest, crafting and eat branches.
+`standard_payAndAct_success` includes exhaustion recovery without a positive-energy
+premise. `standard_step_success` composes the actual active result and advanced-time
+passive reader: for input deer in `PositionWithin n`, `n < 200`, every action
+succeeds with exact deer length and output envelope `n + 1`. Existing
+`World.step_clock`, `step_goal` and `step_completion` retain the single final
+wrapping clock increment, installed goal/origin and completion result.
+Initialized nonempty callback execution remains unproved. No runtime feasibility,
+terrain-quality or replacement-reachability claim follows from these guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

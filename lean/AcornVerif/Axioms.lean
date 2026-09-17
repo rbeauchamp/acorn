@@ -3766,4 +3766,25 @@ info: 'AcornVerif.CurrentWorld.standard_passiveChange_success' depends on axioms
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_passiveChange_success
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_performAction_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_performAction_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_payAndAct_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_payAndAct_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_step_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_step_success
+
 end AcornVerif
