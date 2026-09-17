@@ -124,9 +124,14 @@ coordinate magnitude at most `2^32` and finite scale at least four. These bounds
 compose through `floor_cast_neighbor` and the actual lattice admissions in
 `standard_terrain_success`: every actual standard configuration admits terrain
 at both coordinates in `[-201, side + 201]`, for every salt. The conditional
-`standard_terrain_of_samples` is discharged in this domain. World construction
-and traversal composition still block a proved nonempty completion prefix;
-terrain arithmetic success alone does not establish a learning execution.
+`standard_terrain_of_samples` is discharged in this domain. The actual tile and
+sensor traversals compose in `standard_observe_success` for every standard-world
+state. `CurrentRunner.standard_sense_success` derives strict remaining capacity
+from typed steps and the actual unfinished predicate, then admits the owned
+input; `standard_start_sense_success` covers every positive-cap attempt start,
+including a carried terminal result. World construction and world-step traversal
+composition still block a proved nonempty completion prefix. Observation
+admission alone does not establish a learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

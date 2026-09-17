@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Acorn.Host.Ansi
 import Acorn.Host.Baseline
+import AcornVerif.CurrentWorld
 
 /-!
 # Current attempt and supervision invariants
@@ -107,5 +108,45 @@ theorem standard_first_goals (config : WorldConfig) (seed : UInt64) :
     (standardCurriculum config seed)[0]? = some (.survive 200, 0) ∧
       (standardCurriculum config seed)[1]? = some (.collect .wood 2, 0) := by
   exact ⟨rfl, rfl⟩
+
+/-- An unfinished standard-world attempt admits its actual next observation
+and owned decision input. Strict capacity follows from typed steps and the
+executed finished predicate, rather than an assumed successful sensing guard. -/
+theorem standard_sense_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    {α : Type} {goal : Goal} {cap : UInt64} (attempt : Attempt config α goal cap)
+    (unfinished : attempt.finished = false) :
+    ∃ input, attempt.sense = .ok (some input) ∧ input.before = attempt := by
+  have room : attempt.steps.val < cap.toNat := by
+    have bounded := attempt.steps.isLt
+    have unequal : attempt.steps.val ≠ cap.toNat := by
+      intro equal
+      simp only [Attempt.finished, equal, beq_self_eq_true, Bool.true_or] at unfinished
+      cases unfinished
+    omega
+  obtain ⟨observation, observed⟩ := CurrentWorld.standard_observe_success
+    seed side config standard attempt.run.world
+  refine ⟨⟨attempt, room, observation, observed⟩, ?_, rfl⟩
+  simp only [Attempt.sense, unfinished, Bool.false_eq_true, ↓reduceIte, room, ↓reduceDIte]
+  split
+  · rename_i error failed
+    rw [failed] at observed
+    cases observed
+  · rename_i actual sensed
+    have same := Except.ok.inj (sensed.symm.trans observed)
+    cases same
+    rfl
+
+/-- Starting any positive-cap attempt in a standard world admits its first
+owned observation, including when the carried result ends the previous goal. -/
+theorem standard_start_sense_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    {α : Type} (run : RunState config α) (goal : Goal) (cap : UInt64)
+    (positive : 0 < cap.toNat) :
+    ∃ input, (Attempt.start run goal cap).sense = .ok (some input) ∧
+      input.before = Attempt.start run goal cap := by
+  apply standard_sense_success seed side config standard
+  have nonzero : cap.toNat ≠ 0 := by omega
+  simp [Attempt.finished, Attempt.start, Ne.symm nonzero]
 
 end AcornVerif.CurrentRunner

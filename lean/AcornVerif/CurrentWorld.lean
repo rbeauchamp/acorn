@@ -578,4 +578,81 @@ theorem standard_terrain_success (seed : UInt64) (side : Coordinate)
   obtain ⟨ynext, yok⟩ := floor_cast_neighbor _ yquotient.1 yquotient.2
   exact ⟨_, by simp only [valueNoise, xok, yok]; rfl⟩
 
+/-- Harvest history can change a terrain kind but introduces no new refusal
+after successful standard terrain admission. The world need not be initialized. -/
+theorem standard_tileKind_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (position : Position)
+    (xlow : -201 ≤ position.x.val) (xhigh : position.x.val ≤ (config.side : Int) + 201)
+    (ylow : -201 ≤ position.y.val) (yhigh : position.y.val ≤ (config.side : Int) + 201) :
+    ∃ kind, world.tileKind position = .ok kind := by
+  obtain ⟨kind, terrainEq⟩ := standard_terrain_success seed side config standard position
+    config.raw.seed xlow xhigh ylow yhigh
+  simp only [World.tileKind, terrainEq, bind, Except.bind]
+  repeat' first | exact ⟨_, rfl⟩ | split
+
+/-- Every cell of the actual standard sensor patch is admitted. Occupancy is
+only queried at the resulting position; no constraint on entity coordinates is
+needed to establish this observation's arithmetic success. -/
+theorem standard_observeTile_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (occupied : Occupancy) (row column : Fin patchShape.side) :
+    ∃ tile, world.observeTile occupied row column = .ok tile := by
+  have offset (index : Fin patchShape.side) :
+      -(patchShape.side / 2 : Nat) ≤ (index.val : Int) - (patchShape.side / 2 : Nat) ∧
+        (index.val : Int) - (patchShape.side / 2 : Nat) ≤ (patchShape.side / 2 : Nat) := by
+    have bound : index.val < 11 := index.isLt
+    change -(5 : Int) ≤ (index.val : Int) - 5 ∧ (index.val : Int) - 5 ≤ 5
+    omega
+  obtain ⟨position, translated⟩ := standard_body_translation seed side config standard
+    world.body.position _ _ (offset column) (offset row)
+  have coordinates := translated
+  simp only [Position.translate, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.pure_def] at coordinates
+  obtain ⟨x, xok, y, yok, result⟩ := coordinates
+  have xexact := Coordinate.checked_exact _ x xok
+  have yexact := Coordinate.checked_exact _ y yok
+  have positionEq : (⟨x, y⟩ : Position) = position := Option.some.inj result
+  have xbody := world.body.position.x.isLt
+  have ybody := world.body.position.y.isLt
+  have xoffset := offset column
+  have yoffset := offset row
+  have xmargin : -201 ≤ position.x.val ∧ position.x.val ≤ (config.side : Int) + 201 := by
+    rw [← positionEq]
+    dsimp only at xexact ⊢
+    dsimp only [BoxPosition.position] at xexact
+    change -(5 : Int) ≤ (column.val : Int) - 5 ∧ (column.val : Int) - 5 ≤ 5 at xoffset
+    change x.val = (world.body.position.x.val : Int) + ((column.val : Int) - 5) at xexact
+    omega
+  have ymargin : -201 ≤ position.y.val ∧ position.y.val ≤ (config.side : Int) + 201 := by
+    rw [← positionEq]
+    dsimp only at yexact ⊢
+    dsimp only [BoxPosition.position] at yexact
+    change -(5 : Int) ≤ (row.val : Int) - 5 ∧ (row.val : Int) - 5 ≤ 5 at yoffset
+    change y.val = (world.body.position.y.val : Int) + ((row.val : Int) - 5) at yexact
+    omega
+  obtain ⟨kind, kindEq⟩ := standard_tileKind_success seed side config standard world position
+    xmargin.1 xmargin.2 ymargin.1 ymargin.2
+  exact ⟨_, by simp only [World.observeTile, translated, kindEq]; rfl⟩
+
+/-- Both actual row-major sensor traversals succeed for any standard-world
+state. Finite occupancy construction and vector allocation remain subject to
+the compiler/runtime boundary; this is the pure observation admission result. -/
+theorem standard_observe_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) : ∃ observation, world.observe = .ok observation := by
+  have traverse {α : Type} (size : Nat) (operation : Fin size → Except WorldError α)
+      (success : ∀ index, ∃ value, operation index = .ok value) :
+      ∃ values, Vector.ofFnM operation = .ok values := by
+    choose values equations using success
+    have functions : operation = fun index => .ok (values index) := funext equations
+    rw [functions]
+    exact ⟨Vector.ofFn values, Vector.ofFnM_pure⟩
+  obtain ⟨tiles, tilesEq⟩ := traverse patchShape.side
+    (fun row => Vector.ofFnM (world.observeTile world.occupancy row))
+    (fun row => traverse patchShape.side (world.observeTile world.occupancy row)
+      (fun column => standard_observeTile_success seed side config standard world
+        world.occupancy row column))
+  exact ⟨_, by simp only [World.observe, tilesEq]; rfl⟩
+
 end AcornVerif.CurrentWorld

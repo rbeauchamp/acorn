@@ -3647,4 +3647,39 @@ info: 'AcornVerif.CurrentWorld.standard_terrain_success' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_terrain_success
 
+/--
+info: 'AcornVerif.CurrentWorld.standard_tileKind_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_tileKind_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_observeTile_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_observeTile_success
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_observe_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_observe_success
+
+/--
+info: 'AcornVerif.CurrentRunner.standard_sense_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.standard_sense_success
+
+/--
+info: 'AcornVerif.CurrentRunner.standard_start_sense_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.standard_start_sense_success
+
 end AcornVerif

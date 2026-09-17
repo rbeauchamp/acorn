@@ -199,9 +199,17 @@ control-flow composition: they retain sample-success hypotheses.
 and widening/cast, preserving the checked neighbor operation.
 `standard_terrain_success` discharges the sample hypotheses for every standard
 configuration and salt with both position coordinates in `[-201, side + 201]`.
-Complete world construction, traversal composition and nonempty callback
-execution remain unproved. No runtime feasibility, terrain-quality or
-replacement-reachability claim follows from these arithmetic guarantees.
+`standard_tileKind_success`, `standard_observeTile_success` and
+`standard_observe_success` compose actual terrain, sensor geometry and both
+row-major vector traversals for every standard-world state.
+`CurrentRunner.standard_sense_success` derives strict room from typed steps and
+actual unfinishedness, and returns the actual owned `Attempt.sense` input.
+`standard_start_sense_success` covers every positive-cap attempt start, regardless
+of the carried terminal flag. These pure admission proofs assume the existing
+compiler/runtime and allocation boundaries. Complete world construction,
+world-step traversal composition and nonempty callback execution remain
+unproved. No runtime feasibility, terrain-quality or replacement-reachability
+claim follows from these guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

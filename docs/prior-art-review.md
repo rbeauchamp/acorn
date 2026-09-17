@@ -785,6 +785,20 @@ walkability or allocation feasibility follows. Successful world construction
 and world-step traversal composition remain separate obligations. Arbitrary
 custom raw scales remain outside this standard-configuration success theorem.
 
+`standard_tileKind_success` preserves terrain success through the actual regrowth
+classification. `standard_observeTile_success` derives each sensor coordinate
+from the typed body and finite patch indices; arbitrary occupancy values and
+deer coordinates cannot refuse observation. `standard_observe_success` composes
+both actual row-major vector traversals structurally. The result covers
+every state of an admitted standard configuration, without a restored-state or
+learning-reachability premise. `CurrentRunner.standard_sense_success` derives
+strict step room from the actual unfinished predicate and typed step bound,
+then constructs the same owned input returned by `Attempt.sense`.
+`standard_start_sense_success` discharges unfinishedness for any positive-cap
+`Attempt.start`, even with a carried terminal result. Successful world construction,
+environment steps, learner callbacks and nonempty initialized-prefix composition
+remain separate obligations.
+
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal
 meta snapshot is read before close, refresh, planning and new meta credit; a
