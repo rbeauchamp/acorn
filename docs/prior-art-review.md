@@ -542,7 +542,23 @@ actual zero-reward `step`, `beginTrajectory`, and zero-target `terminalStep`
 preserve this sector for arbitrary active sets and raw trace/sensitivity words.
 No beta-initiality, floor attainment or raw-register finiteness follows.
 
-The arithmetic proof includes exceptional operands: zero products yield signed
+Separate numerical contracts supply prerequisites for a finite-register argument.
+`CurrentState.log_step_beta_interval` places every admitted beta in `[-24,0]`.
+`CurrentPortable.exp_floor_word` follows the actual classifier, reduction,
+ordered polynomial and normal narrowing; `CurrentLearnerArithmetic.alpha_lower`
+then gives the numerical lower bound `2^-40` for every legally stored alpha.
+Together with `alpha_numeric`, this is a finite positive bound, not an
+ideal-function approximation or alpha-monotonicity theorem.
+`mul32_nonnegative_error` and `div32_normalization_error` retain explicit
+`2^-20` local operation budgets; `trace_increment_small` composes the executing
+normalization denominator and alpha multiplication into `0 <= q <= 1.01`.
+The actual ordered alpha sum supplies its finite-rate premise. None of these
+contracts bounds arbitrary incoming traces/sensitivities, proves the meta
+quotient finite, or establishes an initialized cold-register invariant.
+Exceptional beta projection and overshoot therefore remain distinct mechanisms
+that an execution-linked reachability or obstruction argument must cover.
+
+The zero-knowledge proof includes exceptional operands: zero products yield signed
 zero or NaN, and the actual weight projection maps NaN to zero while clipping
 clears `deltaWeight`. Private intermediate classification uses the standard
 logical float model's canonical NaN. Public conclusions concern finite zero

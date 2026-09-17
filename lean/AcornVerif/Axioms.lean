@@ -1614,6 +1614,10 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentExponential.expScale_wide_components
 
+/-- info: 'AcornVerif.CurrentExponential.expScale_floor_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentExponential.expScale_floor_word
+
 /-- info: 'AcornVerif.CurrentExponential.expScale_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentExponential.expScale_nonnegative
@@ -2120,6 +2124,10 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentReduction.expReduce_contract
 
+/-- info: 'AcornVerif.CurrentReduction.expReduce_exponent_floor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReduction.expReduce_exponent_floor
+
 /-- info: 'AcornVerif.CurrentReduction.expReduce_zero_remainder' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentReduction.expReduce_zero_remainder
@@ -2151,6 +2159,10 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentPortable.exp_admitted_contract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentPortable.exp_admitted_contract
+
+/-- info: 'AcornVerif.CurrentPortable.exp_floor_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentPortable.exp_floor_word
 
 /-- info: 'AcornVerif.CurrentPortable.exp_nonNaN_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -2234,6 +2246,14 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentState.log_step_alpha_unit
 
+/-- info: 'AcornVerif.CurrentState.log_step_beta_interval' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentState.log_step_beta_interval
+
+/-- info: 'AcornVerif.CurrentState.log_step_alpha_floor_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentState.log_step_alpha_floor_word
+
 /-- info: 'Acorn.Rounding.nearestEven_word_large_shift' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Rounding.nearestEven_word_large_shift
@@ -2270,6 +2290,16 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearnerArithmetic.model_div_nonnegative
 
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.mul32_nonnegative_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.mul32_nonnegative_error
+
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.div32_normalization_error' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.div32_normalization_error
+
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.mul32_nonnegative_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearnerArithmetic.mul32_nonnegative_bound
@@ -2285,6 +2315,10 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.alpha_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearnerArithmetic.alpha_numeric
+
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.alpha_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.alpha_lower
 
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.alpha_sum_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -2305,6 +2339,10 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.denominator_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearnerArithmetic.denominator_numeric
+
+/-- info: 'AcornVerif.CurrentLearnerArithmetic.trace_increment_small' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerArithmetic.trace_increment_small
 
 /-- info: 'AcornVerif.CurrentLearnerArithmetic.trace_increment_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

@@ -170,6 +170,15 @@ zero sector survives accounting; no zero or positivity claim is made about the
 post-callback learner. IO completion, numerical progress and complete-reader
 replacement reachability remain outside these pure native-linked results.
 
+Supporting numerical contracts bound the executed operations:
+`CurrentLearnerArithmetic.alpha_lower` proves that every legal beta produces
+an executed alpha at least `2^-40`; `trace_increment_small` bounds the actual
+normalized trace increment between zero and `1.01`. These use the portable
+reduction, ordered polynomial, scaling/narrowing and binary32 operation owners,
+not ideal exponential accuracy. They exclude a zero alpha divisor but do not
+prove raw transient finiteness, exclude exceptional meta updates, or establish
+beta progress. A cold zero-target register invariant remains unproved.
+
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
 the predicate. First-match selection permanently excludes later units sharing

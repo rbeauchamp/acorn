@@ -173,6 +173,59 @@ theorem expScale_wide_components (polynomial : Binary64) (exponent : Int)
   apply UInt64.toNat.inj
   omega
 
+/-- A local exponent floor keeps the actual narrowed scale above the word
+for 2^-40. Normal-target rounding may carry upward but cannot erase its exponent. -/
+theorem expScale_floor_word (polynomial : Binary64) (exponent : Int)
+    (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat)
+    (hi : polynomial.bits.toNat ≤ 0x3ff8000000000000)
+    (lower : -36 ≤ exponent) (upper : exponent ≤ 0) :
+    0x2b800000 ≤ (Portable.expScale polynomial exponent).bits.toNat := by
+  have components := expScale_wide_components polynomial exponent lo hi (by omega) (by omega)
+  have sourceFields := Conversion.fields64_decomposition polynomial
+  have sourceFraction := Conversion.fraction64_bound polynomial.bits
+  have sourceMagnitude : polynomial.magnitude = polynomial.bits.toNat := by
+    change polynomial.bits.toNat &&& (2^63-1) = _
+    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt (by omega)]
+  rw [sourceMagnitude] at sourceFields
+  have sourceExponent : 1022 ≤ ((polynomial.bits >>> 52) &&& 0x7ff : UInt64).toNat ∧
+      ((polynomial.bits >>> 52) &&& 0x7ff : UInt64).toNat ≤ 1023 := by omega
+  let wide := polynomial.mul (Portable.powerOfTwo exponent)
+  let field : UInt64 := (wide.bits >>> 52) &&& 0x7ff
+  have shifted : (field.toNat : Int) =
+      (((polynomial.bits >>> 52) &&& 0x7ff : UInt64).toNat : Int) + exponent :=
+    components.2.1
+  have fieldBounds : 986 ≤ field.toNat ∧ field.toNat ≤ 1023 := by omega
+  let adjusted := Conversion.normalExponent wide.bits field
+  have adjustedBounds : 986 ≤ adjusted.toNat ∧ adjusted.toNat ≤ 1024 := by
+    dsimp only [adjusted]
+    rw [Conversion.normalExponent_exact _ _ (by omega)]
+    split <;> omega
+  have subtraction : (adjusted - 896).toNat = adjusted.toNat - 896 := by
+    rw [UInt64.toNat_sub_of_le]
+    · rfl
+    · change 896 ≤ adjusted.toNat
+      omega
+  have cast : (adjusted - 896).toUInt32.toNat = adjusted.toNat - 896 := by
+    rw [UInt64.toNat_toUInt32, subtraction, Nat.mod_eq_of_lt (by omega)]
+  have magnitudeLower : 0x2b800000 ≤ (Conversion.normalMagnitude wide.bits field).toNat := by
+    rw [Conversion.normalMagnitude_components]
+    change 0x2b800000 ≤
+      (if adjusted > 1150 then (0x7f800000 : UInt32)
+       else ((adjusted - 896).toUInt32 <<< 23) ||| Conversion.normalFraction wide.bits).toNat
+    rw [if_neg (show ¬ adjusted > 1150 by change ¬ 1150 < adjusted.toNat; omega)]
+    rw [Conversion.normalFields_exact _ _ (by rw [cast]; omega)
+      (Conversion.normalFraction_exact wide.bits).2, cast]
+    omega
+  have narrowed : (Conversion.narrow wide).magnitude =
+      (Conversion.normalMagnitude wide.bits field).toNat := by
+    rw [Conversion.narrow_magnitude_cases wide (by change field.toNat < 2047; omega),
+      if_pos (show 897 ≤ field.toNat by omega)]
+  have bound : 0x2b800000 ≤ (Conversion.narrow wide).magnitude := by
+    rw [narrowed]
+    exact magnitudeLower
+  change 0x2b800000 ≤ (Conversion.narrow wide).bits.toNat
+  exact Nat.le_trans bound Nat.and_le_left
+
 /-- Scaling and final narrowing always produce a positive-sign finite or infinite word, never NaN. -/
 theorem expScale_nonnegative (polynomial : Binary64) (exponent : Int)
     (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat) (hi : polynomial.bits.toNat ≤ 0x3ff8000000000000)

@@ -70,4 +70,37 @@ theorem log_step_alpha_unit (config : Config) (rails : StepSizeRails config)
   change (Portable.exp stored.value).bits.toNat &&& (2^31-1) < 0x7f800000
   exact Nat.lt_of_le_of_lt Nat.and_le_left (by omega)
 
+set_option maxRecDepth 8192 in
+/-- All stored step sizes lie in the same coarse numerical input interval for
+portable exponential. The lower endpoint is the actual closed minimum-rate log. -/
+theorem log_step_beta_interval (config : Config) (rails : StepSizeRails config)
+    (stored : LogStepSize rails) :
+    -24 ≤ numerical32 stored.value ∧ numerical32 stored.value ≤ 0 := by
+  let cutoff : Binary32 := ⟨0xc1c00000⟩
+  have cutoffFinite : cutoff.Finite := by decide
+  have cutoffValue : numerical32 cutoff = -24 := by
+    dsimp only [cutoff]
+    change (-1 : ℚ) * 12582912 * (2 : ℚ)^(-19 : Int) = -24
+    norm_num
+  have floor : cutoff.key ≤ rails.range.lower.key := by
+    rw [rails.lowerIdentity]
+    simp only [Config.etaMin]
+    decide
+  have lower := (numerical32_order cutoff stored.value cutoffFinite stored.legal.1).mpr
+    (le_trans floor stored.legal.2.1)
+  have upperKey : stored.value.key ≤ 0 := by
+    have upper := stored.legal.2.2
+    rw [rails.upperIdentity] at upper
+    exact le_trans upper (config_log_rail_nonpositive config)
+  have upper := (numerical32_order stored.value .zero stored.legal.1 (by decide)).mpr upperKey
+  rw [cutoffValue] at lower
+  exact ⟨lower, upper⟩
+
+/-- The executing exponential cannot underflow a legal stored step size to
+zero: its output word is at least the normal word for 2^-40. -/
+theorem log_step_alpha_floor_word (config : Config) (rails : StepSizeRails config)
+    (stored : LogStepSize rails) : 0x2b800000 ≤ stored.alpha.bits.toNat := by
+  have interval := log_step_beta_interval config rails stored
+  exact exp_floor_word stored.value stored.legal.1 interval.1 interval.2
+
 end AcornVerif.CurrentState

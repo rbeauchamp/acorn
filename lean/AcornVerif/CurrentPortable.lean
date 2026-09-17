@@ -98,6 +98,46 @@ theorem exp_admitted_contract (value : Binary32)
     rw [zero]
     exact expScale_zero_unit _ words.1 (words.2.2 (series.2.2.2 remNonpositive))
 
+/-- On the finite interval [-24,0], reduction, the actual polynomial and
+normal narrowing keep the exponential above the word for 2^-40. This local
+positivity contract does not assume ideal exponential accuracy or monotonicity. -/
+theorem exp_floor_word (value : Binary32) (finite : value.Finite)
+    (lower : -24 ≤ numerical32 value) (upper : numerical32 value ≤ 0) :
+    0x2b800000 ≤ (Portable.exp value).bits.toNat := by
+  have lowerFinite : (Binary32.mk Acorn.Constants.expUnderflowBits).Finite := by decide
+  have upperFinite : (Binary32.mk Acorn.Constants.expOverflowBits).Finite := by decide
+  have lowerValue : numerical32 (Binary32.mk Acorn.Constants.expUnderflowBits) = -104 := by
+    change (-1 : ℚ) * 13631488 * (2 : ℚ)^(-17 : Int) = _
+    norm_num
+  have upperValue : numerical32 (Binary32.mk Acorn.Constants.expOverflowBits) = 89 := by
+    change (1 : ℚ) * 11665408 * (2 : ℚ)^(-17 : Int) = _
+    norm_num
+  have above : (Binary32.mk Acorn.Constants.expUnderflowBits).less value = true := by
+    rw [numerical32_less _ _ lowerFinite finite, decide_eq_true_eq, lowerValue]
+    linarith only [lower]
+  have below : value.less (Binary32.mk Acorn.Constants.expOverflowBits) = true := by
+    rw [numerical32_less _ _ finite upperFinite, decide_eq_true_eq, upperValue]
+    linarith only [upper]
+  have admitted : Portable.expSaturation value = none := by
+    simp only [Portable.expSaturation, Binary32.finite_not_nan value finite,
+      Bool.false_eq_true, below, above, Bool.not_true, ↓reduceIte]
+  let reduced := Portable.expReduce (Conversion.widen value)
+  have reduction := exp_admitted_reduction value admitted
+  have wideFinite := Conversion.widen_finite value finite
+  have wideValue := numerical_widen_exact value finite
+  have floor := expReduce_exponent_floor (Conversion.widen value) wideFinite
+    (by rw [wideValue]; exact lower) (by rw [wideValue]; exact upper)
+  have series := expSeries_contract reduced.2 reduction.2.2.2.1
+    (le_trans reduction.2.2.2.2.1 (by norm_num))
+  have words := exp_polynomial_words (Portable.expSeries reduced.2)
+    series.1 series.2.1 series.2.2.1
+  have expression : Portable.exp value =
+      Portable.expScale (Portable.expSeries reduced.2) reduced.1 := by
+    simp only [Portable.exp_eq_spec, admitted]
+    rfl
+  rw [expression]
+  exact expScale_floor_word _ _ words.1 words.2.1 floor (reduction.2.2.2.2.2 upper)
+
 /-- Every non-NaN input, including both infinities, produces a positive-sign finite or infinite
 word. No NaN can result from the executing exponential. -/
 theorem exp_nonNaN_word (value : Binary32) (notNaN : value.isNaN = false) :

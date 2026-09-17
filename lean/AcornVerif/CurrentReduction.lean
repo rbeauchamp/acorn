@@ -68,15 +68,15 @@ theorem trunc_selection_band (product selected : ℚ) (integer : Int) (error : �
     rw [abs_le]
     constructor <;> linarith [trunc.1,trunc.2,hn.1,hn.2]
 
-/-- Every finite wide input in the containing interval [-104,89] produces an exponent in
-[-151,129] and a finite remainder in [-0.349,0.349]; nonpositive inputs give nonpositive exponents.
--/
-theorem expReduce_contract (wide : Binary64) (finite : wide.Finite)
+/-- The reduction chain retains both its full admitted domain and the local
+exponent floor needed to exclude step-size underflow. -/
+private theorem expReduce_bounds (wide : Binary64) (finite : wide.Finite)
     (lower : -104 ≤ numerical64 wide) (upper : numerical64 wide ≤ 89) :
     let reduced := Portable.expReduce wide;
-    -151 ≤ reduced.1 ∧ reduced.1 ≤ 129 ∧ reduced.2.Finite ∧
+    (-151 ≤ reduced.1 ∧ reduced.1 ≤ 129 ∧ reduced.2.Finite ∧
       |numerical64 reduced.2| ≤ 349/1000 ∧
-      (numerical64 wide ≤ 0 → reduced.1 ≤ 0) := by
+      (numerical64 wide ≤ 0 → reduced.1 ≤ 0)) ∧
+      (-24 ≤ numerical64 wide → -36 ≤ reduced.1) := by
   simp only [Portable.expReduce, Portable.expReduceWord, Portable.expExponent,
     Portable.expRemainder, Conversion.ofI32Word_eq]
   let x := numerical64 wide
@@ -269,9 +269,38 @@ theorem expReduce_contract (wide : Binary64) (finite : wide.Finite)
     have h : (exponent:ℚ)<1 := by linarith only [prod,bandLo]
     have hn : exponent<(1:Int) := by exact_mod_cast h
     omega
-  change -151≤exponent ∧ exponent≤129 ∧ remainder.Finite ∧ |numerical64 remainder|≤349/1000 ∧
-    (numerical64 wide≤0 → exponent≤0)
-  exact ⟨exponentLo,exponentHi,remainderProof.1,remainderBound,nonpositive⟩
+  have localFloor : -24 ≤ x → -36 ≤ exponent := by
+    intro localLower
+    have shifted := mul_nonneg (by linarith only [localLower] : 0 ≤ x + 24)
+      (by linarith only [logLo] : 0 ≤ log)
+    have productLower : -(174 / 5 : ℚ) ≤ x * log := by
+      nlinarith only [shifted, logHi]
+    have rationalFloor : (-37 : ℚ) < (exponent : ℚ) := by
+      linarith only [productLower, bandHi]
+    have integerFloor : (-37 : Int) < exponent := by exact_mod_cast rationalFloor
+    omega
+  change (-151≤exponent ∧ exponent≤129 ∧ remainder.Finite ∧
+    |numerical64 remainder|≤349/1000 ∧ (numerical64 wide≤0 → exponent≤0)) ∧
+    (-24 ≤ numerical64 wide → -36 ≤ exponent)
+  exact ⟨⟨exponentLo,exponentHi,remainderProof.1,remainderBound,nonpositive⟩,localFloor⟩
+
+/-- Every finite wide input in [-104,89] produces an exponent in [-151,129]
+and a finite remainder in [-0.349,0.349]; nonpositive inputs give nonpositive exponents. -/
+theorem expReduce_contract (wide : Binary64) (finite : wide.Finite)
+    (lower : -104 ≤ numerical64 wide) (upper : numerical64 wide ≤ 89) :
+    let reduced := Portable.expReduce wide;
+    -151 ≤ reduced.1 ∧ reduced.1 ≤ 129 ∧ reduced.2.Finite ∧
+      |numerical64 reduced.2| ≤ 349/1000 ∧
+      (numerical64 wide ≤ 0 → reduced.1 ≤ 0) :=
+  (expReduce_bounds wide finite lower upper).1
+
+/-- A finite input above -24 cannot select an exponent below -36. This is a
+bound on the executing reduction, not an ideal logarithm/exponential identity. -/
+theorem expReduce_exponent_floor (wide : Binary64) (finite : wide.Finite)
+    (lower : -24 ≤ numerical64 wide) (upper : numerical64 wide ≤ 0) :
+    -36 ≤ (Portable.expReduce wide).1 :=
+  (expReduce_bounds wide finite (by linarith only [lower])
+    (by linarith only [upper])).2 lower
 
 /-- If actual reduction selects exponent zero, its two subtractions preserve the finite input
 numerical value. -/

@@ -129,13 +129,14 @@ theorem model_div_nonnegative (spec : Format) (left right : UnpackedFloat)
       subst sr
       exact round_nonnegative spec _ _ _
 
-/-- Actual binary32 multiplication of nonnegative finite operands with exact
-product at most four stays finite, nonnegative, and below five. -/
-theorem mul32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
+/-- Nonnegative binary32 multiplication retains its local rounding budget,
+including subnormals, when the exact product is at most four. -/
+theorem mul32_nonnegative_error (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (pl : 0 ≤ numerical32 left) (pr : 0 ≤ numerical32 right)
     (bound : numerical32 left * numerical32 right ≤ 4) :
     (left.mul right).Finite ∧ 0 ≤ numerical32 (left.mul right) ∧
-      numerical32 (left.mul right) ≤ 5 := by
+      |numerical32 (left.mul right) - numerical32 left * numerical32 right| ≤
+        1 / (1048576 : ℚ) := by
   have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
     ((model_decoded32_finite left).mpr hl)).1
   have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
@@ -145,11 +146,12 @@ theorem mul32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr :
   have operation := model_mul_dyadic_local Format.binary32 (decoded32 left) (decoded32 right)
     ln rn 2 (by norm_num [numerical32] at magnitude ⊢; exact magnitude)
   have error : |unpackedValue (UnpackedFloat.mul Format.binary32
-      (decoded32 left) (decoded32 right)) - numerical32 left * numerical32 right| ≤ 1 := by
+      (decoded32 left) (decoded32 right)) - numerical32 left * numerical32 right| ≤
+        1 / (1048576 : ℚ) := by
     apply le_trans operation.2
     norm_num [Format.mantissaBits, Format.minExponent]
   have decoded := mul32_decoded left right hl hr operation.1
-    (local32_fits _ _ operation.1 magnitude error)
+    (local32_fits _ _ operation.1 magnitude (le_trans error (by norm_num)))
   refine ⟨?_, ?_, ?_⟩
   · apply (model_decoded32_finite _).mp
     rw [decoded]
@@ -157,17 +159,29 @@ theorem mul32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr :
   · change 0 ≤ unpackedValue (decoded32 (left.mul right))
     rw [decoded]
     exact model_mul_nonnegative _ _ _ ln rn pl pr
-  · have upper := (abs_le.mp error).2
-    change unpackedValue (decoded32 (left.mul right)) ≤ 5
+  · change |unpackedValue (decoded32 (left.mul right)) -
+      numerical32 left * numerical32 right| ≤ _
     rw [decoded]
-    linarith only [upper, bound]
+    exact error
 
-/-- The learner's positive finite denominator is at least its numerator, so
-actual binary32 normalization remains finite and lies in `[0, 2]`. -/
-theorem div32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
+/-- The wider multiplication envelope follows from the same precise wrapper. -/
+theorem mul32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
+    (pl : 0 ≤ numerical32 left) (pr : 0 ≤ numerical32 right)
+    (bound : numerical32 left * numerical32 right ≤ 4) :
+    (left.mul right).Finite ∧ 0 ≤ numerical32 (left.mul right) ∧
+      numerical32 (left.mul right) ≤ 5 := by
+  have result := mul32_nonnegative_error left right hl hr pl pr bound
+  refine ⟨result.1, result.2.1, ?_⟩
+  have upper := (abs_le.mp result.2.2).2
+  linarith only [upper, bound]
+
+/-- Normalization by a finite denominator at least its positive numerator
+retains the executing division's local rounding budget. -/
+theorem div32_normalization_error (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (pl : 0 < numerical32 left) (order : numerical32 left ≤ numerical32 right) :
     (left.div right).Finite ∧ 0 ≤ numerical32 (left.div right) ∧
-      numerical32 (left.div right) ≤ 2 := by
+      |numerical32 (left.div right) - numerical32 left / numerical32 right| ≤
+        1 / (1048576 : ℚ) := by
   have pr := lt_of_lt_of_le pl order
   have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
     ((model_decoded32_finite left).mpr hl)).1
@@ -179,11 +193,13 @@ theorem div32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr :
   have operation := model_div_dyadic_local Format.binary32 (decoded32 left) (decoded32 right)
     ln rn (ne_of_gt pr) 0 (by simpa only [numerical32, zpow_zero] using bound)
   have error : |unpackedValue (UnpackedFloat.div Format.binary32
-      (decoded32 left) (decoded32 right)) - numerical32 left / numerical32 right| ≤ 1 := by
+      (decoded32 left) (decoded32 right)) - numerical32 left / numerical32 right| ≤
+        1 / (1048576 : ℚ) := by
     apply le_trans operation.2
     norm_num [Format.mantissaBits, Format.minExponent]
   have decoded := div32_decoded left right hl hr operation.1
-    (local32_fits _ _ operation.1 (le_trans bound (by norm_num)) error)
+    (local32_fits _ _ operation.1 (le_trans bound (by norm_num))
+      (le_trans error (by norm_num)))
   refine ⟨?_, ?_, ?_⟩
   · apply (model_decoded32_finite _).mp
     rw [decoded]
@@ -191,11 +207,22 @@ theorem div32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr :
   · change 0 ≤ unpackedValue (decoded32 (left.div right))
     rw [decoded]
     exact model_div_nonnegative _ _ _ ln rn pl.le pr
-  · have upper := (abs_le.mp error).2
-    have quotient := (abs_le.mp bound).2
-    change unpackedValue (decoded32 (left.div right)) ≤ 2
+  · change |unpackedValue (decoded32 (left.div right)) -
+      numerical32 left / numerical32 right| ≤ _
     rw [decoded]
-    linarith only [upper, quotient]
+    exact error
+
+/-- The learner's positive finite denominator is at least its numerator, so
+actual binary32 normalization remains finite and lies in `[0, 2]`. -/
+theorem div32_nonnegative_bound (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
+    (pl : 0 < numerical32 left) (order : numerical32 left ≤ numerical32 right) :
+    (left.div right).Finite ∧ 0 ≤ numerical32 (left.div right) ∧
+      numerical32 (left.div right) ≤ 2 := by
+  have result := div32_normalization_error left right hl hr pl order
+  have quotient := (div_le_one (lt_of_lt_of_le pl order)).mpr order
+  refine ⟨result.1, result.2.1, ?_⟩
+  have upper := (abs_le.mp result.2.2).2
+  linarith only [upper, quotient]
 
 /-- Positive-sign unit-interval words have numerical readings in `[0, 1]`. -/
 theorem word_unit_interval (word : Binary32) (finite : word.Finite)
@@ -226,6 +253,31 @@ theorem alpha_numeric {config : Config} {rails : StepSizeRails config}
     beta.alpha.Finite ∧ 0 ≤ numerical32 beta.alpha ∧ numerical32 beta.alpha ≤ 1 := by
   have contract := CurrentState.log_step_alpha_unit config rails beta
   exact ⟨contract.1, word_unit_interval beta.alpha contract.1 contract.2⟩
+
+/-- Legal stored beta has a uniform positive executed alpha lower bound.
+This excludes a zero divisor; it does not bound any transient meta register. -/
+theorem alpha_lower {config : Config} {rails : StepSizeRails config}
+    (beta : LogStepSize rails) : 1 / (1099511627776 : ℚ) ≤ numerical32 beta.alpha := by
+  have alpha := alpha_numeric beta
+  have upper := (CurrentState.log_step_alpha_unit config rails beta).2
+  have lower := CurrentState.log_step_alpha_floor_word config rails beta
+  have magnitude : beta.alpha.magnitude = beta.alpha.bits.toNat := by
+    change beta.alpha.bits.toNat &&& (2^31-1) = _
+    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt (by omega)]
+  let cutoff : Binary32 := ⟨0x2b800000⟩
+  have cutoffFinite : cutoff.Finite := by decide
+  have cutoffMagnitude : cutoff.magnitude = 0x2b800000 := by
+    dsimp only [cutoff]
+    rfl
+  have cutoffValue : numerical32 cutoff = 1 / (1099511627776 : ℚ) := by
+    dsimp only [cutoff]
+    change (1 : ℚ) * 8388608 * (2 : ℚ)^(-63 : Int) = 1 / (1099511627776 : ℚ)
+    norm_num
+  have order := (numerical32_magnitude_order cutoff beta.alpha cutoffFinite alpha.1).mpr
+    (by rw [cutoffMagnitude, magnitude]; exact lower)
+  rw [cutoffValue, abs_of_nonneg (by norm_num : 0 ≤ 1 / (1099511627776 : ℚ)),
+    abs_of_nonneg alpha.2.1] at order
+  exact order
 
 /-- Any finite list of stored alphas has a finite ordered sum; this reuses the
 universal prediction envelope and does not require a bound on list length. -/
@@ -289,19 +341,39 @@ theorem denominator_numeric (config : Config) (rate : Binary32) (finite : rate.F
   · rename_i noOvershoot
     exact ⟨eta.1, le_refl _⟩
 
-/-- Each executing trace increment is finite and nonnegative with a loose
-uniform bound sufficient for the pruning-reference invariant. -/
+/-- The actual normalization and alpha product lie below 1.01. Both rounded
+operations keep their order; no ideal exponential accuracy is assumed. -/
+theorem trace_increment_small {config : Config} {rails : StepSizeRails config}
+    (beta : LogStepSize rails) (rate : Binary32) (finite : rate.Finite) :
+    let denominator := if config.eta.less rate then rate else config.eta
+    let increment := (config.eta.div denominator).mul beta.alpha
+    increment.Finite ∧ 0 ≤ numerical32 increment ∧
+      numerical32 increment ≤ 101 / (100 : ℚ) := by
+  have eta := eta_numeric config
+  have denominator := denominator_numeric config rate finite
+  have scale := div32_normalization_error config.eta _ eta.1 denominator.1 eta.2 denominator.2
+  have quotient := (div_le_one (lt_of_lt_of_le eta.2 denominator.2)).mpr denominator.2
+  have scaleError := (abs_le.mp scale.2.2).2
+  have scaleBound : numerical32 (config.eta.div
+      (if config.eta.less rate then rate else config.eta)) ≤ 1 + 1 / (1048576 : ℚ) := by
+    linarith only [scaleError, quotient]
+  have alpha := alpha_numeric beta
+  have productBound := mul_le_mul_of_nonneg_left alpha.2.2 scale.2.1
+  simp only [mul_one] at productBound
+  have product := mul32_nonnegative_error _ _ scale.1 alpha.1 scale.2.1 alpha.2.1
+    (by linarith only [productBound, scaleBound])
+  refine ⟨product.1, product.2.1, ?_⟩
+  have productError := (abs_le.mp product.2.2).2
+  linarith only [productError, productBound, scaleBound]
+
+/-- Each executing trace increment satisfies the wider reference invariant. -/
 theorem trace_increment_numeric {config : Config} {rails : StepSizeRails config}
     (beta : LogStepSize rails) (rate : Binary32) (finite : rate.Finite) :
     let denominator := if config.eta.less rate then rate else config.eta
     let increment := (config.eta.div denominator).mul beta.alpha
     increment.Finite ∧ 0 ≤ numerical32 increment ∧ numerical32 increment ≤ 5 := by
-  have eta := eta_numeric config
-  have denominator := denominator_numeric config rate finite
-  have scale := div32_nonnegative_bound config.eta _ eta.1 denominator.1 eta.2 denominator.2
-  have alpha := alpha_numeric beta
-  apply mul32_nonnegative_bound _ _ scale.1 alpha.1 scale.2.1 alpha.2.1
-  nlinarith only [scale.2.1, scale.2.2, alpha.2.1, alpha.2.2]
+  have result := trace_increment_small beta rate finite
+  exact ⟨result.1, result.2.1, le_trans result.2.2 (by norm_num)⟩
 
 /-- A legal pruning reference gives a finite nonnegative pruning threshold,
 even if its product underflows to a zero encoding. -/

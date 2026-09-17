@@ -120,6 +120,16 @@ complete assignments retains an unselected cold model through completion. The
 proof derives refusal before the actual retirement call and unchanged event
 history, for arbitrary input words without a feature-count bound. It does not
 prove that initialized native paths realize these assignment-change premises.
+`CurrentLearnerArithmetic.alpha_lower` checks the executed alpha lower bound
+`2^-40` for every legally stored beta. Its proof connects immutable rail
+identities, local argument reduction, the actual polynomial and normal narrowing;
+it assumes neither ideal exponential accuracy nor monotonicity.
+`trace_increment_small` retains both binary32 rounding boundaries and derives
+`0 <= q <= 1.01` for a finite rate and the actual receiving denominator. Existing
+ordered-alpha-sum finiteness supplies that premise in the learner. The explicit
+multiplication/division error wrappers retain their sign and packing proofs.
+These are numerical prerequisites, not a raw-register finiteness invariant or
+replacement-reachability result; the existing wider public contracts remain.
 `CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
 numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted
