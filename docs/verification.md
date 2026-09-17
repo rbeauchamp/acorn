@@ -176,8 +176,8 @@ native attempt loop. `survival_prefix_clock` derives the carried reward from the
 actual survival counter with no clock wrap under the finite attempt cap.
 `zero_ranked_initial_survival` covers successful first-attempt prefixes from the
 actual cold agent and successful world constructor through the goal-producing
-action. It assumes the successful prefix; it proves neither nonempty execution
-nor a later positive callback. `finish_carried` and `Attempt.start_carried` retain
+action. The initialized existence theorem below discharges that successful-prefix
+premise in its bounded standard domain. `finish_carried` and `Attempt.start_carried` retain
 terminal reward across a continued attempt/goal boundary. A final campaign
 boundary supplies no extra learning callback. Zero-sector preservation establishes
 neither beta-floor progress nor complete-reader eligibility.
@@ -241,8 +241,17 @@ passive reader: for input deer in `PositionWithin n`, `n < 200`, every action
 succeeds with exact deer length and output envelope `n + 1`. Existing
 `World.step_clock`, `step_goal` and `step_completion` retain the single final
 wrapping clock increment, installed goal/origin and completion result.
-Initialized nonempty callback execution remains unproved. No runtime feasibility,
-terrain-quality or replacement-reachability claim follows from these guarantees.
+`CurrentReplacement.standard_ranked_survival_exists` constructs actual
+callback-driven prefixes from one cold/world initialization for every `n ≤ 200`
+and cap at least 200. It preserves exact steps/time, goal/origin, deer length and
+envelope, complete raw-result coherence, reward/completion and the joined zero
+sector. Its private induction derives sensing and world success from these
+checked owners. `standard_campaign_survival_exists` supplies the actual supported
+standard configuration, campaign admission and first cursor, and specializes to
+the native cold ranked discounted scalar constructor. These proofs concern pure
+native-linked transitions, with the existing compiler/runtime and IO boundaries.
+They do not prove a subsequent learning callback consuming the terminal positive
+reward, runtime feasibility, terrain quality or replacement reachability.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming

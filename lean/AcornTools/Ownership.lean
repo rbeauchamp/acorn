@@ -117,6 +117,22 @@ def executables : Array (String × Name) := #[
 These are critical entry/transition obligations, not a quota or a claim that
 all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_ranked_survival_exists,
+    `Acorn.Host.World.initial),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_ranked_survival_exists,
+    `Acorn.Handcrafted.Agent.initial),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_ranked_survival_exists,
+    `AcornVerif.CurrentReplacement.RankedSurvivalPrefix),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_campaign_survival_exists,
+    `Acorn.Host.WorldConfig.standard),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_campaign_survival_exists,
+    `Acorn.Host.CampaignPlan.admit),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_campaign_survival_exists,
+    `Acorn.Host.CampaignPlan.initial),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_campaign_survival_exists,
+    `Acorn.Handcrafted.AgentConstruction.standard),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_campaign_survival_exists,
+    `Acorn.Handcrafted.AgentConstruction.initial),
   (`AcornVerif.CurrentWorld, `AcornVerif.CurrentWorld.standard_foodTrials_success,
     `Acorn.Host.foodTrials),
   (`AcornVerif.CurrentWorld, `AcornVerif.CurrentWorld.standard_spawnFood_success,

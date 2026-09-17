@@ -108,8 +108,8 @@ current-bank encoding, local step and retirement for one zero-reward action.
 prefix through the goal-producing action, using the actual cold/world constructors,
 sensing, callback choice, world transition and accounting. The reward is derived
 from the bounded physical clock, not supplied as a zero stream. This conditional
-result does not prove the existence of a nonempty successful prefix or a
-subsequent positive callback.
+preservation result is used by the initialized existence theorem below; a
+subsequent positive learning callback remains unproved.
 The next callback, if admitted, consumes the terminal reward under the next goal;
 achievement advances goals rather than repeating the successful attempt.
 The first-positive goal-action owner and later continuation bootstrap remain
@@ -152,8 +152,18 @@ active result with passive changes on the actual advanced-time reader. For
 input deer in the stated envelope with `n < 200`, every action returns a world
 with unchanged deer length and envelope `n + 1`. Existing `World.step_clock`,
 `step_goal` and `step_completion` retain the single wrapping clock increment,
-installed goal/origin and returned completion flag. Initialized completion-prefix
-existence remains unproved; these admissions do not establish a learning execution.
+installed goal/origin and returned completion flag.
+`CurrentReplacement.standard_ranked_survival_exists` chooses one actual initial
+world and constructs callback-driven prefixes for every length through 200,
+with cap at least 200. It derives exact steps/time, goal origin, deer length and
+envelope, coherent carried events/reward, completion at 200 and the joined zero
+sector. Nonterminal event fields retain their actual world values.
+`standard_campaign_survival_exists` additionally derives standard configuration,
+campaign admission and the initial survival cursor for supported sides and
+requests with at least 200 steps and two goals, using the native cold ranked,
+discounted scalar constructor. These are pure native-linked existence results;
+IO completion and the next learning callback consuming positive reward remain
+outside their scope. Complete-reader replacement reachability remains unresolved.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

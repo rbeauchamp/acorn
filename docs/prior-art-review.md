@@ -730,10 +730,10 @@ survival completion produces zero reward before its positive duration and exactl
 one at completion. `zero_ranked_initial_survival` specializes the resulting
 zero-sector induction to successful `World.initial` and actual `Agent.initial`.
 The action producing the terminal reward still consumes the previous zero reward.
-The standard curriculum starts with survival duration 200. These are conditional
-invariants of successful prefixes, not proofs that a nonempty prefix, survival
-achievement, a later callback or complete-reader eligibility exists. Restored
-knowledge is outside this cold-construction result.
+The standard curriculum starts with survival duration 200. These conditional
+invariants support the bounded initialized existence result below. A later
+positive learning callback and complete-reader eligibility remain separate;
+restored knowledge is outside the cold-construction result.
 
 `finish_carried` proves successful attempt finalization retains the entire raw
 result for every goal family. Existing `Attempt.start_carried` retains it when
@@ -756,8 +756,8 @@ curriculum with at least two entries and a request with at least 200 steps and
 two goals, including attempt-count normalization. `initial_cursor_exists` and
 `achieved_next_goal` derive the actual cursor choices; `standard_first_goals`
 identifies survival then wood collection for every seed and standard world.
-These resolve plan admission and conditional boundary progression, not goal
-achievement or a subsequent callback's existence.
+These supply plan admission and cursor progression to the initialized survival
+specialization below. Subsequent positive learning still needs its own composition.
 `CurrentWorld.standard_config_exists` admits every supported standard side;
 `standard_body_translation` excludes signed overflow within the actual sensor
 radius, and `standard_spiral_coordinates` covers all actual spiral offsets and
@@ -863,8 +863,33 @@ satisfy `PositionWithin n` with `n < 200`; output length is unchanged and every
 deer satisfies `PositionWithin (n + 1)`. Existing `World.step_clock`, `step_goal`
 and `step_completion` supply the single final wrapping increment, goal/origin
 preservation and returned completion flag. This is not a nonwrapping clock or
-arbitrary-time deer-envelope theorem. Initialized learning-prefix existence,
-callback and subsequent positive-reward learning composition remain unproved.
+arbitrary-time deer-envelope theorem.
+
+`CurrentReplacement.standard_ranked_survival_exists` discharges initialized
+prefix existence for every actual standard configuration, typed feature
+configuration/dimension/planning choice and cap at least 200. It selects one
+successful `World.initial` result before quantifying over every length `n ≤ 200`,
+with the actual cold ranked discounted `Agent.initial` and initial raw zero.
+Structural induction constructs the existing `RankedSurvivalPrefix`: unfinishedness
+follows from carried completion and remaining capacity, actual sensing admits the
+input, the callback selects its action, and checked world admission supplies the
+same `OwnedEnvironment.record` edge. No action list or successful-prefix premise
+is supplied. Exact steps/time, goal/origin, deer length/envelope, raw-result
+coherence, reward and completion are retained; the attempt is finished exactly
+at 200. Nonterminal movement, harvest and other event fields need not be empty.
+Existing zero-sector preservation applies through the goal-producing action.
+
+`standard_campaign_survival_exists` derives actual standard configuration from
+supported side bounds and actual campaign admission from requests with at least
+200 steps and two goals. The actual initial cursor selects survival; the native
+cold ranked discounted scalar constructor and initial behavior word specialize
+the core theorem to a completed first prefix. The core prefix theorem itself
+needs only the cap bound, not the two-goal request. At step 200 the environment
+produces and carries reward one; its callback consumed the preceding zero reward.
+`recordEnvironment` records lifetime accounting, not a new learning act. The
+pure native-linked result does not assert successful IO, allocation, scheduling,
+observer delivery or checkpoint restoration. No next-goal or positive-reward
+learning callback, bootstrap or complete-reader floor eligibility follows.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal

@@ -3787,4 +3787,20 @@ info: 'AcornVerif.CurrentWorld.standard_step_success' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_step_success
 
+/--
+info: 'AcornVerif.CurrentReplacement.standard_ranked_survival_exists' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.standard_ranked_survival_exists
+
+/--
+info: 'AcornVerif.CurrentReplacement.standard_campaign_survival_exists' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentReplacement.standard_campaign_survival_exists
+
 end AcornVerif

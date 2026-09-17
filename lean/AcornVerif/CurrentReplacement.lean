@@ -4,9 +4,11 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.AgentPrefix
+import Acorn.Host.AgentAdmission
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentRetirement
 import AcornVerif.CurrentBackupBounds
+import AcornVerif.CurrentRunner
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -3005,6 +3007,156 @@ theorem zero_ranked_initial_survival {worldConfig : WorldConfig}
   zero_ranked_survival_prefix _ (World.initial_fields _ _ created).1 rfl
     (zero_ranked_initial config dimension planning) duration cap positive attempt path
     beforePositive
+
+private theorem ranked_survival_prefix_exists (seed : UInt64) (side : Coordinate)
+    (worldConfig : WorldConfig)
+    (standard : WorldConfig.standard seed side = .ok worldConfig)
+    (initial : RunState worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning))
+    (origin : initial.world.time = 0) (raw : initial.carried = {})
+    (deer : CurrentWorld.DeerInBox worldConfig initial.world.deer)
+    (cap : UInt64) (room : 200 ≤ cap.toNat) :
+    ∀ n : Nat, n ≤ 200 → ∃ attempt,
+      RankedSurvivalPrefix initial 200 cap attempt ∧ attempt.steps.val = n ∧
+      attempt.run.world.deer.entries.size = initial.world.deer.entries.size ∧
+      (∀ position ∈ attempt.run.world.deer.entries,
+        CurrentWorld.PositionWithin worldConfig n position) ∧
+      attempt.run.carried = attempt.run.carried.events.raw ∧
+      attempt.run.carried.events.done = decide (200 ≤ n) ∧
+      (n = 0 → attempt.run.carried = {}) := by
+  intro n
+  induction n with
+  | zero =>
+    intro bounded
+    refine ⟨Attempt.start initial (.survive 200) cap, .start, rfl, rfl, ?_, ?_, ?_, ?_⟩
+    · exact (CurrentWorld.deerInBox_iff_positionWithin _ _).mp deer
+    · simp [Attempt.start, raw, StepResult.raw, StepResult.reward]
+    · simp [Attempt.start, raw]
+    · intro _; exact raw
+  | succ n ih =>
+    intro bounded
+    obtain ⟨attempt, path, steps, length, inside, coherent, done, _⟩ := ih (by omega)
+    have unfinished : attempt.finished = false := by
+      have below : ¬ 200 ≤ n := by omega
+      have unequal : n ≠ cap.toNat := by omega
+      simp [Attempt.finished, steps, done, below, unequal]
+    obtain ⟨input, sensed, before⟩ := CurrentRunner.standard_sense_success
+      seed side worldConfig standard attempt unfinished
+    subst attempt
+    obtain ⟨world, result, executed, nextLength, advanced⟩ := CurrentWorld.standard_step_success
+      seed side worldConfig standard input.before.run.world n (by omega) inside
+      (input.select Agent.callbacks).action
+    let environment :=
+      OwnedEnvironment.mk (input.select Agent.callbacks).owned world result executed
+    let next := environment.record Agent.callbacks
+    have nextPath : RankedSurvivalPrefix initial 200 cap next :=
+      .step input path sensed world result executed
+    have nextSteps : next.steps.val = n + 1 := by
+      change input.before.steps.val + 1 = n + 1
+      rw [steps]
+    have clock := survival_prefix_clock initial origin raw 200 cap (by decide) next nextPath
+    have installed : world.goal = some (.survive 200) := next.installed
+    have completed := survival_completion world 200 installed clock.2.1
+    have resultDone : result.done = decide (200 ≤ n + 1) := by
+      rw [World.step_completion _ _ _ _ executed, completed]
+      change decide (200 ≤ next.run.world.time.toNat) = _
+      rw [clock.1, nextSteps]
+    refine ⟨next, nextPath, nextSteps, nextLength.trans length, advanced, rfl, resultDone, ?_⟩
+    intro impossible
+    omega
+
+/-- Actual cold ranked construction has callback-driven survival prefixes of
+all lengths through 200. One initial world precedes the length quantifier;
+no observations, actions or successful execution guards are supplied as inputs.
+This is pure native-linked execution existence, not an IO return guarantee. -/
+theorem standard_ranked_survival_exists (seed : UInt64) (side : Coordinate)
+    (worldConfig : WorldConfig)
+    (standard : WorldConfig.standard seed side = .ok worldConfig)
+    (config : Features.Config) (dimension : Dimension) (planning : PlanningSelection)
+    (behavior cap : UInt64) (room : 200 ≤ cap.toNat) :
+    ∃ world, World.initial worldConfig = .ok world ∧
+      ∀ n : Nat, n ≤ 200 → ∃ attempt : Attempt worldConfig
+        (Agent (researchProfile .ranked) config .discounted dimension planning) (.survive 200) cap,
+      RankedSurvivalPrefix
+        ⟨world, Agent.initial (researchProfile .ranked) config .discounted dimension planning,
+          {}, behavior⟩ 200 cap attempt ∧
+      attempt.steps.val = n ∧ attempt.run.world.time.toNat = n ∧
+      attempt.run.world.goalStart = 0 ∧ attempt.run.world.goal = some (.survive 200) ∧
+      attempt.run.world.deer.entries.size = world.deer.entries.size ∧
+      (∀ position ∈ attempt.run.world.deer.entries,
+        CurrentWorld.PositionWithin worldConfig n position) ∧
+      attempt.run.carried = attempt.run.carried.events.raw ∧
+      attempt.run.carried.events.done = decide (200 ≤ n) ∧
+      attempt.run.carried.reward = (if 200 ≤ n then ⟨0x3f800000⟩ else ⟨0⟩) ∧
+      (n = 0 → attempt.run.carried = {}) ∧
+      attempt.finished = decide (200 ≤ n) ∧ ZeroRankedState attempt.run.agent.control := by
+  obtain ⟨world, created, deer⟩ := CurrentWorld.standard_initial_success
+    seed side worldConfig standard
+  let initial : RunState worldConfig
+      (Agent (researchProfile .ranked) config .discounted dimension planning) :=
+    ⟨world, Agent.initial (researchProfile .ranked) config .discounted dimension planning,
+      {}, behavior⟩
+  have origin : initial.world.time = 0 := (World.initial_fields _ _ created).1
+  refine ⟨world, created, ?_⟩
+  intro n bounded
+  obtain ⟨attempt, path, steps, length, inside, coherent, done, initialRaw⟩ :=
+    ranked_survival_prefix_exists seed side worldConfig standard initial origin rfl deer
+      cap room n bounded
+  have clock := survival_prefix_clock initial origin rfl 200 cap (by decide) attempt path
+  have duration : (200 : UInt64).toNat = 200 := by decide
+  have finished : attempt.finished = decide (200 ≤ n) := by
+    by_cases terminal : 200 ≤ n
+    · have same : n = 200 := by omega
+      simp [Attempt.finished, steps, done, same]
+    · have unequal : n ≠ cap.toNat := by omega
+      simp [Attempt.finished, steps, done, terminal, unequal]
+  refine ⟨attempt, path, steps, clock.1.trans steps, clock.2.1, attempt.installed,
+    length, inside, coherent, done, ?_, initialRaw, finished, ?_⟩
+  · simpa only [steps, duration] using clock.2.2
+  · exact zero_ranked_initial_survival world created config dimension planning behavior 200 cap
+      (by decide) attempt path (by simpa only [steps, duration] using bounded)
+
+/-- Supported standard inputs and an actually admitted two-goal campaign
+have a completed first survival prefix with the native cold ranked/discounted
+scalar constructor. No restored state or successful IO return is asserted. -/
+theorem standard_campaign_survival_exists (seed : UInt64) (side : Coordinate)
+    (lower : FeatureConstants.worldMinSide ≤ side.val)
+    (upper : side.val ≤ FeatureConstants.worldMaxSide) (spec : CampaignSpec)
+    (steps : 200 ≤ spec.steps.toNat) (goals : 2 ≤ spec.goals.toNat) :
+    let construction := AgentConstruction.standard seed ⟨.ranked, .discounted⟩ .scalar
+    ∃ worldConfig, WorldConfig.standard seed side = .ok worldConfig ∧
+      ∃ plan : CampaignPlan (standardCurriculum worldConfig seed).size,
+      CampaignPlan.admit (standardCurriculum worldConfig seed).size spec = .ok plan ∧
+      ∃ cursor : CampaignCursor plan, plan.initial = .continue cursor ∧ cursor.goal.val = 0 ∧
+      (standardCurriculum worldConfig seed)[cursor.goal.val]? = some (.survive 200, 0) ∧
+      ∃ world, World.initial worldConfig = .ok world ∧
+      ∃ attempt : Attempt worldConfig construction.State (.survive 200) plan.stepCap,
+      RankedSurvivalPrefix ⟨world, construction.initial, {}, initialBehavior⟩
+        200 plan.stepCap attempt ∧
+      attempt.steps.val = 200 ∧ attempt.run.world.time.toNat = 200 ∧
+      attempt.run.world.goalStart = 0 ∧
+      attempt.run.carried = attempt.run.carried.events.raw ∧
+      attempt.run.carried.events.done = true ∧ attempt.run.carried.reward = ⟨0x3f800000⟩ ∧
+      attempt.finished = true ∧ ZeroRankedState attempt.run.agent.control := by
+  let construction := AgentConstruction.standard seed ⟨.ranked, .discounted⟩ .scalar
+  obtain ⟨worldConfig, standard⟩ := CurrentWorld.standard_config_exists seed side lower upper
+  obtain ⟨plan, admitted, room, twoGoals⟩ := CurrentRunner.survival_plan_exists
+    (standardCurriculum worldConfig seed).size spec
+    (by rw [standardCurriculum_size]; decide) steps goals
+  obtain ⟨cursor, first, index⟩ := CurrentRunner.initial_cursor_exists plan (by omega)
+  have goal : (standardCurriculum worldConfig seed)[cursor.goal.val]? =
+      some (.survive 200, 0) := by
+    rw [index]
+    exact (CurrentRunner.standard_first_goals worldConfig seed).1
+  obtain ⟨world, created, prefixes⟩ := standard_ranked_survival_exists seed side worldConfig
+    standard construction.config construction.dimension .scalar initialBehavior plan.stepCap room
+  obtain ⟨attempt, path, count, clock, origin, _, _, _, coherent, done, reward, _, finished, zero⟩
+    := prefixes 200 (by omega)
+  refine ⟨worldConfig, standard, plan, admitted, cursor, first, index, goal, world, created,
+    attempt, path, count, clock, origin, coherent, ?_, ?_, ?_, zero⟩
+  · simpa using done
+  · simpa using reward
+  · exact finished
 
 /-- Attempt finalization retains the carried result for every goal family.
 Together with `Attempt.start_carried`, a later admitted action consumes it even
