@@ -108,12 +108,12 @@ current-bank encoding, local step and retirement for one zero-reward action.
 prefix through the goal-producing action, using the actual cold/world constructors,
 sensing, callback choice, world transition and accounting. The reward is derived
 from the bounded physical clock, not supplied as a zero stream. This conditional
-preservation result is used by the initialized existence theorem below; a
-subsequent positive learning callback remains unproved.
+preservation result supplies the incoming zero sector for the initialized
+existence and positive-callback composition below.
 The next callback, if admitted, consumes the terminal reward under the next goal;
 achievement advances goals rather than repeating the successful attempt.
-The first-positive goal-action owner and later continuation bootstrap remain
-unresolved. A final campaign boundary performs no additional learning callback.
+The internal first-positive dispatch branch and later continuation bootstrap
+remain unresolved. A final campaign boundary performs no additional learning callback.
 `CurrentRunner.survival_plan_exists` derives actual admission for requests with
 at least 200 steps and two goals; the actual initial and achievement cursors
 select survival then wood collection. Standard configuration and body/spawn
@@ -161,9 +161,14 @@ sector. Nonterminal event fields retain their actual world values.
 `standard_campaign_survival_exists` additionally derives standard configuration,
 campaign admission and the initial survival cursor for supported sides and
 requests with at least 200 steps and two goals, using the native cold ranked,
-discounted scalar constructor. These are pure native-linked existence results;
-IO completion and the next learning callback consuming positive reward remain
-outside their scope. Complete-reader replacement reachability remains unresolved.
+discounted scalar constructor. `standard_positive_callback_exists` composes
+actual final observation and attempt accounting, the non-stopping cursor advance
+to wood collection, new-attempt sensing and the actual selected agent/action.
+The callback receives the unchanged terminal result with reward one and done
+true, at world time 200, without another environment step. The incoming joined
+zero sector survives accounting; no zero or positivity claim is made about the
+post-callback learner. IO completion, numerical progress and complete-reader
+replacement reachability remain outside these pure native-linked results.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

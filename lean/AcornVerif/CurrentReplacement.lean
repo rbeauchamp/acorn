@@ -3175,4 +3175,119 @@ theorem finish_carried {worldConfig : WorldConfig} {α β : Type} {goal : Goal} 
     cases finished
     rfl
 
+private theorem standard_finish_exists (seed : UInt64) (side : Coordinate)
+    (worldConfig : WorldConfig)
+    (standard : WorldConfig.standard seed side = .ok worldConfig)
+    {α β : Type} {goal : Goal} {cap : UInt64} (callbacks : AgentCallbacks α β)
+    (context : GoalContext) (attempt : Attempt worldConfig α goal cap) :
+    ∃ run outcome frame observation,
+      attempt.finish callbacks context = .ok (run, outcome, frame) ∧
+      attempt.run.world.observe = .ok observation ∧
+      run = { attempt.run with
+        agent := callbacks.recordAttempt attempt.run.agent goal.family
+          context.cycle attempt.steps.val.toUInt64 attempt.run.carried.events.done } ∧
+      frame = captureFrame callbacks run observation attempt.lastAction context ∧
+      outcome.achieved = attempt.run.carried.events.done ∧
+      outcome.steps = attempt.steps.val.toUInt64 := by
+  obtain ⟨observation, observed⟩ := CurrentWorld.standard_observe_success
+    seed side worldConfig standard attempt.run.world
+  simp only [Attempt.finish, observed, bind, Except.bind]
+  exact ⟨_, _, _, observation, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+private theorem zero_ranked_recordAttempt
+    (state : Agent (researchProfile .ranked) config .discounted dimension planning)
+    (zero : ZeroRankedState state.control) (family : Fin 4) (cycle steps : UInt64)
+    (achieved : Bool) : ZeroRankedState (state.recordAttempt family cycle steps achieved).control :=
+  ⟨⟨zero.skills.skills, zero.skills.phase⟩, zero.control, zero.metaController,
+    zero.ranking, zero.gap⟩
+
+/-- An actual completed cold survival prefix supplies the next wood-goal
+callback with its unchanged terminal feedback. The non-stopping boundary is
+explicit; no further world step or successful native IO return is assumed. -/
+theorem standard_positive_callback_exists (seed : UInt64) (side : Coordinate)
+    (lower : FeatureConstants.worldMinSide ≤ side.val)
+    (upper : FeatureConstants.worldMaxSide ≥ side.val) (spec : CampaignSpec)
+    (steps : 200 ≤ spec.steps.toNat) (goals : 2 ≤ spec.goals.toNat) :
+    let construction := AgentConstruction.standard seed ⟨.ranked, .discounted⟩ .scalar
+    ∃ wc, WorldConfig.standard seed side = .ok wc ∧
+      ∃ plan : CampaignPlan (standardCurriculum wc seed).size,
+      CampaignPlan.admit (standardCurriculum wc seed).size spec = .ok plan ∧
+      ∃ cursor : CampaignCursor plan, plan.initial = .continue cursor ∧ cursor.goal.val = 0 ∧
+      ∃ world, World.initial wc = .ok world ∧
+      ∃ attempt : Attempt wc construction.State (.survive 200) plan.stepCap,
+      RankedSurvivalPrefix ⟨world, construction.initial, {}, initialBehavior⟩
+        200 plan.stepCap attempt ∧ attempt.steps.val = 200 ∧
+      ∃ run outcome frame observation,
+      attempt.finish Agent.callbacks (cursor.context 0) = .ok (run, outcome, frame) ∧
+      run = { attempt.run with
+        agent := attempt.run.agent.recordAttempt ⟨3, by decide⟩ cursor.cycle 200 true } ∧
+      attempt.run.world.observe = .ok observation ∧
+      frame = captureFrame Agent.callbacks run observation attempt.lastAction (cursor.context 0) ∧
+      run.carried = attempt.run.carried ∧ run.carried.events.done = true ∧
+      run.carried.reward = ⟨0x3f800000⟩ ∧ outcome.achieved = true ∧ outcome.steps = 200 ∧
+      ZeroRankedState run.agent.control ∧
+      ∃ nextCursor : CampaignCursor plan,
+      atAttemptBoundary cursor outcome.achieved false = .continue nextCursor ∧
+      nextCursor.goal.val = 1 ∧ nextCursor.attempt.val = 0 ∧ nextCursor.cycle = cursor.cycle ∧
+      (standardCurriculum wc seed)[nextCursor.goal.val]? = some (.collect .wood 2, 0) ∧
+      ∃ input : DecisionInput wc construction.State (.collect .wood 2) plan.stepCap,
+      let started := Attempt.start run (.collect .wood 2) plan.stepCap
+      input.before = started ∧ started.sense = .ok (some input) ∧ started.steps.val = 0 ∧
+      started.run.world.time.toNat = 200 ∧ started.run.world.goalStart = run.world.time ∧
+      started.run.world.goal = some (.collect .wood 2) ∧ started.run.carried = run.carried ∧
+      started.finished = false ∧
+      (input.select Agent.callbacks).agent =
+        (run.agent.act input.observation ⟨0x3f800000⟩ true).1 ∧
+      (input.select Agent.callbacks).action = Host.Action.fromIndex
+        (run.agent.act input.observation ⟨0x3f800000⟩ true).2.action.val := by
+  obtain ⟨wc, standard, plan, admitted, cursor, first, index, _, world, created, attempt,
+    path, count, clock, _, _, done, reward, _, zero⟩ :=
+    standard_campaign_survival_exists seed side lower upper spec steps goals
+  obtain ⟨run, outcome, frame, observation, finished, observed, recorded, captured, achieved, used⟩
+    := standard_finish_exists seed side wc standard Agent.callbacks (cursor.context 0) attempt
+  have recordEq : run = { attempt.run with
+      agent := attempt.run.agent.recordAttempt ⟨3, by decide⟩ cursor.cycle 200 true } := by
+    simpa [Agent.callbacks, CampaignCursor.context, count, done, Goal.family, familyIndex]
+      using recorded
+  have carry : run.carried = attempt.run.carried := by rw [recordEq]
+  have terminal : run.carried.events.done = true := by rw [carry, done]
+  have positive : run.carried.reward = ⟨0x3f800000⟩ := by rw [carry, reward]
+  have outcomeDone : outcome.achieved = true := achieved.trans done
+  have outcomeSteps : outcome.steps = 200 := used.trans (by rw [count]; decide)
+  have incoming : ZeroRankedState run.agent.control := by
+    rw [recordEq]
+    exact zero_ranked_recordAttempt _ zero _ _ _ _
+  have twoGoals : 2 ≤ plan.goals.val := by
+    obtain ⟨other, same, _, enough⟩ := CurrentRunner.survival_plan_exists
+      (standardCurriculum wc seed).size spec (by rw [standardCurriculum_size]; decide) steps goals
+    have equal := Except.ok.inj (same.symm.trans admitted)
+    simpa only [equal] using enough
+  obtain ⟨nextCursor, advanced, nextIndex, nextAttempt, nextCycle⟩ :=
+    CurrentRunner.achieved_next_goal cursor (by omega)
+  have nextOne : nextCursor.goal.val = 1 := by omega
+  have nextGoal : (standardCurriculum wc seed)[nextCursor.goal.val]? =
+      some (.collect .wood 2, 0) := by
+    rw [nextOne]; exact (CurrentRunner.standard_first_goals wc seed).2
+  let started := Attempt.start run (.collect .wood 2) plan.stepCap
+  obtain ⟨input, sensed, before⟩ := CurrentRunner.standard_start_sense_success
+    seed side wc standard run (.collect .wood 2) plan.stepCap plan.positiveSteps
+  have notFinished : started.finished = false := by
+    have nonzero : plan.stepCap.toNat ≠ 0 := by have := plan.positiveSteps; omega
+    simp [started, Attempt.finished, Attempt.start, Ne.symm nonzero]
+  have inputAgent : input.before.run.agent = run.agent := by rw [before]; rfl
+  have inputCarry : input.before.run.carried = run.carried := by rw [before]; rfl
+  refine ⟨wc, standard, plan, admitted, cursor, first, index, world, created, attempt, path,
+    count, run, outcome, frame, observation, finished, recordEq, observed, captured, carry,
+    terminal, positive, outcomeDone, outcomeSteps, incoming, nextCursor, ?_, nextOne,
+    nextAttempt, nextCycle, nextGoal, input, before, sensed, rfl, ?_, rfl, rfl, rfl,
+    notFinished, ?_, ?_⟩
+  · rw [outcomeDone]; exact advanced
+  · simpa only [started, Attempt.start, World.setGoal, recordEq] using clock
+  · change (input.before.run.agent.act input.observation input.before.run.carried.reward
+      input.before.run.carried.events.done).1 = _
+    rw [inputAgent, inputCarry, positive, terminal]
+  · change Host.Action.fromIndex (input.before.run.agent.act input.observation
+      input.before.run.carried.reward input.before.run.carried.events.done).2.action.val = _
+    rw [inputAgent, inputCarry, positive, terminal]
+
 end AcornVerif.CurrentReplacement

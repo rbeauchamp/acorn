@@ -888,11 +888,30 @@ needs only the cap bound, not the two-goal request. At step 200 the environment
 produces and carries reward one; its callback consumed the preceding zero reward.
 `recordEnvironment` records lifetime accounting, not a new learning act. The
 pure native-linked result does not assert successful IO, allocation, scheduling,
-observer delivery or checkpoint restoration. No next-goal or positive-reward
-learning callback, bootstrap or complete-reader floor eligibility follows.
+observer delivery or checkpoint restoration. The following composition supplies
+the next callback; numerical bootstrap and complete-reader eligibility remain
+separate obligations.
 
-The first-positive callback's existence, goal-action owner and positive learner
-image remain unproved. In the ordinary discounted option-ending branch, the terminal
+`standard_positive_callback_exists` starts from that actual completed prefix.
+It derives successful `Attempt.finish` using actual observation admission and
+identifies the exact `recordAttempt` update, terminal frame and achieved outcome.
+World and the complete raw result are retained; accounting preserves the incoming
+joined zero sector. The actual non-stopping `atAttemptBoundary` advances the
+cursor to wood collection at index one, attempt zero and the same cycle.
+`Attempt.start` installs that goal with origin at world time 200, resets the step
+counter and preserves the entire carried result. Positive cap admits actual
+sensing despite the carried done flag; no assumption says wood is still needed.
+The theorem identifies both the selected agent and primitive action with the
+actual finished agent's `Agent.act` on that observation, reward one and done true.
+No extra world step or independently chosen action occurs. Other terminal event
+fields retain their actual values. This proves positive-input exposure, not a
+nonzero learned weight or a negative meta-update. The false stop argument names
+the pure continuing branch; it does not assert that native stop, observer,
+checkpoint or other IO effects return. No post-positive zero-sector assertion
+is made.
+
+The internal first-positive dispatch branch and positive learner image remain
+unproved. In the ordinary discounted option-ending branch, the terminal
 meta snapshot is read before close, refresh, planning and new meta credit; a
 later positive meta update cannot change that earlier continuation target.
 Served primitive exploration has priority over the goal check and may defer a

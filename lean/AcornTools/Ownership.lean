@@ -117,6 +117,22 @@ def executables : Array (String × Name) := #[
 These are critical entry/transition obligations, not a quota or a claim that
 all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Handcrafted.Agent.act),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Handcrafted.Agent.recordAttempt),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Host.Attempt.finish),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Host.atAttemptBoundary),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Host.Attempt.start),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Host.Attempt.sense),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Host.DecisionInput.select),
+  (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_positive_callback_exists,
+    `Acorn.Host.captureFrame),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_ranked_survival_exists,
     `Acorn.Host.World.initial),
   (`AcornVerif.CurrentReplacement, `AcornVerif.CurrentReplacement.standard_ranked_survival_exists,

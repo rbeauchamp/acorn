@@ -250,8 +250,15 @@ checked owners. `standard_campaign_survival_exists` supplies the actual supporte
 standard configuration, campaign admission and first cursor, and specializes to
 the native cold ranked discounted scalar constructor. These proofs concern pure
 native-linked transitions, with the existing compiler/runtime and IO boundaries.
-They do not prove a subsequent learning callback consuming the terminal positive
-reward, runtime feasibility, terrain quality or replacement reachability.
+`standard_positive_callback_exists` composes actual finish/recording, the
+non-stopping cursor advance to wood collection, new-attempt start/sensing and
+actual callback selection. It identifies the exact terminal frame, unchanged
+world/raw feedback, incoming zero sector and selected agent/action with
+`Agent.act` receiving reward one and done true. World time remains 200; the new
+attempt has counter zero and is unfinished, without assuming its wood goal is
+unsatisfied. No additional world step or post-positive numerical invariant is
+introduced. Native IO completion, runtime feasibility, terrain quality and
+replacement reachability remain separate.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity
 correction and finite meta-gradient transfer. It assumes aligned incoming
