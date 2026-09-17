@@ -183,8 +183,12 @@ and explicit error bounds from finite operands and bounded exact intermediates.
 These contracts do not prove raw transient finiteness, exclude exceptional
 later meta products, or establish beta progress. `CurrentRetirement.ColdBox`
 records candidate finite-register bounds for the g99 single demon with capacity
-at most 16384. Its actual constructor and transient clearing satisfy the predicate;
-preservation by learning callbacks remains unproved.
+at most 16384. Its actual constructor and transient clearing satisfy the predicate.
+Local first-loop contracts exclude clipping, preserve the visited beta word and
+sensitivity zeros, bound the Dutch trace, and put the visited trace in `[0,61]`
+after the actual clear/retain decision. Worklist traversal and learning-callback
+preservation remain unproved; the internal traversal's separate worklist must
+carry support rather than assuming `CoreInv` over its emptied eligible array.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy

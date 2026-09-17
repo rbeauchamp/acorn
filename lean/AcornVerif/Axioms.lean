@@ -3371,6 +3371,30 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.cold_box_clear
 
+/-- info: 'AcornVerif.CurrentRetirement.cold_first_weight' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_first_weight
+
+/-- info: 'AcornVerif.CurrentRetirement.cold_first_meta' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_first_meta
+
+/-- info: 'AcornVerif.CurrentRetirement.cold_first_beta' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_first_beta
+
+/-- info: 'AcornVerif.CurrentRetirement.cold_first_trace' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_first_trace
+
+/-- info: 'AcornVerif.CurrentRetirement.cold_first_registers' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_first_registers
+
+/-- info: 'AcornVerif.CurrentRetirement.cold_first_pruned' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_first_pruned
+
 /-- info: 'AcornVerif.CurrentControl.rule_power_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentControl.rule_power_finite

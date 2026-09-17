@@ -147,8 +147,22 @@ eligible uniqueness with signed-zero `p`, `h`, `hOld`, `hTemp`; finite `z` in
 `cold_box_initial` proves the actual `NumericState.initial` base case and
 `cold_box_clear` preserves the predicate through actual `clearTransient`.
 The proofs derive transient bounds from zero storage, not from assumed finiteness
-of arbitrary/restored registers. Learning-loop and begin/step/terminal closure,
-overshoot-count consequences and current-owner composition remain unproved.
+of arbitrary/restored registers.
+The local `cold_first_weight`, `cold_first_meta` and `cold_first_beta` contracts
+under `ColdBox` and signed-zero error/accumulator derive no clipping, a finite
+signed-zero meta product and unchanged visited beta word. `cold_first_trace`
+checks finite decay with trace upper bound 61 and nonnegative retained trace via
+the actual pruning threshold. `cold_first_registers` preserves the visited
+sensitivity zeros, finite Dutch-trace bound and zeroed trace increment.
+`cold_first_pruned` follows the actual clear/retain decision and yields zero
+knowledge, unchanged visited beta word and finite trace in `[0,61]`. Its beta
+proof transports whole-state branch equalities through a nondependent raw-word
+observation, preserving the exact dependent storage semantics.
+These local contracts do not prove traversal closure: `learnFirstLoop` clears
+stored eligibility while traversing a separate worklist, so its existing
+`Supported state work` and uniqueness/frame contracts must be threaded explicitly.
+Learning-loop and begin/step/terminal closure, overshoot-count consequences and
+current-owner composition remain unproved.
 `CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
 numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted

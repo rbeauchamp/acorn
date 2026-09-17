@@ -1386,4 +1386,279 @@ theorem cold_box_clear (state : NumericState ⟨.demon, .discounted .g99⟩ dime
     (box : ColdBox state) : ColdBox state.clearTransient :=
   cold_box_cleared state box.capacity box.knowledge
 
+/-- Either zero sign is finite; the predicate never admits NaN. -/
+private theorem signed_zero_finite (word : Binary32) (zero : SignedZero word) : word.Finite := by
+  rcases zero with rfl | rfl <;> decide
+
+/-- The right-zero multiplication boundary also excludes invalid exceptional operands. -/
+private theorem finite_mul_signed_zero (word zero : Binary32) (finite : word.Finite)
+    (hz : SignedZero zero) : SignedZero (word.mul zero) := by
+  rcases hz with rfl | rfl
+  · exact mul_zero_words word finite
+  · have admitted := (model_decoded32_finite word).mpr finite
+    change SignedZero (Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+      (UnpackedFloat.mul Format.binary32 (Float32.Model.ofBits word.bits).unpack
+        (.zero .negative)))))
+    rw [model_ofBits32_decoded word finite]
+    generalize equation : decoded32 word = unpacked at admitted ⊢
+    cases unpacked with
+    | notANumber => contradiction
+    | infinity sign => contradiction
+    | zero sign => cases sign <;> first | exact Or.inl rfl | exact Or.inr rfl
+    | finite sign mantissa exponent positive =>
+      cases sign <;> first | exact Or.inl rfl | exact Or.inr rfl
+
+/-- Finite cold traces make the actual raw weight increment a signed zero,
+so projection cannot bind. This excludes NaN cancellation rather than relying on
+its subsequent projection back to zero. -/
+theorem cold_first_weight (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (idx : FeatIdx dimension) (delta vd : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    let dw := (delta.mul (state.transient.z.get idx).value).sub
+      ((state.transient.zDelta.get idx).value.mul vd)
+    let raw := (state.weights.get idx).value.add dw
+    SignedZero dw ∧ SignedZero raw ∧
+      (Weight.project (.discounted .g99) raw).value.numericallyEqual raw = true := by
+  have first := zero_mul_finite delta _ hd (box.z idx).1
+  have second := finite_mul_signed_zero _ vd (box.zDelta idx).1 hv
+  have dw := zero_sub _ _ first second
+  have raw := zero_add _ _ (box.knowledge.weights idx) dw
+  refine ⟨dw, raw, ?_⟩
+  rw [project_zero _ _ raw]
+  rcases raw with h | h <;> rw [h] <;> decide
+
+/-- The actual un-clipped meta product is a finite signed zero for cold
+sensitivities and signed-zero error/accumulator. Every multiplication's finite
+operand is justified before using zero annihilation. -/
+theorem cold_first_meta (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (idx : FeatIdx dimension) (delta vd : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    SignedZero (((((Config.mk .demon (.discounted .g99)).metaStep.div
+      (state.beta.get idx).alpha).mul (delta.sub vd)).mul
+      (state.transient.p.get idx).value)) := by
+  have difference := zero_sub delta vd hd hv
+  have multiplier := CurrentLearnerArithmetic.meta_scale_finite (state.beta.get idx)
+  have first := finite_mul_signed_zero _ _ multiplier difference
+  exact zero_mul_finite _ _ first (signed_zero_finite _ (box.p idx))
+
+/-- A strictly negative signed key determines all word bits; zero-sign
+ambiguity is excluded by the explicit strict premise. -/
+private theorem negative_key_word (word : Binary32) (negative : word.key < 0) :
+    word.bits.toNat = 2 ^ 31 + (-word.key).toNat := by
+  have sign : word.negative = true := by
+    cases h : word.negative with
+    | false => simp only [Binary32.key, h, Bool.false_eq_true, if_false] at negative; omega
+    | true => rfl
+  have magnitude : word.magnitude = word.bits.toNat % 2 ^ 31 := by
+    change word.bits.toNat &&& (2 ^ 31 - 1) = _
+    exact Nat.and_two_pow_sub_one_eq_mod _ _
+  have nonzero : word.bits &&& 0x80000000 ≠ 0 := by
+    simpa only [Binary32.negative, bne_iff_ne] using sign
+  have signNat : (word.bits &&& 0x80000000).toNat ≠ 0 := by
+    intro h
+    exact nonzero (UInt32.toNat.inj h)
+  rw [word32_sign_exact] at signNat
+  have bounded := word.bits.toNat_lt
+  have key : word.key = -(word.magnitude : Int) := by simp [Binary32.key, sign]
+  rw [key, neg_neg, Int.toNat_natCast, magnitude]
+  omega
+
+set_option maxRecDepth 8192 in
+/-- Every legal log step is strictly negative on the actual closed rails, so
+adding either finite zero sign preserves its word, not merely its numeric value. -/
+private theorem beta_add_signed_zero {config : Config} {rails : StepSizeRails config}
+    (beta : LogStepSize rails) (word : Binary32) (zero : SignedZero word) :
+    beta.value.add word = beta.value := by
+  have upper : rails.range.upper.key < 0 := by
+    rw [rails.upperIdentity]
+    rcases config with ⟨role, rule⟩
+    cases role <;> simp only [Config.eta] <;> decide
+  have negative := lt_of_le_of_lt beta.legal.2.2 upper
+  have sum : (beta.value.add word).Finite ∧
+      numerical32 (beta.value.add word) = numerical32 beta.value := by
+    rcases zero with rfl | rfl
+    · exact add_zero_numeric beta.value beta.legal.1
+    · have operation : beta.value.add ⟨0x80000000⟩ = beta.value.sub .zero := by
+        change Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+          (UnpackedFloat.add Format.binary32 (Float32.Model.ofBits beta.value.bits).unpack
+            (.zero .negative)))) = Binary32.mk (UInt32.ofBitVec (pack Format.binary32
+          (UnpackedFloat.sub Format.binary32 (Float32.Model.ofBits beta.value.bits).unpack
+            (.zero .positive))))
+        rw [CurrentOperations.model_sub_add_neg]
+        rfl
+      rw [operation]
+      exact sub_zero_numeric beta.value beta.legal.1
+  have keys : (beta.value.add word).key = beta.value.key := le_antisymm
+    ((numerical32_order _ _ sum.1 beta.legal.1).mp sum.2.le)
+    ((numerical32_order _ _ beta.legal.1 sum.1).mp sum.2.symm.le)
+  have left := negative_key_word (beta.value.add word) (keys ▸ negative)
+  have right := negative_key_word beta.value negative
+  have bits : (beta.value.add word).bits.toNat = beta.value.bits.toNat := by
+    rw [left, right, keys]
+  exact congrArg Binary32.mk (UInt32.toNat.inj bits)
+
+/-- A cold, finite first-loop visit leaves its stored beta word unchanged.
+No clipping or finite meta-product premise is supplied by the caller. -/
+theorem cold_first_beta (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (idx : FeatIdx dimension) (delta vd decay : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    ((state.firstLoopElement idx delta vd decay).1.beta.get idx).value =
+      (state.beta.get idx).value := by
+  have unclipped := (cold_first_weight state box idx delta vd hd hv).2.2
+  have unchanged := beta_add_signed_zero (state.beta.get idx) _
+    (cold_first_meta state box idx delta vd hd hv)
+  simp only [CurrentLearner.vector_get] at unclipped unchanged
+  simp only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+    Vector.getElem_set_self, unclipped, Bool.not_true, Bool.false_eq_true, if_false]
+  rw [unchanged]
+  exact state.rails.range.saturate_identity _ (state.beta.get idx).legal
+
+/-- The actual first-loop decay stays inside the cold trace box and below
+61. A retained trace is nonnegative because the executed pruning threshold is
+nonnegative; no readiness premise is imposed on the incoming state. -/
+theorem cold_first_trace (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (idx : FeatIdx dimension) (delta vd : Binary32) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    let result := state.firstLoopElement idx delta vd (config.rule.gamma.mul config.lambda)
+    (result.1.transient.z.get idx).value.Finite ∧
+      -((2 : ℚ) ^ (21 : Int)) ≤ numerical32 (result.1.transient.z.get idx).value ∧
+      numerical32 (result.1.transient.z.get idx).value ≤ 61 ∧
+      (result.2 = false → 0 ≤ numerical32 (result.1.transient.z.get idx).value) := by
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  let z := (state.transient.z.get idx).value
+  have hd := CurrentLearnerArithmetic.discounted_demon_decay
+  have hz := box.z idx
+  have magnitude : |numerical32 z| ≤ (2 : ℚ) ^ (21 : Int) := by
+    apply abs_le.mpr
+    exact ⟨hz.2.1, le_trans hz.2.2 (by norm_num)⟩
+  have decayUnit : |numerical32 decay| ≤ 1 := by
+    rw [abs_of_pos hd.2.1]
+    linarith only [hd.2.2]
+  have product : |numerical32 z * numerical32 decay| ≤ (2 : ℚ) ^ (21 : Int) := by
+    rw [abs_mul]
+    simpa only [mul_one] using mul_le_mul magnitude decayUnit (abs_nonneg _) (by positivity)
+  have rounded := CurrentLearnerArithmetic.mul32_finite_error z decay hz.1 hd.1
+    21 (by decide) (by decide) product
+  have error : |numerical32 (z.mul decay) - numerical32 z * numerical32 decay| ≤
+      1 / (8 : ℚ) := by norm_num at rounded; exact rounded.2
+  have low := mul_le_mul_of_nonneg_right hz.2.1 hd.2.1.le
+  have high := mul_le_mul_of_nonneg_right hz.2.2 hd.2.1.le
+  have bounds : -((2 : ℚ) ^ (21 : Int)) ≤ numerical32 (z.mul decay) ∧
+      numerical32 (z.mul decay) ≤ 61 := by
+    have errors := abs_le.mp error
+    norm_num at low
+    constructor <;> linarith only [low, high, hd.2.2, errors.1, errors.2]
+  have reference := box.core.2 idx
+  have threshold := CurrentLearnerArithmetic.pruning_threshold_numeric config
+    (state.transient.lastAlpha.get idx).value reference.1 reference.2.1 reference.2.2
+  have retained : (z.mul decay).lessOrEqual
+      ((state.transient.lastAlpha.get idx).value.mul config.epsilon) = false →
+      0 ≤ numerical32 (z.mul decay) := by
+    intro noPrune
+    rw [CurrentLearner.finite_lessOrEqual _ _ rounded.1 threshold.1] at noPrune
+    have above := of_decide_eq_false noPrune
+    have nonnegative := (numerical32_order .zero _ (by decide) threshold.1).mpr threshold.2
+    change (0 : ℚ) ≤ _ at nonnegative
+    linarith only [above, nonnegative]
+  simpa only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+    Vector.getElem_set_self] using ⟨rounded.1, bounds.1, bounds.2, retained⟩
+
+/-- The visited slot's sensitivity zeros and Dutch-trace bound survive the
+actual unclipped first-loop updates, with finite products derived locally. -/
+theorem cold_first_registers (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (idx : FeatIdx dimension) (delta vd : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    let next := (state.firstLoopElement idx delta vd
+      (config.rule.gamma.mul config.lambda)).1
+    SignedZero (next.transient.p.get idx).value ∧
+      SignedZero (next.transient.h.get idx).value ∧
+      SignedZero (next.transient.hOld.get idx).value ∧
+      SignedZero (next.transient.hTemp.get idx).value ∧
+      (next.transient.zBar.get idx).value.Finite ∧
+      |numerical32 (next.transient.zBar.get idx).value| ≤ (2 : ℚ) ^ (26 : Int) ∧
+      (next.transient.zDelta.get idx).value = .zero := by
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  let zBar := (state.transient.zBar.get idx).value
+  have decayBound := CurrentLearnerArithmetic.discounted_demon_decay
+  have bar := box.zBar idx
+  have tight : |numerical32 zBar * numerical32 decay| ≤
+      (2 : ℚ) ^ (26 : Int) * (941 / 1000) := by
+    rw [abs_mul, abs_of_pos decayBound.2.1]
+    exact mul_le_mul bar.2 decayBound.2.2 decayBound.2.1.le (by positivity)
+  have product : |numerical32 zBar * numerical32 decay| ≤ (2 : ℚ) ^ (26 : Int) :=
+    le_trans tight (by norm_num)
+  have rounded := CurrentLearnerArithmetic.mul32_finite_error zBar decay bar.1 decayBound.1
+    26 (by decide) (by decide) product
+  have bound : |numerical32 (zBar.mul decay)| ≤ (2 : ℚ) ^ (26 : Int) := by
+    have triangle := abs_add_le
+      (numerical32 (zBar.mul decay) - numerical32 zBar * numerical32 decay)
+      (numerical32 zBar * numerical32 decay)
+    rw [sub_add_cancel, abs_mul] at triangle
+    have error := rounded.2
+    norm_num at tight error ⊢
+    linarith only [triangle, tight, error]
+  have nextP := zero_mul_finite _ decay (box.p idx) decayBound.1
+  have nextH := zero_sub _ _
+    (zero_add _ _ (box.hTemp idx) (zero_mul_finite delta zBar hd bar.1))
+    (finite_mul_signed_zero _ vd (box.zDelta idx).1 hv)
+  have unclipped := (cold_first_weight state box idx delta vd hd hv).2.2
+  simp only [CurrentLearner.vector_get] at unclipped
+  simpa only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+    Vector.getElem_set_self, unclipped, Bool.not_true, Bool.false_eq_true, if_false]
+    using ⟨nextP, box.hTemp idx, box.h idx, nextH, rounded.1, bound, True.intro⟩
+
+/-- The exact cleared/retained branch used by the first-loop traversal leaves
+zero knowledge and the visited beta word intact, and its resulting trace lies
+in [0,61]. This is a local visit contract, not a traversal invariant. -/
+theorem cold_first_pruned (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (idx : FeatIdx dimension) (delta vd : Binary32)
+    (hd : SignedZero delta) (hv : SignedZero vd) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    let result := state.firstLoopElement idx delta vd (config.rule.gamma.mul config.lambda)
+    let next := if result.2 then result.1.clearFeatureRegisters idx else result.1
+    ZeroKnowledge next ∧ (next.beta.get idx).value = (state.beta.get idx).value ∧
+      (next.transient.z.get idx).value.Finite ∧
+      0 ≤ numerical32 (next.transient.z.get idx).value ∧
+      numerical32 (next.transient.z.get idx).value ≤ 61 := by
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  let result := state.firstLoopElement idx delta vd decay
+  have knowledge : ZeroKnowledge result.1 :=
+    zero_first_element state box.knowledge idx delta vd decay (Or.inl hd) hv
+  have beta := cold_first_beta state box idx delta vd decay hd hv
+  let observe : NumericState config dimension → Binary32 := fun current =>
+    (current.beta.get idx).value
+  have clearFrame : observe (result.1.clearFeatureRegisters idx) = observe result.1 := rfl
+  have betaNext :
+      ((if result.2 then result.1.clearFeatureRegisters idx else result.1).beta.get idx).value =
+        (state.beta.get idx).value := by
+    change observe (if result.2 then result.1.clearFeatureRegisters idx else result.1) = _
+    by_cases prune : result.2 = true
+    · have branch : (if result.2 then result.1.clearFeatureRegisters idx else result.1) =
+          result.1.clearFeatureRegisters idx := if_pos prune
+      exact (congrArg observe branch).trans (clearFrame.trans beta)
+    · have branch : (if result.2 then result.1.clearFeatureRegisters idx else result.1) =
+          result.1 := if_neg prune
+      exact (congrArg observe branch).trans beta
+  have trace := cold_first_trace state box idx delta vd
+  change
+    let next := if result.2 then result.1.clearFeatureRegisters idx else result.1
+    ZeroKnowledge next ∧ (next.beta.get idx).value = (state.beta.get idx).value ∧
+      (next.transient.z.get idx).value.Finite ∧
+      0 ≤ numerical32 (next.transient.z.get idx).value ∧
+      numerical32 (next.transient.z.get idx).value ≤ 61
+  by_cases prune : result.2 = true
+  · simp only [prune, ite_true]
+    have cleared : ((result.1.clearFeatureRegisters idx).transient.z.get idx).value = .zero :=
+      CurrentLearner.registers_zero_trace _ idx (CurrentLearner.clear_feature_self result.1 idx)
+    refine ⟨zero_clear_feature result.1 knowledge idx, betaNext, ?_⟩
+    rw [cleared]
+    exact ⟨by decide, le_refl 0, by change (0 : ℚ) ≤ 61; norm_num⟩
+  · have noPrune : result.2 = false := Bool.eq_false_iff.mpr prune
+    simp only [noPrune, Bool.false_eq_true, if_false]
+    exact ⟨knowledge, betaNext, trace.1, trace.2.2.2 noPrune, trace.2.2.1⟩
+
 end AcornVerif.CurrentRetirement

@@ -572,8 +572,18 @@ sensitivities. `cold_box_initial` proves the actual constructor's base case;
 `cold_box_clear` proves preservation by actual transient clearing. The predicate
 does not require admission readiness at callback boundaries; the base cases assert
 no finiteness of arbitrary uncleared or restored states.
-First/second-loop and begin/step/terminal preservation remain unproved; these base
-cases imply no beta progress or complete-reader replacement result.
+The local `cold_first_weight` and `cold_first_meta` contracts derive finite signed-zero
+updates and no clipping before projection; `cold_first_beta` then preserves the
+visited beta word. Strictly negative legal rails exclude zero-sign ambiguity in
+that word identity. `cold_first_trace` and `cold_first_registers` retain actual
+decay, rounding and pruning comparisons; `cold_first_pruned` combines the executed
+clear/retain branch with a finite visited trace in `[0,61]` and zero knowledge.
+These are element contracts, not a worklist invariant. Actual `learnFirstLoop`
+empties stored eligibility before traversing a separate worklist; composition must
+use its existing support/frame and unique swap-remove contracts, not assume
+`ColdBox` at every internal state. Full first/second-loop and begin/step/terminal
+preservation remain unproved. No beta progress or complete-reader replacement
+result follows.
 
 The zero-knowledge proof includes exceptional operands: zero products yield signed
 zero or NaN, and the actual weight projection maps NaN to zero while clipping
