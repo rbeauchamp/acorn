@@ -220,8 +220,12 @@ arbitrary world states need not satisfy it. `standard_placeDeer_success` and
 finite loop, with the original world and changing population/RNG accumulator.
 `standard_initial_success` derives empty-population admission and composes
 actual spawn and deer construction. Existing `World.initial_fields` covers the
-other fields. World-step traversal, drift and nonempty callback execution remain
-unproved. No runtime feasibility, terrain-quality or replacement-reachability
+other fields. `PositionWithin` describes a signed coordinate envelope, with
+`deerInBox_iff_positionWithin` preserving its correspondence to initialized deer
+at zero steps. `standard_wanderDeer_success` proves actual single-deer admission
+and a one-step envelope expansion for `n < 200`, retaining the actual RNG result.
+Whole-population traversal/drift, world-step and nonempty callback execution
+remain unproved. No runtime feasibility, terrain-quality or replacement-reachability
 claim follows from these guarantees.
 `CurrentRetirement.episode_sensitivity_anchor` is a conditional identity for the
 executing second-loop element, including the ordered binary32 sensitivity

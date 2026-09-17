@@ -824,7 +824,16 @@ specialization serves the scan and spawn claims. `standard_initial_success`
 derives the empty population premise and composes both actual constructors,
 proving successful standard-world construction with in-box initial deer.
 The existing initial-fields theorem supplies the other construction fields.
-No step success, deer drift bound or nonempty learning prefix follows yet.
+`PositionWithin` expresses the signed per-coordinate envelope `[-n, side + n)`;
+`deerInBox_iff_positionWithin` identifies its zero-step population case with
+`DeerInBox`. `standard_wanderDeer_success` proves actual single-deer success and
+an envelope advance by at most one for `n < 200`, for arbitrary world state and
+RNG under the stated envelope premise. Closed direction deltas and the standard
+side bound establish signed translation admission; the candidate fits the
+proved terrain margin. The actual movement and walkability branches retain
+their returned position and RNG without a probability or walkability premise.
+Whole-population drift, world-step success and nonempty learning-prefix
+composition remain unproved.
 
 The first-positive callback's existence, goal-action owner and positive learner
 image remain unproved. In the ordinary discounted option-ending branch, the terminal

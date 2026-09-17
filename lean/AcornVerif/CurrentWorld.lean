@@ -904,4 +904,79 @@ theorem standard_initial_success (seed : UInt64) (side : Coordinate)
   simp only [World.initial, spawned, initialized, bind, Except.bind]
   exact ⟨_, rfl, inside⟩
 
+/-- A signed-coordinate envelope after a bounded number of cardinal moves. -/
+def PositionWithin (config : WorldConfig) (steps : Nat) (position : Position) : Prop :=
+  -(steps : Int) ≤ position.x.val ∧ position.x.val < (config.side : Int) + steps ∧
+    -(steps : Int) ≤ position.y.val ∧ position.y.val < (config.side : Int) + steps
+
+/-- The constructor's in-box deer predicate is the zero-step envelope. -/
+theorem deerInBox_iff_positionWithin (config : WorldConfig)
+    (population : Population Position config.raw.deerCap.toNat) :
+    DeerInBox config population ↔
+      ∀ position ∈ population.entries, PositionWithin config 0 position := by
+  simp [DeerInBox, PositionWithin]
+
+/-- Actual single-deer wandering succeeds and expands the envelope by at most
+one for the first 200 transitions. Both returned positions and RNGs are those
+of the executed draw, direction, terrain and walkability branches. -/
+theorem standard_wanderDeer_success (seed : UInt64) (side : Coordinate)
+    (config : WorldConfig) (standard : WorldConfig.standard seed side = .ok config)
+    (world : World config) (steps : Nat) (bounded : steps < 200) (position : Position)
+    (rng : Rng.Xoshiro256) (inside : PositionWithin config steps position) :
+    ∃ next nextRng, wanderDeer world position rng = .ok (next, nextRng) ∧
+      PositionWithin config (steps + 1) next := by
+  have sideBound : config.side ≤ 3000000000 := by
+    have fields := WorldConfig.standard_bounds seed side config standard
+    have upper := fields.2.2
+    change side.val ≤ 3000000000 at upper
+    simp only [WorldConfig.side, fields.1]
+    omega
+  have coordinates := inside
+  unfold PositionWithin at coordinates
+  have retained : PositionWithin config (steps + 1) position := by
+    unfold PositionWithin
+    push_cast
+    omega
+  have translated (direction : Direction) :
+      ∃ candidate, position.translate direction.delta.1 direction.delta.2 = some candidate ∧
+        PositionWithin config (steps + 1) candidate := by
+    have dx : -1 ≤ direction.delta.1 ∧ direction.delta.1 ≤ 1 := by
+      cases direction <;> decide
+    have dy : -1 ≤ direction.delta.2 ∧ direction.delta.2 ≤ 1 := by
+      cases direction <;> decide
+    have xbound : -(2^63 : Int) ≤ position.x.val + direction.delta.1 ∧
+        position.x.val + direction.delta.1 < 2^63 := by omega
+    have ybound : -(2^63 : Int) ≤ position.y.val + direction.delta.2 ∧
+        position.y.val + direction.delta.2 < 2^63 := by omega
+    have xok : Coordinate.checked (position.x.val + direction.delta.1) =
+        some (⟨_, xbound⟩ : Coordinate) := dif_pos xbound
+    have yok : Coordinate.checked (position.y.val + direction.delta.2) =
+        some (⟨_, ybound⟩ : Coordinate) := dif_pos ybound
+    refine ⟨⟨⟨_, xbound⟩, ⟨_, ybound⟩⟩, ?_, ?_⟩
+    · simp only [Position.translate, xok, yok, Option.pure_def]
+      rfl
+    · unfold PositionWithin
+      dsimp only
+      push_cast
+      omega
+  unfold wanderDeer
+  split
+  rename_i draw afterDraw drawn
+  split
+  · split
+    rename_i directionWord afterDirection directionDraw
+    obtain ⟨candidate, translation, advanced⟩ := translated
+      (Direction.fromIndex ⟨directionWord.val.toNat, directionWord.property⟩)
+    have margin := advanced
+    unfold PositionWithin at margin
+    obtain ⟨kind, kindEq⟩ := standard_tileKind_success seed side config standard world candidate
+      (by push_cast at margin; omega) (by push_cast at margin; omega)
+      (by push_cast at margin; omega) (by push_cast at margin; omega)
+    dsimp only
+    simp only [translation, kindEq, bind, Except.bind]
+    split
+    · exact ⟨candidate, afterDirection, rfl, advanced⟩
+    · exact ⟨position, afterDirection, rfl, retained⟩
+  · exact ⟨position, afterDraw, rfl, retained⟩
+
 end AcornVerif.CurrentWorld

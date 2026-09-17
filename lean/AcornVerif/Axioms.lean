@@ -3724,4 +3724,18 @@ info: 'AcornVerif.CurrentWorld.standard_initial_success' depends on axioms:
 #guard_msgs in
 #print axioms AcornVerif.CurrentWorld.standard_initial_success
 
+/--
+info: 'AcornVerif.CurrentWorld.deerInBox_iff_positionWithin' depends on axioms:
+[propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.deerInBox_iff_positionWithin
+
+/--
+info: 'AcornVerif.CurrentWorld.standard_wanderDeer_success' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentWorld.standard_wanderDeer_success
+
 end AcornVerif

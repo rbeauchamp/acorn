@@ -137,9 +137,11 @@ returns and the typed center fallback, without assuming a walkable candidate.
 `standard_placeDeer_success` and `standard_initializeDeer_success` preserve
 in-box deer through the actual placement loop. `standard_initial_success`
 composes spawn and deer construction from empty storage into a successful
-standard world with that invariant. World-step traversal and initialized
-completion-prefix composition remain unproved; constructor admission alone
-does not establish a learning execution.
+standard world with that invariant. `standard_wanderDeer_success` admits one
+actual deer update from the coordinate envelope `[-n, side + n)` for `n < 200`,
+returning an entry in the envelope expanded by one and the actual produced RNG.
+Population traversal, world-step and initialized completion-prefix composition
+remain unproved; these component admissions do not establish a learning execution.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
