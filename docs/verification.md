@@ -166,11 +166,16 @@ knowledge and worklist uniqueness without assuming `CoreInv` over the empty list
 transfers the local contracts; `cold_work_first` and `cold_work_prune` preserve
 the worklist box through one member visit and actual clear/swap-remove using
 existing framing, support and uniqueness proofs. Runtime storage is unchanged.
-These steps do not yet prove recursive traversal closure or all-word beta
-preservation. Final per-index trace bounds `[0,61]` require a processed-prefix
-numeric invariant and dormant-support zero facts; `Ready` alone supplies neither
-nonnegativity nor that upper bound. Second-loop and begin/step/terminal closure,
-overshoot-count consequences and current-owner composition remain unproved.
+`cold_work_go_preserves` composes those steps by induction on the actual
+`learnFirstLoopGo` recursion, with signed-zero error/accumulator and the configured
+decay. `cold_box_first_preserves` connects the actual public entry to this proof.
+The resulting `ColdBox` preserves its original register bounds, not an all-word
+beta history or the stronger final trace bounds. All-word beta preservation
+remains unproved across the traversal. Final per-index trace bounds `[0,61]`
+require a processed-prefix numeric invariant and dormant-support zero facts;
+`Ready` alone supplies neither nonnegativity nor that upper bound. Second-loop
+and begin/step/terminal closure, overshoot-count consequences and current-owner
+composition remain unproved.
 `CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
 numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted

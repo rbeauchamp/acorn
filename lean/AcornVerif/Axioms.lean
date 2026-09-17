@@ -3419,6 +3419,14 @@ info: 'AcornVerif.CurrentReplacement.neutral_terminal_error_nonnegative' depends
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.cold_work_prune
 
+/-- info: 'AcornVerif.CurrentRetirement.cold_work_go_preserves' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_work_go_preserves
+
+/-- info: 'AcornVerif.CurrentRetirement.cold_box_first_preserves' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.cold_box_first_preserves
+
 /-- info: 'AcornVerif.CurrentControl.rule_power_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentControl.rule_power_finite

@@ -1841,4 +1841,56 @@ theorem cold_work_prune (state : NumericState ⟨.demon, .discounted .g99⟩ dim
       | exact box.zDelta other
       | exact box.lastAlpha other
 
+/-- The actual recursive first loop preserves the cold bounds from its
+explicit-worklist predicate. This statement deliberately carries neither beta
+word history nor a stronger processed-prefix trace bound. -/
+theorem cold_work_go_preserves
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) (box : ColdWork state work)
+    (delta vd : Binary32) (hd : SignedZero delta) (hv : SignedZero vd) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    ColdBox (NumericState.learnFirstLoopGo config delta vd
+      (config.rule.gamma.mul config.lambda) state work pos) := by
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  change ColdBox (NumericState.learnFirstLoopGo config delta vd decay state work pos)
+  induction state, work, pos using NumericState.learnFirstLoopGo.induct config delta vd decay with
+  | case1 state work pos valid idx next equation ih =>
+    dsimp only [idx] at equation ih
+    have visited : ColdWork next work := by
+      have visitProof := cold_work_first state work box work[pos]
+        (Array.getElem_mem valid) delta vd hd hv
+      change ColdWork (state.firstLoopElement work[pos] delta vd decay).1 work at visitProof
+      rw [equation] at visitProof
+      exact visitProof
+    have result := ih (cold_work_prune next work visited pos valid)
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, ite_true] using result
+  | case2 state work pos valid idx next prune equation noPrune ih =>
+    dsimp only [idx] at equation ih
+    have visited : ColdWork next work := by
+      have visitProof := cold_work_first state work box work[pos]
+        (Array.getElem_mem valid) delta vd hd hv
+      change ColdWork (state.firstLoopElement work[pos] delta vd decay).1 work at visitProof
+      rw [equation] at visitProof
+      exact visitProof
+    have result := ih visited
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, if_neg noPrune] using result
+  | case3 state work pos finished =>
+    rw [NumericState.learnFirstLoopGo, dif_neg finished]
+    exact cold_work_finish state work box
+
+/-- The actual public first loop preserves ColdBox for signed-zero error and
+accumulator with the configured discounted-demon decay. Entry clears stored
+eligibility while the recursive proof carries support against its saved worklist. -/
+theorem cold_box_first_preserves
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (delta vd : Binary32) (hd : SignedZero delta) (hv : SignedZero vd) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    ColdBox (state.learnFirstLoop config delta vd (config.rule.gamma.mul config.lambda)) :=
+  cold_work_go_preserves
+    { state with transient := { state.transient with eligible := #[] } }
+    state.transient.eligible 0 (cold_work_entry state box) delta vd hd hv
+
 end AcornVerif.CurrentRetirement

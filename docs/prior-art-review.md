@@ -587,7 +587,12 @@ as eligibility, without changing the executing state. `cold_work_entry` and
 intermediate `ColdBox` of the executing state. `cold_work_first` and
 `cold_work_prune` preserve all bounds through one member visit and actual
 clear/swap-remove, using existing frame/support/uniqueness owners.
-Recursive first-loop preservation and all-word beta tracking remain unproved.
+`cold_work_go_preserves` follows the actual recursive first-loop equations,
+carrying `ColdWork` through member/prune steps and installing the final worklist.
+`cold_box_first_preserves` derives public first-loop `ColdBox` preservation from
+the actual stored-empty entry. Both use the configured decay and signed-zero
+error/accumulator; neither assumes a desired output invariant. All-word beta
+tracking remains unproved across the traversal.
 The stronger final trace bounds `[0,61]` still require processed-prefix numeric
 bounds and dormant-support zero facts; `Ready` alone is not nonnegativity.
 Second-loop and begin/step/terminal preservation also remain unproved. No beta

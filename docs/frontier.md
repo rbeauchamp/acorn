@@ -189,9 +189,11 @@ sensitivity zeros, bound the Dutch trace, and put the visited trace in `[0,61]`
 after the actual clear/retain decision. `ColdWork` carries these bounds and support
 against the separate worklist rather than the emptied stored eligible array.
 Entry/final installation bridges and single member/prune preservation are checked.
-Recursive traversal, all-word beta tracking and processed-prefix trace bounds
-`[0,61]` remain unproved, as does learning-callback preservation. `Ready` alone
-does not imply numerical nonnegativity.
+`cold_work_go_preserves` and `cold_box_first_preserves` preserve `ColdBox` through
+the actual recursive/public first loop for signed-zero error and accumulator,
+using the configured decay. All-word beta tracking and processed-prefix trace
+bounds `[0,61]` remain unproved, as does learning-callback preservation. `Ready`
+alone does not imply numerical nonnegativity.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
