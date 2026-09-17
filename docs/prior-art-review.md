@@ -593,10 +593,15 @@ carrying `ColdWork` through member/prune steps and installing the final worklist
 the actual stored-empty entry. Both use the configured decay and signed-zero
 error/accumulator; neither assumes a desired output invariant. All-word beta
 tracking remains unproved across the traversal.
-The stronger final trace bounds `[0,61]` still require processed-prefix numeric
-bounds and dormant-support zero facts; `Ready` alone is not nonnegativity.
-Second-loop and begin/step/terminal preservation also remain unproved. No beta
-progress or complete-reader replacement result follows.
+`ColdTracePrefix` records `[0,61]` only for positions before the actual cursor.
+`cold_work_go_trace_bounds` uses unique visits and actual swap-remove framing:
+a swapped-in tail at the unchanged cursor remains unprocessed. At termination,
+listed indices satisfy the completed prefix and unlisted indices are zero by
+support. `cold_box_first_trace_bounds` derives the empty prefix at actual public
+entry, so callers need no extra processed-prefix premise. Its final `[0,61]`
+bounds combine with `ColdBox` preservation for finiteness; `Ready` alone is not
+the numeric proof. Second-loop and begin/step/terminal preservation remain
+unproved. No beta progress or complete-reader replacement result follows.
 
 The zero-knowledge proof includes exceptional operands: zero products yield signed
 zero or NaN, and the actual weight projection maps NaN to zero while clipping

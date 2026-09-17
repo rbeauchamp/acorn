@@ -1893,4 +1893,145 @@ theorem cold_box_first_preserves
     { state with transient := { state.transient with eligible := #[] } }
     state.transient.eligible 0 (cold_work_entry state box) delta vd hd hv
 
+/-- Numeric bounds for only the already processed prefix of the first loop's
+actual worklist. A swapped-in tail at the cursor is still unprocessed. -/
+def ColdTracePrefix (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) : Prop :=
+  ∀ (j : Nat) (_valid : j < work.size), j < pos →
+    0 ≤ numerical32 (state.transient.z.get work[j]).value ∧
+      numerical32 (state.transient.z.get work[j]).value ≤ 61
+
+/-- A unique current visit frames every earlier processed trace. -/
+private theorem cold_trace_prefix_visit
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) (valid : pos < work.size)
+    (delta vd decay : Binary32) (unique : work.toList.Nodup)
+    (processed : ColdTracePrefix state work pos) :
+    ColdTracePrefix (state.firstLoopElement work[pos] delta vd decay).1 work pos := by
+  intro j inside before
+  have different : work[pos] ≠ work[j] := by
+    intro same
+    have equal := (CurrentLearner.array_nodup_iff work).mp unique pos j valid inside same
+    omega
+  rw [CurrentLearner.registers_trace_eq _ _ work[j]
+    (CurrentLearner.first_element_frame state work[pos] work[j] different delta vd decay).2.2]
+  exact processed j inside before
+
+/-- Actual swap-remove preserves the earlier prefix; the moved tail is not
+incorrectly counted as processed at the unchanged cursor. -/
+private theorem cold_trace_prefix_prune
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) (valid : pos < work.size)
+    (unique : work.toList.Nodup) (processed : ColdTracePrefix state work pos) :
+    ColdTracePrefix (state.clearFeatureRegisters work[pos]) (swapRemove work pos valid) pos := by
+  intro j inside before
+  have original : j < work.size := by rw [CurrentLearner.swap_remove_size] at inside; omega
+  have different : work[pos] ≠ work[j] := by
+    intro same
+    have equal := (CurrentLearner.array_nodup_iff work).mp unique pos j valid original same
+    omega
+  have untouched : (swapRemove work pos valid)[j] = work[j] := by
+    rw [CurrentLearner.swap_remove_get, if_neg (show pos ≠ j by omega)]
+  rw [untouched, CurrentLearner.registers_trace_eq _ _ work[j]
+    (CurrentLearner.clear_feature_other state work[pos] work[j] different)]
+  exact processed j original before
+
+/-- The actual recursion completes the numeric prefix. Final unlisted indices
+are zero by support, not silently omitted from the per-index conclusion. -/
+theorem cold_work_go_trace_bounds
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) (box : ColdWork state work)
+    (processed : ColdTracePrefix state work pos)
+    (delta vd : Binary32) (hd : SignedZero delta) (hv : SignedZero vd) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    let next := NumericState.learnFirstLoopGo config delta vd
+      (config.rule.gamma.mul config.lambda) state work pos
+    ∀ idx, 0 ≤ numerical32 (next.transient.z.get idx).value ∧
+      numerical32 (next.transient.z.get idx).value ≤ 61 := by
+  let config : Config := ⟨.demon, .discounted .g99⟩
+  let decay := config.rule.gamma.mul config.lambda
+  change ∀ idx, 0 ≤ numerical32 ((NumericState.learnFirstLoopGo config delta vd decay
+      state work pos).transient.z.get idx).value ∧
+    numerical32 ((NumericState.learnFirstLoopGo config delta vd decay
+      state work pos).transient.z.get idx).value ≤ 61
+  induction state, work, pos using NumericState.learnFirstLoopGo.induct config delta vd decay with
+  | case1 state work pos valid idx next equation ih =>
+    dsimp only [idx] at equation ih
+    have visited : ColdWork next work := by
+      have visitProof := cold_work_first state work box work[pos]
+        (Array.getElem_mem valid) delta vd hd hv
+      change ColdWork (state.firstLoopElement work[pos] delta vd decay).1 work at visitProof
+      rw [equation] at visitProof
+      exact visitProof
+    have earlier : ColdTracePrefix next work pos := by
+      simpa only [equation] using
+        cold_trace_prefix_visit state work pos valid delta vd decay box.unique processed
+    have result := ih (cold_work_prune next work visited pos valid)
+      (cold_trace_prefix_prune next work pos valid box.unique earlier)
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, ite_true] using result
+  | case2 state work pos valid idx next prune equation noPrune ih =>
+    dsimp only [idx] at equation ih
+    have visited : ColdWork next work := by
+      have visitProof := cold_work_first state work box work[pos]
+        (Array.getElem_mem valid) delta vd hd hv
+      change ColdWork (state.firstLoopElement work[pos] delta vd decay).1 work at visitProof
+      rw [equation] at visitProof
+      exact visitProof
+    have earlier : ColdTracePrefix next work pos := by
+      simpa only [equation] using
+        cold_trace_prefix_visit state work pos valid delta vd decay box.unique processed
+    have retained : (state.firstLoopElement work[pos] delta vd decay).2 = false := by
+      rw [equation]
+      exact Bool.eq_false_iff.mpr noPrune
+    have here : 0 ≤ numerical32 (next.transient.z.get work[pos]).value ∧
+        numerical32 (next.transient.z.get work[pos]).value ≤ 61 := by
+      obtain ⟨_, _, _, _, _, _, upper, nonnegative, _⟩ :=
+        cold_work_first_element state work box work[pos] (Array.getElem_mem valid) delta vd hd hv
+      have bounds : 0 ≤ numerical32
+          ((state.firstLoopElement work[pos] delta vd decay).1.transient.z.get work[pos]).value ∧
+          numerical32
+          ((state.firstLoopElement work[pos] delta vd decay).1.transient.z.get
+            work[pos]).value ≤ 61 :=
+        ⟨nonnegative retained, upper⟩
+      rw [equation] at bounds
+      exact bounds
+    have extended : ColdTracePrefix next work (pos + 1) := by
+      intro j inside before
+      by_cases same : j = pos
+      · subst j; exact here
+      · exact earlier j inside (by omega)
+    have result := ih visited extended
+    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    simpa only [equation, if_neg noPrune] using result
+  | case3 state work pos finished =>
+    rw [NumericState.learnFirstLoopGo, dif_neg finished]
+    intro idx
+    by_cases member : idx ∈ work
+    · obtain ⟨j, inside, rfl⟩ := Array.mem_iff_getElem.mp member
+      change j < work.size at inside
+      exact processed j inside (by omega)
+    · have zero := CurrentLearner.registers_zero_trace state idx
+        ((cold_work_contract state work box).2.1 idx member)
+      change 0 ≤ numerical32 (state.transient.z.get idx).value ∧
+        numerical32 (state.transient.z.get idx).value ≤ 61
+      rw [zero]
+      change (0 : ℚ) ≤ 0 ∧ (0 : ℚ) ≤ 61
+      norm_num
+
+/-- Every final trace of the actual public first loop lies in [0,61]. The
+internal prefix premise is derived from its empty entry prefix, not requested
+from the caller, and beta tracking remains a separate obligation. -/
+theorem cold_box_first_trace_bounds
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) (delta vd : Binary32) (hd : SignedZero delta) (hv : SignedZero vd) :
+    let config : Config := ⟨.demon, .discounted .g99⟩
+    let next := state.learnFirstLoop config delta vd (config.rule.gamma.mul config.lambda)
+    ∀ idx, 0 ≤ numerical32 (next.transient.z.get idx).value ∧
+      numerical32 (next.transient.z.get idx).value ≤ 61 :=
+  cold_work_go_trace_bounds
+    { state with transient := { state.transient with eligible := #[] } }
+    state.transient.eligible 0 (cold_work_entry state box)
+    (by intro j inside before; omega) delta vd hd hv
+
 end AcornVerif.CurrentRetirement

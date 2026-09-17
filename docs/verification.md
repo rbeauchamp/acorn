@@ -170,12 +170,15 @@ existing framing, support and uniqueness proofs. Runtime storage is unchanged.
 `learnFirstLoopGo` recursion, with signed-zero error/accumulator and the configured
 decay. `cold_box_first_preserves` connects the actual public entry to this proof.
 The resulting `ColdBox` preserves its original register bounds, not an all-word
-beta history or the stronger final trace bounds. All-word beta preservation
-remains unproved across the traversal. Final per-index trace bounds `[0,61]`
-require a processed-prefix numeric invariant and dormant-support zero facts;
-`Ready` alone supplies neither nonnegativity nor that upper bound. Second-loop
-and begin/step/terminal closure, overshoot-count consequences and current-owner
-composition remain unproved.
+beta history. The separate `ColdTracePrefix` constrains only processed positions
+of the actual worklist. `cold_work_go_trace_bounds` preserves this numeric prefix
+through unique visits and swap-remove, leaving the swapped-in cursor position
+unprocessed. Its final case covers both listed indices and dormant support zeros.
+`cold_box_first_trace_bounds` derives the initial empty-prefix premise at the
+actual public entry and concludes `[0,61]` for every final trace. The preservation
+theorem separately supplies finiteness; `Ready` alone supplies no numeric bound.
+All-word beta preservation, second-loop and begin/step/terminal closure,
+overshoot-count consequences and current-owner composition remain unproved.
 `CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
 numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted

@@ -191,9 +191,11 @@ against the separate worklist rather than the emptied stored eligible array.
 Entry/final installation bridges and single member/prune preservation are checked.
 `cold_work_go_preserves` and `cold_box_first_preserves` preserve `ColdBox` through
 the actual recursive/public first loop for signed-zero error and accumulator,
-using the configured decay. All-word beta tracking and processed-prefix trace
-bounds `[0,61]` remain unproved, as does learning-callback preservation. `Ready`
-alone does not imply numerical nonnegativity.
+using the configured decay. `cold_box_first_trace_bounds` derives final per-index
+trace bounds `[0,61]` from an actual processed-prefix invariant and dormant-support
+zeros. Together with preservation this gives finite traces; `Ready` alone is not
+the numeric argument. All-word beta tracking and learning-callback preservation
+remain unproved.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
