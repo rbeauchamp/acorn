@@ -561,9 +561,19 @@ For finite operands and exact intermediate magnitude at most `2^M`,
 packing and error at most `2^(M-24)`. `div32_finite_error` retains the larger
 existing division radius `2^(M-22)` and requires a numerically nonzero denominator.
 None of these contracts bounds arbitrary incoming traces/sensitivities or
-establishes an initialized cold-register invariant. Exceptional later meta
-products, beta projection and overshoot remain mechanisms that an execution-linked
+establishes finite-register closure under learning. Exceptional later meta products,
+beta projection and overshoot remain mechanisms that an execution-linked
 reachability or obstruction argument must cover.
+
+`CurrentRetirement.ColdBox` states the candidate single-demon register bounds for
+the g99 discounted configuration and capacity at most 16384. It reuses zero
+knowledge, support/reference legality, eligible uniqueness and signed-zero
+sensitivities. `cold_box_initial` proves the actual constructor's base case;
+`cold_box_clear` proves preservation by actual transient clearing. The predicate
+does not require admission readiness at callback boundaries; the base cases assert
+no finiteness of arbitrary uncleared or restored states.
+First/second-loop and begin/step/terminal preservation remain unproved; these base
+cases imply no beta progress or complete-reader replacement result.
 
 The zero-knowledge proof includes exceptional operands: zero products yield signed
 zero or NaN, and the actual weight projection maps NaN to zero while clipping

@@ -139,6 +139,16 @@ No finiteness assumption about the rounded output replaces these packing proofs.
 These are numerical prerequisites, not a raw-register finiteness invariant,
 exclusion of exceptional later meta products or replacement-reachability result;
 the existing wider public contracts remain.
+`CurrentRetirement.ColdBox` is a proof-only predicate for the single g99 discounted
+demon with capacity at most 16384. It combines `ZeroKnowledge`, `CoreInv` and
+eligible uniqueness with signed-zero `p`, `h`, `hOld`, `hTemp`; finite `z` in
+`[-2^21,64]`; finite `zBar` of magnitude at most `2^26`; and finite `zDelta` and
+`lastAlpha` in `[0,1.01]`. It does not require `Ready` at callback boundaries.
+`cold_box_initial` proves the actual `NumericState.initial` base case and
+`cold_box_clear` preserves the predicate through actual `clearTransient`.
+The proofs derive transient bounds from zero storage, not from assumed finiteness
+of arbitrary/restored registers. Learning-loop and begin/step/terminal closure,
+overshoot-count consequences and current-owner composition remain unproved.
 `CurrentRetirement.ZeroKnowledge` checks cold construction and zero-target
 numeric begin/step/terminal closure through the actual loops, including NaN
 projection and clipping without trace-finiteness assumptions. The discounted

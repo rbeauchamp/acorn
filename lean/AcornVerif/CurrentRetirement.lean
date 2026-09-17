@@ -1302,4 +1302,88 @@ theorem zero_plan_identity (state : NumericState config dimension) (hz : ZeroKno
     rcases hd with h | h <;> rw [h] <;> decide
   simp only [NumericState.planStep, he, Bool.or_true, if_true]
 
+/-- A finite-register predicate for the single g99 discounted demon. This
+records candidate bounds, not preservation by learning callbacks. Readiness is
+not required at callback boundaries: eligible zero traces may await pruning.
+Legality of beta and weights remains enforced by their existing storage types. -/
+structure ColdBox (state : NumericState ⟨.demon, .discounted .g99⟩ dimension) : Prop where
+  /-- The explicit capacity domain for the proposed ordered active-sum bound. -/
+  capacity : dimension.capacity ≤ 16384
+  /-- Reuse the signed-zero learned-weight and update-lag sector. -/
+  knowledge : ZeroKnowledge state
+  /-- Reuse actual dormant support and pruning-reference legality. -/
+  core : CurrentLearner.CoreInv state
+  /-- Eligibility has no duplicate indices, without a nonzero-trace premise. -/
+  unique : state.transient.eligible.toList.Nodup
+  /-- The meta trace has either zero sign. -/
+  p : ∀ idx, SignedZero (state.transient.p.get idx).value
+  /-- The Dutch-trace auxiliary has either zero sign. -/
+  h : ∀ idx, SignedZero (state.transient.h.get idx).value
+  /-- The previous auxiliary has either zero sign. -/
+  hOld : ∀ idx, SignedZero (state.transient.hOld.get idx).value
+  /-- The temporary auxiliary has either zero sign. -/
+  hTemp : ∀ idx, SignedZero (state.transient.hTemp.get idx).value
+  /-- Trace finiteness is explicit; its box permits negative post-admission values. -/
+  z : ∀ idx, (state.transient.z.get idx).value.Finite ∧
+    -((2 : ℚ) ^ (21 : Int)) ≤ numerical32 (state.transient.z.get idx).value ∧
+    numerical32 (state.transient.z.get idx).value ≤ 64
+  /-- The Dutch trace has its own finite symmetric bound. -/
+  zBar : ∀ idx, (state.transient.zBar.get idx).value.Finite ∧
+    |numerical32 (state.transient.zBar.get idx).value| ≤ (2 : ℚ) ^ (26 : Int)
+  /-- The trace increment includes both actual normalization rounding boundaries. -/
+  zDelta : ∀ idx, (state.transient.zDelta.get idx).value.Finite ∧
+    0 ≤ numerical32 (state.transient.zDelta.get idx).value ∧
+    numerical32 (state.transient.zDelta.get idx).value ≤ 101 / (100 : ℚ)
+  /-- The stored pruning reference retains the same increment bound. -/
+  lastAlpha : ∀ idx, (state.transient.lastAlpha.get idx).value.Finite ∧
+    0 ≤ numerical32 (state.transient.lastAlpha.get idx).value ∧
+    numerical32 (state.transient.lastAlpha.get idx).value ≤ 101 / (100 : ℚ)
+
+/-- Clearing derives every transient bound from the actual zero constructor.
+Incoming trace and sensitivity bounds are not required beyond zero knowledge. -/
+private theorem cold_box_cleared
+    (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (capacity : dimension.capacity ≤ 16384) (knowledge : ZeroKnowledge state) :
+    ColdBox state.clearTransient := by
+  refine ⟨capacity, zero_clear state knowledge, CurrentLearner.clear_core state,
+    (CurrentLearner.clear_ready state).1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro idx
+    simp [NumericState.clearTransient, TransientState.zero, Vector.get, SignedZero]
+  · intro idx
+    simp [NumericState.clearTransient, TransientState.zero, Vector.get, SignedZero]
+  · intro idx
+    simp [NumericState.clearTransient, TransientState.zero, Vector.get, SignedZero]
+  · intro idx
+    simp [NumericState.clearTransient, TransientState.zero, Vector.get, SignedZero]
+  · intro idx
+    simp only [NumericState.clearTransient, TransientState.zero,
+      CurrentLearner.vector_get, Vector.getElem_replicate]
+    exact ⟨by decide, by change -((2 : ℚ) ^ (21 : Int)) ≤ 0; norm_num,
+      by change (0 : ℚ) ≤ 64; norm_num⟩
+  · intro idx
+    simp only [NumericState.clearTransient, TransientState.zero,
+      CurrentLearner.vector_get, Vector.getElem_replicate]
+    exact ⟨by decide, by change |(0 : ℚ)| ≤ (2 : ℚ) ^ (26 : Int); norm_num⟩
+  · intro idx
+    simp only [NumericState.clearTransient, TransientState.zero,
+      CurrentLearner.vector_get, Vector.getElem_replicate]
+    exact ⟨by decide, le_refl 0, by change (0 : ℚ) ≤ 101 / 100; norm_num⟩
+  · intro idx
+    simp only [NumericState.clearTransient, TransientState.zero,
+      CurrentLearner.vector_get, Vector.getElem_replicate]
+    exact ⟨by decide, le_refl 0, by change (0 : ℚ) ≤ 101 / 100; norm_num⟩
+
+/-- The actual discounted-demon constructor satisfies the finite-register box.
+The constructor's transient storage is definitionally its cleared storage. -/
+theorem cold_box_initial (dimension : Dimension) (capacity : dimension.capacity ≤ 16384) :
+    ColdBox (NumericState.initial ⟨.demon, .discounted .g99⟩ dimension) :=
+  cold_box_cleared (NumericState.initial ⟨.demon, .discounted .g99⟩ dimension)
+    capacity zero_initial
+
+/-- Actual trajectory clearing preserves the box without asserting anything
+about an intervening learning callback or restored primary knowledge. -/
+theorem cold_box_clear (state : NumericState ⟨.demon, .discounted .g99⟩ dimension)
+    (box : ColdBox state) : ColdBox state.clearTransient :=
+  cold_box_cleared state box.capacity box.knowledge
+
 end AcornVerif.CurrentRetirement

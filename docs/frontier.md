@@ -181,8 +181,10 @@ checks the configured g99 demon's actual decay is finite and in `(0,0.941]`.
 Local multiplication, subtraction and division wrappers derive finite packing
 and explicit error bounds from finite operands and bounded exact intermediates.
 These contracts do not prove raw transient finiteness, exclude exceptional
-later meta products, or establish beta progress. A cold zero-target register
-invariant remains unproved.
+later meta products, or establish beta progress. `CurrentRetirement.ColdBox`
+records candidate finite-register bounds for the g99 single demon with capacity
+at most 16384. Its actual constructor and transient clearing satisfy the predicate;
+preservation by learning callbacks remains unproved.
 
 Structural restoration restarts option models cold, so it cannot by itself
 enable immediate retirement even when primary weights and step sizes satisfy
