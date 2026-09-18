@@ -39,6 +39,43 @@ authored. General learned agent state is a further extension.
 *Refutation attempt.* Trace every admission/write boundary and characterize
 reachability analytically before measuring turnover.
 
+### Retirement proof status
+
+The target is one execution from actual initialization that makes a candidate
+jointly eligible at the executed scan, or an execution-linked impossibility
+argument supporting a justified disposition. For the ranked discounted agent,
+the scan has 60 reader positions representing 57 physical learners: the three
+models each alias reward in the duration position. Eligibility requires every
+reader's strict small-weight and lower-step-size-rail conditions simultaneously.
+Selection, owner refresh/reset, and history/clock admission must also compose
+with that execution; separate per-reader witnesses do not suffice.
+
+**Delivered scope.** [PAR-11](prior-art-review.md#par-11--bounded-disruption-retirement)
+owns the conditional safety contract. The existing
+[retirement proof](../lean/AcornVerif/CurrentRetirement.lean) inhabits the predicate
+by direct weight/beta writes; it does not construct a trajectory from agent
+initialization. [Verification](verification.md) owns the acceptance requirements.
+
+**In-progress evidence, not delivered guarantees.** The unmerged checkpoint
+`72fb172f498473ce7429b0cce2fda7a2caea4315` contains a pure execution-linked
+construction through the first positive callback and conditional cold
+single-learner first-loop preservation and trace bounds. Its reported focused
+compiler checks do not constitute complete verification, review or exact-head CI
+acceptance. All-word beta tracking, full learning-callback closure and current-owner
+composition remain open on that route. Neither initialized joint 57-reader
+eligibility nor a persistent all-execution veto is established. Positive bootstrap
+is a candidate route, not a proved necessity; impossibility and learning benefit
+remain unestablished.
+
+Before another prerequisite chain, record the next result's execution owner and
+hypotheses, which missing edge toward joint eligibility or a persistent veto it
+closes, and what remains afterward. Name a premise whose failure falsifies that
+route and a stopping criterion: reassess if the result only extends a prefix or
+local invariant without reducing the joint gap, or requires favorable future
+targets, exposure or owner retention that the actual execution does not supply.
+Keep this assessment here as the proof status changes; a stalled construction
+alone is not an impossibility result or grounds for closing the research question.
+
 ## F4 · Continuing control and exploration
 
 **Which control and exploration mechanisms help over a continuing stream?**

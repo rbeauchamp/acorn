@@ -11,6 +11,13 @@ check. It uses process-group SIGKILL with no grace period or budget override;
 missing, skipped or timed-out checks fail. OS scheduling and signal delivery
 are the trusted mechanisms that enforce this deadline.
 
+Project instruction changes have no live Acorn runtime surface. No live agent
+evaluation has been performed for the shared retirement guidance; whether
+harnesses load and follow it remains unverified. Documentation inspection and
+ordinary verification do not establish that compliance. A harness evaluation
+would require separate scope. The complete
+verification command remains required for documentation changes.
+
 ## Platform setup
 
 Use `./scripts/start.sh` for automatic setup and launch, or
