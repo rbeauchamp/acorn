@@ -143,9 +143,10 @@ meta-controller planning updates while retaining model learning, ordinary
 control learning, the hierarchy and the selected exploration rules. Profiles
 without the hierarchy do not perform these planning updates under either choice.
 
-Startup diagnostics and the streaming campaign summary report the effective
-`planning=none` or `planning=scalar` selection. CSV output includes the same
-constructor-derived value in a comment after the column header. The selection
+Startup diagnostics, the streaming campaign summary and the persistent ANSI
+status line report the effective `planning=none` or `planning=scalar` selection.
+CSV output includes the same constructor-derived value in a comment after the
+column header. The selection
 belongs to the current run; it does not change checkpoint admission or convert
 stored learner state. Comparisons should specify fresh initialization or their
 actual checkpoint history explicitly.

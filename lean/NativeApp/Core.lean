@@ -39,7 +39,8 @@ private def tileText (tile : TileObservation) : Char :=
     | 0 => '~' | 1 => '.' | 2 => ' ' | 3 => '"' | 4 => 'T'
     | 5 => '^' | 6 => '#' | _ => '$'
 
-private def renderAnsi {config : WorldConfig} (frame : AnsiFrame config) : IO Unit := do
+private def renderAnsi (provenance : String) {config : WorldConfig}
+    (frame : AnsiFrame config) : IO Unit := do
   IO.print "\x1b[H"
   for row in List.finRange patchShape.side do
     let line := (List.finRange patchShape.side).foldl (fun text col =>
@@ -49,7 +50,7 @@ private def renderAnsi {config : WorldConfig} (frame : AnsiFrame config) : IO Un
   let body := frame.world.body
   let position := body.position.position
   let inventory := body.inventory
-  IO.println s!"t={frame.steps} goal={frame.goalIndex} @({position.x.val},{position.y.val}) energy={body.energy.val / 10}% inv w{inventory.wood} s{inventory.stone} f{inventory.food} g{inventory.gold} axe{if inventory.axe then 1 else 0} boat{if inventory.boat then 1 else 0}"
+  IO.println s!"{provenance} t={frame.steps} goal={frame.goalIndex} @({position.x.val},{position.y.val}) energy={body.energy.val / 10}% inv w{inventory.wood} s{inventory.stone} f{inventory.food} g{inventory.gold} axe{if inventory.axe then 1 else 0} boat{if inventory.boat then 1 else 0}"
   IO.println s!"action={actionText frame.action} reward={binary32Text frame.result.reward}"
 
 /-- ANSI uses the same full-agent constructor as streaming with its admitted
@@ -60,7 +61,7 @@ def runAnsiDemo (common : Cli.Common) (period : Acorn.Word.Count) : IO UInt32 :=
   IO.eprintln (planningProvenance construction)
   IO.print "\x1b[2J\x1b[H"
   let result ← runAnsi common period (fun _ => IO.lazyPure fun _ => construction.initial)
-    Acorn.Handcrafted.Agent.callbacks renderAnsi (fun index tier achieved steps =>
+    Acorn.Handcrafted.Agent.callbacks (renderAnsi (planningProvenance construction)) (fun index tier achieved steps =>
       IO.println s!"goal {index} (tier {tier}) {if achieved then "achieved" else "timed out"} in {steps} steps")
   match result with
   | .ok state =>
