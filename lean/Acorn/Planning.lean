@@ -27,6 +27,28 @@ inductive PlanningSelection where
   | scalar
   deriving DecidableEq
 
+/-- Canonical spelling of each selection; the single text vocabulary shared by
+CLI and native admission and by every provenance surface. -/
+def PlanningSelection.name : PlanningSelection → String
+  | .none => "none"
+  | .scalar => "scalar"
+
+/-- The single closed textual admission rule: exactly the two canonical
+spellings parse; every other string is refused with `Option.none` and never
+substituted. -/
+def PlanningSelection.parse (text : String) : Option PlanningSelection :=
+  if text = "none" then some .none
+  else if text = "scalar" then some .scalar
+  else Option.none
+
+/-- Accepted spelling identifies exactly the selected constructor over the
+entire string domain. -/
+theorem PlanningSelection.parse_accepted (text : String) (selection : PlanningSelection) :
+    PlanningSelection.parse text = some selection ↔
+      text = PlanningSelection.name selection := by
+  cases selection <;> by_cases hn : text = "none" <;> by_cases hs : text = "scalar" <;>
+    simp_all [PlanningSelection.parse, PlanningSelection.name]
+
 /-- The work list is derived from the complete option domain. -/
 def planningSlots : List (Fin Acorn.FeatureConstants.skillCount) := List.ofFn id
 

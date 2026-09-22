@@ -31,7 +31,7 @@ def numberText (value : Binary32) : String :=
 
 /-- Run provenance renders the effective constructor choice, not raw argument text. -/
 def planningProvenance (construction : AgentConstruction) : String :=
-  s!"planning={Cli.planningName construction.planning}"
+  s!"planning={construction.planning.name}"
 
 /-- One outcome retains every existing CSV field in its existing order. -/
 def outcomeCsv (outcome : GoalOutcome) : String :=

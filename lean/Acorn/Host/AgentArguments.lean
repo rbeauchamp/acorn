@@ -49,8 +49,7 @@ def admit (arguments : List String) : Option (AgentConstruction × List UInt64) 
     let profile ← profile mode credit rate subtasks
     let criterion ← match criterion with
       | "discounted" => some Criterion.discounted | "differential" => some .differential | _ => none
-    let planning ← match planning with
-      | "none" => some PlanningSelection.none | "scalar" => some .scalar | _ => none
+    let planning ← PlanningSelection.parse planning
     let seed ← word seed
     let tilings ← word tilings
     let units ← units.toNat?

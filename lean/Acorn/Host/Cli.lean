@@ -168,22 +168,13 @@ def criterion (arguments : List String) : Except Error (Option Features.Criterio
   | some "average-reward" => return some .differential
   | some text => .error (.invalid "--criterion" text)
 
-/-- Canonical spelling of the actual closed planning selection, shared by run reports. -/
-def planningName : Features.PlanningSelection → String
-  | .none => "none"
-  | .scalar => "scalar"
-
-/-- Explicit planning admission rejects every value outside the existing closed domain. -/
+/-- Explicit planning admission delegates the single closed spelling rule to
+`Features.PlanningSelection.parse`; this layer owns only its error vocabulary
+and performs no substitution. -/
 def planningValue (text : String) : Except Error Features.PlanningSelection :=
-  if text = "none" then .ok .none
-  else if text = "scalar" then .ok .scalar
-  else .error (.invalid "--planning" text)
-
-/-- Accepted spelling identifies exactly the selected constructor over the entire string domain. -/
-theorem planningValue_accepted (text : String) (selection : Features.PlanningSelection) :
-    planningValue text = .ok selection ↔ text = planningName selection := by
-  cases selection <;> by_cases hn : text = "none" <;> by_cases hs : text = "scalar" <;>
-    simp_all [planningValue, planningName]
+  match Features.PlanningSelection.parse text with
+  | some selection => .ok selection
+  | Option.none => .error (.invalid "--planning" text)
 
 /-- Omission retains scalar planning; explicit values use the same checked admission. -/
 def planningSelection (arguments : List String) : Except Error Features.PlanningSelection := do
