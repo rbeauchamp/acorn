@@ -182,7 +182,7 @@ def planningSelection (arguments : List String) : Except Error Features.Planning
   | none => return .scalar
   | some text => planningValue text
 
-/-- Every omitted planning value retains the existing default, independently of other arguments. -/
+/-- Every omitted planning value retains scalar planning, independently of other arguments. -/
 theorem planningSelection_absent (arguments : List String)
     (absent : value arguments "--planning" = .ok none) :
     planningSelection arguments = .ok .scalar := by

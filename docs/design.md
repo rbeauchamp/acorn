@@ -136,7 +136,7 @@ before restore. Changing the criterion does not convert an existing checkpoint.
 
 ### Planning selection
 
-The core accepts `--planning scalar` (the existing default) or `--planning none`
+The core accepts `--planning scalar` (the default) or `--planning none`
 independently of the research profile and criterion. Both streaming and ANSI
 runs carry this selection into the full agent. `none` suppresses model-based
 meta-controller planning updates while retaining model learning, ordinary
@@ -146,10 +146,9 @@ without the hierarchy do not perform these planning updates under either choice.
 Startup diagnostics, the streaming campaign summary and the persistent ANSI
 header line report the effective `planning=none` or `planning=scalar` selection.
 CSV output includes the same constructor-derived value in a comment after the
-column header. The selection
-belongs to the current run; it does not change checkpoint admission or convert
-stored learner state. Comparisons should specify fresh initialization or their
-actual checkpoint history explicitly.
+column header. The selection belongs to the current run; it does not change
+checkpoint admission or convert stored learner state. Comparisons should
+specify fresh initialization or their actual checkpoint history explicitly.
 
 This enables a planning comparison; it does not establish a benefit. Future
 states and random-draw consumption can diverge after changed planning values.
@@ -162,8 +161,9 @@ execution still requires the separately authorized prospective protocol in
 The viewer's built-in launch accepts only `--research-profile ranked` and uses
 the discounted criterion with scalar planning. It does not accept the core's
 `--criterion` or `--planning` flags or the other four profiles. Use the terminal
-command above to explore core configuration choices. The viewer's advanced `--cmd` option runs an operator-supplied command;
-it has different checkpoint ownership and disables the ordinary Clear operation.
+command above to explore core configuration choices. The viewer's advanced
+`--cmd` option runs an operator-supplied command; it has different checkpoint
+ownership and disables the ordinary Clear operation.
 
 The authoritative definitions are [profile selection](../lean/Acorn/Host/Runner.lean),
 [mechanism mapping](../lean/Acorn/Host/TemporalProfile.lean),
