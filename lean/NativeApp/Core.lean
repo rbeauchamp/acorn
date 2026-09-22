@@ -41,7 +41,8 @@ private def tileText (tile : TileObservation) : Char :=
 
 private def renderAnsi (provenance : String) {config : WorldConfig}
     (frame : AnsiFrame config) : IO Unit := do
-  IO.print "\x1b[H"
+  IO.print "\x1b[H\x1b[2K"
+  IO.println provenance
   for row in List.finRange patchShape.side do
     let line := (List.finRange patchShape.side).foldl (fun text col =>
       text ++ String.singleton (if row.val == 5 && col.val == 5 then '@'
@@ -50,7 +51,7 @@ private def renderAnsi (provenance : String) {config : WorldConfig}
   let body := frame.world.body
   let position := body.position.position
   let inventory := body.inventory
-  IO.println s!"{provenance} t={frame.steps} goal={frame.goalIndex} @({position.x.val},{position.y.val}) energy={body.energy.val / 10}% inv w{inventory.wood} s{inventory.stone} f{inventory.food} g{inventory.gold} axe{if inventory.axe then 1 else 0} boat{if inventory.boat then 1 else 0}"
+  IO.println s!"t={frame.steps} goal={frame.goalIndex} @({position.x.val},{position.y.val}) energy={body.energy.val / 10}% inv w{inventory.wood} s{inventory.stone} f{inventory.food} g{inventory.gold} axe{if inventory.axe then 1 else 0} boat{if inventory.boat then 1 else 0}"
   IO.println s!"action={actionText frame.action} reward={binary32Text frame.result.reward}"
 
 /-- ANSI uses the same full-agent constructor as streaming with its admitted
