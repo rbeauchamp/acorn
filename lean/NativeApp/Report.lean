@@ -29,6 +29,10 @@ def numberText (value : Binary32) : String :=
   else if value.magnitude = 0x7f800000 then (if value.negative then "-inf" else "inf")
   else "NaN"
 
+/-- Run provenance renders the effective constructor choice, not raw argument text. -/
+def planningProvenance (construction : AgentConstruction) : String :=
+  s!"planning={construction.planning.name}"
+
 /-- One outcome retains every existing CSV field in its existing order. -/
 def outcomeCsv (outcome : GoalOutcome) : String :=
   s!"{outcome.index},{outcome.attempt},{outcome.tier},{outcome.steps},{if outcome.achieved then 1 else 0},{numberText outcome.reward},{numberText outcome.learner.demonError},{numberText outcome.learner.epsilon},{numberText outcome.learner.meanAlpha}\n"
@@ -88,13 +92,15 @@ private def destinationIdentity (path : System.FilePath) : IO System.FilePath :=
 protects even a not-yet-created checkpoint; exclusive creation also rejects
 existing files, symlinks and hard-link aliases without truncating them.
 Parent-directory stability and concurrent external renames remain OS assumptions. -/
-def openCsv (path : System.FilePath) (checkpoint : Option System.FilePath) : IO IO.FS.Handle := do
+def openCsv (path : System.FilePath) (checkpoint : Option System.FilePath)
+    (construction : AgentConstruction) : IO IO.FS.Handle := do
   let destination ← destinationIdentity path
   if let some image := checkpoint then
     if destination == (← destinationIdentity image) then
       throw (IO.userError "CSV destination aliases the checkpoint")
   let handle ← IO.FS.Handle.mk destination .writeNew
   handle.putStr csvHeader
+  handle.putStr s!"# {planningProvenance construction}\n"
   return handle
 
 /-- All campaign reporting inputs are derived from the actual execution result. -/
@@ -111,7 +117,7 @@ def reportText (options : Cli.Streaming) {profile : FeatureProfile}
     agent.control.runtime.lifecycle.consumers.demons).toList.map toString
   let common := options.common
   let rate := if elapsedMs == 0 then 0 else result.totalSteps.toNat * 1000 / elapsedMs
-  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
+  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance (nativeConstruction options)} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
   summary := summary ++ s!"  recent attempt detail (last {outcomes.recent.values.length} retained):\n"
   for outcome in outcomes.recent.values do summary := summary ++ outcomeText outcome
   summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {events.length}\n  retire_events: {String.intercalate " " events}\n  imprint_distinct_abs: {String.intercalate " " census}\n"

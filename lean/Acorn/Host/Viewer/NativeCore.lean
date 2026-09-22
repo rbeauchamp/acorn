@@ -25,9 +25,9 @@ the explicitly requested research profile; it is not a profile promotion. -/
 def nativeSelection (options : Cli.Streaming) : AgentSelection :=
   ⟨options.common.profile, options.criterion.getD .discounted⟩
 
-/-- The current ordinary campaign instantiates the full scalar planning owner. -/
+/-- The ordinary campaign carries the admitted planning selection into the full agent type. -/
 def nativeConstruction (options : Cli.Streaming) : AgentConstruction :=
-  AgentConstruction.standard options.common.world.raw.seed (nativeSelection options) .scalar
+  AgentConstruction.standard options.common.world.raw.seed (nativeSelection options) options.common.planning
 
 /-- User-facing task names are exhaustive projections of the actual host goal. -/
 def curriculumGoalName : Goal → String
@@ -123,6 +123,10 @@ def runNativeCampaign (options : Cli.Streaming) (build : TelemetryBuild)
 theorem nativeParameters_stepCap (options : Cli.Streaming) (build : TelemetryBuild)
     (plan : CampaignPlan (standardCurriculum options.common.world options.common.world.raw.seed).size) :
     (nativeParameters options build plan).stepCap = plan.stepCap := rfl
+
+/-- Every admitted planning selection reaches the same full-agent construction unchanged. -/
+theorem nativeConstruction_planning (options : Cli.Streaming) :
+    (nativeConstruction options).planning = options.common.planning := rfl
 
 /-- The criterion explicitly requested at admission reaches agent construction. -/
 theorem nativeConstruction_criterion (options : Cli.Streaming) :
