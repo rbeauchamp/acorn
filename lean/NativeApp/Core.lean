@@ -56,7 +56,8 @@ private def renderAnsi {config : WorldConfig} (frame : AnsiFrame config) : IO Un
 discounted criterion, and the distinct observation schedule owned by `runAnsi`. -/
 def runAnsiDemo (common : Cli.Common) (period : Acorn.Word.Count) : IO UInt32 := do
   let construction := Acorn.Handcrafted.AgentConstruction.standard common.world.raw.seed
-    ⟨common.profile, .discounted⟩ .scalar
+    ⟨common.profile, .discounted⟩ common.planning
+  IO.eprintln (planningProvenance construction)
   IO.print "\x1b[2J\x1b[H"
   let result ← runAnsi common period (fun _ => IO.lazyPure fun _ => construction.initial)
     Acorn.Handcrafted.Agent.callbacks renderAnsi (fun index tier achieved steps =>
@@ -99,6 +100,7 @@ def runCore (arguments : List String) : IO UInt32 := do
   | .ok (.demo (.streaming _)) => pure ()
   let options ← streamingOptions arguments
   let some build := buildIdentity | throw (IO.userError "embedded native build identity is invalid")
+  IO.eprintln (planningProvenance (nativeConstruction options))
   let stop ← StopFlag.new
   stop.withCommands options.controlStdin do
     let outcomes ← IO.mkRef ({} : OutcomeReport
@@ -116,7 +118,7 @@ def runCore (arguments : List String) : IO UInt32 := do
       if let some handle ← csv.get then return some handle
       let some path := options.csv | return none
       try
-        let handle ← openCsv path options.checkpoint
+        let handle ← openCsv path options.checkpoint (nativeConstruction options)
         csv.set (some handle)
         return some handle
       catch error =>

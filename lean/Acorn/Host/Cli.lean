@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.Runner
+import Acorn.Planning
 
 /-!
 # Current command admission and composition boundary
@@ -84,11 +85,11 @@ def command (arguments : List String) : Except Error Command :=
     | "endurance-stability" => .ok .enduranceStability
     | _ => if name.startsWith "--" then .ok .demo else .error (.command name)
 
-/-- The current 19-option schema; the boolean determines value consumption. -/
+/-- The current 20-option schema; the boolean determines value consumption. -/
 def demoFlags : List (String × Bool) :=
   [("--seed", true), ("--side", true), ("--steps", true), ("--attempts", true),
     ("--goals", true), ("--cycles", true), ("--view", true), ("--csv", true),
-    ("--criterion", true), ("--research-profile", true), ("--checkpoint", true),
+    ("--criterion", true), ("--research-profile", true), ("--planning", true), ("--checkpoint", true),
     ("--checkpoint-every", true), ("--baseline", false), ("--telemetry", false),
     ("--control-stdin", false), ("--run-id", true), ("--agent-epoch", true),
     ("--new-agent-epoch", true), ("--cleared", false)]
@@ -167,6 +168,43 @@ def criterion (arguments : List String) : Except Error (Option Features.Criterio
   | some "average-reward" => return some .differential
   | some text => .error (.invalid "--criterion" text)
 
+/-- Canonical spelling of the actual closed planning selection, shared by run reports. -/
+def planningName : Features.PlanningSelection → String
+  | .none => "none"
+  | .scalar => "scalar"
+
+/-- Explicit planning admission rejects every value outside the existing closed domain. -/
+def planningValue (text : String) : Except Error Features.PlanningSelection :=
+  if text = "none" then .ok .none
+  else if text = "scalar" then .ok .scalar
+  else .error (.invalid "--planning" text)
+
+/-- Accepted spelling identifies exactly the selected constructor over the entire string domain. -/
+theorem planningValue_accepted (text : String) (selection : Features.PlanningSelection) :
+    planningValue text = .ok selection ↔ text = planningName selection := by
+  cases selection <;> by_cases hn : text = "none" <;> by_cases hs : text = "scalar" <;>
+    simp_all [planningValue, planningName]
+
+/-- Omission retains scalar planning; explicit values use the same checked admission. -/
+def planningSelection (arguments : List String) : Except Error Features.PlanningSelection := do
+  match ← value arguments "--planning" with
+  | none => return .scalar
+  | some text => planningValue text
+
+/-- Every omitted planning value retains the existing default, independently of other arguments. -/
+theorem planningSelection_absent (arguments : List String)
+    (absent : value arguments "--planning" = .ok none) :
+    planningSelection arguments = .ok .scalar := by
+  simp [planningSelection, absent]
+  rfl
+
+/-- Every supplied planning value reaches the closed-domain parser without substitution. -/
+theorem planningSelection_provided (arguments : List String) (text : String)
+    (provided : value arguments "--planning" = .ok (some text)) :
+    planningSelection arguments = planningValue text := by
+  simp [planningSelection, provided]
+  rfl
+
 /-- Shared world and finite/unbounded goal schedule, with no agent construction side effect. -/
 structure Common where
   /-- Explicit research profile. -/
@@ -179,6 +217,8 @@ structure Common where
   goals : UInt64
   /-- Zero denotes unbounded repetitions. -/
   cycles : UInt64
+  /-- Immutable planning selection shared by streaming and ANSI construction. -/
+  planning : Features.PlanningSelection
 
 /-- Streaming-only options forwarded to their actual full-agent/persistence/telemetry owners. -/
 structure Streaming where
@@ -236,10 +276,11 @@ def demo (arguments : List String) : Except Error Demo := do
     .error (.invalid "--checkpoint" "selected research profile has no checkpoint encoding")
   let epoch ← unsigned arguments "--agent-epoch" 64 0
   let criterion ← criterion arguments
+  let planning ← planningSelection arguments
   let view ← unsigned arguments "--view" 64 0
   if view > 0 then
     for (name, _) in demoFlags do
-      if !(["--seed", "--side", "--steps", "--goals", "--cycles", "--view", "--research-profile"].contains name) &&
+      if !(["--seed", "--side", "--steps", "--goals", "--cycles", "--view", "--research-profile", "--planning"].contains name) &&
           arguments.contains name then
         .error (.invalid name "unsupported with ANSI --view")
   let seed := (← unsigned arguments "--seed" 64 defaultSeed.toNat).toUInt64
@@ -253,7 +294,7 @@ def demo (arguments : List String) : Except Error Demo := do
   let runId := (← unsigned arguments "--run-id" 64 seed.toNat).toUInt64
   let newEpoch := (← unsigned arguments "--new-agent-epoch" 64 epoch).toUInt64
   let world ← (WorldConfig.standard seed coordinate).mapError Error.world
-  let common : Common := ⟨selected, world, steps, goals.toUInt64, cycles.toUInt64⟩
+  let common : Common := ⟨selected, world, steps, goals.toUInt64, cycles.toUInt64, planning⟩
   if hv : 0 < view ∧ view < 2 ^ 64 then
     return .ansi common ⟨view.toUInt64, by change 0 < view % (2 ^ 64); rw [Nat.mod_eq_of_lt hv.2]; exact hv.1⟩
   else

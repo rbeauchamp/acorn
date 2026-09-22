@@ -134,12 +134,34 @@ lean/.lake/build/bin/acorn-core demo --research-profile ranked --criterion disco
 Checkpoint files carry their learner criterion and must pass compatibility checks
 before restore. Changing the criterion does not convert an existing checkpoint.
 
+### Planning selection
+
+The core accepts `--planning scalar` (the existing default) or `--planning none`
+independently of the research profile and criterion. Both streaming and ANSI
+runs carry this selection into the full agent. `none` suppresses model-based
+meta-controller planning updates while retaining model learning, ordinary
+control learning, the hierarchy and the selected exploration rules. Profiles
+without the hierarchy do not perform these planning updates under either choice.
+
+Startup diagnostics and the streaming campaign summary report the effective
+`planning=none` or `planning=scalar` selection. CSV output includes the same
+constructor-derived value in a comment after the column header. The selection
+belongs to the current run; it does not change checkpoint admission or convert
+stored learner state. Comparisons should specify fresh initialization or their
+actual checkpoint history explicitly.
+
+This enables a planning comparison; it does not establish a benefit. Future
+states and random-draw consumption can diverge after changed planning values.
+Equal attempt caps do not imply equal executed steps or compute cost. Scientific
+execution still requires the separately authorized prospective protocol in
+[Contributing](../CONTRIBUTING.md#scientific-evidence).
+
 ### Viewer support
 
 The viewer's built-in launch accepts only `--research-profile ranked` and uses
-the discounted criterion. It does not accept the core's `--criterion` flag or the
-other four profiles. Use the terminal command above to explore core configuration
-choices. The viewer's advanced `--cmd` option runs an operator-supplied command;
+the discounted criterion with scalar planning. It does not accept the core's
+`--criterion` or `--planning` flags or the other four profiles. Use the terminal
+command above to explore core configuration choices. The viewer's advanced `--cmd` option runs an operator-supplied command;
 it has different checkpoint ownership and disables the ordinary Clear operation.
 
 The authoritative definitions are [profile selection](../lean/Acorn/Host/Runner.lean),
@@ -156,6 +178,7 @@ these boundaries do not restart its learned weights.
 | Core flag | Meaning |
 |---|---|
 | `--seed` | Seed for the generated world; default 42. |
+| `--planning` | `scalar` (default) or `none`; selects model-based planning updates. |
 | `--side` | Side length of the square world. |
 | `--steps` | Maximum environment steps per attempt. |
 | `--attempts` | Maximum attempts per goal. |
