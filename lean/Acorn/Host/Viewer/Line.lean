@@ -82,7 +82,7 @@ theorem LineBytes.append_exact (line next : LineBytes) (byte : UInt8)
   · contradiction
 
 /-- The native pipe reader retains one bounded line and one input byte.
-Lean 4.33.0's Handle.read uses buffered C fread (runtime/io.cpp, lines 555–577);
+Lean 4.34.0's Handle.read uses buffered C fread (src/runtime/io.cpp, lines 593–616);
 a multi-byte request can wait past a newline for a full request or EOF. Reading
 one byte makes a delivered output delimiter sufficient for dispatch. C stdio still owns its internal input buffering.
 The callback must enqueue locally; network delivery belongs to a separate task.
