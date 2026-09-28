@@ -83,7 +83,7 @@ At this parameter setting, every exploratory run is a single-step commitment. -/
 theorem ez_contains_epsilon_greedy {u : ℝ} (h0 : 0 < u) (h1 : u ≤ 1) :
     ezDuration u 1 = 1 := by
   unfold ezDuration
-  rw [if_pos (one_le_floor_inv h0 h1)]
+  rw [ite_eq_left (one_le_floor_inv h0 h1)]
 
 /-- And so the residual run length is zero: the action is served once and the next
 step is a fresh decision point. `EzGreedy::serve` returns `None` at

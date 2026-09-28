@@ -8,7 +8,7 @@ import Acorn.Portable
 /-!
 # Machine unit-interval multiplication and integer power
 
-These results unfold the pinned Lean 4.33.0 standard model in
+These results unfold the pinned Lean 4.34.0 standard model in
 `Init/Data/Float/Model/Unpacked/{Round,Pack/Basic,Operations/Mul}.lean`.
 They bound the two actual rounding stages, including carry and subnormal
 results, then connect those stages to `Binary64.mul` and `Portable.powLoop`.
@@ -69,7 +69,7 @@ theorem model_pack_below_one (mantissa : Nat) (exponent : Int) (positive : 0 < m
     change ¬ 2048 ≤ (exponent + 1023 + 52).toNat + 1
     omega
   change (pack Format.binary64 (.finite .positive mantissa exponent positive)).toNat < _
-  simp only [pack, if_neg hn]
+  simp only [pack, ite_eq_right hn]
   split
   · change (0#1 ++ BitVec.ofNat 11 (exponent+1023+52).toNat ++ BitVec.ofNat 52 mantissa).toNat < _
     simp only [BitVec.toNat_append, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
@@ -92,7 +92,7 @@ theorem model_second_shift_exact (mantissa : Nat) (exponent : Int) (hm : mantiss
       if mantissa = 2^53 then (ExtendedMantissa.ofMantissaAndAccuracy (2^52) .exact, exponent+1)
       else (ExtendedMantissa.ofMantissaAndAccuracy mantissa .exact, exponent) := by
   by_cases htop : mantissa = 2^53
-  · rw [if_pos htop, htop]
+  · rw [ite_eq_left htop, htop]
     have hl : (2^53 : Nat).log2 = 53 := by decide
     have ht : Format.binary64.targetExponent (totalExponent (2^53) exponent) = exponent+1 := by
       simp only [Format.targetExponent, totalExponent, hl, Format.mantissaBits, Format.minExponent]
@@ -105,7 +105,7 @@ theorem model_second_shift_exact (mantissa : Nat) (exponent : Int) (hm : mantiss
       exact model_shift_exact (2^52) 1
     rw [hshift]
     rfl
-  · rw [if_neg htop]
+  · rw [ite_eq_right htop]
     have hl : mantissa.log2 ≤ 52 := by
       by_cases hz : mantissa = 0
       · simp [hz]
@@ -203,9 +203,9 @@ theorem model_unpack_pack_subnormal (m : Nat) (positive : 0 < m) (bound : m < 2^
     change ¬m.log2+1 = 53
     omega
   simp only [pack]
-  rw [if_neg (show ¬2 ^ Format.binary64.exponentBits ≤
+  rw [ite_eq_right (show ¬2 ^ Format.binary64.exponentBits ≤
     ((-1074 : Int) + Format.binary64.exponentBias + Format.binary64.mantissaBitsWithoutImplicit).toNat + 1 by decide)]
-  rw [if_neg hn]
+  rw [ite_eq_right hn]
   simp only [unpack, unpackMantissa_packComponents, unpackExponent_packComponents]
   have hs : unpackSign (packComponents Format.binary64 .positive 0#11 (BitVec.ofNat 52 m)) = 0#1 := by
     change (0#1 ++ 0#11 ++ BitVec.ofNat 52 m).extractLsb' 63 1 = 0#1
@@ -255,9 +255,9 @@ theorem model_unpack_unit (word : UInt64) (bound : word.toNat ≤ 0x3ff000000000
     rw [Nat.or_comm, Nat.or_two_pow_eq_add_of_lt hsize, Nat.add_comm]
   unfold unpack
   change ModelUnit (if ev = -1#11 then _ else if ev = 0#11 then _ else _)
-  rw [if_neg hnotinf]
+  rw [ite_eq_right hnotinf]
   by_cases hz : ev = 0#11
-  · rw [if_pos hz]
+  · rw [ite_eq_left hz]
     split
     · simp [ModelUnit, hs, Sign.ofBitVec]
     · simp [ModelUnit, hs, Sign.ofBitVec]
@@ -267,7 +267,7 @@ theorem model_unpack_unit (word : UInt64) (bound : word.toNat ≤ 0x3ff000000000
         ((ev.toNat : Int)-1075+1 = -52 → mv.toNat = 2^52) ∧
         ((ev.toNat : Int)-1075+1 = -1074 ∨ 2^52 ≤ mv.toNat)
       omega
-  · rw [if_neg hz]
+  · rw [ite_eq_right hz]
     have hepos : 0 < ev.toNat := by
       by_cases h : ev.toNat = 0
       · have hw : ev = 0#11 := BitVec.eq_of_toNat_eq h
@@ -487,7 +487,7 @@ theorem pow_negative_zero (exponent : UInt32) :
   · have he : exponent = 0 := UInt32.toNat.inj hz
     rw [he, pow_zero_word]
     rfl
-  · rw [if_neg hz]
+  · rw [ite_eq_right hz]
     rw [Portable.pow_eq]
     change Conversion.narrow (Portable.powLoop (Binary64.ofUInt64 1) ⟨0x8000000000000000⟩ exponent.toNat) = _
     rw [Portable.powLoop_step _ _ _ hz]
@@ -633,7 +633,7 @@ theorem model_unpack_normal_fields (word : UInt64)
     rw [Nat.or_comm, Nat.or_two_pow_eq_add_of_lt mv.isLt, Nat.add_comm]
   unfold unpack
   change (if ev = -1#11 then _ else if ev = 0#11 then _ else _) = _
-  rw [if_neg hn, if_neg hz]
+  rw [ite_eq_right hn, ite_eq_right hz]
   congr 1
 
 /-- Packing the decoded normal model preserves the complete source word. -/
@@ -651,8 +651,8 @@ theorem model_pack_unpack_normal_word (word : UInt64)
     omega
   change pack Format.binary64 (.finite _ (2^52+mv.toNat) ((ev.toNat : Int)-1075) _) = _
   unfold pack
-  rw [hl, hbiased, if_neg (show ¬ 2^Format.binary64.exponentBits ≤ ev.toNat+1 by change ev.toNat < 2047 at hi; change ¬2048 ≤ ev.toNat+1; omega)]
-  rw [if_pos (show 52+1 = Format.binary64.mantissaBits from rfl)]
+  rw [hl, hbiased, ite_eq_right (show ¬ 2^Format.binary64.exponentBits ≤ ev.toNat+1 by change ev.toNat < 2047 at hi; change ¬2048 ≤ ev.toNat+1; omega)]
+  rw [ite_eq_left (show 52+1 = Format.binary64.mantissaBits from rfl)]
   have heq : BitVec.ofNat 11 ev.toNat = ev := by apply BitVec.eq_of_toNat_eq; exact Nat.mod_eq_of_lt ev.isLt
   have mf : BitVec.ofNat 52 (2^52+mv.toNat) = mv := by
     apply BitVec.eq_of_toNat_eq

@@ -61,7 +61,7 @@ theorem mass_mono (law : IncomingLaw Ω) (small large : Ω → Prop)
   intro sample _
   by_cases hs : small sample
   · simp [hs, contained sample hs]
-  · simp only [hs, if_false]
+  · simp only [hs, ite_false]
     split
     · exact law.nonnegative sample
     · exact le_rfl

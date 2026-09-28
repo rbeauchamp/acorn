@@ -8,7 +8,7 @@ import Acorn.Conversion
 /-!
 # Exact small-integer conversions and floating RNG observations
 
-The proofs unfold the standard logical definitions in Lean 4.33.0's
+The proofs unfold the standard logical definitions in Lean 4.34.0's
 `Init/Data/Float/Model/{Float,Unpacked/Round,Unpacked/Pack/Basic}.lean` and
 `Unpacked/Operations/{OfNat,Mul}.lean`. Normalization, zero-filled shifts and
 field packing are proved algebraically, without enumerating machine inputs.
@@ -82,8 +82,8 @@ theorem model_unpack_pack_normal (sign : Sign) (m : Nat) (e : Int) (lo : 2^52 �
       (e + Format.binary64.exponentBias + Format.binary64.mantissaBitsWithoutImplicit).toNat + 1 := by
     change ¬ 2048 ≤ (e + 1023 + 52).toNat + 1
     omega
-  simp only [pack, if_neg hn, hl]
-  rw [if_pos (show 52 + 1 = Format.binary64.mantissaBits from rfl)]
+  simp only [pack, ite_eq_right hn, hl]
+  rw [ite_eq_left (show 52 + 1 = Format.binary64.mantissaBits from rfl)]
   simp only [unpack, unpackMantissa_packComponents, unpackExponent_packComponents]
   have hsign (ee : BitVec 11) (mm : BitVec 52) :
       unpackSign (packComponents Format.binary64 sign ee mm) = sign.toBitVec := by
@@ -228,8 +228,8 @@ theorem model_pack_word (m : Nat) (e : Int) (lo : 2^52 ≤ m) (hi : m < 2^53)
     change ¬ 2048 ≤ (e + 1023 + 52).toNat + 1
     omega
   change (pack Format.binary64 (.finite .positive m e (by omega))).toNat = _
-  simp only [pack, if_neg hn, hl]
-  rw [if_pos (show 52 + 1 = Format.binary64.mantissaBits from rfl)]
+  simp only [pack, ite_eq_right hn, hl]
+  rw [ite_eq_left (show 52 + 1 = Format.binary64.mantissaBits from rfl)]
   change (0#1 ++ BitVec.ofNat 11 (e+1023+52).toNat ++ BitVec.ofNat 52 m).toNat = _
   simp only [BitVec.toNat_append, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
   have hm : m % 2^52 < 2^52 := Nat.mod_lt m (Nat.two_pow_pos 52)
@@ -255,7 +255,7 @@ theorem model_pack_units (m : Nat) (e : Int) (lo : 2^52 ≤ m) (hi : m < 2^53)
   rw [hm]
   have hdiv : ((e+1075).toNat * 2^52 + m % 2^52) / 2^52 = (e+1075).toNat := by omega
   have hmod : ((e+1075).toNat * 2^52 + m % 2^52) % 2^52 = m % 2^52 := by omega
-  rw [hdiv, hmod, if_neg (show (e+1075).toNat ≠ 0 by omega)]
+  rw [hdiv, hmod, ite_eq_right (show (e+1075).toNat ≠ 0 by omega)]
   have hmvalue : 2^52 + m % 2^52 = m := by omega
   have hevalue : (e+1075).toNat-1 = (e+1074).toNat := by omega
   rw [hmvalue, hevalue]

@@ -10,7 +10,7 @@ import Mathlib.Tactic.FieldSimp
 /-!
 # Machine rounding bounds for scalar backups
 
-The pinned Lean 4.33.0 standard model's `Unpacked/Round.lean` and
+The pinned Lean 4.34.0 standard model's `Unpacked/Round.lean` and
 `Unpacked/Operations/{Add,Mul,Sub}.lean` own these machine operations.
 Nearest-even monotonicity follows from quotient ordering on a common grid and
 separation of distinct binades, then extends through signed normalization.

@@ -110,7 +110,7 @@ theorem finite_between (range : Interval32) (value : Binary32)
   cases hv : value.negative <;> cases hlower : range.lower.negative <;>
     cases hupper : range.upper.negative <;>
     simp only [Binary32.key, hv, hlower, hupper, Bool.false_eq_true,
-      if_false, if_true] at hl hu <;> omega
+      ite_false, ite_true] at hl hu <;> omega
 
 /-- Total saturation, following the current low-before-high branch order.
 All input encodings are admitted; a NaN selects the original lower endpoint. -/
@@ -234,7 +234,7 @@ def admit (range : Interval32) (raw : Binary32) : Option (Bounded32 range) :=
 /-- Legal stored words round-trip exactly, including the sign bit of zero. -/
 theorem admit_self {range : Interval32} (stored : Bounded32 range) :
     admit range stored.value = some stored := by
-  simp only [admit, dif_pos stored.legal]
+  simp only [admit, dite_eq_left stored.legal]
 
 /-- Successful admission preserves the exact raw input and establishes legality. -/
 theorem admit_exact (range : Interval32) (raw : Binary32) (stored : Bounded32 range)

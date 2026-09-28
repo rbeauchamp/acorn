@@ -8,7 +8,7 @@ import AcornVerif.CurrentPower
 # Executing exponential classification and scaling
 
 The current definitions in `Acorn.Portable` own every operation. These proofs
-unfold the pinned Lean 4.33.0 standard floating model, as documented in
+unfold the pinned Lean 4.34.0 standard floating model, as documented in
 `CurrentFloat.lean` and `CurrentPower.lean`, to establish exact normal exponent
 scaling and the actual finite-width narrowing behavior.
 

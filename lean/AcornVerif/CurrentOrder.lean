@@ -7,7 +7,7 @@ import AcornVerif.CurrentArithmetic
 /-!
 # Numerical interpretation and machine order
 
-The pinned Lean 4.33.0 standard `UnpackedFloat` decoder defines the finite
+The pinned Lean 4.34.0 standard `UnpackedFloat` decoder defines the finite
 numerical reading. A strictly increasing integer significand scale connects
 that reading to the executing raw keys and comparisons, including signed zero.
 Existing assembled conversion theorems supply exact widening and integer-value
@@ -55,18 +55,18 @@ theorem fieldUnits_strict (precision left right : Nat) (ordered : left < right) 
     by_cases zero : le=0
     · simp only [zero, ↓reduceIte]
       exact fractions
-    · simp only [if_neg zero]
+    · simp only [ite_eq_right zero]
       exact Nat.mul_lt_mul_of_pos_right (by omega) (Nat.two_pow_pos _)
   · have gap : le < re := by omega
     have rnz : re ≠ 0 := Nat.ne_of_gt (Nat.lt_of_le_of_lt (Nat.zero_le _) gap)
-    rw [if_neg rnz]
+    rw [ite_eq_right rnz]
     by_cases zero : le=0
-    · rw [if_pos zero]
+    · rw [ite_eq_left zero]
       calc
         lf < unit := lfBound
         _ ≤ unit+rf := Nat.le_add_right _ _
         _ ≤ (unit+rf)*2^(re-1) := Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)
-    · rw [if_neg zero]
+    · rw [ite_eq_right zero]
       have scale : 2^le ≤ 2^(re-1) := Nat.pow_le_pow_right (by decide) (by omega)
       have shift : 2^le = 2^(le-1)*2 := by
         have he : le = le-1+1 := by
@@ -125,7 +125,7 @@ theorem model_finite_fields_value (spec : Format) (bits : BitVec spec.numBits)
       else .finite sv (1#1 ++ mv).toNat
         (ev.toNat-(spec.exponentBias+spec.mantissaBitsWithoutImplicit)) (by simp)) := by
     unfold unpack
-    rw [if_neg inf]
+    rw [ite_eq_right inf]
   rw [unpackEq]
   change unpackedValue _ = signCoefficient sv *
     (if ev.toNat=0 then mv.toNat*(2:ℚ)^spec.minExponent
@@ -133,23 +133,23 @@ theorem model_finite_fields_value (spec : Format) (bits : BitVec spec.numBits)
       (2:ℚ)^(ev.toNat-(spec.exponentBias+spec.mantissaBitsWithoutImplicit):Int))
   by_cases ez : ev=0#_
   · have en : ev.toNat=0 := congrArg BitVec.toNat ez
-    rw [if_pos ez, if_pos en]
+    rw [ite_eq_left ez, ite_eq_left en]
     have exponent : (ev.toNat:Int)-(spec.exponentBias+spec.mantissaBitsWithoutImplicit)+1 =
         spec.minExponent := by
       have hb := model_format_min_bias spec
       rw [en]
       omega
     by_cases mz : mv=0#_
-    · rw [dif_pos mz]
+    · rw [dite_eq_left mz]
       have mn : mv.toNat=0 := congrArg BitVec.toNat mz
       simp only [unpackedValue,mn,Nat.cast_zero,zero_mul,mul_zero]
-    · rw [dif_neg mz]
+    · rw [dite_eq_right mz]
       simp only [unpackedValue,exponent]
       ring
   · have en : ev.toNat ≠ 0 := by
       intro h
       exact ez (BitVec.eq_of_toNat_eq h)
-    rw [if_neg ez, if_neg en]
+    rw [ite_eq_right ez, ite_eq_right en]
     have mantissa : (1#1 ++ mv).toNat=2^spec.mantissaBitsWithoutImplicit+mv.toNat := by
       simp only [BitVec.toNat_append, show (1#1).toNat=1 from rfl, Nat.shiftLeft_eq,Nat.one_mul]
       rw [Nat.or_comm,Nat.or_two_pow_eq_add_of_lt mv.isLt,Nat.add_comm]
@@ -180,9 +180,9 @@ theorem model_finite_fieldUnits_value (spec : Format) (bits : BitVec spec.numBit
   rw [model_finite_fields_value spec bits finite]
   rw [fieldUnits_fields _ _ _ (unpackMantissa bits).isLt]
   by_cases zero : (unpackExponent bits).toNat=0
-  · rw [if_pos zero,if_pos zero]
+  · rw [ite_eq_left zero,ite_eq_left zero]
     ring
-  · rw [if_neg zero,if_neg zero]
+  · rw [ite_eq_right zero,ite_eq_right zero]
     have exponent : ((unpackExponent bits).toNat:Int)-
         (spec.exponentBias+spec.mantissaBitsWithoutImplicit) =
         spec.minExponent + (((unpackExponent bits).toNat-1:Nat):Int) := by
@@ -246,7 +246,7 @@ theorem signedFieldUnits_sign (precision magnitude : Nat) (negative : Bool) :
     · have hn : -(magnitude:Int) < 0 := by omega
       change (if -(magnitude:Int)<0 then -(fieldUnits precision (-(magnitude:Int)).natAbs:Int)
         else fieldUnits precision (-(magnitude:Int)).toNat) = -(fieldUnits precision magnitude:Int)
-      rw [if_pos hn]
+      rw [ite_eq_left hn]
       simp only [Int.natAbs_neg,Int.natAbs_natCast]
 
 /-- The signed unit interpretation is strictly increasing over every integer key. -/

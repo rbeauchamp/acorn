@@ -128,7 +128,7 @@ theorem nearestEvenWord_exact (word denominator : UInt64) (positive : 0 < denomi
   split
   · rename_i up
     have bound := nearestEven_le_input word.toNat denominator.toNat positive
-    simp only [nearestEven, if_pos up] at bound
+    simp only [nearestEven, ite_eq_left up] at bound
     rw [UInt64.toNat_add, UInt64.toNat_div]
     change (word.toNat / denominator.toNat + 1) % 2^64 = _
     exact Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt bound word.toNat_lt)
