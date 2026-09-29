@@ -88,8 +88,8 @@ every option. The stored word is `0x3c23d70a`, exactly 10737418·2⁻³⁰. Dabn
 Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*, ICLR 2021
 ([arXiv:2006.01782v1](https://arxiv.org/abs/2006.01782)), use ε = 0.01 for
 their linear Sarsa(λ) CartPole agent (Appendix A, PDF p. 14) and keep ε = 0.01
-after the initial decay of their Atari training schedule (Appendix B.3, PDF
-p. 15). Their other domains use 0.05, 0.1 and 1/(N+1) (Appendix A, PDF p. 13).
+after the initial decay of their Rainbow-based Atari agents' schedule
+(Appendix B.3, PDF p. 15). Their other domains use 0.05, 0.1 and 1/(N+1) (Appendix A, PDF p. 13).
 A continuing agent has no clock for a schedule, so it keeps only the constant.
 One rate for all three consumers is Acorn's composition choice.
 `TemporalControl.declared_rates` proves every consumer reads this word at every

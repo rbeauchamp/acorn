@@ -19,8 +19,8 @@ Dabney, Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*, ICLR
 (2021), arXiv:2006.01782v1, §4.2, PDF p. 5, describes εz-greedy by "two
 parameters, ϵ dictating when/how often to explore, and z dictating the degree
 of persistence". D6's ε = 0.01 is the paper's linear Sarsa(λ) CartPole setting
-(Appendix A, PDF p. 14) and the constant its Atari training schedule keeps
-after decay (Appendix B.3, PDF p. 15). A continuing, clock-free agent keeps
+(Appendix A, PDF p. 14) and the constant its Rainbow-based Atari agents'
+schedule keeps after decay (Appendix B.3, PDF p. 15). A continuing, clock-free agent keeps
 only the constant.
 -/
 namespace Acorn.Handcrafted

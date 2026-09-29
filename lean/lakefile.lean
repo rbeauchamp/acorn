@@ -126,7 +126,7 @@ def provenanceJob (pkg : Package) : FetchM (Job System.FilePath) := do
     IO.FS.writeFile buildRecord (settings ++ "source=" ++ source ++ "\n")
     let build ← nativeDigest buildRecord
     let pinText ← IO.FS.readFile pinOwner
-    let pinPrefix := "def derivedDigest : UInt64 := 0x"
+    let pinPrefix := "def declaredDigest : UInt64 := 0x"
     let [_, suffix] := pinText.splitOn pinPrefix
       | error "declared audit pin owner is ambiguous"
     let audit := String.ofList (suffix.toList.take 16)
