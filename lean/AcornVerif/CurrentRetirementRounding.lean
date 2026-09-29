@@ -5,7 +5,7 @@ Authors: acorn contributors
 -/
 import AcornVerif.CurrentArithmetic
 
-/-! # One-sided binary32 rounding bounds for retirement rail arithmetic -/
+/-! # One-sided binary32 rounding bounds for scalar backup arithmetic -/
 
 open Acorn
 open Float.Model (Format UnpackedFloat totalExponent)

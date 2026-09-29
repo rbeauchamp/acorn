@@ -36,8 +36,9 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 - **Architecture: shape only.** The FC-STOMP chain (feature construction,
   subtasks, options, models, planning) is wired, but two links run on local
   substitutes that drop the property their source relies on: the option models
-  and planning. U3 replaced a third, the feature tester, with the published one. A composition defect (F-A) erased option
-  learning until U1 repaired it, and a locally derived exploration rate made
+  and planning. U3 replaced a third, the feature tester, with the published
+  one. A composition defect (F-A) erased option learning until U1 repaired it,
+  and a locally derived exploration rate made
   about 90% of early primitive steps random until U2 replaced it (F-C).
 - **Learning: UNKNOWN.** Whether the agent learns anything in its world has not
   been observed.
@@ -320,8 +321,8 @@ is observable but has not been observed.
 
 **Verdict on composition.** The components coexisted far more than they
 supported one another. The chain was wired, but F-A cut it periodically, F-B
-neutralizes its planning end, F-F starves its option end and F-E leaves its
-feature-construction end inert.
+neutralizes its planning end, F-F starves its option end and F-E left its
+feature-construction end inert until U3.
 
 ## Measured against the published OaK and Alberta Plan designs
 
@@ -357,8 +358,8 @@ feature-construction end inert.
 - **The route to representation search.** Swift-Sarsa is presented as opening
   the door to learning representations "by searching over hundreds of millions of
   features in parallel" [[3]](#r3), leaning on step-size credit assignment over
-  large feature sets. Acorn's representation is 16,384 hashed slots with a
-  generator that never sees the task.
+  large feature sets. Acorn's representation is 16,384 hashed slots; until U3
+  its generator never saw the task.
 - **Evaluation.** Every source above establishes usefulness empirically: SwiftTD
   on Atari prediction, Swift-Sarsa on an operant-conditioning benchmark,
   reward-respecting subtasks with planning curves in grid worlds. Acorn has no
@@ -422,8 +423,8 @@ The roadmap also tracks the missing published pieces that no unit covers:
   (`FreeDispatch.refresh_distinct`), and the initial state and every step carry
   distinctness within alignment (`TemporalControl.initial_aligned`,
   `TemporalControl.step_total`); checkpoint admission refuses an image whose
-  slots repeat one. Checkpoint format 15 stores the held bonus word and refuses
-  earlier generations.
+  slots repeat one. U1's checkpoint format 15 added the held bonus word and
+  refused earlier generations.
 
 Machine-checked: `FreeDispatch.refresh_retains`, `FreeDispatch.refresh_distinct`,
 `Bonus.finite_positive`, `CurrentTemporal.attained_stopping` (the executed attained
@@ -459,11 +460,11 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
 ## What each claim rests on
 
 - **Machine-checked.** Acorn's existing theorems (state legality, admission and
-  the identities cited in the PAR entries) and the U1 and U2 theorems listed
+  the identities cited in the PAR entries) and the U1, U2 and U3 theorems cited
   above. The assessment inspected the earlier theorems' statements without
-  recompiling them; U1's and U2's were compiled by the verification run on each
-  change's head. U2's distributional results hold under the assumed uniform,
-  independent draw listed below.
+  recompiling them; U1's, U2's and U3's were compiled by the verification run on
+  each change's head. U2's distributional results hold under the assumed
+  uniform, independent draw listed below.
 - **Argued.** F-A to F-F, including F-C's initial derived rate, E[D] = H₁₂₈, the renewal
   fraction of about 0.90, and F-D's lemma (conditional on equal prediction
   buckets and no layout collision). None is machine-checked.

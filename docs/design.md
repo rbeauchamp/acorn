@@ -71,7 +71,7 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 | 12 | Assisting other intelligences | Out of scope. |
 
 An **imprint** here is one of Acorn's generated projection features. The tester
-replaces the least useful mature imprints at a declared rate; a replacement
+replaces the least useful eligible imprints at a declared rate; a replacement
 draws a new projection, zeroes its outgoing weight in every reader and clears its
 dependent learned state. It does not replace the authored input channels or tile
 features. See [PAR-4](prior-art-review.md#par-4--generate-and-test) and

@@ -40,7 +40,7 @@ measured effect to planning.
 **Does generate-and-test turnover improve the agent's representation?**
 
 The [PAR-11](prior-art-review.md#par-11--generate-and-test-tester) tester replaces
-the least useful mature imprint units at the declared
+the least useful eligible imprint units at the declared
 [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2) rate, so
 turnover is reachable by construction: over any run the number replaced is
 exactly ⌊(c₀ + Σₜ nₜ)/period⌋ for eligible counts nₜ. The generator reads the
