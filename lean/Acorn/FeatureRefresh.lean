@@ -10,13 +10,14 @@ import Acorn.FeatureLifecycle
 # Assignment refresh at the free dispatch boundary
 
 Ranked assignments use the actual stored Demon-0 weights. Objective identity is
-the selected unit: a slot whose unit is still ranked keeps its policy, model,
-prediction cache and meta-controller row bit-identical while its held bonus can
-only rise, and only a slot whose unit left the ranking is reinstalled. No two slots
-hold the same unit. Retirement releases a slot holding the replaced unit only at a
-free boundary. An ending activation retains the replaced owner for terminal credit. The activation payload is parametric:
-refresh neither reads nor rewrites it. Continuing activations do not inhabit
-this free-boundary interface.
+the selected unit: the first slot holding a still-ranked unit keeps its policy,
+model, prediction cache and meta-controller row bit-identical while its held bonus
+can only rise; every other slot takes the next entrant or the neutral objective and
+is reinstalled when its unit changes. No two slots hold the same unit. Retirement
+releases a slot holding the replaced unit only at a free boundary. An ending
+activation retains the replaced owner for terminal credit. The activation payload
+is parametric: refresh neither reads nor rewrites it. Continuing activations do
+not inhabit this free-boundary interface.
 -/
 namespace Acorn.Features
 
