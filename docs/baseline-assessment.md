@@ -3,8 +3,7 @@
 Acorn's first goal is a baseline agent built from the current state of the prior
 art in continual learning and planning. This page records an assessment of how
 far the implementation meets that goal, measured against the published OaK and
-Alberta Plan designs, and the conformance work it recommends. It compares Acorn
-with Sutton's and Oak Lab's published work; it does not report their views.
+Alberta Plan designs, and the conformance work it recommends.
 
 The assessment was made against `main` at commit 86ce779 (2026-09-28), from
 the executed definitions and the primary literature. No agent run informed it.
@@ -85,8 +84,12 @@ Verdicts:
 
 **Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 7 adapted,
 3 substituted (tester, models, planning) and 6 missing. The frontier and design
-acknowledge utility feedback and learned agent state; the other four missing
-rows were not previously recorded.
+acknowledge utility feedback and learned agent state, and design Step 3,
+[PAR-3](prior-art-review.md#par-3--horde) and
+[PAR-9](prior-art-review.md#par-9--intra-option-value-learning) declare on-policy
+specializations in place of off-policy learning; the other three missing rows
+(search control, reward centering and nonlinear continual learning) were not
+previously recorded.
 
 Correctness of what exists (state legality, admission, numeric containment and
 the proved identities) is strong and machine-checked. The weakness is fidelity
@@ -213,9 +216,10 @@ controller, the meta-controller and every option read it in every research
 profile except the annealed comparison, which keeps its schedule. PAR-10's
 derived rate remains a research-only selection through the native rate words,
 and the mutation-audit pins for the declared-rate and differential arms were
-re-recorded. `TemporalControl.declared_rates` proves that every consumer reads
-the declared word at every state, and `TemporalSupport.branch_exact` that each
-exploration branch is an exact rational comparison with that word.
+re-recorded. `TemporalControl.declared_rates` proves that, under the declared
+rate policy, every consumer reads the declared word at every state, and
+`TemporalSupport.branch_exact` that each exploration branch is an exact rational
+comparison with that word.
 `TemporalSupport.declared_branch_card` counts exactly the source words that
 explore. Under an assumed uniform, independent draw, which the deterministic
 generator does not supply, `ez_duration_mean` gives a mean run length of H₁₂₈ and
@@ -224,17 +228,22 @@ cycles below 6%.
 
 ### F-D · The representation barely expresses task-dependent preferences
 
-**Status: open; U3 addresses the generator input.** Argued, conditional on equal
-prediction buckets.
+**Status: open; U3, in progress
+([#9](https://github.com/rbeauchamp/acorn/issues/9)), addresses the generator
+input.** Argued, conditional on equal prediction buckets and on no hash
+collision between layout features and the other words.
 
-Every active feature is exactly one of: a hashed single sensor word, an imprint
+Every raw feature is exactly one of: a hashed single sensor word, an imprint
 over tile kinds, or one of 99 prediction buckets (11 questions × 9 levels)
-(`observationWords`, `rawEncode`). Tile words and imprints do not depend on the
-task, and task words do not depend on the tile layout. The eight tilings are
-eight hashed copies of the same word; they add robustness to collisions, not
-conjunctions.
+(`observationWords`, `rawEncode`). All of them are hashed into the same 16,384
+slots (`FeatIdx.fromHash`), and `unique` merges raw features that share a slot.
+Tile words and imprints do not depend on the task, and task words do not depend
+on the tile layout. The eight tilings are eight hashed copies of the same word;
+they add robustness to collisions, not conjunctions.
 
-**Lemma.** Write Q_a = u_a·φ(tiles, imprints) + v_a·ψ(task, inventory) +
+**Lemma.** Suppose that in s and s′ no active slot is shared between a tile or
+imprint feature and a task, inventory, energy, day or prediction word. Then
+Q_a = u_a·φ(tiles, imprints) + v_a·ψ(task, inventory, energy, day) +
 p_a·b(buckets). Take actions a and b and states s and s′ that differ only in tile
 layout and have equal bucket features. If task τ₁ prefers a at s and b at s′,
 and task τ₂ prefers the reverse, no weights represent both.
@@ -244,15 +253,20 @@ d = (u_a − u_b)·(φ(s) − φ(s′)), τ₁ needs d > 0 and τ₂ needs d < 0
 
 The standard curriculum places "collect wood" directly before "collect stone"
 (`rawStandardCurriculum`); a tree on one side and a stone on the other, then the
-mirror image, is this case. The only escape is for the buckets to separate s from
-s′ within each task, and they are coarse, undirected predictions. The
-meta-controller can still learn task-dependent option preferences, since v_o·ψ(τ)
-is representable. Because the generator reads only the kind patch, even working
-retirement could not discover task × layout conjunctions.
+mirror image, is this case. The designed escape is for the buckets to separate s
+from s′ within each task, and they are coarse, undirected predictions. The other
+escape is incidental: when a task word, or a prediction word that differs
+between the tasks, shares a slot with a tile or imprint feature present in only
+one of s and s′, that slot's weight enters d under one task and not the other.
+The meta-controller can still learn task-dependent option preferences, since
+v_o·ψ(τ) is representable. Because the generator reads only the kind patch, even
+working retirement could not discover task × layout conjunctions.
 
 ### F-E · The retirement tester works against turnover
 
-**Status: open; U3 replaces the tester.** Argued.
+**Status: open; U3, in progress
+([#9](https://github.com/rbeauchamp/acorn/issues/9)), replaces the tester.**
+Argued.
 
 The published testers guarantee turnover with a replacement rate and protect new
 units with a maturity age or an initialization at an order statistic
@@ -272,10 +286,11 @@ properties that work against turnover:
   slot's unit leaves the ranking.
 
 Whether this conjunction is ever reachable was the question of issue
-[#3](https://github.com/rbeauchamp/acorn/issues/3), now closed as superseded by
-U3; the [retirement proof status](frontier.md#retirement-proof-status) records
-its evidence. A published tester answers it by construction, and its safety obligation becomes local: a new
-unit enters with zero outgoing weight in every reader.
+[#3](https://github.com/rbeauchamp/acorn/issues/3), closed as superseded when
+U3 started; the [retirement proof status](frontier.md#retirement-proof-status)
+records its evidence. A published tester answers it by construction, and its
+safety obligation becomes local: a new unit enters with zero outgoing weight in
+every reader.
 
 ### F-F · Options learn from almost none of the experience
 
@@ -296,9 +311,6 @@ neutralizes its planning end, F-F starves its option end and F-E leaves its
 feature-construction end inert.
 
 ## Measured against the published OaK and Alberta Plan designs
-
-This compares Acorn with the published designs; it does not predict what their
-authors would say.
 
 - **Matches.**
   - OaK asks that "all of its components learn continually" and that "each
@@ -355,15 +367,15 @@ derivation, not measurement.
 |---|---|---|---|---|---|
 | U1 | Stable, sign-correct subtasks | [[7]](#r7) §2 eq. (4); Alberta Step 10 | S | Every later link lives in the state F-A erased | **Landed** ([#8](https://github.com/rbeauchamp/acorn/pull/8)) |
 | U2 | Published εz-greedy with a declared ε of 0.01, replacing the derived rate in the default | [[12]](#r12) | S | Initial behaviour was about 90% random (F-C) | **Landed** ([#23](https://github.com/rbeauchamp/acorn/pull/23)) |
-| U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | Open ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
+| U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **In progress** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: intra-option learning for options consistent with the action, and models for all options | [[9]](#r9); [[7]](#r7) §3–4; Alberta Step 10 | M | Removes F-F's data starvation | Open ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | Open ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it learns at all | Open ([#12](https://github.com/rbeauchamp/acorn/issues/12)); needs owner authorization |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
-question rather than answering it. Issue 3 is closed as superseded by U3, and
-its in-progress evidence is kept.
+question rather than answering it. Issue 3 was closed as superseded when U3
+started, and its branch and in-progress evidence are kept.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
@@ -391,8 +403,11 @@ The roadmap also tracks the missing published pieces that no unit covers:
 - **Retirement.** A held unit is retired only at a free boundary, where every
   slot holding it is released to the neutral objective
   (`FeatureRuntime.retire_releases`, `FeatureRuntime.retire_occupied`).
-- **Distinct units.** No two slots hold the same unit, from admission on
-  (`FreeDispatch.refresh_distinct`); checkpoint admission refuses an image whose
+- **Distinct units.** No two slots hold the same unit, from admission on:
+  every pending refresh leaves them distinct whatever it starts from
+  (`FreeDispatch.refresh_distinct`), and the initial state and every step carry
+  distinctness within alignment (`TemporalControl.initial_aligned`,
+  `TemporalControl.step_total`); checkpoint admission refuses an image whose
   slots repeat one. Checkpoint format 15 stores the held bonus word and refuses
   earlier generations.
 
@@ -438,7 +453,7 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
   independent draw listed below.
 - **Argued.** F-A to F-F, including F-C's initial derived rate, E[D] = H₁₂₈, the renewal
   fraction of about 0.90, and F-D's lemma (conditional on equal prediction
-  buckets). None is machine-checked.
+  buckets and no layout collision). None is machine-checked.
 - **Assumed.**
   - An idealized uniform, independent random draw for the renewal fraction and
     for U2's distributional results; the deterministic generator does not
