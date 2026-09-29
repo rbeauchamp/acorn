@@ -12,44 +12,79 @@ import Acorn.Provenance
 
 Sutton, Machado, Holland, Szepesvari, Timbers, Tanner and White,
 *Reward-Respecting Subtasks for Model-Based Reinforcement Learning*,
-Artificial Intelligence 324 (2023), 104001, section 2, equation (4),
+Artificial Intelligence 324 (2023), 104001, section 2, equation (4), p. 8,
 https://arxiv.org/pdf/2202.03466v4.
-Acorn's PAR-12 adaptation uses the magnitude of Demon 0's stored weight as
-attainment bonus, with one minimum-unit representative per exact score block.
-A slot indicator can be activated by any hash alias; it is not unit activation.
+Acorn's PAR-12 adaptation ranks units whose signed Demon-0 weight is positive,
+with one minimum-unit representative per exact score block. The weight word of
+a selected unit becomes its attainment bonus, standing in for the source's bonus
+weight, "one of its largest values". The bonus is held while the unit stays
+ranked, and objective identity is the unit alone, so refresh never discards the
+knowledge of a retained unit. A slot indicator can be activated by any hash
+alias; it is not unit activation.
 -/
 namespace Acorn.Features
 
-/-- Assignment identity binds a bank unit and its stored objective. The feature
-slot is derived from the receiving seed and dimension, never an independent field. -/
+/-- A held attainment bonus: a positive Demon-0 weight word, fixed when its unit
+is selected. A nonpositive weight predicts no additional reward to attain. -/
+structure Bonus where
+  /-- Selection-time weight word within the Demon-0 prediction range. -/
+  weight : Prediction .g99
+  /-- The signed word is strictly positive. -/
+  positive : 0 < weight.value.key
+
+/-- The exact held bonus word. -/
+def Bonus.value (bonus : Bonus) : Binary32 := bonus.weight.value
+
+/-- Every held bonus is finite and strictly positive. -/
+theorem Bonus.finite_positive (bonus : Bonus) : bonus.value.Finite ∧ 0 < bonus.value.key :=
+  ⟨bonus.weight.legal.1, bonus.positive⟩
+
+/-- A prediction word is a bonus exactly when it is positive. -/
+def Bonus.ofWeight (weight : Prediction .g99) : Option Bonus :=
+  letI := Binary32.positiveDecidable weight.value
+  if positive : 0 < weight.value.key then some ⟨weight, positive⟩ else none
+
+/-- Durable bonus admission is identity or refusal, including refusal of either zero. -/
+def Bonus.admit (raw : Binary32) : Option Bonus :=
+  (Prediction.admit .g99 raw).bind Bonus.ofWeight
+
+/-- Every held bonus round-trips through its exact word. -/
+theorem Bonus.admit_self (bonus : Bonus) : Bonus.admit bonus.value = some bonus := by
+  have admitted : Prediction.admit .g99 bonus.value = some bonus.weight :=
+    Bounded32.admit_self bonus.weight
+  have positive : Bonus.ofWeight bonus.weight = some bonus := dite_eq_left bonus.positive
+  rw [Bonus.admit, admitted, Option.bind_some, positive]
+
+/-- Assignment identity binds a bank unit; its held bonus is payload, not identity.
+The feature slot is derived from the receiving seed and dimension, never an
+independent field. -/
 inductive Assignment (config : Config) where
   /-- Neutral fallback before differentiated candidates exist. -/
   | neutral
-  /-- Selected unit with a finite nonnegative Demon-0-horizon bonus. -/
-  | selected (unit : Fin config.units.count) (bonus : Prediction .g99)
+  /-- Selected unit with the positive bonus held since its selection. -/
+  | selected (unit : Fin config.units.count) (bonus : Bonus)
 
 instance (config : Config) : Provenance (Assignment config) := ⟨none⟩
 
-/-- Exact objective identity, including the sign bit of a stored zero bonus. -/
+/-- Objective identity: the selected unit, or none for the neutral fallback. -/
+def Assignment.identity {config : Config} : Assignment config → Option (Fin config.units.count)
+  | .neutral => none
+  | .selected unit _ => some unit
+
+/-- Identity comparison reads the selected unit only, never the bonus word. -/
 def Assignment.same {config : Config} : Assignment config → Assignment config → Bool
   | .neutral, .neutral => true
-  | .selected unit bonus, .selected other otherBonus =>
-    unit == other && bonus.value.bits == otherBonus.value.bits
+  | .selected unit _, .selected other _ => unit == other
   | _, _ => false
 
-/-- Identity comparison is equality of the complete stored assignment. -/
+/-- Identity comparison is equality of selected units. -/
 theorem Assignment.same_iff {config : Config} (left right : Assignment config) :
-    left.same right = true ↔ left = right := by
-  cases left with
-  | neutral => cases right <;> simp [Assignment.same]
-  | selected unit bonus =>
-    cases right with
-    | neutral => simp [Assignment.same]
-    | selected other otherBonus =>
-      cases bonus with | mk value legal =>
-        cases otherBonus with | mk otherValue otherLegal =>
-          cases value; cases otherValue
-          simp [Assignment.same, Binary32.mk.injEq]
+    left.same right = true ↔ left.identity = right.identity := by
+  cases left <;> cases right <;> simp [Assignment.same, Assignment.identity]
+
+/-- Every assignment has its own identity. -/
+theorem Assignment.same_refl {config : Config} (assignment : Assignment config) :
+    assignment.same assignment = true := (Assignment.same_iff _ _).mpr rfl
 
 /-- Optional feature lookup cannot disagree with the selected unit. -/
 def Assignment.feature (dimension : Dimension) {config : Config} : Assignment config →
@@ -64,14 +99,16 @@ def Assignment.potential {dimension : Dimension} {config : Config}
   | none => false
   | some feature => decide (feature ∈ active.indices)
 
-/-- The exact stored bonus word; neutral uses positive zero. -/
+/-- The exact held bonus word; neutral uses positive zero. -/
 def Assignment.bonus {config : Config} : Assignment config → Binary32
   | .neutral => .zero
   | .selected _ bonus => bonus.value
 
-/-- Ordered machine stopping-value recipe. -/
+/-- Equation (4) with an indicator feature: the attained stopping value adds the
+held bonus to the estimate, and an unattained feature leaves the estimate unchanged. -/
 def Assignment.stoppingValue {config : Config} (assignment : Assignment config)
-    (estimate potential : Binary32) : Binary32 := estimate.add (assignment.bonus.mul potential)
+    (estimate : Binary32) (attained : Bool) : Binary32 :=
+  if attained then estimate.add assignment.bonus else estimate
 
 /-- Four durable words of one assignment. -/
 structure AssignmentWords where
@@ -81,7 +118,7 @@ structure AssignmentWords where
   unit : UInt32
   /-- Receiving feature slot. -/
   feature : UInt32
-  /-- Original bonus bits. -/
+  /-- Held bonus bits. -/
   bonus : UInt32
   deriving DecidableEq
 
@@ -93,7 +130,7 @@ def Assignment.wordsUsing {dimension : Dimension} {config : Config}
     ⟨1, unit.val.toUInt32, (slot unit).val.toUInt32, bonus.value.bits⟩
 
 /-- Identity-or-refusal restoration. Present weights are deliberately not read:
-the bonus belongs to the assignment time, not the restore time. -/
+the bonus belongs to the selection time, not the restore time. -/
 def Assignment.admitUsing (dimension : Dimension) (config : Config)
     (slot : Fin config.units.count → FeatIdx dimension) (raw : AssignmentWords) :
     Option (Assignment config) :=
@@ -102,15 +139,14 @@ def Assignment.admitUsing (dimension : Dimension) (config : Config)
   else if raw.tag == 1 then
     if h : raw.unit.toNat < config.units.count then
       let unit : Fin config.units.count := ⟨raw.unit.toNat, h⟩
-      if (slot unit).val == raw.feature.toNat then do
-        let bonus ← Prediction.admit .g99 ⟨raw.bonus⟩
-        some (.selected unit bonus)
+      if (slot unit).val == raw.feature.toNat then
+        (Bonus.admit ⟨raw.bonus⟩).map (Assignment.selected unit)
       else none
     else none
   else none
 
 /-- Every bank-relative objective round-trips through its actual durable words.
-The bonus word, including either zero sign, is retained without reranking. -/
+The held bonus word is retained without reranking. -/
 theorem Assignment.wordsUsing_roundtrip (dimension : Dimension) {config : Config}
     (slot : Fin config.units.count → FeatIdx dimension) (assignment : Assignment config) :
     Assignment.admitUsing dimension config slot (Assignment.wordsUsing slot assignment) = some assignment := by
@@ -133,9 +169,8 @@ theorem Assignment.wordsUsing_roundtrip (dimension : Dimension) {config : Config
     simp only [Assignment.wordsUsing, Assignment.admitUsing,
       show ((1 : UInt32) == 0) = false from rfl, beq_self_eq_true, Bool.false_eq_true,
       ↓reduceIte, unitExact, unit.isLt, ↓reduceDIte, Fin.eta, slotCheck]
-    have admitted : Prediction.admit .g99 bonus.value = some bonus := Bounded32.admit_self bonus
-    exact congrArg (fun result : Option (Prediction .g99) =>
-      result.bind (fun stored => some (Assignment.selected unit stored))) admitted
+    exact congrArg (fun result : Option Bonus => result.map (Assignment.selected unit))
+      (Bonus.admit_self bonus)
 
 /-- Canonical assignment words derive their slot from the receiving bank. -/
 def Assignment.words (dimension : Dimension) {config : Config} : Assignment config → AssignmentWords :=
@@ -151,49 +186,33 @@ theorem Assignment.words_roundtrip (dimension : Dimension) {config : Config}
     Assignment.admit dimension config (assignment.words dimension) = some assignment :=
   Assignment.wordsUsing_roundtrip dimension (unitFeature dimension config) assignment
 
-/-- Magnitude removes only the sign bit, preserving the unsigned magnitude. -/
-theorem abs_magnitude (value : Binary32) : value.abs.magnitude = value.magnitude := by
-  simp [Binary32.abs, Binary32.magnitude, UInt32.and_assoc]
-
-/-- Absolute-value storage has no sign bit. -/
-theorem abs_nonnegative (value : Binary32) : value.abs.negative = false := by
-  simp [Binary32.abs, Binary32.negative, UInt32.and_assoc]
-  change value.bits &&& (0 : UInt32) = 0
-  simp
-
-/-- A legal Demon-0 weight's magnitude is a legal assignment bonus without projection. -/
-theorem weight_bonus_legal (weight : Weight (.discounted .g99)) :
-    Discount.g99.predictionRange.Contains weight.value.abs := by
+/-- A positive legal Demon-0 weight is a legal prediction word without projection. -/
+theorem weight_bonus_legal (weight : Weight (.discounted .g99)) (positive : 0 < weight.value.key) :
+    Discount.g99.predictionRange.Contains weight.value := by
   have legal := weight_legal weight
   change weight.value.Finite ∧
     -(Discount.g99.horizon.magnitude : Int) ≤ weight.value.key ∧
     weight.value.key ≤ (Discount.g99.horizon.magnitude : Int) at legal
-  change weight.value.abs.Finite ∧ 0 ≤ weight.value.abs.key ∧
-    weight.value.abs.key ≤ (Discount.g99.horizon.magnitude : Int)
-  have magnitude := abs_magnitude weight.value
-  have key : weight.value.abs.key = (weight.value.magnitude : Int) := by
-    simp [Binary32.key, abs_nonnegative, magnitude]
-  refine ⟨by simpa [Binary32.Finite, magnitude] using legal.1, by rw [key]; omega, ?_⟩
-  rw [key]
-  cases sign : weight.value.negative <;> simp [Binary32.key, sign] at legal <;> omega
+  change weight.value.Finite ∧ 0 ≤ weight.value.key ∧
+    weight.value.key ≤ (Discount.g99.horizon.magnitude : Int)
+  exact ⟨legal.1, Int.le_of_lt positive, legal.2.2⟩
 
 /-- A positive score candidate with a receiver-bound unit identity. -/
 structure Candidate (config : Config) where
   /-- Bank unit. -/
   unit : Fin config.units.count
-  /-- Exact absolute weight word. -/
-  score : Prediction .g99
-  /-- Zero scores cannot enter ranking. -/
-  positive : 0 < score.value.key
+  /-- Exact positive weight word, held as the bonus if this unit is selected. -/
+  score : Bonus
 
-/-- The current weight produces its exact nonzero magnitude or is absent. -/
+/-- The current weight enters ranking exactly when its signed word is positive. -/
 def candidateOfWeight {dimension : Dimension} (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) (unit : Fin config.units.count) :
     Option (Candidate config) :=
   let weight := weights.get (unitFeature dimension config unit)
-  let score : Prediction .g99 := ⟨weight.value.abs, weight_bonus_legal weight⟩
-  letI := Binary32.positiveDecidable score.value
-  if positive : 0 < score.value.key then some ⟨unit, score, positive⟩ else none
+  letI := Binary32.positiveDecidable weight.value
+  if positive : 0 < weight.value.key then
+    some ⟨unit, ⟨⟨weight.value, weight_bonus_legal weight positive⟩, positive⟩⟩
+  else none
 
 /-- Exact positive score-block key. Positive finite float order is unsigned bit order. -/
 def Candidate.key {config : Config} (candidate : Candidate config) : Nat :=
@@ -355,14 +374,89 @@ theorem ranked_strict {config : Config} (count : Nat) (items : List (Candidate c
       have bound := dominates.1
       omega
 
-/-- Rank current bank candidates, then fill unoccupied skill slots with neutral identities. -/
+/-- The current top score blocks, each represented by its minimum unit. -/
+def rankedCandidates (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension) : List (Candidate config) :=
+  ranked Acorn.FeatureConstants.skillCount
+    ((List.finRange config.units.count).filterMap (candidateOfWeight config weights))
+
+/-- Whether an objective is the given unit. -/
+def Assignment.holds {config : Config} (unit : Fin config.units.count) :
+    Assignment config → Bool
+  | .neutral => false
+  | .selected held _ => held == unit
+
+/-- A held objective is retained exactly when its unit is still ranked. -/
+def Assignment.retained {config : Config} (chosen : List (Candidate config))
+    (assignment : Assignment config) : Bool :=
+  chosen.any fun candidate => assignment.holds candidate.unit
+
+/-- Ranked candidates whose unit no slot holds, in rank order. -/
+def entrants {config : Config}
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (chosen : List (Candidate config)) : List (Candidate config) :=
+  chosen.filter fun candidate =>
+    (List.finRange Acorn.FeatureConstants.skillCount).all fun slot =>
+      !held[slot.val].holds candidate.unit
+
+/-- Unretained slots before this one; each takes an earlier entrant. -/
+def openBefore {config : Config}
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount) : Nat :=
+  ((List.finRange Acorn.FeatureConstants.skillCount).filter fun other =>
+    decide (other.val < slot.val) && !held[other.val].retained chosen).length
+
+/-- Slot-stable ranking. A slot whose unit is still ranked keeps its exact objective
+and held bonus; every other slot takes the next entrant in slot order, or neutral. -/
 def rankAssignments (dimension : Dimension) (config : Config)
-    (weights : WeightArray (.discounted .g99) dimension) :
+    (weights : WeightArray (.discounted .g99) dimension)
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
     Vector (Assignment config) Acorn.FeatureConstants.skillCount :=
-  let candidates := (List.finRange config.units.count).filterMap (candidateOfWeight config weights)
-  let chosen := ranked Acorn.FeatureConstants.skillCount candidates
-  Vector.ofFn fun index => match chosen[index.val]? with
-    | none => .neutral
-    | some candidate => .selected candidate.unit candidate.score
+  let chosen := rankedCandidates dimension config weights
+  let arriving := entrants held chosen
+  Vector.ofFn fun slot =>
+    if held[slot.val].retained chosen then held[slot.val]
+    else match arriving[openBefore held chosen slot]? with
+      | none => .neutral
+      | some candidate => .selected candidate.unit candidate.score
+
+/-- A slot whose unit is still ranked receives exactly its held objective. -/
+theorem rankAssignments_retained (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension)
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (retained : held[slot.val].retained (rankedCandidates dimension config weights) = true) :
+    (rankAssignments dimension config weights held)[slot.val] = held[slot.val] := by
+  simp [rankAssignments, retained]
+
+/-- A target with its slot's identity is that slot's exact held objective: an
+entrant is never a unit some slot already holds. -/
+theorem rankAssignments_same (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension)
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (same : held[slot.val].same (rankAssignments dimension config weights held)[slot.val] = true) :
+    (rankAssignments dimension config weights held)[slot.val] = held[slot.val] := by
+  revert same
+  simp only [rankAssignments, Vector.getElem_ofFn]
+  split
+  · intro _
+    rfl
+  · split
+    · intro same
+      cases current : held[slot.val] with
+      | neutral => rfl
+      | selected unit bonus => simp [current, Assignment.same] at same
+    · rename_i candidate found
+      intro same
+      exfalso
+      have fresh := List.all_eq_true.mp (List.mem_filter.mp (List.mem_of_getElem? found)).2
+        slot (List.mem_finRange slot)
+      cases current : held[slot.val] with
+      | neutral => simp [current, Assignment.same] at same
+      | selected unit bonus =>
+        simp only [current, Assignment.holds, Bool.not_eq_true'] at fresh
+        simp only [current, Assignment.same] at same
+        simp_all
 
 end Acorn.Features

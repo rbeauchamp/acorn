@@ -30,7 +30,7 @@ inductive Error where
   | seed (found expected : UInt64)
   /-- Sensory tilings or initial bank capacity differs. -/
   | representation
-  /-- This profile's process state has no resumable format-14 image. -/
+  /-- This profile's process state has no resumable format-15 image. -/
   | unsupportedPolicy
   /-- Length, checksum, assignment, transcript or durable numeric admission failed. -/
   | corrupt

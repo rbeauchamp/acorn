@@ -69,7 +69,7 @@ def metaActionCount : Nat := 4
 /-- Current feature/lifecycle interface constant. -/
 def demonCount : Nat := 11
 /-- Current feature/lifecycle interface constant. -/
-def checkpointFormatVersion : Nat := 14
+def checkpointFormatVersion : Nat := 15
 /-- Current feature/lifecycle interface constant. -/
 def checkpointHeaderBytes : Nat := 64
 /-- Current feature/lifecycle interface constant. -/

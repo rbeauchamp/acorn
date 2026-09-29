@@ -89,7 +89,7 @@ def transcriptWords {config : Features.Config} (progress : Progress config) : Tr
     simp only [Progress.words, List.length_map]
     exact Nat.le_trans progress.legal.1 config.units.bounded⟩
 
-/-- A typed image has one exact format-14 word projection under its receiver. -/
+/-- A typed image has one exact format-15 word projection under its receiver. -/
 def imagePayload (construction : AgentConstruction)
     (image : AgentImage construction.config construction.criterion construction.dimension) :
     Payload construction.dimension :=

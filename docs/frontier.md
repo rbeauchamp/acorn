@@ -12,6 +12,8 @@ and PAR labels identify mechanism contracts.
 **Do the learned models predict useful consequences of executing an option?**
 
 Model accuracy under changing policies and representations is an open question.
+A refresh keeps the model of every option whose unit stays ranked; models restart
+only when their subtask's unit leaves the ranking.
 Extensions must preserve shared units, target alignment and age semantics.
 
 *Refutation attempt.* Challenge whether the executed target denotes the claimed

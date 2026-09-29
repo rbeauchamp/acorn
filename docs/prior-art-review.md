@@ -213,11 +213,11 @@ Fixed random projection generation over a hand-authored channel layout. Generati
 
 [Source](https://arxiv.org/abs/2202.03466). Execution owner: `Acorn.Options`.
 
-Skills receive host reward with learned stopping bonuses. Ranked hashed slots select candidate subtasks using learned magnitudes.
+Skills receive host reward with held stopping bonuses. Ranked hashed slots select candidate subtasks from positive learned Demon-0 weights.
 
-**Adaptation and rationale.** Host reward remains in each skill’s cumulant, with a learned feature-specific attainment bonus where ranking finds a candidate. This supports reward-respecting subtasks without a manually selected subgoal list. The hashed-slot magnitude is a proxy, and the neutral fallback differs from the paper’s nonzero prescribed stopping value.
+**Adaptation and rationale.** Host reward remains in each skill’s cumulant. Where ranking finds a candidate, an attained feature adds its held bonus to the stopping value: the unit’s positive Demon-0 weight, fixed at selection, stands in for the source’s bonus weight, “one of its largest values” (section 2, equation (4), p. 8). The source replaces the feature’s current weight inside the main value estimate; Acorn adds the held weight to the meta-controller estimate. This supports reward-respecting subtasks without a manually selected subgoal list. The hashed-slot weight is a proxy, and the neutral fallback differs from the paper’s nonzero prescribed stopping value.
 
-**Contract and composition.** Acorn.Options and Acorn.FeatureRanking own the stopping/selection definitions; AcornVerif.Options states the return identities. Bonus and host-value coordinates must match the policy/sample owner.
+**Contract and composition.** Acorn.Options and Acorn.FeatureRanking own the stopping/selection definitions; AcornVerif.Options states the return identities. AcornVerif.CurrentTemporal proves that the executed attained stopping value is at least its estimate for every finite estimate within the prediction cap. Bonus and host-value coordinates must match the policy/sample owner.
 
 **Refutation attempt.** Source review checked strict comparison, stopping equations and neutral fallback. It classified the stopping function as an adaptation rather than an exact instance of the paper at zero bonus; subsequent composition review traced the policy/sample ownership instead of inferring learned-value accuracy from return algebra.
 
@@ -297,13 +297,13 @@ A conditional checked transaction replaces an eligible imprint feature and clear
 
 [Source](https://arxiv.org/abs/2202.03466). Execution owner: `Acorn.FeatureRanking`.
 
-Streaming ranking over GVF weight slots drives coalesced refresh at a free decision boundary. Complete assignment identity invalidates dependent knowledge. Hash collisions and proxy meaning limit interpretation; spatial comparison remains D2.
+Streaming ranking over GVF weight slots drives coalesced refresh at a free decision boundary. Unit identity decides which knowledge is invalidated; a unit that stays ranked keeps its slot, learned state and held bonus. Hash collisions and proxy meaning limit interpretation; spatial comparison remains D2.
 
-**Adaptation and rationale.** Ranking uses learned predictive weight magnitude to choose distinct tied blocks and derive attainment bonuses. Coalescing requests until a free boundary preserves an ending activation’s objective; full assignment identity invalidates dependent knowledge even when only the bonus changes. The rationale is bounded streaming discovery without an authored subgoal list.
+**Adaptation and rationale.** Only units whose signed Demon-0 weight is positive are candidates; the positive weight word is both the ranking score and the attainment bonus, so a feature predicting less reward is never pursued as an attainment target. Ranking chooses distinct tied blocks. The bonus is fixed when the unit is selected, as the source fixes a bonus weight “so that an option can be learned in preparation for the times at which it is high” (section 2, p. 8). Objective identity is the unit alone. A refresh keeps every slot whose unit is still ranked, bit-identical, and reinstalls only slots whose unit left the ranking; entrants fill those slots in slot order. Coalescing requests until a free boundary preserves an ending activation’s objective. The rationale is bounded streaming discovery without an authored subgoal list. Feature variability is not tested; the source constructs subtasks only for features whose weight is sometimes high and sometimes low.
 
-**Contract and composition.** Acorn.FeatureRanking, Acorn.FeatureRefresh and AcornVerif.CurrentFeatureConsumers own selection/refresh and identity. Zero scores yield neutral skills rather than arbitrary noise. Scalar scores identify magnitudes; feature identity belongs to the assignment key.
+**Contract and composition.** Acorn.FeatureRanking, Acorn.FeatureRefresh and AcornVerif.CurrentFeatureConsumers own selection/refresh and identity. `FreeDispatch.refresh_retains` proves, for every state and Demon-0 weight array, that a still-ranked unit’s policy, model, cached prediction and meta-controller row are unchanged; `Bonus` makes every selected bonus positive and finite at every construction and admission boundary. Checkpoint format 15 stores the held bonus word and refuses earlier generations. Nonpositive scores yield neutral skills rather than arbitrary noise.
 
-**Refutation attempt.** Independent review challenged tied candidates, bonus-only changes, early-stream zeros and stopping invariance. It retained block exclusivity and neutral fallback, required complete assignment invalidation, and limited shaping invariance to trajectories with the same stopping value.
+**Refutation attempt.** Independent review challenged tied candidates, bonus-only changes, early-stream zeros and stopping invariance. It retained block exclusivity and neutral fallback and limited shaping invariance to trajectories with the same stopping value. Invalidating on a bonus-only change would reset a retained unit’s option policy, model and meta-controller row at nearly every refresh, because the Demon-0 weight moves whenever the unit’s trace is active; identity is therefore the unit, and the bonus is held.
 
 ### PAR-13 · Option models
 

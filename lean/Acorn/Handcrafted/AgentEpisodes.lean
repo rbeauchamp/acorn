@@ -64,7 +64,8 @@ theorem _root_.Acorn.Features.FreeDispatch.refresh_closing_slot
   unfold FreeDispatch.refreshRanked
   dsimp only [Refresh.take]
   split
-  · generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights = targets
+  · generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+      (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
     have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
         (current : FreeDispatch shape config criterion dimension discounts payload) :
         (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).closing.map (·.slot) =

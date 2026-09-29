@@ -44,12 +44,14 @@ theorem continuing_target (reward : Binary32) (gain : RewardRate) (next previous
         previous.value := rfl
 
 /-- Learned terminal credit retains the complete attained objective, even on
-the goal-ending branch. Machine additions and multiplication keep their order. -/
+the goal-ending branch. Machine additions keep their order; an attained feature
+adds its held bonus and an unattained feature leaves the estimate word unchanged. -/
 theorem learned_terminal_target (assignment : Assignment config) (estimate reward : Binary32)
     (next previous : Potential) :
     Features.terminalCumulant reward ((Interest.learned assignment).stoppingValue estimate next)
       previous =
-      (reward.add (estimate.add (assignment.bonus.mul next.value))).sub previous.value := rfl
+      (reward.add (if next then estimate.add assignment.bonus else estimate)).sub
+        previous.value := rfl
 
 /-- Declared potentials cannot replace the learned assignment's actual slot membership. -/
 theorem learned_potential (assignment : Assignment config) (features : SwiftTd.ActiveSet dimension)
@@ -264,5 +266,380 @@ theorem service_prefix_exact (run finalRun : ExploratoryRun primitiveCount) (cou
       have one := run.serve_exact result.2 result.1 step
       have rest := ih result.2 (by simpa [serveSteps, step] using served)
       exact ⟨rest.1.trans one.2.1, by omega⟩
+
+section AttainedStopping
+
+open Float.Model (Format totalExponent UnpackedFloat)
+open Float.Model.UnpackedFloat
+open AcornVerif.CurrentPower AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder
+  AcornVerif.CurrentPrediction
+
+/-! ## Attained stopping value
+
+Standard rounding returns a natural multiple of its target unit within half that
+unit. A representable value on one side of the exact result therefore remains on
+that side of the rounded result. Adding a nonnegative word never decreases a
+finite binary32 estimate on the strict finite domain, so the executed attained
+stopping value is at least its estimate. These theorems unfold the pinned
+standard model; native arithmetic remains the declared trust boundary. -/
+
+/-- Standard rounding returns a signed natural multiple of the input's target unit. -/
+theorem model_round_grid (spec : Format) (sign : Sign) (mantissa : Nat) (exponent : Int) :
+    ∃ rounded : Nat, unpackedValue (round spec sign mantissa exponent) =
+      signCoefficient sign * rounded *
+        (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa exponent)) := by
+  by_cases hz : mantissa = 0
+  · refine ⟨0, ?_⟩
+    rw [hz, model_round_zero]
+    simp [unpackedValue]
+  · let target := spec.targetExponent (totalExponent mantissa exponent)
+    let shift := (exponent-target).toNat
+    have hp : 0 < mantissa := by omega
+    have htotal : totalExponent (mantissa*2^shift) (exponent-shift) =
+        totalExponent mantissa exponent := by
+      simp only [totalExponent, model_log2_scaled_positive mantissa shift hp]
+      omega
+    have hout : exponent-shift+(target-(exponent-shift)).toNat = target := by omega
+    have value := model_round_exact_value spec sign (mantissa*2^shift) (exponent-shift)
+    dsimp only at value
+    rw [htotal, hout] at value
+    change ∃ rounded : Nat, unpackedValue (roundWithAccuracy spec sign (mantissa <<< shift)
+      (exponent - shift) .exact) = signCoefficient sign * rounded * (2:ℚ)^target
+    rw [Nat.shiftLeft_eq]
+    exact ⟨_, value⟩
+
+/-- A sign coefficient common to both sides leaves an absolute error unchanged. -/
+theorem model_sign_error (sign : Sign) (x p y q r : ℚ)
+    (bound : |signCoefficient sign * x * p - signCoefficient sign * y * q| ≤ r) :
+    |x * p - y * q| ≤ r := by
+  cases sign with
+  | positive => simpa only [signCoefficient, one_mul] using bound
+  | negative =>
+    have flip : signCoefficient .negative * x * p - signCoefficient .negative * y * q =
+        -(x * p - y * q) := by
+      simp only [signCoefficient]
+      ring
+    rw [flip, abs_neg] at bound
+    exact bound
+
+/-- A representable magnitude at or below a positive exact dyadic stays at or below
+its nearest-even rounding. -/
+theorem model_round_core_lower (spec : Format) (mantissa k rounded : Nat) (exponent y : Int)
+    (positive : 0 < mantissa) (bound : k < 2 ^ spec.mantissaBits)
+    (floor : spec.minExponent ≤ y)
+    (error : |(rounded : ℚ) * (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa exponent)) -
+      mantissa * (2 : ℚ) ^ exponent| ≤
+        (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa exponent)) / 2)
+    (below : (k : ℚ) * (2 : ℚ) ^ y ≤ mantissa * (2 : ℚ) ^ exponent) :
+    (k : ℚ) * (2 : ℚ) ^ y ≤
+      rounded * (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa exponent)) := by
+  have window := (model_positive_dyadic_window mantissa exponent positive).1
+  have mantissaBits : spec.mantissaBits = 1 + spec.mantissaBitsWithoutImplicit := rfl
+  generalize ht : spec.targetExponent (totalExponent mantissa exponent) = t at error ⊢
+  have hp : (0 : ℚ) < (2 : ℚ) ^ t := zpow_pos (by norm_num) _
+  have grid : ∀ j : Nat, (j : ℚ) * (2 : ℚ) ^ t ≤ mantissa * (2 : ℚ) ^ exponent →
+      (j : ℚ) * (2 : ℚ) ^ t ≤ rounded * (2 : ℚ) ^ t := by
+    intro j hj
+    have hle : j ≤ rounded := by
+      by_contra h
+      have hlt : (rounded : ℚ) + 1 ≤ j := by
+        exact_mod_cast Nat.lt_iff_add_one_le.mp (Nat.lt_of_not_le h)
+      have scaled := mul_le_mul_of_nonneg_right hlt (le_of_lt hp)
+      have lower := (abs_le.mp error).1
+      linarith
+    exact mul_le_mul_of_nonneg_right (by exact_mod_cast hle) (le_of_lt hp)
+  by_cases high : t ≤ y
+  · have split : (k : ℚ) * (2 : ℚ) ^ y = ((k * 2 ^ (y - t).toNat : Nat) : ℚ) * (2 : ℚ) ^ t := by
+      have hy : y = ((y - t).toNat : Int) + t := by omega
+      rw [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, mul_assoc, ← zpow_natCast,
+        ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0), ← hy]
+    rw [split] at below ⊢
+    exact grid _ below
+  · have normal : t = totalExponent mantissa exponent - spec.mantissaBits := by
+      simp only [Format.targetExponent] at ht
+      omega
+    have leading : ((2 ^ spec.mantissaBitsWithoutImplicit : Nat) : ℚ) * (2 : ℚ) ^ t =
+        (2 : ℚ) ^ (totalExponent mantissa exponent - 1) := by
+      rw [Nat.cast_pow, Nat.cast_ofNat, ← zpow_natCast, ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
+      congr 1
+      omega
+    have reached := grid (2 ^ spec.mantissaBitsWithoutImplicit) (by rw [leading]; exact window)
+    rw [leading] at reached
+    have hk : (k : ℚ) + 1 ≤ ((2 ^ spec.mantissaBits : Nat) : ℚ) := by
+      exact_mod_cast Nat.lt_iff_add_one_le.mp bound
+    have hy : (0 : ℚ) < (2 : ℚ) ^ y := zpow_pos (by norm_num) _
+    have top : ((2 ^ spec.mantissaBits : Nat) : ℚ) * (2 : ℚ) ^ y ≤
+        (2 : ℚ) ^ (totalExponent mantissa exponent - 1) := by
+      rw [Nat.cast_pow, Nat.cast_ofNat, ← zpow_natCast, ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
+      exact zpow_le_zpow_right₀ (by norm_num) (by omega)
+    have scaled := mul_le_mul_of_nonneg_right hk (le_of_lt hy)
+    linarith
+
+/-- A representable magnitude at or above a positive exact dyadic stays at or above
+its nearest-even rounding. -/
+theorem model_round_core_upper (spec : Format) (mantissa k rounded : Nat) (exponent y : Int)
+    (positive : 0 < mantissa) (bound : k < 2 ^ spec.mantissaBits)
+    (floor : spec.minExponent ≤ y)
+    (error : |(rounded : ℚ) * (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa exponent)) -
+      mantissa * (2 : ℚ) ^ exponent| ≤
+        (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa exponent)) / 2)
+    (above : (mantissa : ℚ) * (2 : ℚ) ^ exponent ≤ k * (2 : ℚ) ^ y) :
+    (rounded : ℚ) * (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa exponent)) ≤
+      k * (2 : ℚ) ^ y := by
+  have window := (model_positive_dyadic_window mantissa exponent positive).1
+  generalize ht : spec.targetExponent (totalExponent mantissa exponent) = t at error ⊢
+  have hp : (0 : ℚ) < (2 : ℚ) ^ t := zpow_pos (by norm_num) _
+  by_cases high : t ≤ y
+  · have split : (k : ℚ) * (2 : ℚ) ^ y = ((k * 2 ^ (y - t).toNat : Nat) : ℚ) * (2 : ℚ) ^ t := by
+      have hy : y = ((y - t).toNat : Int) + t := by omega
+      rw [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, mul_assoc, ← zpow_natCast,
+        ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0), ← hy]
+    rw [split] at above ⊢
+    have hle : rounded ≤ k * 2 ^ (y - t).toNat := by
+      by_contra h
+      have hlt : ((k * 2 ^ (y - t).toNat : Nat) : ℚ) + 1 ≤ rounded := by
+        exact_mod_cast Nat.lt_iff_add_one_le.mp (Nat.lt_of_not_le h)
+      have scaled := mul_le_mul_of_nonneg_right hlt (le_of_lt hp)
+      have upper := (abs_le.mp error).2
+      linarith
+    exact mul_le_mul_of_nonneg_right (by exact_mod_cast hle) (le_of_lt hp)
+  · exfalso
+    have normal : t = totalExponent mantissa exponent - spec.mantissaBits := by
+      simp only [Format.targetExponent] at ht
+      omega
+    have hk : (k : ℚ) + 1 ≤ ((2 ^ spec.mantissaBits : Nat) : ℚ) := by
+      exact_mod_cast Nat.lt_iff_add_one_le.mp bound
+    have hy : (0 : ℚ) < (2 : ℚ) ^ y := zpow_pos (by norm_num) _
+    have top : ((2 ^ spec.mantissaBits : Nat) : ℚ) * (2 : ℚ) ^ y ≤
+        (2 : ℚ) ^ (totalExponent mantissa exponent - 1) := by
+      rw [Nat.cast_pow, Nat.cast_ofNat, ← zpow_natCast, ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
+      exact zpow_le_zpow_right₀ (by norm_num) (by omega)
+    have scaled := mul_le_mul_of_nonneg_right hk (le_of_lt hy)
+    linarith
+
+/-- Signed normalization never rounds below a canonical finite value that is at
+or below the exact signed dyadic. -/
+theorem model_normalize_lower (spec : Format) (mantissa exponent : Int) (zeroSign sign : Sign)
+    (lm : Nat) (le : Int) (lp : 0 < lm) (bound : lm < 2 ^ spec.mantissaBits)
+    (floor : spec.minExponent ≤ le)
+    (below : unpackedValue (.finite sign lm le lp) ≤ (mantissa : ℚ) * (2 : ℚ) ^ exponent) :
+    unpackedValue (.finite sign lm le lp) ≤
+      unpackedValue (normalize spec mantissa exponent zeroSign) := by
+  have hp : (0 : ℚ) < (2 : ℚ) ^ exponent := zpow_pos (by norm_num) _
+  have hl : (0 : ℚ) ≤ (lm : ℚ) * (2 : ℚ) ^ le :=
+    mul_nonneg (Nat.cast_nonneg _) (le_of_lt (zpow_pos (by norm_num) _))
+  unfold normalize
+  split
+  · rename_i negative
+    have hn : mantissa < 0 := (Int.compare_eq_lt).mp negative
+    have hm : (mantissa : ℚ) < 0 := by exact_mod_cast hn
+    have magnitude : ((-mantissa).toNat : ℚ) = -(mantissa : ℚ) := by
+      have he : ((-mantissa).toNat : Int) = -mantissa := Int.toNat_of_nonneg (by omega)
+      exact_mod_cast he
+    obtain ⟨rounded, value⟩ := model_round_grid spec .negative (-mantissa).toNat exponent
+    have error := model_round_error spec .negative (-mantissa).toNat exponent
+    rw [value] at error
+    have rounding := model_sign_error _ _ _ _ _ _ error
+    rw [value]
+    cases sign with
+    | positive =>
+      exfalso
+      have lval : unpackedValue (.finite .positive lm le lp) = (lm : ℚ) * (2 : ℚ) ^ le := by
+        simp only [unpackedValue, signCoefficient, one_mul]
+      rw [lval] at below
+      have negativeValue : (mantissa : ℚ) * (2 : ℚ) ^ exponent < 0 :=
+        mul_neg_of_neg_of_pos hm hp
+      linarith
+    | negative =>
+      have lval : unpackedValue (.finite .negative lm le lp) = -((lm : ℚ) * (2 : ℚ) ^ le) := by
+        simp only [unpackedValue, signCoefficient]
+        ring
+      rw [lval] at below ⊢
+      have above : ((-mantissa).toNat : ℚ) * (2 : ℚ) ^ exponent ≤ lm * (2 : ℚ) ^ le := by
+        rw [magnitude]
+        linarith
+      have core := model_round_core_upper spec (-mantissa).toNat lm rounded exponent le
+        (by omega) bound floor rounding above
+      simp only [signCoefficient]
+      linarith
+  · rename_i zero
+    have hn : mantissa = 0 := (Int.compare_eq_eq).mp zero
+    subst hn
+    change unpackedValue (.finite sign lm le lp) ≤ 0
+    simpa using below
+  · rename_i positive
+    have hn : 0 < mantissa := (Int.compare_eq_gt).mp positive
+    have magnitude : (mantissa.toNat : ℚ) = (mantissa : ℚ) := by
+      exact_mod_cast Int.toNat_of_nonneg (by omega : 0 ≤ mantissa)
+    obtain ⟨rounded, value⟩ := model_round_grid spec .positive mantissa.toNat exponent
+    have error := model_round_error spec .positive mantissa.toNat exponent
+    rw [value] at error
+    have rounding := model_sign_error _ _ _ _ _ _ error
+    rw [value]
+    have roundedNonneg : (0 : ℚ) ≤ signCoefficient .positive * rounded *
+        (2 : ℚ) ^ (spec.targetExponent (totalExponent mantissa.toNat exponent)) := by
+      simp only [signCoefficient, one_mul]
+      exact mul_nonneg (Nat.cast_nonneg _) (le_of_lt (zpow_pos (by norm_num) _))
+    cases sign with
+    | negative =>
+      have lval : unpackedValue (.finite .negative lm le lp) = -((lm : ℚ) * (2 : ℚ) ^ le) := by
+        simp only [unpackedValue, signCoefficient]
+        ring
+      rw [lval]
+      linarith
+    | positive =>
+      have lval : unpackedValue (.finite .positive lm le lp) = (lm : ℚ) * (2 : ℚ) ^ le := by
+        simp only [unpackedValue, signCoefficient, one_mul]
+      rw [lval] at below ⊢
+      have core := model_round_core_lower spec mantissa.toNat lm rounded exponent le
+        (by omega) bound floor rounding (by rw [magnitude]; exact below)
+      simp only [signCoefficient, one_mul]
+      exact core
+
+/-- Standard unpacked addition of a nonnegative canonical value never decreases
+a canonical finite or zero value. -/
+theorem model_add_lower (spec : Format) (left right : UnpackedFloat)
+    (leftNormal : ModelNormalized spec left) (rightNormal : ModelNormalized spec right)
+    (nonnegative : 0 ≤ unpackedValue right) :
+    unpackedValue left ≤ unpackedValue (UnpackedFloat.add spec left right) := by
+  cases left with
+  | notANumber => contradiction
+  | infinity sign => contradiction
+  | zero sign =>
+    cases right with
+    | notANumber => contradiction
+    | infinity s => contradiction
+    | zero s => cases sign <;> cases s <;> exact le_refl (0 : ℚ)
+    | finite s m e hp => exact nonnegative
+  | finite leftSign lm le lp =>
+    obtain ⟨bound, floor, _⟩ := leftNormal
+    cases right with
+    | notANumber => contradiction
+    | infinity sign => contradiction
+    | zero rightSign => exact le_refl _
+    | finite rightSign rm re rp =>
+      let target := min le re
+      let lmantissa := (decreaseExponent lm le target).1
+      let rmantissa := (decreaseExponent rm re target).1
+      let sum := leftSign.apply lmantissa + rightSign.apply rmantissa
+      have hl := model_decrease_dyadic_value leftSign lm le target (Int.min_le_left _ _)
+      have hr := model_decrease_dyadic_value rightSign rm re target (Int.min_le_right _ _)
+      have heq : (sum:ℚ)*(2:ℚ)^target =
+          unpackedValue (.finite leftSign lm le lp)+unpackedValue (.finite rightSign rm re rp) := by
+        change ((leftSign.apply lmantissa + rightSign.apply rmantissa : Int):ℚ)*(2:ℚ)^target = _
+        rw [Int.cast_add, add_mul, hl, hr]
+        rfl
+      simp only [UnpackedFloat.add]
+      change _ ≤ unpackedValue (normalize spec sum target .positive)
+      exact model_normalize_lower spec sum target .positive leftSign lm le lp bound floor
+        (by rw [heq]; linarith)
+
+/-- The executing binary32 addition is the standard unpacked addition throughout the
+strict finite domain used by the prediction cap. -/
+theorem binary32_add_decoded (left right : Binary32)
+    (leftFinite : left.Finite) (rightFinite : right.Finite) (limit : Int) (range : limit ≤ 33)
+    (bound : |numerical32 left + numerical32 right| < (2 : ℚ) ^ limit) :
+    decoded32 (left.add right) =
+      UnpackedFloat.add Format.binary32 (decoded32 left) (decoded32 right) := by
+  have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
+    ((model_decoded32_finite left).mpr leftFinite)).1
+  have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
+    ((model_decoded32_finite right).mpr rightFinite)).1
+  have operation := model_add_dyadic_local_strict Format.binary32 (decoded32 left)
+    (decoded32 right) ln rn limit bound
+  have error : |unpackedValue (UnpackedFloat.add Format.binary32 (decoded32 left)
+      (decoded32 right))-(numerical32 left+numerical32 right)| ≤
+        (2:ℚ)^(max (limit-24) (-149))/2 := operation.2
+  have radiusBound : (2:ℚ)^(max (limit-24) (-149))/2 ≤ 256 := by
+    have power := zpow_le_zpow_right₀ (by norm_num : (1:ℚ) ≤ 2)
+      (show max (limit-24) (-149) ≤ 9 by omega)
+    norm_num at power
+    linarith only [power]
+  have sumBound : |numerical32 left+numerical32 right| ≤ 8589934592 := by
+    have power := zpow_le_zpow_right₀ (by norm_num : (1:ℚ) ≤ 2) range
+    norm_num at power
+    exact le_trans (le_of_lt bound) power
+  have fits : ModelFits Format.binary32 (UnpackedFloat.add Format.binary32
+      (decoded32 left) (decoded32 right)) := by
+    apply model_fits_of_value_bound Format.binary32 _
+      (model_normalized_finite _ _ operation.1) 34 (by decide)
+    have triangle := abs_add_le
+      (unpackedValue (UnpackedFloat.add Format.binary32 (decoded32 left) (decoded32 right))-
+        (numerical32 left+numerical32 right)) (numerical32 left+numerical32 right)
+    rw [sub_add_cancel] at triangle
+    norm_num
+    linarith only [triangle,error,radiusBound,sumBound]
+  exact model_add32_decoded left right leftFinite rightFinite operation.1 fits
+
+/-- Adding a nonnegative finite word never decreases a finite binary32 word whose
+exact sum lies strictly inside the prediction cap's domain. -/
+theorem binary32_add_nondecreasing (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (nonnegative : 0 ≤ numerical32 right)
+    (bound : |numerical32 left + numerical32 right| < (2 : ℚ) ^ (33 : Int)) :
+    (left.add right).Finite ∧ left.key ≤ (left.add right).key := by
+  have finite := (binary32_add_finite_strict_error left right leftFinite rightFinite 33
+    le_rfl bound).1
+  have decoded := binary32_add_decoded left right leftFinite rightFinite 33 le_rfl bound
+  have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
+    ((model_decoded32_finite left).mpr leftFinite)).1
+  have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
+    ((model_decoded32_finite right).mpr rightFinite)).1
+  refine ⟨finite, (numerical32_order left (left.add right) leftFinite finite).mp ?_⟩
+  change unpackedValue (decoded32 left) ≤ unpackedValue (decoded32 (left.add right))
+  rw [decoded]
+  exact model_add_lower Format.binary32 _ _ ln rn nonnegative
+
+/-- Every held bonus word is finite, nonnegative and inside the Demon-0 horizon bound. -/
+theorem assignment_bonus_numerical (assignment : Assignment config) :
+    assignment.bonus.Finite ∧ 0 ≤ numerical32 assignment.bonus ∧
+      numerical32 assignment.bonus ≤ 101 := by
+  have zeroValue : numerical32 Binary32.zero = 0 := by decide
+  have zeroFinite : Binary32.zero.Finite := by decide
+  cases assignment with
+  | neutral =>
+    change Binary32.zero.Finite ∧ 0 ≤ numerical32 Binary32.zero ∧
+      numerical32 Binary32.zero ≤ 101
+    rw [zeroValue]
+    exact ⟨zeroFinite, le_refl 0, by norm_num⟩
+  | selected unit bonus =>
+    change bonus.value.Finite ∧ 0 ≤ numerical32 bonus.value ∧ numerical32 bonus.value ≤ 101
+    have legal := bonus.weight.legal
+    let upper : Binary32 := ⟨0x42ca0000⟩
+    have upperFinite : upper.Finite := by decide
+    have upperValue : numerical32 upper = 101 := by
+      dsimp only [upper]
+      change (1:ℚ)*13238272*(2:ℚ)^(-17:Int) = _
+      norm_num
+    have zeroKey : Binary32.zero.key = 0 := by decide
+    have hi : Discount.g99.predictionRange.upper.key ≤ upper.key := by decide
+    have lowerProof := (numerical32_order Binary32.zero bonus.value zeroFinite legal.1).mpr
+      (by rw [zeroKey]; exact Int.le_of_lt bonus.positive)
+    have upperProof := (numerical32_order bonus.value upper legal.1 upperFinite).mpr
+      (le_trans legal.2.2 hi)
+    rw [zeroValue] at lowerProof
+    rw [upperValue] at upperProof
+    exact ⟨legal.1, lowerProof, upperProof⟩
+
+/-- T2: attaining the assigned feature never lowers the executed stopping value below
+its estimate, for every interest and every finite estimate within the prediction cap.
+Together with `Bonus.finite_positive`, every selected bonus is positive and finite. -/
+theorem attained_stopping (interest : Interest config) (estimate : Binary32)
+    (finite : estimate.Finite) (bound : |numerical32 estimate| ≤ 4294967296) :
+    (interest.stoppingValue estimate true).Finite ∧
+      estimate.key ≤ (interest.stoppingValue estimate true).key := by
+  cases interest with
+  | declared origin tag => exact ⟨finite, le_refl _⟩
+  | learned assignment =>
+    have held := assignment_bonus_numerical assignment
+    change (estimate.add assignment.bonus).Finite ∧
+      estimate.key ≤ (estimate.add assignment.bonus).key
+    apply binary32_add_nondecreasing estimate assignment.bonus finite held.1 held.2.1
+    have triangle := abs_add_le (numerical32 estimate) (numerical32 assignment.bonus)
+    have power : (2:ℚ)^(33:Int) = 8589934592 := by norm_num
+    rw [abs_of_nonneg held.2.1] at triangle
+    rw [power]
+    linarith only [triangle, bound, held.2.2]
+
+end AttainedStopping
 
 end AcornVerif.CurrentTemporal

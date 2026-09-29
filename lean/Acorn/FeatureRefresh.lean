@@ -9,11 +9,13 @@ import Acorn.FeatureLifecycle
 /-!
 # Assignment refresh at the free dispatch boundary
 
-Ranked assignments use the actual stored Demon-0 weights. Full objective identity,
-including bonus bits, determines whether policy/model state and its prediction
-cache survive. An ending activation retains the replaced owner for terminal
-credit. The activation payload is parametric: refresh neither reads nor rewrites
-it. Continuing activations do not inhabit this free-boundary interface.
+Ranked assignments use the actual stored Demon-0 weights. Objective identity is
+the selected unit: a slot whose unit is still ranked keeps its policy, model,
+prediction cache, meta-controller row and held bonus bit-identical, and only a
+slot whose unit left the ranking is reinstalled. An ending activation retains
+the replaced owner for terminal credit. The activation payload is parametric:
+refresh neither reads nor rewrites it. Continuing activations do not inhabit
+this free-boundary interface.
 -/
 namespace Acorn.Features
 
@@ -94,20 +96,40 @@ def metaOfSkill (slot : Fin Acorn.FeatureConstants.skillCount) :
   ⟨slot.val + 1, by have := slot.isLt; simp [Acorn.FeatureConstants.skillCount,
     Acorn.FeatureConstants.metaActionCount] at *; omega⟩
 
-/-- Learned identity compares all fields; declared targets always require replacement. -/
+/-- Learned identity compares selected units; declared targets always require replacement. -/
 def Interest.sameAssignment {config : Config} (interest : Interest config)
     (target : Assignment config) : Bool :=
   match interest with
   | .learned prior => prior.same target
   | .declared _ _ => false
 
-/-- Matching a target is equality of the full learned objective, never just its slot. -/
+/-- Matching a target is equality of learned unit identity, never of its bonus or slot. -/
 theorem Interest.sameAssignment_iff {config : Config} (interest : Interest config)
-    (target : Assignment config) : interest.sameAssignment target = true ↔ interest = .learned target := by
+    (target : Assignment config) : interest.sameAssignment target = true ↔
+      ∃ prior, interest = .learned prior ∧ prior.identity = target.identity := by
   cases interest <;> simp [Interest.sameAssignment, Assignment.same_iff]
 
-/-- One changed slot atomically receives its target, fresh policy/model and fresh cache.
-The closing payload is retained, with the original owner detached at the same write. -/
+/-- The learned objective a slot holds; a declared choice holds none. -/
+def Interest.held {config : Config} : Interest config → Assignment config
+  | .learned assignment => assignment
+  | .declared _ _ => .neutral
+
+/-- A target that equals the held objective whenever their identities match leaves
+no unchanged slot with a different stored objective. -/
+theorem Interest.compatible {config : Config} (interest : Interest config)
+    (target : Assignment config)
+    (exactWhenSame : interest.held.same target = true → target = interest.held) :
+    interest.sameAssignment target = true → interest = .learned target := by
+  cases interest with
+  | learned prior =>
+    intro same
+    exact congrArg Interest.learned (exactWhenSame same).symm
+  | declared origin tag =>
+    intro same
+    simp [Interest.sameAssignment] at same
+
+/-- A slot whose unit changed atomically receives its target, fresh policy/model and fresh
+cache. The closing payload is retained, with the original owner detached at the same write. -/
 def FreeDispatch.install {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
@@ -130,7 +152,7 @@ def DemonBank.rankingWeights {dimension : Dimension} {discounts : List Discount}
     (bank : DemonBank dimension (.g99 :: discounts)) : WeightArray (.discounted .g99) dimension :=
   match bank with | .cons learner _ => learner.state.weights
 
-/-- Consume one coalesced request and install the current ranking in slot order. -/
+/-- Consume one coalesced request and install the slot-stable ranking in slot order. -/
 def FreeDispatch.refreshRanked {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload) :
@@ -139,11 +161,12 @@ def FreeDispatch.refreshRanked {shape : PatchShape} {config : Config} {criterion
   let state := { state with refresh }
   if pending then
     let targets := rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+      (state.lifecycle.consumers.skills.map (·.interest.held))
     (List.finRange Acorn.FeatureConstants.skillCount).foldl
       (fun current slot => current.install slot targets[slot.val]) state
   else state
 
-/-- Exact identity prevents any learner, cache or pending-credit mutation. -/
+/-- Unchanged unit identity prevents any learner, cache or pending-credit mutation. -/
 theorem FreeDispatch.install_same {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
@@ -152,7 +175,7 @@ theorem FreeDispatch.install_same {shape : PatchShape} {config : Config} {criter
     state.install slot target = state := by
   simp [FreeDispatch.install, same]
 
-/-- A changed identity clears its cache at the write boundary. -/
+/-- A changed unit identity clears its cache at the write boundary. -/
 theorem FreeDispatch.install_cache {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
@@ -161,17 +184,19 @@ theorem FreeDispatch.install_cache {shape : PatchShape} {config : Config} {crite
     (state.install slot target).predictions[slot.val] = ModelCache.initial := by
   simp [FreeDispatch.install, changed]
 
-/-- Every installed slot has exactly its requested target, including the unchanged branch. -/
+/-- A compatible target is installed exactly, including the unchanged branch. -/
 theorem FreeDispatch.install_target {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
-    (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config) :
+    (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config)
+    (compatible : state.lifecycle.consumers.skills[slot.val].interest.sameAssignment target = true →
+      state.lifecycle.consumers.skills[slot.val].interest = .learned target) :
     (state.install slot target).lifecycle.consumers.skills[slot.val].interest = .learned target := by
   cases same : state.lifecycle.consumers.skills[slot.val].interest.sameAssignment target with
   | false => simp [FreeDispatch.install, same, Skill.initial]
   | true =>
     rw [FreeDispatch.install_same state slot target same]
-    exact (Interest.sameAssignment_iff _ _).mp same
+    exact compatible same
 
 /-- A closing slot keeps its first detached learner across every further replacement;
 when no owner is detached yet, the current table learner becomes that owner. -/
@@ -258,7 +283,7 @@ theorem FreeDispatch.fold_preserves {shape : PatchShape} {config : Config}
     exact ⟨rest.1.trans (state.install_preserves slot targets[slot.val]).1,
       rest.2.trans (state.install_representation slot targets[slot.val])⟩
 
-/-- Installing the requested vector preserves targets already installed and
+/-- Installing a compatible vector preserves targets already installed and
 establishes every target named by the fold, for arbitrary slot order and aliases. -/
 theorem FreeDispatch.fold_target {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
@@ -266,18 +291,75 @@ theorem FreeDispatch.fold_target {shape : PatchShape} {config : Config}
     (targets : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (state : FreeDispatch shape config criterion dimension discounts payload)
     (slot : Fin Acorn.FeatureConstants.skillCount)
+    (compatible : ∀ index : Fin Acorn.FeatureConstants.skillCount,
+      state.lifecycle.consumers.skills[index.val].interest.sameAssignment targets[index.val] = true →
+        state.lifecycle.consumers.skills[index.val].interest = .learned targets[index.val])
     (covered : slot ∈ slots ∨ state.lifecycle.consumers.skills[slot.val].interest = .learned targets[slot.val]) :
     (slots.foldl (fun current next => current.install next targets[next.val]) state).lifecycle.consumers.skills[slot.val].interest = .learned targets[slot.val] := by
   induction slots generalizing state with
   | nil => simpa using covered
   | cons next rest ih =>
     apply ih
-    by_cases same : slot = next
+    · intro index
+      by_cases same : index = next
+      · subst index
+        intro _
+        exact state.install_target next targets[next.val] (compatible next)
+      · rw [(state.install_other next index targets[next.val] same).1]
+        exact compatible index
+    · by_cases same : slot = next
+      · subst next
+        exact Or.inr (state.install_target slot targets[slot.val] (compatible slot))
+      · rcases covered with member | already
+        · exact Or.inl ((List.mem_cons.mp member).resolve_left same)
+        · exact Or.inr (by rw [(state.install_other next slot targets[next.val] same).1]; exact already)
+
+/-- Installing one slot cannot mutate another slot's meta-controller row. -/
+theorem FreeDispatch.install_meta_other {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot other : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config)
+    (different : other ≠ slot) :
+    (state.install slot target).lifecycle.consumers.metaController.learners[(metaOfSkill other).val] =
+      state.lifecycle.consumers.metaController.learners[(metaOfSkill other).val] := by
+  have values : (metaOfSkill slot).val ≠ (metaOfSkill other).val := by
+    intro equal
+    exact different (Fin.ext (by simp only [metaOfSkill] at equal; omega))
+  simp only [FreeDispatch.install]
+  split
+  · rfl
+  · simp [Controller.resetAction, values]
+
+/-- A slot already holding its target keeps its skill, cache and meta-controller row
+bit-identical through the whole installation fold, for arbitrary slot order. -/
+theorem FreeDispatch.fold_retains {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (slots : List (Fin Acorn.FeatureConstants.skillCount))
+    (targets : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (keeps : state.lifecycle.consumers.skills[slot.val].interest = .learned targets[slot.val]) :
+    (slots.foldl (fun current next => current.install next targets[next.val]) state).lifecycle.consumers.skills[slot.val] =
+        state.lifecycle.consumers.skills[slot.val] ∧
+      (slots.foldl (fun current next => current.install next targets[next.val]) state).predictions[slot.val] =
+        state.predictions[slot.val] ∧
+      (slots.foldl (fun current next => current.install next targets[next.val]) state).lifecycle.consumers.metaController.learners[(metaOfSkill slot).val] =
+        state.lifecycle.consumers.metaController.learners[(metaOfSkill slot).val] := by
+  induction slots generalizing state with
+  | nil => exact ⟨rfl, rfl, rfl⟩
+  | cons next rest ih =>
+    simp only [List.foldl_cons]
+    by_cases same : next = slot
     · subst next
-      exact Or.inr (state.install_target slot targets[slot.val])
-    · rcases covered with member | already
-      · exact Or.inl ((List.mem_cons.mp member).resolve_left same)
-      · exact Or.inr (by rw [(state.install_other next slot targets[next.val] same).1]; exact already)
+      have unchanged : state.install slot targets[slot.val] = state :=
+        state.install_same slot targets[slot.val]
+          (by rw [keeps]; exact Assignment.same_refl targets[slot.val])
+      simp only [unchanged]
+      exact ih state keeps
+    · have other := state.install_other next slot targets[next.val] (Ne.symm same)
+      have row := state.install_meta_other next slot targets[next.val] (Ne.symm same)
+      have after := ih (state.install next targets[next.val]) (by rw [other.1]; exact keeps)
+      exact ⟨after.1.trans other.1, after.2.1.trans other.2, after.2.2.trans row⟩
 
 /-- A free-boundary refresh acknowledges exactly the pending work and preserves
 projection identity, whether or not that work required any target replacement. -/
@@ -291,15 +373,63 @@ theorem FreeDispatch.refresh_conserves {shape : PatchShape} {config : Config}
     exact FreeDispatch.fold_preserves _ _ _
   · simp [FreeDispatch.refreshRanked, Refresh.take, pending]
 
-/-- Every option receives the ranking computed from this receiver's actual Demon-0 words. -/
-theorem FreeDispatch.refresh_targets {shape : PatchShape} {config : Config}
-    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+/-- Every option receives the slot-stable ranking computed from this receiver's
+actual Demon-0 words and its held objectives. -/
+theorem FreeDispatch.refresh_targets {shape : PatchShape} {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
     (pending : state.refresh.pending = true) (slot : Fin Acorn.FeatureConstants.skillCount) :
     state.refreshRanked.lifecycle.consumers.skills[slot.val].interest =
-      .learned (rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights)[slot.val] := by
+      .learned (rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+        (state.lifecycle.consumers.skills.map (·.interest.held)))[slot.val] := by
   simp only [FreeDispatch.refreshRanked, Refresh.take, pending, ↓reduceIte]
   apply FreeDispatch.fold_target
-  exact Or.inl (List.mem_finRange slot)
+  · intro index
+    apply Interest.compatible
+    show (state.lifecycle.consumers.skills[index.val].interest.held.same
+        (rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+          (state.lifecycle.consumers.skills.map (·.interest.held)))[index.val] = true →
+      (rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+          (state.lifecycle.consumers.skills.map (·.interest.held)))[index.val] =
+        state.lifecycle.consumers.skills[index.val].interest.held)
+    have held : (state.lifecycle.consumers.skills.map (·.interest.held))[index.val] =
+        state.lifecycle.consumers.skills[index.val].interest.held := by simp
+    rw [← held]
+    exact rankAssignments_same dimension config _ _ index
+  · exact Or.inl (List.mem_finRange slot)
+
+/-- T1: for every state and Demon-0 weight array, a slot whose unit is still ranked
+keeps its policy, model, cached prediction and meta-controller row bit-identical. -/
+theorem FreeDispatch.refresh_retains {shape : PatchShape} {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count) (bonus : Bonus)
+    (holds : state.lifecycle.consumers.skills[slot.val].interest = .learned (.selected unit bonus))
+    (ranked : unit ∈ (rankedCandidates dimension config
+      state.lifecycle.consumers.demons.rankingWeights).map (·.unit)) :
+    state.refreshRanked.lifecycle.consumers.skills[slot.val] =
+        state.lifecycle.consumers.skills[slot.val] ∧
+      state.refreshRanked.predictions[slot.val] = state.predictions[slot.val] ∧
+      state.refreshRanked.lifecycle.consumers.metaController.learners[(metaOfSkill slot).val] =
+        state.lifecycle.consumers.metaController.learners[(metaOfSkill slot).val] := by
+  by_cases pending : state.refresh.pending = true
+  · simp only [FreeDispatch.refreshRanked, Refresh.take, pending, ↓reduceIte]
+    apply FreeDispatch.fold_retains
+    show state.lifecycle.consumers.skills[slot.val].interest =
+      .learned (rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+        (state.lifecycle.consumers.skills.map (·.interest.held)))[slot.val]
+    have held : (state.lifecycle.consumers.skills.map (·.interest.held))[slot.val] =
+        .selected unit bonus := by simp [holds, Interest.held]
+    have retained : Assignment.retained
+        (rankedCandidates dimension config state.lifecycle.consumers.demons.rankingWeights)
+        (state.lifecycle.consumers.skills.map
+          (fun skill : Skill config criterion dimension => skill.interest.held))[slot.val] =
+          true := by
+      obtain ⟨candidate, member, named⟩ := List.mem_map.mp ranked
+      rw [held]
+      exact List.any_eq_true.mpr ⟨candidate, member, by simp [Assignment.holds, named]⟩
+    rw [rankAssignments_retained dimension config _ _ slot retained, held]
+    exact holds
+  · simp [FreeDispatch.refreshRanked, Refresh.take, pending]
 
 end Acorn.Features

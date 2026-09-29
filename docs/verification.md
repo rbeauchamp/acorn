@@ -151,7 +151,7 @@ when investigating a dynamics change.
 
 ## Checkpoint admission
 
-Format 14 preserves admitted learner state, assignments and pending ranking
+Format 15 preserves admitted learner state, assignments and pending ranking
 requests for supported ranked profiles. Restore checks dimensions, identifiers,
 criterion and value domains before admitting state. An incompatible image is
 refused and writes to that file are disabled. Learner state resumes; the world
