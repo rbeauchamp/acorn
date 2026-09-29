@@ -65,7 +65,7 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 | 6 | Continuing decisions | Differential-control research integration. |
 | 7 | Planning with differential values | Approximate option planning. |
 | 8 | Integrated model-based prototype | Models and planning components are present. |
-| 9 | Exploration and search choices | Declared εz-greedy rate and duration. |
+| 9 | Exploration and search choices | Declared εz-greedy rate and duration; search control is absent. |
 | 10 | Abstraction through STOMP | Ranked subtasks, options, models and planning. |
 | 11 | Complete OaK | Absent; the full utility-feedback loop is not implemented. |
 | 12 | Assisting other intelligences | Out of scope. |
