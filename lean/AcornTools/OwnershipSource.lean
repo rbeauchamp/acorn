@@ -43,6 +43,7 @@ def targets : IO (Array (String × Name)) := do
     require (AcornOwnership.executables.contains entry) s!"unowned Lake executable {entry}"
   for entry in AcornOwnership.executables do
     require (actual.contains entry) s!"stale executable owner {entry}"
+    require (AcornOwnership.modules.contains entry.2) s!"unmaintained executable root {entry}"
   return actual
 
 end AcornOwnershipAudit
