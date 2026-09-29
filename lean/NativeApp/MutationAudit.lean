@@ -19,11 +19,11 @@ open Acorn Acorn.Host Acorn.Host.Viewer Acorn.Handcrafted
 
 /-- The complete retained audit-arm domain. -/
 inductive AuditArm where
-  /-- Ranked, derived exploration, discounted control. -/
-  | derived
+  /-- Ranked profile, declared exploration rate, discounted control. -/
+  | declared
   /-- Retained annealed schedule with spatial subtask interests. -/
   | annealed
-  /-- Ranked, derived exploration, differential control. -/
+  /-- Ranked profile, declared exploration rate, differential control. -/
   | differential
   deriving DecidableEq
 
@@ -37,13 +37,13 @@ structure AuditReceipt where
 
 /-- Retained mutation pins; changing a value requires an explicit dynamics decision. -/
 def AuditArm.receipt : AuditArm → AuditReceipt
-  | .derived => ⟨AuditPins.derivedDigest, AuditPins.derivedChecksum⟩
+  | .declared => ⟨AuditPins.declaredDigest, AuditPins.declaredChecksum⟩
   | .annealed => ⟨AuditPins.annealedDigest, AuditPins.annealedChecksum⟩
   | .differential => ⟨AuditPins.differentialDigest, AuditPins.differentialChecksum⟩
 
 /-- Stable labels keep each mutation result attached to its actual arm. -/
 def AuditArm.label : AuditArm → String
-  | .derived => "deployed"
+  | .declared => "deployed declared-rate arm"
   | .annealed => "annealed incumbent arm"
   | .differential => "differential research arm"
 
@@ -66,9 +66,9 @@ def auditOptions (arguments : List String) : Except Cli.Error AuditArm := do
   let selected ← Cli.value arguments "--arm"
   let legacy ← Cli.value arguments "--explore-rate"
   let arm ← match selected, legacy with
-    | none, none => pure .derived
+    | none, none => pure .declared
     | some _, some _ => .error (.repeated "audit arm selector")
-    | some "derived", none | none, some "derived" => pure .derived
+    | some "declared", none => pure .declared
     | some "annealed", none | none, some "annealed" => pure .annealed
     | some "differential", none => pure .differential
     | some name, none => .error (.invalid "--arm" name)
@@ -93,7 +93,7 @@ def AuditArm.options (arm : AuditArm) : Except Cli.Error Cli.Streaming := do
 and differential arms retain the ordinary native construction. -/
 @[noinline] def AuditArm.construction (arm : AuditArm) (options : Cli.Streaming) : AgentConstruction :=
   { nativeConstruction options with profile := match arm with
-    | .derived | .differential => (nativeConstruction options).profile
+    | .declared | .differential => (nativeConstruction options).profile
     | .annealed => ⟨.final, .perStep, .annealed, .spatial⟩ }
 
 /-- Every incumbent construction carries all four retained discriminants,
@@ -115,7 +115,7 @@ def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
     (outcome : GoalOutcome → IO Unit) (stop : StopFlag) :
     IO (Except RunnerError (CampaignResult options.common.world (arm.construction options).State)) :=
   match arm with
-  | .derived => runNativeCampaign options build syncProgram sink outcome stop
+  | .declared => runNativeCampaign options build syncProgram sink outcome stop
   | .differential => runNativeCampaign options build syncProgram sink outcome stop
   | .annealed =>
     let construction := AuditArm.annealed.construction options

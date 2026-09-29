@@ -20,7 +20,7 @@ open Features
 def dimension : Dimension := ⟨8, by decide, ⟨3, rfl⟩, by decide⟩
 
 /-- Native execution uses the full learned feature profile. -/
-def profile : Handcrafted.FeatureProfile := ⟨.final, .perStep, .perLearner, .learned⟩
+def profile : Handcrafted.FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
 
 /-- Native observation input retains the host's complete sensory shape. -/
 def observation (word : UInt64) : Host.Observation :=

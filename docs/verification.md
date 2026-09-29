@@ -138,14 +138,17 @@ available for focused diagnostics.
 
 ## Mutation diagnostics
 
-**Pinned digest: `829aef890c81afaf`**
+**Pinned digest: `9f7690b338600144`**
 
 ```sh
-lean/.lake/build/bin/acorn-core audit --expect 829aef890c81afaf
+lean/.lake/build/bin/acorn-core audit --expect 9f7690b338600144
 ```
 
-Paired checksum `b1a076b6ac5884f0`. The optional ./scripts/verify.sh diagnostics
-command runs all three fixed arms under the same deadline. The fixed audit arms
+Paired checksum `eb40c4d351658e61`. The deployed arm runs the ranked profile
+with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
+command runs all three fixed arms under the same deadline. The declared-rate and
+differential pins record the stable, sign-correct reward-respecting subtask and
+declared-rate dynamics decisions. The fixed audit arms
 are compared through these paired digests. Run these optional diagnostics
 when investigating a dynamics change.
 

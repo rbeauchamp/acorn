@@ -24,7 +24,7 @@ private def after (text lead : String) : List String :=
 private def require (legal : Bool) (message : String) : IO Unit :=
   unless legal do throw (IO.userError message)
 
-private def current : List NativeApp.AuditArm := [.derived, .annealed, .differential]
+private def current : List NativeApp.AuditArm := [.declared, .annealed, .differential]
 
 private def commands (line : String) : Except String (List (NativeApp.AuditArm × Bool)) := do
   let mut result := []
@@ -40,7 +40,7 @@ private def commands (line : String) : Except String (List (NativeApp.AuditArm �
 
 /-- Check published command/pin/checksum pairs and the current register row. -/
 def checkTexts (documents : Array (String × String)) (verification readiness : String) : IO Unit := do
-  let pinned := NativeApp.hexWord NativeApp.AuditArm.derived.receipt.digest
+  let pinned := NativeApp.hexWord NativeApp.AuditArm.declared.receipt.digest
   require (after verification "**Pinned digest: `" == [pinned]) "verification pinned digest differs"
   let rows := (readiness.splitOn "\n").filter (·.startsWith "| C-AC5 ")
   let [row] := rows | throw (IO.userError "readiness requires one C-AC5 row")

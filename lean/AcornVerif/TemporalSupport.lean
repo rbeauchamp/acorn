@@ -4,6 +4,8 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.CurrentTemporal
+import AcornVerif.CurrentConstants
+import AcornVerif.CurrentOrder
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-!
@@ -20,6 +22,12 @@ Dabney, Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*, ICLR
 A served step is conditionally deterministic. The total-law decomposition
 includes persistence, interruption and new option selection; a positive
 primitive-boundary contribution supplies a floor only under its stated law.
+
+Every exploration branch compares the first source word's 53-bit fraction with
+the stored rate as exact rational order (`branch_exact`). At D6's declared rate
+it explores for exactly `10737418 · 2^34` of the `2^64` first words
+(`declared_branch_card`): the rate's exact binary32 value under a uniform
+first-word hypothesis, which a deterministic xoshiro prefix does not supply.
 -/
 namespace AcornVerif.TemporalSupport
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -166,5 +174,103 @@ theorem served_other_mass_zero {profile : FeatureProfile} {config : Features.Con
       subst decision
       exact other (chosen.symm.trans exactAction.1)
   simp [absent]
+
+section DeclaredBranch
+open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder
+
+/-- Every actual floating draw is its first word's 53-bit numerator scaled by
+`2^-53`, read as a nonnegative dyadic rational. -/
+theorem nextF64_numerical (rng : Rng.Xoshiro256) :
+    numerical64 rng.nextF64.1 = ((rng.next.1 >>> 11).toNat : ℚ) * (2 : ℚ) ^ (-53 : Int) := by
+  have finite : rng.nextF64.1.Finite :=
+    CurrentFloat.fraction_finite (Rng.Fraction53.ofWord rng.next.1)
+  have below := CurrentFloat.nextF64_word_lt_one rng
+  have unsigned : (rng.nextF64.1.bits &&& 0x8000000000000000 != 0) = false := by
+    have mask := CurrentFloat.word64_sign_exact rng.nextF64.1.bits
+    have zero : rng.nextF64.1.bits &&& 0x8000000000000000 = 0 := by
+      apply UInt64.toNat.inj
+      rw [mask, Nat.div_eq_of_lt (by omega)]
+      rfl
+    simp [zero]
+  rw [numerical64_units _ finite, model_word64_sign, unsigned, CurrentFloat.nextF64_value_exact]
+  simp only [Bool.false_eq_true, ↓reduceIte, signCoefficient, one_mul, Nat.cast_mul, Nat.cast_pow,
+    Nat.cast_ofNat]
+  rw [mul_assoc, ← zpow_natCast, ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
+  norm_num
+
+/-- The branch comparison of `PolicySnapshot.draw` and `beginExploration` is
+exact rational order between the first word's 53-bit fraction and the stored
+rate's binary32 value, for every generator state and every legal rate. -/
+theorem branch_exact (rng : Rng.Xoshiro256) (rate : SwiftTd.ExploreRate) :
+    rng.nextF64.1.less (Conversion.widen rate.value) =
+      decide (((rng.next.1 >>> 11).toNat : ℚ) * (2 : ℚ) ^ (-53 : Int) <
+        numerical32 rate.value) := by
+  have finite : rng.nextF64.1.Finite :=
+    CurrentFloat.fraction_finite (Rng.Fraction53.ofWord rng.next.1)
+  rw [numerical64_less _ _ finite (Conversion.widen_finite _ rate.legal.1),
+    numerical_widen_exact _ rate.legal.1, nextF64_numerical]
+
+/-- At the declared D6 rate the branch explores exactly when the first word's
+53-bit numerator is below `10737418 · 2^23`, the rate's exact value times `2^53`. -/
+theorem declared_branch (rng : Rng.Xoshiro256) :
+    rng.nextF64.1.less (Conversion.widen Handcrafted.declaredRate.value) =
+      decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
+  rw [branch_exact, CurrentConstants.explore_rate_value, decide_eq_decide, zpow_neg,
+    zpow_ofNat, ← div_eq_mul_inv, div_lt_iff₀ (by positivity)]
+  have scaled : ModelConstants.exploreRate * 2 ^ 53 = ((10737418 * 2 ^ 23 : ℕ) : ℚ) := by
+    norm_num [ModelConstants.exploreRate]
+  rw [scaled, Nat.cast_lt]
+
+/-- Exactly `10737418 · 2^34` of the `2^64` first source words take the declared
+branch. Counting preimages gives a mass only under a uniform first-word
+hypothesis; under it the mass is `ModelConstants.exploreRate` exactly. -/
+theorem declared_branch_card :
+    ((Finset.range (2 ^ 64)).filter (fun word : ℕ =>
+      (word.toUInt64 >>> 11).toNat < 10737418 * 2 ^ 23)).card = 10737418 * 2 ^ 34 := by
+  have same : (Finset.range (2 ^ 64)).filter (fun word : ℕ =>
+      (word.toUInt64 >>> 11).toNat < 10737418 * 2 ^ 23) = Finset.range (10737418 * 2 ^ 34) := by
+    ext word
+    simp only [Finset.mem_filter, Finset.mem_range]
+    constructor
+    · rintro ⟨bounded, below⟩
+      rw [UInt64.toNat_shiftRight] at below
+      change (word % 2 ^ 64) >>> 11 < 10737418 * 2 ^ 23 at below
+      rw [Nat.mod_eq_of_lt bounded, Nat.shiftRight_eq_div_pow,
+        Nat.div_lt_iff_lt_mul (by positivity)] at below
+      omega
+    · intro below
+      have bounded : word < 2 ^ 64 := by omega
+      refine ⟨bounded, ?_⟩
+      rw [UInt64.toNat_shiftRight]
+      change (word % 2 ^ 64) >>> 11 < 10737418 * 2 ^ 23
+      rw [Nat.mod_eq_of_lt bounded, Nat.shiftRight_eq_div_pow,
+        Nat.div_lt_iff_lt_mul (by positivity)]
+      omega
+  rw [same, Finset.card_range]
+
+/-- The first-word count is the declared rate's exact share of `2^64` words. -/
+theorem declared_branch_mass :
+    ((10737418 * 2 ^ 34 : ℕ) : ℚ) / 2 ^ 64 = ModelConstants.exploreRate := by
+  norm_num [ModelConstants.exploreRate]
+
+/-- A policy draw at the declared rate, as the meta-controller and every option
+make, explores exactly on the declared first-word numerators. -/
+theorem declared_draw_explored {count : Word.Count} (snapshot : PolicySnapshot count)
+    (declared : snapshot.epsilon = Handcrafted.declaredRate) (rng : Rng.Xoshiro256) :
+    (snapshot.draw rng).1.explored = decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
+  change rng.nextF64.1.less (Conversion.widen snapshot.epsilon.value) = _
+  rw [declared, declared_branch]
+
+/-- A primitive boundary at the declared rate begins a persistent run exactly on
+the same first-word numerators. -/
+theorem declared_persistent_explored {count : Word.Count} (snapshot : PolicySnapshot count)
+    (declared : snapshot.epsilon = Handcrafted.declaredRate) (rng : Rng.Xoshiro256) :
+    (snapshot.drawPersistent rng).1.explored =
+      decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
+  rw [← declared_branch]
+  cases branch : rng.nextF64.1.less (Conversion.widen Handcrafted.declaredRate.value) <;>
+    simp [PolicySnapshot.drawPersistent, beginExploration, declared, branch]
+
+end DeclaredBranch
 
 end AcornVerif.TemporalSupport

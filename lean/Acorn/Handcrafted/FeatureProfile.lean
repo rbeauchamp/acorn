@@ -42,9 +42,11 @@ inductive ControlCredit where
 
 /-- Current rate-source discriminants; schedule state belongs to the exploration owner. -/
 inductive RatePolicy where
-  /-- Each learner supplies its own rate. -/
+  /-- Every consumer uses the declared D6 rate. -/
+  | declared
+  /-- Each learner supplies its own PAR-10 derived rate. -/
   | perLearner
-  /-- Share the primitive controller's derived rate. -/
+  /-- Share the primitive controller's PAR-10 derived rate. -/
   | shared
   /-- Historical declared annealing schedule. -/
   | annealed
@@ -77,15 +79,16 @@ def FeatureProfile.taskMode (profile : FeatureProfile) : TaskFeatureMode :=
 /-- Primitive-only mode has no hierarchy to refresh. -/
 def FeatureProfile.usesHierarchy (profile : FeatureProfile) : Bool := profile.mode != .primitiveOnly
 
-/-- Only full clock-free learned profiles have a resumable current image. -/
+/-- Only the full learned profile with the declared, clock-free rate has a
+resumable current image. The image stores no rate. -/
 def FeatureProfile.checkpointSupported (profile : FeatureProfile) : Bool :=
   profile.mode == .final && profile.credit == .perStep &&
-    profile.rate == .perLearner && profile.subtasks == .learned
+    profile.rate == .declared && profile.subtasks == .learned
 
 /-- Profile refusal is derived from all four discriminants. -/
 theorem FeatureProfile.checkpoint_iff (profile : FeatureProfile) :
     profile.checkpointSupported = true ↔ profile.mode = .final ∧ profile.credit = .perStep ∧
-      profile.rate = .perLearner ∧ profile.subtasks = .learned := by
+      profile.rate = .declared ∧ profile.subtasks = .learned := by
   simp [FeatureProfile.checkpointSupported, and_assoc]
 
 /-- Initial objective identities preserve the declared current construction order. -/

@@ -84,8 +84,9 @@ alone is not an impossibility result or grounds for closing the research questio
 **Which control and exploration mechanisms help over a continuing stream?**
 
 Differential control is selectable with `--criterion average-reward`. Its
-qualification status is recorded below. Exploration duration remains authored
-([D3](learned-only-binding.md#d3--exploration-duration--step-9)). General GVFs,
+qualification status is recorded below. Exploration duration and rate remain
+authored ([D3](learned-only-binding.md#d3--exploration-duration--step-9),
+[D6](learned-only-binding.md#d6--exploration-rate--step-9)). General GVFs,
 the complete OaK feedback loop and learned prediction questions are not supplied
 by this implementation.
 
@@ -112,7 +113,7 @@ control remains **demoted** and ineligible for default use.
 | Viewer | One-way telemetry and lifecycle-only stop | Designed for a single local operator on loopback. |
 | Resources | Source/IR-linked structural contracts and bounded stored updates | Physical latency and memory costs depend on the workload and platform. |
 | Learning quality | Explicit research selection and promotion rules | Prospective qualification remains open. |
-| C-AC5 | Derived arm `829aef890c81afaf`, checksum `b1a076b6ac5884f0`; annealed arm `d41d9d77b74b9858`, checksum `4b15707c76a9191a`; differential arm `bb1d5b590fad9933`, checksum `47a82981b9a9ee2d` | The fixed audit arms are compared through these paired values. |
+| C-AC5 | Declared-rate arm `9f7690b338600144`, checksum `eb40c4d351658e61`; annealed arm `d41d9d77b74b9858`, checksum `4b15707c76a9191a`; differential arm `9f2e2ac81d20b6ff`, checksum `6d70ef3bd4b15545` | The fixed audit arms are compared through these paired values. The declared-rate and differential pins record the stable, sign-correct subtask (#8) and declared-rate (D6) dynamics decisions. |
 
 See [verification](verification.md), [performance priorities](performance-engineering.md) and
 [prior-art admission/promotion](prior-art-review.md).

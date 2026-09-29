@@ -24,8 +24,8 @@ def profile (mode credit rate subtasks : String) : Option FeatureProfile := do
     | "per-step" => some ControlCredit.perStep | "catch-up" => some .smdpCatchUp
     | "no-span" => some .noSpanCredit | _ => none
   let rate ← match rate with
-    | "own" => some RatePolicy.perLearner | "shared" => some .shared
-    | "annealed" => some .annealed | _ => none
+    | "declared" => some RatePolicy.declared | "own" => some .perLearner
+    | "shared" => some .shared | "annealed" => some .annealed | _ => none
   let subtasks ← match subtasks with
     | "learned" => some SubtaskPolicy.learned | "spatial" => some .spatial | _ => none
   return ⟨mode, credit, rate, subtasks⟩

@@ -49,9 +49,9 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 ### D3 · Exploration duration — Step 9
 
-The duration law and cap are authored. The exploration rate is derived separately from optimizer state.
+The duration law and cap are authored. The exploration rate is D6.
 
-Loci: `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
+Loci: `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,
@@ -80,9 +80,35 @@ derivation while preserving the continuing setting, semantic compatibility,
 state admission and bounded work. Technical replacement requires an explicit
 reviewed contract; usefulness requires separate prospective qualification.
 
+### D6 · Exploration rate — Step 9
+
+Every research profile except the annealed comparison explores with one
+declared rate, ε = 0.01, for the primitive controller, the meta-controller and
+every option. The stored word is `0x3c23d70a`, exactly 10737418·2⁻³⁰. Dabney,
+Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*, ICLR 2021
+([arXiv:2006.01782v1](https://arxiv.org/abs/2006.01782)), use ε = 0.01 for
+their linear Sarsa(λ) CartPole agent (Appendix A, PDF p. 14) and keep ε = 0.01
+after the initial decay of their Rainbow-based Atari agents' schedule
+(Appendix B.3, PDF p. 15). Their other domains use 0.05, 0.1 and 1/(N+1) (Appendix A, PDF p. 13).
+A continuing agent has no clock for a schedule, so it keeps only the constant.
+One rate for all three consumers is Acorn's composition choice.
+`TemporalControl.declared_rates` proves every consumer reads this word at every
+state; `TemporalSupport.declared_branch_card` counts the source words that
+explore. The annealed comparison's schedule and fixed option rate are also
+declared here. The derived rate of
+[PAR-10](prior-art-review.md#par-10--derived-exploration-rate) remains a
+research-only selection.
+
+Loci: `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
+
+*Replacement:* Move the relevant decision into learned state or a justified
+derivation while preserving the continuing setting, semantic compatibility,
+state admission and bounded work. Technical replacement requires an explicit
+reviewed contract; usefulness requires separate prospective qualification.
+
 ## Standing obligations
 
-Preserve all five declarations until an explicit replacement retires their actual
+Preserve all six declarations until an explicit replacement retires their actual
 use. Adding a provenance constructor requires updating the closed register and
 compiled quarantine inventory. Technical admission must satisfy the
 [prior-art standard](prior-art-review.md#admission-standard), including material

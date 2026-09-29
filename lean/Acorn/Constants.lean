@@ -102,4 +102,7 @@ def epsDecayBits : UInt32 := 0x3f7fff58
 /-- Exact f32 bits of the configured decimal value (`0.1`). -/
 def optionEpsilonBits : UInt32 := 0x3dcccccd
 
+/-- Exact f32 bits of the configured decimal value (`0.01`). -/
+def exploreRate1e2Bits : UInt32 := 0x3c23d70a
+
 end Acorn.Constants
