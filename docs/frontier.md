@@ -5,7 +5,10 @@ and next steps for investigating them.
 
 Start with [the learning loop](design.md#the-learning-loop) for terminology.
 The F labels identify research questions, D labels identify authored departures,
-and PAR labels identify mechanism contracts.
+and PAR labels identify mechanism contracts. The
+[baseline assessment](baseline-assessment.md) compares the implementation with
+the published OaK and Alberta Plan designs and orders the conformance work that
+the [roadmap](https://github.com/users/rbeauchamp/projects/10) tracks.
 
 ## F1 · Option-model quality
 
@@ -17,7 +20,10 @@ only when their subtask's unit leaves the ranking or is retired.
 Extensions must preserve shared units, target alignment and age semantics.
 
 *Refutation attempt.* Challenge whether the executed target denotes the claimed
-quantity; then assess a prospective, isolated quality/benefit comparison.
+quantity; then assess a prospective, isolated quality/benefit comparison. The
+[baseline assessment](baseline-assessment.md#f-b--the-option-model-is-a-value-estimator-so-planning-cannot-plan)
+argues that the continuation's terminal target is a meta-controller value, so the
+scalar model estimates a value rather than a transition.
 
 ## F2 · Planning benefit
 
@@ -39,7 +45,9 @@ Only imprint features are retired; input channels and tile features remain
 authored. General learned agent state is a further extension.
 
 *Refutation attempt.* Trace every admission/write boundary and characterize
-reachability analytically before measuring turnover.
+reachability analytically before measuring turnover. A published tester would
+make turnover reachable by construction
+([baseline assessment](baseline-assessment.md#f-e--the-retirement-tester-works-against-turnover)).
 
 ### Retirement proof status
 

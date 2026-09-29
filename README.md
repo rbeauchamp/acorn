@@ -96,6 +96,10 @@ You can read the design without installing Lean.
 - **Looking for research questions?** Read the [frontier](docs/frontier.md).
   The repository offers executable mechanisms, implementation-linked proofs
   and an observation tool.
+- **Wondering how close Acorn is to the published baseline?** Read the
+  [baseline assessment](docs/baseline-assessment.md); the
+  [roadmap](https://github.com/users/rbeauchamp/projects/10) tracks the work
+  that remains.
 
 ## What to inspect
 
@@ -106,6 +110,7 @@ You can read the design without installing Lean.
 | Which hand-authored choices remain? | [Learned-only binding](docs/learned-only-binding.md) |
 | What do the compiler and proofs establish? | [Verification](docs/verification.md) |
 | What remains unresolved? | [Research frontier and limitations](docs/frontier.md) |
+| How close is Acorn to the published baseline, and what comes next? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
 | How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) |
 
 Research criticism, proof/implementation review and contributions are welcome.
