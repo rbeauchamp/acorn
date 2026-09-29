@@ -243,20 +243,23 @@ they add robustness to collisions, not conjunctions.
 
 **Lemma.** Suppose that in s and s′ no active slot is shared between a tile or
 imprint feature and a task, inventory, energy, day or prediction word. Then
-Q_a = u_a·φ(tiles, imprints) + v_a·ψ(task, inventory, energy, day) +
-p_a·b(buckets). Take actions a and b and states s and s′ that differ only in tile
-layout and have equal bucket features. If task τ₁ prefers a at s and b at s′,
-and task τ₂ prefers the reverse, no weights represent both.
+Q_a = u_a·φ(tiles, imprints) + v_a·ψ(task, inventory, energy, day, buckets),
+where ψ holds every active slot outside φ. Take actions a and b and states s and
+s′ that differ only in tile layout and have equal bucket features. If task τ₁
+prefers a at s and b at s′, and task τ₂ prefers the reverse, no weights
+represent both.
 
-*Proof.* The ψ and b terms cancel in the difference between s and s′. With
-d = (u_a − u_b)·(φ(s) − φ(s′)), τ₁ needs d > 0 and τ₂ needs d < 0. ∎
+*Proof.* ψ(s) = ψ(s′) under each task, so the ψ term cancels in the difference
+between s and s′. With d = (u_a − u_b)·(φ(s) − φ(s′)), τ₁ needs d > 0 and τ₂
+needs d < 0. ∎
 
 The standard curriculum places "collect wood" directly before "collect stone"
 (`rawStandardCurriculum`); a tree on one side and a stone on the other, then the
 mirror image, is this case. The designed escape is for the buckets to separate s
 from s′ within each task, and they are coarse, undirected predictions. The other
-escape is incidental: when a task word, or a prediction word that differs
-between the tasks, shares a slot with a tile or imprint feature present in only
+escape is incidental: when a word active under only one of the tasks (a
+differing task word such as the item code, or a differing inventory, energy, day
+or prediction word) shares a slot with a tile or imprint feature present in only
 one of s and s′, that slot's weight enters d under one task and not the other.
 The meta-controller can still learn task-dependent option preferences, since
 v_o·ψ(τ) is representable. Because the generator reads only the kind patch, even
