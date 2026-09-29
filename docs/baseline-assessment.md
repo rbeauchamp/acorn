@@ -280,12 +280,12 @@ units with a maturity age or an initialization at an order statistic
 [[5]](#r5) [[6]](#r6). Acorn's earlier guard had four properties that worked
 against turnover:
 
-- **Distance to the floor.** It requires β on the absolute floor ln 10⁻¹⁰. The
+- **Distance to the floor.** It required β on the absolute floor ln 10⁻¹⁰. The
   initial β is ln(5 × 10⁻⁵), 13.1 nats above it, and one overshoot-decay step
   moves β by ln 0.999.
-- **All readers at once.** The floor must hold in all 57 learners (60 reader
+- **All readers at once.** The floor had to hold in all 57 learners (60 reader
   positions) at one scan.
-- **No rate.** There is no replacement rate.
+- **No rate.** It had no replacement rate.
 - **Reinstallation undoes progress.** Reinstalling a slot returns its nine
   option-policy learners, two model learners and one meta-controller row to the
   initial β. Before U1 this happened at most refreshes; now it happens when a

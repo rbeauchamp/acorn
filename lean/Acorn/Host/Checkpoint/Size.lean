@@ -9,7 +9,8 @@ import Acorn.Host.Checkpoint.Snapshot
 # Derived checkpoint resource bounds
 
 Lengths come from the actual codec schemas. The receiver's capacity and bank size
-determine the file size before native reading allocates the file image. These bounds do not promise successful allocation on every machine.
+determine the file size before native reading allocates the file image. These
+bounds do not promise successful allocation on every machine.
 -/
 namespace Acorn.Checkpoint
 open Features Handcrafted
