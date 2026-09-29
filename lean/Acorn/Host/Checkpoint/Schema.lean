@@ -7,7 +7,7 @@ import Acorn.Host.Checkpoint.Codec
 import Acorn.Host.AgentAdmission
 
 /-!
-# Checkpoint format 15
+# Checkpoint format 16
 
 Field order, widths and fixed collection shapes define the serialized schema.
 Structural words remain untrusted until receiver-relative admission. Knowledge accepts all
@@ -16,7 +16,7 @@ binary32 words and is projected only by each receiving learner's closed rule.
 namespace Acorn.Checkpoint
 open Features Handcrafted
 
-/-- Exact format-15 header after the eight-byte magic. -/
+/-- Exact format-16 header after the eight-byte magic. -/
 structure Header where
   /-- Layout and semantic generation, independent of the magic suffix. -/
   version : UInt32
@@ -97,7 +97,7 @@ abbrev GoalWords := UInt64 × UInt64 × UInt64
 /-- Attempts, successes, then completed-attempt steps. -/
 def goalCodec : Codec GoalWords := u64Codec.pair (u64Codec.pair u64Codec)
 
-/-- Raw fixed-size lifetime payload; column order is part of format 15. -/
+/-- Raw fixed-size lifetime payload; column order is part of format 16. -/
 structure LifetimeWords where
   /-- Overall reward count and sum. -/
   reward : SumWords
@@ -140,34 +140,61 @@ def lifetimeCodec : Codec LifetimeWords :=
 def primaryCount : Nat := Acorn.FeatureConstants.primitiveCount + Acorn.FeatureConstants.metaActionCount +
   Acorn.FeatureConstants.skillCount * Acorn.FeatureConstants.primitiveCount + demonLayout.length
 
-/-- Replacement event: lifetime step, then bank unit. -/
-def eventCodec : Codec (UInt64 × UInt16) := u64Codec.pair u16Codec
+/-- Latest replacement: presence tag, lifetime step, then bank unit. -/
+def lastCodec : Codec LastWords := u32Codec.pair (u64Codec.pair u16Codec)
 
-/-- A format-level count has at most one event per largest admitted bank slot. -/
-abbrev Transcript := { events : List (UInt64 × UInt16) // events.length ≤ 65535 }
+/-- One unit's generator origin, birth clock and utility bits. -/
+def unitStateCodec : Codec UnitWords := u64Codec.pair (u64Codec.pair binary32Codec)
+
+/-- A format-level count has at most one entry per largest admitted bank slot. -/
+abbrev UnitList := { units : List UnitWords // units.length ≤ 65535 }
 
 /-- The count is admitted before any variable-length decoding loop starts. -/
-def transcriptCodec : Codec Transcript where
-  encode events := u32Codec.encode events.val.length.toUInt32 ++ events.val.flatMap eventCodec.encode
+def unitListCodec : Codec UnitList where
+  encode units := u32Codec.encode units.val.length.toUInt32 ++ units.val.flatMap unitStateCodec.encode
   decode bytes := do
     let (count, rest) ← u32Codec.decode bytes
     if bound : count.toNat ≤ 65535 then
-      match h : decodeList eventCodec count.toNat rest with
+      match h : decodeList unitStateCodec count.toNat rest with
       | none => none
-      | some (events, rest') =>
-        some (⟨events, by rw [decodeList_length eventCodec count.toNat rest events rest' h]; exact bound⟩, rest')
+      | some (units, rest') =>
+        some (⟨units, by rw [decodeList_length unitStateCodec count.toNat rest units rest' h]; exact bound⟩,
+          rest')
     else none
   roundtrip := by
-    intro events suffix
-    have exactCount : events.val.length.toUInt32.toNat = events.val.length :=
-      Nat.mod_eq_of_lt (by have := events.property; omega)
+    intro units suffix
+    have exactCount : units.val.length.toUInt32.toNat = units.val.length :=
+      Nat.mod_eq_of_lt (by have := units.property; omega)
     simp only [List.append_assoc, u32Codec.roundtrip, bind, Option.bind]
-    simp only [exactCount, events.property, ↓reduceDIte]
+    simp only [exactCount, units.property, ↓reduceDIte]
     split <;> rename_i parsed
     · rw [exactCount, list_roundtrip] at parsed; contradiction
     · rw [exactCount, list_roundtrip] at parsed
       cases parsed
       rfl
+
+/-- Raw generator and tester words: continuation, credit, count, latest event and units. -/
+structure TesterWords where
+  /-- Generator continuation. -/
+  stream : UInt64
+  /-- Accrued credit. -/
+  credit : UInt32
+  /-- Lifetime replacement count. -/
+  replaced : UInt64
+  /-- Latest replacement. -/
+  last : LastWords
+  /-- Every unit in bank order. -/
+  units : UnitList
+
+/-- The tester block's single ordered schema. -/
+def testerCodec : Codec TesterWords :=
+  (u64Codec.pair (u32Codec.pair (u64Codec.pair (lastCodec.pair unitListCodec)))).iso
+    (fun (stream, credit, replaced, last, units) => ⟨stream, credit, replaced, last, units⟩)
+    (fun t => (t.stream, t.credit, t.replaced, t.last, t.units)) (by intro t; rfl)
+
+/-- Receiver-relative raw progress: the header's clock supplies the rest. -/
+def TesterWords.progress (words : TesterWords) : ProgressWords :=
+  ⟨words.stream, words.credit, words.replaced, words.last, words.units.val⟩
 
 /-- The complete raw signed payload, parameterized only by receiving shape. -/
 structure Payload (dimension : Dimension) where
@@ -179,14 +206,14 @@ structure Payload (dimension : Dimension) where
   primary : PrimaryImage dimension demonLayout
   /-- All durable observation fields. -/
   lifetime : LifetimeWords
-  /-- Bounded replacement transcript. -/
-  events : Transcript
+  /-- Generator and tester state. -/
+  tester : TesterWords
 
 /-- Whole-payload round trip follows from the one shared schema. -/
 def payloadCodec (dimension : Dimension) : Codec (Payload dimension) :=
   (headerCodec.pair ((vectorCodec assignmentCodec Acorn.FeatureConstants.skillCount).pair
-    ((primaryCodec dimension).pair (lifetimeCodec.pair transcriptCodec)))).iso
-    (fun (header, assignments, primary, lifetime, events) => ⟨header, assignments, primary, lifetime, events⟩)
-    (fun p => (p.header, p.assignments, p.primary, p.lifetime, p.events)) (by intro p; rfl)
+    ((primaryCodec dimension).pair (lifetimeCodec.pair testerCodec)))).iso
+    (fun (header, assignments, primary, lifetime, tester) => ⟨header, assignments, primary, lifetime, tester⟩)
+    (fun p => (p.header, p.assignments, p.primary, p.lifetime, p.tester)) (by intro p; rfl)
 
 end Acorn.Checkpoint

@@ -9,11 +9,12 @@ import Acorn.FeatureRestore
 /-!
 # Temporal references around feature retirement and cold restore
 
-Retirement retains temporal predictions, active-option potential, occupancy,
+The tester retains temporal predictions, active-option potential, occupancy,
 planner state and the pending meta gap in the current schedule. These are not
 claimed to be fresh encodings of the replacement bank. A unit held as an option
-objective retires only at a free boundary, where every slot holding it is released
-and a refresh becomes pending; a live option therefore never loses its objective.
+objective is replaced only at a free boundary, where every slot holding it is
+released and a refresh becomes pending; a live option therefore never loses its
+objective.
 New encoding frames are constructed against the current bank. Cold restore instead
 clears process state.
 Activation, exploration and decision payloads are parametric because this slice
@@ -104,69 +105,123 @@ structure FeatureRuntime (shape : PatchShape) (config : Config) (criterion : Cri
   /-- Current process-local references. -/
   references : TemporalReferences discounts activation exploration decision
 
-/-- Retirement either returns the exact receiver or replaces its owned lifecycle state.
-A held unit is eligible only at a free boundary, where every slot holding it is released
-and a refresh becomes pending. -/
+/-- Release every slot holding any of the given units. -/
+def Ensemble.releaseAll {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    (units : List (Fin config.units.count)) : Ensemble config criterion dimension discounts :=
+  units.foldl Ensemble.release ensemble
+
+/-- A slot that does not hold a unit still does not after any release. -/
+theorem Ensemble.release_keeps {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    (released unit : Fin config.units.count) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (absent : ensemble.skills[slot.val].interest.held.holds unit = false) :
+    (ensemble.release released).skills[slot.val].interest.held.holds unit = false := by
+  simp only [Ensemble.release, Vector.getElem_map]
+  split
+  · simp [Skill.initial, Interest.held, Assignment.holds]
+  · exact absent
+
+/-- After releasing a list, no slot holds any listed unit. -/
+theorem Ensemble.releaseAll_holds {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (units : List (Fin config.units.count)) :
+    ∀ (ensemble : Ensemble config criterion dimension discounts) (unit : Fin config.units.count),
+      unit ∈ units → ∀ slot : Fin Acorn.FeatureConstants.skillCount,
+        (ensemble.releaseAll units).skills[slot.val].interest.held.holds unit = false := by
+  induction units with
+  | nil => intro _ _ member; simp at member
+  | cons head rest ih =>
+    intro ensemble unit member slot
+    simp only [Ensemble.releaseAll, List.foldl_cons] at ih ⊢
+    rcases List.mem_cons.mp member with same | later
+    · subst same
+      have gone := Ensemble.release_holds ensemble unit slot
+      have keep (units : List (Fin config.units.count)) :
+          ∀ (current : Ensemble config criterion dimension discounts),
+            current.skills[slot.val].interest.held.holds unit = false →
+            (units.foldl Ensemble.release current).skills[slot.val].interest.held.holds unit = false := by
+        induction units with
+        | nil => intro current absent; exact absent
+        | cons next others inner =>
+          intro current absent
+          exact inner _ (Ensemble.release_keeps current next unit slot absent)
+      exact keep rest _ gone
+    · exact ih _ unit later slot
+
+/-- Releasing only unheld units changes nothing. -/
+theorem Ensemble.releaseAll_unheld {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (units : List (Fin config.units.count)) :
+    ∀ (ensemble : Ensemble config criterion dimension discounts),
+      (∀ unit ∈ units, ensemble.holds unit = false) → ensemble.releaseAll units = ensemble := by
+  induction units with
+  | nil => intro _ _; rfl
+  | cons head rest ih =>
+    intro ensemble unheld
+    simp only [Ensemble.releaseAll, List.foldl_cons] at ih ⊢
+    rw [Ensemble.release_unheld ensemble head (unheld head (by simp))]
+    exact ih ensemble (fun unit member => unheld unit (List.mem_cons_of_mem _ member))
+
+/-- The tester step at the end of a frame. A held unit is eligible only at a free
+boundary, where every slot holding a replaced unit is released and a refresh
+becomes pending. -/
 def FeatureRuntime.retire {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision) :
+    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (active : Vector Bool config.units.count) :
     FeatureRuntime shape config criterion dimension discounts activation exploration decision :=
-  match state.lifecycle.tryRetire state.references.phase.free with
-  | none => state
-  | some (unit, lifecycle) =>
-    { state with
-      lifecycle := { lifecycle with consumers := lifecycle.consumers.release unit }
-      refresh := { state.refresh with
-        pending := state.refresh.pending || lifecycle.consumers.holds unit } }
+  let tested := state.lifecycle.test state.references.phase.free active
+  { state with
+    lifecycle := { tested.1 with consumers := tested.1.consumers.releaseAll tested.2 }
+    refresh := { state.refresh with
+      pending := state.refresh.pending || tested.2.any tested.1.consumers.holds } }
 
 /-- Every temporal reference, including live activation potential, and the refresh
 cycle key are retained exactly. This is a schedule-preservation claim, not a claim
 that all cached numbers were recomputed. -/
 theorem FeatureRuntime.retire_references {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision) :
-    state.retire.references = state.references ∧ state.retire.refresh.cycle = state.refresh.cycle := by
-  unfold FeatureRuntime.retire
-  split <;> exact ⟨rfl, rfl⟩
+    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (active : Vector Bool config.units.count) :
+    (state.retire active).references = state.references ∧
+      (state.retire active).refresh.cycle = state.refresh.cycle := ⟨rfl, rfl⟩
 
-/-- After retirement no held assignment names the replaced unit, and releasing a slot
+/-- After a test no held assignment names a replaced unit, and releasing a slot
 leaves a refresh pending. -/
 theorem FeatureRuntime.retire_releases {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
-    (unit : Fin config.units.count) (lifecycle : Lifecycle shape config criterion dimension discounts)
-    (retired : state.lifecycle.tryRetire state.references.phase.free = some (unit, lifecycle)) :
-    (∀ slot : Fin Acorn.FeatureConstants.skillCount,
-      state.retire.lifecycle.consumers.skills[slot.val].interest.held.holds unit = false) ∧
-      (lifecycle.consumers.holds unit = true → state.retire.refresh.pending = true) := by
-  unfold FeatureRuntime.retire
-  rw [retired]
-  exact ⟨lifecycle.consumers.release_holds unit, fun released => by simp [released]⟩
+    (active : Vector Bool config.units.count) :
+    let tested := state.lifecycle.test state.references.phase.free active
+    (∀ unit ∈ tested.2, ∀ slot : Fin Acorn.FeatureConstants.skillCount,
+      (state.retire active).lifecycle.consumers.skills[slot.val].interest.held.holds unit = false) ∧
+      ((tested.2.any tested.1.consumers.holds) = true →
+        (state.retire active).refresh.pending = true) :=
+  ⟨fun unit member slot => Ensemble.releaseAll_holds
+      (state.lifecycle.test state.references.phase.free active).2
+      (state.lifecycle.test state.references.phase.free active).1.consumers unit member slot,
+    fun released => by simp [FeatureRuntime.retire, released]⟩
 
-/-- Release happens only at a free boundary: with a live option or committed exploration,
-retirement is the bare feature replacement of a unit no slot holds, with no objective,
-learner, meta-controller row or refresh request released. -/
+/-- Release happens only at a free boundary: with a live option or committed
+exploration, the test replaces only units no slot holds, and no objective, learner,
+meta-controller row or refresh request is released. -/
 theorem FeatureRuntime.retire_occupied {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
-    (occupied : state.references.phase.free = false) :
-    state.retire = match state.lifecycle.tryRetire false with
-      | none => state
-      | some (_, lifecycle) => { state with lifecycle } := by
+    (active : Vector Bool config.units.count) (occupied : state.references.phase.free = false) :
+    state.retire active = { state with lifecycle := (state.lifecycle.test false active).1 } := by
+  have unheld := state.lifecycle.test_unheld active
+  have holds := state.lifecycle.test_holds false active
+  have kept : ∀ unit ∈ (state.lifecycle.test false active).2,
+      (state.lifecycle.test false active).1.consumers.holds unit = false := by
+    intro unit member
+    rw [holds]
+    exact unheld unit member
+  have none : ((state.lifecycle.test false active).2.any
+      (state.lifecycle.test false active).1.consumers.holds) = false := by
+    simpa using kept
   unfold FeatureRuntime.retire
-  rw [occupied]
-  cases retired : state.lifecycle.tryRetire false with
-  | none => rfl
-  | some result =>
-    obtain ⟨unit, lifecycle⟩ := result
-    obtain ⟨room, eligible, found, same⟩ :=
-      (Lifecycle.success_iff state.lifecycle false unit lifecycle).mp retired
-    have unheld : lifecycle.consumers.holds unit = false := by
-      rw [same]
-      change (state.lifecycle.consumers.retire (unitFeature dimension config unit)).holds unit = false
-      rw [Ensemble.retire_holds]
-      exact state.lifecycle.candidate_unheld unit found
-    simp only [unheld, Bool.or_false, Ensemble.release_unheld _ _ unheld]
+  simp only [occupied, none, Bool.or_false,
+    Ensemble.releaseAll_unheld _ _ kept] <;> rfl
 
 /-- Cold installation resets every current process-local reference family. -/
 def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : Criterion}
@@ -177,13 +232,6 @@ def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : C
   ⟨⟨Representation.restore shape image.progress,
       state.lifecycle.consumers.restore image.primary image.assignments⟩,
     Refresh.cold image.pending, TemporalReferences.cold config discounts emptyDecision⟩
-
-/-- Capacity refusal leaves the entire receiver, including every cache and generator, unchanged. -/
-theorem FeatureRuntime.refused_identity {shape : PatchShape} {config : Config} {criterion : Criterion}
-    {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
-    (refused : state.lifecycle.tryRetire state.references.phase.free = none) : state.retire = state := by
-  simp [FeatureRuntime.retire, refused]
 
 /-- A materialized input is indexed by this receiver's current bank and observation. -/
 def FeatureRuntime.encodeCurrent {shape : PatchShape} {config : Config} {criterion : Criterion}

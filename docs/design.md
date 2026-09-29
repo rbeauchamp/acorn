@@ -58,7 +58,7 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 | Step | Focus | Acorn's implementation scope |
 |---|---|---|
 | 1 | Fixed-feature learning | Learning machinery with per-weight step-size adaptation. |
-| 2 | Representation search | Generated projection features and conditional retirement; authored input channels remain. |
+| 2 | Representation search | Generated projection features over the kind patch and task words, replaced by a published generate-and-test tester at a declared rate; authored input channels remain. |
 | 3 | Predictive questions | On-policy specialization with fixed questions. |
 | 4 | Choosing actions | Declared Sarsa substitution for the plan's actor-critic direction. |
 | 5 | Long-run prediction | General average-reward GVFs are absent. |
@@ -70,11 +70,12 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 | 11 | Complete OaK | Absent; the full utility-feedback loop is not implemented. |
 | 12 | Assisting other intelligences | Out of scope. |
 
-An **imprint** here is one of Acorn's generated projection features. Retiring
-one replaces it and clears its dependent learned state, subject to the checked
-retirement conditions; it does not retire the authored input channels or tile
+An **imprint** here is one of Acorn's generated projection features. The tester
+replaces the least useful eligible imprints at a declared rate; a replacement
+draws a new projection, zeroes its outgoing weight in every reader and clears its
+dependent learned state. It does not replace the authored input channels or tile
 features. See [PAR-4](prior-art-review.md#par-4--generate-and-test) and
-[PAR-11](prior-art-review.md#par-11--bounded-disruption-retirement) for the exact
+[PAR-11](prior-art-review.md#par-11--generate-and-test-tester) for the exact
 construction and its relation to prior art.
 
 Here, **implemented** means the mechanism has an executable owner.
@@ -233,7 +234,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-8](prior-art-review.md#par-8--temporally-extended-exploration): Temporally extended exploration, [Acorn.Exploration](../lean/Acorn/Exploration.lean).
 - [PAR-9](prior-art-review.md#par-9--intra-option-value-learning): Intra-option value learning, [Acorn.Handcrafted.TemporalControl](../lean/Acorn/Handcrafted/TemporalControl.lean).
 - [PAR-10](prior-art-review.md#par-10--derived-exploration-rate): Derived exploration rate, [Acorn.Policy](../lean/Acorn/Policy.lean).
-- [PAR-11](prior-art-review.md#par-11--bounded-disruption-retirement): Bounded-disruption retirement, [Acorn.FeatureLifecycle](../lean/Acorn/FeatureLifecycle.lean).
+- [PAR-11](prior-art-review.md#par-11--generate-and-test-tester): Generate-and-test tester, [Acorn.FeatureLifecycle](../lean/Acorn/FeatureLifecycle.lean).
 - [PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks): Ranked learned subtasks, [Acorn.FeatureRanking](../lean/Acorn/FeatureRanking.lean).
 - [PAR-13](prior-art-review.md#par-13--option-models): Option models, [Acorn.Models](../lean/Acorn/Models.lean).
 - [PAR-14](prior-art-review.md#par-14--background-planning): Background planning, [Acorn.Planning](../lean/Acorn/Planning.lean).

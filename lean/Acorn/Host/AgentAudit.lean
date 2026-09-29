@@ -9,7 +9,7 @@ import Acorn.Host.AgentAdmission
 # Current agent mutation checksum
 
 The checksum reads learner knowledge, pending ranking, gain for differential
-control, planning count, seed, clock, bank, generator and retirement transcript.
+control, planning count, seed, clock, bank, generator and every unit's tester state.
 Transient credit, predictions, exploration state and observational lifetime
 records are outside this checksum. A changed hash identifies a change in the selected fields.
 -/
@@ -78,9 +78,11 @@ def agentChecksum {profile : FeatureProfile} {config : Features.Config} {criteri
   hash := hash ^^^ (representation.progress.clock * 0x9e3779b97f4a7c15)
   hash := hash ^^^ representation.bank.checksum
   hash := hash ^^^ Rng.rotateLeft representation.bank.stream.state 13
-  hash := hash ^^^ Rng.rotateLeft representation.progress.events.length.toUInt64 19
-  let transcript := representation.progress.events.foldl (fun hash event =>
-    checksumBytes (checksumBytes hash event.step 8) event.unit.val.toUInt64 4) Rng.fnvOffset
-  return hash ^^^ Rng.rotateLeft transcript 29
+  hash := hash ^^^ Rng.rotateLeft representation.progress.replaced 19
+  hash := hash ^^^ Rng.rotateLeft representation.progress.credit.val.toUInt64 41
+  let tester := representation.progress.units.foldl (fun hash unit =>
+    checksumBytes (checksumBytes (checksumBytes hash unit.origin 8) unit.birth 8)
+      unit.utility.value.bits.toUInt64 4) Rng.fnvOffset
+  return hash ^^^ Rng.rotateLeft tester 29
 
 end Acorn.Host

@@ -9,7 +9,8 @@ import Acorn.Host.Checkpoint.Admission
 # Durable projection of the executing full agent
 
 Only primary weights and log step sizes, shared gain, exact assignment identities,
-feature progress, pending ranking and durable lifetime observations are written.
+generator and tester state, pending ranking and durable lifetime observations are
+written.
 No world, pending future, policy RNG, trace, model or planner state is encoded.
 -/
 namespace Acorn.Checkpoint
@@ -80,13 +81,13 @@ def snapshotImage (construction : AgentConstruction) (state : construction.State
       have valid := state.episodes.1 slot
       exact ⟨valid.1, valid.2.1, by simp⟩⟩
 
-/-- Every legal feature transcript fits the format-level count before narrowing. -/
-def transcriptWords {config : Features.Config} (progress : Progress config) : Transcript :=
-  ⟨progress.words, by
-    simp only [Progress.words, List.length_map]
-    exact Nat.le_trans progress.legal.1 config.units.bounded⟩
+/-- Every legal tester state fits the format-level unit count. -/
+def testerWords {config : Features.Config} (progress : Progress config) : TesterWords :=
+  ⟨progress.words.stream, progress.words.credit, progress.words.replaced, progress.words.last,
+    ⟨progress.words.units, by
+      simpa [Progress.words] using config.units.bounded⟩⟩
 
-/-- A typed image has one exact format-15 word projection under its receiver. -/
+/-- A typed image has one exact format-16 word projection under its receiver. -/
 def imagePayload (construction : AgentConstruction)
     (image : AgentImage construction.config construction.criterion construction.dimension) :
     Payload construction.dimension :=
@@ -95,7 +96,7 @@ def imagePayload (construction : AgentConstruction)
       image.gain.value, construction.config.tilings, construction.config.units.count.toUInt32,
       if construction.profile.checkpointSupported then 1 else 0, if image.features.pending then 1 else 0⟩,
     image.features.assignments.map (Assignment.words construction.dimension), image.features.primary,
-    lifetimeWords image.lifetime, transcriptWords image.features.progress⟩
+    lifetimeWords image.lifetime, testerWords image.features.progress⟩
 
 /-- Snapshotting reads only the durable projection; it does not act or advance the stream. -/
 def snapshot (construction : AgentConstruction) (state : construction.State) : Payload construction.dimension :=

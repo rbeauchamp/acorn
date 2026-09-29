@@ -10,7 +10,7 @@ import AcornVerif.CurrentLearner
 /-!
 # Current checkpoint admission and installation laws
 
-These statements concern the actual format-15 parser, writer, legal-state
+These statements concern the actual format-16 parser, writer, legal-state
 constructors and full-agent restoration. The laws describe parsing, serialization
 and pure restoration. Native persistence relies on the filesystem and OS.
 -/
@@ -90,7 +90,7 @@ theorem feature_roundtrip (construction : AgentConstruction)
       ⟨construction.config.seed, construction.config.tilings,
         construction.config.units.count.toUInt32.toUInt16,
        construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
-       image.features.progress.clock, image.features.progress.words,
+       image.features.progress.clock, (testerWords image.features.progress).progress,
        image.features.assignments.map (Assignment.words construction.dimension),
        image.features.primary, image.features.pending⟩ = some image.features := by
   have units : construction.config.units.count.toUInt32.toUInt16.toNat =
@@ -105,7 +105,8 @@ theorem feature_roundtrip (construction : AgentConstruction)
     cases construction.criterion <;> rfl
   simp only [FeatureImage.admit, units, capacity, criterion]
   simp only [bne_self_eq_false, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
-  rw [Progress.words_roundtrip]
+  rw [show (testerWords image.features.progress).progress = image.features.progress.words from rfl,
+    Progress.words_roundtrip]
   simp only [bind, Option.bind]
   rw [vector_roundtrip _ _ (Assignment.words_roundtrip construction.dimension)]
   simp [(Assignment.distinct_iff _).mpr image.features.distinct]
@@ -122,7 +123,7 @@ theorem image_roundtrip (construction : AgentConstruction)
   cases pending : image.features.pending <;>
     simp only [imagePayload, pending, Bool.false_eq_true, ↓reduceIte]
   all_goals
-    simp only [pure, Except.pure, transcriptWords]
+    simp only [pure, Except.pure]
     have feature := feature_roundtrip construction image
     simp only [pending] at feature
     rw [feature, lifetime]

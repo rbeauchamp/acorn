@@ -140,8 +140,9 @@ def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO Aud
   | .ok result =>
     let elapsed := (← IO.monoMsNow) - started
     if printReport then IO.print (reportText options result (← outcomes.get) elapsed).1
-    let events := result.run.agent.control.runtime.lifecycle.representation.progress.events.toArray.map
-      (fun event => AuditRetirement.mk event.step event.unit.val.toUInt32)
+    let progress := result.run.agent.control.runtime.lifecycle.representation.progress
+    let events := (progress.units.toList.zipIdx.filterMap fun (unit, index) =>
+      if unit.birth == 0 then none else some (AuditRetirement.mk unit.birth index.toUInt32)).toArray
     return ⟨streamingAudit result.outcomes result.run.behavior result.totalSteps events,
       agentChecksum result.run.agent⟩
 

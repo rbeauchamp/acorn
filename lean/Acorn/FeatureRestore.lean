@@ -10,7 +10,7 @@ import Acorn.FeatureRefresh
 # Feature-slice checkpoint admission and cold installation
 
 The byte decoder supplies dimension-sized raw knowledge blocks. Feature metadata,
-events and assignments are admitted together before installation. Primary
+generator and tester words and assignments are admitted together before installation. Primary
 knowledge passes through each receiver's own projection; optional model storage
 and process-local caches restart cold. Saved assignments are never reranked, and an
 image whose slots repeat a selected unit is refused.
@@ -91,8 +91,8 @@ structure RawFeatureImage (dimension : Dimension) (discounts : List Discount) wh
   criterion : UInt8
   /-- Stored saturating clock. -/
   clock : UInt64
-  /-- Raw replacement sequence. -/
-  events : List (UInt64 × UInt16)
+  /-- Raw generator and tester words. -/
+  progress : ProgressWords
   /-- Complete raw assignment image. -/
   assignments : Vector AssignmentWords Acorn.FeatureConstants.skillCount
   /-- Complete primary words. -/
@@ -105,9 +105,9 @@ def Criterion.tag : Criterion → UInt8
   | .discounted => 0
   | .differential => 1
 
-/-- Fully admitted feature image; no installation path accepts raw event/identity words. -/
+/-- Fully admitted feature image; no installation path accepts raw tester or identity words. -/
 structure FeatureImage (config : Config) (criterion : Criterion) (dimension : Dimension) (discounts : List Discount) where
-  /-- Legal receiver-relative progress. -/
+  /-- Legal receiver-relative generator and tester state. -/
   progress : Progress config
   /-- Exact saved objectives. -/
   assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount
@@ -126,7 +126,7 @@ def FeatureImage.admit (config : Config) (criterion : Criterion) (dimension : Di
   if raw.seed != config.seed || raw.tilings != config.tilings ||
       raw.units.toNat != config.units.count || raw.capacity.toNat != dimension.capacity ||
       raw.criterion != criterion.tag then none else do
-    let progress ← Progress.admit config raw.clock raw.events
+    let progress ← Progress.admit config raw.clock raw.progress
     let assignments ← raw.assignments.mapM (Assignment.admit dimension config)
     if distinct : Assignment.distinct assignments then
       some ⟨progress, assignments, (Assignment.distinct_iff assignments).mp distinct,

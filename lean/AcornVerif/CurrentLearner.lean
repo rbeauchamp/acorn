@@ -1183,14 +1183,15 @@ theorem scheduled_storage (entries : List (Entry dimension)) (scheduled : Schedu
     scheduled_capacity entries scheduled
   omega
 
-/-- Retirement clears every register and both aggregate words, and restores
-fresh knowledge at the retired slot even for arbitrary raw pre-state. -/
+/-- Retirement clears every register at the retired slot, restores fresh
+knowledge there and keeps both shared aggregate words, even for arbitrary raw
+pre-state. -/
 theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx dimension) :
     registers (state.retireIndex idx) idx = Vector.replicate 9 Binary32.zero ∧
     ((state.retireIndex idx).weights.get idx).value = Binary32.zero ∧
     ((state.retireIndex idx).beta.get idx).value = state.rails.initial.value ∧
-    (state.retireIndex idx).transient.vOld = Binary32.zero ∧
-    (state.retireIndex idx).transient.vDelta = Binary32.zero := by
+    (state.retireIndex idx).transient.vOld = state.transient.vOld ∧
+    (state.retireIndex idx).transient.vDelta = state.transient.vDelta := by
   unfold NumericState.retireIndex
   have zero := config.rule.domain.symmetric_project_identity
     Binary32.zero config.rule.domain.zeroLegal
@@ -1224,18 +1225,5 @@ including NaN and either infinity. -/
 theorem exploration_legal (raw : Binary32) :
     exploreRange.Contains (ExploreRate.project raw).value :=
   (ExploreRate.project raw).legal
-
-/-- A reader built from one learner uses precisely its own retirement predicate. -/
-theorem consumer_own (state : NumericState config dimension) (idx : FeatIdx dimension) :
-    (Consumer.of state).negligible idx = state.unitIsNegligible idx := rfl
-
-/-- Every-consumer retirement is exactly conjunction over the supplied nonempty
-reader vector; no consumer can be skipped. -/
-theorem every_consumer {rails : StepSizeRails config} {count : Nat}
-    (consumers : Vector (Consumer (dimension := dimension) rails) (count + 1))
-    (idx : FeatIdx dimension) :
-    unitNegligibleInEvery consumers idx = true ↔
-      ∀ reader ∈ consumers.toList, reader.negligible idx = true := by
-  exact List.all_eq_true
 
 end AcornVerif.CurrentLearner

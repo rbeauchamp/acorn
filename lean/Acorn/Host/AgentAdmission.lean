@@ -37,7 +37,7 @@ def AgentConstruction.admit (profile : FeatureProfile) (criterion : Criterion)
   if ht : 0 < tilings.toNat then
     if hu : 0 < units ∧ units ≤ 65535 then
       if he : exponent < 32 then
-        some ⟨profile, criterion, planning, ⟨seed, tilings, ht, ⟨units, hu.1, hu.2⟩⟩,
+        some ⟨profile, criterion, planning, ⟨seed, tilings, ht, ⟨units, hu.1, hu.2⟩, declaredTester⟩,
           ⟨2^exponent, Nat.pow_pos (by decide), ⟨exponent, rfl⟩, Nat.pow_lt_pow_right (by decide) he⟩⟩
       else none
     else none
@@ -65,7 +65,7 @@ def AgentConstruction.standard (seed : UInt64) (selection : Host.AgentSelection)
     (planning : PlanningSelection) : AgentConstruction :=
   ⟨researchProfile selection.profile, selection.criterion, planning,
     ⟨seed, Acorn.FeatureConstants.defaultTilings.toUInt64, by decide,
-      ⟨Acorn.FeatureConstants.defaultImprintUnits, by decide, by decide⟩⟩,
+      ⟨Acorn.FeatureConstants.defaultImprintUnits, by decide, by decide⟩, declaredTester⟩,
     ⟨Acorn.FeatureConstants.defaultWeightSpace, by decide, ⟨14, rfl⟩, by decide⟩⟩
 
 /-- The instantiated agent type carries all immutable construction choices. -/

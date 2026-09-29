@@ -11,11 +11,7 @@ check. It uses process-group SIGKILL with no grace period or budget override;
 missing, skipped or timed-out checks fail. OS scheduling and signal delivery
 are the trusted mechanisms that enforce this deadline.
 
-Project instruction changes have no live Acorn runtime surface. No live agent
-evaluation has been performed for the shared retirement guidance; whether
-harnesses load and follow it remains unverified. Documentation inspection and
-ordinary verification do not establish that compliance. A harness evaluation
-would require separate scope. The complete
+Project instruction changes have no live Acorn runtime surface. The complete
 verification command remains required for documentation changes.
 
 ## Platform setup
@@ -141,24 +137,26 @@ available for focused diagnostics.
 
 ## Mutation diagnostics
 
-**Pinned digest: `9f7690b338600144`**
+**Pinned digest: `25ea4ea335774876`**
 
 ```sh
-lean/.lake/build/bin/acorn-core audit --expect 9f7690b338600144
+lean/.lake/build/bin/acorn-core audit --expect 25ea4ea335774876
 ```
 
-Paired checksum `eb40c4d351658e61`. The deployed arm runs the ranked profile
+Paired checksum `754fb5906278a9d0`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
-command runs all three fixed arms under the same deadline. The declared-rate and
-differential pins record the stable, sign-correct reward-respecting subtask and
-declared-rate dynamics decisions. The fixed audit arms
+command runs all three fixed arms under the same deadline. All three pins record
+the published generate-and-test tester and task-reading generator (PAR-11, D7);
+the declared-rate and differential pins also record the stable, sign-correct
+reward-respecting subtask and declared-rate dynamics decisions. The fixed audit arms
 are compared through these paired digests. Run these optional diagnostics
 when investigating a dynamics change.
 
 ## Checkpoint admission
 
-Format 15 preserves admitted learner state, assignments and pending ranking
-requests for supported ranked profiles. Restore checks dimensions, identifiers,
+Format 16 preserves admitted learner state, generator and tester state,
+assignments and pending ranking requests for supported ranked profiles. Earlier
+formats are refused. Restore checks dimensions, identifiers,
 criterion and value domains before admitting state. An incompatible image is
 refused and writes to that file are disabled. Learner state resumes; the world
 and transient process state restart. Filesystem persistence relies on the narrow

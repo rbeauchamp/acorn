@@ -11,12 +11,28 @@ import Acorn.FeatureRestore
 # Declared feature-profile composition
 
 These are the current profile discriminants inspected by feature construction,
-refresh and persistence. Their control/exploration dynamics have separate
-owners. Historical profiles retain their explicit choices and are refused by
-the resumable feature-image boundary.
+refresh and persistence, and the D7 tester schedule every profile uses. Their
+control/exploration dynamics have separate owners. Historical profiles retain
+their explicit choices and are refused by the resumable feature-image boundary.
 -/
 namespace Acorn.Handcrafted
 open Features
+
+/-- D7: the declared generate-and-test schedule. Replacement rate ρ = 10⁻⁴,
+maturity threshold m = 1000 steps and utility decay η = 0.99, the example
+settings of continual backpropagation with Adam (Dohare, Hernandez-Garcia,
+Rahman, Mahmood & Sutton, *Maintaining Plasticity in Deep Continual Learning*,
+arXiv:2306.13812v3 (2024), Algorithm 3, p. 44; ρ and η also in Algorithm 1,
+p. 23). The rate accrues per eligible unit, as in the authors' released
+implementation. The decay word is the binary32 word nearest 0.99 and the
+complement the word nearest 0.01. -/
+def declaredTester : Features.Tester where
+  period := 10000
+  positive := by decide
+  bounded := by decide
+  maturity := 1000
+  decay := ⟨0x3f7d70a4⟩
+  complement := ⟨0x3c23d70a⟩
 
 /-- Complete current evaluator-mode discriminants. -/
 inductive EvaluationMode where

@@ -12,7 +12,7 @@ true. Learned module admission is independently checked after Lean elaboration.
 -/
 namespace Acorn
 
-/-- Current declared departures, corresponding to the maintained D1–D6 register. -/
+/-- Current declared departures, corresponding to the maintained D1–D7 register. -/
 inductive Departure where
   /-- D1: hand-authored feature-channel layout. -/
   | featureChannels
@@ -26,6 +26,8 @@ inductive Departure where
   | cumulants
   /-- D6: declared exploration rate and the annealed comparison schedule. -/
   | explorationRate
+  /-- D7: declared feature replacement rate, maturity threshold and utility decay. -/
+  | featureTester
   deriving DecidableEq
 
 /-- Every admitted signal/encoding family declares its origin. Declaration
