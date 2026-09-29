@@ -71,7 +71,9 @@ def snapshotImage (construction : AgentConstruction) (state : construction.State
     AgentImage construction.config construction.criterion construction.dimension :=
   let runtime := state.control.runtime
   ⟨⟨runtime.lifecycle.representation.progress,
-      runtime.lifecycle.consumers.skills.map (·.interest.held),
+      runtime.lifecycle.consumers.skills.map
+        (fun skill : Skill construction.config construction.criterion construction.dimension =>
+          skill.interest.held), state.aligned.2,
       primaryImage runtime.lifecycle.consumers, runtime.refresh.pending⟩,
     state.control.average.rate, state.control.lifetime.durable, by
       intro slot

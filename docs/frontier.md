@@ -48,7 +48,8 @@ jointly eligible at the executed scan, or an execution-linked impossibility
 argument supporting a justified disposition. For the ranked discounted agent,
 the scan has 60 reader positions representing 57 physical learners: the three
 models each alias reward in the duration position. Eligibility requires every
-reader's strict small-weight and lower-step-size-rail conditions simultaneously.
+reader's strict small-weight and lower-step-size-rail conditions simultaneously,
+and a unit held as an option objective is eligible only at a free boundary.
 Selection, owner refresh/reset, and history/clock admission must also compose
 with that execution; separate per-reader witnesses do not suffice.
 

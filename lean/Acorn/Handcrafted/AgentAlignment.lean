@@ -10,8 +10,9 @@ import Acorn.Handcrafted.TemporalControl
 
 The local option interface permits arbitrary declared sources and refuses a
 mismatch. The complete agent admits only learned interests and its actual D2
-producer. These structural proofs close that local hypothesis across every
-learning, refresh and retirement write; they do not assume a successful dispatch.
+producer, and no two of its slots hold the same learned unit. These structural
+proofs close both across every learning, refresh and retirement write; they do
+not assume a successful dispatch.
 -/
 namespace Acorn.Handcrafted
 open Features
@@ -29,9 +30,10 @@ def _root_.Acorn.Features.Interest.Aligned (interest : Interest config) : Prop :
 def _root_.Acorn.Features.Ensemble.Aligned (state : Ensemble config criterion dimension discounts) : Prop :=
   ∀ slot : Fin Acorn.FeatureConstants.skillCount, state.skills[slot.val].interest.Aligned
 
-/-- The complete temporal state carries that same table, rather than a copied assignment list. -/
-def TemporalControl.Aligned (state : TemporalControl profile config criterion dimension) : Prop :=
-  state.runtime.lifecycle.consumers.Aligned
+/-- The complete temporal state carries that same table, rather than a copied assignment list,
+with every source admitted and distinct held units. -/
+abbrev TemporalControl.Aligned (state : TemporalControl profile config criterion dimension) : Prop :=
+  state.runtime.lifecycle.consumers.Aligned ∧ state.runtime.lifecycle.consumers.Distinct
 
 /-- Each admitted interest receives a potential from the actual observation adapter. -/
 theorem _root_.Acorn.Features.Interest.aligned_potential (interest : Interest config) (aligned : interest.Aligned)
@@ -49,9 +51,14 @@ theorem TemporalControl.initial_aligned (profile : FeatureProfile) (config : Fea
     (criterion : Criterion) (dimension : Dimension) :
     (TemporalControl.initial profile config criterion dimension).Aligned := by
   rcases profile with ⟨mode, credit, rate, subtasks⟩
-  cases subtasks <;> intro slot <;>
-    simp [TemporalControl.initial, Ensemble.initial, FeatureProfile.interests,
-      Skill.initial, Interest.Aligned]
+  constructor
+  · cases subtasks <;> intro slot <;>
+      simp [TemporalControl.initial, Ensemble.initial, FeatureProfile.interests,
+        Skill.initial, Interest.Aligned]
+  · intro left right unit named _
+    cases subtasks <;>
+      simp [TemporalControl.initial, Ensemble.initial, FeatureProfile.interests,
+        Skill.initial, Interest.held, Assignment.identity] at named
 
 /-- Slot retirement retains the full source identity for all hashed aliases. -/
 theorem _root_.Acorn.Features.Ensemble.retire_aligned (state : Ensemble config criterion dimension discounts)
@@ -126,16 +133,28 @@ theorem _root_.Acorn.Features.Skill.endTemporal_interest {mode : Bool} (skill : 
   unfold Skill.endTemporal
   split <;> exact (skill.terminal_owners ending.activation ending.potential reward terminal gain).1
 
-/-- Replacing one skill requires alignment of that exact receiving value. -/
+/-- Replacing one skill by learners for the same objective keeps the table aligned. -/
 theorem TemporalControl.withSkill_aligned (state : TemporalControl profile config criterion dimension)
     (aligned : state.Aligned) (slot : Fin Acorn.FeatureConstants.skillCount)
-    (skill : Skill config criterion dimension) (valid : skill.interest.Aligned) :
+    (skill : Skill config criterion dimension)
+    (same : skill.interest = state.runtime.lifecycle.consumers.skills[slot.val].interest) :
     (state.withSkill slot skill).Aligned := by
-  intro index
-  simp only [TemporalControl.withSkill, Vector.getElem_set]
-  split
-  · exact valid
-  · exact aligned index
+  have table (index : Fin Acorn.FeatureConstants.skillCount) :
+      (state.withSkill slot skill).runtime.lifecycle.consumers.skills[index.val].interest =
+        state.runtime.lifecycle.consumers.skills[index.val].interest := by
+    simp only [TemporalControl.withSkill, Vector.getElem_set]
+    split
+    · rename_i equal
+      have index_eq : slot = index := Fin.ext equal
+      subst index_eq
+      exact same
+    · rfl
+  refine ⟨fun index => ?_, Assignment.Distinct.mono aligned.2 fun index unit named => ?_⟩
+  · rw [table index]
+    exact aligned.1 index
+  · rw [Vector.getElem_map] at named ⊢
+    rw [table index] at named
+    exact named
 
 /-- The optional meta-gap write does not touch the receiving skill table. -/
 theorem TemporalControl.skipMeta_aligned (state : TemporalControl profile config criterion dimension)
@@ -185,7 +204,7 @@ theorem TemporalControl.stepOption_aligned (state : TemporalControl profile conf
     (state.stepOption models slot activation next reward values decision started ended).1.Aligned := by
   apply state.withSkill_aligned aligned slot
   rw [Skill.stepTemporal_interest]
-  exact aligned slot
+  rfl
 
 /-- Terminal credit updates the matching current owner or discards the detached one. -/
 theorem TemporalControl.closeOption_aligned (state : TemporalControl profile config criterion dimension)
@@ -199,7 +218,7 @@ theorem TemporalControl.closeOption_aligned (state : TemporalControl profile con
     simp only [Option.getD_none]
     apply state.withSkill_aligned aligned
     rw [Skill.endTemporal_interest]
-    exact aligned closing.slot
+    rfl
   | some owner => exact aligned
 
 /-- Free-boundary refresh closes the potential-source premise for the next dispatch. -/
@@ -207,7 +226,7 @@ theorem TemporalControl.refreshFree_aligned (state : TemporalControl profile con
     (aligned : state.Aligned)
     (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).1.Aligned :=
-  FreeDispatch.refresh_aligned _ aligned
+  ⟨FreeDispatch.refresh_aligned _ aligned.1, FreeDispatch.refresh_preserves_distinct _ aligned.2⟩
 
 /-- Repaying meta credit cannot replace an option's source declaration. -/
 theorem TemporalControl.learnMeta_aligned (state : TemporalControl profile config criterion dimension)
@@ -238,7 +257,7 @@ theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile conf
   split
   · exact ⟨_, _, rfl, learned.primitive_aligned learnedAligned features decision.snapshot.values (some decision) ended⟩
   · rename_i slot selected
-    have hs := learnedAligned slot
+    have hs := learnedAligned.1 slot
     obtain ⟨potential, hp⟩ := Interest.aligned_potential
       (learned.runtime.lifecycle.consumers.skills.get slot).interest hs features observation
     simp only [hp, bind, Option.bind]
@@ -247,7 +266,7 @@ theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile conf
       (decision := some decision) (started := true) (ended := ended)
     apply learned.withSkill_aligned learnedAligned
     rw [Skill.beginTemporal_interest]
-    exact hs
+    rfl
 
 /-- A free boundary always has a potential for the selected receiving skill;
 planning and detached terminal credit preserve that source alignment. -/
@@ -302,7 +321,7 @@ theorem TemporalControl.select_total (state : TemporalControl profile config cri
       · rename_i slot activation phase
         obtain ⟨potential, hpotential⟩ := Interest.aligned_potential
           ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get slot).interest
-          (preparedAligned slot) features observation
+          (preparedAligned.1 slot) features observation
         simp only [hpotential, bind, Option.bind]
         split
         · rename_i continuation continuing

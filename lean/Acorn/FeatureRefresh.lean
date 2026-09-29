@@ -12,9 +12,9 @@ import Acorn.FeatureLifecycle
 Ranked assignments use the actual stored Demon-0 weights. Objective identity is
 the selected unit: a slot whose unit is still ranked keeps its policy, model,
 prediction cache and meta-controller row bit-identical while its held bonus can
-only rise, and only a slot whose unit left the ranking is reinstalled. Retirement
-releases every slot holding the replaced unit. An ending activation retains
-the replaced owner for terminal credit. The activation payload is parametric:
+only rise, and only a slot whose unit left the ranking is reinstalled. No two slots
+hold the same unit. Retirement releases a slot holding the replaced unit only at a
+free boundary. An ending activation retains the replaced owner for terminal credit. The activation payload is parametric:
 refresh neither reads nor rewrites it. Continuing activations do not inhabit
 this free-boundary interface.
 -/
@@ -110,11 +110,6 @@ theorem Interest.sameAssignment_iff {config : Config} (interest : Interest confi
       ∃ prior, interest = .learned prior ∧ prior.identity = target.identity := by
   cases interest <;> simp [Interest.sameAssignment, Assignment.same_iff]
 
-/-- The learned objective a slot holds; a declared choice holds none. -/
-def Interest.held {config : Config} : Interest config → Assignment config
-  | .learned assignment => assignment
-  | .declared _ _ => .neutral
-
 /-- A slot whose unit is unchanged receives its target objective, including a raised
 held bonus, and keeps its policy, model, cache and meta-controller row. A slot whose
 unit changed atomically receives its target, fresh policy/model, a reset
@@ -142,12 +137,6 @@ def FreeDispatch.install {shape : PatchShape} {config : Config} {criterion : Cri
         if ending.slot == slot then
           { ending with oldOwner := some (ending.oldOwner.getD previous) } else ending }
 
-/-- Whether some slot holds the unit as its learned objective. -/
-def Ensemble.holds {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
-    (unit : Fin config.units.count) : Bool :=
-  ensemble.skills.toList.any (·.interest.held.holds unit)
-
 /-- Release every slot holding a replaced unit: it receives the neutral objective with
 fresh policy and model and a reset meta-controller row, and the next refresh installs
 its entrant. -/
@@ -172,6 +161,56 @@ theorem Ensemble.release_holds {config : Config} {criterion : Criterion} {dimens
   split
   · rfl
   · simp_all
+
+/-- Releasing a unit no slot holds changes nothing. -/
+theorem Ensemble.release_unheld {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    (unit : Fin config.units.count) (unheld : ensemble.holds unit = false) :
+    ensemble.release unit = ensemble := by
+  have fresh (slot : Fin Acorn.FeatureConstants.skillCount) :
+      ensemble.skills[slot.val].interest.held.holds unit = false := by
+    have absent := List.any_eq_false.mp unheld ensemble.skills[slot.val] (by simp)
+    simpa using absent
+  have skills : ensemble.skills.map (fun skill =>
+      if skill.interest.held.holds unit then Skill.initial config criterion dimension (.learned .neutral)
+      else skill) = ensemble.skills := by
+    ext index bound
+    simp [fresh ⟨index, bound⟩]
+  have rows (slots : List (Fin Acorn.FeatureConstants.skillCount)) :
+      slots.foldl (fun controller slot =>
+        if ensemble.skills[slot.val].interest.held.holds unit then
+          controller.resetAction (metaOfSkill slot)
+        else controller) ensemble.metaController = ensemble.metaController := by
+    induction slots with
+    | nil => rfl
+    | cons slot rest ih =>
+      simp only [List.foldl_cons, fresh slot, Bool.false_eq_true, ↓reduceIte]
+      exact ih
+  simp only [Ensemble.release, skills, rows]
+
+/-- No two slots hold the same learned unit. -/
+def Ensemble.Distinct {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts) : Prop :=
+  Assignment.Distinct (ensemble.skills.map (·.interest.held))
+
+/-- Feature retirement keeps every objective, so it keeps distinct held units. -/
+theorem Ensemble.retire_distinct {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    (feature : FeatIdx dimension) (distinct : ensemble.Distinct) : (ensemble.retire feature).Distinct := by
+  apply Assignment.Distinct.mono distinct
+  intro slot unit named
+  simpa [Ensemble.retire, Skill.retire] using named
+
+/-- Release only clears objectives, so it keeps distinct held units. -/
+theorem Ensemble.release_distinct {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    (unit : Fin config.units.count) (distinct : ensemble.Distinct) : (ensemble.release unit).Distinct := by
+  apply Assignment.Distinct.mono distinct
+  intro slot named held
+  simp only [Ensemble.release, Vector.getElem_map] at held ⊢
+  split at held
+  · simp [Skill.initial, Interest.held, Assignment.identity] at held
+  · exact held
 
 /-- Demon 0 is selected structurally from its immutable horizon-indexed bank. -/
 def DemonBank.rankingWeights {dimension : Dimension} {discounts : List Discount}
@@ -411,16 +450,22 @@ theorem FreeDispatch.refresh_targets {shape : PatchShape} {config : Config} {cri
 theorem FreeDispatch.refresh_distinct {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
-    (pending : state.refresh.pending = true) (left right : Fin Acorn.FeatureConstants.skillCount)
-    (unit : Fin config.units.count)
-    (leftHolds : state.refreshRanked.lifecycle.consumers.skills[left.val].interest.held.identity =
-      some unit)
-    (rightHolds : state.refreshRanked.lifecycle.consumers.skills[right.val].interest.held.identity =
-      some unit) :
-    left = right := by
+    (pending : state.refresh.pending = true) : state.refreshRanked.lifecycle.consumers.Distinct := by
+  intro left right unit leftHolds rightHolds
+  simp only [Vector.getElem_map] at leftHolds rightHolds
   rw [state.refresh_targets pending left] at leftHolds
   rw [state.refresh_targets pending right] at rightHolds
   exact rankAssignments_distinct dimension config _ _ left right unit leftHolds rightHolds
+
+/-- Every refresh, pending or not, keeps distinct held units. -/
+theorem FreeDispatch.refresh_preserves_distinct {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (distinct : state.lifecycle.consumers.Distinct) : state.refreshRanked.lifecycle.consumers.Distinct := by
+  by_cases pending : state.refresh.pending = true
+  · exact state.refresh_distinct pending
+  · simp only [FreeDispatch.refreshRanked, Refresh.take, pending, Bool.false_eq_true, ↓reduceIte]
+    exact distinct
 
 /-- T1: for every state and Demon-0 weight array, the first slot holding a still-ranked
 unit keeps its policy, model, cached prediction and meta-controller row bit-identical,

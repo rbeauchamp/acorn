@@ -84,9 +84,10 @@ theorem TemporalControl.retire_aligned (state : TemporalControl profile config c
   · exact aligned
   · rename_i unit lifecycle accepted
     obtain ⟨room, eligible, _, same⟩ :=
-      (Lifecycle.success_iff state.runtime.lifecycle unit lifecycle).mp accepted
+      (Lifecycle.success_iff state.runtime.lifecycle _ unit lifecycle).mp accepted
     subst lifecycle
-    exact Ensemble.release_aligned _ (state.runtime.lifecycle.consumers.retire_aligned aligned _) unit
+    exact ⟨Ensemble.release_aligned _ (state.runtime.lifecycle.consumers.retire_aligned aligned.1 _) unit,
+      Ensemble.release_distinct _ unit (Ensemble.retire_distinct _ _ aligned.2)⟩
 
 /-- Retirement retains episode observations and the active invocation reference together. -/
 theorem TemporalControl.retire_episodes (state : TemporalControl profile config criterion dimension)
@@ -160,9 +161,9 @@ private def Agent.install (state : Agent profile config criterion dimension plan
       rate := RateState.initial profile.rate
       lifetime := { image.lifetime.restore with
         agreementStarted := some image.features.progress.clock
-        agreementLastClock := some image.features.progress.clock } }, by
-    intro slot
-    simp [FeatureRuntime.restore, Ensemble.restore, Interest.Aligned], by
+        agreementLastClock := some image.features.progress.clock } },
+    ⟨fun slot => by simp [FeatureRuntime.restore, Ensemble.restore, Interest.Aligned],
+      Ensemble.restore_distinct _ _ _ image.features.distinct⟩, by
     constructor
     · intro slot
       exact image.episodes slot

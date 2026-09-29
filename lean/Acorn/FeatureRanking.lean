@@ -394,6 +394,52 @@ def rankedCandidates (dimension : Dimension) (config : Config)
   ranked Acorn.FeatureConstants.skillCount
     ((List.finRange config.units.count).filterMap (candidateOfWeight config weights))
 
+/-- No two slots of an objective table name the same unit. -/
+def Assignment.Distinct {config : Config}
+    (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount) : Prop :=
+  ∀ left right : Fin Acorn.FeatureConstants.skillCount, ∀ unit : Fin config.units.count,
+    table[left.val].identity = some unit → table[right.val].identity = some unit → left = right
+
+/-- A table naming a unit only where a distinct table names it is distinct. -/
+theorem Assignment.Distinct.mono {config : Config}
+    {table other : Vector (Assignment config) Acorn.FeatureConstants.skillCount}
+    (distinct : Assignment.Distinct table)
+    (named : ∀ (slot : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count),
+      other[slot.val].identity = some unit → table[slot.val].identity = some unit) :
+    Assignment.Distinct other :=
+  fun left right unit leftNamed rightNamed =>
+    distinct left right unit (named left unit leftNamed) (named right unit rightNamed)
+
+/-- Executable distinctness check over every ordered slot pair. -/
+def Assignment.distinct {config : Config}
+    (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount) : Bool :=
+  (List.finRange Acorn.FeatureConstants.skillCount).all fun left =>
+    (List.finRange Acorn.FeatureConstants.skillCount).all fun right =>
+      left == right || !(table[left.val].identity.isSome &&
+        table[left.val].identity == table[right.val].identity)
+
+/-- The executable check decides exactly the distinctness proposition. -/
+theorem Assignment.distinct_iff {config : Config}
+    (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
+    Assignment.distinct table = true ↔ Assignment.Distinct table := by
+  simp only [Assignment.distinct, List.all_eq_true, List.mem_finRange, forall_const]
+  constructor
+  · intro check left right unit leftNamed rightNamed
+    have pair := check left right
+    rw [leftNamed, rightNamed] at pair
+    simpa using pair
+  · intro distinct left right
+    cases leftNamed : table[left.val].identity with
+    | none => simp
+    | some unit =>
+      cases rightNamed : table[right.val].identity with
+      | none => simp
+      | some other =>
+        by_cases same : unit = other
+        · subst same
+          simp [distinct left right unit leftNamed rightNamed]
+        · simp [same]
+
 /-- Whether an objective is the given unit. -/
 def Assignment.holds {config : Config} (unit : Fin config.units.count) :
     Assignment config → Bool
@@ -621,11 +667,9 @@ theorem rankAssignments_ordered (dimension : Dimension) (config : Config)
 vector, including one that repeats a unit. -/
 theorem rankAssignments_distinct (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
-    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
-    (left right : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count)
-    (leftNamed : (rankAssignments dimension config weights held)[left.val].identity = some unit)
-    (rightNamed : (rankAssignments dimension config weights held)[right.val].identity = some unit) :
-    left = right := by
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
+    Assignment.Distinct (rankAssignments dimension config weights held) := by
+  intro left right unit leftNamed rightNamed
   rcases Nat.lt_trichotomy left.val right.val with order | same | order
   · exact (rankAssignments_ordered dimension config weights held left right order unit
       leftNamed rightNamed).elim

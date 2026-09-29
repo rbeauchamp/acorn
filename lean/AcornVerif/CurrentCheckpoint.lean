@@ -108,6 +108,7 @@ theorem feature_roundtrip (construction : AgentConstruction)
   rw [Progress.words_roundtrip]
   simp only [bind, Option.bind]
   rw [vector_roundtrip _ _ (Assignment.words_roundtrip construction.dimension)]
+  simp [(Assignment.distinct_iff _).mpr image.features.distinct]
 
 /-- Full admission preserves every typed image, including both signed-zero encodings. -/
 theorem image_roundtrip (construction : AgentConstruction)
