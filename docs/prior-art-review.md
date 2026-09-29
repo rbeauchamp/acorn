@@ -249,11 +249,11 @@ Typed option lifecycle and semi-Markov updates retain actual accumulated reward 
 
 [Source](https://arxiv.org/abs/2006.01782). Execution owner: `Acorn.Exploration`.
 
-Persistent exploration has a bounded duration. The local capped duration law is D3; support and useful goal discovery are separate obligations from probability admission.
+Persistent exploration has a bounded duration. The local capped duration law is D3 and the rate ε is D6's declared 0.01, a value the source uses; support and useful goal discovery are separate obligations from probability admission.
 
 **Adaptation and rationale.** Persistent action runs follow a capped floor-inverse-uniform duration law. It is a tail-equivalent surrogate for the published zeta law, chosen as the explicit local D3 construction; it is not exact source sampling. Serving a run is deterministic, so a universal positive support floor is unavailable at those steps.
 
-**Contract and composition.** Acorn.Exploration and AcornVerif.Exploration own the actual duration/range definitions and stated mathematical distribution scope. The duration and normalization theorems state their action-set and distribution assumptions.
+**Contract and composition.** Acorn.Exploration and AcornVerif.Exploration own the actual duration/range definitions and stated mathematical distribution scope. The duration and normalization theorems state their action-set and distribution assumptions. Every executed branch compares the first source word's 53-bit fraction with the rate as exact rational order; at D6's rate exactly its binary32 value's share of first words explores (AcornVerif.TemporalSupport). Under a uniform duration draw the mean run length is H₁₂₈ and the expected exploratory share of primitive-boundary cycles is below 6% (AcornVerif.Exploration). Both statements assume uniform, independent draws that the deterministic generator does not supply; the duration model omits the executed reciprocal's binary64 rounding.
 
 **Refutation attempt.** Independent review checked the inverse-uniform off-by-one and normalization argument, and rejected exact-zeta, implicit-cap and overbroad action-domain wording.
 
@@ -271,9 +271,11 @@ Primitive action learners receive the executed stream, including option steps. T
 
 ### PAR-10 · Derived exploration rate
 
-[Source](https://arxiv.org/abs/2006.01782). Execution owner: `Acorn.Exploration`.
+[Source](https://arxiv.org/abs/2006.01782). Execution owner: `Acorn.Policy`.
 
-The rate is derived from active optimizer state; duration remains D3. Empty eligibility, optimizer coupling, support and resource limits are explicit.
+The rate is derived from active optimizer state; duration remains D3. No research profile uses it: they use D6's declared rate or the annealed comparison. The native `own` and `shared` rate words still select it. Empty eligibility, optimizer coupling, support and resource limits are explicit.
+
+**Limit.** The rate is the eligible mean of ν(β) = (β − ln η_min)/(ln η − ln η_min). At the initial step sizes it is about 0.63 for primitive and meta learners and 0.64 for options, and every reinstalled option returns to it. The cited paper gives no rate formula; it uses declared constants (D6).
 
 **Adaptation and rationale.** This is a local construction, not a rate formula taken from the cited duration paper. It derives a receiving controller’s probability from active optimizer state to remove a clock schedule without adding a separate intrinsic-reward channel or replay memory. It remains coupled to optimizer parameters; no universal exploration floor or independent tuning claim follows.
 

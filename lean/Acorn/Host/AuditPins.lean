@@ -12,7 +12,7 @@ Changing a pin records an explicit dynamics decision, never a correctness proof.
 -/
 namespace Acorn.Host.AuditPins
 
-/-- Deployed ranked, derived-exploration, discounted action digest. -/
+/-- Deployed ranked, discounted action digest. -/
 def derivedDigest : UInt64 := 0x829aef890c81afaf
 /-- Knowledge checksum paired with the deployed digest. -/
 def derivedChecksum : UInt64 := 0xb1a076b6ac5884f0

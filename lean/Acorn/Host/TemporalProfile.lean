@@ -17,11 +17,11 @@ open Handcrafted
 
 /-- Closed public research profiles choose every implementation discriminant. -/
 def researchProfile : ResearchProfile → FeatureProfile
-  | .ranked => ⟨.final, .perStep, .perLearner, .learned⟩
-  | .primitive => ⟨.primitiveOnly, .perStep, .perLearner, .learned⟩
-  | .boundaryCredit => ⟨.final, .smdpCatchUp, .perLearner, .learned⟩
+  | .ranked => ⟨.final, .perStep, .declared, .learned⟩
+  | .primitive => ⟨.primitiveOnly, .perStep, .declared, .learned⟩
+  | .boundaryCredit => ⟨.final, .smdpCatchUp, .declared, .learned⟩
   | .annealed => ⟨.final, .perStep, .annealed, .learned⟩
-  | .spatial => ⟨.final, .perStep, .perLearner, .spatial⟩
+  | .spatial => ⟨.final, .perStep, .declared, .spatial⟩
 
 /-- Public profile admission agrees with the implemented feature-image refusal. -/
 theorem research_resumable (profile : ResearchProfile) :

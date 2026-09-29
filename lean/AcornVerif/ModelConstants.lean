@@ -100,6 +100,10 @@ def reachRadius : ℕ := 3
 by `CurrentConstants`. -/
 def ezMaxDuration : ℕ := 128
 
+/-- D6 exploration rate: the binary32 word nearest 0.01, `10737418 · 2^-30`,
+checked against `Acorn.Handcrafted.declaredRate` by `CurrentConstants.explore_rate_value`. -/
+def exploreRate : ℚ := (10737418 : ℚ) / 1073741824
+
 /-- Demon overshoot budget for discounted g99, checked by `CurrentConstants.numeric_values`. -/
 def eta : ℚ := (13421773 : ℚ) / 134217728
 

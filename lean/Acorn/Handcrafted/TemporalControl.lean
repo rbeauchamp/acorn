@@ -140,7 +140,7 @@ def TemporalControl.skipMeta (state : TemporalControl profile config criterion d
     TemporalControl profile config criterion dimension :=
   if profile.usesHierarchy && profile.mode != .frozen then state.withGap state.gap.skip else state
 
-/-- The primitive learner is the sole source of the explicitly shared rate. -/
+/-- The primitive learner's PAR-10 rate, the sole source of the explicitly shared rate. -/
 def TemporalControl.primitiveRate (state : TemporalControl profile config criterion dimension) : SwiftTd.ExploreRate :=
   state.runtime.lifecycle.consumers.control.exploreRate (count := primitiveCount)
 
@@ -157,6 +157,18 @@ def TemporalControl.controlRate (state : TemporalControl profile config criterio
 /-- Options resolve their own rates only after a possible invocation reset. -/
 def TemporalControl.skillRate (state : TemporalControl profile config criterion dimension) : ConsumerRate :=
   state.rate.skill (fun _ => state.primitiveRate)
+
+/-- Under the declared policy the primitive controller, the meta-controller and
+every option read the declared D6 word at every state, whatever any learner
+would derive. These are the only rates the dispatcher's snapshots consume. -/
+theorem TemporalControl.declared_rates (state : TemporalControl profile config criterion dimension)
+    (declared : profile.rate = .declared) :
+    state.controlRate = declaredRate ∧ state.metaRate = declaredRate ∧
+      ∀ own, state.skillRate.resolve own = declaredRate := by
+  refine ⟨RateState.declared_controller state.rate declared _ _,
+    RateState.declared_controller state.rate declared _ _, fun own => ?_⟩
+  simp only [TemporalControl.skillRate, RateState.declared_skill state.rate declared,
+    ConsumerRate.resolve]
 
 /-- Replace exactly one option's managed storage. -/
 def TemporalControl.withSkill (state : TemporalControl profile config criterion dimension)

@@ -23,27 +23,32 @@ def familyIndex : Host.GoalFamily → Fin 4
 
 /-- Public research selection resolves all immutable discriminants explicitly. -/
 def researchProfile : Host.ResearchProfile → FeatureProfile
-  | .ranked => ⟨.final, .perStep, .perLearner, .learned⟩
-  | .primitive => ⟨.primitiveOnly, .perStep, .perLearner, .learned⟩
-  | .boundaryCredit => ⟨.final, .smdpCatchUp, .perLearner, .learned⟩
+  | .ranked => ⟨.final, .perStep, .declared, .learned⟩
+  | .primitive => ⟨.primitiveOnly, .perStep, .declared, .learned⟩
+  | .boundaryCredit => ⟨.final, .smdpCatchUp, .declared, .learned⟩
   | .annealed => ⟨.final, .perStep, .annealed, .learned⟩
-  | .spatial => ⟨.final, .perStep, .perLearner, .spatial⟩
+  | .spatial => ⟨.final, .perStep, .declared, .spatial⟩
 
 /-- Host checkpoint admission and the actual constructed profile agree. -/
 theorem researchProfile_resumable (profile : Host.ResearchProfile) :
     (researchProfile profile).checkpointSupported = profile.resumable := by
   cases profile <;> rfl
 
+/-- Every research profile except the annealed rate comparison uses the declared D6 rate. -/
+theorem researchProfile_declared (profile : Host.ResearchProfile) (ordinary : profile ≠ .annealed) :
+    (researchProfile profile).rate = .declared := by
+  cases profile <;> first | rfl | exact absurd rfl ordinary
+
 variable {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {planning : PlanningSelection}
 
-/-- Attempt metrics read current errors, the primitive rate, and the first primitive learner.
-These are raw diagnostic numbers, without a convergence or finiteness assertion. -/
+/-- Attempt metrics read current errors, the primitive controller's resolved
+rate, and the first primitive learner. These are raw diagnostic numbers,
+without a convergence or finiteness assertion. -/
 def Agent.metrics (state : Agent profile config criterion dimension planning) : Host.LearnerMetrics :=
   ⟨(Binary32.sumFrom .zero state.control.runtime.references.demonErrors.toList).div
       (Binary32.ofUInt64 demonLayout.length.toUInt64),
-    (state.control.rate.controller (fun _ => state.control.primitiveRate)
-      (fun _ => state.control.primitiveRate)).value,
+    state.control.controlRate.value,
     (state.control.runtime.lifecycle.consumers.control.learners.get ⟨0, by decide⟩).state.meanAlpha⟩
 
 /-- Current one-way observation, including complete representation and assignment identities. -/

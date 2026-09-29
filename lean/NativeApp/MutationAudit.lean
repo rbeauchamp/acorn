@@ -19,11 +19,11 @@ open Acorn Acorn.Host Acorn.Host.Viewer Acorn.Handcrafted
 
 /-- The complete retained audit-arm domain. -/
 inductive AuditArm where
-  /-- Ranked, derived exploration, discounted control. -/
+  /-- Ranked profile, discounted control. -/
   | derived
   /-- Retained annealed schedule with spatial subtask interests. -/
   | annealed
-  /-- Ranked, derived exploration, differential control. -/
+  /-- Ranked profile, differential control. -/
   | differential
   deriving DecidableEq
 

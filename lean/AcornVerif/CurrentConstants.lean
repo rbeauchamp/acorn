@@ -7,6 +7,7 @@ import AcornVerif.ModelConstants
 import AcornVerif.CurrentArithmetic
 import Acorn.Average
 import Acorn.FeatureConstants
+import Acorn.Handcrafted.TemporalProfile
 
 /-! # Mathematical interpretation of current constants
 
@@ -58,6 +59,13 @@ theorem numeric_values :
   norm_num [ModelConstants.gainStepSize, ModelConstants.gainTrackingHorizon,
     ModelConstants.differentialValueBound, ModelConstants.eta, ModelConstants.alphaInit,
     ModelConstants.metaGamma, ModelConstants.optionGamma]
+
+/-- The declared D6 rate denotes the exact dyadic rational of its binary32 word;
+`0.01` itself is not representable, so this is the value every draw compares. -/
+theorem explore_rate_value :
+    numerical32 Handcrafted.declaredRate.value = ModelConstants.exploreRate := by
+  change (1:ℚ)*10737418*2^(-30:Int) = ModelConstants.exploreRate
+  norm_num [ModelConstants.exploreRate]
 
 /-- Current dimensions and the retained storage arithmetic share the same closed
 interface. Concrete receiver traversal is owned by CurrentFeatureConsumers. -/

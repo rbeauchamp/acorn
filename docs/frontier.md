@@ -84,8 +84,9 @@ alone is not an impossibility result or grounds for closing the research questio
 **Which control and exploration mechanisms help over a continuing stream?**
 
 Differential control is selectable with `--criterion average-reward`. Its
-qualification status is recorded below. Exploration duration remains authored
-([D3](learned-only-binding.md#d3--exploration-duration--step-9)). General GVFs,
+qualification status is recorded below. Exploration duration and rate remain
+authored ([D3](learned-only-binding.md#d3--exploration-duration--step-9),
+[D6](learned-only-binding.md#d6--exploration-rate--step-9)). General GVFs,
 the complete OaK feedback loop and learned prediction questions are not supplied
 by this implementation.
 

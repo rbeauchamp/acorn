@@ -65,7 +65,7 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 | 6 | Continuing decisions | Differential-control research integration. |
 | 7 | Planning with differential values | Approximate option planning. |
 | 8 | Integrated model-based prototype | Models and planning components are present. |
-| 9 | Exploration and search choices | Derived exploration rate; duration remains prescribed. |
+| 9 | Exploration and search choices | Declared εz-greedy rate and duration. |
 | 10 | Abstraction through STOMP | Ranked subtasks, options, models and planning. |
 | 11 | Complete OaK | Absent; the full utility-feedback loop is not implemented. |
 | 12 | Assisting other intelligences | Out of scope. |
@@ -104,7 +104,7 @@ The `acorn-core demo` command accepts these five profiles:
 
 | Profile | Configuration | Checkpoints |
 |---|---|---|
-| `ranked` | Hierarchical control with subtasks chosen from ranked learned features, primitive-action value credit each learning step, and exploration rates derived separately for each learner. | Supported |
+| `ranked` | Hierarchical control with subtasks chosen from ranked learned features, primitive-action value credit each learning step, and the declared εz-greedy exploration rate for every learner. | Supported |
 | `primitive` | Chooses primitive actions without the option hierarchy. | Unsupported |
 | `boundary-credit` | Uses the ranked hierarchy but accumulates primitive-action credit across option spans and applies it at the primitive controller's next own decision. | Unsupported |
 | `annealed` | Uses the ranked hierarchy with a prescribed exploration-rate schedule. | Unsupported |
@@ -232,7 +232,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-7](prior-art-review.md#par-7--options-and-interruption): Options and interruption, [Acorn.Temporal](../lean/Acorn/Temporal.lean).
 - [PAR-8](prior-art-review.md#par-8--temporally-extended-exploration): Temporally extended exploration, [Acorn.Exploration](../lean/Acorn/Exploration.lean).
 - [PAR-9](prior-art-review.md#par-9--intra-option-value-learning): Intra-option value learning, [Acorn.Handcrafted.TemporalControl](../lean/Acorn/Handcrafted/TemporalControl.lean).
-- [PAR-10](prior-art-review.md#par-10--derived-exploration-rate): Derived exploration rate, [Acorn.Exploration](../lean/Acorn/Exploration.lean).
+- [PAR-10](prior-art-review.md#par-10--derived-exploration-rate): Derived exploration rate, [Acorn.Policy](../lean/Acorn/Policy.lean).
 - [PAR-11](prior-art-review.md#par-11--bounded-disruption-retirement): Bounded-disruption retirement, [Acorn.FeatureLifecycle](../lean/Acorn/FeatureLifecycle.lean).
 - [PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks): Ranked learned subtasks, [Acorn.FeatureRanking](../lean/Acorn/FeatureRanking.lean).
 - [PAR-13](prior-art-review.md#par-13--option-models): Option models, [Acorn.Models](../lean/Acorn/Models.lean).
