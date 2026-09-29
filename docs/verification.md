@@ -48,8 +48,9 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get)` from the repository root to provision the
-pinned toolchain/dependencies. Do not use `lake update` to resolve a missing
+`(cd lean && lake exe cache get && lake build Mathlib)` from the repository root
+to provision the pinned toolchain/dependencies; the build compiles only modules
+absent from the upstream cache. Do not use `lake update` to resolve a missing
 dependency; that changes the selected versions.
 
 Build with `./scripts/lean.sh build acorn-viewer`; Lake also builds its declared
