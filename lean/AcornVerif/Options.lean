@@ -404,8 +404,8 @@ theorem planning_weight_convex_step_bounded
 These structural contracts model dispatch and replacement ordering. A closing
 owner is retained independently of its replacement slot, so the model's terminal
 update uses the original objective and next policy draw. Machine request
-transitions and bonus-word identity require separate execution correspondence;
-these model contracts concern lifecycle semantics.
+transitions and unit identity with held bonuses have their execution contracts in
+`Acorn.FeatureRefresh`; these model contracts concern lifecycle semantics.
 -/
 
 namespace Refresh

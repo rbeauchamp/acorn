@@ -195,6 +195,11 @@ inductive Interest (config : Config) where
   /-- Declared composition choice, with its register witness. -/
   | declared (origin : Departure) (tag : Fin Acorn.FeatureConstants.skillCount)
 
+/-- The learned objective a slot holds; a declared choice holds none. -/
+def Interest.held {config : Config} : Interest config → Assignment config
+  | .learned assignment => assignment
+  | .declared _ _ => .neutral
+
 /-- Complete storage belonging to one option assignment. -/
 structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension) where
   /-- Objective identity, retained by feature-slot retirement. -/

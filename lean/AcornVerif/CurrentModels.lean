@@ -321,7 +321,7 @@ theorem continuing_model_owner {mode : Bool} (skill : Skill config criterion dim
       skill.model.step next.features activation.age reward := by
   simp [Skill.stepTemporal, Skill.optionStep, learning, continuing, modelOperations]
 
-/-- Every model transition retains its full option assignment identity. -/
+/-- Every model transition retains its option objective. -/
 theorem model_assignment {mode : Bool} (skill : Skill config criterion dimension)
     (activation : OptionActivation mode) (next : OptionContinuation dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
@@ -331,7 +331,7 @@ theorem model_assignment {mode : Bool} (skill : Skill config criterion dimension
   unfold Skill.stepTemporal
   split <;> dsimp only [Skill.optionStep] <;> split <;> rfl
 
-/-- A changed full assignment resets the very model storage used by prediction and planning. -/
+/-- A changed unit identity resets the very model storage used by prediction and planning. -/
 theorem changed_assignment_model {shape : PatchShape} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
     (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config)

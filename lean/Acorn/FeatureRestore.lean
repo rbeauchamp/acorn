@@ -12,7 +12,8 @@ import Acorn.FeatureRefresh
 The byte decoder supplies dimension-sized raw knowledge blocks. Feature metadata,
 events and assignments are admitted together before installation. Primary
 knowledge passes through each receiver's own projection; optional model storage
-and process-local caches restart cold. Saved assignments are never reranked.
+and process-local caches restart cold. Saved assignments are never reranked, and an
+image whose slots repeat a selected unit is refused.
 Complete file-format and full-agent persistence remain their separate owners.
 -/
 namespace Acorn.Features
@@ -110,6 +111,8 @@ structure FeatureImage (config : Config) (criterion : Criterion) (dimension : Di
   progress : Progress config
   /-- Exact saved objectives. -/
   assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount
+  /-- No two saved slots select the same unit. -/
+  distinct : Assignment.Distinct assignments
   /-- Primary values admitted by each receiving learner during installation. -/
   primary : PrimaryImage dimension discounts
   /-- Saved work request. -/
@@ -125,10 +128,13 @@ def FeatureImage.admit (config : Config) (criterion : Criterion) (dimension : Di
       raw.criterion != criterion.tag then none else do
     let progress ← Progress.admit config raw.clock raw.events
     let assignments ← raw.assignments.mapM (Assignment.admit dimension config)
-    some ⟨progress, assignments, raw.primary, raw.pending⟩
+    if distinct : Assignment.distinct assignments then
+      some ⟨progress, assignments, (Assignment.distinct_iff assignments).mp distinct,
+        raw.primary, raw.pending⟩
+    else none
 
 /-- Cold installation reconstructs the bank and clears all lifecycle-owned transient state.
-No ranking function participates, so a saved bonus keeps its original identity. -/
+No ranking function participates, so a saved objective keeps its unit and held bonus. -/
 def FreeDispatch.restore {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
@@ -146,6 +152,16 @@ theorem Ensemble.restore_assignment {config : Config} {criterion : Criterion}
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     (ensemble.restore image assignments).skills[slot.val].interest = .learned assignments[slot.val] := by
   simp [Ensemble.restore]
+
+/-- Restoring distinct saved objectives keeps distinct held units. -/
+theorem Ensemble.restore_distinct {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount}
+    (ensemble : Ensemble config criterion dimension discounts) (image : PrimaryImage dimension discounts)
+    (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (distinct : Assignment.Distinct assignments) : (ensemble.restore image assignments).Distinct := by
+  apply Assignment.Distinct.mono distinct
+  intro slot unit named
+  simpa [Ensemble.restore, Interest.held] using named
 
 /-- Cold restore preserves pending work, resets the cycle and detaches all pending credit. -/
 theorem FreeDispatch.restore_cold {shape : PatchShape} {config : Config} {criterion : Criterion}

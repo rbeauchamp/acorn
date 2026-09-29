@@ -71,7 +71,7 @@ def routes : Array (String × String × Array String) := #[
   ("SwiftTd", "lp_acorn_Acorn_NumericState_learnSecondLoop", #["lp_acorn_List_foldl___at___00Acorn_NumericState_learnSecondLoop_spec__2___redArg"]),
   ("SwiftTd", "lp_acorn_List_foldl___at___00Acorn_NumericState_learnSecondLoop_spec__2___redArg", #["lp_acorn_Acorn_NumericState_secondLoopElement___redArg"]),
   ("Features", "lp_acorn_Acorn_Features_encode", #["lp_acorn_Acorn_Features_rawEncode", "lp_acorn_Acorn_Features_unique"]),
-  ("FeatureLifecycle", "lp_acorn_Acorn_Features_Lifecycle_tryRetire", #["lp_acorn_Acorn_Features_instDecidableCanRecord___aux__1", "lp_acorn_Acorn_Features_Lifecycle_candidate___redArg", "lp_acorn_Acorn_Features_Lifecycle_replace___redArg"]),
+  ("FeatureLifecycle", "lp_acorn_Acorn_Features_Lifecycle_tryRetire", #["lp_acorn_Acorn_Features_instDecidableCanRecord___aux__1", "lp_acorn_Acorn_Features_Lifecycle_candidate", "lp_acorn_Acorn_Features_Lifecycle_replace___redArg"]),
   ("FeatureLifecycle", "lp_acorn_Acorn_Features_Lifecycle_replace___redArg", #["lp_acorn_Acorn_Features_Representation_replace___redArg", "lp_acorn_Acorn_Features_unitFeature", "lp_acorn_Acorn_Features_Ensemble_retire___redArg"]),
   ("FeatureHistory", "lp_acorn_Acorn_Features_Representation_replace___redArg", #["lp_acorn_Acorn_Features_Progress_record___redArg", "lp_acorn_Acorn_Features_Bank_replace___redArg"]),
   ("FeatureConsumers", "lp_acorn_Acorn_Features_Managed_retire", #["lp_acorn_Acorn_Features_Managed_apply___redArg"]),

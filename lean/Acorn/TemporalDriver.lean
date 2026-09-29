@@ -19,11 +19,20 @@ open Features Handcrafted
 /-- Small diagnostic storage; the policy definitions remain dimension-generic. -/
 def dimension : Dimension := ⟨8, by decide, ⟨3, rfl⟩, by decide⟩
 
+/-- A positive projected raw word becomes the diagnostic unit's held bonus; any other
+word leaves the diagnostic slot neutral. Kept out of line so the entry's route stays linear. -/
+@[noinline] def diagnosticAssignment (config : Features.Config) (unit : Fin config.units.count)
+    (word : UInt64) : Assignment config :=
+  match Bonus.ofWeight (Prediction.project .g99 ⟨word.toUInt32⟩) with
+  | some bonus => .selected unit bonus
+  | none => .neutral
+
 /-- Exercise actual native begin, admitted step, termination decision and closing
 credit with dynamic inputs. Each current criterion uses the same typed kernel. -/
 @[noinline] def execute (seed word : UInt64) (criterion : Criterion) : Nat × Nat × UInt32 :=
   let config : Features.Config := ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩⟩
-  let interest : Interest config := .learned (.selected ⟨0, by change 0 < 3; decide⟩ (Prediction.project .g99 ⟨word.toUInt32⟩))
+  let interest : Interest config :=
+    .learned (diagnosticAssignment config ⟨0, by change 0 < 3; decide⟩ word)
   let skill := Skill.initial config criterion dimension interest
   let features : SwiftTd.ActiveSet dimension := ⟨[FeatIdx.fromHash dimension word], by simp⟩
   let potential := match interest with

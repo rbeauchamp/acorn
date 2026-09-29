@@ -66,17 +66,14 @@ def primaryImage {config : Features.Config} {criterion : Criterion} {dimension :
   ⟨ensemble.control.learners.map knowledge, ensemble.metaController.learners.map knowledge,
     ensemble.skills.map (fun skill => skill.policy.learners.map knowledge), demonImages ensemble.demons⟩
 
-/-- Declared profiles use the canonical neutral sentinel and are refused by the profile header. -/
-def savedAssignment {config : Features.Config} : Interest config → Assignment config
-  | .learned assignment => assignment
-  | .declared _ _ => .neutral
-
 /-- The complete checkpoint projection already carries valid history and numeric state. -/
 def snapshotImage (construction : AgentConstruction) (state : construction.State) :
     AgentImage construction.config construction.criterion construction.dimension :=
   let runtime := state.control.runtime
   ⟨⟨runtime.lifecycle.representation.progress,
-      runtime.lifecycle.consumers.skills.map (fun skill => savedAssignment skill.interest),
+      runtime.lifecycle.consumers.skills.map
+        (fun skill : Skill construction.config construction.criterion construction.dimension =>
+          skill.interest.held), state.aligned.2,
       primaryImage runtime.lifecycle.consumers, runtime.refresh.pending⟩,
     state.control.average.rate, state.control.lifetime.durable, by
       intro slot
@@ -89,7 +86,7 @@ def transcriptWords {config : Features.Config} (progress : Progress config) : Tr
     simp only [Progress.words, List.length_map]
     exact Nat.le_trans progress.legal.1 config.units.bounded⟩
 
-/-- A typed image has one exact format-14 word projection under its receiver. -/
+/-- A typed image has one exact format-15 word projection under its receiver. -/
 def imagePayload (construction : AgentConstruction)
     (image : AgentImage construction.config construction.criterion construction.dimension) :
     Payload construction.dimension :=

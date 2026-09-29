@@ -12,6 +12,8 @@ and PAR labels identify mechanism contracts.
 **Do the learned models predict useful consequences of executing an option?**
 
 Model accuracy under changing policies and representations is an open question.
+A refresh keeps the model of every option whose unit stays ranked; models restart
+only when their subtask's unit leaves the ranking or is retired.
 Extensions must preserve shared units, target alignment and age semantics.
 
 *Refutation attempt.* Challenge whether the executed target denotes the claimed
@@ -46,7 +48,8 @@ jointly eligible at the executed scan, or an execution-linked impossibility
 argument supporting a justified disposition. For the ranked discounted agent,
 the scan has 60 reader positions representing 57 physical learners: the three
 models each alias reward in the duration position. Eligibility requires every
-reader's strict small-weight and lower-step-size-rail conditions simultaneously.
+reader's strict small-weight and lower-step-size-rail conditions simultaneously,
+and a unit held as an option objective is eligible only at a free boundary.
 Selection, owner refresh/reset, and history/clock admission must also compose
 with that execution; separate per-reader witnesses do not suffice.
 

@@ -47,12 +47,12 @@ def Interest.potential {config : Config} {dimension : Dimension} (interest : Int
   | .learned assignment => some (assignment.potential features)
   | .declared origin tag => if origin = declared.origin then some (declared.values.get tag) else none
 
-/-- Attained bonuses remain part of learned stopping values, including at goal
+/-- Held attainment bonuses remain part of learned stopping values, including at goal
 termination. Declared spatial subtasks have no attainment bonus. -/
 def Interest.stoppingValue {config : Config} (interest : Interest config)
     (estimate : Binary32) (potential : Potential) : Binary32 :=
   match interest with
-  | .learned assignment => assignment.stoppingValue estimate potential.value
+  | .learned assignment => assignment.stoppingValue estimate potential
   | .declared _ _ => estimate
 
 /-- Continuing shaping uses the exact multiply, add, subtract order. -/

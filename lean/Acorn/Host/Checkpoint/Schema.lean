@@ -7,7 +7,7 @@ import Acorn.Host.Checkpoint.Codec
 import Acorn.Host.AgentAdmission
 
 /-!
-# Checkpoint format 14
+# Checkpoint format 15
 
 Field order, widths and fixed collection shapes define the serialized schema.
 Structural words remain untrusted until receiver-relative admission. Knowledge accepts all
@@ -16,7 +16,7 @@ binary32 words and is projected only by each receiving learner's closed rule.
 namespace Acorn.Checkpoint
 open Features Handcrafted
 
-/-- Exact format-14 header after the eight-byte magic. -/
+/-- Exact format-15 header after the eight-byte magic. -/
 structure Header where
   /-- Layout and semantic generation, independent of the magic suffix. -/
   version : UInt32
@@ -97,7 +97,7 @@ abbrev GoalWords := UInt64 × UInt64 × UInt64
 /-- Attempts, successes, then completed-attempt steps. -/
 def goalCodec : Codec GoalWords := u64Codec.pair (u64Codec.pair u64Codec)
 
-/-- Raw fixed-size lifetime payload; column order is part of format 14. -/
+/-- Raw fixed-size lifetime payload; column order is part of format 15. -/
 structure LifetimeWords where
   /-- Overall reward count and sum. -/
   reward : SumWords
