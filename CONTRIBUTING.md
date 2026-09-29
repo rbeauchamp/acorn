@@ -18,6 +18,11 @@ its [review and delivery](AGENTS.md#review-and-delivery) section for checks,
 signed commits and independent review. The shipped skills under .agents/skills
 provide the review workflow and proof-specific questions.
 
+Claude Code reads AGENTS.md by itself only when no CLAUDE.md or CLAUDE.local.md
+applies to the checkout, including a CLAUDE.md in a parent directory. If one
+does, add `@AGENTS.md` to a personal, uncommitted CLAUDE.local.md at the
+checkout root.
+
 For each change, explain the intended behavior, its implementation and proof
 owners, and any assumptions in the PR. Run `./scripts/verify.sh` from the checkout
 and report its actual result and material limits.
