@@ -20,8 +20,9 @@ An ounce of math is worth a pound of computation. Identify semantics, state
 invariants, hypotheses and implementation linkage before choosing work.
 Prefer types making illegal states unrepresentable, derivation, exhaustive
 compiler checks over closed types, universal proofs, then derived guards.
-Enforce the invariant at every construction, deserialization and update boundary.
-Bounding an output alone does not bound stored state.
+Enumerate every construction, deserialization (including checkpoint load), update
+(including reset and retirement) and entry-point boundary; enforce the invariant
+at each. Bounding an output alone does not bound stored state.
 
 Proofs must concern the executed definitions or a checked correspondence.
 Distinguish finite-word arithmetic from mathematical integers, rationals and reals.
@@ -31,19 +32,23 @@ native replacement enters governed code. Reviewed tooling and the narrow C fsync
 primitive are explicit trust boundaries.
 
 There are no scenario tests. Counterexamples diagnose missing invariants or
-contracts; close the whole defect class. Prefer structural/analytic proofs to
+contracts; close the whole defect class with a gate or proof covering every
+instance, not only those found. Prefer structural/analytic proofs to
 reflection. Before certified re-execution, estimate initial and recurring proof
 cost beside the proposed observation and obtain an owner decision if it does
 not cost clearly less. Difficulty proving a property does not make it empirical.
 
-Measure only irreducibly empirical claims with explicit scope, budget, uncertainty
-and prospective decision criteria. Label the unresolved empirical quantity
-UNKNOWN with the reason deduction cannot settle it; report measurements as
-observed with their run and configuration. Follow
-[scientific evidence guidance](CONTRIBUTING.md#scientific-evidence) for protocols
-and recordkeeping. A digest is a mutation detector, not correctness
-or scientific evidence. Do not rerun learning or promote defaults during ordinary
-engineering. Preserve original observations separately from presentations.
+- Measure only irreducibly empirical claims with explicit scope, budget,
+  uncertainty and prospective decision criteria.
+- Label an unresolved empirical quantity, including a gap between prediction and
+  observation, UNKNOWN with the reason deduction cannot settle it. Report
+  measurements as observed with their run and configuration, and estimates as
+  estimates, not bounds.
+- Follow [scientific evidence guidance](CONTRIBUTING.md#scientific-evidence) for
+  protocols and recordkeeping.
+- A digest is a mutation detector, not correctness or scientific evidence.
+- Do not rerun learning or promote defaults during ordinary engineering.
+- Preserve original observations separately from presentations.
 
 ## Learned-only and research admission
 
