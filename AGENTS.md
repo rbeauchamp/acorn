@@ -6,10 +6,13 @@ planning in Lean. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
 qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.
 Core calls select an explicit research profile. The prior-art register records
-current qualification decisions. Describe implemented behavior, proof hypotheses
-and research questions directly; use citations for attribution and concrete
-results for claims. Omit affiliation disclaimers and repeated assurances about
-what the project is not.
+current qualification decisions.
+
+Describe implemented behavior, proof hypotheses and research questions directly;
+use citations for attribution and concrete results for claims. Omit affiliation
+disclaimers and repeated assurances about what the project is not. Write the
+README and public docs for a first-time reader: define project terms such as
+research profile in plain English before relying on them.
 
 ## Correct by construction
 
@@ -71,23 +74,29 @@ rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.
 
 Keep comments about current semantics and rationale; Git records chronology.
+Name files and modules for their current role; rename or remove artifacts named
+for a retired implementation.
 Fix authorized concrete defects, preserve unrelated work and ask before materially
 broader scope or new follow-up issues. Prefer small coherent changes over rewrites.
 Apply [performance engineering](docs/performance-engineering.md) to performance-sensitive work; preserve proofs and
 admission predicates. Do not replace unresolved proof obligations with measurements.
 
-Run the complete command in the actual Git checkout:
+Provision pinned Lean/Mathlib v4.34.0, OpenSSL 3, GNU coreutils, ShellCheck and a C
+compiler first. A fresh worktree has no `lean/.lake` dependencies; run
+`(cd lean && lake exe cache get && lake build Mathlib)` there before verifying.
+Then run the complete command in the actual Git checkout:
 
 ```sh
 ./scripts/verify.sh
 ```
 
-Provision pinned Lean/Mathlib v4.34.0, OpenSSL 3, GNU coreutils, ShellCheck and a C
-compiler first. Verification is bounded by a hard 360-second process-group SIGKILL
-deadline, including cold project builds. No override, grace period, partial pass,
-missing check or cached acceptance substitutes for a pass. Every discovered module
-and native entry retains compilation and source/compiled/axiom/route admission.
-Mathlib umbrella imports are forbidden; import specific dependencies.
+- Verification is bounded by a hard 360-second process-group SIGKILL deadline,
+  including cold project builds.
+- No override, grace period, partial pass, missing check or cached acceptance
+  substitutes for a pass.
+- Every discovered module and native entry retains compilation and
+  source/compiled/axiom/route admission.
+- Mathlib umbrella imports are forbidden; import specific dependencies.
 
 Sign commits and preserve license notices. CI runs the same command on the exact
 proposed head. Resolve required checks,
@@ -96,9 +105,13 @@ protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need
 no permanent receipt. Optional diagnostics are not ordinary acceptance substitutes.
 
-Every maintained source belongs to one explicit ownership inventory. Shared
-specification and analysis definitions remain where proofs use them. A missing
-file fails verification; it never selects a smaller suite.
-No release, visibility change, external submission or scientific campaign follows
-from permission to prepare or merge code. Keep local run state and credentials
-and private or proprietary material out of commits. Use [SECURITY](SECURITY.md) for vulnerability reporting.
+- Every maintained source belongs to one explicit ownership inventory.
+- Shared specification and analysis definitions remain where proofs use them.
+- A missing file fails verification; it never selects a smaller suite.
+- No release, repository creation, visibility change, external submission or
+  scientific campaign follows from permission to prepare or merge code. Before
+  creating a public-bound repository or its first commit, show the owner the
+  exact local tree and wait for explicit approval.
+- Keep local run state and credentials and private or proprietary material out
+  of commits.
+- Use [SECURITY](SECURITY.md) for vulnerability reporting.

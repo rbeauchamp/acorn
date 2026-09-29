@@ -15,6 +15,11 @@ A newcomer from Sutton, Javed, and the Oak Lab team should see within ten second
 what the system is, what it is trying to do, and how it is doing.
 Inspect the rendered page to assess that first experience.
 
+A headline or summary metric must answer the question shown with it. Check that
+a trivial or non-learning agent does not already score near its maximum, and
+confirm with the owner what a high score is meant to show before presenting it
+as the answer.
+
 ## Standard and evidence
 
 `docs/viewer-ux.md` is normative for the viewer. Read its relevant clauses and
