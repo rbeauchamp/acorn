@@ -96,7 +96,9 @@ def overrides : IO (Json × Bool) := do
   return (Json.mkObj [("version", toJson "1.2.0"), ("packages", toJson entries)],
     available && mathlibAvailable)
 
-/-- Invoke Lake only after local dependency admission, with cache fetching disabled. -/
+/-- Invoke Lake only after local dependency admission, with cache fetching disabled.
+`--wfail` makes any logged warning fail the build, including header-time warnings
+(for example a deprecated import) that `warningAsError` does not reach. -/
 def run (args : List String) : IO UInt32 := do
   unless args == ["provision-status"] || (!args.isEmpty && (#["build", "exe", "env", "query"].contains (args.headD "") ||
       args == ["script", "run", "acornTargets"])) do
@@ -112,7 +114,7 @@ def run (args : List String) : IO UInt32 := do
   -- Lake validates its configuration trace against source and toolchain changes;
   -- explicit dependency overrides are resolved again on every invocation.
   let child ← IO.Process.spawn {
-    cmd := "lake", args := #["--no-cache", s!"--packages={path}"] ++ args.toArray,
+    cmd := "lake", args := #["--no-cache", "--wfail", s!"--packages={path}"] ++ args.toArray,
     stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
   child.wait
 
