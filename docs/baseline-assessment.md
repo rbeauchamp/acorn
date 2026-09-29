@@ -34,9 +34,9 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   requirement that each learned weight has its own meta-learned step size.
   GVF predictions are fed back as features, and nothing is replayed.
 - **Architecture: shape only.** The FC-STOMP chain (feature construction,
-  subtasks, options, models, planning) is wired, but three links run on local
-  substitutes that drop the property their source relies on: the feature tester,
-  the option models and planning. A composition defect (F-A) erased option
+  subtasks, options, models, planning) is wired, but two links run on local
+  substitutes that drop the property their source relies on: the option models
+  and planning. U3 replaced a third, the feature tester, with the published one. A composition defect (F-A) erased option
   learning until U1 repaired it, and a locally derived exploration rate made
   about 90% of early primitive steps random until U2 replaced it (F-C).
 - **Learning: UNKNOWN.** Whether the agent learns anything in its world has not
@@ -65,8 +65,8 @@ Verdicts:
 | IDBD → SwiftTD [[1]](#r1) [[2]](#r2) | Step 1; per-weight meta-learned step sizes | Every learner | **Faithful** | `NumericState.step` and its two loops transcribe Algorithm 1 of [[2]](#r2), with corrections declared in PAR-1. |
 | Swift-Sarsa [[3]](#r3) | Step 4 (declared Sarsa in place of actor-critic) | Primitive, meta and option policies | **Faithful** | `Controller.valuesStep`: per-action value vectors sharing one error. The actor-critic departure is declared. |
 | Horde / GVFs [[4]](#r4) | Step 3 | 11 fixed on-policy GVFs whose bucketed predictions are re-encoded as features | **Adapted, partial** | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed and on-policy ([D5](learned-only-binding.md#d5--prediction-targets--step-2)). Feeding predictions back is a genuine, limited predictive state. |
-| Generate and test: generator [[5]](#r5) | Step 2 | 512 random projections over the 11 × 11 tile-kind patch | **Adapted** | The generator reads only the kind patch (`observationPatch`). Task, inventory and energy are excluded, so it cannot generate task-conditioned features (F-D). |
-| Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Every reader must have its step size on the absolute floor and a small weight; first match wins; no replacement rate | **Substituted** | The published testers are relative: they replace a fixed fraction of the least useful units, protecting new units by a maturity age or by an order statistic of all step sizes. Acorn's guard is absolute and conjunctive (`NumericState.unitIsNegligibleUnder`, `Ensemble.negligible`). It has not been shown to fire ([F3](frontier.md#retirement-proof-status)). |
+| Generate and test: generator [[5]](#r5) | Step 2 | 512 random projections over the 11 × 11 tile-kind patch and the task words | **Adapted** (after U3) | Before U3 the generator read only the kind patch; it now also reads the task words (`observationPatch`, `taskContext`), so units can conjoin task and layout. Inventory and energy are still excluded (F-D). |
+| Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)); turnover follows from the rate by construction (`Lifecycle.test_accrual`). Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code. |
 | Reward-respecting subtasks [[7]](#r7) | Step 10: highest-ranked features become subtasks | Three slots from the positive Demon-0 weights of imprint units, with held bonuses | **Adapted** (after U1) | U1 made candidates sign-correct, the bonus held, and identity the unit alone. One deviation remains: subtasks are not restricted to features whose weight is sometimes high and sometimes low ([PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks)). |
 | Potential-based shaping [[8]](#r8) | Option learning aid | Present | **Faithful** | [PAR-6](prior-art-review.md#par-6--potential-based-shaping), with limits declared. |
 | Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted, weak** | Only the executing option learns (`Skill.stepTemporal`, called from `TemporalControl.stepOption` for the running slot). There is no intra-option learning of the other options (F-F). |
@@ -82,8 +82,9 @@ Verdicts:
 | Utility feedback [[20]](#r20) | Step 11: feedback that assesses the utility of every element and replaces the least useful | — | **Missing (declared)** | The complete OaK loop is outside the implementation ([design](design.md#implementation-scope)). |
 | Nonlinear continual learning [[6]](#r6) [[16]](#r16) | Continual deep learning | Linear learners only | **Missing** | Outside the baseline's scope, and the current research front. |
 
-**Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 7 adapted,
-3 substituted (tester, models, planning) and 6 missing. The frontier and design
+**Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 8 adapted,
+2 substituted (models, planning) and 6 missing, counting U3's tester and generator
+as adapted. The frontier and design
 acknowledge utility feedback and learned agent state, and design Step 3,
 [PAR-3](prior-art-review.md#par-3--horde) and
 [PAR-9](prior-art-review.md#par-9--intra-option-value-learning) declare on-policy
@@ -228,10 +229,11 @@ cycles below 6%.
 
 ### F-D · The representation barely expresses task-dependent preferences
 
-**Status: open; U3, in progress
-([#9](https://github.com/rbeauchamp/acorn/issues/9)), addresses the generator
-input.** Argued, conditional on equal prediction buckets and on no hash
-collision between layout features and the other words.
+**Status: U3 ([#9](https://github.com/rbeauchamp/acorn/issues/9)) extended the
+generator input to the task words; whether the bank finds the needed
+conjunctions is UNKNOWN.** Argued for the pre-U3 representation, conditional on
+equal prediction buckets and on no hash collision between layout features and
+the other words.
 
 Every raw feature is exactly one of: a hashed single sensor word, an imprint
 over tile kinds, or one of 99 prediction buckets (11 questions × 9 levels)
@@ -262,20 +264,20 @@ differing task word such as the item code, or a differing inventory, energy, day
 or prediction word) shares a slot with a tile or imprint feature present in only
 one of s and s′, that slot's weight enters d under one task and not the other.
 The meta-controller can still learn task-dependent option preferences, since
-v_o·ψ(τ) is representable. Because the generator reads only the kind patch, even
-working retirement could not discover task × layout conjunctions.
+v_o·ψ(τ) is representable. Because the generator read only the kind patch, even
+working retirement could not discover task × layout conjunctions. U3's imprints
+also read the task words, so the lemma's hypothesis that imprints do not depend
+on the task no longer holds for units that sample them.
 
 ### F-E · The retirement tester works against turnover
 
-**Status: open; U3, in progress
-([#9](https://github.com/rbeauchamp/acorn/issues/9)), replaces the tester.**
-Argued.
+**Status: resolved by U3 ([#9](https://github.com/rbeauchamp/acorn/issues/9)),
+which replaced the tester.** Argued for the earlier guard.
 
 The published testers guarantee turnover with a replacement rate and protect new
 units with a maturity age or an initialization at an order statistic
-[[5]](#r5) [[6]](#r6). Acorn's guard
-([PAR-11](prior-art-review.md#par-11--bounded-disruption-retirement)) has four
-properties that work against turnover:
+[[5]](#r5) [[6]](#r6). Acorn's earlier guard had four properties that worked
+against turnover:
 
 - **Distance to the floor.** It requires β on the absolute floor ln 10⁻¹⁰. The
   initial β is ln(5 × 10⁻⁵), 13.1 nats above it, and one overshoot-decay step
@@ -290,10 +292,10 @@ properties that work against turnover:
 
 Whether this conjunction is ever reachable was the question of issue
 [#3](https://github.com/rbeauchamp/acorn/issues/3), closed as superseded when
-U3 started; the [retirement proof status](frontier.md#retirement-proof-status)
-records its evidence. A published tester answers it by construction, and its
-safety obligation becomes local: a new unit enters with zero outgoing weight in
-every reader.
+U3 started; the issue and its kept branch record its evidence. U3's published
+tester answers it by construction, and its safety obligation is local: a new
+unit enters with zero outgoing weight in every reader
+([PAR-11](prior-art-review.md#par-11--generate-and-test-tester)).
 
 ### F-F · Options learn from almost none of the experience
 
@@ -337,8 +339,9 @@ feature-construction end inert.
   its options are on-policy and learn only while executing (F-F).
 - **Feature finding.** Step 2 asks for a way of evaluating features and
   "discarding the less promising so as to make room for new ones"
-  ([[20]](#r20) p. 7). Acorn's tester does not rank and has not been shown to
-  replace (F-E).
+  ([[20]](#r20) p. 7). Before U3, Acorn's tester did not rank and was not shown to
+  replace (F-E); U3's tester ranks by contribution utility and replaces at a
+  declared rate.
 - **Temporal uniformity.** The plan's meta-algorithms for constructing
   representations or subtasks "operate on every time step" ([[20]](#r20) p. 2). Acorn
   triggers ranking from host attempt and cycle events. This is a mild, undeclared
@@ -370,7 +373,7 @@ derivation, not measurement.
 |---|---|---|---|---|---|
 | U1 | Stable, sign-correct subtasks | [[7]](#r7) §2 eq. (4); Alberta Step 10 | S | Every later link lives in the state F-A erased | **Landed** ([#8](https://github.com/rbeauchamp/acorn/pull/8)) |
 | U2 | Published εz-greedy with a declared ε of 0.01, replacing the derived rate in the default | [[12]](#r12) | S | Initial behaviour was about 90% random (F-C) | **Landed** ([#23](https://github.com/rbeauchamp/acorn/pull/23)) |
-| U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **In progress** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
+| U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: intra-option learning for options consistent with the action, and models for all options | [[9]](#r9); [[7]](#r7) §3–4; Alberta Step 10 | M | Removes F-F's data starvation | Open ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | Open ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it learns at all | Open ([#12](https://github.com/rbeauchamp/acorn/issues/12)); needs owner authorization |
@@ -427,10 +430,9 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
 - **Continue the retirement reachability program (issue 3): no.** Its object is a
   local guard that departs from every published tester. A reachability proof
   would not yield representation search: turnover would still be rare and not
-  utility-ranked, and the generator would still be blind to the task. The
-  [retirement proof status](frontier.md#retirement-proof-status) records that
-  neither initialized joint eligibility nor a persistent veto is established.
-  U3 dissolves the question.
+  utility-ranked, and the generator would still be blind to the task. Issue 3
+  recorded that neither initialized joint eligibility nor a persistent veto was
+  established. U3 dissolves the question.
 - **U5 first: no.** It is the most mission-relevant capability, but it is
   research-sized, and before U1 the churn would have erased the models it needs.
 - **Measure now: no.** The derived defects would dominate the result, and
