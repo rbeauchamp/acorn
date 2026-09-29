@@ -8,9 +8,8 @@ import Acorn.Host.Checkpoint.Snapshot
 /-!
 # Derived checkpoint resource bounds
 
-Lengths come from the actual codec schemas. The receiver's capacity and bounded
-transcript determine the maximum file size before native reading allocates the
-file image. These bounds do not promise successful allocation on every machine.
+Lengths come from the actual codec schemas. The receiver's capacity and bank size
+determine the file size before native reading allocates the file image. These bounds do not promise successful allocation on every machine.
 -/
 namespace Acorn.Checkpoint
 open Features Handcrafted
@@ -123,44 +122,52 @@ theorem header_source_size : 8 + 56 = Acorn.FeatureConstants.checkpointHeaderByt
 /-- The fixed lifetime extent agrees with the generated transition record owner. -/
 theorem lifetime_source_size : lifetimeBytes = Acorn.FeatureConstants.checkpointLifetimeBytes := rfl
 
-/-- One replacement event occupies ten bytes. -/
-theorem event_size (event : UInt64 × UInt16) : (eventCodec.encode event).length = 10 := by
-  simp [eventCodec, Codec.pair, u64_size, u16_size]
+/-- The latest replacement occupies fourteen bytes. -/
+theorem last_size (last : LastWords) : (lastCodec.encode last).length = 14 := by
+  simp [lastCodec, Codec.pair, u32_size, u64_size, u16_size]
 
-/-- Transcript size is its checked count word plus its exact events. -/
-theorem transcript_size (events : Transcript) :
-    (transcriptCodec.encode events).length = 4 + events.val.length * 10 := by
-  simp [transcriptCodec, u32_size, list_size eventCodec 10 event_size]
+/-- One unit occupies twenty bytes. -/
+theorem unitState_size (unit : UnitWords) : (unitStateCodec.encode unit).length = 20 := by
+  simp [unitStateCodec, Codec.pair, u64_size, binary32_size]
 
-/-- Payload size is linear in receiving capacity and actual transcript length. -/
-def payloadBytes (dimension : Dimension) (events : Nat) : Nat :=
+/-- The unit list is its checked count word plus its exact entries. -/
+theorem unitList_size (units : UnitList) :
+    (unitListCodec.encode units).length = 4 + units.val.length * 20 := by
+  simp [unitListCodec, u32_size, list_size unitStateCodec 20 unitState_size]
+
+/-- The tester block is fixed apart from its unit list. -/
+theorem tester_size (tester : TesterWords) :
+    (testerCodec.encode tester).length = 34 + (4 + tester.units.val.length * 20) := by
+  simp [testerCodec, Codec.iso, Codec.pair, u64_size, u32_size, last_size, unitList_size]
+  omega
+
+/-- Payload size is linear in receiving capacity and the bank size. -/
+def payloadBytes (dimension : Dimension) (units : Nat) : Nat :=
   56 + Acorn.FeatureConstants.skillCount * 16 + primaryCount * (dimension.capacity * 8) +
-    lifetimeBytes + (4 + events * 10)
+    lifetimeBytes + (34 + (4 + units * 20))
 
 /-- The byte count applies to the actual writer, for arbitrary payload contents. -/
 theorem payload_size (dimension : Dimension) (payload : Payload dimension) :
-    ((payloadCodec dimension).encode payload).length = payloadBytes dimension payload.events.val.length := by
+    ((payloadCodec dimension).encode payload).length =
+      payloadBytes dimension payload.tester.units.val.length := by
   simp [payloadCodec, payloadBytes, Codec.iso, Codec.pair, header_size,
-    vector_size assignmentCodec 16 assignment_size, primary_size, lifetime_size, transcript_size,
+    vector_size assignmentCodec 16 assignment_size, primary_size, lifetime_size, tester_size,
     Nat.add_assoc]
 
 /-- Sixteen bytes of framing surround the signed payload. -/
 theorem encoded_size (dimension : Dimension) (payload : Payload dimension) :
-    (encode dimension payload).length = 16 + payloadBytes dimension payload.events.val.length := by
+    (encode dimension payload).length = 16 + payloadBytes dimension payload.tester.units.val.length := by
   simp [encode, List.length_append, payload_size, u64_size, magic, Acorn.FeatureConstants.checkpointMagic, Nat.add_assoc]
   omega
 
-/-- The receiver admits at most one replacement event per bank unit. -/
+/-- The receiver stores exactly one entry per bank unit. -/
 def maximumBytes (construction : AgentConstruction) : Nat :=
   16 + payloadBytes construction.dimension construction.config.units.count
 
-/-- Snapshot allocation has a lifetime-independent bound derived from the receiver. -/
+/-- Snapshot allocation has a lifetime-independent size derived from the receiver. -/
 theorem snapshot_size_bound (construction : AgentConstruction) (state : construction.State) :
     (encode construction.dimension (snapshot construction state)).length ≤ maximumBytes construction := by
   rw [encoded_size]
-  have bound := (snapshotImage construction state).features.progress.legal.1
-  simp only [snapshot, imagePayload, transcriptWords, Progress.words, List.length_map,
-    maximumBytes, payloadBytes]
-  omega
+  simp [snapshot, imagePayload, testerWords, Progress.words, maximumBytes]
 
 end Acorn.Checkpoint

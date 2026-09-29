@@ -111,9 +111,10 @@ structure Inventory where
   /-- Boat possession. -/
   boat : Bool
 
-/-- Current generated host patch shape. -/
+/-- Current generated host patch shape and the generator's context width. -/
 def patchShape : Features.PatchShape :=
-  ⟨Acorn.FeatureConstants.patchSide, by decide, by decide⟩
+  ⟨Acorn.FeatureConstants.patchSide, by decide, by decide,
+    Acorn.FeatureConstants.taskContextWords, by decide⟩
 
 /-- Complete current observation, including all raw public sensory bytes. -/
 structure Observation where

@@ -30,7 +30,8 @@ word leaves the diagnostic slot neutral. Kept out of line so the entry's route s
 /-- Exercise actual native begin, admitted step, termination decision and closing
 credit with dynamic inputs. Each current criterion uses the same typed kernel. -/
 @[noinline] def execute (seed word : UInt64) (criterion : Criterion) : Nat × Nat × UInt32 :=
-  let config : Features.Config := ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩⟩
+  let config : Features.Config :=
+    ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
   let interest : Interest config :=
     .learned (diagnosticAssignment config ⟨0, by change 0 < 3; decide⟩ word)
   let skill := Skill.initial config criterion dimension interest

@@ -14,8 +14,10 @@ Host channel choices belong to the explicitly declared composition boundary.
 Mahmood and Sutton, *Representation Search through Generate and Test*,
 AAAI 2013 workshop, PDF page 3 (linear threshold units and feature replacement),
 https://armahmood.github.io/files/MS-RepSearch-AAAI-WS-2013.pdf.
-The current adaptation samples 32 cells with replacement, hash-binarizes inputs,
-and uses threshold zero. It does not implement the paper's imprinting threshold.
+The current adaptation samples 32 inputs with replacement from the patch cells
+and the context words, hash-binarizes them, and uses threshold zero. It does not
+implement the paper's imprinting threshold. A unit's projection is determined by
+its recorded generator origin, so the bank is reconstructed from origins alone.
 -/
 namespace Acorn.Features
 
@@ -153,7 +155,8 @@ theorem mem_unique {dimension : Dimension} (indices : List (FeatIdx dimension))
 theorem unique_nodup {dimension : Dimension} (indices : List (FeatIdx dimension)) :
     (unique indices).indices.Nodup := (unique indices).nodup
 
-/-- Legal patch side: odd and byte-representable. -/
+/-- Legal generator input shape: an odd byte-representable patch side, followed
+by a fixed number of opaque context words. -/
 structure PatchShape where
   /-- Side length. -/
   side : Nat
@@ -161,26 +164,36 @@ structure PatchShape where
   odd : side % 2 = 1
   /-- Coordinates fit the byte interface. -/
   bounded : side ≤ 255
+  /-- Context words read after the row-major patch cells. -/
+  context : Nat
+  /-- Every input position fits a two-byte checksum word. -/
+  contextBounded : context ≤ 255
 
 /-- Odd natural sides are nonempty. -/
 theorem PatchShape.positive (shape : PatchShape) : 0 < shape.side := by
   have := shape.odd
   omega
 
-/-- Sampled cell and sign, with coordinates legal at storage. -/
+/-- Generator input positions: every patch cell, then every context word. -/
+def PatchShape.inputs (shape : PatchShape) : Nat := shape.side * shape.side + shape.context
+
+/-- Every shape has an input position to sample. -/
+theorem PatchShape.inputs_positive (shape : PatchShape) : 0 < shape.inputs := by
+  have := Nat.mul_pos shape.positive shape.positive
+  unfold PatchShape.inputs
+  omega
+
+/-- Sampled input position and sign, legal at storage. -/
 structure Sample (shape : PatchShape) where
-  /-- Row in the receiving patch. -/
-  row : Fin shape.side
-  /-- Column in the receiving patch. -/
-  col : Fin shape.side
+  /-- Row-major patch cell or context word. -/
+  input : Fin shape.inputs
   /-- True denotes positive one. -/
   positive : Bool
 
-/-- Extract columns, rows and signs in the current bit order. -/
+/-- The position reads the high word and the sign the low bit, so they use disjoint bits. -/
 def Sample.ofWord (shape : PatchShape) (word : UInt64) : Sample shape where
-  row := ⟨(word >>> 8).toNat % shape.side, Nat.mod_lt _ shape.positive⟩
-  col := ⟨word.toNat % shape.side, Nat.mod_lt _ shape.positive⟩
-  positive := ((word >>> 16) &&& 1) != 0
+  input := ⟨(word >>> 32).toNat % shape.inputs, Nat.mod_lt _ shape.inputs_positive⟩
+  positive := (word &&& 1) != 0
 
 /-- Exactly 32 signed samples. Slots are derived separately from seed and unit. -/
 abbrev Projection (shape : PatchShape) := Vector (Sample shape) 32
@@ -212,12 +225,31 @@ theorem drawSamples_stream (shape : PatchShape) (count : Nat) (stream : Rng.Spli
 
 /-- Nonzero bank size fits the durable UInt16 interface. -/
 structure BankSize where
-  /-- Live units and maximum transcript length. -/
+  /-- Live units. -/
   count : Nat
   /-- Empty banks are not admitted. -/
   positive : 0 < count
   /-- Current nonzero UInt16 capacity. -/
   bounded : count ≤ 65535
+
+/-- Immutable generate-and-test schedule. Each step accrues one credit per
+eligible unit, and every `period` credits replace one unit, so the replacement
+rate is `ρ = 1/period` per eligible unit per step. A unit is eligible once its
+age exceeds `maturity`. The contribution utility decays by `decay` (η) and
+weighs the current contribution by `complement` (1 − η). -/
+structure Tester where
+  /-- Credits per replacement: `1/ρ`. -/
+  period : Nat
+  /-- Replacement needs positive accrual. -/
+  positive : 0 < period
+  /-- The accrued remainder fits its durable UInt32 word. -/
+  bounded : period ≤ 4294967296
+  /-- Steps of protection after generation. -/
+  maturity : Nat
+  /-- The utility trace's decay word, η. -/
+  decay : Binary32
+  /-- The current contribution's weight word, 1 − η. -/
+  complement : Binary32
 
 /-- Immutable bank configuration. -/
 structure Config where
@@ -229,35 +261,50 @@ structure Config where
   tilingsPositive : 0 < tilings.toNat
   /-- Bank capacity. -/
   units : BankSize
+  /-- Declared replacement rate, maturity and utility decay. -/
+  tester : Tester
 
-/-- Complete live projection and future generator state. -/
+/-- Complete live projection cache and future generator state. -/
 structure Bank (shape : PatchShape) (config : Config) where
   /-- Fixed-size projections. -/
   projections : Vector (Projection shape) config.units.count
   /-- Replacement generator continuation. -/
   stream : Rng.SplitMix64
 
-/-- Draw each projection from one stream, in bank order. -/
-def drawBank (shape : PatchShape) (count : Nat) (stream : Rng.SplitMix64) :
-    Vector (Projection shape) count × Rng.SplitMix64 :=
-  count.dfold (α := fun i _ => Vector (Projection shape) i × Rng.SplitMix64)
-    (fun _ _ (projections, stream) =>
-      let (projection, next) := drawSamples shape 32 stream
-      (projections.push projection, next)) (#v[], stream)
+/-- Generator words one projection consumes. -/
+def projectionStride : UInt64 := Rng.increment * 32
 
-/-- Each bank extension draws exactly the next projection from the same stream. -/
-theorem drawBank_succ (shape : PatchShape) (count : Nat) (stream : Rng.SplitMix64) :
-    drawBank shape (count + 1) stream =
-      ((drawBank shape count stream).1.push
-        (drawSamples shape 32 (drawBank shape count stream).2).1,
-        (drawSamples shape 32 (drawBank shape count stream).2).2) := by
-  simp only [drawBank, Nat.dfold_succ]
+/-- A projection is the next 32 samples after its recorded generator state. -/
+def drawProjection (shape : PatchShape) (origin : UInt64) : Projection shape :=
+  (drawSamples shape 32 ⟨origin⟩).1
+
+/-- Drawing a projection advances the generator by exactly one stride. -/
+theorem drawSamples_projection (shape : PatchShape) (origin : UInt64) :
+    drawSamples shape 32 ⟨origin⟩ = (drawProjection shape origin, ⟨origin + projectionStride⟩) := by
+  have advanced := drawSamples_stream shape 32 ⟨origin⟩
+  refine Prod.ext rfl ?_
+  change (drawSamples shape 32 ⟨origin⟩).2 = ⟨origin + Rng.increment * 32⟩
+  exact congrArg Rng.SplitMix64.mk advanced
+
+/-- The cache determined by every unit's recorded origin and the continuation. -/
+def Bank.build (shape : PatchShape) {config : Config}
+    (origins : Vector UInt64 config.units.count) (stream : UInt64) : Bank shape config :=
+  ⟨origins.map (drawProjection shape), ⟨stream⟩⟩
+
+/-- The campaign generator's domain-separated key. -/
+def generatorKey (config : Config) : UInt64 := Rng.streamKey config.seed 0x1D1D000000000001
+
+/-- Initial units are drawn from one stream in bank order. -/
+def initialOrigins (config : Config) : Vector UInt64 config.units.count :=
+  Vector.ofFn fun unit => generatorKey config + projectionStride * unit.val.toUInt64
+
+/-- The continuation after every initial unit. -/
+def initialStream (config : Config) : UInt64 :=
+  generatorKey config + projectionStride * config.units.count.toUInt64
 
 /-- Seed-derived bank with the current domain-separated stream key. -/
 def Bank.initial (shape : PatchShape) (config : Config) : Bank shape config :=
-  let (projections, stream) := drawBank shape config.units.count
-    ⟨Rng.streamKey config.seed 0x1D1D000000000001⟩
-  ⟨projections, stream⟩
+  Bank.build shape (initialOrigins config) (initialStream config)
 
 /-- A unit's slot depends on its number and seed, including after replacement. -/
 def unitFeature (dimension : Dimension) (config : Config) (unit : Fin config.units.count) :
@@ -284,25 +331,33 @@ theorem Bank.replace_selected {shape : PatchShape} {config : Config} (bank : Ban
     (bank.replace unit).stream = (drawSamples shape 32 bank.stream).2 := by
   simp [Bank.replace]
 
-/-- Stable identity digest over ordered row/column/sign triples. This detects
+/-- Replacing a built bank's unit is the bank built with that unit's origin at the
+continuation and the continuation one stride later. -/
+theorem Bank.build_replace (shape : PatchShape) {config : Config}
+    (origins : Vector UInt64 config.units.count) (stream : UInt64) (unit : Fin config.units.count) :
+    (Bank.build shape origins stream).replace unit =
+      Bank.build shape (origins.set unit.val stream unit.isLt) (stream + projectionStride) := by
+  simp only [Bank.replace, Bank.build, drawSamples_projection, Vector.map_set]
+
+/-- Stable identity digest over ordered position/sign triples. This detects
 mutation; neither collisions nor equal digests establish representation equality. -/
 def Bank.checksum {shape : PatchShape} {config : Config} (bank : Bank shape config) : UInt64 :=
   bank.projections.toList.foldl (fun hash projection =>
     projection.toList.foldl (fun hash sample =>
-      Rng.fnvStep (Rng.fnvStep (Rng.fnvStep hash sample.row.val.toUInt8)
-        sample.col.val.toUInt8) (if sample.positive then 1 else 0)) hash) Rng.fnvOffset
+      Rng.fnvStep (Rng.fnvStep (Rng.fnvStep hash sample.input.val.toUInt8)
+        (sample.input.val / 256).toUInt8) (if sample.positive then 1 else 0)) hash) Rng.fnvOffset
 
-/-- Square opaque patch with the sampled-coordinate shape. -/
-abbrev Patch (shape : PatchShape) := Vector (Vector UInt8 shape.side) shape.side
+/-- Opaque generator input: row-major patch cells, then the context words. -/
+abbrev Patch (shape : PatchShape) := Vector UInt64 shape.inputs
 
 /-- One sample contributes only minus one, zero, or plus one. -/
 def sampleTerm {shape : PatchShape} (seed : UInt64) (unit sampleNumber : Nat)
     (patch : Patch shape) (sample : Sample shape) : Int :=
-  let code := (patch.get sample.row).get sample.col
-  let bit := (Rng.hash3 (seed ^^^ unit.toUInt64) sampleNumber.toUInt64 code.toUInt64) &&& 1
+  let code := patch.get sample.input
+  let bit := (Rng.hash3 (seed ^^^ unit.toUInt64) sampleNumber.toUInt64 code) &&& 1
   if bit == 0 then 0 else if sample.positive then 1 else -1
 
-/-- Every sample, including every raw patch byte, belongs to the signed unit range. -/
+/-- Every sample, including every raw input word, belongs to the signed unit range. -/
 theorem sampleTerm_bounds {shape : PatchShape} (seed : UInt64) (unit sampleNumber : Nat)
     (patch : Patch shape) (sample : Sample shape) :
     -1 ≤ sampleTerm seed unit sampleNumber patch sample ∧
@@ -343,15 +398,34 @@ theorem projectionValue_bounds {shape : PatchShape} {config : Config} (bank : Ba
         exact sampleTerm_bounds config.seed unit.val j patch sample)
   simpa [projectionValue] using bounded
 
+/-- Each unit's binary output on one input: its signed projection is positive. -/
+def Bank.activations {shape : PatchShape} {config : Config} (bank : Bank shape config)
+    (patch : Patch shape) : Vector Bool config.units.count :=
+  Vector.ofFn fun unit => decide (0 < projectionValue bank patch unit)
+
+/-- Tiling-major sensor words. -/
+def tiledFeatures (dimension : Dimension) (config : Config) (words : List SensorWord) :
+    List (FeatIdx dimension) :=
+  (List.range config.tilings.toNat).flatMap (fun tiling => words.map fun word =>
+    FeatIdx.fromHash dimension (Rng.hash3 (config.seed ^^^ tiling.toUInt64)
+      word.channel word.value))
+
+/-- Active bank units in bank order, each at its slot. -/
+def imprintFeatures (dimension : Dimension) (config : Config)
+    (active : Vector Bool config.units.count) : List (FeatIdx dimension) :=
+  (List.finRange config.units.count).filterMap (fun unit =>
+    if active[unit.val] then some (unitFeature dimension config unit) else none)
+
+/-- Raw order: tiling-major sensor words, then the given active bank units. -/
+def rawEncodeWith (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) : List (FeatIdx dimension) :=
+  tiledFeatures dimension config words ++ imprintFeatures dimension config active
+
 /-- Raw order: tiling-major sensor words, then positive bank units. -/
 def rawEncode (dimension : Dimension) {shape : PatchShape} {config : Config}
     (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
     List (FeatIdx dimension) :=
-  (List.range config.tilings.toNat).flatMap (fun tiling => words.map fun word =>
-    FeatIdx.fromHash dimension (Rng.hash3 (config.seed ^^^ tiling.toUInt64)
-      word.channel word.value)) ++
-  (List.finRange config.units.count).filterMap (fun unit =>
-    if 0 < projectionValue bank patch unit then some (unitFeature dimension config unit) else none)
+  rawEncodeWith dimension config words (bank.activations patch)
 
 /-- Repeated opaque-word maps have an exact structural work count. -/
 theorem tiled_length {α β γ : Type} (tiles : List α) (words : List β) (encodeWord : α → β → γ) :
@@ -360,23 +434,36 @@ theorem tiled_length {α β γ : Type} (tiles : List α) (words : List β) (enco
   | nil => simp
   | cons tile rest ih => simp [ih, Nat.add_mul, Nat.add_comm]
 
+/-- Every admitted tiling word, bank size and unit output has a derived raw-encoding bound. -/
+theorem rawEncodeWith_length (dimension : Dimension) (config : Config)
+    (words : List SensorWord) (active : Vector Bool config.units.count) :
+    (rawEncodeWith dimension config words active).length ≤
+      config.tilings.toNat * words.length + config.units.count := by
+  have imprintBound := List.length_filterMap_le
+    (fun unit : Fin config.units.count =>
+      if active[unit.val] then some (unitFeature dimension config unit) else none)
+    (List.finRange config.units.count)
+  simp only [List.length_finRange] at imprintBound
+  simp only [rawEncodeWith, tiledFeatures, imprintFeatures, List.length_append, tiled_length,
+    List.length_range]
+  omega
+
 /-- Every admitted tiling word and bank size has a derived raw-encoding bound. -/
 theorem rawEncode_length (dimension : Dimension) {shape : PatchShape} {config : Config}
     (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
     (rawEncode dimension bank words patch).length ≤
-      config.tilings.toNat * words.length + config.units.count := by
-  have imprintBound := List.length_filterMap_le
-    (fun unit : Fin config.units.count =>
-      if 0 < projectionValue bank patch unit then some (unitFeature dimension config unit) else none)
-    (List.finRange config.units.count)
-  simp only [List.length_finRange] at imprintBound
-  simp only [rawEncode, List.length_append, tiled_length, List.length_range]
-  omega
+      config.tilings.toNat * words.length + config.units.count :=
+  rawEncodeWith_length dimension config words (bank.activations patch)
+
+/-- Encoding from supplied unit outputs, the argument SwiftTD consumes. -/
+def encodeWith (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) : SwiftTd.ActiveSet dimension :=
+  unique (rawEncodeWith dimension config words active)
 
 /-- Encoding returns the actual binary-feature argument consumed by SwiftTD. -/
 def encode (dimension : Dimension) {shape : PatchShape} {config : Config}
     (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
-    SwiftTd.ActiveSet dimension := unique (rawEncode dimension bank words patch)
+    SwiftTd.ActiveSet dimension := encodeWith dimension config words (bank.activations patch)
 
 /-- Every raw feature survives and every active feature came from the raw encoding. -/
 theorem encode_membership (dimension : Dimension) {shape : PatchShape} {config : Config}
@@ -394,6 +481,6 @@ theorem encode_length (dimension : Dimension) {shape : PatchShape} {config : Con
   have rawBound := rawEncode_length dimension bank words patch
   rw [← unique_order] at filtered
   simp only [SwiftTd.ActiveSet.empty, List.length_nil, Nat.zero_add] at filtered
-  simpa [encode] using Nat.le_trans filtered rawBound
+  simpa [encode, encodeWith, rawEncode] using Nat.le_trans filtered rawBound
 
 end Acorn.Features

@@ -47,7 +47,8 @@ theorem managed_retire_absent {config : Acorn.Config} {dimension : Dimension}
     feature ∉ (learner.retire feature).state.transient.eligible :=
   retire_absent learner.state feature (managed_schedule learner).2.1
 
-/-- The complete ensemble reset clears all register/knowledge words at every reader. -/
+/-- The complete ensemble reset clears all register/knowledge words at the slot in
+every reader, and each reader keeps its prior shared aggregates. -/
 theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
     (ensemble : Ensemble config criterion dimension discounts) (feature : FeatIdx dimension)
@@ -55,11 +56,12 @@ theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
     registers reader.2.state feature = Vector.replicate 9 Binary32.zero ∧
     (reader.2.state.weights.get feature).value = Binary32.zero ∧
     (reader.2.state.beta.get feature).value = reader.2.state.rails.initial.value ∧
-    reader.2.state.transient.vOld = Binary32.zero ∧
-    reader.2.state.transient.vDelta = Binary32.zero ∧
+    (∃ before ∈ ensemble.readers,
+      reader.2.state.transient.vOld = before.2.state.transient.vOld ∧
+      reader.2.state.transient.vDelta = before.2.state.transient.vDelta) ∧
     feature ∉ reader.2.state.transient.eligible := by
   rw [Ensemble.retire_readers] at member
-  obtain ⟨before, _, same⟩ := List.mem_map.mp member
+  obtain ⟨before, beforeMember, same⟩ := List.mem_map.mp member
   subst reader
   have cleared := retire_registers before.2.state feature
   have rails : (before.2.state.retireIndex feature).rails = before.2.state.rails := by
@@ -71,8 +73,8 @@ theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
       NumericState.writeLastAlpha, NumericState.removeEligibleAt]
   exact ⟨cleared.1, cleared.2.1,
     cleared.2.2.1.trans (congrArg (fun r : StepSizeRails before.1 => r.initial.value) rails.symm),
-    cleared.2.2.2.1,
-    cleared.2.2.2.2, managed_retire_absent before.2 feature⟩
+    ⟨before, beforeMember, cleared.2.2.2.1, cleared.2.2.2.2⟩,
+    managed_retire_absent before.2 feature⟩
 
 /-- Eligibility storage and a complete reset scan are bounded for every managed
 reader. The scheduler premise is carried by admission, not supplied by callers. -/

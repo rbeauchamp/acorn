@@ -112,7 +112,9 @@ def reportText (options : Cli.Streaming) {profile : FeatureProfile}
   let agent := result.run.agent
   let progress := agent.control.runtime.lifecycle.representation.progress
   let checksum := hexWord (agentChecksum agent)
-  let events := progress.events.map fun event => s!"{event.step}:{event.unit.val}"
+  let last := match progress.last with
+    | none => "none"
+    | some event => s!"{event.step}:{event.unit.val}"
   let census := (imprintCensus (config := (nativeConstruction options).config)
     agent.control.runtime.lifecycle.consumers.demons).toList.map toString
   let common := options.common
@@ -120,8 +122,8 @@ def reportText (options : Cli.Streaming) {profile : FeatureProfile}
   let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance (nativeConstruction options)} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
   summary := summary ++ s!"  recent attempt detail (last {outcomes.recent.values.length} retained):\n"
   for outcome in outcomes.recent.values do summary := summary ++ outcomeText outcome
-  summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {events.length}\n  retire_events: {String.intercalate " " events}\n  imprint_distinct_abs: {String.intercalate " " census}\n"
-  let csv := s!"# seed={common.world.raw.seed} side={common.world.raw.side.val} weights={(nativeConstruction options).dimension.capacity} total_steps={result.totalSteps} behavior={hexWord result.run.behavior} checksum={checksum} wall_ms={elapsedMs} steps_per_sec={rate} retire_count={events.length} retire_events={String.intercalate ";" events} imprint_distinct_abs={String.intercalate ";" census}\n"
+  summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {progress.replaced}\n  retire_last: {last}\n  imprint_distinct_abs: {String.intercalate " " census}\n"
+  let csv := s!"# seed={common.world.raw.seed} side={common.world.raw.side.val} weights={(nativeConstruction options).dimension.capacity} total_steps={result.totalSteps} behavior={hexWord result.run.behavior} checksum={checksum} wall_ms={elapsedMs} steps_per_sec={rate} retire_count={progress.replaced} retire_last={last} imprint_distinct_abs={String.intercalate ";" census}\n"
   return (summary, csv)
 
 end NativeApp

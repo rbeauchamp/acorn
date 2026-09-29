@@ -57,10 +57,6 @@ def Managed.retire {config : Acorn.Config} {dimension : Dimension}
 /-- A common read-only carrier preserves each consumer's own immutable configuration. -/
 abbrev PackedLearner (dimension : Dimension) := Σ config : Acorn.Config, Managed config dimension
 
-/-- Read negligibility under exactly this stored learner's derived bounds. -/
-def PackedLearner.negligible {dimension : Dimension} (learner : PackedLearner dimension)
-    (feature : FeatIdx dimension) : Bool := learner.2.state.unitIsNegligible feature
-
 /-- Reset a heterogeneous learner without replacing its configuration. -/
 def PackedLearner.retire {dimension : Dimension} (feature : FeatIdx dimension)
     (learner : PackedLearner dimension) : PackedLearner dimension :=
@@ -87,13 +83,14 @@ def Controller.readers {config : Acorn.Config} {dimension : Dimension} {actions 
     (controller : Controller config dimension actions) : List (PackedLearner dimension) :=
   controller.learners.toList.map (fun learner => ⟨config, learner⟩)
 
-/-- Every controller learner resets, followed by both wrapper aggregates.
-The action-restart marker is retained, as in the current controller. -/
+/-- Every controller learner resets the retired slot. The shared previous value,
+weight-change aggregate and action-restart marker are kept, so only the slot's
+own state changes. -/
 def Controller.retire {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
     Controller config dimension actions :=
-  let ⟨learners, _, _, restart⟩ := controller
-  ⟨learners.map (·.retire feature), .zero, .zero, restart⟩
+  let ⟨learners, vOld, vDelta, restart⟩ := controller
+  ⟨learners.map (·.retire feature), vOld, vDelta, restart⟩
 
 /-- One new action identity resets its learner and schedules a trace restart;
 shared lags are retained for pending credit to unchanged actions. -/
@@ -244,17 +241,31 @@ def Ensemble.readers {config : Config} {criterion : Criterion} {dimension : Dime
   let ⟨control, metaController, skills, demons⟩ := ensemble
   control.readers ++ metaController.readers ++ skills.toList.flatMap Skill.readers ++ demons.readers
 
-/-- Complete structural reset of the same stored families the scan traverses. -/
+/-- Complete structural reset of every stored family the readers traverse. -/
 def Ensemble.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
     (feature : FeatIdx dimension) : Ensemble config criterion dimension discounts :=
   let ⟨control, metaController, skills, demons⟩ := ensemble
   ⟨control.retire feature, metaController.retire feature, skills.map (·.retire feature), demons.retire feature⟩
 
-/-- The actual conjunction reads each learner's own current words. -/
-def Ensemble.negligible {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
-    (feature : FeatIdx dimension) : Bool := ensemble.readers.all (·.negligible feature)
+/-- Each policy learner followed by the physically stored model learners. -/
+def Skill.stored {config : Config} {criterion : Criterion} {dimension : Dimension}
+    (skill : Skill config criterion dimension) : List (PackedLearner dimension) :=
+  skill.policy.readers ++ skill.model.stored
+
+/-- Every physically stored learner once, in reader order. A discounted model's
+duration position aliases its reward learner and adds no outgoing weight. -/
+def Ensemble.stored {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts) :
+    List (PackedLearner dimension) :=
+  let ⟨control, metaController, skills, demons⟩ := ensemble
+  control.readers ++ metaController.readers ++ skills.toList.flatMap Skill.stored ++ demons.readers
+
+/-- Σ_k |w_k| over the supplied learners' weights at one feature slot: the sum of
+a unit's outgoing weight magnitudes in Dohare et al. (2024), eq. (2). -/
+def outgoing {dimension : Dimension} (readers : List (PackedLearner dimension))
+    (feature : FeatIdx dimension) : Binary32 :=
+  Binary32.sumMap .zero readers (fun learner => (learner.2.state.weights.get feature).value.abs)
 
 /-- Initial storage includes every action, model and supplied prediction channel. -/
 def Ensemble.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
@@ -279,7 +290,7 @@ theorem Model.storage_count {dimension : Dimension} {criterion : Criterion}
     model.stored.length = (match criterion with | .discounted => 2 | .differential => 3) := by
   cases model <;> rfl
 
-/-- Every physically stored model learner participates in retirement admission. -/
+/-- Every physically stored model learner is also a model reader. -/
 theorem Model.stored_covered {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) (learner : PackedLearner dimension)
     (member : learner ∈ model.stored) : learner ∈ model.readers := by

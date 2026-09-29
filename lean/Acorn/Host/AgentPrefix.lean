@@ -124,20 +124,23 @@ theorem Agent.act_execution (state : Agent profile config criterion dimension pl
       (episodes : next.Episodes),
       state.advanceClock.control.step planning (state.advanceClock.frame observation).active
         observation reward goal = some (next, (state.act observation reward goal).2) ∧
-      (state.act observation reward goal).1 = (Agent.mk next valid episodes).retire := by
+      (state.act observation reward goal).1 =
+        (Agent.mk next valid episodes).retire (state.advanceClock.frame observation).units := by
   let result := state.advanceClock.control.alignedStep state.advanceClock.aligned planning
     (state.advanceClock.frame observation).active observation reward goal
   exact ⟨result.1.1, result.2.2, state.advanceClock.control.step_episodes result.1.1
     state.advanceClock.episodes planning (state.advanceClock.frame observation).active
       observation reward goal result.1.2 result.2.1, result.2.1, rfl⟩
 
-/-- Retirement cannot detach the observation from the decision just credited. -/
-theorem Agent.retire_decision (state : Agent profile config criterion dimension planning) :
-    state.retire.control.runtime.references.lastDecision = state.control.runtime.references.lastDecision := by
+/-- The tester cannot detach the observation from the decision just credited. -/
+theorem Agent.retire_decision (state : Agent profile config criterion dimension planning)
+    (active : Vector Bool config.units.count) :
+    (state.retire active).control.runtime.references.lastDecision =
+      state.control.runtime.references.lastDecision := by
   unfold Agent.retire
   split
   · rfl
-  · exact congrArg (·.lastDecision) state.control.runtime.retire_references.1
+  · exact congrArg (·.lastDecision) (state.control.runtime.retire_references active).1
 
 /-- Every action observer sees precisely the decision consumed by the completion boundary. -/
 theorem Agent.act_decision (state : Agent profile config criterion dimension planning)
@@ -145,7 +148,8 @@ theorem Agent.act_decision (state : Agent profile config criterion dimension pla
     (state.act observation reward goal).1.observe.decision = some (state.act observation reward goal).2 := by
   obtain ⟨next, valid, episodes, step, actual⟩ := state.act_execution observation reward goal
   rw [actual]
-  change (Agent.mk next valid episodes).retire.control.runtime.references.lastDecision = _
+  change ((Agent.mk next valid episodes).retire
+    (state.advanceClock.frame observation).units).control.runtime.references.lastDecision = _
   rw [Agent.retire_decision]
   unfold TemporalControl.step at step
   cases selected : state.advanceClock.control.select planning (state.advanceClock.frame observation).active

@@ -30,7 +30,8 @@ def observation (word : UInt64) : Host.Observation :=
 state owners. Caller-supplied words keep native storage dynamically allocated. -/
 @[noinline] def execute (seed word : UInt64) (criterion : Criterion) : Nat × UInt32 × UInt32 :=
   let profile : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
-  let config : Features.Config := ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩⟩
+  let config : Features.Config :=
+    ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
   let bank := Bank.initial Host.patchShape config
   let state := PredictionControl.initial profile criterion dimension
   let obs := observation word

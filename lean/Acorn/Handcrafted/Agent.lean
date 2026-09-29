@@ -11,7 +11,7 @@ import Acorn.Handcrafted.AgentEpisodes
 One receiver owns representation, every learner, temporal references, lifetime
 observations and both random streams. Encoding consumes the preceding prediction
 cache and the current bank. The actual temporal dispatcher executes policy,
-model and planning updates; retirement follows all consumers of the frame.
+model and planning updates; the tester follows all consumers of the frame.
 No supervisor or replay buffer is part of this action-selection interface.
 Native arithmetic, compiler/runtime and allocation retain their declared trust.
 -/
@@ -71,40 +71,53 @@ def Agent.advanceClock (state : Agent profile config criterion dimension plannin
 def Agent.frame (state : Agent profile config criterion dimension planning) (observation : Host.Observation) :
     EncodingFrame dimension state.control.runtime.lifecycle.representation.bank
       (observationWords observation (feedbackPredictions state.control.runtime.references.demonPredictions)
-        profile.taskMode) (observationPatch observation) :=
+        profile.taskMode) (observationPatch observation profile.taskMode) :=
   state.control.runtime.encodeCurrent
     (observationWords observation (feedbackPredictions state.control.runtime.references.demonPredictions)
-      profile.taskMode) (observationPatch observation)
+      profile.taskMode) (observationPatch observation profile.taskMode)
 
-/-- Receiver-bound retirement preserves the admitted interest family on every branch. -/
+/-- Releasing any list of units preserves the admitted interest family and distinct units. -/
+theorem Ensemble.releaseAll_admitted (units : List (Fin config.units.count)) :
+    ∀ (ensemble : Ensemble config criterion dimension demonLayout),
+      ensemble.Aligned → ensemble.Distinct →
+        (ensemble.releaseAll units).Aligned ∧ (ensemble.releaseAll units).Distinct := by
+  induction units with
+  | nil => intro ensemble aligned distinct; exact ⟨aligned, distinct⟩
+  | cons head rest ih =>
+    intro ensemble aligned distinct
+    exact ih _ (Ensemble.release_aligned _ aligned head) (Ensemble.release_distinct _ head distinct)
+
+/-- The tester preserves the admitted interest family on every branch. -/
 theorem TemporalControl.retire_aligned (state : TemporalControl profile config criterion dimension)
-    (aligned : state.Aligned) : ({ state with runtime := state.runtime.retire }).Aligned := by
-  unfold FeatureRuntime.retire
-  split
-  · exact aligned
-  · rename_i unit lifecycle accepted
-    obtain ⟨room, eligible, _, same⟩ :=
-      (Lifecycle.success_iff state.runtime.lifecycle _ unit lifecycle).mp accepted
-    subst lifecycle
-    exact ⟨Ensemble.release_aligned _ (state.runtime.lifecycle.consumers.retire_aligned aligned.1 _) unit,
-      Ensemble.release_distinct _ unit (Ensemble.retire_distinct _ _ aligned.2)⟩
+    (aligned : state.Aligned) (active : Vector Bool config.units.count) :
+    ({ state with runtime := state.runtime.retire active }).Aligned := by
+  have tested := state.runtime.lifecycle.test_preserves state.runtime.references.phase.free active
+    (fun ensemble => ensemble.Aligned ∧ ensemble.Distinct)
+    (fun ensemble feature held =>
+      ⟨ensemble.retire_aligned held.1 feature, Ensemble.retire_distinct _ feature held.2⟩) aligned
+  exact Ensemble.releaseAll_admitted
+    (state.runtime.lifecycle.test state.runtime.references.phase.free active).2 _ tested.1 tested.2
 
-/-- Retirement retains episode observations and the active invocation reference together. -/
+/-- The tester retains episode observations and the active invocation reference together. -/
 theorem TemporalControl.retire_episodes (state : TemporalControl profile config criterion dimension)
-    (valid : state.Episodes) : ({ state with runtime := state.runtime.retire }).Episodes := by
+    (valid : state.Episodes) (active : Vector Bool config.units.count) :
+    ({ state with runtime := state.runtime.retire active }).Episodes := by
   unfold TemporalControl.Episodes TemporalControl.activeSlot
-  rw [state.runtime.retire_references.1]
+  rw [(state.runtime.retire_references active).1]
   exact valid
 
-/-- Frozen execution cannot retire a feature; learning scans only after all frame consumers. -/
-@[noinline] def Agent.retire (state : Agent profile config criterion dimension planning) :
-    Agent profile config criterion dimension planning :=
+/-- Frozen execution runs no tester; learning tests only after all frame consumers,
+reading the frame's own unit outputs. -/
+@[noinline] def Agent.retire (state : Agent profile config criterion dimension planning)
+    (active : Vector Bool config.units.count) : Agent profile config criterion dimension planning :=
   if profile.mode == .frozen then state else
-    ⟨{ state.control with runtime := state.control.runtime.retire },
-      state.control.retire_aligned state.aligned, state.control.retire_episodes state.episodes⟩
+    ⟨{ state.control with runtime := state.control.runtime.retire active },
+      state.control.retire_aligned state.aligned active,
+      state.control.retire_episodes state.episodes active⟩
 
 /-- The actual full decision: clock, current-bank encoding, temporal learning and
-observation, then receiver-owned retirement. The returned decision is the one credited. -/
+observation, then the receiver-owned tester on the same frame. The returned
+decision is the one credited. -/
 def Agent.act (state : Agent profile config criterion dimension planning)
     (observation : Host.Observation) (reward : Binary32) (goal : Bool) :
     Agent profile config criterion dimension planning × TemporalDecision :=
@@ -114,7 +127,7 @@ def Agent.act (state : Agent profile config criterion dimension planning)
   let next : Agent profile config criterion dimension planning :=
     ⟨result.1.1, result.2.2, prepared.control.step_episodes result.1.1 prepared.episodes planning
       frame.active observation reward goal result.1.2 result.2.1⟩
-  (next.retire, result.1.2)
+  (next.retire frame.units, result.1.2)
 
 /-- Environment accounting has no access to the policy-selection algorithms. -/
 def Agent.recordEnvironment (state : Agent profile config criterion dimension planning)

@@ -24,12 +24,14 @@ def key : Departure → String
   | .learnerParameters => "D4"
   | .cumulants => "D5"
   | .explorationRate => "D6"
+  | .featureTester => "D7"
 
 /-- Maintained loci include compositions; adding a quarantined module requires admission. -/
 def modules : List (Name × List Departure) :=
   [(`Acorn.Handcrafted.Observation, [.featureChannels, .spatialPotentials, .cumulants]),
    (`Acorn.Handcrafted.Cumulants, [.cumulants]),
-   (`Acorn.Handcrafted.FeatureProfile, [.featureChannels, .spatialPotentials, .explorationRate]),
+   (`Acorn.Handcrafted.FeatureProfile, [.featureChannels, .spatialPotentials, .explorationRate,
+     .featureTester]),
    (`Acorn.Handcrafted.TemporalProfile, [.spatialPotentials, .explorationRate]),
    (`Acorn.Handcrafted.PredictionControl, [.featureChannels, .cumulants, .learnerParameters]),
    (`Acorn.Handcrafted.TemporalControl, [.spatialPotentials, .explorationDuration, .explorationRate,
@@ -37,7 +39,7 @@ def modules : List (Name × List Departure) :=
    (`Acorn.Handcrafted.AgentAlignment, [.spatialPotentials]),
    (`Acorn.Handcrafted.AgentEpisodes, [.spatialPotentials]),
    (`Acorn.Handcrafted.Agent, [.featureChannels, .spatialPotentials, .explorationDuration,
-     .learnerParameters, .cumulants, .explorationRate])]
+     .learnerParameters, .cumulants, .explorationRate, .featureTester])]
 
 /-- Every quarantine data type is a declared producer, immutable profile or
 composite state/proof relation. Newly elaborated inductive types fail closed. -/
@@ -57,7 +59,7 @@ private def require (legal : Bool) (message : String) : IO Unit :=
 inventory. Documents must name every module in every declared departure it uses. -/
 def check (env : Environment) : IO Unit := do
   let departures : List Departure := [.featureChannels, .spatialPotentials,
-    .explorationDuration, .learnerParameters, .cumulants, .explorationRate]
+    .explorationDuration, .learnerParameters, .cumulants, .explorationRate, .featureTester]
   let some (.inductInfo declaration) := env.find? `Acorn.Departure
     | throw (IO.userError "departure type is not a compiled inductive")
   require (declaration.ctors.length == departures.length &&

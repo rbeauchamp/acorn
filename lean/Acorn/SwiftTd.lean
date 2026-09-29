@@ -138,19 +138,6 @@ def ActiveSet.empty (dimension : Dimension) : ActiveSet dimension := ⟨[], List
 
 variable {config : Config} {dimension : Dimension}
 
-/-- The pruning negligibility `θ = ε · bound` of this learner's immutable
-criterion: the instantaneous prediction change admitted by retiring a unit
-whose weight is below it (PAR-11). -/
-def disruptionBound (config : Config) : Binary32 := config.epsilon.mul config.rule.bound
-
-/-- The two words the retirement predicate reads at every slot of one learner:
-its θ and its step-size floor, both functions of the configuration alone. -/
-structure Negligibility {config : Config} (rails : StepSizeRails config) where
-  /-- The direct-term bound `ε · ValueRule.bound`. -/
-  theta : Binary32
-  /-- The rail a finished unit's step size sits on. -/
-  floor : LogStepSize rails
-
 /-- An exploration rate is a probability: inside `[0, 1]` at storage. The
 interval words are the reward interval's; the role is distinct. -/
 def exploreRange : Interval32 where
@@ -198,7 +185,7 @@ end SwiftTd
 
 namespace NumericState
 
-open SwiftTd (ActiveSet swapRemove disruptionBound Negligibility TdStep)
+open SwiftTd (ActiveSet swapRemove TdStep)
 
 variable {config : Config} {dimension : Dimension}
 
@@ -505,10 +492,12 @@ def planStep (config : Config) (state : NumericState config dimension)
 
 /-- Replace one feature's knowledge and transients with a fresh unit's start
 state: the first eligible occurrence removed (the whole membership under
-uniqueness), every per-index register zero, weight
-zeroed, step size re-anchored, and the representation-dependent aggregates
-cleared so the next surviving update is not charged the retired feature's
-residue. -/
+uniqueness), every per-index register zero, weight zeroed and step size
+re-anchored. Only the retired slot's own state changes: the shared previous
+prediction and weight-change aggregate are kept, as generate-and-test resets
+only the replaced unit (Dohare et al., arXiv:2306.13812v3, Algorithm 1, p. 23),
+so the next TD error differs from the unreplaced one only through the retired
+slot's weight. -/
 def retireIndex (state : NumericState config dimension) (idx : FeatIdx dimension) :
     NumericState config dimension :=
   let state := match found : state.transient.eligible.findIdx? (· == idx) with
@@ -517,8 +506,7 @@ def retireIndex (state : NumericState config dimension) (idx : FeatIdx dimension
     | none => state
   let state := state.clearFeatureRegisters idx
   let state := state.writeWeight idx .zero
-  let state := state.writeBetaValue idx state.rails.initial
-  { state with transient := { state.transient with vOld := .zero, vDelta := .zero } }
+  state.writeBetaValue idx state.rails.initial
 
 /-- Overwrite the learned weights from an untrusted source, projecting each
 value through the immutable criterion. The traversal consumes only the zipped
@@ -539,25 +527,6 @@ cleared, in that order. -/
 def installRestored (state : NumericState config dimension) (weights logStepSizes : List Binary32) :
     NumericState config dimension :=
   (state.restoreWeights weights |>.restoreLogStepSizes logStepSizes).clearTransient
-
-/-- This learner's own retirement words, derived once per scan. -/
-def negligibility (state : NumericState config dimension) : Negligibility state.rails where
-  theta := disruptionBound config
-  floor := ⟨state.rails.range.lower, state.rails.range.lowerFinite,
-    Int.le_refl _, state.rails.range.ordered⟩
-
-/-- Whether `feat` is negligible under retirement words `theta` and `floor`:
-weight magnitude below θ and the step size exactly on the floor. Both
-conjuncts are required; a small weight still adapting has not finished being
-tested. The words are consumed raw, as the every-consumer scan does. -/
-def unitIsNegligibleUnder (state : NumericState config dimension) (theta floor : Binary32)
-    (feat : FeatIdx dimension) : Bool :=
-  ((state.weights.get feat).value.abs.less theta) &&
-    ((state.beta.get feat).value.numericallyEqual floor)
-
-/-- The single-reader negligibility predicate at this learner's own bounds. -/
-def unitIsNegligible (state : NumericState config dimension) (feat : FeatIdx dimension) : Bool :=
-  state.unitIsNegligibleUnder state.negligibility.theta state.negligibility.floor.value feat
 
 /-- Mean step size `α = e^β` over all weights. -/
 def meanAlpha (state : NumericState config dimension) : Binary32 :=
@@ -694,34 +663,6 @@ def Learner.initial (config : Config) (dimension : Dimension) : Learner config d
 /-- Advance admitted storage; the proof of provenance is erased at runtime. -/
 def Learner.apply (learner : Learner config dimension) (entry : Entry dimension) :
     Learner config dimension := ⟨entry.apply learner.val, .transition entry learner.property⟩
-
-/-- One reader of a feature slot, paired with the words its predicate reads.
-Built once per learner per scan; `of` is the only intended constructor. -/
-structure Consumer {config : Config} {dimension : Dimension} (rails : StepSizeRails config) where
-  /-- The learner read. -/
-  learner : NumericState config dimension
-  /-- Its derived retirement words. -/
-  bounds : Negligibility rails
-
-/-- A learner under its own bounds. -/
-def Consumer.of (state : NumericState config dimension) :
-    Consumer (dimension := dimension) state.rails :=
-  ⟨state, state.negligibility⟩
-
-/-- Whether this reader treats `feat` as negligible. -/
-def Consumer.negligible {config : Config} {dimension : Dimension} {rails : StepSizeRails config}
-    (consumer : Consumer (dimension := dimension) rails) (feat : FeatIdx dimension) : Bool :=
-  consumer.learner.unitIsNegligibleUnder consumer.bounds.theta consumer.bounds.floor.value feat
-
-/-- Conjunction over every consumer of one feature slot: the unit is
-negligible only when every reader says so. The reader vector is nonempty by
-its type; a conjunction over no readers would retire every unit. Cross-config
-composition of heterogeneous readers belongs to the checkpoint slice. -/
-def unitNegligibleInEvery {config : Config} {dimension : Dimension}
-    {rails : StepSizeRails config} {count : Nat}
-    (consumers : Vector (Consumer (dimension := dimension) rails) (count + 1))
-    (feat : FeatIdx dimension) : Bool :=
-  consumers.toList.all (·.negligible feat)
 
 end SwiftTd
 

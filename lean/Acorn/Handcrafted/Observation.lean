@@ -12,8 +12,9 @@ import Acorn.Provenance
 
 This composition boundary declares the hand-authored layout in
 `docs/learned-only-binding.md`. The learned coder receives only opaque words.
-Resource counts and predictions are bucketed; the imprint patch contains kind
-alone. This channel encoding is lossy.
+Resource counts and predictions are bucketed; the generator reads the kind patch
+and the task words, so generated units can conjoin task and layout. This channel
+encoding is lossy.
 -/
 namespace Acorn.Handcrafted
 open Features Host
@@ -130,15 +131,39 @@ def observationWords (obs : Observation) (predictions : Predictions)
    ⟨0x47, flagWord obs.inventory.axe⟩, ⟨0x48, flagWord obs.inventory.boat⟩] ++
   predictionWords predictions
 
-/-- The imprint patch contains only the kind byte, with both dimensions preserved. -/
-def observationPatch (obs : Observation) : Patch patchShape :=
-  obs.tiles.map (fun row => row.map (·.kind))
+/-- Every task relation fits the generator's context, so no task word is dropped. -/
+theorem taskWords_fit (task : TaskObservation) (mode : TaskFeatureMode) :
+    (taskWords task mode).length ≤ patchShape.context := by
+  cases task <;> cases mode <;>
+    simp [taskWords, patchShape, Acorn.FeatureConstants.taskContextWords]
+
+/-- One task word as a generator input: its channel and value mixed into one opaque word. -/
+def contextCode (word : SensorWord) : UInt64 := Rng.hash3 0x7A5C word.channel word.value
+
+/-- A context position with no task word. -/
+def absentContext : UInt64 := Rng.hash3 0x7A5C 0 0
+
+/-- The task words in channel order, padded to the fixed context width. -/
+def taskContext (obs : Observation) (mode : TaskFeatureMode) : Vector UInt64 patchShape.context :=
+  Vector.ofFn fun slot => ((taskWords obs.task mode)[slot.val]?.map contextCode).getD absentContext
+
+/-- Context position `slot` reads exactly the `slot`-th task word when it exists. -/
+theorem taskContext_slot (obs : Observation) (mode : TaskFeatureMode)
+    (slot : Fin patchShape.context) :
+    (taskContext obs mode)[slot.val] =
+      ((taskWords obs.task mode)[slot.val]?.map contextCode).getD absentContext := by
+  simp [taskContext]
+
+/-- The generator reads the row-major kind patch followed by the task context. -/
+def observationPatch (obs : Observation) (mode : TaskFeatureMode := .complete) :
+    Patch patchShape :=
+  (obs.tiles.map (fun row => row.map (·.kind.toUInt64))).flatten ++ taskContext obs mode
 
 /-- Execute the declared layout followed by the learned opaque encoder. -/
 def encodeObservation (dimension : Dimension) {config : Features.Config}
     (bank : Bank patchShape config) (obs : Observation) (predictions : Predictions)
     (mode : TaskFeatureMode := .complete) : SwiftTd.ActiveSet dimension :=
-  encode dimension bank (observationWords obs predictions mode) (observationPatch obs)
+  encode dimension bank (observationWords obs predictions mode) (observationPatch obs mode)
 
 /-- The current D2 spatial taxonomy. -/
 inductive SpatialInterest where

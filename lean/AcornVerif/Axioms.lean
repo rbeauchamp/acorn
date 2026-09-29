@@ -393,46 +393,6 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 #guard_msgs in
 #print axioms pruning_implies_negligible
 
-/-- info: 'AcornVerif.theta_eq_epsilon_div_one_sub_gamma' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms theta_eq_epsilon_div_one_sub_gamma
-
-/-- info: 'AcornVerif.prediction_change_eq_abs_weight' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms prediction_change_eq_abs_weight
-
-/-- info: 'AcornVerif.relative_disruption' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms relative_disruption
-
-/-- info: 'AcornVerif.every_consumer_prediction_change' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms every_consumer_prediction_change
-
-/-- info: 'AcornVerif.Retirement.admitsFrom_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Retirement.admitsFrom_iff
-
-/-- info: 'AcornVerif.Retirement.transcript_admission_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Retirement.transcript_admission_iff
-
-/-- info: 'AcornVerif.Retirement.clock_advance_preserves' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Retirement.clock_advance_preserves
-
-/-- info: 'AcornVerif.Retirement.append_admission_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Retirement.append_admission_iff
-
-/-- info: 'AcornVerif.Retirement.finalStep_eq_last' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Retirement.finalStep_eq_last
-
-/-- info: 'AcornVerif.Retirement.record_preserves' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Retirement.record_preserves
-
 /-- info: 'AcornVerif.exhausted_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms exhausted_bound
@@ -2679,14 +2639,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.exploration_legal
 
-/-- info: 'AcornVerif.CurrentLearner.consumer_own' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.consumer_own
-
-/-- info: 'AcornVerif.CurrentLearner.every_consumer' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.every_consumer
-
 /-- info: 'AcornVerif.CurrentLearner.first_element_reanchor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.first_element_reanchor
@@ -2787,65 +2739,81 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentConstants.dimensions
 
+/-- info: 'AcornVerif.CurrentRetirement.add_zero_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.add_zero_numeric
+
+/-- info: 'AcornVerif.CurrentRetirement.retireIndex_predict' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.retireIndex_predict
+
+/-- info: 'AcornVerif.CurrentRetirement.retire_step_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.retire_step_error
+
+/-- info: 'AcornVerif.CurrentRetirement.retire_step_error_absent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.retire_step_error_absent
+
+/-- info: 'AcornVerif.CurrentRetirement.controller_retire_values' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.controller_retire_values
+
+/-- info: 'AcornVerif.CurrentRetirement.replace_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.replace_zero
+
+/-- info: 'AcornVerif.CurrentRetirement.replace_predictions' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.replace_predictions
+
+/-- info: 'AcornVerif.CurrentRetirement.replace_aggregates' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.replace_aggregates
+
+/-- info: 'AcornVerif.CurrentRetirement.replace_neutral' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRetirement.replace_neutral
+
+/-- info: 'AcornVerif.Retirement.run_replaced' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Retirement.run_replaced
+
+/-- info: 'AcornVerif.Retirement.run_turnover' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Retirement.run_turnover
+
+/-- info: 'AcornVerif.Retirement.run_young' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Retirement.run_young
+
+/-- info: 'AcornVerif.Retirement.run_immature' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Retirement.run_immature
+
+/-- info: 'AcornVerif.Retirement.maturity_bias' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Retirement.maturity_bias
+
+/-- info: 'Acorn.Features.Lifecycle.test_accrual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Features.Lifecycle.test_accrual
+
+/-- info: 'Acorn.Features.Lifecycle.candidate_least' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Features.Lifecycle.candidate_least
+
+/-- info: 'Acorn.Features.Lifecycle.test_unheld' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Features.Lifecycle.test_unheld
+
+/-- info: 'Acorn.Features.FeatureRuntime.retire_occupied' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Features.FeatureRuntime.retire_occupied
+
 /-- info: 'AcornVerif.CurrentRetirement.zero_add_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentRetirement.zero_add_numeric
-
-/-- info: 'AcornVerif.CurrentRetirement.sub_zero_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.sub_zero_numeric
-
-/-- info: 'AcornVerif.CurrentRetirement.abs_word_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.abs_word_eq
-
-/-- info: 'AcornVerif.CurrentRetirement.retirement_disruption_bounded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.retirement_disruption_bounded
-
-/-- info: 'AcornVerif.CurrentRetirement.rail_floor_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.rail_floor_word
-
-/-- info: 'AcornVerif.CurrentRetirement.rail_floor_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.rail_floor_decoded
-
-/-- info: 'AcornVerif.CurrentRetirement.floor_add_unpacked' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.floor_add_unpacked
-
-/-- info: 'AcornVerif.CurrentRetirement.packed_floor_key' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.packed_floor_key
-
-/-- info: 'AcornVerif.CurrentRetirement.floor_add_key' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.floor_add_key
-
-/-- info: 'AcornVerif.CurrentRetirement.saturation_floor_key' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.saturation_floor_key
-
-/-- info: 'AcornVerif.CurrentRetirement.downward_projection_floor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.downward_projection_floor
-
-/-- info: 'AcornVerif.CurrentRetirement.floor_key_unique' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.floor_key_unique
-
-/-- info: 'AcornVerif.CurrentRetirement.downward_projection_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.downward_projection_word
-
-/-- info: 'AcornVerif.CurrentRetirement.zero_below_disruption' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.zero_below_disruption
-
-/-- info: 'AcornVerif.CurrentRetirement.retirement_predicate_reachable' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.retirement_predicate_reachable
 
 /-- info: 'AcornVerif.CurrentRetirementRounding.nearest_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

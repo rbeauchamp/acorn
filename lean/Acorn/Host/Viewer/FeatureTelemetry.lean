@@ -10,7 +10,7 @@ import Acorn.Host.Viewer.TelemetryValue
 # Feature and prediction telemetry
 
 Configuration and declared questions come from their existing owners. Retired
-unit identity is read from the actual representation transcript, and subtask
+unit identity is read from the actual tester state, and subtask
 descriptors expose stored assignments without reranking them. Cumulants reuse
 the original question evaluator on the frame's observation and raw reward.
 -/
@@ -33,7 +33,7 @@ private def interestBonus {config : Features.Config} : Interest config → Binar
 /-- Metadata and stored feature identities emitted by the current composition. -/
 def featureTelemetry {config : Features.Config} {dimension : Dimension}
     (agent : AgentObservation config dimension) : List TelemetryField :=
-  let lastRetirement := agent.representation.progress.events.getLast?
+  let lastRetirement := agent.representation.progress.last
   [⟨"checkpoint_format", .natural, FeatureConstants.checkpointFormatVersion⟩,
    ⟨"control_criterion", .natural, match agent.criterion with | .discounted => 0 | .differential => 1⟩,
    ⟨"weight_space", .natural, dimension.capacity⟩,
@@ -52,7 +52,7 @@ def featureTelemetry {config : Features.Config} {dimension : Dimension}
    ⟨"imprint_units", .natural, config.units.count⟩,
    ⟨"retire_step", .optional .natural, lastRetirement.map (·.step.toNat)⟩,
    ⟨"retire_unit", .optional .natural, lastRetirement.map (·.unit.val)⟩,
-   ⟨"retire_count", .natural, agent.representation.progress.events.length⟩,
+   ⟨"retire_count", .natural, agent.representation.progress.replaced.toNat⟩,
    ⟨"subtask_policy", .text, match agent.featureProfile.subtasks with
       | .learned => "learned" | .spatial => "hand_authored"⟩,
    ⟨"subtask_unit", .array FeatureConstants.skillCount (.optional .natural), agent.interests.map interestUnit⟩,

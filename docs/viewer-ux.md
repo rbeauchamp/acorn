@@ -36,8 +36,8 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   request to wind up at the next attempt boundary, which changes *when a run
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
-  (`./lean/.lake/build/bin/acorn-core audit --expect 9f7690b338600144`),
-  checksum `eb40c4d351658e61` (C-AC5), and by the gate suite
+  (`./lean/.lake/build/bin/acorn-core audit --expect 25ea4ea335774876`),
+  checksum `754fb5906278a9d0` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
 - **INV-1b · The control channel carries lifecycle only.** The core's stdin
@@ -949,9 +949,10 @@ What each panel must show. How it draws it is the code's.
 - The option badge changes often: an option can end within a few steps and
   never runs past its cap, so at the reading cadence it may change up to four
   times a second.
-- `features` reads `0 retired` for a long time. The generate-and-test test
-  half (PAR-11) is present but has not been observed to retire a unit; the
-  node reports the count the core carries, and zero is the honest figure.
+- `features` reads `0 retired` for the first thousand steps. The
+  generate-and-test tester (PAR-11) protects every unit until its age exceeds
+  the D7 maturity threshold; after that the count rises at about one
+  replacement per twenty steps for the 512-unit bank.
 - Deer and food pop in and out exactly at the sensor boundary.
 - Motion is bursty while the agent is low on energy: it rests to recover.
 - Near-black regions are genuinely unexplored, and the trail is short right
@@ -1092,7 +1093,7 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Surface | In viewer | Pin or out of scope |
 |---|---|---|
 | OaK's five stages and thesis (orientation strip) | UX-4 | **Architecture named, no equation displayed.** The panel says *progression*, not *loop*: the closed loop of Alberta Plan Step 11 (utility feedback over every element) is absent from this build (`docs/design.md`), and the return glyph's hover text says what it marks. The five stages are the FC-STOMP progression of Sutton, *The OaK Architecture: A Vision of SuperIntelligence from Experience*, RLC 2025 keynote — a talk, so no PDF page; verified against the recording published by Amii (`https://www.amii.ca/videos/oak-architecture-rich-sutton-rlc2025`) and the title listed at oaklab.ai — and the STOMP progression of RRS (AIJ 324 (2023) 104001, arXiv:2202.03466v4); the mission sentence *algorithms that allow agents to achieve goals in big worlds* is quoted from oaklab.ai/mission. Each node's figure is a stream field summarised by the panel it points at, whose pins are the rows below and the next row. |
-| `features` node (imprint units, retirements) | UX-4 | Mahmood & Sutton, *Representation Search through Generate and Test*, AAAI 2013 workshop, PDF opened (`http://www.incompleteideas.net/papers/MS-AAAIws-2013.pdf`; no running page number on its face), file p. 3 of 6: *“The tester first estimates the utility of each feature. The search method then replaces a small fraction ρ of the features that are least useful with newly generated features.”* — PAR-4 (generate half) / PAR-11 (derived tester). Counts only; no equation displayed. The node's hover text also states D1 (8 fixed tilings over a hand-authored channel layout; only the 512 imprint projections are generated-and-tested) and that the word *imprint* is Javed's — thesis ch. 9, *Feature Generation by Continual Imprinting*, as `docs/prior-art-review.md` PAR-11 records — for a mechanism this bank is not. |
+| `features` node (imprint units, retirements) | UX-4 | Mahmood & Sutton, *Representation Search through Generate and Test*, AAAI 2013 workshop, PDF opened (`http://www.incompleteideas.net/papers/MS-AAAIws-2013.pdf`; no running page number on its face), file p. 3 of 6: *“The tester first estimates the utility of each feature. The search method then replaces a small fraction ρ of the features that are least useful with newly generated features.”* — PAR-4 (generate half) / PAR-11 (tester). Counts only; no equation displayed. The node's hover text also states D1 (8 fixed tilings over a hand-authored channel layout; only the 512 imprint projections are generated-and-tested) and that the word *imprint* is Javed's — thesis ch. 9, *Feature Generation by Continual Imprinting*, as `docs/prior-art-review.md` PAR-11 records — for a mechanism this bank is not. |
 | `subtasks` node and option lines (stopping bonus) | UX-4, ribbon legend, HUD | Sutton, Machado et al., *Reward-Respecting Subtasks for Model-Based Reinforcement Learning*, AIJ 324 (2023) 104001, **PDF p. 4 eq. (4)**: *“let w̄ᵢ denote one of its largest values, called the bonus weight … The quantity (w̄ᵢ − wᵢ)xᵢ(s) is sometimes called the stopping bonus”*. This build derives the bonus weight from the goal-reward GVF's weight on the ranked feature (PAR-12); the page calls the figure `bonus` and the node's caption `stopping bonus`. |
 | `options` node (shaping term) | UX-4 | Ng, Harada & Russell, *Policy invariance under reward transformations: Theory and application to reward shaping*, ICML 1999, file p. 4 Theorem 1 eq. (2) `F(s, a, s') = γ Φ(s') − Φ(s)` — the four-part pin in `docs/prior-art-review.md` PAR-6 (no running page numbers on the PDF's face). For learned subtasks, Φ is the selected feature indicator; the attainment bonus multiplies that indicator in the stopping value. Differential research centers task reward by the gain estimate. Interruption compares learned stopping/continuation estimates; SPS99 Theorem 2 assumes exact option values and is not an improvement guarantee for this implementation. |
 | `primitive ε` | live HUD | **Rate, primitive layer only.** Dabney, Ostrovski & Barreto, arXiv:2006.01782v1 **PDF p. 5**: *“This exploration algorithm is then described by two parameters, ϵ dictating when/how often to explore, and z dictating the degree of persistence.”* In ranked, primitive, boundary-credit and spatial profiles the scalar is D6’s declared ϵ = 0.01, a value the same paper uses (Appendix A, **PDF p. 14**; Appendix B.3, **PDF p. 15**); the annealed research profile uses the declared schedule. Rate and duration *z* are authored (D6, D3); retirement target Alberta Plan Step 9, **PDF p. 9**: *“Step 9. Planning II: Search control and exploration.”* PAR-10’s derived rate is this build’s construction, not a published algorithm; it is a research-only native selection and is not displayed. Meta/skill rates and *z* are out of viewer scope. |

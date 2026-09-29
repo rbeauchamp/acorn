@@ -9,7 +9,7 @@ import Acorn.Host.Checkpoint.Frame
 # Receiver-bound checkpoint admission
 
 Parsing has no receiver write capability. Exact header identity, all durable
-numeric domains, assignments and transcript are admitted before the complete
+numeric domains, assignments and tester state are admitted before the complete
 image reaches `Agent.restore`. The primary image contains raw words by design:
 installation applies each immutable receiving learner's projection.
 -/
@@ -30,9 +30,9 @@ inductive Error where
   | seed (found expected : UInt64)
   /-- Sensory tilings or initial bank capacity differs. -/
   | representation
-  /-- This profile's process state has no resumable format-15 image. -/
+  /-- This profile's process state has no resumable format-16 image. -/
   | unsupportedPolicy
-  /-- Length, checksum, assignment, transcript or durable numeric admission failed. -/
+  /-- Length, checksum, assignment, tester or durable numeric admission failed. -/
   | corrupt
   deriving DecidableEq, Repr
 
@@ -110,7 +110,7 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
   let raw : RawFeatureImage construction.dimension demonLayout :=
     ⟨payload.header.seed, payload.header.tilings, payload.header.units.toUInt16,
       payload.header.capacity, payload.header.criterion.toUInt8, payload.header.clock,
-      payload.events.val, payload.assignments, payload.primary, pending⟩
+      payload.tester.progress, payload.assignments, payload.primary, pending⟩
   let some features := FeatureImage.admit construction.config construction.criterion construction.dimension raw
     | throw .corrupt
   let some lifetime := admitLifetime payload.lifetime | throw .corrupt

@@ -61,9 +61,11 @@ structure Invariant (state : Agent profile config criterion dimension planning) 
   episodes : state.control.Episodes
   /-- All reward and settled-error totals satisfy their count-indexed numeric bounds. -/
   sums : LifetimeSums state.control.lifetime
-  /-- Chronology, resource capacity and clock bounds hold for the owned representation. -/
-  history : LegalHistory config state.clock
-    state.control.runtime.lifecycle.representation.progress.events
+  /-- No unit's birth and no latest replacement is later than the owned clock. -/
+  history : (∀ unit : Fin config.units.count,
+      (state.control.runtime.lifecycle.representation.progress.units[unit.val]).birth.toNat ≤
+        state.clock.toNat) ∧
+    Recent state.clock state.control.runtime.lifecycle.representation.progress.last
   /-- Every current learner obeys its core numeric and phase-specific eligibility contract. -/
   learners : ∀ reader ∈ state.control.runtime.lifecycle.consumers.readers,
     ScheduleInv reader.2.state reader.2.phase ∧ reader.2.state.eligibleCount ≤
@@ -73,7 +75,8 @@ structure Invariant (state : Agent profile config criterion dimension planning) 
 theorem invariant (state : Agent profile config criterion dimension planning) : Invariant state
   :=
   ⟨state.aligned, state.episodes, lifetime_sums _,
-    state.control.runtime.lifecycle.representation.progress.legal,
+    ⟨state.control.runtime.lifecycle.representation.progress.born,
+      state.control.runtime.lifecycle.representation.progress.recent⟩,
     fun reader _ => ⟨managed_schedule reader.2, managed_capacity reader.2⟩⟩
 
 /-- The actual cold constructor satisfies the complete state invariant in every admitted
@@ -91,7 +94,8 @@ def EdgeContract (before : Agent profile config criterion dimension planning)
       (episodes : next.Episodes) (decision : TemporalDecision),
       before.advanceClock.control.step planning (before.advanceClock.frame observation).active
         observation result.reward result.events.done = some (next, decision) ∧
-      after = (Agent.mk next aligned episodes).retire ∧
+      after = (Agent.mk next aligned episodes).retire
+        (before.advanceClock.frame observation).units ∧
       after.observe.decision = some decision ∧ decision.action.val <
         Acorn.FeatureConstants.primitiveCount
   | .environment _ _ => after.control.runtime = before.control.runtime ∧
