@@ -157,7 +157,8 @@ case "$dependency_status" in
   0) ;;
   2)
     printf 'Downloading the pinned Lean and Mathlib dependencies (first run needs network access)…\n'
-    (cd lean && lake exe cache get) ;;
+    # The upstream cache can omit modules; Lake compiles only those it lacks.
+    (cd lean && lake exe cache get && lake build Mathlib) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
 phase='build'

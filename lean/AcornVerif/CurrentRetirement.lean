@@ -34,9 +34,11 @@ theorem zero_add_numeric (word : Binary32) (finite : word.Finite) :
   have normal : ModelNormalized Format.binary32
       (UnpackedFloat.add Format.binary32 (.zero .positive) (decoded32 word)) := by
     cases h : decoded32 word <;> simp_all [UnpackedFloat.add, ModelNormalized]
+    split_ifs <;> simp
   have fits : ModelFits Format.binary32
       (UnpackedFloat.add Format.binary32 (.zero .positive) (decoded32 word)) := by
     cases h : decoded32 word <;> simp_all [UnpackedFloat.add, ModelFits]
+    split_ifs <;> simp
   have decoded := model_add32_decoded .zero word (by decide) finite normal fits
   refine ⟨(model_decoded32_finite _).mp ?_, ?_⟩
   · rw [decoded]
@@ -196,7 +198,7 @@ theorem packed_floor_key {config : Config} (rails : StepSizeRails config)
     by_cases overflow : 2 ^ Format.binary32.exponentBits ≤
         (exponent + Format.binary32.exponentBias +
           Format.binary32.mantissaBitsWithoutImplicit).toNat + 1
-    · rw [pack, if_pos overflow, rail_floor_word]
+    · rw [pack, ite_eq_left overflow, rail_floor_word]
       decide
     · have fits : ModelFits Format.binary32
           (.finite .negative mantissa exponent positive) := by
@@ -266,10 +268,10 @@ theorem floor_key_unique {config : Config} (rails : StepSizeRails config) (word 
   change (if word.negative then -(word.magnitude : Int) else word.magnitude) = -1102591217 at equal
   have negative : word.negative = true := by
     by_contra no
-    rw [if_neg no] at equal
+    rw [ite_eq_right no] at equal
     omega
   have magnitude : word.magnitude = 1102591217 := by
-    rw [if_pos negative] at equal
+    rw [ite_eq_left negative] at equal
     omega
   have notZero : word.bits.toNat / 2 ^ 31 ≠ 0 := by
     intro zero

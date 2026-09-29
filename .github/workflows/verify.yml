@@ -41,7 +41,8 @@ jobs:
       - name: Provision pinned Lean and Mathlib
         if: steps.dependencies.outputs.cache-hit != 'true'
         working-directory: lean
-        run: lake exe cache get
+        # The upstream cache can omit modules; Lake compiles only those it lacks.
+        run: lake exe cache get && lake build Mathlib
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before project verification

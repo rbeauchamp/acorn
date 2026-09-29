@@ -29,7 +29,7 @@ theorem squared_loss_decomposition {Ω : Type*} {m₀ m : MeasurableSpace Ω}
   have outcomeIntegrable : Integrable (outcome^2) μ := outcomeSquare.integrable_sq
   have crossIntegrable : Integrable (2 * outcome * forecast) μ := by
     rw [mul_assoc]
-    exact (memLp_one_iff_integrable.1 (forecastSquare.mul outcomeSquare)).const_mul _
+    exact (memLp_one_iff_integrable.1 (outcomeSquare.mul forecastSquare)).const_mul _
   have forecastIntegrable : Integrable (forecast^2) μ := forecastSquare.integrable_sq
   have expanded : (outcome - forecast)^2 = outcome^2 - 2 * outcome * forecast + forecast^2 := by
     ring

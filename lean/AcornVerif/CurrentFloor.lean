@@ -83,13 +83,13 @@ theorem assemble_units (negative : Bool) (exponent fraction : Nat)
   · subst fraction
     have hd : (exponent * 2 ^ 23 + 2 ^ 23) / 2 ^ 23 = exponent + 1 := by omega
     have hr : (exponent * 2 ^ 23 + 2 ^ 23) % 2 ^ 23 = 0 := by omega
-    rw [hd, hr, if_neg (by omega)]
+    rw [hd, hr, ite_eq_right (by omega)]
     have hp : exponent + 1 + 924 = (exponent + 924) + 1 := by omega
     rw [hp, Nat.pow_succ]
     omega
   · have hd : (exponent * 2 ^ 23 + fraction) / 2 ^ 23 = exponent := by omega
     have hr : (exponent * 2 ^ 23 + fraction) % 2 ^ 23 = fraction := by omega
-    rw [hd, hr, if_neg (by omega)]
+    rw [hd, hr, ite_eq_right (by omega)]
 
 /-- Rounding to a divisor of the significand width needs at most one carry. -/
 theorem fraction_bound (negative : Bool) (fraction divisor : Nat)
@@ -257,7 +257,7 @@ theorem floor_magnitude (value : Binary32) (finite : value.Finite) :
     omega
   have hnormal (hn : exponent ≠ 0) :
       Conversion.magnitudeUnits32 value = (2 ^ 23 + fraction) * 2 ^ (exponent + 924) := by
-    exact if_neg hn
+    exact ite_eq_right hn
   simp only [floor32_eq_spec]
   unfold floor32Spec
   change (if exponent = 255 then value else if exponent ≥ 150 then value
@@ -266,29 +266,29 @@ theorem floor_magnitude (value : Binary32) (finite : value.Finite) :
       else assemble32 value.negative 0 0
     else assemble32 value.negative exponent
       (floorFraction value.negative fraction (2 ^ (150 - exponent)))).Finite ∧ _
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
   by_cases hlarge : exponent ≥ 150
-  · rw [if_pos hlarge]
+  · rw [ite_eq_left hlarge]
     refine ⟨finite, rfl, ?_, ?_⟩
     · rw [hnormal (by omega)]
       exact dvd_mul_of_dvd_right (Nat.pow_dvd_pow 2 (by omega)) _
     · have hp := Nat.two_pow_pos 1074
       split <;> omega
-  · rw [if_neg hlarge]
+  · rw [ite_eq_right hlarge]
     by_cases hsmall : exponent < 127
-    · rw [if_pos hsmall]
+    · rw [ite_eq_left hsmall]
       have hb := subunit_bound value hsmall
       by_cases hs : (value.negative && value.magnitude != 0) = true
-      · rw [if_pos hs]
+      · rw [ite_eq_left hs]
         have hn : value.negative = true := (Bool.and_eq_true_iff.mp hs).1
         have hz : value.magnitude ≠ 0 := by simpa using (Bool.and_eq_true_iff.mp hs).2
         have hp := units_positive value hz
         have ho := negative_one_fields
         refine ⟨ho.1, ho.2.1.trans hn.symm, ?_, ?_⟩
         · rw [ho.2.2]
-        · rw [hn, if_pos rfl, ho.2.2]
+        · rw [hn, ite_eq_left rfl, ho.2.2]
           omega
-      · rw [if_neg hs]
+      · rw [ite_eq_right hs]
         have hz := zero_fields value.negative
         refine ⟨hz.1, hz.2.1, ?_, ?_⟩
         · rw [hz.2.2]; exact dvd_zero _
@@ -301,7 +301,7 @@ theorem floor_magnitude (value : Binary32) (finite : value.Finite) :
               simp [Conversion.magnitudeUnits32, hm]
             simp only [↓reduceIte, hu]
             exact ⟨Nat.le_refl _, by simp⟩
-    · rw [if_neg hsmall]
+    · rw [ite_eq_right hsmall]
       rw [hnormal (by omega)]
       exact middle_magnitude value.negative exponent fraction (by omega) (by omega) hf
 

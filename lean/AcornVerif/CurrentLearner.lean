@@ -192,7 +192,7 @@ theorem swap_remove_preserves_other {α : Type} (items : Array α) (pos : Nat)
       rw [swap_remove_size]; omega
     apply Array.mem_iff_getElem.mpr
     refine ⟨idx, remains, ?_⟩
-    rw [swap_remove_get, if_neg notPos]
+    rw [swap_remove_get, ite_eq_right notPos]
     exact equality
 
 /-- Unique eligible sequences stay unique through swap-remove. -/
@@ -348,7 +348,7 @@ theorem clear_feature_other (state : NumericState config dimension) (idx other :
       NumericState.writeHOld,
       NumericState.writeHTemp,
       NumericState.writeP,
-      vector_get, Vector.getElem_set, distinct, if_false]
+      vector_get, Vector.getElem_set, distinct, ite_false]
 
 /-- One first-loop visit cannot change another feature's knowledge or any of
 its nine registers, regardless of projection, exceptional inputs or pruning. -/
@@ -360,7 +360,7 @@ theorem first_element_frame (state : NumericState config dimension) (idx other :
       registers next other = registers state other := by
   have distinct : idx.val ≠ other.val := fun same => different (Fin.ext same)
   simp only [NumericState.firstLoopElement, registers, vector_get,
-    Vector.getElem_set, distinct, if_false, and_self]
+    Vector.getElem_set, distinct, ite_false, and_self]
 
 /-- A first-loop visit preserves the complete pruning-reference array. -/
 theorem first_element_reference (state : NumericState config dimension) (idx : FeatIdx dimension)
@@ -435,7 +435,7 @@ theorem second_element_frame (state : NumericState config dimension)
   have distinct : idx.val ≠ other.val := fun same => different (Fin.ext same)
   cases overshoot <;>
     simp only [NumericState.secondLoopElement, registers, vector_get,
-      Vector.getElem_set, distinct, if_false, if_true, Bool.false_eq_true, and_self]
+      Vector.getElem_set, distinct, ite_false, ite_true, Bool.false_eq_true, and_self]
 
 /-- The only eligible admission of an active visit reads the entry trace. -/
 theorem second_element_eligible (state : NumericState config dimension) (idx : FeatIdx dimension)
@@ -524,7 +524,7 @@ theorem first_loop_go_core (state : NumericState config dimension)
       simpa only [← unchanged] using references idx
     have result := ih (prune_supported next work pos valid nextSupport)
       (clear_feature_references next work[pos] nextReferences)
-    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
     simpa only [equation, ite_true] using result
   | case2 state work pos valid idx next prune equation noPrune ih =>
     dsimp only [idx] at equation ih
@@ -537,10 +537,10 @@ theorem first_loop_go_core (state : NumericState config dimension)
       intro idx
       simpa only [← unchanged] using references idx
     have result := ih nextSupport nextReferences
-    rw [NumericState.learnFirstLoopGo, dif_pos valid]
-    simpa only [equation, if_neg noPrune] using result
+    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    simpa only [equation, ite_eq_right noPrune] using result
   | case3 state work pos finished =>
-    rw [NumericState.learnFirstLoopGo, dif_neg finished]
+    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
     exact ⟨support, references⟩
 
 /-- The public first loop preserves the core invariant with no scheduling or
@@ -780,7 +780,7 @@ theorem prune_processed (state : NumericState config dimension)
     have := (array_nodup_iff work).mp unique pos idx valid original same
     omega
   have untouched : (swapRemove work pos valid)[idx] = work[idx] := by
-    rw [swap_remove_get, if_neg (show pos ≠ idx by omega)]
+    rw [swap_remove_get, ite_eq_right (show pos ≠ idx by omega)]
   rw [untouched, registers_trace_eq _ _ work[idx]
     (clear_feature_other state work[pos] work[idx] different)]
   exact processed idx original before
@@ -808,7 +808,7 @@ theorem first_loop_go_ready (state : NumericState config dimension)
     have result := ih (swap_remove_nodup work pos valid unique)
       (clear_feature_references next work[pos] nextReferences)
       (prune_processed next work pos valid unique nextProcessed)
-    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
     simpa only [equation, ite_true] using result
   | case2 state work pos valid idx next prune equation noPrune ih =>
     dsimp only [idx] at equation ih
@@ -833,10 +833,10 @@ theorem first_loop_go_ready (state : NumericState config dimension)
         exact here
       · exact earlier j inside (by omega)
     have result := ih unique nextReferences nextProcessed
-    rw [NumericState.learnFirstLoopGo, dif_pos valid]
-    simpa only [equation, if_neg noPrune] using result
+    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    simpa only [equation, ite_eq_right noPrune] using result
   | case3 state work pos finished =>
-    rw [NumericState.learnFirstLoopGo, dif_neg finished]
+    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
     refine ⟨unique, ?_⟩
     intro idx member
     obtain ⟨j, inside, rfl⟩ := Array.mem_iff_getElem.mp member
@@ -1134,15 +1134,15 @@ theorem first_loop_go_size (state : NumericState config dimension)
       NumericState.learnFirstLoopGo.induct config delta vDelta decay with
   | case1 state work pos valid idx next equation ih =>
     dsimp only [idx] at equation ih
-    rw [NumericState.learnFirstLoopGo, dif_pos valid]
+    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
     simp only [equation, ite_true]
     exact le_trans ih (by rw [swap_remove_size]; omega)
   | case2 state work pos valid idx next prune equation noPrune ih =>
     dsimp only [idx] at equation ih
-    rw [NumericState.learnFirstLoopGo, dif_pos valid]
-    simpa only [equation, if_neg noPrune] using ih
+    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    simpa only [equation, ite_eq_right noPrune] using ih
   | case3 state work pos finished =>
-    rw [NumericState.learnFirstLoopGo, dif_neg finished]
+    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
     exact le_refl _
 
 /-- Logical retained slots are counted from every executing state vector,

@@ -7,7 +7,7 @@ import AcornVerif.CurrentOperations
 /-!
 # Executing division and residual rounding
 
-These proofs connect the pinned Lean 4.33.0 standard model's
+These proofs connect the pinned Lean 4.34.0 standard model's
 `Unpacked/Operations/Div.lean` quotient, exponent selection and residual-bit
 rounding to the actual binary64 division wrapper. The bound uses the enclosing
 integer quotient interval, so it holds for every residual-accuracy case without
@@ -35,11 +35,11 @@ theorem model_round_accuracy_value (spec : Format) (sign : Sign) (mantissa : Nat
   let first := shiftToTargetExponent spec mantissa exponent accuracy
   by_cases carry : first.1.roundedMantissa = 2^spec.mantissaBits
   · change unpackedValue (if _ then _ else _) = _
-    rw [if_pos carry, carry]
+    rw [ite_eq_left carry, carry]
     simp only [unpackedValue, Nat.cast_pow, Nat.cast_ofNat, Format.mantissaBits]
     rw [zpow_add₀ (by norm_num : (2:ℚ) ≠ 0) _ 1, zpow_one, pow_add]
     ring
-  · rw [if_neg carry]
+  · rw [ite_eq_right carry]
     split
     · rename_i zero
       simp only [unpackedValue, zero, Nat.cast_zero, mul_zero, zero_mul]
@@ -193,7 +193,7 @@ theorem model_round_accuracy_zero_normalized (spec : Format) (sign : Sign) (expo
   rw [model_round_accuracy_components]
   have noCarry : first.1.roundedMantissa ≠ 2^spec.mantissaBits := by omega
   change ModelNormalized spec (if first.1.roundedMantissa = _ then _ else _)
-  rw [if_neg noCarry]
+  rw [ite_eq_right noCarry]
   split
   · trivial
   · change first.1.roundedMantissa < 2^spec.mantissaBits ∧
@@ -221,7 +221,7 @@ theorem model_divCore_ready (spec : Format) (left right : Nat)
   change (if core.1=0 then core.2.1 ≤ spec.minExponent
     else core.2.1 ≤ spec.targetExponent (totalExponent core.1 core.2.1))
   by_cases zero : core.1=0
-  · rw [if_pos zero]
+  · rw [ite_eq_left zero]
     have comparison : (2:ℚ)^(difference-1) < (2:ℚ)^core.2.1 := by
       have h := lt_of_le_of_lt lower bracket.2.2.2
       simpa only [zero, Nat.cast_zero, zero_add, one_mul] using h
@@ -229,7 +229,7 @@ theorem model_divCore_ready (spec : Format) (left right : Nat)
     have ready := bracket.2.1
     dsimp only [Format.targetExponent] at ready
     omega
-  · rw [if_neg zero]
+  · rw [ite_eq_right zero]
     by_cases floor : core.2.1 ≤ spec.minExponent
     · dsimp only [Format.targetExponent]
       omega

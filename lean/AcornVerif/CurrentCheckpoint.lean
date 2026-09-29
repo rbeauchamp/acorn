@@ -28,7 +28,7 @@ theorem goal_roundtrip (record : GoalTotals) : admitGoal (goalWords record) = so
     record.steps = 0) :=
     ⟨record.successesBound, record.emptySteps⟩
   unfold admitGoal goalWords
-  rw [dif_pos valid]
+  rw [dite_eq_left valid]
 
 /-- Mapping a word projection and its partial inverse covers all vector positions. -/
 theorem vector_roundtrip {α β : Type} {count : Nat} (encode : α → β) (admit : β → Option α)

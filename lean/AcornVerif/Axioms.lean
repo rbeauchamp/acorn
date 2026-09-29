@@ -337,11 +337,11 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 #guard_msgs in
 #print axioms trace_geometric_bound
 
-/-- info: 'AcornVerif.big_world_margin_holds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'AcornVerif.big_world_margin_holds' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms big_world_margin_holds
 
-/-- info: 'AcornVerif.agent_exceeds_terrain_description' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'AcornVerif.agent_exceeds_terrain_description' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms agent_exceeds_terrain_description
 
@@ -441,7 +441,7 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 #guard_msgs in
 #print axioms exhaustion_rate_bound
 
-/-- info: 'AcornVerif.rest_pays_for_an_action' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'AcornVerif.rest_pays_for_an_action' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms rest_pays_for_an_action
 

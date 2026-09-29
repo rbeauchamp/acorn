@@ -12,7 +12,7 @@ import Mathlib.Tactic.Linarith
 /-!
 # Rounding semantics shared by the machine formats
 
-These proofs unfold the pinned Lean 4.33.0 standard model in
+These proofs unfold the pinned Lean 4.34.0 standard model in
 `Init/Data/Float/Model/Unpacked/Round.lean`. Induction connects the actual
 round/sticky-bit shifts to `Acorn.Rounding.nearestEven`; exact carry
 normalization then gives the dyadic half-unit error bound for every format.
@@ -85,7 +85,7 @@ theorem model_round_shift_exact (mantissa shift : Nat) :
           (2^(shift+1) = 2*(mantissa%2^shift) ∧ (mantissa/2^shift/2)%2 = 1)) := by
         rw [Nat.pow_succ]
         omega
-      rw [if_neg hcond]
+      rw [ite_eq_right hcond]
       by_cases residual : mantissa%2^shift = 0
       · simp [residual, ExtendedMantissa.roundedMantissa, ExtendedMantissa.accuracy,
         Accuracy.roundToNearestEven]
@@ -108,7 +108,7 @@ theorem model_round_shift_exact (mantissa shift : Nat) :
           left
           rw [Nat.pow_succ]
           omega
-        rw [if_pos hcond]
+        rw [ite_eq_left hcond]
         have rtrue : (mantissa%2^shift != 0) = true := by simpa using residual
         rw [rtrue]
         rfl
@@ -156,7 +156,7 @@ theorem model_second_shift_format (spec : Format) (mantissa : Nat) (exponent : I
           exponent + 1)
       else (ExtendedMantissa.ofMantissaAndAccuracy mantissa .exact, exponent) := by
   by_cases carry : mantissa = 2^spec.mantissaBits
-  · rw [if_pos carry, carry]
+  · rw [ite_eq_left carry, carry]
     have hl : (2 ^ spec.mantissaBits :Nat).log2 = spec.mantissaBits := by simp
     have ht : spec.targetExponent (totalExponent (2 ^ spec.mantissaBits) exponent) = exponent+1 :=
       by
@@ -170,7 +170,7 @@ theorem model_second_shift_format (spec : Format) (mantissa : Nat) (exponent : I
     have hp : 2^spec.mantissaBits = 2^spec.mantissaBitsWithoutImplicit*2 := by
       rw [Format.mantissaBits, Nat.add_comm, Nat.pow_succ]
     simp [ExtendedMantissa.shiftRightOne, ExtendedMantissa.ofMantissaAndAccuracy, hp]
-  · rw [if_neg carry]
+  · rw [ite_eq_right carry]
     have hl : mantissa.log2+1 ≤ spec.mantissaBits := by
       by_cases hz : mantissa = 0
       · rw [hz]
@@ -259,12 +259,12 @@ theorem model_round_exact_value (spec : Format) (sign : Sign) (mantissa : Nat) (
   rw [model_round_exact_components]
   by_cases hc : Rounding.nearestEven mantissa (2^(spec.targetExponent (totalExponent mantissa
     exponent)-exponent).toNat) = 2^spec.mantissaBits
-  · rw [if_pos hc, hc]
+  · rw [ite_eq_left hc, hc]
     simp only [unpackedValue, Nat.cast_pow, Nat.cast_ofNat, Format.mantissaBits]
     rw [zpow_add₀ (by norm_num : (2:ℚ) ≠ 0) _ 1, zpow_one]
     rw [pow_add]
     ring
-  · rw [if_neg hc]
+  · rw [ite_eq_right hc]
     split
     · rename_i hz
       simp only [unpackedValue, hz, Nat.cast_zero, mul_zero, zero_mul]
@@ -430,14 +430,14 @@ theorem model_round_accuracy_normalized (spec : Format) (sign : Sign) (mantissa 
     else if h : first.1.roundedMantissa = 0 then .zero sign
     else .finite sign first.1.roundedMantissa first.2 (Nat.pos_of_ne_zero h))
   by_cases carry : first.1.roundedMantissa = 2 ^ spec.mantissaBits
-  · rw [if_pos carry]
+  · rw [ite_eq_left carry]
     dsimp only [ModelNormalized]
     have hpows : 2 ^ spec.mantissaBitsWithoutImplicit < 2 ^ spec.mantissaBits := by
       rw [Format.mantissaBits, Nat.add_comm, Nat.pow_succ]
       have := Nat.two_pow_pos spec.mantissaBitsWithoutImplicit
       omega
     exact ⟨hpows, by omega, Or.inr (Nat.le_refl _)⟩
-  · rw [if_neg carry]
+  · rw [ite_eq_right carry]
     split
     · trivial
     · dsimp only [ModelNormalized]
@@ -529,7 +529,7 @@ theorem model_unpack_pack_normalized (spec : Format) (value : UnpackedFloat)
   | zero sign =>
     rw [pack, packedZero, model_unpack_components]
     have hn : (0#spec.exponentBits) ≠ -1#spec.exponentBits := by
-      have hp := Nat.one_lt_two_pow (Nat.ne_of_gt spec.he)
+      have hp := Nat.one_lt_two_pow (Nat.ne_of_gt (Nat.zero_lt_of_lt spec.he))
       intro h
       have := congrArg BitVec.toNat h
       simp only [BitVec.toNat_ofNat, Nat.zero_mod, BitVec.neg_one_eq_allOnes,
@@ -560,7 +560,7 @@ theorem model_unpack_pack_normalized (spec : Format) (value : UnpackedFloat)
     have heval : (biased : Int) - (spec.exponentBias + spec.mantissaBitsWithoutImplicit) =
         exponent := by dsimp [biased]; omega
     unfold pack
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
     by_cases leading : 2 ^ spec.mantissaBitsWithoutImplicit ≤ mantissa
     · have logeq : mantissa.log2 = spec.mantissaBitsWithoutImplicit := by
         apply (Nat.log2_eq_iff (by omega : mantissa ≠ 0)).mpr
@@ -568,7 +568,7 @@ theorem model_unpack_pack_normalized (spec : Format) (value : UnpackedFloat)
       have hnormal : mantissa.log2 + 1 = spec.mantissaBits := by
         rw [logeq, Format.mantissaBits]
         omega
-      rw [if_pos hnormal, model_unpack_components, if_neg hinf, if_neg hzero]
+      rw [ite_eq_left hnormal, model_unpack_components, ite_eq_right hinf, ite_eq_right hzero]
       have hmvec : (1#1 ++ BitVec.ofNat spec.mantissaBitsWithoutImplicit mantissa).toNat =
           2 ^ spec.mantissaBitsWithoutImplicit + mantissa % 2 ^ spec.mantissaBitsWithoutImplicit
             := by
@@ -593,21 +593,21 @@ theorem model_unpack_pack_normalized (spec : Format) (value : UnpackedFloat)
         have hl := (Nat.log2_lt (by omega : mantissa ≠ 0)).mpr hsmall
         simp only [Format.mantissaBits]
         omega
-      rw [if_neg hnormal, model_unpack_components]
+      rw [ite_eq_right hnormal, model_unpack_components]
       have hn : (0#spec.exponentBits) ≠ -1#spec.exponentBits := by
-        have hp := Nat.one_lt_two_pow (Nat.ne_of_gt spec.he)
+        have hp := Nat.one_lt_two_pow (Nat.ne_of_gt (Nat.zero_lt_of_lt spec.he))
         intro h
         have := congrArg BitVec.toNat h
         simp only [BitVec.toNat_ofNat, Nat.zero_mod, BitVec.neg_one_eq_allOnes,
           BitVec.toNat_allOnes] at this
         omega
-      rw [if_neg hn, if_pos rfl]
+      rw [ite_eq_right hn, ite_eq_left rfl]
       have hmzero : BitVec.ofNat spec.mantissaBitsWithoutImplicit mantissa ≠ 0#_ := by
         intro h
         have := congrArg BitVec.toNat h
         simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hsmall, Nat.zero_mod] at this
         omega
-      rw [dif_neg hmzero]
+      rw [dite_eq_right hmzero]
       simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hsmall, Nat.zero_mod, Int.natCast_zero]
       have hbias := model_format_min_bias spec
       have hout : (0 : Int) - (spec.exponentBias + spec.mantissaBitsWithoutImplicit) + 1 =
@@ -635,7 +635,7 @@ theorem model_unpack_format (spec : Format) (exponentWidth : 1 < spec.exponentBi
       else .finite sv (1#1 ++ mv).toNat
         (ev.toNat-(spec.exponentBias+spec.mantissaBitsWithoutImplicit)) (by simp)) := rfl
   by_cases inf : ev = -1#_
-  · rw [unpackEq, if_pos inf] at finite
+  · rw [unpackEq, ite_eq_left inf] at finite
     split at finite <;> contradiction
   · have hev : ev.toNat + 1 < 2 ^ spec.exponentBits := by
       have hn : ev.toNat ≠ 2 ^ spec.exponentBits-1 := by
@@ -644,17 +644,17 @@ theorem model_unpack_format (spec : Format) (exponentWidth : 1 < spec.exponentBi
         apply BitVec.eq_of_toNat_eq
         simpa only [BitVec.neg_one_eq_allOnes, BitVec.toNat_allOnes] using h
       omega
-    rw [if_neg inf] at unpackEq
+    rw [ite_eq_right inf] at unpackEq
     by_cases ez : ev = 0#_
-    · rw [if_pos ez] at unpackEq
+    · rw [ite_eq_left ez] at unpackEq
       have ezn : ev.toNat = 0 := congrArg BitVec.toNat ez
       have eout : (ev.toNat : Int) - (spec.exponentBias+spec.mantissaBitsWithoutImplicit)+1 =
           spec.minExponent := by rw [ezn]; omega
       by_cases mz : mv = 0#_
-      · rw [dif_pos mz] at unpackEq
+      · rw [dite_eq_left mz] at unpackEq
         rw [unpackEq]
         exact ⟨True.intro, True.intro⟩
-      · rw [dif_neg mz] at unpackEq
+      · rw [dite_eq_right mz] at unpackEq
         rw [unpackEq]
         dsimp only [ModelNormalized, ModelFits]
         rw [eout]
@@ -666,7 +666,7 @@ theorem model_unpack_format (spec : Format) (exponentWidth : 1 < spec.exponentBi
         rw [hbias]
         change 2 < 2 ^ spec.exponentBits
         exact Nat.pow_lt_pow_right (by decide : 1 < 2) exponentWidth
-    · rw [if_neg ez] at unpackEq
+    · rw [ite_eq_right ez] at unpackEq
       rw [unpackEq]
       dsimp only [ModelNormalized, ModelFits]
       have ezn : 0 < ev.toNat := by
@@ -1028,7 +1028,7 @@ theorem model_unpack_finite_exponent (spec : Format) (bits : BitVec spec.numBits
       omega
     simp only [decide_eq_false hfield]
     unfold unpack
-    rw [if_pos inf]
+    rw [ite_eq_left inf]
     split <;> rfl
   · have hn : ev.toNat < 2 ^ spec.exponentBits-1 := by
       have hne : ev.toNat ≠ 2 ^ spec.exponentBits-1 := by
@@ -1040,7 +1040,7 @@ theorem model_unpack_finite_exponent (spec : Format) (bits : BitVec spec.numBits
     simp only [show (unpackExponent bits).toNat < 2 ^ spec.exponentBits-1 from hn,
       decide_true]
     unfold unpack
-    rw [if_neg inf]
+    rw [ite_eq_right inf]
     split
     · split <;> rfl
     · rfl

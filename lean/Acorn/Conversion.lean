@@ -372,7 +372,7 @@ theorem normalMagnitude_bound (bits exponent : UInt64)
   · have hover : normalExponent bits exponent > 1150 := by
       change 1150 < (normalExponent bits exponent).toNat
       omega
-    simp only [normalMagnitude_components, if_pos hover]
+    simp only [normalMagnitude_components, ite_eq_left hover]
     decide
 
 /-- The pinned native word-logarithm primitive has the standard integer meaning.
@@ -664,7 +664,7 @@ theorem subnormalFields_units (bits : UInt64) (magnitude : UInt32)
     rfl
   · have heq : magnitude.toNat = 2 ^ 23 := by omega
     rw [heq]
-    rw [Nat.div_self (by decide : 0 < 2 ^ 23), Nat.mod_self, if_neg (by decide : ¬ 1 = 0), Nat.add_zero]
+    rw [Nat.div_self (by decide : 0 < 2 ^ 23), Nat.mod_self, ite_eq_right (by decide : ¬ 1 = 0), Nat.add_zero]
 
 /-- Raw binary64 field extraction reconstructs its signless encoding exactly. -/
 theorem fields64_decomposition (value : Binary64) :
@@ -761,7 +761,7 @@ theorem normalMagnitude_units (bits exponent : UInt64) (hlo : 897 ≤ exponent.t
       (normalExponent bits exponent).toNat - 896 := by
     rw [UInt64.toNat_toUInt32, hsub, Nat.mod_eq_of_lt (by omega)]
   rw [normalMagnitude_components]
-  rw [if_neg hnot, narrowFields_units bits _ _ (by rw [hcast]; omega)
+  rw [ite_eq_right hnot, narrowFields_units bits _ _ (by rw [hcast]; omega)
     (by rw [hcast]; omega) (normalFraction_exact bits).2, hcast]
   rw [Nat.add_comm (2 ^ 23), (normalFraction_exact bits).1]
   rw [show (normalExponent bits exponent).toNat - 896 + 924 =
@@ -804,7 +804,7 @@ theorem normalMagnitude_distance (value : Binary64)
       (normalSignificand value.bits).toNat * 2 ^ (exponent.toNat - 1) := by
     rw [fields64_units]
     dsimp only
-    rw [if_neg (show ¬ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat = 0 by omega)]
+    rw [ite_eq_right (show ¬ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat = 0 by omega)]
     rw [← normalSignificand_value]
   have hscale : 2 ^ 29 * 2 ^ (exponent.toNat - 1) = 2 ^ (exponent.toNat + 28) := by
     rw [← Nat.pow_add]
@@ -1111,7 +1111,7 @@ theorem narrow_finite_iff (value : Binary64) (finite : value.Finite) :
   rw [hresult]
   by_cases hnormal : exponent ≥ 897
   · have hlo : 897 ≤ exponent.toNat := hnormal
-    rw [if_pos hnormal]
+    rw [ite_eq_left hnormal]
     change (Binary32.mk (narrowSign value.bits ||| normalMagnitude value.bits exponent)).magnitude < _ ↔ _
     have hb := normalMagnitude_bound value.bits exponent hlo hewidth
     rw [narrowSign_magnitude _ _ (by omega)]
@@ -1119,7 +1119,7 @@ theorem narrow_finite_iff (value : Binary64) (finite : value.Finite) :
   · have hsubnormal : exponent.toNat < 897 := by
       change ¬ 897 ≤ exponent.toNat at hnormal
       omega
-    rw [if_neg hnormal]
+    rw [ite_eq_right hnormal]
     change (Binary32.mk (narrowSign value.bits ||| subnormalFraction value.bits exponent.toNat)).magnitude < _ ↔ _
     have hb := (subnormalFraction_exact value.bits exponent.toNat hsubnormal).2
     rw [narrowSign_magnitude _ _ (by omega)]
@@ -1162,12 +1162,12 @@ theorem narrow_distance (value : Binary64) (finite : value.Finite)
     _ ≤ _ + 2 ^ max 925 (exponent.toNat + 28)
   by_cases hnormal : exponent ≥ 897
   · have hlo : 897 ≤ exponent.toNat := hnormal
-    rw [if_pos hnormal, Nat.max_eq_right (show 925 ≤ exponent.toNat + 28 by omega)]
+    rw [ite_eq_left hnormal, Nat.max_eq_right (show 925 ≤ exponent.toNat + 28 by omega)]
     exact normalMagnitude_distance value hlo hewidth noOverflow
   · have hsubnormal : exponent.toNat < 897 := by
       change ¬ 897 ≤ exponent.toNat at hnormal
       omega
-    rw [if_neg hnormal, Nat.max_eq_left (show exponent.toNat + 28 ≤ 925 by omega)]
+    rw [ite_eq_right hnormal, Nat.max_eq_left (show exponent.toNat + 28 ≤ 925 by omega)]
     exact subnormalMagnitude_distance value hsubnormal
 
 /-- The actual widening preserves the sign bit of every finite input,
@@ -1254,7 +1254,7 @@ theorem trunc64_magnitude_exact (value : Binary64) :
       -((if e ≥ 1075 then (2 ^ 52 + f) * 2 ^ (e - 1075) else (2 ^ 52 + f) / 2 ^ (1075 - e) : Nat) : Int)
     else ((if e ≥ 1075 then (2 ^ 52 + f) * 2 ^ (e - 1075) else (2 ^ 52 + f) / 2 ^ (1075 - e) : Nat) : Int)).natAbs = _
   by_cases hsmall : e < 1023
-  · rw [if_pos hsmall]
+  · rw [ite_eq_left hsmall]
     simp only [Int.natAbs_zero]
     apply Eq.symm
     apply Nat.div_eq_of_lt
@@ -1266,16 +1266,16 @@ theorem trunc64_magnitude_exact (value : Binary64) :
       have := Nat.mul_lt_mul_of_pos_right hs (Nat.two_pow_pos (e - 1))
       have := Nat.mul_le_mul_left (2 ^ 53) hp
       omega
-  · rw [if_neg hsmall]
+  · rw [ite_eq_right hsmall]
     have he : e ≠ 0 := by omega
-    rw [if_neg he]
+    rw [ite_eq_right he]
     split <;> simp only [Int.natAbs_neg, Int.natAbs_natCast]
     all_goals
       by_cases hlarge : e ≥ 1075
-      · rw [if_pos hlarge]
+      · rw [ite_eq_left hlarge]
         have hp : e - 1 = (e - 1075) + 1074 := by omega
         rw [hp, Nat.pow_add, ← Nat.mul_assoc, Nat.mul_div_cancel _ (Nat.two_pow_pos 1074)]
-      · rw [if_neg hlarge]
+      · rw [ite_eq_right hlarge]
         have hp : 1074 = (e - 1) + (1075 - e) := by omega
         conv => rhs; rw [hp, Nat.pow_add]
         rw [← Nat.div_div_eq_div_mul, Nat.mul_div_cancel _ (Nat.two_pow_pos (e - 1))]
@@ -1370,25 +1370,25 @@ theorem i64Magnitude_exact (value : Int64) :
     (value.toUInt64.toNat : Int) else (value.toUInt64.toNat : Int) - (2^64 : Nat) at repr
   have width := value.toUInt64.toNat_lt
   by_cases negative : value < 0
-  · rw [if_pos negative, UInt64.toNat_neg]
+  · rw [ite_eq_left negative, UInt64.toNat_neg]
     have sign : value.toInt < 0 := by simpa using (Int64.lt_iff_toInt_lt.mp negative)
-    have high : ¬ 2 * value.toUInt64.toNat < 2^64 := by intro h; rw [if_pos h] at repr; omega
-    rw [if_neg high] at repr
+    have high : ¬ 2 * value.toUInt64.toNat < 2^64 := by intro h; rw [ite_eq_left h] at repr; omega
+    rw [ite_eq_right high] at repr
     have magnitude : value.toInt.natAbs = 2^64 - value.toUInt64.toNat := by
       have abs := Int.ofNat_natAbs_of_nonpos (show value.toInt ≤ 0 by omega)
       omega
     rw [magnitude]
     exact Nat.mod_eq_of_lt (by change 2^64 - value.toUInt64.toNat < 2^64; omega)
-  · rw [if_neg negative]
+  · rw [ite_eq_right negative]
     have sign : 0 ≤ value.toInt := by
       have h : ¬ value.toInt < 0 := by simpa [Int64.lt_iff_toInt_lt] using negative
       omega
     have low : 2 * value.toUInt64.toNat < 2^64 := by
       by_cases h : 2 * value.toUInt64.toNat < 2^64
       · exact h
-      · rw [if_neg h] at repr
+      · rw [ite_eq_right h] at repr
         omega
-    rw [if_pos low] at repr
+    rw [ite_eq_left low] at repr
     rw [repr, Int.natAbs_natCast]
 
 /-- Every i64 follows the existing signed conversion's exact primitive recipe. -/
@@ -1507,7 +1507,7 @@ theorem normalMagnitude_unit (bits exponent : UInt64) (lo : 897 ≤ exponent.toN
       omega
     · split at he <;> omega
   rw [normalMagnitude_components]
-  rw [if_neg (show ¬normalExponent bits exponent > 1150 by change ¬1150 < (normalExponent bits exponent).toNat; omega)]
+  rw [ite_eq_right (show ¬normalExponent bits exponent > 1150 by change ¬1150 < (normalExponent bits exponent).toNat; omega)]
   have hsub : (normalExponent bits exponent - 896).toNat = (normalExponent bits exponent).toNat - 896 := by
     rw [UInt64.toNat_sub_of_le]
     · rfl
@@ -1613,11 +1613,11 @@ theorem narrow_magnitude_cases (value : Binary64)
   · split
     · rename_i h
       have hlo : 897 ≤ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat := h
-      rw [if_pos hlo]
+      rw [ite_eq_left hlo]
       exact narrowSign_magnitude _ _ (by have := normalMagnitude_bound value.bits _ hlo he; omega)
     · rename_i h
       have hh : ¬897 ≤ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat := h
-      rw [if_neg hh]
+      rw [ite_eq_right hh]
       exact narrowSign_magnitude _ _ (by
         have := (subnormalFraction_exact value.bits (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat (by omega)).2
         omega)
@@ -1646,7 +1646,7 @@ theorem normalMagnitude_aligned (bits exponent : UInt64) (fraction : Nat)
       omega
   have hcast : (exponent-896).toUInt32.toNat = exponent.toNat-896 := by
     rw [UInt64.toNat_toUInt32, hsub, Nat.mod_eq_of_lt (by omega)]
-  rw [normalMagnitude_components, heq, if_neg (show ¬ exponent > 1150 by change ¬1150 < exponent.toNat; omega)]
+  rw [normalMagnitude_components, heq, ite_eq_right (show ¬ exponent > 1150 by change ¬1150 < exponent.toNat; omega)]
   rw [normalFields_exact _ _ (by rw [hcast]; omega) hfrac.2, hcast]
   omega
 
@@ -1735,12 +1735,12 @@ theorem narrow_widen_magnitude (value : Binary32) (finite : value.Finite) :
       have sigs := wideFields_significand value.bits (f.toNat.log2+874).toUInt64 (widenSubnormalFraction f)
         (by rw [hecast]; omega) (by rw [hecast]; omega) hf
       rw [narrow_magnitude_cases _ (by rw [fields.1, hecast]; omega), fields.1, hecast,
-        if_neg (show ¬897 ≤ f.toNat.log2+874 by omega)]
+        ite_eq_right (show ¬897 ≤ f.toNat.log2+874 by omega)]
       apply subnormalFraction_aligned _ _ _ (by omega)
       rw [sigs.2, widenSubnormalFraction_value f hfpos hwidth]
       have hs : subnormalShift (f.toNat.log2+874) = 52-f.toNat.log2 := by
         unfold subnormalShift
-        rw [if_neg (by omega)]
+        rw [ite_eq_right (by omega)]
         omega
       rw [hs]
   · have efalse : (e == 0) = false := by simpa using ez
@@ -1758,7 +1758,7 @@ theorem narrow_widen_magnitude (value : Binary32) (finite : value.Finite) :
     have sigs := wideFields_significand value.bits (e.toUInt64+896) (widenFraction f)
       (by rw [hecast]; omega) (by rw [hecast]; omega) hf.2
     rw [narrow_magnitude_cases _ (by rw [fields.1, hecast]; omega), fields.1,
-      if_pos (show 897 ≤ (e.toUInt64+896).toNat by rw [hecast]; omega)]
+      ite_eq_left (show 897 ≤ (e.toUInt64+896).toNat by rw [hecast]; omega)]
     rw [normalMagnitude_aligned _ _ f.toNat (by rw [hecast]; omega) (by rw [hecast]; omega) hwidth
       (by rw [sigs.1, hf.1]; rw [Nat.add_mul])]
     rw [hecast]
@@ -1940,17 +1940,17 @@ theorem trunc64_large_power (value : Binary64) (power : Nat) (width : power ≤ 
   have hs : ((value.bits &&& 0xfffffffffffff) ||| 0x10000000000000) =
       normalSignificand value.bits := UInt64.or_comm _ _
   unfold trunc64
-  rw [hs, if_neg (show ¬e < 1023 by omega)]
+  rw [hs, ite_eq_right (show ¬e < 1023 by omega)]
   by_cases negative : (value.bits &&& 0x8000000000000000 != 0) = true
   all_goals simp only [negative, ↓reduceIte, Int.natAbs_neg, Int.natAbs_natCast]
   all_goals
     by_cases h : 1075 ≤ e
-    · rw [if_pos h]
+    · rw [ite_eq_left h]
       have hp := Nat.two_pow_pos (e-1075)
       have hm := Nat.mul_le_mul_left (normalSignificand value.bits).toNat hp
       dsimp only [e] at *
       omega
-    · rw [if_neg h]
+    · rw [ite_eq_right h]
       have hd : 1075-e ≤ 52-power := by omega
       have hp := Nat.pow_le_pow_right (n := 2) (by decide) hd
       apply (Nat.le_div_iff_mul_le (Nat.two_pow_pos _)).mpr
@@ -1978,9 +1978,9 @@ theorem trunc64_i32 (value : Binary64)
   have hs : ((value.bits &&& 0xfffffffffffff) ||| 0x10000000000000) =
       normalSignificand value.bits := UInt64.or_comm _ _
   unfold trunc64
-  rw [hs, if_neg (show ¬(((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat < 1023 by omega)]
+  rw [hs, ite_eq_right (show ¬(((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat < 1023 by omega)]
   dsimp only
-  rw [if_neg (show ¬(((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat ≥ 1075 by omega), ← eqn]
+  rw [ite_eq_right (show ¬(((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat ≥ 1075 by omega), ← eqn]
 
 /-- Word conversion has the same total saturating semantics as the public
 integer specification, for every binary64 encoding. -/
@@ -2000,7 +2000,7 @@ theorem toI32_eq_signedCast (value : Binary64) : toI32 value = signedCast 31 val
     simp only [toI32, toI32Word, notnan, Bool.false_eq_true, ↓reduceIte,
       signedCast, inf, BEq.rfl]
     change Int32.toInt (if e ≥ 1054 then _ else _) = _
-    rw [if_pos elarge]
+    rw [ite_eq_left elarge]
     by_cases neg : (value.bits &&& 0x8000000000000000 != 0) = true
     all_goals simp only [neg, Bool.false_eq_true, ↓reduceIte]; rfl
   have finite : value.Finite := by unfold Binary64.Finite; omega
@@ -2008,7 +2008,7 @@ theorem toI32_eq_signedCast (value : Binary64) : toI32 value = signedCast 31 val
   simp only [toI32, toI32Word, notnan, Bool.false_eq_true, ↓reduceIte]
   change Int32.toInt (if e ≥ 1054 then _ else if e < 1023 then _ else _) = _
   by_cases large : e ≥ (1054 : UInt64)
-  · rw [if_pos large]
+  · rw [ite_eq_left large]
     have bound := trunc64_large value large
     have signed := trunc64_signed_magnitude value
     by_cases neg : (value.bits &&& 0x8000000000000000 != 0) = true
@@ -2019,15 +2019,15 @@ theorem toI32_eq_signedCast (value : Binary64) : toI32 value = signedCast 31 val
       have minValue : ((0x80000000 : UInt32).toInt32).toInt = -2147483648 := rfl
       have maxValue : ((0x7fffffff : UInt32).toInt32).toInt = 2147483647 := rfl
       omega
-  · rw [if_neg large]
+  · rw [ite_eq_right large]
     by_cases small : e < (1023 : UInt64)
-    · rw [if_pos small]
+    · rw [ite_eq_left small]
       have tz : trunc64 value = 0 := by
         unfold trunc64
-        exact if_pos (show e.toNat < 1023 from small)
+        exact ite_eq_left (show e.toNat < 1023 from small)
       rw [tz]
       rfl
-    · rw [if_neg small]
+    · rw [ite_eq_right small]
       have lo : 1023 ≤ e.toNat := Nat.le_of_not_gt small
       have hi : e.toNat < 1054 := Nat.lt_of_not_ge large
       have exactWord := truncI32Magnitude_exact value.bits lo hi
@@ -2067,7 +2067,7 @@ theorem truncI64Magnitude_exact (bits : UInt64)
   have sig := (normalSignificand_bounds bits).2
   unfold truncI64Magnitude
   by_cases large : e ≥ (1075 : UInt64)
-  · rw [if_pos large, if_pos (show e.toNat ≥ 1075 from large)]
+  · rw [ite_eq_left large, ite_eq_left (show e.toNat ≥ 1075 from large)]
     have delta : (e - 1075).toNat = e.toNat - 1075 := UInt64.toNat_sub_of_le _ _ large
     have shiftBound : e.toNat - 1075 < 64 := by omega
     have power : 2^(e.toNat - 1075) ≤ 2^10 := Nat.pow_le_pow_right (by decide) (by omega)
@@ -2080,7 +2080,7 @@ theorem truncI64Magnitude_exact (bits : UInt64)
       rw [UInt64.toNat_shiftLeft, delta, Nat.mod_eq_of_lt shiftBound, Nat.shiftLeft_eq,
         Nat.mod_eq_of_lt (by omega)]
     exact ⟨eqn, eqn ▸ bound⟩
-  · rw [if_neg large, if_neg (show ¬ e.toNat ≥ 1075 from large)]
+  · rw [ite_eq_right large, ite_eq_right (show ¬ e.toNat ≥ 1075 from large)]
     have esmall : e.toNat < 1075 := Nat.lt_of_not_ge large
     have delta : ((1075 : UInt64) - e).toNat = 1075 - e.toNat :=
       UInt64.toNat_sub_of_le _ _ (by change e.toNat ≤ 1075; omega)
@@ -2103,9 +2103,9 @@ theorem trunc64_large_i64 (value : Binary64)
   have hs : ((value.bits &&& 0xfffffffffffff) ||| 0x10000000000000) =
       normalSignificand value.bits := UInt64.or_comm _ _
   unfold trunc64
-  rw [hs, if_neg (show ¬e < 1023 by omega)]
+  rw [hs, ite_eq_right (show ¬e < 1023 by omega)]
   dsimp only
-  rw [if_pos (show e ≥ 1075 by omega)]
+  rw [ite_eq_left (show e ≥ 1075 by omega)]
   have power : 2^11 ≤ 2^(e-1075) := Nat.pow_le_pow_right (by decide) (by omega)
   have bound := Nat.mul_le_mul sig power
   split <;> simp only [Int.natAbs_neg, Int.natAbs_natCast] <;> exact bound
@@ -2120,7 +2120,7 @@ theorem trunc64_i64 (value : Binary64)
   have hs : ((value.bits &&& 0xfffffffffffff) ||| 0x10000000000000) =
       normalSignificand value.bits := UInt64.or_comm _ _
   unfold trunc64
-  rw [hs, if_neg (show ¬(value.bits >>> 52 &&& (0x7ff : UInt64)).toNat < 1023 by omega)]
+  rw [hs, ite_eq_right (show ¬(value.bits >>> 52 &&& (0x7ff : UInt64)).toNat < 1023 by omega)]
   dsimp only
   rw [← eqn]
 
@@ -2157,7 +2157,7 @@ theorem toI64_eq_signedCast (value : Binary64) : toI64 value = signedCast 63 val
     simp only [toI64, toI64Word, notnan, Bool.false_eq_true, ↓reduceIte,
       signedCast, inf, BEq.rfl]
     change Int64.toInt (if e ≥ 1086 then _ else _) = _
-    rw [if_pos elarge]
+    rw [ite_eq_left elarge]
     by_cases neg : (value.bits &&& 0x8000000000000000 != 0) = true
     all_goals simp only [neg, Bool.false_eq_true, ↓reduceIte]; rfl
   have finite : value.Finite := by unfold Binary64.Finite; omega
@@ -2165,7 +2165,7 @@ theorem toI64_eq_signedCast (value : Binary64) : toI64 value = signedCast 63 val
   simp only [toI64, toI64Word, notnan, Bool.false_eq_true, ↓reduceIte]
   change Int64.toInt (if e ≥ 1086 then _ else if e < 1023 then _ else _) = _
   by_cases large : e ≥ (1086 : UInt64)
-  · rw [if_pos large]
+  · rw [ite_eq_left large]
     have bound := trunc64_large_i64 value large
     have signed := trunc64_signed_magnitude value
     by_cases neg : (value.bits &&& 0x8000000000000000 != 0) = true
@@ -2176,15 +2176,15 @@ theorem toI64_eq_signedCast (value : Binary64) : toI64 value = signedCast 63 val
       have minValue : ((0x8000000000000000 : UInt64).toInt64).toInt = -9223372036854775808 := rfl
       have maxValue : ((0x7fffffffffffffff : UInt64).toInt64).toInt = 9223372036854775807 := rfl
       omega
-  · rw [if_neg large]
+  · rw [ite_eq_right large]
     by_cases small : e < (1023 : UInt64)
-    · rw [if_pos small]
+    · rw [ite_eq_left small]
       have tz : trunc64 value = 0 := by
         unfold trunc64
-        exact if_pos (show e.toNat < 1023 from small)
+        exact ite_eq_left (show e.toNat < 1023 from small)
       rw [tz]
       rfl
-    · rw [if_neg small]
+    · rw [ite_eq_right small]
       have lo : 1023 ≤ e.toNat := Nat.le_of_not_gt small
       have hi : e.toNat < 1086 := Nat.lt_of_not_ge large
       have exactWord := truncI64Magnitude_exact value.bits lo hi
@@ -2221,11 +2221,11 @@ theorem cappedTrunc128_exact (value : Binary64) :
   unfold cappedTrunc128
   split
   · rename_i negative
-    rw [if_pos negative] at signed
+    rw [ite_eq_left negative] at signed
     rw [signed]
     simp
   · rename_i nonnegative
-    rw [if_neg nonnegative] at signed
+    rw [ite_eq_right nonnegative] at signed
     simp only [ge_iff_le, UInt64.le_iff_toNat_le, UInt64.lt_iff_toNat_lt,
       UInt64.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
     split
@@ -2239,11 +2239,11 @@ theorem cappedTrunc128_exact (value : Binary64) :
       · rename_i low
         have hz : trunc64 value = 0 := by
           unfold trunc64
-          rw [if_pos low]
+          rw [ite_eq_left low]
         simp [hz]
       · rename_i low
         have hcast := trunc64_i32 value (by omega) (by omega)
-        rw [if_neg nonnegative] at hcast
+        rw [ite_eq_right nonnegative] at hcast
         rw [hcast]
         simp only [Int.toNat_natCast]
         have exactMagnitude := (truncI32Magnitude_exact value.bits (by omega) (by omega)).1

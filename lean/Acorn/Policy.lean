@@ -87,7 +87,7 @@ theorem reservoir_nonempty {actions : Nat} (action : Action actions)
     (if (rng.nextBelow (Word.Count.ofWord 1)).1.val == 0 then action else pick)
     (rng.nextBelow (Word.Count.ofWord 1)).2).1 ∈ action :: rest
   rw [first_reservoir_draw]
-  simp only [beq_self_eq_true, if_true]
+  simp only [beq_self_eq_true, ite_true]
   rcases reservoir_support rest 1 action (rng.nextBelow (Word.Count.ofWord 1)).2 with h | h
   · exact List.mem_cons.mpr (Or.inl h)
   · exact List.mem_cons.mpr (Or.inr h)

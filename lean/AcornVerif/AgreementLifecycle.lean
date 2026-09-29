@@ -159,7 +159,7 @@ theorem start_cases {discount : Discount} (state : DemonStats discount) (clock :
         exact Or.inl (Option.some.inj equality).symm
       · have unequal : slot.val ≠ target.val := fun sameValue => same (Fin.ext sameValue)
         apply Or.inr
-        simpa only [vector_get, Vector.getElem_set, unequal, if_false] using present
+        simpa only [vector_get, Vector.getElem_set, unequal, ite_false] using present
   · exact Or.inr present
 
 /-- Post-observation forecasts are fresh or advanced exactly once from their prior slot. -/
