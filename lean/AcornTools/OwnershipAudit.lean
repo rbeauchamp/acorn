@@ -129,7 +129,7 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
         require (ownsMain == (isEntry || owner == `Bootstrap))
           s!"{owner}: compiled main and executable inventory disagree"
         if isEntry then
-          require ((getModuleDoc? env owner).any (·.any (·.doc.any (!·.isWhitespace))))
+          require ((getModuleDoc? env owner).any (·.any (·.doc.any (!·.isWhitespace : Char → Bool))))
             s!"{owner}: executable root lacks a module docstring"
           entryContract env owner (← importClosure env owner)
         for (proofOwner, theoremName, implementation) in AcornOwnership.anchors do
