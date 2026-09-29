@@ -11,8 +11,9 @@ import Acorn.FeatureRestore
 
 Retirement retains temporal predictions, active-option potential, occupancy,
 planner state and the pending meta gap in the current schedule. These are not
-claimed to be fresh encodings of the replacement bank. New encoding frames are
-constructed against the current bank. Cold restore instead clears process state.
+claimed to be fresh encodings of the replacement bank. Every slot holding the
+replaced unit is released, and a release makes a refresh pending. New encoding
+frames are constructed against the current bank. Cold restore instead clears process state.
 Activation, exploration and decision payloads are parametric because this slice
 does not interpret their later control/option algorithms.
 -/
@@ -96,23 +97,44 @@ structure FeatureRuntime (shape : PatchShape) (config : Config) (criterion : Cri
   /-- Current process-local references. -/
   references : TemporalReferences discounts activation exploration decision
 
-/-- Retirement either returns the exact receiver or replaces only its owned lifecycle state. -/
+/-- Retirement either returns the exact receiver or replaces its owned lifecycle state,
+releasing every slot that holds the replaced unit and making a refresh pending when
+it releases one. -/
 def FeatureRuntime.retire {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision) :
     FeatureRuntime shape config criterion dimension discounts activation exploration decision :=
   match state.lifecycle.tryRetire with
   | none => state
-  | some (_, lifecycle) => { state with lifecycle }
+  | some (unit, lifecycle) =>
+    { state with
+      lifecycle := { lifecycle with consumers := lifecycle.consumers.release unit }
+      refresh := { state.refresh with
+        pending := state.refresh.pending || lifecycle.consumers.holds unit } }
 
-/-- Every temporal reference, including live activation potential, is retained exactly.
-This is a schedule-preservation claim, not a claim that all cached numbers were recomputed. -/
+/-- Every temporal reference, including live activation potential, and the refresh
+cycle key are retained exactly. This is a schedule-preservation claim, not a claim
+that all cached numbers were recomputed. -/
 theorem FeatureRuntime.retire_references {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision) :
-    state.retire.references = state.references ∧ state.retire.refresh = state.refresh := by
+    state.retire.references = state.references ∧ state.retire.refresh.cycle = state.refresh.cycle := by
   unfold FeatureRuntime.retire
   split <;> exact ⟨rfl, rfl⟩
+
+/-- After retirement no held assignment names the replaced unit, and releasing a slot
+leaves a refresh pending. -/
+theorem FeatureRuntime.retire_releases {shape : PatchShape} {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
+    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (unit : Fin config.units.count) (lifecycle : Lifecycle shape config criterion dimension discounts)
+    (retired : state.lifecycle.tryRetire = some (unit, lifecycle)) :
+    (∀ slot : Fin Acorn.FeatureConstants.skillCount,
+      state.retire.lifecycle.consumers.skills[slot.val].interest.held.holds unit = false) ∧
+      (lifecycle.consumers.holds unit = true → state.retire.refresh.pending = true) := by
+  unfold FeatureRuntime.retire
+  rw [retired]
+  exact ⟨lifecycle.consumers.release_holds unit, fun released => by simp [released]⟩
 
 /-- Cold installation resets every current process-local reference family. -/
 def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : Criterion}

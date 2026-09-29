@@ -128,7 +128,7 @@ def FeatureImage.admit (config : Config) (criterion : Criterion) (dimension : Di
     some ⟨progress, assignments, raw.primary, raw.pending⟩
 
 /-- Cold installation reconstructs the bank and clears all lifecycle-owned transient state.
-No ranking function participates, so a saved bonus keeps its original identity. -/
+No ranking function participates, so a saved objective keeps its unit and held bonus. -/
 def FreeDispatch.restore {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)

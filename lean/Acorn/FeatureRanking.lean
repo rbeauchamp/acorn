@@ -17,17 +17,19 @@ https://arxiv.org/pdf/2202.03466v4.
 Acorn's PAR-12 adaptation ranks units whose signed Demon-0 weight is positive,
 with one minimum-unit representative per exact score block. The weight word of
 a selected unit becomes its attainment bonus, standing in for the source's bonus
-weight, "one of its largest values". The bonus is held while the unit stays
-ranked, and objective identity is the unit alone, so refresh never discards the
-knowledge of a retained unit. A slot indicator can be activated by any hash
-alias; it is not unit activation.
+weight, "one of its largest values". While the unit stays ranked, each refresh
+raises its held bonus to the current weight when that is larger and never lowers
+it: the streaming form of the largest value seen so far. Objective identity is
+the unit alone, so refresh never discards the knowledge of a retained unit. A slot
+indicator can be activated by any hash alias; it is not unit activation.
 -/
 namespace Acorn.Features
 
-/-- A held attainment bonus: a positive Demon-0 weight word, fixed when its unit
-is selected. A nonpositive weight predicts no additional reward to attain. -/
+/-- A held attainment bonus: a positive Demon-0 weight word, held from its unit's
+selection and raised only at refresh. A nonpositive weight predicts no additional
+reward to attain. -/
 structure Bonus where
-  /-- Selection-time weight word within the Demon-0 prediction range. -/
+  /-- Held weight word within the Demon-0 prediction range. -/
   weight : Prediction .g99
   /-- The signed word is strictly positive. -/
   positive : 0 < weight.value.key
@@ -43,6 +45,17 @@ theorem Bonus.finite_positive (bonus : Bonus) : bonus.value.Finite ∧ 0 < bonus
 def Bonus.ofWeight (weight : Prediction .g99) : Option Bonus :=
   letI := Binary32.positiveDecidable weight.value
   if positive : 0 < weight.value.key then some ⟨weight, positive⟩ else none
+
+/-- The larger of two held bonuses; positive finite words order by their unsigned bits. -/
+def Bonus.max (held current : Bonus) : Bonus :=
+  if held.value.bits.toNat < current.value.bits.toNat then current else held
+
+/-- A raised bonus is at least both inputs, so a held bonus never decreases. -/
+theorem Bonus.le_max (held current : Bonus) :
+    held.value.bits.toNat ≤ (held.max current).value.bits.toNat ∧
+      current.value.bits.toNat ≤ (held.max current).value.bits.toNat := by
+  unfold Bonus.max
+  split <;> omega
 
 /-- Durable bonus admission is identity or refusal, including refusal of either zero. -/
 def Bonus.admit (raw : Binary32) : Option Bonus :=
@@ -61,7 +74,7 @@ independent field. -/
 inductive Assignment (config : Config) where
   /-- Neutral fallback before differentiated candidates exist. -/
   | neutral
-  /-- Selected unit with the positive bonus held since its selection. -/
+  /-- Selected unit with the positive bonus held since its selection, raised only at refresh. -/
   | selected (unit : Fin config.units.count) (bonus : Bonus)
 
 instance (config : Config) : Provenance (Assignment config) := ⟨none⟩
@@ -104,8 +117,9 @@ def Assignment.bonus {config : Config} : Assignment config → Binary32
   | .neutral => .zero
   | .selected _ bonus => bonus.value
 
-/-- Equation (4) with an indicator feature: the attained stopping value adds the
-held bonus to the estimate, and an unattained feature leaves the estimate unchanged. -/
+/-- Adapted from equation (4), which substitutes the bonus weight for the feature's
+weight: with an indicator feature, the attained stopping value adds the held bonus
+to the estimate, and an unattained feature leaves the estimate unchanged. -/
 def Assignment.stoppingValue {config : Config} (assignment : Assignment config)
     (estimate : Binary32) (attained : Bool) : Binary32 :=
   if attained then estimate.add assignment.bonus else estimate
@@ -130,7 +144,7 @@ def Assignment.wordsUsing {dimension : Dimension} {config : Config}
     ⟨1, unit.val.toUInt32, (slot unit).val.toUInt32, bonus.value.bits⟩
 
 /-- Identity-or-refusal restoration. Present weights are deliberately not read:
-the bonus belongs to the selection time, not the restore time. -/
+the bonus belongs to its selection and refreshes, not the restore time. -/
 def Assignment.admitUsing (dimension : Dimension) (config : Config)
     (slot : Fin config.units.count → FeatIdx dimension) (raw : AssignmentWords) :
     Option (Assignment config) :=
@@ -386,10 +400,22 @@ def Assignment.holds {config : Config} (unit : Fin config.units.count) :
   | .neutral => false
   | .selected held _ => held == unit
 
-/-- A held objective is retained exactly when its unit is still ranked. -/
-def Assignment.retained {config : Config} (chosen : List (Candidate config))
-    (assignment : Assignment config) : Bool :=
-  chosen.any fun candidate => assignment.holds candidate.unit
+/-- A held objective whose unit is still ranked keeps that unit and raises its
+held bonus to the current score when the score is larger. -/
+def Assignment.retain {config : Config} (chosen : List (Candidate config)) :
+    Assignment config → Option (Assignment config)
+  | .neutral => none
+  | .selected unit bonus => (chosen.find? (·.unit == unit)).map fun candidate =>
+      .selected unit (bonus.max candidate.score)
+
+/-- A slot keeps its retained objective unless an earlier slot holds the same unit. -/
+def kept {config : Config}
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount) :
+    Option (Assignment config) :=
+  if (List.finRange Acorn.FeatureConstants.skillCount).any (fun other =>
+      decide (other.val < slot.val) && held[other.val].same held[slot.val]) then none
+  else held[slot.val].retain chosen
 
 /-- Ranked candidates whose unit no slot holds, in rank order. -/
 def entrants {config : Config}
@@ -399,15 +425,16 @@ def entrants {config : Config}
     (List.finRange Acorn.FeatureConstants.skillCount).all fun slot =>
       !held[slot.val].holds candidate.unit
 
-/-- Unretained slots before this one; each takes an earlier entrant. -/
+/-- Unkept slots before this one; each takes an earlier entrant. -/
 def openBefore {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount) : Nat :=
   ((List.finRange Acorn.FeatureConstants.skillCount).filter fun other =>
-    decide (other.val < slot.val) && !held[other.val].retained chosen).length
+    decide (other.val < slot.val) && (kept held chosen other).isNone).length
 
-/-- Slot-stable ranking. A slot whose unit is still ranked keeps its exact objective
-and held bonus; every other slot takes the next entrant in slot order, or neutral. -/
+/-- Slot-stable ranking. The first slot holding a still-ranked unit keeps that unit
+with its held bonus raised to the current score; every other slot takes the next
+entrant in slot order, or neutral. -/
 def rankAssignments (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
@@ -415,48 +442,195 @@ def rankAssignments (dimension : Dimension) (config : Config)
   let chosen := rankedCandidates dimension config weights
   let arriving := entrants held chosen
   Vector.ofFn fun slot =>
-    if held[slot.val].retained chosen then held[slot.val]
-    else match arriving[openBefore held chosen slot]? with
+    match kept held chosen slot with
+    | some assignment => assignment
+    | none => match arriving[openBefore held chosen slot]? with
       | none => .neutral
       | some candidate => .selected candidate.unit candidate.score
 
-/-- A slot whose unit is still ranked receives exactly its held objective. -/
+/-- The first slot holding a still-ranked unit keeps that unit, and its held bonus
+never decreases. -/
 theorem rankAssignments_retained (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
-    (slot : Fin Acorn.FeatureConstants.skillCount)
-    (retained : held[slot.val].retained (rankedCandidates dimension config weights) = true) :
-    (rankAssignments dimension config weights held)[slot.val] = held[slot.val] := by
-  simp [rankAssignments, retained]
+    (slot : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count) (bonus : Bonus)
+    (holds : held[slot.val] = .selected unit bonus)
+    (ranked : unit ∈ (rankedCandidates dimension config weights).map (·.unit))
+    (first : ∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val →
+      held[other.val].identity ≠ some unit) :
+    ∃ raised : Bonus, (rankAssignments dimension config weights held)[slot.val] =
+      .selected unit raised ∧ bonus.value.bits.toNat ≤ raised.value.bits.toNat := by
+  obtain ⟨candidate, member, named⟩ := List.mem_map.mp ranked
+  have earlier : (List.finRange Acorn.FeatureConstants.skillCount).any (fun other =>
+      decide (other.val < slot.val) && held[other.val].same held[slot.val]) = false := by
+    rw [List.any_eq_false]
+    intro other _ both
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at both
+    exact first other both.1 (by
+      rw [(Assignment.same_iff _ _).mp both.2, holds]
+      rfl)
+  obtain ⟨found, foundMember⟩ : ∃ found,
+      (rankedCandidates dimension config weights).find? (·.unit == unit) = some found := by
+    cases search : (rankedCandidates dimension config weights).find? (·.unit == unit) with
+    | none =>
+      exact absurd (by simpa using named) (List.find?_eq_none.mp search candidate member)
+    | some found => exact ⟨found, rfl⟩
+  have keeps : kept held (rankedCandidates dimension config weights) slot =
+      some (.selected unit (bonus.max found.score)) := by
+    unfold kept
+    rw [earlier]
+    simp only [Bool.false_eq_true, ↓reduceIte, holds, Assignment.retain, foundMember,
+      Option.map_some]
+  refine ⟨bonus.max found.score, ?_, (Bonus.le_max bonus found.score).1⟩
+  simp only [rankAssignments, Vector.getElem_ofFn, keeps]
 
-/-- A target with its slot's identity is that slot's exact held objective: an
-entrant is never a unit some slot already holds. -/
-theorem rankAssignments_same (dimension : Dimension) (config : Config)
+/-- A ranked candidate's score block is its unit's current weight word, so one unit
+has one key. -/
+theorem rankedCandidates_key (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension) (candidate : Candidate config)
+    (member : candidate ∈ rankedCandidates dimension config weights) :
+    candidate.key = (weights.get (unitFeature dimension config candidate.unit)).value.bits.toNat := by
+  obtain ⟨unit, _, found⟩ := List.mem_filterMap.mp (ranked_subset _ _ candidate member)
+  unfold candidateOfWeight at found
+  dsimp only at found
+  split at found
+  · cases found
+    rfl
+  · contradiction
+
+/-- A kept objective is its slot's held unit, and no earlier slot holds that unit. -/
+theorem kept_spec {config : Config}
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (assignment : Assignment config) (keeps : kept held chosen slot = some assignment) :
+    assignment.identity = held[slot.val].identity ∧
+      ∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val →
+        held[other.val].same held[slot.val] = false := by
+  unfold kept at keeps
+  split at keeps
+  · contradiction
+  · rename_i fresh
+    refine ⟨?_, fun other before => ?_⟩
+    · cases current : held[slot.val] with
+      | neutral => simp [current, Assignment.retain] at keeps
+      | selected unit bonus =>
+        simp only [current, Assignment.retain, Option.map_eq_some_iff] at keeps
+        obtain ⟨_, _, named⟩ := keeps
+        rw [← named]
+        rfl
+    · have earlier := List.any_eq_false.mp (Bool.eq_false_iff.mpr fresh) other
+        (List.mem_finRange other)
+      simpa [before] using earlier
+
+/-- An unkept slot takes a later entrant than every earlier unkept slot. -/
+theorem openBefore_lt {config : Config}
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (chosen : List (Candidate config)) (left right : Fin Acorn.FeatureConstants.skillCount)
+    (order : left.val < right.val) (unkept : kept held chosen left = none) :
+    openBefore held chosen left < openBefore held chosen right := by
+  let before (slot : Fin Acorn.FeatureConstants.skillCount) :=
+    fun other : Fin Acorn.FeatureConstants.skillCount =>
+      decide (other.val < slot.val) && (kept held chosen other).isNone
+  have nested : ((List.finRange Acorn.FeatureConstants.skillCount).filter (before right)).filter
+      (before left) = (List.finRange Acorn.FeatureConstants.skillCount).filter (before left) := by
+    rw [List.filter_filter]
+    apply List.filter_congr
+    intro other _
+    by_cases earlier : other.val < left.val
+    · simp [before, earlier, Nat.lt_trans earlier order]
+    · simp [before, earlier]
+  change ((List.finRange Acorn.FeatureConstants.skillCount).filter (before left)).length <
+    ((List.finRange Acorn.FeatureConstants.skillCount).filter (before right)).length
+  rw [← nested, List.length_filter_lt_length_iff_exists]
+  exact ⟨left, List.mem_filter.mpr ⟨List.mem_finRange left, by simp [before, order, unkept]⟩,
+    by simp [before]⟩
+
+/-- Each named refreshed slot is either kept from its held unit or an entrant. -/
+theorem rankAssignments_source (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
-    (slot : Fin Acorn.FeatureConstants.skillCount)
-    (same : held[slot.val].same (rankAssignments dimension config weights held)[slot.val] = true) :
-    (rankAssignments dimension config weights held)[slot.val] = held[slot.val] := by
-  revert same
-  simp only [rankAssignments, Vector.getElem_ofFn]
-  split
-  · intro _
-    rfl
-  · split
-    · intro same
-      cases current : held[slot.val] with
-      | neutral => rfl
-      | selected unit bonus => simp [current, Assignment.same] at same
-    · rename_i candidate found
-      intro same
-      exfalso
-      have fresh := List.all_eq_true.mp (List.mem_filter.mp (List.mem_of_getElem? found)).2
-        slot (List.mem_finRange slot)
-      cases current : held[slot.val] with
-      | neutral => simp [current, Assignment.same] at same
-      | selected unit bonus =>
-        simp only [current, Assignment.holds, Bool.not_eq_true'] at fresh
-        simp only [current, Assignment.same] at same
-        simp_all
+    (slot : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count)
+    (named : (rankAssignments dimension config weights held)[slot.val].identity = some unit) :
+    (∃ assignment, kept held (rankedCandidates dimension config weights) slot = some assignment ∧
+        held[slot.val].identity = some unit) ∨
+      (kept held (rankedCandidates dimension config weights) slot = none ∧
+        ∃ candidate, (entrants held (rankedCandidates dimension config weights))[openBefore held
+          (rankedCandidates dimension config weights) slot]? = some candidate ∧
+            candidate.unit = unit) := by
+  simp only [rankAssignments, Vector.getElem_ofFn] at named
+  cases keeps : kept held (rankedCandidates dimension config weights) slot with
+  | some assignment =>
+    simp only [keeps] at named
+    exact Or.inl ⟨assignment, rfl, (kept_spec held _ slot assignment keeps).1 ▸ named⟩
+  | none =>
+    simp only [keeps] at named
+    refine Or.inr ⟨rfl, ?_⟩
+    cases arriving : (entrants held (rankedCandidates dimension config weights))[openBefore held
+        (rankedCandidates dimension config weights) slot]? with
+    | none => simp [arriving, Assignment.identity] at named
+    | some candidate =>
+      simp only [arriving, Assignment.identity, Option.some.injEq] at named
+      exact ⟨candidate, rfl, named⟩
+
+/-- A later refreshed slot never repeats the unit of an earlier one. -/
+theorem rankAssignments_ordered (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension)
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (left right : Fin Acorn.FeatureConstants.skillCount) (order : left.val < right.val)
+    (unit : Fin config.units.count)
+    (leftNamed : (rankAssignments dimension config weights held)[left.val].identity = some unit)
+    (rightNamed : (rankAssignments dimension config weights held)[right.val].identity = some unit) :
+    False := by
+  have absent (candidate : Candidate config) (index : Nat)
+      (found : (entrants held (rankedCandidates dimension config weights))[index]? = some candidate)
+      (slot : Fin Acorn.FeatureConstants.skillCount) (holds : held[slot.val].identity = some unit)
+      (same : candidate.unit = unit) : False := by
+    have fresh := (List.all_eq_true.mp (List.mem_filter.mp (List.mem_of_getElem? found)).2) slot
+      (List.mem_finRange slot)
+    cases current : held[slot.val] with
+    | neutral => simp [current, Assignment.identity] at holds
+    | selected other bonus =>
+      simp only [current, Assignment.identity, Option.some.injEq] at holds
+      simp [current, Assignment.holds, holds, same] at fresh
+  rcases rankAssignments_source dimension config weights held left unit leftNamed with
+      ⟨leftKept, leftKeeps, leftHolds⟩ | ⟨leftOpen, leftCandidate, leftFound, leftSame⟩ <;>
+    rcases rankAssignments_source dimension config weights held right unit rightNamed with
+      ⟨rightKept, rightKeeps, rightHolds⟩ | ⟨_, rightCandidate, rightFound, rightSame⟩
+  · have repeated := (kept_spec held _ right rightKept rightKeeps).2 left order
+    rw [(Assignment.same_iff _ _).mpr (leftHolds.trans rightHolds.symm)] at repeated
+    contradiction
+  · exact absent rightCandidate _ rightFound left leftHolds rightSame
+  · exact absent leftCandidate _ leftFound right rightHolds leftSame
+  · have later := openBefore_lt held (rankedCandidates dimension config weights) left right order
+      leftOpen
+    obtain ⟨leftBound, leftEntry⟩ := List.getElem?_eq_some_iff.mp leftFound
+    obtain ⟨rightBound, rightEntry⟩ := List.getElem?_eq_some_iff.mp rightFound
+    have ordered : (entrants held (rankedCandidates dimension config weights)).Pairwise
+        (fun earlier later => later.key < earlier.key) :=
+      (ranked_strict _ _).sublist List.filter_sublist
+    have strict := List.pairwise_iff_getElem.mp ordered _ _ leftBound rightBound later
+    rw [leftEntry, rightEntry] at strict
+    have leftKey := rankedCandidates_key dimension config weights leftCandidate
+      (List.mem_filter.mp (List.mem_of_getElem? leftFound)).1
+    have rightKey := rankedCandidates_key dimension config weights rightCandidate
+      (List.mem_filter.mp (List.mem_of_getElem? rightFound)).1
+    rw [leftKey, rightKey, leftSame, rightSame] at strict
+    exact Nat.lt_irrefl _ strict
+
+/-- Refreshed slots hold pairwise distinct units for every weight array and every held
+vector, including one that repeats a unit. -/
+theorem rankAssignments_distinct (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension)
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (left right : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count)
+    (leftNamed : (rankAssignments dimension config weights held)[left.val].identity = some unit)
+    (rightNamed : (rankAssignments dimension config weights held)[right.val].identity = some unit) :
+    left = right := by
+  rcases Nat.lt_trichotomy left.val right.val with order | same | order
+  · exact (rankAssignments_ordered dimension config weights held left right order unit
+      leftNamed rightNamed).elim
+  · exact Fin.ext same
+  · exact (rankAssignments_ordered dimension config weights held right left order unit
+      rightNamed leftNamed).elim
 
 end Acorn.Features

@@ -12,7 +12,8 @@ import Acorn.FeatureHistory
 The scan, reset, generator and transcript belong to one immutable receiver.
 No caller-supplied learner list or slot can authorize a replacement. Slot aliases
 are intentional: all consumers of the hashed slot reset together. Task targets
-and temporal prediction caches have separate lifetimes from feature storage.
+and temporal prediction caches have separate lifetimes from feature storage; the
+runtime retirement releases every task target naming the replaced unit.
 -/
 namespace Acorn.Features
 

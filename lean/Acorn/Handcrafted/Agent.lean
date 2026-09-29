@@ -86,7 +86,7 @@ theorem TemporalControl.retire_aligned (state : TemporalControl profile config c
     obtain ⟨room, eligible, _, same⟩ :=
       (Lifecycle.success_iff state.runtime.lifecycle unit lifecycle).mp accepted
     subst lifecycle
-    exact state.runtime.lifecycle.consumers.retire_aligned aligned _
+    exact Ensemble.release_aligned _ (state.runtime.lifecycle.consumers.retire_aligned aligned _) unit
 
 /-- Retirement retains episode observations and the active invocation reference together. -/
 theorem TemporalControl.retire_episodes (state : TemporalControl profile config criterion dimension)

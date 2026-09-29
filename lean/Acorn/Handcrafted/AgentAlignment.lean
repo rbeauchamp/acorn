@@ -59,7 +59,16 @@ theorem _root_.Acorn.Features.Ensemble.retire_aligned (state : Ensemble config c
   intro slot
   simpa [Ensemble.retire, Skill.retire] using aligned slot
 
-/-- A changed assignment is learned; an unchanged assignment retains its admitted source. -/
+/-- Releasing slots installs only the learned neutral objective. -/
+theorem _root_.Acorn.Features.Ensemble.release_aligned (state : Ensemble config criterion dimension discounts)
+    (aligned : state.Aligned) (unit : Fin config.units.count) : (state.release unit).Aligned := by
+  intro slot
+  simp only [Ensemble.release, Vector.getElem_map]
+  split
+  · trivial
+  · exact aligned slot
+
+/-- Every installed assignment is learned; other slots retain their admitted source. -/
 theorem _root_.Acorn.Features.FreeDispatch.install_aligned (state : FreeDispatch shape config criterion dimension discounts payload)
     (aligned : state.lifecycle.consumers.Aligned)
     (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config) :
@@ -67,8 +76,8 @@ theorem _root_.Acorn.Features.FreeDispatch.install_aligned (state : FreeDispatch
   unfold FreeDispatch.install
   dsimp only
   split
-  · exact aligned
-  · intro index
+  all_goals
+    intro index
     simp only [Vector.getElem_set]
     split
     · trivial

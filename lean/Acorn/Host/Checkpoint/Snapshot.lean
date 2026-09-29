@@ -66,17 +66,12 @@ def primaryImage {config : Features.Config} {criterion : Criterion} {dimension :
   ⟨ensemble.control.learners.map knowledge, ensemble.metaController.learners.map knowledge,
     ensemble.skills.map (fun skill => skill.policy.learners.map knowledge), demonImages ensemble.demons⟩
 
-/-- Declared profiles use the canonical neutral sentinel and are refused by the profile header. -/
-def savedAssignment {config : Features.Config} : Interest config → Assignment config
-  | .learned assignment => assignment
-  | .declared _ _ => .neutral
-
 /-- The complete checkpoint projection already carries valid history and numeric state. -/
 def snapshotImage (construction : AgentConstruction) (state : construction.State) :
     AgentImage construction.config construction.criterion construction.dimension :=
   let runtime := state.control.runtime
   ⟨⟨runtime.lifecycle.representation.progress,
-      runtime.lifecycle.consumers.skills.map (fun skill => savedAssignment skill.interest),
+      runtime.lifecycle.consumers.skills.map (·.interest.held),
       primaryImage runtime.lifecycle.consumers, runtime.refresh.pending⟩,
     state.control.average.rate, state.control.lifetime.durable, by
       intro slot
