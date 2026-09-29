@@ -2783,6 +2783,10 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.Retirement.run_turnover
 
+/-- info: 'AcornVerif.Retirement.run_mature_turnover' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Retirement.run_mature_turnover
+
 /-- info: 'AcornVerif.Retirement.run_young' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.Retirement.run_young

@@ -127,6 +127,12 @@ for Acorn. With m = 1000, `AcornVerif.Retirement.maturity_bias` proves
 correction (eq. (8), p. 21) changes no eligible unit's utility by more than that
 fraction. `AcornVerif.Retirement.run_young` bounds the units younger than L steps
 by ⌊(10⁴ − 1 + N·L)/10⁴⌋; for the 512-unit bank and L = m + 1 that is 52.
+`AcornVerif.Retirement.run_turnover` gives a replacement within ⌈10⁴/k⌉ steps
+whenever at least k units are eligible at each step. The same bound over mature
+units does not hold, because a unit held as an option objective is not eligible
+away from a free boundary and accrues no credit; the three slots hold at most
+three units, so `run_mature_turnover` gives ⌈10⁴/(k − 3)⌉ steps whenever at least
+k > 3 units are mature at each step.
 
 Loci: `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.Agent`.
 

@@ -37,7 +37,8 @@ The generic call prevents the initial consumer arrays becoming shared globals. -
       Refresh.cold true, TemporalReferences.cold config [.g99] ()⟩
   let bank := initial.lifecycle.representation.bank
   let input := profile.encode dimension bank (observation word) ⟨[], by decide⟩
-  let retired := initial.retire (bank.activations (Handcrafted.observationPatch (observation word)))
+  let retired := initial.retire
+    (bank.activations (Handcrafted.observationPatch (observation word) profile.taskMode))
   let refreshed := retired.refreshAtFree
   (input.indices.length, refreshed.lifecycle.representation.bank.checksum,
     refreshed.lifecycle.representation.progress.replaced.toNat)

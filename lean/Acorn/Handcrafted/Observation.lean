@@ -155,8 +155,7 @@ theorem taskContext_slot (obs : Observation) (mode : TaskFeatureMode)
   simp [taskContext]
 
 /-- The generator reads the row-major kind patch followed by the task context. -/
-def observationPatch (obs : Observation) (mode : TaskFeatureMode := .complete) :
-    Patch patchShape :=
+def observationPatch (obs : Observation) (mode : TaskFeatureMode) : Patch patchShape :=
   (obs.tiles.map (fun row => row.map (·.kind.toUInt64))).flatten ++ taskContext obs mode
 
 /-- Execute the declared layout followed by the learned opaque encoder. -/

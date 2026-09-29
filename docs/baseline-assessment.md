@@ -66,7 +66,7 @@ Verdicts:
 | Swift-Sarsa [[3]](#r3) | Step 4 (declared Sarsa in place of actor-critic) | Primitive, meta and option policies | **Faithful** | `Controller.valuesStep`: per-action value vectors sharing one error. The actor-critic departure is declared. |
 | Horde / GVFs [[4]](#r4) | Step 3 | 11 fixed on-policy GVFs whose bucketed predictions are re-encoded as features | **Adapted, partial** | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed and on-policy ([D5](learned-only-binding.md#d5--prediction-targets--step-2)). Feeding predictions back is a genuine, limited predictive state. |
 | Generate and test: generator [[5]](#r5) | Step 2 | 512 random projections over the 11 × 11 tile-kind patch and the task words | **Adapted** (after U3) | Before U3 the generator read only the kind patch; it now also reads the task words (`observationPatch`, `taskContext`), so units can conjoin task and layout. Inventory and energy are still excluded (F-D). |
-| Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)); turnover follows from the rate by construction (`Lifecycle.test_accrual`). Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code. |
+| Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)); turnover follows from the rate by construction over eligible units (`Lifecycle.test_accrual`, F-E). Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code. |
 | Reward-respecting subtasks [[7]](#r7) | Step 10: highest-ranked features become subtasks | Three slots from the positive Demon-0 weights of imprint units, with held bonuses | **Adapted** (after U1) | U1 made candidates sign-correct, the bonus held, and identity the unit alone. One deviation remains: subtasks are not restricted to features whose weight is sometimes high and sometimes low ([PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks)). |
 | Potential-based shaping [[8]](#r8) | Option learning aid | Present | **Faithful** | [PAR-6](prior-art-review.md#par-6--potential-based-shaping), with limits declared. |
 | Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted, weak** | Only the executing option learns (`Skill.stepTemporal`, called from `TemporalControl.stepOption` for the running slot). There is no intra-option learning of the other options (F-F). |
@@ -296,6 +296,14 @@ U3 started; the issue and its kept branch record its evidence. U3's published
 tester answers it by construction, and its safety obligation is local: a new
 unit enters with zero outgoing weight in every reader
 ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester)).
+
+Turnover by construction is proved over eligible units: a replacement occurs
+within ⌈period/k⌉ tests whenever at least k units are eligible at each
+(`run_turnover`). Issue 9's wording over mature units does not hold, because a
+unit held as an option objective is mature but not eligible away from a free
+boundary and accrues no credit (U1's hold rule). The three slots hold at most
+three units, so a replacement occurs within ⌈period/(k − 3)⌉ tests whenever at
+least k > 3 units are mature at each (`run_mature_turnover`).
 
 ### F-F · Options learn from almost none of the experience
 

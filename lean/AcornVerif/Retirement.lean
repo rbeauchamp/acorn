@@ -22,6 +22,12 @@ credit and `nₜ` the eligible count at each test. Consequently a replacement oc
 of `N` can be younger than `L` steps. Both are counting arguments over the
 tester's own state, with no hypothesis on the stream or on learner values.
 
+The same bound over *mature* units does not hold: away from a free boundary a
+held unit is mature but not eligible, so it accrues no credit. Each of the
+`h = skillCount` slots holds at most one unit, so `k` mature units leave at least
+`k − h` eligible, and a replacement occurs within `⌈period/(k − h)⌉` tests whenever
+at least `k > h` units are mature at each of them.
+
 The agent's learners write only the consumer ensemble; `Lifecycle.advance` and
 `Lifecycle.test` are the only writers of the representation. That structural
 fact links `run` to `Agent.act`; it is read from the owning definitions, not
@@ -132,6 +138,72 @@ theorem run_turnover (inputs : List (Cycle config criterion dimension discounts)
   rw [run_replaced, Nat.le_div_iff_mul_le config.tester.positive]
   omega
 
+/-- Units mature now. -/
+def matureCount (state : Lifecycle shape config criterion dimension discounts) : Nat :=
+  (List.finRange config.units.count).countP state.mature
+
+/-- Units some slot holds as its objective. -/
+def heldCount (state : Lifecycle shape config criterion dimension discounts) : Nat :=
+  (List.finRange config.units.count).countP state.consumers.holds
+
+/-- A count of items satisfying `p` is at most the counts for `q` and `r` together
+when every such item satisfies one of them. -/
+theorem countP_le_add {α : Type} (p q r : α → Bool) :
+    ∀ (items : List α), (∀ item ∈ items, p item = true → q item = true ∨ r item = true) →
+      items.countP p ≤ items.countP q + items.countP r
+  | [], _ => by simp
+  | head :: rest, covered => by
+    have tail := countP_le_add p q r rest
+      (fun item member => covered item (List.mem_cons_of_mem _ member))
+    have first := covered head List.mem_cons_self
+    simp only [List.countP_cons]
+    split <;> split <;> split <;> simp_all <;> omega
+
+/-- An objective holds at most one unit. -/
+theorem holds_count_le (assignment : Acorn.Features.Assignment config) :
+    (List.finRange config.units.count).countP (fun unit => assignment.holds unit) ≤ 1 := by
+  cases assignment with
+  | neutral => simp [Assignment.holds]
+  | selected held bonus =>
+    have once := List.nodup_iff_count.mp (List.nodup_finRange config.units.count) held
+    refine Nat.le_trans (Nat.le_of_eq (List.countP_congr fun unit _ => ?_)) once
+    change (held == unit) = true ↔ (unit == held) = true
+    rw [beq_iff_eq, beq_iff_eq]
+    exact eq_comm
+
+/-- The slots together hold at most one unit each. -/
+theorem heldCount_le_slots :
+    ∀ (skills : List (Skill config criterion dimension)),
+      (List.finRange config.units.count).countP
+        (fun unit => skills.any (·.interest.held.holds unit)) ≤ skills.length
+  | [] => by simp
+  | skill :: rest => by
+    have parts := countP_le_add (fun unit => (skill :: rest).any (·.interest.held.holds unit))
+      (fun unit => skill.interest.held.holds unit)
+      (fun unit => rest.any (·.interest.held.holds unit))
+      (List.finRange config.units.count) (fun unit _ held => by simpa using held)
+    have one := holds_count_le skill.interest.held
+    have later := heldCount_le_slots rest
+    simp only [List.length_cons]
+    omega
+
+/-- **Bounded holding.** At most one unit per slot is held, whatever the learner values. -/
+theorem heldCount_le (state : Lifecycle shape config criterion dimension discounts) :
+    heldCount state ≤ Acorn.FeatureConstants.skillCount := by
+  have bound := heldCount_le_slots (criterion := criterion) state.consumers.skills.toList
+  rw [Vector.length_toList] at bound
+  exact bound
+
+/-- Every mature unit is eligible or held, so `k` mature units leave at least
+`k − h` eligible when `h` are held. -/
+theorem mature_le (state : Lifecycle shape config criterion dimension discounts) (free : Bool) :
+    matureCount state ≤ state.eligibleCount free + heldCount state :=
+  countP_le_add _ _ _ _ fun unit _ mature => by
+    cases held : state.consumers.holds unit
+    · left
+      simp [Lifecycle.eligible, mature, held]
+    · exact Or.inr rfl
+
 /-- Eligible counts never exceed the bank. -/
 theorem eligibleCount_le (state : Lifecycle shape config criterion dimension discounts)
     (free : Bool) : state.eligibleCount free ≤ config.units.count := by
@@ -149,6 +221,42 @@ theorem run_counts_le : ∀ (inputs : List (Cycle config criterion dimension dis
     · subst same
       exact eligibleCount_le _ _
     · exact run_counts_le rest _ count later
+
+/-- At least `bound` units are mature at every test of a run. -/
+def MatureAtEach (bound : Nat) : List (Cycle config criterion dimension discounts) →
+    Lifecycle shape config criterion dimension discounts → Prop
+  | [], _ => True
+  | input :: rest, state =>
+    bound ≤ matureCount (input.prepare state) ∧
+      MatureAtEach bound rest ((input.prepare state).test input.free input.active).1
+
+/-- With at least `k` mature units at each test, every recorded eligible count is
+at least `k − skillCount`. -/
+theorem run_counts_mature (bound : Nat) :
+    ∀ (inputs : List (Cycle config criterion dimension discounts))
+      (state : Lifecycle shape config criterion dimension discounts),
+      MatureAtEach bound inputs state →
+        ∀ count ∈ (run inputs state).2.1, bound - Acorn.FeatureConstants.skillCount ≤ count
+  | [], _, _, _, member => by simp [run] at member
+  | input :: rest, state, mature, count, member => by
+    simp only [run, List.mem_cons] at member
+    rcases member with same | later
+    · subst same
+      have covered := mature_le (input.prepare state) input.free
+      have held := heldCount_le (input.prepare state)
+      have now := mature.1
+      omega
+    · exact run_counts_mature bound rest _ mature.2 count later
+
+/-- **Mature-count turnover.** A replacement occurs within `⌈period/(k − h)⌉` tests
+whenever at least `k` units are mature at each of them, where `h = skillCount`
+bounds the held units; the hypothesis `period ≤ (k − h)·L` forces `k > h`. -/
+theorem run_mature_turnover (inputs : List (Cycle config criterion dimension discounts))
+    (state : Lifecycle shape config criterion dimension discounts) (bound : Nat)
+    (mature : MatureAtEach bound inputs state)
+    (long : config.tester.period ≤ (bound - Acorn.FeatureConstants.skillCount) * inputs.length) :
+    1 ≤ (run inputs state).2.2 :=
+  run_turnover inputs state _ (run_counts_mature bound inputs state mature) long
 
 /-- At most `⌊(period − 1 + L·N)/period⌋` replacements occur in `L` cycles. -/
 theorem run_replaced_le (inputs : List (Cycle config criterion dimension discounts))
