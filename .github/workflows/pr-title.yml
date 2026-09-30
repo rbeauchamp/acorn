@@ -1,0 +1,37 @@
+name: PR title
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+permissions: {}
+jobs:
+  pr-title:
+    # The squash merge uses the PR title as the commit header on main, so the
+    # title must be a Conventional Commits header.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require a Conventional Commits title
+        # The title reaches the script only through the environment; interpolating
+        # it into the script would let a title inject shell commands.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        shell: bash
+        run: |
+          pattern='^(feat|fix|docs|refactor|perf|test|build|ci|chore|revert)(\([^()]+\))?!?: [^ ].*$'
+          if [[ $PR_TITLE =~ $pattern ]]; then
+            exit 0
+          fi
+          echo "::error::PR title is not a Conventional Commits header: type(scope)!: summary"
+          cat <<'EOF'
+          The squash merge uses the PR title as the commit header on main.
+          The title must match:
+          EOF
+          printf '  %s\n' "$pattern"
+          cat <<'EOF'
+          type     one of feat, fix, docs, refactor, perf, test, build, ci, chore, revert
+          (scope)  optional; any non-empty text without parentheses
+          !        optional; marks a breaking change (add a BREAKING CHANGE: footer to the body)
+          then a colon, one space and a summary that does not start with a space.
+          Example: fix(viewer): keep the stop control enabled after reconnect
+          EOF
+          exit 1
