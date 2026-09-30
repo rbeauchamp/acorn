@@ -27,6 +27,18 @@ For each change, explain the intended behavior, its implementation and proof
 owners, and any assumptions in the PR. Run `./scripts/verify.sh` from the checkout
 and report its actual result and material limits.
 
+Pull requests are squash-merged: the PR title becomes the commit header on main
+and the PR body its message. Title each PR as a
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) header,
+`type(scope)!: summary`, with the type one of feat, fix, docs, refactor, perf,
+test, build, ci, chore or revert. The scope is optional text without parentheses;
+the optional `!` marks a breaking change, which also carries a
+`BREAKING CHANGE:` footer in the body. The
+[PR title check](.github/workflows/pr-title.yml) rejects any other title.
+Releases follow [Semantic Versioning](https://semver.org/): fix implies a patch
+release, feat a minor release and a breaking change a major release, or a minor
+release before 1.0.
+
 ## Scientific evidence
 
 Ordinary engineering needs implementation, proofs, useful documentation and a
