@@ -29,8 +29,6 @@ inductive Value where
   | array (values : List Value)
   /-- Unique decoded field names, in source order. -/
   | object (fields : List (String × Value))
-  deriving BEq
-
 
 private def ws (cs : List Char) : List Char :=
   cs.dropWhile fun c => c == ' ' || c == '\r' || c == '\n' || c == '\t'

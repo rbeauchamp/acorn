@@ -122,9 +122,11 @@ their compiler IR, primitive calls, resource contracts and compiler flags.
 Primitive IEEE interpretation remains a native assumption.
 
 CI provisions dependencies separately and runs the identical ordinary command
-with cold project outputs. It has read-only repository permissions, no secrets,
-no privileged pull-request trigger, and pinned action revisions. The workflow
-must pass on the exact proposed head before merge.
+with cold project outputs. A second job runs the [Regula audit](#regula-audit)
+on the same head, also from cold project outputs. The workflow has read-only
+repository permissions, no secrets, no privileged pull-request trigger, and
+pinned action revisions. Both jobs must pass on the exact proposed head before
+merge.
 
 Ordinary verification shares a compiler environment for ownership, theorem/axiom
 and document-symbol admission. Executable entries retain isolated `main` owners
@@ -134,6 +136,63 @@ satisfy this check. Shared regions live only for the audit process, and no prior
 acceptance result is cached. Source, boundary, native-route and browser checks
 remain required. Standalone ownership, theorem and corpus commands remain
 available for focused diagnostics.
+
+## Regula audit
+
+[Regula](https://github.com/rbeauchamp/regula) is a strict linter for Lean with a
+published standard. Acorn requires the release pinned in `lean/lakefile.lean` and
+starts its lint driver through the offline bootstrap:
+
+```sh
+./scripts/lean.sh lint
+```
+
+Only that outer lint command goes through the bootstrap. Regula's driver then
+runs Lake itself to build, query and enter the workspace environment, without
+the bootstrap's path overrides or its no-cache and warnings-as-failures flags.
+Those invocations resolve dependencies through the Git lock in
+`lean/lake-manifest.json`. The bootstrap admits a dependency by the presence of
+its files, not by its revision, so Lake fetches a dependency whose checkout is
+not at the locked revision.
+
+The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
+configuration and 3 when the audit is incomplete. The first run compiles Regula's
+driver. Regula writes scratch copies of Lean sources to tmp/.regula-scratch under
+lean and a killed run leaves them. Git ignores that directory, and the module
+inventory, the native source inventory and the corpus walk skip it.
+
+`lean/foundation_manifest.json` states what is audited. A claim names the
+strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
+NativeApp and Bootstrap, with the ten application executables, claim Regula's
+standard-logical profile: propext, Quot.sound and Classical.choice, and no other
+axiom. No stricter profile is attainable, because Lean's core definitions of
+binary32 and binary64 arithmetic depend on Classical.choice, as do the Mathlib
+analysis in AcornVerif and the core string and JSON operations that Bootstrap
+uses. Acorn, NativeApp and Bootstrap claim compiled code in
+Regula's checked mode: the audit fails on any extern, replacement, unsafe or
+partial boundary that their compiled code reaches outside the Lean toolchain's
+own trusted base. AcornVerif claims report mode, where each boundary is reported
+and not failed: its compiled definitions reach the recursors that Mathlib
+compiles for Bool, List and Option, boundaries Mathlib owns, so checked mode
+rejects them. The compiler, native runtime, operating system and spawned
+processes stay trusted in both modes. AcornTools is excluded with the six tool
+executables; it is the reviewed tooling trust boundary.
+
+The driver builds every claimed module with warnings as failures, then inspects
+the compiled environments. It rejects holes, project axioms, unsafe or partial
+definitions, an axiom outside the claim, a module that no library includes, and
+a claimed target whose Lake options weaken the required set. That set turns
+automatic implicits off and turns on the missing-docstring linter and Mathlib's
+standard linter set, whose header linter checks each module's copyright and
+license lines.
+
+The audit is a second required check and is not part of `./scripts/verify.sh`.
+It compiles the claimed modules again and replays them in the kernel, which does
+not fit beside the ordinary checks inside the 360-second deadline. No Acorn gate
+is retired. Boundary, ownership, native-route, corpus and theorem-axiom
+admission remain required, and they overlap Regula's hole, axiom and
+unsafe/partial rules as independent implementations. An accepted audit covers
+Regula's mechanical rules for the claimed surfaces; it does not replace review.
 
 ## Mutation diagnostics
 

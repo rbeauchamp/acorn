@@ -454,6 +454,8 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
   maintenance, and Regula adoption waits on Regula's own blockers. New admission
   code should prefer structural recursion, which avoids the well-founded-recursion
   helpers one of those blockers concerns.
+  **Status: Regula is adopted.** The [Regula audit](verification.md#regula-audit)
+  states what is audited and how to run it.
 - **Learned agent state first: no.** It is large and changes every learner's
   input; it follows U5.
 

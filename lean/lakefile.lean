@@ -12,15 +12,21 @@ def nativeFloatFlags : Array String := #["-ffp-contract=off", "-fno-fast-math"]
 def checkpointFlags : Array String := #["-std=c11", "-D_POSIX_C_SOURCE=200809L", "-D_DARWIN_C_SOURCE",
   "-Wall", "-Wextra", "-Werror", "-pedantic", "-O2"]
 
-/-- The native build inventory rejects links and nonregular source entries. -/
-partial def nativeSources (root : System.FilePath) : IO (Array System.FilePath) := do
+/-- The native build inventory rejects links and nonregular source entries.
+`scratch` is the one directory `tmp/.regula-scratch` below the package: Regula writes
+scratch copies of Lean sources there and a killed run leaves them
+(https://github.com/rbeauchamp/regula/issues/172). The exclusion is removed once
+Regula keeps them under `.lake`. -/
+partial def nativeSources (root : System.FilePath)
+    (scratch : System.FilePath := root / "tmp" / ".regula-scratch") :
+    IO (Array System.FilePath) := do
   let mut files := #[]
   for entry in ← root.readDir do
     if entry.fileName == ".lake" || entry.fileName == "lake-packages" ||
-        entry.fileName == ".DS_Store" then continue
+        entry.fileName == ".DS_Store" || entry.path == scratch then continue
     let metadata ← entry.path.symlinkMetadata
     match metadata.type with
-    | .dir => files := files ++ (← nativeSources entry.path)
+    | .dir => files := files ++ (← nativeSources entry.path scratch)
     | .file =>
       if entry.path.extension == some "lean" || entry.path.extension == some "c" ||
           entry.fileName == "lean-toolchain" || entry.fileName == "lake-manifest.json" then
@@ -68,25 +74,33 @@ package acorn where
     ⟨`linter.unusedVariables, true⟩,
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
+    -- Mathlib's standard linter set, with its header linter kept on for this license line.
+    -- Regula's RG2006 requires the two Mathlib-repository linters below to be off.
+    ⟨`weak.linter.mathlibStandardSet, true⟩,
+    ⟨`weak.linter.style.header, true⟩,
+    ⟨`weak.linter.style.header.license,
+      "Released under the MIT license as described in the repository LICENSE."⟩,
+    ⟨`weak.linter.hashCommand, false⟩,
+    ⟨`weak.linter.style.longFile, .ofNat 0⟩,
   ]
-  weakLeanArgs := #[
-    "-Dweak.linter.mathlibStandardSet=true",
-    "-Dweak.linter.style.header=true",
-    "-Dweak.linter.style.header.license=Released under the MIT license as described in the repository LICENSE.",
-  ]
+  lintDriver := "regula/lint"
 
-lean_lib «AcornVerif»
+/-- Contracts about the executing definitions and their supporting mathematics. -/
+lean_lib «AcornVerif» where
+  globs := #[.andSubmodules `AcornVerif]
 
 /-- Executable Acorn foundations.
 Executable targets and native admission request their object files explicitly;
 importing a proof or tooling leaf does not eagerly compile the whole library.
 Native compilation includes the same admission definitions used by the proofs. -/
 lean_lib «Acorn» where
+  globs := #[.andSubmodules `Acorn]
   moreLeancArgs := nativeFloatFlags
 
 /-- Native entry points embed provenance after their complete source dependency is built.
 This bootstrap is a build/OS boundary, outside the current algorithm library. -/
 lean_lib «NativeApp» where
+  globs := #[.andSubmodules `NativeApp]
   extraDepTargets := #[`nativeProvenance, `checkpointSync]
   moreLeancArgs := nativeFloatFlags
 
@@ -225,7 +239,8 @@ lean_exe «native-audit» where
 lean_lib «Bootstrap»
 
 /-- Reviewed build and verification tools, separate from application libraries. -/
-lean_lib AcornTools
+lean_lib AcornTools where
+  globs := #[.andSubmodules `AcornTools]
 
 /-- Check discovered sources, evaluated executable roots and required proof links. -/
 lean_exe «ownership-audit» where
@@ -253,3 +268,6 @@ script acornTargets do
 
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.34.0"
+
+require regula from git
+  "https://github.com/rbeauchamp/regula" @ "v0.3.0"

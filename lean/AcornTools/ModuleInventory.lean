@@ -15,10 +15,12 @@ def toolingModules : Array Name := #[`AcornTools, `Bootstrap, `AcornTools.Bounda
   `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
 
 /-- Discover all maintained Lean sources, including root tools and new directories.
-Only the package's generated/dependency directories and Lake configuration are
-excluded. Traversal and metadata errors are fatal; symlinks are refused. -/
+Only the package's generated/dependency directories, Lake configuration and
+Regula's scratch directory are excluded. Traversal and metadata errors are fatal;
+symlinks are refused. -/
 def allModules : IO (Array Name) := do
-  let mut pending : Array System.FilePath := #["."]
+  let root : System.FilePath := "."
+  let mut pending : Array System.FilePath := #[root]
   let mut modules : Array Name := #[]
   while !pending.isEmpty do
     let some dir := pending.back?
@@ -27,9 +29,13 @@ def allModules : IO (Array Name) := do
     unless (← dir.symlinkMetadata).type == .dir do
       throw (IO.userError s!"{dir}: expected a maintained module directory")
     for entry in ← dir.readDir do
-      if dir == System.FilePath.mk "." &&
+      if dir == root &&
           #[".lake", "lake-packages", ".git", ".DS_Store", "lakefile.lean"].contains entry.fileName then
         continue
+      -- Regula writes scratch copies of Lean sources under `tmp/.regula-scratch` and a
+      -- killed run leaves them (https://github.com/rbeauchamp/regula/issues/172). The
+      -- exclusion is removed once Regula keeps them under `.lake`.
+      if entry.path == root / "tmp" / ".regula-scratch" then continue
       match (← entry.path.symlinkMetadata).type with
       | .dir => pending := pending.push entry.path
       | .file =>

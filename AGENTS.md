@@ -104,7 +104,8 @@ Then run the complete command in the actual Git checkout:
 - Mathlib umbrella imports are forbidden; import specific dependencies.
 
 Sign commits and preserve license notices. CI runs the same command on the exact
-proposed head. Resolve required checks,
+proposed head and, as a second required job outside that deadline, the Regula
+audit `./scripts/lean.sh lint`. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need

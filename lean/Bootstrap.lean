@@ -111,9 +111,10 @@ def silentElaboration : IO Unit := do
 (for example a deprecated import) that `warningAsError` does not reach. -/
 def run (args : List String) : IO UInt32 := do
   silentElaboration
-  unless args == ["provision-status"] || (!args.isEmpty && (#["build", "exe", "env", "query"].contains (args.headD "") ||
+  unless args == ["provision-status"] ||
+      (!args.isEmpty && (#["build", "exe", "env", "query", "lint"].contains (args.headD "") ||
       args == ["script", "run", "acornTargets"])) do
-    throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
+    throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|lint|provision-status) ...")
   let (contents, available) ← overrides
   -- This read-only status is the launcher's sole provisioning admission:
   -- 0 means ready, 2 means missing dependencies, and every refusal returns 1.
