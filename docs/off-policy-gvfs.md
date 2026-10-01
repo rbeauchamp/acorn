@@ -237,8 +237,11 @@ as they stand at the moment the step's primitive action is fixed:
   included.
 
 The step is **consistent with *o*** when the action taken is in T. The test
-reads no behaviour probability and no source tag. If no value is comparable,
-T is empty and no action is consistent.
+reads no behaviour probability. It does read the decision's source
+(`TemporalSource`), to choose which values supply T: `TemporalDecision.values`
+holds an option's drawing snapshot only on that option's own step, and on
+every other step holds the primitive controller's values, which supply no
+slot's T. If no value is comparable, T is empty and no action is consistent.
 
 ### Dispatch
 
