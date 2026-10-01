@@ -68,25 +68,33 @@ package acorn where
     ⟨`linter.unusedVariables, true⟩,
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
+    -- Mathlib's standard linter set, with its header linter kept on for this license line.
+    -- Regula's RG2006 requires the two Mathlib-repository linters below to be off.
+    ⟨`weak.linter.mathlibStandardSet, true⟩,
+    ⟨`weak.linter.style.header, true⟩,
+    ⟨`weak.linter.style.header.license,
+      "Released under the MIT license as described in the repository LICENSE."⟩,
+    ⟨`weak.linter.hashCommand, false⟩,
+    ⟨`weak.linter.style.longFile, .ofNat 0⟩,
   ]
-  weakLeanArgs := #[
-    "-Dweak.linter.mathlibStandardSet=true",
-    "-Dweak.linter.style.header=true",
-    "-Dweak.linter.style.header.license=Released under the MIT license as described in the repository LICENSE.",
-  ]
+  lintDriver := "regula/lint"
 
-lean_lib «AcornVerif»
+/-- Contracts about the executing definitions and their supporting mathematics. -/
+lean_lib «AcornVerif» where
+  globs := #[.andSubmodules `AcornVerif]
 
 /-- Executable Acorn foundations.
 Executable targets and native admission request their object files explicitly;
 importing a proof or tooling leaf does not eagerly compile the whole library.
 Native compilation includes the same admission definitions used by the proofs. -/
 lean_lib «Acorn» where
+  globs := #[.andSubmodules `Acorn]
   moreLeancArgs := nativeFloatFlags
 
 /-- Native entry points embed provenance after their complete source dependency is built.
 This bootstrap is a build/OS boundary, outside the current algorithm library. -/
 lean_lib «NativeApp» where
+  globs := #[.andSubmodules `NativeApp]
   extraDepTargets := #[`nativeProvenance, `checkpointSync]
   moreLeancArgs := nativeFloatFlags
 
@@ -225,7 +233,8 @@ lean_exe «native-audit» where
 lean_lib «Bootstrap»
 
 /-- Reviewed build and verification tools, separate from application libraries. -/
-lean_lib AcornTools
+lean_lib AcornTools where
+  globs := #[.andSubmodules `AcornTools]
 
 /-- Check discovered sources, evaluated executable roots and required proof links. -/
 lean_exe «ownership-audit» where
@@ -253,3 +262,6 @@ script acornTargets do
 
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.34.0"
+
+require regula from git
+  "https://github.com/rbeauchamp/regula" @ "v0.2.0"

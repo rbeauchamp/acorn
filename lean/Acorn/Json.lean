@@ -29,7 +29,70 @@ inductive Value where
   | array (values : List Value)
   /-- Unique decoded field names, in source order. -/
   | object (fields : List (String × Value))
-  deriving BEq
+
+namespace Value
+
+mutual
+/-- Structural equality, by structural recursion through the nested lists. A derived `BEq`
+instance on this nested type would be a `partial` definition, opaque to proofs. -/
+def beq : Value → Value → Bool
+  | .null, .null => true
+  | .bool a, .bool b => a == b
+  | .number a, .number b => a == b
+  | .string a, .string b => a == b
+  | .array as, .array bs => beqValues as bs
+  | .object fs, .object gs => beqFields fs gs
+  | _, _ => false
+
+/-- Elementwise `beq` of equally long arrays. -/
+def beqValues : List Value → List Value → Bool
+  | [], [] => true
+  | a :: as, b :: bs => beq a b && beqValues as bs
+  | _, _ => false
+
+/-- Fieldwise `beq` of equally long objects, names and values in order. -/
+def beqFields : List (String × Value) → List (String × Value) → Bool
+  | [], [] => true
+  | (k, a) :: fs, (l, b) :: gs => k == l && beq a b && beqFields fs gs
+  | _, _ => false
+end
+
+instance : BEq Value := ⟨beq⟩
+
+mutual
+/-- `beq` decides equality of values. -/
+theorem beq_iff : ∀ a b : Value, beq a b = true ↔ a = b
+  | .null, .null => by simp [beq]
+  | .bool a, .bool b | .number a, .number b | .string a, .string b => by simp [beq]
+  | .array as, .array bs => by simp [beq, beqValues_iff as bs]
+  | .object fs, .object gs => by simp [beq, beqFields_iff fs gs]
+  | .null, .bool _ | .null, .number _ | .null, .string _ | .null, .array _ | .null, .object _
+  | .bool _, .null | .bool _, .number _ | .bool _, .string _ | .bool _, .array _
+  | .bool _, .object _ | .number _, .null | .number _, .bool _ | .number _, .string _
+  | .number _, .array _ | .number _, .object _ | .string _, .null | .string _, .bool _
+  | .string _, .number _ | .string _, .array _ | .string _, .object _ | .array _, .null
+  | .array _, .bool _ | .array _, .number _ | .array _, .string _ | .array _, .object _
+  | .object _, .null | .object _, .bool _ | .object _, .number _ | .object _, .string _
+  | .object _, .array _ => by simp [beq]
+
+/-- `beqValues` decides equality of arrays. -/
+theorem beqValues_iff : ∀ as bs : List Value, beqValues as bs = true ↔ as = bs
+  | [], [] | [], _ :: _ | _ :: _, [] => by simp [beqValues]
+  | a :: as, b :: bs => by simp [beqValues, beq_iff a b, beqValues_iff as bs]
+
+/-- `beqFields` decides equality of objects. -/
+theorem beqFields_iff : ∀ fs gs : List (String × Value), beqFields fs gs = true ↔ fs = gs
+  | [], [] | [], _ :: _ | _ :: _, [] => by simp [beqFields]
+  | (k, a) :: fs, (l, b) :: gs => by
+    simp [beqFields, beq_iff a b, beqFields_iff fs gs, and_assoc]
+end
+
+/-- The hand-written instance is structural equality. -/
+instance : LawfulBEq Value where
+  eq_of_beq h := (beq_iff _ _).1 h
+  rfl := (beq_iff _ _).2 rfl
+
+end Value
 
 
 private def ws (cs : List Char) : List Char :=

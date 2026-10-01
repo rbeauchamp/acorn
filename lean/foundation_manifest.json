@@ -1,0 +1,73 @@
+{
+  "schema-version": 2,
+  "surfaces": [
+    {
+      "library": "Acorn",
+      "executables": [
+        "«swifttd-native»",
+        "«feature-native»",
+        "«control-native»",
+        "«temporal-native»",
+        "«agent-native»",
+        "«checkpoint-native»",
+        "«world-native»"
+      ],
+      "claim": "standard-logical",
+      "execution": "report",
+      "rationale": "Acorn's executable definitions: machine encodings, arithmetic, the learners, feature lifecycle, world, host runner, checkpoint and viewer protocol, and the native drivers that consume them. Its binary32 and binary64 operations use Lean's core float model, which depends on Classical.choice, so choice-free is not attainable. Native arithmetic, the Lean runtime and the POSIX effects the host modules reach are trusted execution boundaries, so the execution mode stays report."
+    },
+    {
+      "library": "AcornVerif",
+      "claim": "standard-logical",
+      "execution": "report",
+      "rationale": "Contracts about the executing Acorn definitions, with the supporting Mathlib mathematics stated under explicit hypotheses. Mathlib's real analysis and classical reasoning use Classical.choice. The library has no executable."
+    },
+    {
+      "library": "NativeApp",
+      "executables": [
+        "«acorn-core»",
+        "«acorn-viewer»",
+        "«browser-kernel»"
+      ],
+      "claim": "standard-logical",
+      "execution": "report",
+      "rationale": "Native entry points, embedded provenance and viewer resources over the Acorn definitions. They reach Lean's runtime, process, filesystem and socket primitives and the reviewed C fsync helper, which are trusted execution boundaries, so the execution mode stays report."
+    }
+  ],
+  "excluded-libraries": [
+    {
+      "library": "AcornTools",
+      "rationale": "Reviewed build and verification tooling, an explicit trust boundary under AGENTS.md and outside the application's proof claim. It loads compiled environments with unsafe Lean APIs and runs the gates that admit the claimed surfaces; every tool module is admitted individually by AcornModuleInventory.toolingModules."
+    },
+    {
+      "library": "Bootstrap",
+      "rationale": "The offline Lake launcher, build tooling that imports only the pinned toolchain and maps locked dependencies to provisioned paths before Lake loads the workspace. It is an explicit trust boundary under AGENTS.md, outside the application's proof claim."
+    }
+  ],
+  "excluded-executables": [
+    {
+      "executable": "«theorem-count»",
+      "rationale": "Reviewed verification tool that counts theorem declarations; its root belongs to the excluded AcornTools library, the tooling trust boundary."
+    },
+    {
+      "executable": "«lean-boundary-audit»",
+      "rationale": "Reviewed verification tool that admits the source and compiled Lean execution boundary; its root belongs to the excluded AcornTools library, the tooling trust boundary."
+    },
+    {
+      "executable": "«native-audit»",
+      "rationale": "Reviewed verification tool that inspects native compiler flags, primitives and execution routes; its root belongs to the excluded AcornTools library, the tooling trust boundary."
+    },
+    {
+      "executable": "«ownership-audit»",
+      "rationale": "Reviewed verification tool that admits source, executable and proof ownership; its root belongs to the excluded AcornTools library, the tooling trust boundary."
+    },
+    {
+      "executable": "«corpus-audit»",
+      "rationale": "Reviewed verification tool that admits the maintained file corpus; its root belongs to the excluded AcornTools library, the tooling trust boundary."
+    },
+    {
+      "executable": "«acorn-gates»",
+      "rationale": "Reviewed verification tool that orchestrates ordinary verification; its root belongs to the excluded AcornTools library, the tooling trust boundary."
+    }
+  ]
+}
