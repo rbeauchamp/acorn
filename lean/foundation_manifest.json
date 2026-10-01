@@ -4,13 +4,13 @@
     {
       "library": "Acorn",
       "executables": [
-        "«swifttd-native»",
-        "«feature-native»",
-        "«control-native»",
-        "«temporal-native»",
-        "«agent-native»",
-        "«checkpoint-native»",
-        "«world-native»"
+        "swifttd-native",
+        "feature-native",
+        "control-native",
+        "temporal-native",
+        "agent-native",
+        "checkpoint-native",
+        "world-native"
       ],
       "claim": "standard-logical",
       "execution": "report",
@@ -25,9 +25,9 @@
     {
       "library": "NativeApp",
       "executables": [
-        "«acorn-core»",
-        "«acorn-viewer»",
-        "«browser-kernel»"
+        "acorn-core",
+        "acorn-viewer",
+        "browser-kernel"
       ],
       "claim": "standard-logical",
       "execution": "report",
@@ -46,27 +46,27 @@
   ],
   "excluded-executables": [
     {
-      "executable": "«theorem-count»",
+      "executable": "theorem-count",
       "rationale": "Reviewed verification tool that counts theorem declarations; its root belongs to the excluded AcornTools library, the tooling trust boundary."
     },
     {
-      "executable": "«lean-boundary-audit»",
+      "executable": "lean-boundary-audit",
       "rationale": "Reviewed verification tool that admits the source and compiled Lean execution boundary; its root belongs to the excluded AcornTools library, the tooling trust boundary."
     },
     {
-      "executable": "«native-audit»",
+      "executable": "native-audit",
       "rationale": "Reviewed verification tool that inspects native compiler flags, primitives and execution routes; its root belongs to the excluded AcornTools library, the tooling trust boundary."
     },
     {
-      "executable": "«ownership-audit»",
+      "executable": "ownership-audit",
       "rationale": "Reviewed verification tool that admits source, executable and proof ownership; its root belongs to the excluded AcornTools library, the tooling trust boundary."
     },
     {
-      "executable": "«corpus-audit»",
+      "executable": "corpus-audit",
       "rationale": "Reviewed verification tool that admits the maintained file corpus; its root belongs to the excluded AcornTools library, the tooling trust boundary."
     },
     {
-      "executable": "«acorn-gates»",
+      "executable": "acorn-gates",
       "rationale": "Reviewed verification tool that orchestrates ordinary verification; its root belongs to the excluded AcornTools library, the tooling trust boundary."
     }
   ]
