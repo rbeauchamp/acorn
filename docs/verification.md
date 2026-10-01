@@ -166,8 +166,9 @@ strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
 NativeApp and Bootstrap, with the ten application executables, claim Regula's
 standard-logical profile: propext, Quot.sound and Classical.choice, and no other
 axiom. No stricter profile is attainable, because Lean's core definitions of
-binary32 and binary64 arithmetic depend on Classical.choice, as does the Mathlib
-analysis in AcornVerif. Acorn, NativeApp and Bootstrap claim compiled code in
+binary32 and binary64 arithmetic depend on Classical.choice, as do the Mathlib
+analysis in AcornVerif and the core string and JSON operations that Bootstrap
+uses. Acorn, NativeApp and Bootstrap claim compiled code in
 Regula's checked mode: the audit fails on any extern, replacement, unsafe or
 partial boundary that their compiled code reaches outside the Lean toolchain's
 own trusted base. AcornVerif claims report mode, where each boundary is reported
