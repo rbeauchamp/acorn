@@ -6,13 +6,16 @@ It is a proposal for review. Nothing here is implemented, admitted or scheduled,
 and the page describes no current behaviour except where it says so. It was
 written against `main` at commit a71ed08. No agent run informed it.
 
-**Where it stands.** The proposal settles two of the issue's four design
-questions (which policies to ask about, and how to handle importance ratios) and
-relates the result to U4. It does not yet pass the
-[admission bar](prior-art-review.md#admission-standard): the learner it
-describes has no gradient correction, and a fresh-context
+**Where it stands.** The issue's design pass has four questions: the method,
+how per-weight step-size adaptation composes with it, which target policies to
+ask about, and how the change relates to U4. The proposal proposes an answer on
+the target policies and, within the method, on how to handle importance ratios;
+both are choices put to the reviewer under
+[Decisions requested](#decisions-requested). It relates the result to U4. It
+does not yet pass the [admission bar](prior-art-review.md#admission-standard):
+the learner it describes has no gradient correction, and a fresh-context
 [refutation attempt](#refutation-attempt) established that the admission
-standard does not let that be deferred. The corrected learner, and its
+standard does not let that be deferred. The method's correction, and its
 composition with per-weight step sizes, is the design work still owed.
 [Admission status](#admission-status) gives the criterion-by-criterion account.
 
@@ -45,8 +48,9 @@ The proposal is:
    bootstrapping from the current prediction.
 3. **Learner entries.** Each transition is one of three SwiftTD entries that the
    option models already use. The change adds no learner arithmetic. It does
-   need one new kernel obligation, a trace clear that costs `O(active)` and not
-   `O(d)`.
+   need a trace clear that costs `O(active)` and not `O(d)`. The invariant
+   such a clear relies on is already machine-checked; the one new kernel
+   obligation is that the sparse clear equals the present one under it.
 4. **Correction.** The result is a semi-gradient method and inherits the known
    off-policy instability. A gradient correction is required before admission.
    This page identifies its starting point and does not design it.
@@ -216,7 +220,10 @@ as they stand at the moment the step's primitive action is fixed:
 
 - for the executing option, T is the candidate set of the snapshot its action
   is drawn from (the one held in its `OptionContinuation`), which precedes that
-  step's own policy write in `Skill.optionStep`;
+  step's own policy write in `Skill.optionStep`. That snapshot's values already
+  reach the dispatcher: `TemporalControl.stepOption` copies them into
+  `TemporalDecision.values`, and the candidate set reads only the values and
+  the tie window, not the snapshot's ε;
 - for every other slot, T is computed from the slot's policy, which nothing
   writes between that moment and the dispatcher. Writes that precede the
   action, such as the terminal write to an option that has just ended, are
@@ -360,11 +367,13 @@ would settle the details.
   feature look permanently useful. The cost of excluding it is that a feature
   useful only to these questions can be replaced.
 - **Step.** The dispatcher runs where the on-policy demons do, in
-  `TemporalControl.finish`, after selection has fixed the action. It needs two
-  things that step does not expose today: the signal values, which
-  `PredictionControl.advance` computes and does not return, and the executing
-  option's drawing snapshot. Both are interface changes. Each signal should
-  still be evaluated once per transition.
+  `TemporalControl.finish`, after selection has fixed the action. It needs one
+  thing that step does not expose today: the signal values, which
+  `PredictionControl.advance` computes and does not return. That is the one
+  interface change. The executing option's candidate set needs none:
+  `TemporalControl.finish` already receives the `TemporalDecision`, whose
+  `TemporalDecision.values` on an option step are the drawing snapshot's
+  values. Each signal should still be evaluated once per transition.
 - **Candidate sets.** One `Controller.predictAll` call for each slot that is
   not executing.
 - **Sparse clear.** See the cost paragraph.
@@ -394,11 +403,19 @@ would settle the details.
   boundary.
 - **Work, with a sparse clear: `O(active)`.** The clear would visit only the
   indices on the eligible list, zero their registers with
-  `clearFeatureRegisters` and empty the list. It equals `clearTransient` on any
-  state in which every register is zero off the eligible list. That invariant
-  looks true by inspection (an index joins the list before the second loop
-  writes its registers, and pruning clears them), but I found no theorem
-  stating it. It is a new obligation on the proven kernel.
+  `clearFeatureRegisters`, empty the list and reset the two scalars `vOld` and
+  `vDelta`, which `TransientState.zero` also zeroes. It equals `clearTransient`
+  on any state in which every register is zero off the eligible list
+  (**argued**: after it, an index on the list has been zeroed and an index off
+  it was already zero).
+- **The invariant already holds (machine-checked).** That every register is
+  zero off the eligible list is `AcornVerif.CurrentLearner.Supported`, one half
+  of `CoreInv`. `entry_core` proves every `SwiftTd.Entry` preserves it,
+  `admitted_core` and `learner_invariant` give it for every admitted learner,
+  and `AcornVerif.CurrentFeatureConsumers.managed_schedule` gives it for every
+  `Managed` learner, the type a `DemonBank` stores. The new obligation on the
+  proven kernel is only the sparse clear's definition and its equality with
+  `clearTransient` under `Supported`.
 - **Per step, with the sparse clear.** At most three `predictAll` calls (27
   ordered sums over the active set) and at most 33 entries, each bounded by the
   eligible and active sets. There is no auxiliary weight vector in this
@@ -423,8 +440,9 @@ executed definitions in an implementing change.
 4. **Self-consistency.** When an option's candidate set is nonempty, its
    non-exploratory draw is consistent with it. This follows from the existing
    `reservoir_nonempty`.
-5. **Sparse clear.** The register invariant above holds on every reachable
-   learner state, and the sparse clear equals `clearTransient` under it.
+5. **Sparse clear.** The sparse clear equals `clearTransient` on every state
+   satisfying `Supported`. The invariant itself is not owed: it is
+   machine-checked for every `Managed` learner by `managed_schedule`.
 6. **Work, storage and observation.** The counts of the cost paragraph, from
    the structure. With the selection off, `Agent.act` produces the same result;
    with it on, every decision and every other component is unchanged.
@@ -535,10 +553,10 @@ Against the five criteria of the
 
 | Criterion | Status | Why |
 |---|---|---|
-| Sound | Argued | The expectation identity and the clip's equivalence survived the refutation attempt in the fixed-weight forward view. |
+| Sound | Argued | The expectation identity survived the refutation attempt in the fixed-weight forward view. The clip's equivalence, the identification with V-trace, is argued and has had no refutation attempt. |
 | In-setting | Passes | One stream, batch size one, no replay, no target network, no resets. |
 | Compatible and non-degenerate | **Fails** | The off-policy instability of semi-gradient learning is a known degeneracy. The standard requires a correction with a formal characterization and closure; disclosure does not clear it. |
-| Affordable | Conditional | Fails with the kernel's present clear; passes with the sparse clear of obligation 5. |
+| Affordable | Conditional | Fails with the kernel's present clear; passes once the sparse clear is defined and proved equal to it (obligation 5). The invariant that equality needs is already machine-checked. |
 | Buildable | Partly | The gated learner is specified. The correction is not. |
 
 So the gated learner cannot be admitted alone, and issue 16 stays open until the
@@ -653,7 +671,7 @@ below were made.
 
 | Finding | Change |
 |---|---|
-| Each cut and restart calls `clearTransient`, which is `O(d)`. The draft claimed every entry was bounded by the eligible and active sets. | Cost paragraph corrected; sparse clear added as obligation 5. |
+| Each cut and restart calls `clearTransient`, which is `O(d)`. The draft claimed every entry was bounded by the eligible and active sets. | Cost paragraph corrected; sparse clear added as obligation 5, which the second review below narrowed to the equality. |
 | Extending `Skill.stored` over the bank feeds the feature tester's utility, contradicting "no consumer". | The bank is retired with the other readers and excluded from the utility. |
 | The draft disclosed the instability and deferred the correction, which the admission standard does not allow, and applied that standard to its rivals. | Verdict changed: [Admission status](#admission-status). |
 | The draft called its trace handling a local construction and said the ratio "only reweights states", which is false above trace parameter zero. | Replaced by the identification with the ratio clipped at one, read on the page in references 7 and 8. |
@@ -661,7 +679,7 @@ below were made.
 | The gate is slower than the worst-case-bounded ratio where the behaviour disagrees with the option. | Stated in [Limits](#limits). |
 | Each cut clears the step-size adaptation's registers. | Stated in [Limits](#limits). |
 | The candidate set was defined "before any learner write of the step", which the call order cannot provide for an option that ends and restarts within a step. | Redefined at the moment the action is fixed; frame condition added to obligation 3. |
-| The dispatcher needs the signal values and the drawing snapshot, which the step does not expose. | Recorded as interface changes. |
+| The dispatcher needs the signal values, which the step does not expose. The finding also named the drawing snapshot; the second review below showed its values are already exposed. | The signal values are recorded as the one interface change. |
 | The expectation identity and the obstruction are model statements, not theorems over the executed definitions. | Removed from the Lean obligations and labelled argued. |
 | TDRC's experiments adapt a vector of step sizes with Adagrad, so "no source combines these with per-weight adaptation" was too broad; two paraphrases of reference 6 said more than the page. | Reworded. |
 | The adaptation labels omitted function approximation and the learning target, and called state values an equivalent specialization. | Labels redone. |
@@ -686,11 +704,21 @@ below were made.
 - The learner counts, the restore behaviour of the models, the existence of
   the cited declarations, and the page locators of references 1 to 7.
 
+**Second review.** A second independent review read the revised page against
+the code at a71ed08 and against issue 16. It built and ran nothing. It found
+three errors, each checked against the source before the change was made.
+
+| Finding | Change |
+|---|---|
+| The page said no theorem states that every register is zero off the eligible list and called the invariant a new obligation. It is `AcornVerif.CurrentLearner.Supported`, machine-checked for every admitted and every `Managed` learner. The described sparse clear also left `vOld` and `vDelta` unreset, so it did not equal `clearTransient`. | Summary, cost paragraph, obligation 5 and the Affordable row now cite the existing theorems; the obligation is the equality alone, and the sparse clear resets both scalars. |
+| The page said the step does not expose the executing option's drawing snapshot. `TemporalControl.stepOption` already copies its values into `TemporalDecision.values`, which `TemporalControl.finish` receives. | [Consistency](#consistency) and [Integration](#integration) corrected: one interface change, the signal values. |
+| The Sound row said the clip's equivalence survived the refutation attempt, which contradicts the paragraph below; and "Where it stands" said two of the issue's four questions were settled. | Sound row and "Where it stands" reworded: the identification with V-trace is argued and unattacked, and the page proposes answers on targets and ratio handling and leaves the correction and the step-size composition owed. |
+
 **What was not checked.** The runtime's memory layout; the sections of
 SwiftTD outside those cited; issues 10 and 11 beyond their baseline rows. The
 identification with V-trace, the admission table and the notes on the
-correction were written after the review and have not had a refutation attempt
-of their own.
+correction were written after the first review. The second review read them
+and corrected the Sound row; none has had a refutation attempt of its own.
 
 ## References
 
