@@ -16,7 +16,8 @@ semantics, assumptions and implementation owner in the pull request. Use
 learned-only boundaries, prior-art admission, and delivery requirements. Follow
 its [review and delivery](AGENTS.md#review-and-delivery) section for checks,
 signed commits and independent review. The shipped skills under .agents/skills
-provide the review workflow and proof-specific questions.
+provide the review workflow, proof-specific questions and the Regula rules for
+writing Lean.
 
 Claude Code reads AGENTS.md by itself only when no CLAUDE.md or CLAUDE.local.md
 applies to the checkout, including a CLAUDE.md in a parent directory. If one
@@ -25,7 +26,8 @@ checkout root.
 
 For each change, explain the intended behavior, its implementation and proof
 owners, and any assumptions in the PR. Run `./scripts/verify.sh` from the checkout
-and report its actual result and material limits.
+and report its actual result and material limits. CI also requires the
+[Regula audit](docs/verification.md#regula-audit).
 
 Pull requests are squash-merged: the PR title becomes the commit header on main
 and the PR body its message. Title each PR as a
