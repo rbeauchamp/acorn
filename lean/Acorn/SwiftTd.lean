@@ -371,15 +371,17 @@ min(1, η/τ) e^{β[i]}`, `p[i] ← p[i] + h[i]`, and the eq. (32) `hTemp`
 correction), with the overshoot step-size decay applied after this step's
 trace and meta-gradient updates. A zero trace joins the eligible list, the
 only admission; the check reads the entry trace, before this element's writes.
-Returns the updated state and shared update accumulator. -/
-def secondLoopElement (config : Config) (overshoot : Bool) (e t : Binary32)
+The caller supplies the three words no visit changes for a later one: the
+trace scale `scale = η/e`, the complement `oneSubT = 1 − t` of the trace
+total, and this feature's step size `alpha = e^{β[i]}`. Returns the updated
+state and shared update accumulator. -/
+def secondLoopElementAt (overshoot : Bool) (scale oneSubT alpha : Binary32)
     (state : NumericState config dimension) (vDelta : Binary32) (idx : FeatIdx dimension) :
     NumericState config dimension × Binary32 :=
   let eligible := if (state.transient.z.get idx).value.isZero then
     state.transient.eligible.push idx else state.transient.eligible
   let vDelta := vDelta.add (state.transient.deltaWeight.get idx).value
-  let zd := (config.eta.div e).mul (state.beta.get idx).alpha
-  let oneSubT := Binary32.one.sub t
+  let zd := scale.mul alpha
   let z := (state.transient.z.get idx).value.add (zd.mul oneSubT)
   let p := (state.transient.p.get idx).value.add (state.transient.h.get idx).value
   let zBar := (state.transient.zBar.get idx).value.add
@@ -407,23 +409,102 @@ def secondLoopElement (config : Config) (overshoot : Bool) (e t : Binary32)
       h := h } }
   (next, vDelta)
 
+/-- The second-loop element as Algorithm 1 lists it: the scale `η/e` and
+complement `1 − t` come from its arguments, and its step size `e^{β[i]}` from
+the state it receives. The learner contracts are stated about this element.
+The executing traversal evaluates each of the three words once, and
+`learnSecondLoop_eq_sumFrom` proves it equal to the fold of this element. -/
+def secondLoopElement (config : Config) (overshoot : Bool) (e t : Binary32)
+    (state : NumericState config dimension) (vDelta : Binary32) (idx : FeatIdx dimension) :
+    NumericState config dimension × Binary32 :=
+  secondLoopElementAt overshoot (config.eta.div e) (Binary32.one.sub t)
+    (state.beta.get idx).alpha state vDelta idx
+
+/-- A second-loop visit changes no other feature's step size: its only
+step-size write is the overshoot decay at its own index. -/
+theorem secondLoopElementAt_alpha (overshoot : Bool) (scale oneSubT alpha : Binary32)
+    (state : NumericState config dimension) (vDelta : Binary32) (idx other : FeatIdx dimension)
+    (different : idx ≠ other) :
+    ((secondLoopElementAt overshoot scale oneSubT alpha state vDelta idx).1.beta.get other).alpha =
+      (state.beta.get other).alpha := by
+  have distinct : idx.val ≠ other.val := fun same => different (Fin.ext same)
+  have read : ∀ {α : Type} (values : Vector α dimension.capacity),
+      values.get other = values[other.val] := fun _ => rfl
+  unfold LogStepSize.alpha
+  congr 1
+  cases overshoot
+  · rfl
+  · simp only [secondLoopElementAt, read, Vector.getElem_set, distinct, ite_false, ite_true]
+
+/-- The second-loop traversal: the active features in first-occurrence order,
+each visit receiving its step size from the list evaluated at loop entry. The
+two lists advance together and a visit needs an entry of each, so traversal
+ends with the shorter; `learnSecondLoop` supplies one step size per index. -/
+def learnSecondLoopGo (overshoot : Bool) (scale oneSubT : Binary32) :
+    List (FeatIdx dimension) → List Binary32 → NumericState config dimension → Binary32 →
+      NumericState config dimension × Binary32
+  | idx :: indices, alpha :: alphas, state, vDelta =>
+    let next := secondLoopElementAt overshoot scale oneSubT alpha state vDelta idx
+    learnSecondLoopGo overshoot scale oneSubT indices alphas next.1 next.2
+  | _, _, state, vDelta => (state, vDelta)
+
+/-- Step sizes read once at loop entry are the step sizes each visit would
+read from the state it receives, so the traversal is the fold of the listed
+element. Unique indices are the hypothesis: an earlier visit writes only its
+own step size, and every later index differs from it. -/
+theorem learnSecondLoopGo_eq_foldl (config : Config) (overshoot : Bool) (e t : Binary32)
+    (indices : List (FeatIdx dimension)) (unique : indices.Nodup)
+    (state : NumericState config dimension) (vDelta : Binary32) :
+    learnSecondLoopGo overshoot (config.eta.div e) (Binary32.one.sub t) indices
+        (indices.map fun idx => (state.beta.get idx).alpha) state vDelta =
+      indices.foldl
+        (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
+        (state, vDelta) := by
+  induction indices generalizing state vDelta with
+  | nil => rfl
+  | cons idx rest ih =>
+    have fresh := (List.nodup_cons.mp unique).1
+    have restUnique := (List.nodup_cons.mp unique).2
+    let next := secondLoopElement config overshoot e t state vDelta idx
+    have same : (rest.map fun other => (state.beta.get other).alpha) =
+        rest.map fun other => (next.1.beta.get other).alpha := by
+      apply List.map_congr_left
+      intro other member
+      exact (secondLoopElementAt_alpha overshoot _ _ _ state vDelta idx other
+        (fun equal => fresh (equal ▸ member))).symm
+    calc learnSecondLoopGo overshoot (config.eta.div e) (Binary32.one.sub t) (idx :: rest)
+          ((idx :: rest).map fun other => (state.beta.get other).alpha) state vDelta
+        = learnSecondLoopGo overshoot (config.eta.div e) (Binary32.one.sub t) rest
+            (rest.map fun other => (state.beta.get other).alpha) next.1 next.2 := rfl
+      _ = learnSecondLoopGo overshoot (config.eta.div e) (Binary32.one.sub t) rest
+            (rest.map fun other => (next.1.beta.get other).alpha) next.1 next.2 := by rw [same]
+      _ = rest.foldl
+            (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
+            (next.1, next.2) := ih restUnique next.1 next.2
+      _ = (idx :: rest).foldl
+            (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
+            (state, vDelta) := rfl
+
 /-- The second loop of the update: the active features in first-occurrence
 order. `τ = Σ_{i∈F} e^{β[i]}` (eq. (7), p. 845), one overshoot binding for
 both the trace scale and the step-size decay, and the shared `vDelta`
-accumulator returned to the caller. -/
+accumulator returned to the caller. Each step size `e^{β[i]}` is evaluated
+once, for both `τ` and its feature's trace increment. -/
 def learnSecondLoop (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) (vDelta : Binary32) :
     NumericState config dimension × Binary32 :=
-  let rate := Binary32.sumMap .zero features.indices (fun idx => (state.beta.get idx).alpha)
+  let alphas := features.indices.map fun idx => (state.beta.get idx).alpha
+  let rate := Binary32.sumFrom .zero alphas
   let overshoot := config.eta.less rate
   let e := if overshoot then rate else config.eta
   let t := Binary32.sumMap .zero features.indices (fun idx => (state.transient.z.get idx).value)
-  features.indices.foldl
-    (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
-    (state, vDelta)
+  learnSecondLoopGo overshoot (config.eta.div e) (Binary32.one.sub t) features.indices alphas
+    state vDelta
 
-/-- Both executing pre-update sums preserve the complete ordered active loop,
-for every receiving state, feature list and accumulator word. -/
+/-- The executing second loop is the listed one: both pre-update sums keep
+the complete ordered active loop, and every visit's step size, scale and
+trace complement are the words the listed element computes for itself. This
+holds for every receiving state, feature list and accumulator word. -/
 theorem learnSecondLoop_eq_sumFrom (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) (vDelta : Binary32) :
     learnSecondLoop config state features vDelta =
@@ -437,6 +518,7 @@ theorem learnSecondLoop_eq_sumFrom (config : Config) (state : NumericState confi
         (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
         (state, vDelta) := by
   simp only [learnSecondLoop, Binary32.sumMap_eq]
+  exact learnSecondLoopGo_eq_foldl config _ _ _ features.indices features.nodup state vDelta
 
 /-- One full single-learner update: predict, then the two loops with this
 learner's own `vDelta` and `vOld`; the bootstrap multiplier and trace decay
@@ -470,10 +552,38 @@ def terminalStep (config : Config) (state : NumericState config dimension) (targ
     (config.rule.gamma.mul config.lambda)
   (state.clearTransient, delta)
 
+/-- The planning weight traversal: the active features in first-occurrence
+order, each visit receiving its step size from the list evaluated at entry.
+The two lists advance together and a visit needs an entry of each, so
+traversal ends with the shorter; `planStep` supplies one step size per index. -/
+def planWeightsGo (scale delta : Binary32) :
+    List (FeatIdx dimension) → List Binary32 → NumericState config dimension →
+      NumericState config dimension
+  | idx :: indices, alpha :: alphas, state =>
+    planWeightsGo scale delta indices alphas
+      (state.writeWeight idx ((state.weights.get idx).value.add ((scale.mul alpha).mul delta)))
+  | _, _, state => state
+
+/-- Step sizes read once at entry are the step sizes each planning visit
+would read from the state it receives: a visit writes one weight and no step
+size. No uniqueness hypothesis is needed. -/
+theorem planWeightsGo_eq_foldl (scale delta : Binary32) (indices : List (FeatIdx dimension))
+    (state : NumericState config dimension) :
+    planWeightsGo scale delta indices (indices.map fun idx => (state.beta.get idx).alpha) state =
+      indices.foldl (fun state idx =>
+        let stepSize := (scale.mul (state.beta.get idx).alpha).mul delta
+        state.writeWeight idx ((state.weights.get idx).value.add stepSize)) state := by
+  induction indices generalizing state with
+  | nil => rfl
+  | cons idx rest ih =>
+    exact ih (state.writeWeight idx
+      ((state.weights.get idx).value.add ((scale.mul (state.beta.get idx).alpha).mul delta)))
+
 /-- A single background planning update toward `target` at `features` without
 modifying eligibility traces or meta-gradient registers (PAR-14; Dyna 1991,
 STOMP eq. (19)): `w[i] ← project (w[i] + (η/E)·α[i]·δ)`. A nonfinite or zero
-error is no update. -/
+error is no update. Each step size `α[i]` is evaluated once, for both `E` and
+its feature's weight write. -/
 def planStep (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) (target : Binary32) :
     NumericState config dimension × Binary32 :=
@@ -481,14 +591,30 @@ def planStep (config : Config) (state : NumericState config dimension)
   let delta := target.sub v
   if !decide delta.Finite || delta.numericallyEqual .zero then (state, .zero)
   else
-    let rate := Binary32.sumFrom .zero
-      (features.indices.map fun idx => (state.beta.get idx).alpha)
+    let alphas := features.indices.map fun idx => (state.beta.get idx).alpha
+    let rate := Binary32.sumFrom .zero alphas
     let e := if config.eta.less rate then rate else config.eta
-    let scale := config.eta.div e
-    let state := features.indices.foldl (fun state idx =>
-      let stepSize := (scale.mul (state.beta.get idx).alpha).mul delta
-      state.writeWeight idx ((state.weights.get idx).value.add stepSize)) state
-    (state, delta)
+    (planWeightsGo (config.eta.div e) delta features.indices alphas state, delta)
+
+/-- The executing planning update is the fold whose every visit reads its own
+step size from the state it receives, for every state, feature list and
+target word. -/
+theorem planStep_eq_foldl (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) (target : Binary32) :
+    state.planStep config features target =
+      let v := state.predict features
+      let delta := target.sub v
+      if !decide delta.Finite || delta.numericallyEqual .zero then (state, .zero)
+      else
+        let rate := Binary32.sumFrom .zero
+          (features.indices.map fun idx => (state.beta.get idx).alpha)
+        let e := if config.eta.less rate then rate else config.eta
+        let scale := config.eta.div e
+        let state := features.indices.foldl (fun state idx =>
+          let stepSize := (scale.mul (state.beta.get idx).alpha).mul delta
+          state.writeWeight idx ((state.weights.get idx).value.add stepSize)) state
+        (state, delta) := by
+  simp only [planStep, planWeightsGo_eq_foldl]
 
 /-- Replace one feature's knowledge and transients with a fresh unit's start
 state: the first eligible occurrence removed (the whole membership under
