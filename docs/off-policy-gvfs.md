@@ -76,9 +76,11 @@ is asked to accept or change.
   discounts (0.99, 0.95 or 0.90) from `demonDiscount`. The family is declared
   departure [D5](learned-only-binding.md#d5--prediction-targets--step-2).
 - **Learner.** `DemonBank.step` in [Demon](../lean/Acorn/Demon.lean) applies one
-  SwiftTD `step` per signal on every primitive step, from
-  `PredictionControl.advance`, which `TemporalControl.finish` calls after the
-  step's action has been selected. A **demon** is the learner of one GVF.
+  SwiftTD `step` per signal on every primitive step of a profile that is not
+  frozen, from `PredictionControl.advance`, which `TemporalControl.finish`
+  calls after the step's action has been selected. In a frozen profile
+  `PredictionControl.advance` steps no demon. A **demon** is the learner of one
+  GVF.
   Demons use trace parameter 0.95, rate budget 0.1 and initial step size
   5·10⁻⁵ (`Config.lambda`, `Config.eta`, `Config.alphaInitial`).
 - **Policy.** The predictions are about whatever acted. Nothing corrects for the
