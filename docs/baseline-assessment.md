@@ -398,7 +398,8 @@ The roadmap also tracks the missing published pieces that no unit covers:
 - the Differential Q-learning TD-error update of the average-reward estimate
   ([#14](https://github.com/rbeauchamp/acorn/issues/14));
 - search control beyond U5's minimum ([#15](https://github.com/rbeauchamp/acorn/issues/15));
-- off-policy GVFs ([#16](https://github.com/rbeauchamp/acorn/issues/16));
+- off-policy GVFs ([#16](https://github.com/rbeauchamp/acorn/issues/16); a
+  [design proposal](off-policy-gvfs.md) is under review);
 - learned agent state ([#17](https://github.com/rbeauchamp/acorn/issues/17));
 - utility feedback ([#18](https://github.com/rbeauchamp/acorn/issues/18));
 - nonlinear continual learning ([#19](https://github.com/rbeauchamp/acorn/issues/19)).
