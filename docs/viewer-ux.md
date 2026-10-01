@@ -1111,7 +1111,7 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Step-size curves | plasticity panel | Alberta Plan Step 1, arXiv:2208.11173v3 **PDF p. 6**: *“All of that user expertise should be replaced by a meta-algorithm for setting the step-size parameter…”* The panel plots Acorn’s current step sizes. |
 | intra-option-credit / derived-exploration-rate studies | **out of viewer scope** | PAR-9 / PAR-10 identify the mechanisms, pinned above. |
 | Rendered inspection and compiler checks | contributor verification | AC-R4 geometries and AC-R6 check results cover presentation and implementation. |
-| `FLOAT_FIELDS` ⊆ emit keys | gate, not a surface | `AcornTools.Corpus.Browser` binds conversion keys to `browserSchema`. |
+| Record keys = emit keys | proof, not a surface | The page's record conversion and frame store are generated from `browserSchema`. `browserRecord_keys` proves the record has a field for every schema key and no other; `browserColumns_live` proves each ring column reads a schema key at the schema's array width. |
 
 ## Appendix A · Constants this document quotes
 

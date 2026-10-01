@@ -54,6 +54,16 @@ def Phase.controlTag : Phase → String
   | .idle => "stopped" | .starting _ => "starting" | .running _ => "running"
   | .stopping _ => "stopping" | .archiving => "clearing"
 
+/-- One phase per constructor. The generation never reaches the wire spelling, so these
+carry every actual-phase tag the supervisor can emit. -/
+def Phase.representatives : List Phase :=
+  [.starting 0, .running 0, .stopping 0, .archiving, .idle]
+
+/-- Every phase is spelled like one of its representatives. -/
+theorem Phase.controlTag_represented (phase : Phase) :
+    phase.controlTag ∈ Phase.representatives.map Phase.controlTag := by
+  cases phase <;> simp [Phase.representatives, Phase.controlTag]
+
 /-- Supplemental observations carry no writable lifecycle fields. -/
 structure ControlDetail where
   /-- Actual server-selected transition. -/
