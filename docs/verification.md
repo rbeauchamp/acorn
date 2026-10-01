@@ -141,27 +141,41 @@ available for focused diagnostics.
 
 [Regula](https://github.com/rbeauchamp/regula) is a strict linter for Lean with a
 published standard. Acorn requires the release pinned in `lean/lakefile.lean` and
-runs its lint driver through the same offline bootstrap as every other Lake
-command:
+starts its lint driver through the offline bootstrap:
 
 ```sh
 ./scripts/lean.sh lint
 ```
 
+Only that outer lint command goes through the bootstrap. Regula's driver then
+runs Lake itself to build, query and enter the workspace environment, without
+the bootstrap's path overrides or its no-cache and warnings-as-failures flags.
+Those invocations resolve dependencies through the Git lock in
+`lean/lake-manifest.json`. The bootstrap admits a dependency by the presence of
+its files, not by its revision, so Lake fetches a dependency whose checkout is
+not at the locked revision.
+
 The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
 configuration and 3 when the audit is incomplete. The first run compiles Regula's
-driver. Regula keeps a scratch directory named tmp under lean, which Git ignores.
+driver. Regula writes scratch copies of Lean sources to tmp/.regula-scratch under
+lean and a killed run leaves them. Git ignores that directory, and the module
+inventory, the native source inventory and the corpus walk skip it.
 
 `lean/foundation_manifest.json` states what is audited. A claim names the
-strongest axioms any declaration of a library may depend on. Acorn, AcornVerif
-and NativeApp, with the ten application executables, claim Regula's
+strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
+NativeApp and Bootstrap, with the ten application executables, claim Regula's
 standard-logical profile: propext, Quot.sound and Classical.choice, and no other
 axiom. No stricter profile is attainable, because Lean's core definitions of
 binary32 and binary64 arithmetic depend on Classical.choice, as does the Mathlib
-analysis in AcornVerif. Compiled code is claimed in Regula's report mode: every
-boundary an executable reaches is reported, and the compiler, native runtime
-and operating system stay trusted. AcornTools and Bootstrap are excluded with the
-six tool executables; they are the reviewed tooling trust boundary.
+analysis in AcornVerif. Acorn, NativeApp and Bootstrap claim compiled code in
+Regula's checked mode: the audit fails on any extern, replacement, unsafe or
+partial boundary that their compiled code reaches outside the Lean toolchain's
+own trusted base. AcornVerif claims report mode, where each boundary is reported
+and not failed: its compiled definitions reach the recursors that Mathlib
+compiles for Bool, List and Option, boundaries Mathlib owns, so checked mode
+rejects them. The compiler, native runtime, operating system and spawned
+processes stay trusted in both modes. AcornTools is excluded with the six tool
+executables; it is the reviewed tooling trust boundary.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

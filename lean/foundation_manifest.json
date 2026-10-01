@@ -13,14 +13,14 @@
         "world-native"
       ],
       "claim": "standard-logical",
-      "execution": "report",
-      "rationale": "Acorn's executable definitions: machine encodings, arithmetic, the learners, feature lifecycle, world, host runner, checkpoint and viewer protocol, and the native drivers that consume them. Its binary32 and binary64 operations use Lean's core float model, which depends on Classical.choice, so choice-free is not attainable. Native arithmetic, the Lean runtime and the POSIX effects the host modules reach are trusted execution boundaries, so the execution mode stays report."
+      "execution": "checked",
+      "rationale": "Acorn's executable definitions: machine encodings, arithmetic, the learners, feature lifecycle, world, host runner, checkpoint and viewer protocol, and the native drivers that consume them. Its binary32 and binary64 operations use Lean's core float model, which depends on Classical.choice, so choice-free is not attainable. Checked execution holds because the library declares no extern, replacement, unsafe or partial code and imports only the Lean toolchain, so every boundary its definitions and seven executables reach belongs to the toolchain's own trusted base. Native arithmetic, the Lean runtime and the POSIX effects reached through toolchain primitives stay trusted, and the spawned checkpoint-sync process is outside the account."
     },
     {
       "library": "AcornVerif",
       "claim": "standard-logical",
       "execution": "report",
-      "rationale": "Contracts about the executing Acorn definitions, with the supporting Mathlib mathematics stated under explicit hypotheses. Mathlib's real analysis and classical reasoning use Classical.choice. The library has no executable."
+      "rationale": "Contracts about the executing Acorn definitions, with the supporting Mathlib mathematics stated under explicit hypotheses. Mathlib's real analysis and classical reasoning use Classical.choice. The library has no executable. Execution stays report because checked was measured to fail with Regula v0.3.0: RG3002 fired 296 times, every finding in AcornVerif, naming compiled definitions there that reach Bool.rec, List.rec or Option.rec. Each is reached as a compiler-simplification boundary and as the partial-computation implementation that Mathlib.Util.CompileInductive generates, and Mathlib owns both."
     },
     {
       "library": "NativeApp",
@@ -30,18 +30,20 @@
         "browser-kernel"
       ],
       "claim": "standard-logical",
-      "execution": "report",
-      "rationale": "Native entry points, embedded provenance and viewer resources over the Acorn definitions. They reach Lean's runtime, process, filesystem and socket primitives and the reviewed C fsync helper, which are trusted execution boundaries, so the execution mode stays report."
+      "execution": "checked",
+      "rationale": "Native entry points, embedded provenance and viewer resources over the Acorn definitions. Checked execution holds because the library declares no extern, replacement, unsafe or partial code and imports only Acorn and the Lean toolchain, so the runtime, process, filesystem and socket primitives its definitions and three executables reach belong to the toolchain's own trusted base. Those primitives stay trusted, and the reviewed C fsync helper runs as a spawned process outside the account."
+    },
+    {
+      "library": "Bootstrap",
+      "claim": "standard-logical",
+      "execution": "checked",
+      "rationale": "The offline Lake launcher that admits provisioned dependencies for every gate, including this audit. It imports only the pinned toolchain and maps locked dependencies to provisioned paths before Lake loads the workspace. Checked execution holds because the module declares no extern, replacement, unsafe or partial code, so every boundary its definitions reach belongs to the toolchain's own trusted base. The launcher runs interpreted with no Lake executable, and the Lake process it spawns is outside the account."
     }
   ],
   "excluded-libraries": [
     {
       "library": "AcornTools",
       "rationale": "Reviewed build and verification tooling, an explicit trust boundary under AGENTS.md and outside the application's proof claim. It loads compiled environments with unsafe Lean APIs and runs the gates that admit the claimed surfaces; every tool module is admitted individually by AcornModuleInventory.toolingModules."
-    },
-    {
-      "library": "Bootstrap",
-      "rationale": "The offline Lake launcher, build tooling that imports only the pinned toolchain and maps locked dependencies to provisioned paths before Lake loads the workspace. It is an explicit trust boundary under AGENTS.md, outside the application's proof claim."
     }
   ],
   "excluded-executables": [

@@ -12,15 +12,21 @@ def nativeFloatFlags : Array String := #["-ffp-contract=off", "-fno-fast-math"]
 def checkpointFlags : Array String := #["-std=c11", "-D_POSIX_C_SOURCE=200809L", "-D_DARWIN_C_SOURCE",
   "-Wall", "-Wextra", "-Werror", "-pedantic", "-O2"]
 
-/-- The native build inventory rejects links and nonregular source entries. -/
-partial def nativeSources (root : System.FilePath) : IO (Array System.FilePath) := do
+/-- The native build inventory rejects links and nonregular source entries.
+`scratch` is the one directory `tmp/.regula-scratch` below the package: Regula writes
+scratch copies of Lean sources there and a killed run leaves them
+(https://github.com/rbeauchamp/regula/issues/172). The exclusion is removed once
+Regula keeps them under `.lake`. -/
+partial def nativeSources (root : System.FilePath)
+    (scratch : System.FilePath := root / "tmp" / ".regula-scratch") :
+    IO (Array System.FilePath) := do
   let mut files := #[]
   for entry in ← root.readDir do
     if entry.fileName == ".lake" || entry.fileName == "lake-packages" ||
-        entry.fileName == ".DS_Store" then continue
+        entry.fileName == ".DS_Store" || entry.path == scratch then continue
     let metadata ← entry.path.symlinkMetadata
     match metadata.type with
-    | .dir => files := files ++ (← nativeSources entry.path)
+    | .dir => files := files ++ (← nativeSources entry.path scratch)
     | .file =>
       if entry.path.extension == some "lean" || entry.path.extension == some "c" ||
           entry.fileName == "lean-toolchain" || entry.fileName == "lake-manifest.json" then
