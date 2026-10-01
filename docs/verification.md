@@ -157,9 +157,10 @@ not at the locked revision.
 
 The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
 configuration and 3 when the audit is incomplete. The first run compiles Regula's
-driver. Regula writes scratch copies of Lean sources to tmp/.regula-scratch under
-lean and a killed run leaves them. Git ignores that directory, and the module
-inventory, the native source inventory and the corpus walk skip it.
+driver. Regula writes scratch copies of Lean sources to .lake/regula-scratch under
+lean; a killed run leaves them until the next Regula run removes them. Git ignores
+.lake, and the module inventory, the native source inventory and the corpus walk
+skip it as Lake's build directory.
 
 `lean/foundation_manifest.json` states what is audited. A claim names the
 strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
