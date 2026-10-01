@@ -40,7 +40,8 @@ The proposal is:
 
 1. **Targets.** Ask the existing eleven signals about each option's *greedy*
    policy: "what would this signal be if the agent took option *o*'s greedy
-   action from here on?"
+   action from here on?" An **option** is a learned policy that can choose
+   actions over several steps ([design](design.md#agent-configurations)).
 2. **Ratios.** Clip the importance ratio at one. For a deterministic target the
    clipped ratio is a Boolean: one when the action taken is one the target
    would take, zero otherwise. The learner therefore runs only over stretches
@@ -77,18 +78,21 @@ is asked to accept or change.
 - **Learner.** `DemonBank.step` in [Demon](../lean/Acorn/Demon.lean) applies one
   SwiftTD `step` per signal on every primitive step, from
   `PredictionControl.advance`, which `TemporalControl.finish` calls after the
-  step's action has been selected. Demons use trace parameter 0.95, rate budget
-  0.1 and initial step size 5·10⁻⁵ (`Config.lambda`, `Config.eta`,
-  `Config.alphaInitial`).
+  step's action has been selected. A **demon** is the learner of one GVF.
+  Demons use trace parameter 0.95, rate budget 0.1 and initial step size
+  5·10⁻⁵ (`Config.lambda`, `Config.eta`, `Config.alphaInitial`).
 - **Policy.** The predictions are about whatever acted. Nothing corrects for the
   difference between that and any other policy
   ([PAR-3](prior-art-review.md#par-3--horde)).
 - **Who acts.** A primitive action comes from one of four sources
   (`TemporalSource`): the primitive controller's draw, the first action of a
   persistent exploration run, a served continuation of such a run, or the
-  executing option's own policy. In every research profile but the annealed
-  comparison, each source that draws a primitive action is ε-greedy over nine
-  actions with the declared rate ε = 0.01
+  executing option's own policy. A **research profile** is a named combination
+  of agent mechanisms ([design](design.md#agent-configurations)). In every
+  research profile but the annealed comparison, the one that prescribes an
+  exploration-rate schedule in place of the declared rate, each source that
+  draws a primitive action is ε-greedy over nine actions with the declared
+  rate ε = 0.01
   ([D6](learned-only-binding.md#d6--exploration-rate--step-9)); ties within a
   window of 10⁻⁶ of the maximum share the greedy mass
   (`PolicySnapshot.candidates`). A served continuation draws nothing: it
@@ -114,10 +118,13 @@ Each locator below was read on the page for this proposal; see
 - **V-trace** truncates both the ratio on the error and the ratio in the trace,
   each at its own level, and admits a trace parameter. In the tabular case its
   fixed point is the value of a policy that depends on the truncation level
-  [[8]](#r8). **Vtrace(λ)** is the online trace form for prediction, with both
-  levels at one [[7]](#r7). TDRC's authors report that it is slightly worse
-  than TD because of the bias it introduces and that it does not prevent
-  divergence on Baird's counterexample [[6]](#r6).
+  [[8]](#r8). The collision study describes that general form for prediction
+  in words and investigates a simplified variant, **Vtrace(λ)**, that caps
+  only the ratio in the trace, at one, and leaves the ratio on the error
+  uncapped [[7]](#r7). TDRC's authors describe Vtrace as TD with its
+  importance ratios clipped at one, and report that it is slightly worse than
+  TD because of the bias it introduces and that it does not prevent divergence
+  on Baird's counterexample [[6]](#r6).
 - **Reward-respecting subtasks** learns every subtask's value function and its
   option model off-policy on every step with a per-step ratio and an
   accumulating trace scaled by that ratio, with no gradient correction
@@ -263,6 +270,16 @@ built from the raw ordered prediction `linearPrediction` of the pre-entry
 state, that error is the word `step` computes, so earlier states receive the
 same credit they would have received, and no later error reaches them.
 
+The third row need not clear anything (**argued**). Whenever *live* is false
+the learner's transients are already `TransientState.zero`: a fresh learner
+starts there, `terminalStep` ends there, and `retireIndex` on a clear state
+leaves it clear. On such a state `beginTrajectory`'s clear changes nothing, and
+`step` with x and any signal word produces the same state (obligation 2),
+because the first loop does nothing on an empty eligible list. So the third row
+could apply `step` in place of `beginTrajectory`. The table keeps
+`beginTrajectory`; the substitution is a choice for the implementing change,
+and it affects only the cost stated under [Integration](#integration).
+
 ### What it learns
 
 Model the step's action as drawn from a distribution b that may depend on the
@@ -289,10 +306,15 @@ trace parameter varies along the stream.
 
 **The gate is the ratio clipped at one.** For the restricted policy the ratio
 is 1/b(T) on T and zero off it, so min(1, ρ) is the indicator of T. The
-mechanism is therefore V-trace with both truncation levels at one [[8]](#r8),
-in its online trace form [[7]](#r7). V-trace's tabular fixed-point policy,
-evaluated at that level for this target, is the target itself wherever
-b(T) > 0.
+mechanism is therefore V-trace with both truncation levels at one: reference
+8's target, eq. (1), with the trace parameter of its Remark 2 [[8]](#r8). The
+collision study describes the same general form in words (p. 23), and its
+Appendix A prints a rule that matches it only when the printed larger-of is
+read as smaller-of [[7]](#r7). The variant that study investigates is a
+different algorithm: it leaves the ratio on the error uncapped, so its
+empirical results on Vtrace(λ) do not concern this mechanism. V-trace's
+tabular fixed-point policy, evaluated at that level for this target, is the
+target itself wherever b(T) > 0.
 
 What follows from this:
 
@@ -322,10 +344,12 @@ and agrees with the option.
 
 Following the [material adaptation contract](prior-art-review.md#admission-standard):
 
-- **Equivalent specialization: the clip.** V-trace at truncation level one, for
-  a target that is deterministic up to ties, has the Boolean weight above
-  [[8]](#r8) [[7]](#r7). The same rule, update every option consistent with the
-  action taken, is intra-option model learning's [[4]](#r4).
+- **Equivalent specialization: the clip.** V-trace with both truncation levels
+  at one, for a target that is deterministic up to ties, has the Boolean weight
+  above [[8]](#r8). The collision study describes that general form and
+  investigates a different variant, which is an alternative and not this basis
+  [[7]](#r7). The same rule, update every option consistent with the action
+  taken, is intra-option model learning's [[4]](#r4).
 - **Published variant: state values.** Horde's demons are action-value
   functions. Off-policy prediction of state values is the collision study's
   setting [[7]](#r7). A state-value question about π answers "follow π from
@@ -401,6 +425,11 @@ would settle the details.
   writes for a slot's eleven learners, and a slot's consistency can change on
   every step. The option models pay the same cost today, once per option
   boundary.
+- **The restart's cost is avoidable with the kernel unchanged (argued).** By
+  the observation under [Dispatch](#dispatch), the third row can apply `step`
+  in place of `beginTrajectory`; on a clear state `step` is bounded by the
+  active set. Only the cut then pays `O(d)`, and only the cut needs the sparse
+  clear.
 - **Work, with a sparse clear: `O(active)`.** The clear would visit only the
   indices on the eligible list, zero their registers with
   `clearFeatureRegisters`, empty the list and reset the two scalars `vOld` and
@@ -553,7 +582,7 @@ Against the five criteria of the
 
 | Criterion | Status | Why |
 |---|---|---|
-| Sound | Argued | The expectation identity survived the refutation attempt in the fixed-weight forward view. The clip's equivalence, the identification with V-trace, is argued and has had no refutation attempt. |
+| Sound | Argued | The expectation identity survived the refutation attempt in the fixed-weight forward view. The clip's equivalence, the identification with V-trace, was re-derived against reference 8 in the second review and held; that review corrected its attribution to reference 7. |
 | In-setting | Passes | One stream, batch size one, no replay, no target network, no resets. |
 | Compatible and non-degenerate | **Fails** | The off-policy instability of semi-gradient learning is a known degeneracy. The standard requires a correction with a formal characterization and closure; disclosure does not clear it. |
 | Affordable | Conditional | Fails with the kernel's present clear; passes once the sparse clear is defined and proved equal to it (obligation 5). The invariant that equality needs is already machine-checked. |
@@ -602,7 +631,7 @@ What the next design pass must decide:
 | Ratios bounded by SwiftTD's rate bound on the realized product, greedy target | No | Reweights states by min(τ, b·η), which is no worse than the gate's b·τ, but reads the behaviour probability and lets the trace grow by up to 900 per step before the bound. |
 | ε-soft option policies as targets | No | No ratio supplies the missing actions on served steps. |
 | Emphatic TD(λ) | No | The follow-on trace has no bound at these ratios. |
-| Tree Backup(λ) for prediction | No | Gates the trace as proposed but keeps the unclipped ratio on the error [[7]](#r7). |
+| Tree Backup(λ) for prediction, or Vtrace(λ) as the collision study investigates it | No | For a deterministic target the two coincide: each gates the trace as proposed but keeps the unclipped ratio, up to 900, on the error [[7]](#r7). |
 | Action-value GVFs with expected backups | Not now | No ratio at one step, but nine weight vectors per question and the same instability without a correction. |
 | Trace parameter zero | No | Removes ratio products but not the single ratio of 900, and gives up traces for no gain once the weight is Boolean. |
 | The gate with a regularized gradient correction | Required next | See [The correction still owed](#the-correction-still-owed). |
@@ -652,10 +681,16 @@ for this proposal, in the linked version. Three limits apply.
 
 - Reference 2's page numbers are those of the linked proceedings file, which
   carries no printed page numbers.
-- Reference 7's rule for Vtrace(λ) prints the larger of the ratio and one as
-  the trace factor. Clipping at one is the smaller, as reference 8 defines it
-  and reference 6 describes it. This page reads the rule as the smaller and
-  flags the discrepancy.
+- Reference 7 gives Vtrace(λ) twice, and the two rules differ. Appendix A
+  (p. 14) prints the larger of the ratio and one as the factor on the whole
+  trace, with no ratio on the error. Clipping at one is the smaller, as
+  reference 8 defines it and reference 6 describes it; read as the smaller,
+  that rule is the gate. Appendix C.4 (p. 23, eqs. (28) and (30)) caps only
+  the previous step's ratio in the trace and keeps the uncapped ratio on the
+  error. It says this simplified variant is the one investigated, and
+  describes in words the general form that also caps the ratio on the error.
+  This page rests the gate on reference 8 and on that general form, and
+  treats the investigated variant as an alternative.
 - The statement that no source composes these methods with SwiftTD's step-size
   adaptation covers the eight references and SwiftTD's sections 5 and 6 only.
 
@@ -674,7 +709,7 @@ below were made.
 | Each cut and restart calls `clearTransient`, which is `O(d)`. The draft claimed every entry was bounded by the eligible and active sets. | Cost paragraph corrected; sparse clear added as obligation 5, which the second review below narrowed to the equality. |
 | Extending `Skill.stored` over the bank feeds the feature tester's utility, contradicting "no consumer". | The bank is retired with the other readers and excluded from the utility. |
 | The draft disclosed the instability and deferred the correction, which the admission standard does not allow, and applied that standard to its rivals. | Verdict changed: [Admission status](#admission-status). |
-| The draft called its trace handling a local construction and said the ratio "only reweights states", which is false above trace parameter zero. | Replaced by the identification with the ratio clipped at one, read on the page in references 7 and 8. |
+| The draft called its trace handling a local construction and said the ratio "only reweights states", which is false above trace parameter zero. | Replaced by the identification with the ratio clipped at one, read on the page in references 7 and 8; the second review below corrected what reference 7 supports. |
 | "Nothing is biased" overclaimed, and the comparison billed the ε-soft target's problems to ratio methods under a greedy target. | Obstacle section recomputed for both targets; two counterexamples added to [Limits](#limits). |
 | The gate is slower than the worst-case-bounded ratio where the behaviour disagrees with the option. | Stated in [Limits](#limits). |
 | Each cut clears the step-size adaptation's registers. | Stated in [Limits](#limits). |
@@ -705,20 +740,26 @@ below were made.
   the cited declarations, and the page locators of references 1 to 7.
 
 **Second review.** A second independent review read the revised page against
-the code at a71ed08 and against issue 16. It built and ran nothing. It found
-three errors, each checked against the source before the change was made.
+the code at a71ed08, against issue 16 and against the cited pages of
+references 6, 7 and 8. It built and ran nothing. Each finding below was checked
+against the source before the change was made.
 
 | Finding | Change |
 |---|---|
 | The page said no theorem states that every register is zero off the eligible list and called the invariant a new obligation. It is `AcornVerif.CurrentLearner.Supported`, machine-checked for every admitted and every `Managed` learner. The described sparse clear also left `vOld` and `vDelta` unreset, so it did not equal `clearTransient`. | Summary, cost paragraph, obligation 5 and the Affordable row now cite the existing theorems; the obligation is the equality alone, and the sparse clear resets both scalars. |
 | The page said the step does not expose the executing option's drawing snapshot. `TemporalControl.stepOption` already copies its values into `TemporalDecision.values`, which `TemporalControl.finish` receives. | [Consistency](#consistency) and [Integration](#integration) corrected: one interface change, the signal values. |
-| The Sound row said the clip's equivalence survived the refutation attempt, which contradicts the paragraph below; and "Where it stands" said two of the issue's four questions were settled. | Sound row and "Where it stands" reworded: the identification with V-trace is argued and unattacked, and the page proposes answers on targets and ratio handling and leaves the correction and the step-size composition owed. |
+| The Sound row said the clip's equivalence survived the refutation attempt, which contradicts the paragraph below; and "Where it stands" said two of the issue's four questions were settled. | Sound row and "Where it stands" reworded: the page proposes answers on targets and ratio handling and leaves the correction and the step-size composition owed; the Sound row no longer says the identification survived the first review. |
+| The page cited reference 7 as the online trace form of the gate. Reference 7's Appendix A rule matches the gate only with its larger-of read as smaller-of, and the variant it investigates (Appendix C.4, p. 23) caps only the trace and keeps the uncapped ratio on the error. The identification with V-trace and its fixed-point claim were re-derived against reference 8 and held. | The gate rests on reference 8 and on the general form reference 7 describes. The investigated variant joins Tree Backup(λ) under [Alternatives weighed](#alternatives-weighed). [Source verification](#source-verification) and reference 7's locators record both rules. |
+| A restart need not clear: whenever *live* is false the transients are already clear, so `step` equals `beginTrajectory` there and only the cut needs the sparse clear. | Recorded as argued under [Dispatch](#dispatch) and in the cost paragraph; the proposed table is unchanged. |
+| The page relied on "research profile", "the annealed comparison", "option" and "demon" without defining them. | Glossed or linked at first use. |
 
 **What was not checked.** The runtime's memory layout; the sections of
 SwiftTD outside those cited; issues 10 and 11 beyond their baseline rows. The
-identification with V-trace, the admission table and the notes on the
-correction were written after the first review. The second review read them
-and corrected the Sound row; none has had a refutation attempt of its own.
+second review did not re-read references 1 to 5. The identification with
+V-trace, the admission table and the notes on the correction were written
+after the first review. The second review re-derived the identification and
+corrected the Sound row; the admission table and the notes on the correction
+have not had a refutation attempt of their own.
 
 ## References
 
@@ -760,7 +801,8 @@ and corrected the Sound row; none has had a refutation attempt of its own.
    Comparison of Off-policy Prediction Learning Algorithms on the Collision
    Task", 2021, §3 on ratio products and step size (p. 4), Appendix A update
    rules for TDRC(λ) (p. 13) and for Emphatic TD(λ), Tree Backup(λ) for
-   prediction and Vtrace(λ) (p. 14)
+   prediction and Vtrace(λ) (p. 14), Appendix C.4 eqs. (28)–(30) with the
+   general and the investigated forms of Vtrace(λ) (p. 23)
    ([arXiv:2106.00922v2](https://arxiv.org/abs/2106.00922v2)).
 8. <a id="r8"></a>Lasse Espeholt, Hubert Soyer, Remi Munos, Karen Simonyan,
    Volodymyr Mnih, Tom Ward, Yotam Doron, Vlad Firoiu, Tim Harley, Iain
