@@ -22,8 +22,8 @@ states the property and assumptions it checks. For installation and a first run,
 start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
-Lean, Mathlib and FloatLib dependencies, a C compiler, OpenSSL 3, ShellCheck and
-GNU coreutils.
+Lean, Mathlib, FloatLib and Verso dependencies, a C compiler, OpenSSL 3, ShellCheck
+and GNU coreutils.
 The hard 360-second deadline includes project compilation and every ordinary
 check. It uses process-group SIGKILL with no grace period or budget override;
 missing, skipped or timed-out checks fail. OS scheduling and signal delivery
