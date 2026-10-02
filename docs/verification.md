@@ -101,11 +101,17 @@ run as a pass. Run the complete command to check all verification owners.
 The complete discovered module inventory must equal the explicitly admitted
 ownership inventory. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
-a maintained module with a non-empty module docstring. Before any Lake command,
-`Bootstrap.lean` must elaborate with no message, and Lake runs with `--wfail`, so
-any warning, including a header-time warning such as a deprecated import, fails
-the build. Source/compiled admission checks imports, capability owners, artifact
-origins and native routes. Every project theorem is checked for axiom
+a maintained module with a non-empty module docstring. Ownership admission
+refuses a facet-qualified build key in the root package's Lake configuration.
+The Lake of Lean v4.34.0 stores such a key under its target as written, which is
+a different entry from the target's own unless the key names its package in
+resolved form, and it fetches the key concurrently with other fetches. Either
+way a second job can run on the same output file
+([leanprover/lean4#15435](https://github.com/leanprover/lean4/issues/15435)).
+Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
+Lake runs with `--wfail`, so any warning, including a header-time warning such
+as a deprecated import, fails the build. Source/compiled admission checks
+imports, capability owners, artifact origins and native routes. Every project theorem is checked for axiom
 dependencies; only propext, Classical.choice and Quot.sound are admitted. The theorem inventory reports the
 checked declarations. Every proof passes through the kernel.
 

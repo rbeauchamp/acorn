@@ -192,12 +192,14 @@ lean_exe «acorn-core» where
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
 
-/-- Loopback observer and durable supervisor for the native core. -/
+/-- Loopback observer and durable supervisor for the native core.
+The core is named by its declaration, a facetless key: Lake resolves it through this
+package to the store entry of a direct `acorn-core` request, so both share one link job. -/
 lean_exe «acorn-viewer» where
   root := `NativeApp.Viewer
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
-  needs := #[PartialBuildKey.mk (.targetFacet .anonymous `«acorn-core» `exe)]
+  needs := #[«acorn-core»]
 
 /-- Deterministic JavaScript kernel generated for the viewer. -/
 lean_exe «browser-kernel» where
@@ -251,10 +253,36 @@ lean_exe «corpus-audit» where
   root := `AcornTools.Corpus.Main
   supportInterpreter := true
 
+/-- A sufficient condition for a configured build key to share its target's one Lake job.
+`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.34.0; leanprover/lean4#15435) stores a
+facet-qualified key under its target as written, while every other route stores that
+facet under the target's resolved form, which names the package by its key name. The two
+entries differ unless the key was written in that form. Whatever its form, the facet is
+fetched from an asynchronous continuation, which races other fetches on the
+unsynchronized build store. Either way a second job can run on the same output file.
+A facetless key is resolved through its package and fetched synchronously. -/
+def singleJobKey (key : PartialBuildKey) : Bool :=
+  match (key : BuildKey) with
+  | .facet .. => false
+  | _ => true
+
+/-- Every key a Lean configuration hands to Lake's partial-key fetch. -/
+def configuredKeys (config : LeanConfig) (needs : Array PartialBuildKey) :
+    Array PartialBuildKey :=
+  needs ++ config.moreLinkObjs.map (·.key) ++ config.moreLinkLibs.map (·.key) ++
+    config.dynlibs.map (·.key) ++ config.plugins.map (·.key)
+
 /-- Emit the evaluated Lake executable inventory for ownership admission.
-The gate compares this with compiled `main` owners before accepting a build. -/
+The gate compares this with compiled `main` owners before accepting a build.
+A key outside `singleJobKey` in this package's configuration refuses the inventory. -/
 script acornTargets do
   let pkg ← getRootPackage
+  let keys := configuredKeys pkg.config.toLeanConfig #[] ++
+    pkg.leanLibs.flatMap (fun lib => configuredKeys lib.config.toLeanConfig lib.config.needs) ++
+    pkg.leanExes.flatMap (fun exe => configuredKeys exe.config.toLeanConfig exe.config.needs)
+  if let some key := keys.find? (!singleJobKey ·) then
+    IO.eprintln s!"facet-qualified build key '{key}' can give its target two Lake jobs"
+    return 1
   let entries := pkg.leanExes.map fun exe => Lean.Json.mkObj [
     ("target", Lean.toJson (exe.name.toString false)),
     ("module", Lean.toJson exe.config.root.toString)]
