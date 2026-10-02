@@ -108,7 +108,8 @@ def uniformAction (count : Word.Count) (rng : Rng.Xoshiro256) :
   let result := rng.nextBelow count
   (⟨result.1.val.toNat, result.1.property⟩, result.2)
 
-/-- Nominal telemetry masses are calculated without consuming random state. -/
+/-- Nominal masses are calculated without consuming random state. Telemetry reports
+them, and off-policy option credit reads them through `consistent` and `mass`. -/
 def PolicySnapshot.probabilities (snapshot : PolicySnapshot count) : Vector Binary32 count.word.toNat :=
   let explore := snapshot.epsilon.value.div (Binary32.ofUInt64 count.word)
   let greedy := (Binary32.one.sub snapshot.epsilon.value).div
@@ -139,7 +140,7 @@ def PolicySnapshot.draw (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256)
 def PolicyDecision.continuation (decision : PolicyDecision count) : Binary32 :=
   decision.snapshot.values.get decision.action
 
-/-- Decision telemetry is a pure observation of the frozen snapshot. -/
+/-- A decision's reported masses are a pure observation of its frozen snapshot. -/
 def PolicyDecision.probabilities (decision : PolicyDecision count) : Vector Binary32 count.word.toNat :=
   decision.snapshot.probabilities
 

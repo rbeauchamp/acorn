@@ -109,7 +109,8 @@ Two links genuinely support the rest of the system:
 The defining STOMP loop (subtask → option → model → planning → better
 decisions) exists structurally. The findings below describe how it was broken
 or neutralized. All six are argued from the executed definitions; none is
-machine-checked or observed, except where U1's theorems now close F-A.
+machine-checked or observed. The repairs of F-A, F-C, F-E and F-F are
+machine-checked by the U1 to U4 theorems cited under each.
 
 ### F-A · Subtask churn erased options, models and meta rows
 
@@ -374,7 +375,8 @@ its feature-construction end inert until U3.
   whether the agent learns in its world is irreducibly empirical and still open.
 
 Going by the published designs, the agent they describe differs from Acorn at the
-model, planning, option-learning and feature-testing links. The foundation is
+model and planning links; U3 and U4 brought the feature-testing and
+option-learning links to adapted forms of the published mechanisms. The foundation is
 theirs: SwiftTD everywhere, reward-respecting feature-attainment subtasks, GVF
 predictions as features, and continual operation without replay. Acorn's
 machine-checked state legality and admission have no counterpart in that work.
