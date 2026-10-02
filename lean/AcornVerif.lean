@@ -17,6 +17,7 @@ import AcornVerif.CurrentArithmetic
 import AcornVerif.CurrentOrder
 import AcornVerif.CurrentOperations
 import AcornVerif.CurrentDivision
+import AcornVerif.FloatLibBridge
 import AcornVerif.CurrentIntervals
 import AcornVerif.CurrentReduction
 import AcornVerif.CurrentSeries

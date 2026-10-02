@@ -239,6 +239,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-13](prior-art-review.md#par-13--option-models): Option models, [Acorn.Models](../lean/Acorn/Models.lean).
 - [PAR-14](prior-art-review.md#par-14--background-planning): Background planning, [Acorn.Planning](../lean/Acorn/Planning.lean).
 - [PAR-15](prior-art-review.md#par-15--differential-control): Differential control, [Acorn.Average](../lean/Acorn/Average.lean).
+- [PAR-16](prior-art-review.md#par-16--floatlib-rounding-theory): FloatLib rounding theory, a proof dependency, [AcornVerif.FloatLibBridge](../lean/AcornVerif/FloatLibBridge.lean).
 
 ## Boundaries
 

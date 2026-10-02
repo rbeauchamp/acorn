@@ -86,9 +86,9 @@ broader scope or new follow-up issues. Prefer small coherent changes over rewrit
 Apply [performance engineering](docs/performance-engineering.md) to performance-sensitive work; preserve proofs and
 admission predicates. Do not replace unresolved proof obligations with measurements.
 
-Provision pinned Lean/Mathlib v4.34.0, OpenSSL 3, GNU coreutils, ShellCheck and a C
+Provision pinned Lean/Mathlib v4.34.0, FloatLib, OpenSSL 3, GNU coreutils, ShellCheck and a C
 compiler first. A fresh worktree has no `lean/.lake` dependencies; run
-`(cd lean && lake exe cache get && lake build Mathlib)` there before verifying.
+`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge)` there before verifying.
 Then run the complete command in the actual Git checkout:
 
 ```sh
@@ -101,7 +101,9 @@ Then run the complete command in the actual Git checkout:
   substitutes for a pass.
 - Every discovered module and native entry retains compilation and
   source/compiled/axiom/route admission.
-- Mathlib umbrella imports are forbidden; import specific dependencies.
+- Mathlib and FloatLib umbrella imports are forbidden; import specific dependencies.
+- FloatLib is a proof dependency: only the proof bridge imports it, and no
+  executing module may.
 
 Sign commits and preserve license notices. CI runs the same command on the exact
 proposed head and, as a second required job outside that deadline, the Regula
