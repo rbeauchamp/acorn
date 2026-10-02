@@ -16,10 +16,13 @@ environment model". The transition part of an option model predicts only the
 feature slots held here, from only those slots and one constant input: the last
 position holds no slot and is active in every input.
 
-The width follows from a memory budget, not a tuned constant: it is the largest
-power of two `k` for which the transition parts of all options together,
+The width follows from a memory budget on the rows, not a tuned constant: it is the
+largest power of two `k` for which the rows of all options' transition parts together,
 `skillCount · k²` weights, fit in one weight vector of the receiving dimension.
-`rankWidth_budget` and `rankWidth_maximal` state both halves.
+`rankWidth_budget` and `rankWidth_maximal` state both halves. A complete transition
+part also holds one deviation learner per meta action, `k · (k + 4)` weights in all;
+`AcornVerif.CurrentPlanning.complete_budget` shows the complete parts fit in one weight
+vector from 1024 slots up.
 
 A position keeps its slot while that slot stays ranked, so the weights learned
 for it survive a change of subset; a position whose slot leaves the ranking takes
@@ -29,8 +32,8 @@ each row of the transition part is an ordinary learner over that dimension.
 -/
 namespace Acorn.Features
 
-/-- Double the width while the doubled width still fits the budget: all options'
-transition parts, `skillCount · (2k)²` weights, within one weight vector. The doubled
+/-- Double the width while the doubled width still fits the budget: the rows of all
+options' transition parts, `skillCount · (2k)²` weights, within one weight vector. The doubled
 width `2 ^ (e + 1)` is written as a shift, which the executing code evaluates on
 machine words. -/
 def rankExponentFrom (capacity : Nat) : Nat → Nat → Nat
@@ -79,8 +82,9 @@ abbrev rankDimension (dimension : Dimension) : Dimension where
 /-- One position of the ranked subset. -/
 abbrev RankIdx (dimension : Dimension) := FeatIdx (rankDimension dimension)
 
-/-- Storage budget: once a dimension has one weight per option, the transition parts
-of all options together hold at most one weight vector's worth of weights. -/
+/-- Storage budget of the rows: once a dimension has one weight per option, the rows
+of all options' transition parts together hold at most one weight vector's worth of
+weights. -/
 theorem rankWidth_budget (dimension : Dimension)
     (room : Acorn.FeatureConstants.skillCount ≤ dimension.capacity) :
     Acorn.FeatureConstants.skillCount * (rankWidth dimension * rankWidth dimension) ≤

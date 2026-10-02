@@ -512,9 +512,9 @@ learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
 - **Ranked subset.** The slots are those of the ranked score blocks of positive
   Demon-0 weight, the subtask ranking continued from 3 entries to 63
   ([[20]](#r20) Step 8(d), p. 9). The width of 64 positions follows from a
-  memory budget: the largest power of two for which all three transition parts
-  fit in one weight vector (`rankWidth_budget`, `rankWidth_maximal`). The last
-  position is the constant input.
+  memory budget: the largest power of two for which the rows of all three
+  transition parts fit in one weight vector (`rankWidth_budget`,
+  `rankWidth_maximal`). The last position is the constant input.
 - **Residual.** The value function reads every active feature, so for each meta
   action the model also predicts that action's value at the outcome's unranked
   slots. It does so in two parts that add up exactly: a shared residual, which
@@ -528,10 +528,12 @@ learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
   current value weights at the predicted slots plus the shared residual plus that
   action's deviation; the maximum or mean over actions is taken after, and
   planning moves the option's value toward r̂ plus the result
-  (`Transition.outcomeValues`, `PlanningResult.lookAhead`). A change in a ranked
-  slot's value weight for any action moves that action's value at the next
-  look-ahead, with no new termination of the option. A predecessor's own value
-  moves when planning next backs it up.
+  (`Transition.outcomeValues`, `PlanningResult.lookAhead`). Before rounding, a
+  change in a ranked slot's value weight for any action moves that action's
+  value at the next look-ahead by the change times the slot's predicted
+  activity, with no new termination of the option; the executed word follows
+  within its rounding allowance. A predecessor's own value moves when planning
+  next backs it up.
 - **Search control.** Each learning frame is recorded, when it completes, in a
   store of the 128 most recent feature vectors. Each decision boundary backs up
   every option at the current vector and at one stored earlier vector; the
@@ -553,20 +555,24 @@ Machine-checked: `CurrentPlanning.outcome_value_rounding`,
 `CurrentPlanning.discounted_backup_rounding` and
 `CurrentPlanning.differential_backup_rounding` (the executed backed-up value
 against the exact expression, with its rounding bound, for at most 64 ranked
-positions and stored residual predictions of summed magnitude at most 1024),
+positions and every model state, at the scale the prediction envelopes of the
+active inputs give; `CurrentPlanning.discounted_backup_small` and
+`CurrentPlanning.differential_backup_small` are the tight conditional case),
 `CurrentPolicyMean.expected_sandwich` (the executed tie-window mean of
 differential control against the convex combination it approximates),
 `CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,
-`CurrentPlanning.expectation_maximum_eq` and
-`CurrentPlanning.expectation_sandwiched` (what an expectation model keeps under
-a maximum or a tie-window mean over action values),
+`CurrentPlanning.expectation_maximum_eq`,
+`CurrentPlanning.expectation_sandwiched` and
+`CurrentPlanning.expected_expectation` (what an expectation model keeps under a
+maximum or a tie-window mean over action values),
 `CurrentPlanning.outcome_value_propagation`,
 `CurrentPlanning.outcome_decomposition` and
-`CurrentPlanning.deterministic_outcome` (the dependence of every per-action
-value on the value weights, and that the shared residual and the deviations lose
-nothing of a share), `CurrentPlanning.transition_storage`,
+`CurrentPlanning.deterministic_outcome` (the dependence of every exact
+per-action value on the value weights, before rounding, and that the shared
+residual and the deviations lose nothing of a share), `CurrentPlanning.transition_storage`,
 `CurrentPlanning.transition_table`, `CurrentPlanning.transition_budget`,
-`CurrentPlanning.default_budget` and `CurrentPlanning.default_width` (storage),
+`CurrentPlanning.complete_budget`, `CurrentPlanning.default_budget` and
+`CurrentPlanning.default_width` (storage),
 `CurrentPlanning.ranked_input_work`, `CurrentPlanning.row_work`,
 `CurrentPlanning.deviation_work`, `CurrentPlanning.changed_work` and
 `CurrentPlanning.boundary_work` (work),

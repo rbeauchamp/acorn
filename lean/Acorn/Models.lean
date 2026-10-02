@@ -43,7 +43,9 @@ Three adaptations are material.
   plus the predicted shared residual, plus that action's predicted deviation; the
   maximum or mean over actions is taken after (`Transition.outcomeValues`). Combined
   after instead, one scalar residual would hide a change at a ranked feature whenever
-  the ranked values and the complete values are maximal at different actions. The
+  the ranked values and the complete values are maximal at different actions. These
+  are statements before rounding; the executed words follow within the rounding
+  contracts of `AcornVerif.CurrentPlanning`. The
   deviations are predicted from the ranked positions alone, which is coarser than a
   full-width learner per action; how accurate they are is not known.
 * *Action values.* The source's value function is one linear function of the
@@ -141,8 +143,12 @@ def Transition.expected (transition : Transition dimension criterion)
 /-- The value of the predicted outcome for each meta action: the current value weights
 applied to the predicted ranked features, plus the predicted shared residual, plus
 that action's predicted deviation. Each action's value is complete before any maximum
-or mean is taken, so a change in a ranked slot's weight for any action reaches that
-action's word at the next query, with no new experience of the option. -/
+or mean is taken. Before rounding, a change in a ranked slot's weight for any action
+moves that action's value by the change times the slot's predicted activity, at the
+next query and with no new experience of the option
+(`AcornVerif.CurrentPlanning.outcome_value_propagation`). The executed word follows
+within the rounding allowance of `outcome_value_rounding`; a change smaller than the
+binary32 spacing at the word's magnitude can leave the word as it was. -/
 def Transition.outcomeValues (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : Vector Binary32 metaCount.word.toNat :=
