@@ -627,8 +627,9 @@ theorem second_element_core (state : NumericState config dimension) (idx : FeatI
       (second_element_frame state idx other same _ _ _ _).2.2]
     exact core.2 other
 
-/-- Finite-prefix composition of the actual active traversal preserves the
-core invariant. No uniqueness premise is needed for this weaker guarantee. -/
+/-- Finite-prefix composition of the listed active fold preserves the core
+invariant; `NumericState.learnSecondLoop_eq_sumFrom` equates the executing
+traversal with it. No uniqueness premise is needed for this weaker guarantee. -/
 theorem second_fold_core (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (rate total vDelta : Binary32)
     (finite : rate.Finite) (core : CoreInv state) :
@@ -652,7 +653,7 @@ theorem second_loop_core (state : NumericState config dimension) (features : Act
   rw [NumericState.learnSecondLoop_eq_sumFrom]
   exact second_fold_core features.indices state _ _ vDelta finite core
 
-/-- Exact eligible-sequence change of the actual fold over unique active
+/-- Exact eligible-sequence change of the listed fold over unique active
 indices. The filter reads the entry state because earlier distinct visits
 cannot alter a later feature's trace. -/
 theorem second_fold_eligible (indices : List (FeatIdx dimension)) (unique : indices.Nodup)
@@ -868,8 +869,9 @@ theorem ready_of_transient_eq (before after : NumericState config dimension)
     (same : after.transient = before.transient) (ready : Ready before) : Ready after := by
   simpa only [Ready, same] using ready
 
-/-- The actual background weight traversal leaves every transient array,
-eligible element and aggregate word exactly unchanged. -/
+/-- The background weight fold that `NumericState.planStep_eq_foldl` equates
+the executing traversal with leaves every transient array, eligible element
+and aggregate word exactly unchanged. -/
 theorem plan_fold_transient (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (scale delta : Binary32) :
     (indices.foldl (fun s idx =>
