@@ -253,12 +253,13 @@ lean_exe «corpus-audit» where
   root := `AcornTools.Corpus.Main
   supportInterpreter := true
 
-/-- A sufficient condition for Lake to memoize a configured build key at its target's
-own store entry. `PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.34.0) stores a
+/-- A sufficient condition for a configured build key to share its target's one Lake job.
+`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.34.0; leanprover/lean4#15435) stores a
 facet-qualified key under its target as written, unresolved, while every other route
-stores that facet under the package's key name. A second route to the same facet then
-runs a second job on the same output file. A facetless key is resolved through its
-package before any store access. -/
+stores that facet under the package's key name. It also fetches the facet from an
+asynchronous continuation, which races other fetches on the unsynchronized build store.
+Either way a second job can run on the same output file. A facetless key is resolved
+through its package and fetched synchronously. -/
 def singleJobKey (key : PartialBuildKey) : Bool :=
   match (key : BuildKey) with
   | .facet .. => false
