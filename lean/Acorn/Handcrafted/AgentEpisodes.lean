@@ -94,8 +94,9 @@ theorem TemporalControl.option_episodes (state : TemporalControl profile config 
     (started : Bool) (ended : Option EndEvent) :
     let result := state.stepOption models slot activation next reward values metaDecision started ended
     result.1.lifetime = state.lifetime ∧ result.1.activeSlot = some slot ∧
-      result.2.started = (if started then some slot else none) ∧ result.2.ended = ended :=
-  ⟨rfl, rfl, rfl, rfl⟩
+      result.2.started = (if started then some slot else none) ∧ result.2.ended = ended := by
+  rw [TemporalControl.stepOption_eq]
+  exact ⟨rfl, rfl, rfl, rfl⟩
 
 /-- Boundary metaDecision dispatch has a new active slot exactly when its observation records a start. -/
 theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile config criterion dimension)
@@ -109,8 +110,7 @@ theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile 
   unfold TemporalControl.dispatchMeta at executed
   generalize prepared : state.learnMeta features decision = credited at executed
   have lifetime : credited.lifetime = state.lifetime := by
-    rw [← prepared]
-    unfold TemporalControl.learnMeta
+    rw [← prepared, TemporalControl.learnMeta_eq]
     split <;> rfl
   cases selected : skillOfMeta decision.action with
   | none =>
@@ -125,6 +125,7 @@ theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile 
     | none => simp [potential] at executed
     | some value =>
       simp only [potential, bind, Option.bind, pure, Option.some.injEq] at executed
+      rw [TemporalControl.stepOption_eq] at executed
       cases executed
       exact ⟨lifetime, rfl, rfl⟩
 

@@ -421,7 +421,8 @@ theorem second_element_overshoot (state : NumericState config dimension) (idx : 
     (next.beta.get idx).value =
       (LogStepSize.project state.rails
         ((state.beta.get idx).value.add state.rails.decay)).value := by
-  simp [NumericState.secondLoopElement, NumericState.secondLoopElementAt, vector_get]
+  simp [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
+    NumericState.writeBetaValue, NumericState.writeStepSize, vector_get]
 
 /-- One active visit cannot change another feature's knowledge or registers. -/
 theorem second_element_frame (state : NumericState config dimension)
@@ -434,7 +435,8 @@ theorem second_element_frame (state : NumericState config dimension)
       registers next other = registers state other := by
   have distinct : idx.val ≠ other.val := fun same => different (Fin.ext same)
   cases overshoot <;>
-    simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt, registers,
+    simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
+      NumericState.writeBetaValue, NumericState.writeStepSize, registers,
       vector_get, Vector.getElem_set, distinct, ite_false, ite_true, Bool.false_eq_true, and_self]
 
 /-- The only eligible admission of an active visit reads the entry trace. -/
@@ -443,7 +445,8 @@ theorem second_element_eligible (state : NumericState config dimension) (idx : F
     let next :=
       (NumericState.secondLoopElement config overshoot denominator total state vDelta idx).1
     next.transient.eligible = if (state.transient.z.get idx).value.isZero then
-        state.transient.eligible.push idx else state.transient.eligible := rfl
+        state.transient.eligible.push idx else state.transient.eligible := by
+  cases overshoot <;> rfl
 
 /-- The zero-vector support equation includes the actual trace read by admission. -/
 theorem registers_zero_trace (state : NumericState config dimension) (idx : FeatIdx dimension)
@@ -557,8 +560,10 @@ theorem second_element_reference (state : NumericState config dimension) (idx : 
       (NumericState.secondLoopElement config overshoot denominator total state vDelta idx).1
     (next.transient.lastAlpha.get idx).value =
       (config.eta.div denominator).mul (state.beta.get idx).alpha := by
-  simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt, vector_get,
-    Vector.getElem_set_self]
+  cases overshoot <;>
+    simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
+      NumericState.writeBetaValue, NumericState.writeStepSize, vector_get,
+      Vector.getElem_set_self, ite_false, ite_true, Bool.false_eq_true]
 
 /-- Existing eligible members survive an active visit in their existing order. -/
 theorem second_element_contains (state : NumericState config dimension)
@@ -1139,7 +1144,7 @@ theorem first_loop_idle (state : NumericState config dimension) (delta vDelta de
   dsimp only
   rw [empty, NumericState.learnFirstLoopGo, dite_eq_right (by simp)]
   cases state with
-  | mk rails weights beta transient =>
+  | mk rails weights beta alpha evaluated transient =>
     cases transient
     simp_all
 
@@ -1362,28 +1367,29 @@ theorem first_loop_go_size (state : NumericState config dimension)
     exact le_refl _
 
 /-- Logical retained slots are counted from every executing state vector,
-the eligible array and both scalar aggregate registers. Object headers, boxed
-word representation, allocator capacity and sharing are separate native costs. -/
+including the stored step sizes, the eligible array and both scalar aggregate
+registers. Object headers, boxed word representation, allocator capacity and
+sharing are separate native costs. -/
 def retainedSlots (state : NumericState config dimension) : Nat :=
-  state.weights.toArray.size + state.beta.toArray.size +
+  state.weights.toArray.size + state.beta.toArray.size + state.alpha.toArray.size +
     state.transient.z.toArray.size + state.transient.zDelta.toArray.size +
     state.transient.zBar.toArray.size + state.transient.lastAlpha.toArray.size +
     state.transient.deltaWeight.toArray.size + state.transient.h.toArray.size +
     state.transient.hOld.toArray.size + state.transient.hTemp.toArray.size +
     state.transient.p.toArray.size + state.transient.eligible.size + 2
 
-/-- The storage representation derives eleven dimension-sized arrays plus
+/-- The storage representation derives twelve dimension-sized arrays plus
 the current eligible sequence and two aggregates, for every raw state. -/
 theorem retained_slots_exact (state : NumericState config dimension) :
-    retainedSlots state = 11 * dimension.capacity + state.eligibleCount + 2 := by
+    retainedSlots state = 12 * dimension.capacity + state.eligibleCount + 2 := by
   simp only [retainedSlots, Vector.size_toArray, NumericState.eligibleCount]
   omega
 
 /-- Under eligible uniqueness the logical retained storage is at most
-`12N+2` slots, independently of the duration of the stream. -/
+`13N+2` slots, independently of the duration of the stream. -/
 theorem retained_slots_unique (state : NumericState config dimension)
     (unique : state.transient.eligible.toList.Nodup) :
-    retainedSlots state ≤ 12 * dimension.capacity + 2 := by
+    retainedSlots state ≤ 13 * dimension.capacity + 2 := by
   rw [retained_slots_exact]
   have bound := eligible_cardinality state unique
   omega
@@ -1392,7 +1398,7 @@ theorem retained_slots_unique (state : NumericState config dimension)
 retained-storage bound; no operation log is part of the executing state. -/
 theorem scheduled_storage (entries : List (Entry dimension)) (scheduled : Scheduled entries true) :
     retainedSlots (entries.foldl (fun s entry => entry.apply s)
-      (NumericState.initial config dimension)) ≤ 12 * dimension.capacity + 2 := by
+      (NumericState.initial config dimension)) ≤ 13 * dimension.capacity + 2 := by
   rw [retained_slots_exact]
   have bound : (entries.foldl (fun s entry => entry.apply s)
       (NumericState.initial config dimension)).eligibleCount ≤ dimension.capacity :=
@@ -1416,6 +1422,7 @@ theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx 
     NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
     NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
     NumericState.writeLastAlpha, NumericState.writeWeight, NumericState.writeBetaValue,
+    NumericState.writeStepSize,
     vector_get, Weight.project, Bounded32.projectSymmetric, zero, Weight.value,
     show Array.replicate 9 Binary32.zero =
       #[Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero,

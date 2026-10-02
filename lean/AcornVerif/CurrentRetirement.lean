@@ -102,7 +102,8 @@ theorem retireIndex_weight_other (state : NumericState config dimension)
     NumericState.writeZ, NumericState.writeP, NumericState.writeZBar,
     NumericState.writeDeltaWeight, NumericState.writeZDelta, NumericState.writeH,
     NumericState.writeHOld, NumericState.writeHTemp, NumericState.writeLastAlpha,
-    NumericState.writeWeight, NumericState.writeBetaValue, CurrentLearner.vector_get,
+    NumericState.writeWeight, NumericState.writeBetaValue, NumericState.writeStepSize,
+    CurrentLearner.vector_get,
     Vector.getElem_set_ne _ _ distinct]
 
 /-- Every prediction over an input without the retired slot is unchanged, bit for bit. -/

@@ -93,7 +93,7 @@ trace. -/
 theorem stop_step_empty (controller : Controller config dimension actions) (delta : Binary32)
     (action : Action actions) :
     ((controller.stopStep delta).learners.get action).state.eligibleCount = 0 := by
-  simp only [Controller.stopStep, vector_get, Vector.getElem_map]
+  simp only [Controller.stopStep_eq, vector_get, Vector.getElem_map]
   rfl
 
 /-- A release leaves every action learner nothing eligible and with its weights,
@@ -117,7 +117,7 @@ theorem selected_row (controller : Controller config dimension actions)
         ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld)
         controller.vDelta decay controller.restartPending).val.state.learnSecondLoop
           config features .zero).1 := by
-  simp [Controller.valuesStep, Vector.get, Fin.cast]
+  simp [Controller.valuesStep, Controller.creditStep_eq, Vector.get, Fin.cast]
 
 /-- Every unselected row receives the same first-loop error, without a second loop. -/
 theorem unselected_row (controller : Controller config dimension actions)
@@ -130,7 +130,7 @@ theorem unselected_row (controller : Controller config dimension actions)
         ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld)
         controller.vDelta decay controller.restartPending).val.state := by
   have indices : other.val ≠ action.val := fun h => different (Fin.ext h)
-  simp [Controller.valuesStep, Vector.get, Fin.cast, Ne.symm indices]
+  simp [Controller.valuesStep, Controller.creditStep_eq, Vector.get, Fin.cast, Ne.symm indices]
 
 /-- Terminal closeout clears all trajectory registers in every action row. -/
 theorem terminal_clears (controller : Controller config dimension actions)
@@ -138,7 +138,7 @@ theorem terminal_clears (controller : Controller config dimension actions)
     (action : Action actions) :
     ((controller.terminal reward).learners.get action).state.transient =
       TransientState.zero dimension := by
-  simp [Controller.terminal, Controller.clear, Vector.get, Managed.apply, SwiftTd.Entry.apply,
+  simp [Controller.terminal_eq, Controller.clear, Vector.get, Managed.apply, SwiftTd.Entry.apply,
     NumericState.clearTransient]
 
 /-- Controller observations are finite because they sum the actual refined weights,

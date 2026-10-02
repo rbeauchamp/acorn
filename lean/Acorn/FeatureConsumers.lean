@@ -62,6 +62,45 @@ def PackedLearner.retire {dimension : Dimension} (feature : FeatIdx dimension)
     (learner : PackedLearner dimension) : PackedLearner dimension :=
   ⟨learner.1, learner.2.retire feature⟩
 
+/-- Read one element and store `stand` in its slot. It is kept out of line so that
+both operations precede any use of the element by the caller. Its value is the
+pair written below and nothing more is proved of it: whether anything still
+references the element read depends on how the caller's vector and its elements
+are shared. -/
+@[noinline] def takeOut {α : Type} {size : Nat} (items : Vector α size) (index : Fin size)
+    (stand : α) : α × Vector α size :=
+  (items.get index, items.set index.val stand index.isLt)
+
+/-- Apply `update` to one element of a vector, put the first component of the
+result back and return the second. `detachedUpdate_eq` proves the result is the
+plain update for every vector, index and function; that value equality is all
+that is proved.
+
+The detour through `takeOut` is a performance expectation, not a property. While
+`update` runs, the slot holds a second reference to the next element instead of
+the element being updated. The runtime can then reuse that element's storage
+when three conditions hold, none of which is stated or checked here: the vector
+is referenced only by this call, the element occurs in no other slot and is
+referenced nowhere else, and the vector has more than one element. Where one
+fails, for example in a table whose rows are one shared row or a caller that
+keeps the vector, `update` writes to copies and the result is the same. -/
+def detachedUpdate {α β : Type} {size : Nat} (items : Vector α size) (index : Fin size)
+    (update : α → α × β) : Vector α size × β :=
+  let next : Fin size := ⟨(index.val + 1) % size, Nat.mod_lt _ (Nat.zero_lt_of_lt index.isLt)⟩
+  let (taken, rest) := takeOut items index (items.get next)
+  let (updated, observed) := update taken
+  (rest.set index.val updated index.isLt, observed)
+
+/-- The detached update is the plain one: the element at `index` becomes the first
+component of `update`'s result on it, and the second component is returned. The
+stand-in reference is overwritten and never observed. -/
+theorem detachedUpdate_eq {α β : Type} {size : Nat} (items : Vector α size) (index : Fin size)
+    (update : α → α × β) :
+    detachedUpdate items index update =
+      (items.set index.val (update (items.get index)).1 index.isLt,
+        (update (items.get index)).2) := by
+  simp only [detachedUpdate, takeOut, Vector.set_set]
+
 /-- Complete current controller state relevant to representation replacement. -/
 structure Controller (config : Acorn.Config) (dimension : Dimension) (actions : Nat) where
   /-- One learner per action, under the shared immutable configuration. -/

@@ -121,16 +121,35 @@ def Skill.beginTemporal {config : Config} {criterion : Criterion} {dimension : D
   let skill := if learning then { begun.1 with model := models.begin begun.1.model features } else begun.1
   (skill, begun.2)
 
-/-- A first returned action has no completed model transition to credit. -/
+/-- A first returned action has no completed model transition to credit. The
+policy step's result is taken apart before the model is credited, and
+`Skill.stepTemporal_eq` proves the result equal to the listed composition. The
+ordering is meant to let the runtime reuse the model learners' storage when the
+skill is referenced nowhere else; that is a performance expectation, not a
+proved property. -/
 def Skill.stepTemporal {config : Config} {criterion : Criterion} {dimension : Dimension}
     (skill : Skill config criterion dimension) (models : OptionModelOps criterion dimension)
     (activation : OptionActivation mode) (next : OptionContinuation dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
     Skill config criterion dimension × OptionActivation mode × PolicyDecision primitiveCount × Rng.Xoshiro256 :=
-  let result := skill.optionStep activation next reward gain rng
+  let (stepped, rest) := skill.optionStep activation next reward gain rng
   let skill := if activation.learning && activation.age.val > 0 then
-    { result.1 with model := models.step result.1.model next.features activation.age reward } else result.1
-  (skill, result.2)
+    { stepped with model := models.step stepped.model next.features activation.age reward }
+    else stepped
+  (skill, rest)
+
+/-- Taking the policy step's result apart preserves the composition, for every
+skill, activation, reward word and random state. -/
+theorem Skill.stepTemporal_eq {config : Config} {criterion : Criterion} {dimension : Dimension}
+    (skill : Skill config criterion dimension) (models : OptionModelOps criterion dimension)
+    (activation : OptionActivation mode) (next : OptionContinuation dimension activation)
+    (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
+    skill.stepTemporal models activation next reward gain rng =
+      let result := skill.optionStep activation next reward gain rng
+      let skill := if activation.learning && activation.age.val > 0 then
+        { result.1 with model := models.step result.1.model next.features activation.age reward }
+        else result.1
+      (skill, result.2) := rfl
 
 /-- The same terminal value reaches policy and model; only policy adds the
 objective's attained bonus and inverse potential coordinate. -/
@@ -262,7 +281,7 @@ theorem Skill.stepTemporal_policy {config : Config} {criterion : Criterion} {dim
       (skill.optionStep activation next reward gain rng).1.policy ∧
     (skill.stepTemporal models activation next reward gain rng).2 =
       (skill.optionStep activation next reward gain rng).2 := by
-  unfold stepTemporal
+  rw [Skill.stepTemporal_eq]
   split <;> exact ⟨rfl, rfl⟩
 
 /-- Following never replaces the objective whose potential was supplied. -/
