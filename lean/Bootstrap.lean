@@ -106,9 +106,26 @@ def silentElaboration : IO Unit := do
   unless output.exitCode == 0 && output.stdout.isEmpty && output.stderr.isEmpty do
     throw (IO.userError s!"Bootstrap.lean elaboration reported messages:\n{output.stdout}{output.stderr}")
 
-/-- Invoke Lake only after local dependency admission, with cache fetching disabled.
+/-- Lake runs with cache fetching disabled and the admitted local dependencies.
 `--wfail` makes any logged warning fail the build, including header-time warnings
 (for example a deprecated import) that `warningAsError` does not reach. -/
+def lake (overrides : System.FilePath) (args : Array String) : IO.Process.SpawnArgs := {
+  cmd := "lake", args := #["--no-cache", "--wfail", s!"--packages={overrides}"] ++ args,
+  stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
+
+/-- The proof bridge is the single owner of its FloatLib imports. FloatLib
+publishes no build cache, and verification must not compile a dependency inside
+its deadline. Lake itself decides readiness: with `--no-build` it exits 3 unless
+every artifact and trace in the import closure of the `floatlibBridge` target is
+current, so no list of expected files is kept here. -/
+def bridgeImportsBuilt (overrides : System.FilePath) : IO Bool := do
+  let output ← IO.Process.output (lake overrides #["build", "--no-build", "floatlibBridge"])
+  if output.exitCode == 0 then return true
+  if output.exitCode == 3 then return false
+  throw (IO.userError
+    s!"Lake could not decide FloatLib provisioning:\n{output.stdout}{output.stderr}")
+
+/-- Invoke Lake only after local dependency admission. -/
 def run (args : List String) : IO UInt32 := do
   silentElaboration
   unless args == ["provision-status"] ||
@@ -116,18 +133,19 @@ def run (args : List String) : IO UInt32 := do
       args == ["script", "run", "acornTargets"])) do
     throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|lint|provision-status) ...")
   let (contents, available) ← overrides
-  -- This read-only status is the launcher's sole provisioning admission:
-  -- 0 means ready, 2 means missing dependencies, and every refusal returns 1.
-  if args == ["provision-status"] then return if available then 0 else 2
-  unless available do
-    throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")
   let path : System.FilePath := ".lake/acorn-path-packages.json"
-  IO.FS.writeFile path (contents.compress ++ "\n")
   -- Lake validates its configuration trace against source and toolchain changes;
   -- explicit dependency overrides are resolved again on every invocation.
-  let child ← IO.Process.spawn {
-    cmd := "lake", args := #["--no-cache", "--wfail", s!"--packages={path}"] ++ args.toArray,
-    stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
+  if available then IO.FS.writeFile path (contents.compress ++ "\n")
+  let ready ← if available then bridgeImportsBuilt path else pure false
+  -- This status is the launcher's sole provisioning admission: 0 means ready,
+  -- 2 means missing dependencies, and every refusal returns 1. It builds nothing,
+  -- writes only the override file above and asks Lake whether the FloatLib modules
+  -- the bridge imports are current.
+  if args == ["provision-status"] then return if ready then 0 else 2
+  unless ready do
+    throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")
+  let child ← IO.Process.spawn (lake path args.toArray)
   child.wait
 
 end AcornBootstrap

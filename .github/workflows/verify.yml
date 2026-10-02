@@ -30,6 +30,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck coreutils elan
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Identify the FloatLib modules the proof bridge imports
+        id: bridge
+        # The import lines select what the FloatLib step below builds, so they
+        # belong to the cache identity; the proofs that follow them do not.
+        run: |
+          set -o pipefail
+          imports="$(sed -n '/^import FloatLib\./p' lean/AcornVerif/FloatLibBridge.lean | sort)"
+          echo "imports=$(printf '%s\n' "$imports" | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Restore pinned dependencies only
         id: dependencies
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
@@ -37,7 +45,11 @@ jobs:
           path: |
             ~/.elan
             lean/.lake/packages
-          key: lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}
+          key: lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
+          # A changed import set restores the same locked dependencies, builds
+          # only the added modules below and saves them under the new key.
+          restore-keys: |
+            lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
       - name: Provision pinned Lean, Mathlib and Regula
         if: steps.dependencies.outputs.cache-hit != 'true'
         working-directory: lean
@@ -45,6 +57,13 @@ jobs:
         # Regula's lint driver and audit worker are compiled here, so both jobs
         # provision the same dependency cache.
         run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
+      - name: Provision the FloatLib modules the proof bridge imports
+        working-directory: lean
+        # FloatLib publishes no build cache. This step compiles the modules that
+        # AcornVerif.FloatLibBridge imports, so verification never compiles a
+        # dependency inside its deadline. On an exact cache hit it has nothing to
+        # build.
+        run: lake build floatlibBridge
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before project verification
@@ -78,6 +97,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck coreutils elan
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Identify the FloatLib modules the proof bridge imports
+        id: bridge
+        # The import lines select what the FloatLib step below builds, so they
+        # belong to the cache identity; the proofs that follow them do not.
+        run: |
+          set -o pipefail
+          imports="$(sed -n '/^import FloatLib\./p' lean/AcornVerif/FloatLibBridge.lean | sort)"
+          echo "imports=$(printf '%s\n' "$imports" | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Restore pinned dependencies only
         id: dependencies
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
@@ -85,7 +112,11 @@ jobs:
           path: |
             ~/.elan
             lean/.lake/packages
-          key: lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}
+          key: lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
+          # A changed import set restores the same locked dependencies, builds
+          # only the added modules below and saves them under the new key.
+          restore-keys: |
+            lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
       - name: Provision pinned Lean, Mathlib and Regula
         if: steps.dependencies.outputs.cache-hit != 'true'
         working-directory: lean
@@ -93,6 +124,13 @@ jobs:
         # Regula's lint driver and audit worker are compiled here, so both jobs
         # provision the same dependency cache.
         run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
+      - name: Provision the FloatLib modules the proof bridge imports
+        working-directory: lean
+        # FloatLib publishes no build cache. This step compiles the modules that
+        # AcornVerif.FloatLibBridge imports, so verification never compiles a
+        # dependency inside its deadline. On an exact cache hit it has nothing to
+        # build.
+        run: lake build floatlibBridge
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before the audit

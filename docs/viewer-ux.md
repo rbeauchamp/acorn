@@ -825,9 +825,10 @@ What each panel must show. How it draws it is the code's.
 ## 6 · The run and its files
 
 - **UX-42 · Launch.** `./scripts/start.sh` is the newcomer entry point. It prepares
-  missing system and pinned Lean/Mathlib dependencies, builds the viewer and its
-  declared core/checkpoint dependencies, and explicitly starts/resumes the ranked
-  discounted campaign. It uses `acorn-run/`, requests an available loopback port,
+  missing system and pinned Lean, Mathlib and FloatLib dependencies, builds the
+  viewer and its declared core/checkpoint dependencies, and explicitly
+  starts/resumes the ranked discounted campaign. It uses `acorn-run/`, requests
+  an available loopback port,
   opens the system browser after successful binding, and stays in the terminal
   until the viewer exits. Preparation/build failure prevents launch. Package
   managers may require the operator's system prompts; application execution is
@@ -840,9 +841,11 @@ What each panel must show. How it draws it is the code's.
   The detached desktop opener is polled without blocking; it can survive viewer
   exit and never holds a dedicated worker or delays cooperative shutdown.
   `--no-browser` supports manual/headless access and `--prepare-only` builds
-  without learning. A read-only bootstrap status admits provisioning only for
-  missing dependencies; malformed locks, symlinks and ambient overrides remain
-  explicit refusals. The script is preparation tooling, not a substitute for
+  without learning. A bootstrap status admits provisioning only for missing
+  dependencies. It builds nothing, writes only the launcher's own override file
+  and asks Lake whether the FloatLib modules the proof bridge imports are
+  current; malformed locks, symlinks and ambient overrides remain explicit
+  refusals. The script is preparation tooling, not a substitute for
   `./scripts/verify.sh` and not empirical default qualification.
 
   The advanced `./lean/.lake/build/bin/acorn-viewer --research-profile ranked --port 8088`

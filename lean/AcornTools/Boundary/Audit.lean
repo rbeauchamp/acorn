@@ -41,14 +41,20 @@ def quarantined (name : Name) : Bool :=
 def learned (name : Name) : Bool :=
   (`Acorn).isPrefixOf name && !quarantined name && !compositionRoots.contains name
 
+/-- The single proof module that imports the pinned FloatLib dependency. Other proof
+modules reach FloatLib's theorems through it; no executing module can. -/
+def floatLibBridge : Name := `AcornVerif.FloatLibBridge
+
 /-- Only host/composition owners may use the pinned standard containers and IO support.
-Proof imports name their actual dependencies; Mathlib umbrella imports needlessly
-load the entire library or tactic collection into each compiler process. -/
+Proof imports name their actual dependencies; Mathlib and FloatLib umbrella imports
+needlessly load an entire library or tactic collection into each compiler process.
+FloatLib modules are admitted for the bridge alone. -/
 def importAllowed (owner imported : Name) : Bool :=
   if (`Init).isPrefixOf imported then true
   else if proofOwner owner then
-    !#[`Mathlib, `Mathlib.Tactic].contains imported &&
-      #[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported)
+    !#[`Mathlib, `Mathlib.Tactic, `FloatLib].contains imported &&
+      (#[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported) ||
+        (owner == floatLibBridge && (`FloatLib).isPrefixOf imported))
   else if nativeBootstrap owner then
     (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
   else if owner == `Acorn.Constants then false

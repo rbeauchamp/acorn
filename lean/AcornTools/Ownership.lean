@@ -78,6 +78,7 @@ def modules : Array Name := #[
   `AcornVerif.CurrentPrediction, `AcornVerif.CurrentReduction, `AcornVerif.CurrentRng,
   `AcornVerif.CurrentRunner, `AcornVerif.CurrentSeries, `AcornVerif.CurrentState,
   `AcornVerif.CurrentTemporal, `AcornVerif.CurrentWorld, `AcornVerif.Endurance,
+  `AcornVerif.FloatLibBridge,
   `AcornVerif.Energy, `AcornVerif.Exploration,
   `AcornVerif.ModelConstants, `AcornVerif.MetaGradient, `AcornVerif.Options,
   `AcornVerif.Projection,

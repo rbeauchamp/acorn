@@ -156,9 +156,10 @@ dependency_status=0
 case "$dependency_status" in
   0) ;;
   2)
-    printf 'Downloading the pinned Lean and Mathlib dependencies (first run needs network access)…\n'
+    printf 'Downloading the pinned Lean, Mathlib and FloatLib dependencies (first run needs network access)…\n'
     # The upstream cache can omit modules; Lake compiles only those it lacks.
-    (cd lean && lake exe cache get && lake build Mathlib) ;;
+    # FloatLib publishes no cache, so the modules the proof bridge imports are built here.
+    (cd lean && lake exe cache get && lake build Mathlib floatlibBridge) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
 phase='build'
