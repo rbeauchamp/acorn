@@ -303,6 +303,36 @@ theorem trace_increment_numeric {config : Config} {rails : StepSizeRails config}
   apply mul32_nonnegative_bound _ _ scale.1 alpha.1 scale.2.1 alpha.2.1
   nlinarith only [scale.2.1, scale.2.2, alpha.2.1, alpha.2.2]
 
+/-- The actual binary32 product of a finite word and positive zero has signed key
+zero: it is a zero encoding, of either sign. This is the kernel float model's
+multiply, not an assumed IEEE identity. -/
+theorem mul32_zero (word : Binary32) (finite : word.Finite) : (word.mul .zero).key = 0 := by
+  have zeroFinite : (Binary32.zero).Finite := by decide
+  have zeroDecoded : decoded32 .zero = .zero .positive := rfl
+  have normal := (model_unpack_format Format.binary32 (by decide) word.bits.toBitVec
+    ((model_decoded32_finite word).mpr finite)).1
+  have product : ∃ sign, UnpackedFloat.mul Format.binary32 (decoded32 word) (decoded32 .zero) =
+      .zero sign := by
+    rw [zeroDecoded]
+    change ModelNormalized Format.binary32 (decoded32 word) at normal
+    cases decoded : decoded32 word with
+    | notANumber => rw [decoded] at normal; contradiction
+    | infinity sign => rw [decoded] at normal; contradiction
+    | zero sign => exact ⟨_, rfl⟩
+    | finite sign mantissa exponent positive => exact ⟨_, rfl⟩
+  obtain ⟨sign, product⟩ := product
+  have decoded := mul32_decoded word .zero finite zeroFinite (by rw [product]; trivial)
+    (by rw [product]; trivial)
+  rw [product] at decoded
+  have resultFinite : (word.mul .zero).Finite :=
+    (model_decoded32_finite _).mp (by rw [decoded]; rfl)
+  have value : numerical32 (word.mul .zero) = numerical32 .zero := by
+    simp only [numerical32, decoded, zeroDecoded, unpackedValue]
+  have below := (numerical32_order _ _ resultFinite zeroFinite).mp (le_of_eq value)
+  have above := (numerical32_order _ _ zeroFinite resultFinite).mp (le_of_eq value.symm)
+  have zeroKey : (Binary32.zero).key = 0 := by decide
+  omega
+
 /-- A legal pruning reference gives a finite nonnegative pruning threshold,
 even if its product underflows to a zero encoding. -/
 theorem pruning_threshold_numeric (config : Config) (reference : Binary32)

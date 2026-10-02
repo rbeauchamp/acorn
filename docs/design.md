@@ -29,7 +29,9 @@ In the `ranked` configuration, these mechanisms work together:
    weights supply the ranking used to choose them.
 4. **Options** are policies that can act over several steps. A higher-level
    controller chooses between primitive control and an option, and can interrupt
-   an option using learned value estimates.
+   an option using learned value estimates. An option that is not executing
+   still learns its policy from each action the agent takes, and its model from
+   the steps on which the agent chose as that option would.
 5. **Models and planning** estimate option outcomes and use those estimates to
    update the higher-level action values without replaying stored experience.
 
@@ -66,7 +68,7 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 | 7 | Planning with differential values | Approximate option planning. |
 | 8 | Integrated model-based prototype | Models and planning components are present. |
 | 9 | Exploration and search choices | Declared εz-greedy rate and duration; search control is absent. |
-| 10 | Abstraction through STOMP | Ranked subtasks, options, models and planning. |
+| 10 | Abstraction through STOMP | Ranked subtasks, options that learn off-policy on every step, models and planning. |
 | 11 | Complete OaK | Absent; the full utility-feedback loop is not implemented. |
 | 12 | Assisting other intelligences | Out of scope. |
 
@@ -240,6 +242,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-14](prior-art-review.md#par-14--background-planning): Background planning, [Acorn.Planning](../lean/Acorn/Planning.lean).
 - [PAR-15](prior-art-review.md#par-15--differential-control): Differential control, [Acorn.Average](../lean/Acorn/Average.lean).
 - [PAR-16](prior-art-review.md#par-16--floatlib-rounding-theory): FloatLib rounding theory, a proof dependency, [AcornVerif.FloatLibBridge](../lean/AcornVerif/FloatLibBridge.lean).
+- [PAR-17](prior-art-review.md#par-17--off-policy-option-learning): Off-policy option learning, [Acorn.Temporal](../lean/Acorn/Temporal.lean).
 
 ## Boundaries
 

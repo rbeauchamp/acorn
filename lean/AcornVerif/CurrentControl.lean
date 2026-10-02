@@ -11,6 +11,8 @@ import AcornVerif.CurrentPrediction
 # Contracts of the executing prediction/control composition
 
 These theorems reuse the actual numeric learner and its admitted schedule.
+Off-policy credit (Precup, Sutton & Singh, ICML (2000), §4, Algorithm 2) and
+stopping credit pass raw words to the same learner entries.
 The action update is Javed & Sutton, *Swift-Sarsa*, arXiv:2507.19539v1 (2025),
 Algorithm 1 / equation (4), with the PAR-2 meta-gradient adaptation owned by
 `MetaGradient`. Each theorem identifies its machine-word or ideal-real domain.
@@ -41,6 +43,69 @@ theorem values_step_legal (controller : Controller config dimension actions)
     learner.state.eligibleCount ≤ dimension.capacity := by
   dsimp only
   exact ⟨weight_legal _, (by exact Bounded32.legal _), managed_capacity _⟩
+
+/-- The shared-error kernel preserves stored weight/beta legality and eligibility
+capacity for arbitrary raw lag, error and decay words; tree-backup credit and the
+zero-error start of an off-policy trajectory are instances. -/
+theorem credit_step_legal (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action observed : Action actions)
+    (lag delta decay : Binary32) (index : FeatIdx dimension) :
+    let next := controller.creditStep features action lag delta decay
+    let learner := next.learners.get observed
+    config.rule.domain.range.Contains (learner.state.weights.get index).value ∧
+    learner.state.rails.range.Contains (learner.state.beta.get index).value ∧
+    learner.state.eligibleCount ≤ dimension.capacity := by
+  dsimp only
+  exact ⟨weight_legal _, (by exact Bounded32.legal _), managed_capacity _⟩
+
+/-- Stopping credit preserves the same stored legality and eligibility capacity. -/
+theorem stop_step_legal (controller : Controller config dimension actions)
+    (delta : Binary32) (observed : Action actions) (index : FeatIdx dimension) :
+    let learner := (controller.stopStep delta).learners.get observed
+    config.rule.domain.range.Contains (learner.state.weights.get index).value ∧
+    learner.state.rails.range.Contains (learner.state.beta.get index).value ∧
+    learner.state.eligibleCount ≤ dimension.capacity := by
+  dsimp only
+  exact ⟨weight_legal _, (by exact Bounded32.legal _), managed_capacity _⟩
+
+/-- At zero trace decay a visited finite trace is pruned, for every managed learner
+and every error and accumulator word, so the release after stopping credit has
+nothing left to visit when the eligible traces are finite. -/
+theorem stop_prunes (learner : Managed config dimension) (idx : FeatIdx dimension)
+    (delta vDelta : Binary32) (finite : (learner.state.transient.z.get idx).value.Finite) :
+    (learner.state.firstLoopElement idx delta vDelta .zero).2 = true := by
+  have zero := zero_decay_trace _ finite
+  have trace : ((learner.state.firstLoopElement idx delta vDelta .zero).1.transient.z.get
+      idx).value = (learner.state.transient.z.get idx).value.mul .zero := by
+    simp only [NumericState.firstLoopElement, vector_get, Vector.getElem_set_self]
+  cases retained : (learner.state.firstLoopElement idx delta vDelta .zero).2 with
+  | true => rfl
+  | false =>
+    have kept := first_element_retained_nonzero learner.state idx delta vDelta .zero
+      (managed_schedule learner).1.2 retained
+    rw [trace, zero] at kept
+    contradiction
+
+/-- Work bound at a stop: stopping credit leaves every action learner nothing
+eligible, for every state and every trace word, because its last entry releases
+the list structurally. The start that follows a stop therefore visits no earlier
+trace. -/
+theorem stop_step_empty (controller : Controller config dimension actions) (delta : Binary32)
+    (action : Action actions) :
+    ((controller.stopStep delta).learners.get action).state.eligibleCount = 0 := by
+  simp only [Controller.stopStep, vector_get, Vector.getElem_map]
+  rfl
+
+/-- A release leaves every action learner nothing eligible and with its weights,
+so the first loops of the start that follows read no trace and credit no earlier
+transition (`release_idle`). -/
+theorem release_rows (controller : Controller config dimension actions) (action : Action actions)
+    (idx : FeatIdx dimension) :
+    (controller.release.learners.get action).state.eligibleCount = 0 ∧
+      (controller.release.learners.get action).state.weights.get idx =
+        (controller.learners.get action).state.weights.get idx := by
+  simp only [Controller.release, vector_get, Vector.getElem_map]
+  exact ⟨rfl, (release_knowledge _ idx).1⟩
 
 /-- The selected row executes first-loop credit then precisely one second loop. -/
 theorem selected_row (controller : Controller config dimension actions)

@@ -36,8 +36,8 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   request to wind up at the next attempt boundary, which changes *when a run
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
-  (`./lean/.lake/build/bin/acorn-core audit --expect 25ea4ea335774876`),
-  checksum `754fb5906278a9d0` (C-AC5), and by the gate suite
+  (`./lean/.lake/build/bin/acorn-core audit --expect 7433307b046fd16c`),
+  checksum `385b2f84db38eef2` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
 - **INV-1b · The control channel carries lifecycle only.** The core's stdin

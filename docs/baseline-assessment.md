@@ -40,6 +40,7 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   one. A composition defect (F-A) erased option learning until U1 repaired it,
   and a locally derived exploration rate made
   about 90% of early primitive steps random until U2 replaced it (F-C).
+  Options learned only while executing until U4 (F-F).
 - **Learning: UNKNOWN.** Whether the agent learns anything in its world has not
   been observed.
 
@@ -70,7 +71,7 @@ Verdicts:
 | Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)); turnover follows from the rate by construction over eligible units (`Lifecycle.test_accrual`, F-E). Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code. |
 | Reward-respecting subtasks [[7]](#r7) | Step 10: highest-ranked features become subtasks | Three slots from the positive Demon-0 weights of imprint units, with held bonuses | **Adapted** (after U1) | U1 made candidates sign-correct, the bonus held, and identity the unit alone. One deviation remains: subtasks are not restricted to features whose weight is sometimes high and sometimes low ([PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks)). |
 | Potential-based shaping [[8]](#r8) | Option learning aid | Present | **Faithful** | [PAR-6](prior-art-review.md#par-6--potential-based-shaping), with limits declared. |
-| Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted, weak** | Only the executing option learns (`Skill.stepTemporal`, called from `TemporalControl.stepOption` for the running slot). There is no intra-option learning of the other options (F-F). |
+| Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted** (after U4) | Before U4 only the executing option learned (F-F). Every option that is not executing now learns from the action taken ([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)). The meta-controller's option values still learn by SMDP credit alone. |
 | Intra-option primitive credit [[9]](#r9) | Data reuse | Primitive Sarsa learns from every executed step | **Adapted** | [PAR-9](prior-art-review.md#par-9--intra-option-value-learning). One of the links that genuinely supports the rest. |
 | Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | Scalar reward and continuation models | **Substituted** | There is no transition part (`Model.terminal`). The continuation's terminal target is a meta-controller value, so it is a value estimator, not a model (F-B). |
 | Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Three signed backups toward r̂ + ĉ at the current features, at free boundaries | **Substituted** | `PlanningResult.backup` has no look-ahead with the current value function; it distils a second estimator of the meta values (F-B). |
@@ -79,17 +80,16 @@ Verdicts:
 | Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)). Average-reward GVFs are absent. |
 | Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | A cheap, general fix for discounted methods with discount near 1. Acorn uses γ = 0.99 throughout. |
 | Learned agent state [[15]](#r15) | Perception | Only the fed-back GVF buckets | **Missing** | Severe partial observability (an 11 × 11 view of a 1024 × 1024 world) with no learned memory. |
-| Off-policy learning [[4]](#r4) [[7]](#r7) | Steps 3 and 10 | — | **Missing** | Needed by options and by GVFs about other policies. |
+| Off-policy learning [[4]](#r4) [[7]](#r7) | Steps 3 and 10 | Options only | **Adapted, partial** (after U4) | Option policies learn by tree backup [[21]](#r21) and option models along frames whose action was selected with the option's own distribution ([[9]](#r9) §5). GVFs about other policies remain on-policy ([#16](https://github.com/rbeauchamp/acorn/issues/16)). |
 | Utility feedback [[20]](#r20) | Step 11: feedback that assesses the utility of every element and replaces the least useful | — | **Missing (declared)** | The complete OaK loop is outside the implementation ([design](design.md#implementation-scope)). |
 | Nonlinear continual learning [[6]](#r6) [[16]](#r16) | Continual deep learning | Linear learners only | **Missing** | Outside the baseline's scope, and the current research front. |
 
-**Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 8 adapted,
-2 substituted (models, planning) and 6 missing, counting U3's tester and generator
-as adapted. The frontier and design
-acknowledge utility feedback and learned agent state, and design Step 3,
-[PAR-3](prior-art-review.md#par-3--horde) and
-[PAR-9](prior-art-review.md#par-9--intra-option-value-learning) declare on-policy
-specializations in place of off-policy learning; the other three missing rows
+**Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 9 adapted,
+2 substituted (models, planning) and 5 missing, counting U3's tester and generator
+and U4's off-policy option learning as adapted. The frontier and design
+acknowledge utility feedback and learned agent state, and design Step 3 and
+[PAR-3](prior-art-review.md#par-3--horde) declare the on-policy specialization
+of the prediction questions; the other three missing rows
 (search control, reward centering and nonlinear continual learning) were not
 previously recorded.
 
@@ -109,7 +109,8 @@ Two links genuinely support the rest of the system:
 The defining STOMP loop (subtask → option → model → planning → better
 decisions) exists structurally. The findings below describe how it was broken
 or neutralized. All six are argued from the executed definitions; none is
-machine-checked or observed, except where U1's theorems now close F-A.
+machine-checked or observed. The repairs of F-A, F-C, F-E and F-F are
+machine-checked by the U1 to U4 theorems cited under each.
 
 ### F-A · Subtask churn erased options, models and meta rows
 
@@ -308,21 +309,28 @@ least k > 3 units are mature at each (`run_mature_turnover`).
 
 ### F-F · Options learn from almost none of the experience
 
-**Status: open; U4 addresses it.** Argued; the resulting option quality is UNKNOWN.
+**Status: resolved by U4 ([#10](https://github.com/rbeauchamp/acorn/issues/10)).**
+Argued at 86ce779; what the repair writes is machine-checked; the resulting
+option quality is UNKNOWN.
 
-An option's policy and model update only on steps where that option is executing
-(`Skill.stepTemporal`). The Alberta Plan's Step 10 says option learning "will
-need to be done off-policy" [[20]](#r20); the reward-respecting subtasks paper
-updates every subtask's option off-policy on every step ([[7]](#r7) §3, eq. (10)),
-and intra-option learning updates every option consistent with each action taken
-([[9]](#r9) §§5–6). Combined with F-A's resets and F-C's random
-option actions, options plausibly stayed near their initial values. That extent
-is observable but has not been observed.
+At 86ce779 an option's policy and model updated only on steps where that option
+was executing (`Skill.stepTemporal`). The Alberta Plan's Step 10 says option
+learning "will need to be done off-policy" [[20]](#r20); the reward-respecting
+subtasks paper updates every subtask's option off-policy on every step
+([[7]](#r7) §3, eq. (10)), and intra-option learning updates every option
+consistent with each action taken ([[9]](#r9) §§5–6). Combined with F-A's resets
+and F-C's random option actions, options plausibly stayed near their initial
+values. That extent is observable but was not observed.
+
+U4 makes every option that is not executing learn from the action actually
+taken, on every step of a learning hierarchy
+([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)). The
+[U4 section](#what-u4-changed) lists what changed and what is proved.
 
 **Verdict on composition.** The components coexisted far more than they
 supported one another. The chain was wired, but F-A cut it periodically, F-B
-neutralizes its planning end, F-F starves its option end and F-E left its
-feature-construction end inert until U3.
+neutralizes its planning end, F-F starved its option end until U4 and F-E left
+its feature-construction end inert until U3.
 
 ## Measured against the published OaK and Alberta Plan designs
 
@@ -345,7 +353,7 @@ feature-construction end inert until U3.
 - **Subtasks and options.** Step 10 makes the highest-ranked features into
   reward-respecting subtasks, and its learning processes "will need to be done
   off-policy" ([[20]](#r20) pp. 9–10). Acorn's subtasks churned until U1 (F-A), and
-  its options are on-policy and learn only while executing (F-F).
+  until U4 its options learned only while executing (F-F).
 - **Feature finding.** Step 2 asks for a way of evaluating features and
   "discarding the less promising so as to make room for new ones"
   ([[20]](#r20) p. 7). Before U3, Acorn's tester did not rank and was not shown to
@@ -367,7 +375,8 @@ feature-construction end inert until U3.
   whether the agent learns in its world is irreducibly empirical and still open.
 
 Going by the published designs, the agent they describe differs from Acorn at the
-model, planning, option-learning and feature-testing links. The foundation is
+model and planning links; U3 and U4 brought the feature-testing and
+option-learning links to adapted forms of the published mechanisms. The foundation is
 theirs: SwiftTD everywhere, reward-respecting feature-attainment subtasks, GVF
 predictions as features, and continual operation without replay. Acorn's
 machine-checked state legality and admission have no counterpart in that work.
@@ -383,7 +392,7 @@ derivation, not measurement.
 | U1 | Stable, sign-correct subtasks | [[7]](#r7) §2 eq. (4); Alberta Step 10 | S | Every later link lives in the state F-A erased | **Landed** ([#8](https://github.com/rbeauchamp/acorn/pull/8)) |
 | U2 | Published εz-greedy with a declared ε of 0.01, replacing the derived rate in the default | [[12]](#r12) | S | Initial behaviour was about 90% random (F-C) | **Landed** ([#23](https://github.com/rbeauchamp/acorn/pull/23)) |
 | U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
-| U4 | Options learn from every step: intra-option learning for options consistent with the action, and models for all options | [[9]](#r9); [[7]](#r7) §3–4; Alberta Step 10 | M | Removes F-F's data starvation | Open ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
+| U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | Open ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it learns at all | Open ([#12](https://github.com/rbeauchamp/acorn/issues/12)); needs owner authorization |
 
@@ -434,6 +443,54 @@ prediction cap), `Assignment.words_roundtrip`, and the unchanged
 U1 does not establish that options now learn useful behaviour, how often units
 leave the ranking, or that a hashed-slot weight is a good attainment target.
 
+### What U4 changed
+
+- **Every step.** After selection and before primitive credit, each option that
+  is not executing learns from the action the agent actually took
+  (`TemporalControl.followOptions`). The executing option keeps its on-policy
+  update, and frozen and primitive-only profiles do no option learning.
+- **Policies.** Each option's action-value policy takes tree-backup credit
+  [[21]](#r21): the error bootstraps from the option's own expected value and
+  earlier traces decay by the option's own probability of the action taken
+  (`Controller.backupStep`). No probability of the behaviour enters.
+- **Models.** Each option's model learns along runs of frames whose action was
+  selected with the option's own distribution ([[9]](#r9) §5, p. 202): the
+  behaviour's reported masses equal the option's
+  (`Skill.followTemporal`, `PolicySnapshot.consistent`). The importance ratio of
+  [[7]](#r7) eq. (17) is then one, and the model's target is the option as executed.
+- **Stops.** The executing option's stopping decision applies to the stored
+  trajectory, whose age advances on every followed frame. A stop credits the
+  stopping value at zero trace decay ([[7]](#r7) §3), releases the remaining
+  traces and continues from the current frame.
+- **Starts.** An option the meta-controller selects first settles the transition
+  it was following (`Skill.settleFollowing`), so none is discarded uncredited.
+- **Ownership.** The trajectory belongs to the skill; a fresh, released or
+  restored skill has none, so nothing observed under one objective is credited
+  to its replacement. Terminal credit assignment is unchanged; selection gains
+  only the settling step.
+- **Checkpoint and pins.** The trajectory is process-local, so the checkpoint
+  format is unchanged. All three audit pins changed, because option policies and
+  models now change on every step.
+
+Machine-checked: `Controller.valuesStep_eq_creditStep`,
+`CurrentTemporal.follow_executing` and `CurrentTemporal.step_executing` (the
+executing option's update is unchanged), `PolicySnapshot.mass_bounded` (the trace
+correction lies in [0, 1]), `CurrentTemporal.follow_inactive`,
+`CurrentTemporal.follow_frame`, `CurrentControl.stop_step_empty`,
+`CurrentModels.stop_trajectory_empty` and `CurrentLearner.release_idle` (work),
+`PolicySnapshot.consistent_mass`, `CurrentTemporal.follow_age`,
+`CurrentTemporal.follow_cap`, `CurrentTemporal.follow_live_model` and
+`CurrentTemporal.follow_idle_model` (consistency and age),
+`CurrentTemporal.settle_continuing` and `CurrentTemporal.settle_ending` (starts), and
+`FreeDispatch.install_unlinked`, `Ensemble.release_unlinked` and
+`Ensemble.restore_unlinked` (ownership). U4 does not establish convergence of
+tree backup under linear function approximation with adaptive step sizes, the
+meaning of the step-size adaptation under the corrected trace decay, how often
+a frame's behaviour has the distribution of an option that is not executing,
+or that option policies and models improve. Each option that is not executing
+costs about one executing-option step on every frame. The meta-controller's option values still
+learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
+
 ### Alternatives weighed
 
 - **Continue the retirement reachability program (issue 3): no.** Its object is a
@@ -462,10 +519,10 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
 ## What each claim rests on
 
 - **Machine-checked.** Acorn's existing theorems (state legality, admission and
-  the identities cited in the PAR entries) and the U1, U2 and U3 theorems cited
-  above. The assessment inspected the earlier theorems' statements without
-  recompiling them; U1's, U2's and U3's were compiled by the verification run on
-  each change's head. U2's distributional results hold under the assumed
+  the identities cited in the PAR entries) and the U1, U2, U3 and U4 theorems
+  cited above. The assessment inspected the earlier theorems' statements without
+  recompiling them; U1's, U2's, U3's and U4's were compiled by the verification
+  run on each change's head. U2's distributional results hold under the assumed
   uniform, independent draw listed below.
 - **Argued.** F-A to F-F, including F-C's initial derived rate, E[D] = H₁₂₈, the renewal
   fraction of about 0.90, and F-D's lemma (conditional on equal prediction
@@ -478,7 +535,8 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
   - Faithful transcription of the paper equations recorded in earlier reviews.
 - **UNKNOWN.** Whether the agent learns in its world; how often refreshes occur
   and units leave the ranking; option and model quality; the benefit of
-  planning; the benefit of any of U1 to U5. Each depends on the
+  planning; the benefit of any of U1 to U5; how often a frame's behaviour has the
+  distribution of an option that is not executing. Each depends on the
   experience stream, so no derivation from the definitions can settle it.
 
 ## References
@@ -561,3 +619,7 @@ Section, equation and page locators refer to the versions linked here.
 20. <a id="r20"></a>Richard S. Sutton, Michael Bowling and Patrick M. Pilarski,
     "The Alberta Plan for AI Research"
     ([arXiv:2208.11173v3](https://arxiv.org/abs/2208.11173v3)).
+21. <a id="r21"></a>Doina Precup, Richard S. Sutton and Satinder Singh,
+    "Eligibility Traces for Off-Policy Policy Evaluation", ICML 2000, §4,
+    Algorithm 2 and Theorem 3
+    ([PDF](http://incompleteideas.net/papers/PSS-00.pdf)).

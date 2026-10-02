@@ -73,7 +73,8 @@ inductive OptionEnd where
   | interrupted
   deriving DecidableEq
 
-/-- Trajectory state is created only by begin and updated by an admitted step. -/
+/-- Trajectory state is created only by begin, updated by an admitted step, or
+resumed from the off-policy trajectory a skill stores. -/
 structure OptionActivation (mode : Bool) where
   private mk ::
   /-- Number of option actions already returned, bounded at storage. -/
@@ -83,6 +84,12 @@ structure OptionActivation (mode : Bool) where
 
 /-- Mutation mode is fixed by the activation type, including every admission path. -/
 def OptionActivation.learning {mode : Bool} (_activation : OptionActivation mode) : Bool := mode
+
+/-- A stored off-policy trajectory is a learning activation: its age is the number
+of actions followed since it began, so the executing option's stopping decision,
+duration cap included, applies to it unchanged. -/
+def Following.activation (following : Following) : OptionActivation true :=
+  ⟨following.age, following.previous⟩
 
 variable {mode : Bool}
 
