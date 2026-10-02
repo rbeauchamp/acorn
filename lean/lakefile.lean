@@ -69,7 +69,8 @@ package acorn where
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
     -- Mathlib's standard linter set, with its header linter kept on for this license line.
-    -- Regula's RG2006 requires the two Mathlib-repository linters below to be off.
+    -- Regula's RG2006 (https://rbeauchamp.github.io/regula/v/0.4.0/rules/RG2006/) requires the
+    -- two Mathlib-repository linters below to be off.
     ⟨`weak.linter.mathlibStandardSet, true⟩,
     ⟨`weak.linter.style.header, true⟩,
     ⟨`weak.linter.style.header.license,
