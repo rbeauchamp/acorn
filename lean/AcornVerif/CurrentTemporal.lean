@@ -655,7 +655,7 @@ theorem follow_executing (state : TemporalControl profile config criterion dimen
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
     (decision : TemporalDecision)
-    (slot : Fin Acorn.FeatureConstants.skillCount) (executing : state.executing = some slot) :
+    (slot : Fin Acorn.FeatureConstants.skillCount) (executing : state.activeSlot = some slot) :
     let next := state.followOptions models features declared reward goal decision
     next.runtime.lifecycle.consumers.skills[slot.val].policy =
         state.runtime.lifecycle.consumers.skills[slot.val].policy ∧
@@ -677,7 +677,7 @@ theorem step_executing (state : TemporalControl profile config criterion dimensi
     (executed : state.step planning features obs reward goal = some result) :
     ∃ selected, state.select planning features (spatialPotentials obs) reward goal =
         some (selected, result.2) ∧
-      ∀ slot : Fin Acorn.FeatureConstants.skillCount, selected.executing = some slot →
+      ∀ slot : Fin Acorn.FeatureConstants.skillCount, selected.activeSlot = some slot →
         result.1.runtime.lifecycle.consumers.skills[slot.val].policy =
             selected.runtime.lifecycle.consumers.skills[slot.val].policy ∧
           result.1.runtime.lifecycle.consumers.skills[slot.val].model =

@@ -396,8 +396,8 @@ def TemporalControl.selectWithOperations (state : TemporalControl profile config
         let result := state.closeOption models closing reward estimate
         result.1.atBoundary models plan features declared reward goal none (some result.2)
 
-/-- The option occupying dispatch after selection, if any. -/
-def TemporalControl.executing (state : TemporalControl profile config criterion dimension) :
+/-- The sole active option, derived from exclusive occupancy. -/
+def TemporalControl.activeSlot (state : TemporalControl profile config criterion dimension) :
     Option (Fin Acorn.FeatureConstants.skillCount) :=
   match state.runtime.references.phase with
   | .option slot _ => some slot
@@ -441,7 +441,7 @@ def TemporalControl.followOptions (state : TemporalControl profile config criter
   if profile.usesHierarchy && profile.mode != .frozen then
     let estimate := state.stoppingEstimate decision
     let rate := state.skillRate
-    let executing := state.executing
+    let executing := state.activeSlot
     let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
       credit, creditMatches, average, schedule, lifetime⟩ := state
     let followed := skills.mapFinIdx fun index skill bound =>
@@ -463,7 +463,7 @@ theorem TemporalControl.followOptions_eq (state : TemporalControl profile config
             skills := state.runtime.lifecycle.consumers.skills.mapFinIdx fun index skill bound =>
               followSlot models features declared goal (state.stoppingEstimate decision)
                 state.skillRate decision.action decision.probabilities reward state.average.rate
-                (state.executing == some ⟨index, bound⟩) skill } } } }
+                (state.activeSlot == some ⟨index, bound⟩) skill } } } }
       else state := by
   cases state with
   | mk runtime credit creditMatches average rate lifetime =>

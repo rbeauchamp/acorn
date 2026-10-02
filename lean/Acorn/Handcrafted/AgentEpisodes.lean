@@ -19,13 +19,6 @@ open Features
 variable {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension}
 
-/-- The sole active option, derived from exclusive occupancy. -/
-def TemporalControl.activeSlot (state : TemporalControl profile config criterion dimension) :
-    Option (Fin Acorn.FeatureConstants.skillCount) :=
-  match state.runtime.references.phase with
-  | .option slot _ => some slot
-  | .idle | .exploring _ => none
-
 /-- Complete activation event protocol. Endings consume an old activation and
 starts reserve a new one; neither operation is inferred from diagnostic counts. -/
 inductive EpisodeTrace : Option (Fin Acorn.FeatureConstants.skillCount) →

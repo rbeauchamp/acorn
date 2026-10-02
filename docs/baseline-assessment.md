@@ -464,7 +464,8 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
   it was following (`Skill.settleFollowing`), so none is discarded uncredited.
 - **Ownership.** The trajectory belongs to the skill; a fresh, released or
   restored skill has none, so nothing observed under one objective is credited
-  to its replacement. Selection, where terminal credit is assigned, is unchanged.
+  to its replacement. Terminal credit assignment is unchanged; selection gains
+  only the settling step.
 - **Checkpoint and pins.** The trajectory is process-local, so the checkpoint
   format is unchanged. All three audit pins changed, because option policies and
   models now change on every step.

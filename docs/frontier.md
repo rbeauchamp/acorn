@@ -92,7 +92,7 @@ control remains **demoted** and ineligible for default use.
 | Viewer | One-way telemetry and lifecycle-only stop | Designed for a single local operator on loopback. |
 | Resources | Source/IR-linked structural contracts and bounded stored updates | Physical latency and memory costs depend on the workload and platform. |
 | Learning quality | Explicit research selection and promotion rules | Prospective qualification remains open. |
-| C-AC5 | Declared-rate arm `7433307b046fd16c`, checksum `385b2f84db38eef2`; annealed arm `73355bc3ce9747ff`, checksum `3e761e92a9584855`; differential arm `e75a9f5260ce566a`, checksum `ea34c0f0eb25b8bb` | The fixed audit arms are compared through these paired values. All three pins record the generate-and-test tester and task-reading generator (PAR-11, D7) and off-policy option learning (PAR-16); the declared-rate and differential pins also record the stable, sign-correct subtask (#8) and declared-rate (D6) dynamics decisions. |
+| C-AC5 | Declared-rate arm `7433307b046fd16c`, checksum `385b2f84db38eef2`; annealed arm `73355bc3ce9747ff`, checksum `3e761e92a9584855`; differential arm `e75a9f5260ce566a`, checksum `ea34c0f0eb25b8bb` | The fixed audit arms are compared through these paired values. All three pins record the generate-and-test tester and task-reading generator (PAR-11, D7) and off-policy option learning (PAR-17); the declared-rate and differential pins also record the stable, sign-correct subtask (#8) and declared-rate (D6) dynamics decisions. |
 
 See [verification](verification.md), [performance priorities](performance-engineering.md) and
 [prior-art admission/promotion](prior-art-review.md).
