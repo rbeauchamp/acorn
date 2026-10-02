@@ -497,16 +497,6 @@ theorem NumericState.stepSize_eq {config : Config} {dimension : Dimension}
     state.stepSize index = (state.beta.get index).alpha :=
   state.evaluated index.val index.isLt
 
-/-- The stored step sizes are a function of the stored log step sizes: they hold no
-knowledge of their own, in every state of the type. -/
-theorem NumericState.alpha_eq {config : Config} {dimension : Dimension}
-    (state : NumericState config dimension) :
-    state.alpha = state.beta.map fun stored => stored.alpha := by
-  apply Vector.ext
-  intro index inside
-  rw [Vector.getElem_map]
-  exact state.evaluated index inside
-
 /-- A raw weight write cannot replace the configuration or bypass its projection. -/
 def NumericState.writeWeight {config : Config} {dimension : Dimension}
     (state : NumericState config dimension) (index : FeatIdx dimension) (raw : Binary32) :
