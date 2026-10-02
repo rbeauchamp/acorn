@@ -48,8 +48,9 @@ Ensure Lean and Lake are available in your shell, then run
 repository root to provision the pinned toolchain/dependencies; the build compiles
 only Mathlib modules absent from the upstream cache. FloatLib publishes no cache,
 so the same command compiles the FloatLib modules that the proof bridge imports.
-The offline bootstrap refuses to run until they are built: verification never
-compiles a dependency inside its deadline. Do not use `lake update` to resolve a
+The offline bootstrap asks Lake whether every artifact those imports need is
+current and refuses to run until it is: verification never compiles a dependency
+inside its deadline. Do not use `lake update` to resolve a
 missing dependency; that changes the selected versions.
 
 Build with `./scripts/lean.sh build acorn-viewer`; Lake also builds its declared
