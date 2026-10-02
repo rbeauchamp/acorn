@@ -218,7 +218,7 @@ theorem browserConversion_indexed (key : String) (shape : TelemetryShape) :
   · exact shape.defaultConversion_indexed key
 
 /-- The record holds a JavaScript number for every admitted value of the field. -/
-def BrowserConversion.number(conversion : BrowserConversion) (shape : TelemetryShape) : Bool :=
+def BrowserConversion.number (conversion : BrowserConversion) (shape : TelemetryShape) : Bool :=
   match conversion with
   | .nonFinite | .unmeasured | .absentIndex => conversion.fits shape
   | .keep =>

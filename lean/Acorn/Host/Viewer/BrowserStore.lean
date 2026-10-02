@@ -12,10 +12,11 @@ import Acorn.Host.Viewer.WorldMemory
 The page's named dimensions are emitted from their Lean owners. The frame ring
 is one table of columns, each reading one record field: allocation, the write
 of a record into a slot and the view that reads a slot back are all emitted
-from that table, so an encoding and its inverse cannot differ. The binding of a
-store to its capacity, with the slot of a frame id, is emitted too. Each column's
-key is a schema key whose record value its encoding is defined for, and each
-symbolic stride equals the schema's array width.
+from that table, and no two of its properties share a name
+(`browserColumns_distinct`), so an encoding and its inverse cannot differ. The
+binding of a store to its capacity, with the slot of a frame id, is emitted too.
+Each column's key is a schema key whose record value its encoding is defined
+for, and each symbolic stride equals the schema's array width.
 
 Typed-array assignment and this structural emitter remain trusted execution
 boundaries. The page's painters index the array columns with the same named
@@ -28,7 +29,8 @@ inductive BrowserConstant where
   /-- Telemetry schema version this page reads. -/
   | schema
   /-- Byte of a map cell never sensed. The stream's absent-option code is the same
-  value (`browserRules`), and the page compares option slots with this name too. -/
+  value (`BrowserConstant.unseen_admitted`), and the page compares option slots with
+  this name too. -/
   | unseen
   /-- Largest world side the viewer server retains a map for. -/
   | mapSide
@@ -127,6 +129,21 @@ def browserElementBound (key : String) : Option Nat :=
 /-- The emitted kind count is the bound admission holds every sensed tile below. -/
 theorem BrowserConstant.tileKinds_admitted :
     browserElementBound "tiles" = some BrowserConstant.tileKinds.value := by
+  decide +kernel
+
+/-- Each field admission lets carry an index or one code for "none", with that code. -/
+def browserAbsentCodes : List (String × Nat) :=
+  browserRules.filterMap fun (key, rule) =>
+    match rule with
+    | .either _ (.exact code) => some (key, code)
+    | _ => none
+
+/-- The fields admitted with an absent code are the option fields, and the code of
+each is the emitted unseen byte. -/
+theorem BrowserConstant.unseen_admitted :
+    browserAbsentCodes =
+      ["skill", "option_start", "option_end_skill", "option_end_reason", "meta_action"].map
+        fun key => (key, BrowserConstant.unseen.value) := by
   decide +kernel
 
 /-- How a ring column holds one record field. -/
@@ -283,6 +300,12 @@ theorem browserColumns_live :
       (entry.1, shape) ∈ browserSchema ∧ BrowserColumn.fits entry.1 entry.2 shape = true :=
   schemaCovers_sound BrowserColumn.fits browserColumns browserSchema (by decide +kernel)
 
+/-- No two properties of the store or of the frame view share a name, so each column's
+allocation, write and view address storage of its own. -/
+theorem browserColumns_distinct :
+    (browserColumns.map (·.2.name) ++ browserIntakeColumns ++ ["id", "i"]).Nodup := by
+  decide +kernel
+
 private def scaled (base : String) (stride : List BrowserConstant) : String :=
   String.intercalate "*" (base :: stride.map BrowserConstant.name)
 
@@ -329,8 +352,8 @@ def BrowserColumn.view (key : String) (column : BrowserColumn) : Option String :
 /-- Allocation, record write and frame view of the ring, from the one column table.
 The write stores the lifetime bin of the frame's own cycle, selected by the generated
 `observerCycleBucket`; `observerSum` is the page's adapter over the generated sum.
-`observerRing` binds one store to its capacity: the slot of a frame id, and the write
-and the view at that slot, so the page reaches the store through no other route. -/
+`observerRing` binds one store to its capacity: its `store` and `frame` are the
+generated write and view at `slot(id)`. -/
 def browserStoreJavascript : String :=
   "function observerFrameStore(CAP){return {\n" ++
   String.join (browserColumns.map fun (_, column) => column.allocation) ++
