@@ -204,7 +204,7 @@ def spans (text : String) : List String := Id.run do
   return result.reverse
 
 private def pathPrefixes : List String := ["src/", "scripts/", "viewer/src/", "viewer/static/",
-  "lean/", "gates/", "studies/", "evidence/"]
+  "lean/", "site/", "gates/", "studies/", "evidence/"]
 
 private def braceExpand (path : String) : Except String (List String) := do
   match path.splitOn "{" with

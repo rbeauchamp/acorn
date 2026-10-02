@@ -21,7 +21,7 @@ private def require (legal : Bool) (message : String) : IO Unit :=
   unless legal do throw (IO.userError message)
 
 private def excluded : List String := [".git", "target", "viewer/target", "gates/target",
-  "lean/.lake", "lean/lake-packages", "session"]
+  "lean/.lake", "lean/lake-packages", "site/.lake", "site/_out", "session"]
 
 /-- The complete corpus is traversed without symlink or unreadable-file fallback. -/
 def files : IO (Array String) := do

@@ -74,6 +74,35 @@ jobs:
             ~/.elan
             lean/.lake/packages
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      # The documentation site's own dependencies (Verso, SubVerso, MD4Lean and
+      # illuminate), locked by site/lake-manifest.json into the shared
+      # lean/.lake/packages. They are cached apart from the dependencies above, which
+      # the Regula job restores without them. Verification requires Verso built
+      # already and never compiles it inside its deadline.
+      - name: Restore pinned Verso dependencies only
+        id: verso
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            lean/.lake/packages/verso
+            lean/.lake/packages/subverso
+            lean/.lake/packages/MD4Lean
+            lean/.lake/packages/illuminate
+          key: verso-deps-v1-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('site/lean-toolchain', 'site/lake-manifest.json') }}
+      - name: Provision pinned Verso
+        if: steps.verso.outputs.cache-hit != 'true'
+        working-directory: site
+        run: lake build verso/VersoManual
+      - name: Save pinned Verso dependencies before project verification
+        if: steps.verso.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            lean/.lake/packages/verso
+            lean/.lake/packages/subverso
+            lean/.lake/packages/MD4Lean
+            lean/.lake/packages/illuminate
+          key: ${{ steps.verso.outputs.cache-primary-key }}
       - name: Verify exact source with cold project outputs
         run: ./scripts/verify.sh
   regula:

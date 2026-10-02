@@ -14,9 +14,10 @@ whitespace checks. It uses the provisioned Lean/Lake/native tools.
 namespace AcornGate
 
 /-- A failed subprocess stops admission; successful output remains ordinary console output. -/
-def run (cmd : String) (args : Array String := #[]) (cwd : Option System.FilePath := none) : IO Unit := do
+def run (cmd : String) (args : Array String := #[]) (cwd : Option System.FilePath := none)
+    (env : Array (String × Option String) := #[]) : IO Unit := do
   let started ← IO.monoMsNow
-  let child ← IO.Process.spawn { cmd, args, cwd, stdin := .null }
+  let child ← IO.Process.spawn { cmd, args, cwd, env, stdin := .null }
   let status ← child.wait
   IO.println s!"check {cmd}: {(← IO.monoMsNow) - started} ms; status {status}"
   (← IO.getStdout).flush
@@ -51,6 +52,59 @@ def audits : IO Unit := do
   unless failures.isEmpty do
     throw (IO.userError (String.intercalate "\n" failures.reverse))
 
+/-- The refusal for a documentation dependency that is not provisioned. -/
+def siteUnprovisioned (missing : String) : IO.Error := IO.userError
+  s!"missing pinned documentation dependencies ({missing}); run (cd site && lake build verso/VersoManual)"
+
+/-- The documentation site in `site/` is a second Lake workspace over this package's
+dependency checkouts and pinned Verso. Each locked Git dependency is mapped to its
+provisioned checkout, as the bootstrap does for this workspace, so Lake fetches
+nothing here. A missing checkout is refused. -/
+def siteOverrides : IO String := do
+  let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile "../site/lake-manifest.json"))
+  let mut entries : Array Lean.Json := #[]
+  for entry in ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages") do
+    unless (← IO.ofExcept (entry.getObjValAs? String "type")) == "git" do continue
+    let name ← IO.ofExcept (entry.getObjValAs? String "name")
+    let config ← IO.ofExcept (entry.getObjValAs? String "configFile")
+    for component in [name, config] do
+      unless !component.isEmpty && component != "." && component != ".." &&
+          component.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') do
+        throw (IO.userError s!"unsupported documentation package component: {component}")
+    let dir := s!"../lean/.lake/packages/{name}"
+    unless ← (System.FilePath.mk ".lake/packages" / name / config).pathExists do
+      throw (siteUnprovisioned name)
+    entries := entries.push (Lean.Json.mkObj [
+      ("name", name), ("scope", ← IO.ofExcept (entry.getObjVal? "scope")),
+      ("inherited", ← IO.ofExcept (entry.getObjVal? "inherited")), ("configFile", config),
+      ("manifestFile", ← IO.ofExcept (entry.getObjVal? "manifestFile")),
+      ("type", "path"), ("dir", dir)])
+  IO.FS.createDirAll "../site/.lake"
+  IO.FS.writeFile "../site/.lake/acorn-path-packages.json"
+    ((Lean.Json.mkObj [("version", "1.2.0"), ("packages", Lean.toJson entries)]).compress ++ "\n")
+  return ".lake/acorn-path-packages.json"
+
+/-- Build the documents, which elaborates every reference they make to a Lean owner, then
+render them: each kept Markdown file must equal the rendering of its document, or with
+`write` is written from it. Verso is a provisioned dependency. Lake itself decides its
+readiness: with `--no-build` it exits 3 unless every artifact of `VersoManual` is current,
+so verification never compiles a dependency inside its deadline. The renderer runs
+interpreted; a linked executable would compile the native code of every proof module a
+document imports. -/
+def site (write : Bool) : IO Unit := do
+  let flags := #["--no-cache", "--wfail", s!"--packages={← siteOverrides}"]
+  let env := #[("LAKE_ARTIFACT_CACHE", some "false")]
+  let ready ← IO.Process.output {
+    cmd := "lake", args := flags ++ #["build", "--no-build", "verso/VersoManual"],
+    cwd := some "../site", stdin := .null, env }
+  if ready.exitCode == 3 then throw (siteUnprovisioned "Verso is not built")
+  unless ready.exitCode == 0 do
+    throw (IO.userError s!"Lake could not decide Verso provisioning:\n{ready.stdout}{ready.stderr}")
+  run "lake" (flags ++ #["build", "AcornSite", "AcornDocs"]) (some "../site") env
+  run "lake" (flags ++ #["env", "lean", "-DwarningAsError=true", "-DautoImplicit=false", "--run",
+    "Main.lean"] ++ (if write then #["write"] else #[])) (some "../site") env
+  IO.println "site: documents elaborated against their Lean owners; kept Markdown matches"
+
 /-- Source admission precedes application compilation; every discovered module is built.
 Every declared native entry retains compilation and execution-route admission. -/
 def verify : IO Unit := do
@@ -72,6 +126,7 @@ def verify : IO Unit := do
   run ".lake/build/bin/native-audit"
   browserKernel
   run ".lake/build/bin/ownership-audit" #["complete"]
+  site false
   IO.println "All required Lean checks passed, including proof, execution and corpus admission."
 
 end AcornGate
@@ -85,7 +140,9 @@ def main (args : List String) : IO UInt32 := do
       AcornGate.lake #["build", "acorn-core"]
       AcornGate.audits
       IO.println "Optional mutation diagnostics passed; this is not ordinary merge verification."
-    | _ => throw (IO.userError "usage: acorn-gates [diagnostics]")
+    | ["site"] => AcornGate.site false
+    | ["site", "write"] => AcornGate.site true
+    | _ => throw (IO.userError "usage: acorn-gates [diagnostics | site [write]]")
     return 0
   catch error =>
     IO.eprintln s!"acorn-gates: {error}"

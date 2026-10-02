@@ -24,6 +24,9 @@ namespace AcornTheoremCount
 
 open Lean
 
+/-- The only axioms a project theorem may depend on. -/
+def admittedAxioms : Array Name := #[`propext, `Classical.choice, `Quot.sound]
+
 /-- Counts of compiled declarations whose owning module belongs to each project. -/
 structure Counts where
   /-- Theorem declarations owned by `AcornVerif` modules. -/
@@ -72,7 +75,7 @@ def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
       let axioms ← (collectAxioms name : CoreM (Array Name)).toIO'
         { fileName := "theorem-count", fileMap := default } { env }
       for axiomName in axioms do
-        unless #[`propext, `Classical.choice, `Quot.sound].contains axiomName do
+        unless admittedAxioms.contains axiomName do
           throw (IO.userError s!"{owner}: {name} depends on unreviewed axiom {axiomName}")
       if (`AcornVerif).isPrefixOf owner then
         counts := { counts with verification := counts.verification + 1 }
