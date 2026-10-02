@@ -255,11 +255,12 @@ lean_exe «corpus-audit» where
 
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
 `PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.34.0; leanprover/lean4#15435) stores a
-facet-qualified key under its target as written, unresolved, while every other route
-stores that facet under the package's key name. It also fetches the facet from an
-asynchronous continuation, which races other fetches on the unsynchronized build store.
-Either way a second job can run on the same output file. A facetless key is resolved
-through its package and fetched synchronously. -/
+facet-qualified key under its target as written, while every other route stores that
+facet under the target's resolved form, which names the package by its key name. The two
+entries differ unless the key was written in that form. Whatever its form, the facet is
+fetched from an asynchronous continuation, which races other fetches on the
+unsynchronized build store. Either way a second job can run on the same output file.
+A facetless key is resolved through its package and fetched synchronously. -/
 def singleJobKey (key : PartialBuildKey) : Bool :=
   match (key : BuildKey) with
   | .facet .. => false
