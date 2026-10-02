@@ -159,9 +159,10 @@ Only that outer lint command goes through the bootstrap. Regula's driver then
 runs Lake itself to build, query and enter the workspace environment, without
 the bootstrap's path overrides or its no-cache and warnings-as-failures flags.
 Those invocations resolve dependencies through the Git lock in
-`lean/lake-manifest.json`. The bootstrap admits a dependency by the presence of
-its files, not by its revision, so Lake fetches a dependency whose checkout is
-not at the locked revision.
+`lean/lake-manifest.json`. The bootstrap checks no dependency's revision: it
+admits each by the presence of its files, and the FloatLib modules the proof
+bridge imports by Lake's build traces. Lake therefore fetches a dependency whose
+checkout is not at the locked revision.
 
 The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
 configuration and 3 when the audit is incomplete. The first run compiles Regula's
@@ -186,9 +187,9 @@ compiles for Bool, List and Option, boundaries Mathlib owns, so checked mode
 rejects them. One bridge module in AcornVerif is the only importer of FloatLib,
 a proof dependency whose theorems use the same three axioms and whose compiled
 functions reach the same Mathlib-owned boundaries; the boundary audit refuses a
-FloatLib import by any executing module. The compiler, native runtime, operating system and spawned
-processes stay trusted in both modes. AcornTools is excluded with the six tool
-executables; it is the reviewed tooling trust boundary.
+FloatLib import by any executing module. The compiler, native runtime, operating
+system and spawned processes stay trusted in both modes. AcornTools is excluded
+with the six tool executables; it is the reviewed tooling trust boundary.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial
