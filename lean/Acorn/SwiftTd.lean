@@ -777,8 +777,9 @@ def checksumMultiplier : UInt64 := 0x00000100000001b3
 def checksumRotate (word : UInt64) : UInt64 := (word <<< 13) ||| (word >>> 51)
 
 /-- A checksum of the learner knowledge state — the deterministic audit's raw
-material: per slot, the weight word is folded, mixed, the step-size word
-folded, and the accumulator rotated by 13, in index order. -/
+material: per slot, the weight word is folded, mixed, the log-step-size word
+folded, and the accumulator rotated by 13, in index order. The stored step
+sizes are a function of the log step sizes and are not folded. -/
 def stateChecksum (state : NumericState config dimension) : UInt64 :=
   (state.weights.zip state.beta).foldl (fun hash (weight, beta) =>
     checksumRotate (((hash ^^^ weight.value.bits.toUInt64) * checksumMultiplier) ^^^

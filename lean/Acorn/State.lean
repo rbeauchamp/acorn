@@ -465,7 +465,7 @@ structure NumericState (config : Config) (dimension : Dimension) where
   rails : StepSizeRails config
   /-- Criterion-indexed weight storage. -/
   weights : WeightArray config.rule dimension
-  /-- Step-size storage indexed by those same rails. -/
+  /-- Log-step-size storage indexed by those same rails. -/
   beta : Vector (LogStepSize rails) dimension.capacity
   /-- The step size of each stored log step size, so a read evaluates nothing.
   It is a function of `beta` and holds no knowledge of its own. -/
