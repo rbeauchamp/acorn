@@ -10,11 +10,12 @@ import Acorn.Host.Viewer.WorldMemory
 
 /-! # Browser execution wiring admission
 
-The generated kernel owns the page's constants, frame store, whole-frame
-admission, record conversion and numeric programs; their agreement with the
-schema is proved beside their definitions. This lexical gate holds only what
-stays handwritten: the call sites that route the observer through those owners,
-and its request/timer inventory. Rendered browser behavior is inspected separately.
+The generated kernel owns the page's constants, frame store and its ring binding,
+whole-frame admission, record conversion, validation and numeric programs; their
+agreement with the schema is proved beside their definitions. This lexical gate
+holds only what stays handwritten: the call sites that route the observer through
+those owners, and its request/timer inventory. Rendered browser behavior is
+inspected separately.
 -/
 namespace AcornBrowserAudit
 open Acorn.Host.Viewer
@@ -122,13 +123,6 @@ def check : IO Unit := do
     require ((script.splitOn token).length == count + 1) s!"request/timer inventory differs: {token}"
   require (page.contains "fetch(\"/control\"") "request target differs from /control"
   require ((page.splitOn "/* LEAN_BROWSER_KERNEL */").length == 2) "kernel insertion must be unique"
-  require (script.contains "constS=observerFrameStore(CAP);")
-    "frame storage bypasses generated numeric representation"
-  require ((script.splitOn "constS=").length == 2) "frame storage owner is not unique"
-  require ((← body script "store(id,f)") == "observerStore(S,slot(id),f);")
-    "frame storage writes bypass generated preservation"
-  require ((← body script "frame(id)") == "returnobserverFrame(S,id,slot(id));")
-    "frame view bypasses the generated inverse of storage"
   let part ← body script "admitEnvelope(f)"
   require (part.contains "if(!observerEnvelope(f)||!ctlState||f.run_id!==ctlState.runId||f.agent_epoch!==ctlState.agentEpoch)returnfalse;") "admitEnvelope(f) bypasses its admitted wiring"
   require (part.contains "constnext=[f.timestamp_ms,f.lifetime_step,f.world_step];") "admitEnvelope(f) bypasses its admitted wiring"
@@ -157,9 +151,6 @@ def check : IO Unit := do
   let goalText ← body script "goalText(gkind,gitem,gx,gy,gn)"
   require (goalText == "returnobserverGoalText(gkind,gitem,gx,gy,gn);")
     "goal presentation must use the exhaustive semantic vocabulary"
-  let validate ← body script "validate(f)"
-  require (validate == "constrejected=observerAdmission(f);if(rejected)returnrejected;returnobserverRecord(f);")
-    "conversion must be the generated record of a completely admitted frame"
   let connect ← body script "connect()"
   require ((connect.splitOn "received++").length == 2) "capture counter must have one guarded increment"
   require (page.contains "$(\"t_world\").title = WORLD_TILE_NOTE;") "readout reset omits world-tile title"

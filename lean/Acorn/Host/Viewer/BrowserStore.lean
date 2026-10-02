@@ -12,7 +12,8 @@ import Acorn.Host.Viewer.WorldMemory
 The page's named dimensions are emitted from their Lean owners. The frame ring
 is one table of columns, each reading one record field: allocation, the write
 of a record into a slot and the view that reads a slot back are all emitted
-from that table, so an encoding and its inverse cannot differ. Each column's
+from that table, so an encoding and its inverse cannot differ. The binding of a
+store to its capacity, with the slot of a frame id, is emitted too. Each column's
 key is a schema key whose record value its encoding is defined for, and each
 symbolic stride equals the schema's array width.
 
@@ -65,9 +66,9 @@ def BrowserConstant.name : BrowserConstant → String
   | .modelHeads => "N_MODEL" | .historyBins => "HISTORY_BINS"
   | .cycleBins => "CYCLE_BINS" | .exactCycles => "EXACT_CYCLES"
 
-/-- The owner's value. The four literal dimensions are held to the schema's array
-widths by `browserColumns_live`, and the kind count to admission by
-`BrowserConstant.tileKinds_admitted`. -/
+/-- The owner's value. Three literal dimensions (`optionEnds`, `goalFamilies` and
+`modelHeads`) are held to the schema's array widths by `browserColumns_live`, and the
+kind count to admission by `BrowserConstant.tileKinds_admitted`. -/
 def BrowserConstant.value : BrowserConstant → Nat
   | .schema => telemetrySchemaVersion
   | .unseen => (MapCell.byte none).toNat
@@ -327,7 +328,9 @@ def BrowserColumn.view (key : String) (column : BrowserColumn) : Option String :
 
 /-- Allocation, record write and frame view of the ring, from the one column table.
 The write stores the lifetime bin of the frame's own cycle, selected by the generated
-`observerCycleBucket`; `observerSum` is the page's adapter over the generated sum. -/
+`observerCycleBucket`; `observerSum` is the page's adapter over the generated sum.
+`observerRing` binds one store to its capacity: the slot of a frame id, and the write
+and the view at that slot, so the page reaches the store through no other route. -/
 def browserStoreJavascript : String :=
   "function observerFrameStore(CAP){return {\n" ++
   String.join (browserColumns.map fun (_, column) => column.allocation) ++
@@ -339,6 +342,9 @@ def browserStoreJavascript : String :=
   String.join (browserColumns.map fun (key, column) => column.write key) ++ "}\n" ++
   "function observerFrame(S,id,i){return {id,i,\n" ++
   String.intercalate ",\n" (browserColumns.filterMap fun (key, column) => column.view key) ++
-  "};}\n"
+  "};}\n" ++
+  "function observerRing(CAP){const S=observerFrameStore(CAP),slot=id=>id%CAP;" ++
+  "return {S,slot,store:(id,f)=>observerStore(S,slot(id),f)," ++
+  "frame:id=>observerFrame(S,id,slot(id))};}\n"
 
 end Acorn.Host.Viewer

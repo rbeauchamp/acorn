@@ -95,7 +95,8 @@ inductive BrowserConversion where
   /-- An array of exact safe integers. -/
   | counts
   /-- An array of optional indices, with `null` as in `absentIndex`. Admission bounds
-  each index below `2 ^ 31`, the range of the signed 32-bit array that holds them. -/
+  each present index below `2 ^ 31`, the range of the signed 32-bit array that holds
+  them (`browserConversion_indexed`). -/
   | absentIndices
 
 /-- The shapes a representation is defined for. -/
@@ -173,8 +174,51 @@ theorem browserOverrides_live :
   schemaCovers_sound (fun _ conversion shape => conversion.fits shape)
     browserOverrides browserSchema (by decide +kernel)
 
+/-- Exclusive bound admission places on each present element of an optional-index
+array field. -/
+def browserIndexBound (key : String) : Option Nat :=
+  browserRules.findSome? fun (name, rule) =>
+    match rule with
+    | .each (.nullable (.range upper)) => if name = key then some upper else none
+    | _ => none
+
+/-- A signed 32-bit array holds every admitted index of the field: an `absentIndices`
+field needs admission to bound each present index below `2 ^ 31`. -/
+def BrowserConversion.indexed (conversion : BrowserConversion) (key : String) : Bool :=
+  match conversion with
+  | .absentIndices =>
+    (match browserIndexBound key with
+      | some upper => decide (upper ≤ 2 ^ 31)
+      | none => false)
+  | _ => true
+
+/-- A shape's own representation is never an index array. -/
+theorem TelemetryShape.defaultConversion_indexed (shape : TelemetryShape) (key : String) :
+    shape.defaultConversion.indexed key = true := by
+  cases shape with
+  | array count element => cases element <;> rfl
+  | _ => rfl
+
+/-- Every override holds indices admission bounds within the signed 32-bit range. -/
+theorem browserOverrides_indexed :
+    ∀ entry ∈ browserOverrides, entry.2.indexed entry.1 = true := by
+  decide +kernel
+
+/-- No field is represented as a signed 32-bit index array unless admission bounds
+each of its present indices below `2 ^ 31`. -/
+theorem browserConversion_indexed (key : String) (shape : TelemetryShape) :
+    (browserConversion key shape).indexed key = true := by
+  unfold browserConversion
+  split
+  · next conversion found =>
+    obtain ⟨before, after, located, _⟩ := List.lookup_eq_some_iff.mp found
+    split
+    · exact browserOverrides_indexed (key, conversion) (by rw [located]; simp)
+    · exact shape.defaultConversion_indexed key
+  · exact shape.defaultConversion_indexed key
+
 /-- The record holds a JavaScript number for every admitted value of the field. -/
-def BrowserConversion.number (conversion : BrowserConversion) (shape : TelemetryShape) : Bool :=
+def BrowserConversion.number(conversion : BrowserConversion) (shape : TelemetryShape) : Bool :=
   match conversion with
   | .nonFinite | .unmeasured | .absentIndex => conversion.fits shape
   | .keep =>
@@ -343,13 +387,16 @@ private def viewJavascript (view : List (String × BrowserProperty)) : String :=
 /-- The page's conversion pass over an admitted frame: the record, the first key
 carrying a non-finite reading (or `null`), and the agreement snapshot. It has no
 refusal path, because `observerAdmission` has already held the frame to the shapes
-these representations are defined for. -/
+these representations are defined for. `validate` is that order: it returns
+admission's refusal, and the record only of a frame admission did not refuse. -/
 def browserRecordJavascript : String :=
   "function observerNumber(v){return v===null?NaN:v;}\n" ++
   "function observerIndex(v){return v===null?-1:v;}\n" ++
   "function observerRecord(f){\nconst r={};let n=null;\n" ++
   String.join (browserRecordFields.map BrowserField.javascript) ++
   "return {rec:r,nonFiniteKey:n,agreement:{" ++ viewJavascript browserAgreementView ++
-  ",goalProgress:{" ++ viewJavascript browserGoalProgressView ++ "}}};\n}\n"
+  ",goalProgress:{" ++ viewJavascript browserGoalProgressView ++ "}}};\n}\n" ++
+  "function validate(f){const rejected=observerAdmission(f);if(rejected)return rejected;" ++
+  "return observerRecord(f);}\n"
 
 end Acorn.Host.Viewer

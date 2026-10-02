@@ -830,11 +830,15 @@ const pct = (x, d) => (x*100).toFixed(d == null ? 1 : d) + "%";
    once into preallocated typed arrays. Frames are addressed by a monotonic
    id; slot = id % CAP. Valid ids are [head-CAP, head-1], which makes the ring
    wrap-safe — scrubbing across the wrap point stays in time order.
+   The generated kernel's `observerRing` binds the store to `CAP`: `S` is the
+   columns, `slot` the ring index of an id, `store(id, f)` the write of a
+   validated record — never called with anything else — and `frame(id)` a
+   plain view of one stored frame for the renderers, the generated inverse of
+   `store` from the same column table.
    ========================================================================== */
 const CAP = 30000;
-const S = observerFrameStore(CAP);
+const {S, slot, store, frame} = observerRing(CAP);
 let head = 0;                       // frames ever accepted; newest id = head-1
-const slot = (id) => id % CAP;
 
 /* --------------------------------------------------------------------------
    Everything derived from *the agent*, in one object.
@@ -905,24 +909,13 @@ const has = (id) => id >= oldestId() && id <= newestId();
    in `refused` and one remedy in `drawStreamHealth` — is declared by the
    generated kernel from the reasons its admission returns. */
 
-/** Validate a decoded frame into `{rec, nonFiniteKey, agreement}`, or return
- *  `{why, key}` — the `Reject` reason and the wire key it failed on — to drop
- *  it whole. Admission and conversion are both generated from the core's own
- *  schema: the record has one field per wire key, named by that key, and the
- *  conversion cannot refuse because admission already held every value to its
- *  shape. */
-function validate(f) {
-  const rejected = observerAdmission(f);
-  if (rejected) return rejected;
-  return observerRecord(f);
-}
+/* `validate` — a decoded frame into `{rec, nonFiniteKey, agreement}`, or
+   `{why, key}`, the `Reject` reason and the wire key it failed on, to drop it
+   whole — is declared by the generated kernel. Admission and conversion are
+   both generated from the core's own schema: the record has one field per
+   wire key, named by that key, and the conversion cannot refuse because
+   admission already held every value to its shape. */
 
-/** Write a validated record into the ring. Never called with anything else. */
-function store(id, f) { observerStore(S, slot(id), f); }
-
-/** A plain view of one stored frame, for the renderers: the generated inverse
- *  of `store`, from the same column table. */
-function frame(id) { return observerFrame(S, id, slot(id)); }
 /** What option slot `k` was pursuing at frame index `i` (ring slot). */
 function subtaskOf(i, k) {
   return { unit: S.subtaskUnit[i*N_SKILL+k], bonus: S.subtaskBonus[i*N_SKILL+k] };

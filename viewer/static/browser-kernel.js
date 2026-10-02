@@ -255,6 +255,7 @@ criterion:S.criterion[i],
 retireStep:S.retireStep[i],
 retireUnit:S.retireUnit[i],
 retireCount:S.retireCount[i]};}
+function observerRing(CAP){const S=observerFrameStore(CAP),slot=id=>id%CAP;return {S,slot,store:(id,f)=>observerStore(S,slot(id),f),frame:id=>observerFrame(S,id,slot(id))};}
 const ObserverMath=Object.freeze({
 sum:(p,rows)=>{const a=rows.reduce((a,x)=>[(a[0]+x[0])],[(0e-1074)]);return a[0];},
 mean:(p,rows)=>{const a=rows.reduce((a,x)=>[(a[0]+x[0]),(a[1]+(10000000000000000000000000000000000000000000000000000e-52))],[(0e-1074),(0e-1074)]);return (((0e-1074)<a[1])?(a[0]/a[1]):NaN);},
@@ -944,6 +945,7 @@ r["demon_gamma"]=Float32Array.from(f["demon_gamma"],observerNumber);if(!r["demon
 r["demon_horizon"]=Float32Array.from(f["demon_horizon"],observerNumber);if(!r["demon_horizon"].every(Number.isFinite))n??="demon_horizon";
 return {rec:r,nonFiniteKey:n,agreement:{source:r["source_sha256"],build:r["build_sha256"],process:r["process_started_ms"],clock:r["lifetime_step"],scale:r["agreement_scale"],started:r["agreement_started"],stopped:r["agreement_stopped"],score:r["agreement_score"],text:r["agreement_text"],error:r["agreement_error"],channelScore:r["agreement_channel_score"],channelText:r["agreement_channel_text"],channelError:r["agreement_channel_error"],count:r["agreement_count"],pending:r["agreement_pending"],censored:r["agreement_censored"],status:r["agreement_status"],horizon:r["agreement_horizon"],startFirst:r["agreement_start_first"],startLast:r["agreement_start_last"],settlementFirst:r["agreement_settlement_first"],settlementLast:r["agreement_settlement_last"],tail:r["agreement_tail"],rounding:r["agreement_rounding"],historyClock:r["agreement_history_clock"],historyScore:r["agreement_history_score"],stride:r["settle_stride"],names:r["demon_names"],policies:r["demon_target_policy"],gamma:r["demon_gamma"],envelope:Array.from(r["demon_horizon"],v=>2*v),goalProgress:{goals:r["goal_count"],attempts:r["attempt_cap"],steps:r["step_cap"],invalid:r["goal_progress_invalid"],cycle:r["goal_progress_cycle"],resolved:r["goal_progress_resolved"],attempt:r["goal_progress_attempt"],achieved:r["goal_progress_achieved"],completeCycle:r["goal_progress_completed_cycle"],completeAchieved:r["goal_progress_completed_achieved"],score:r["goal_progress_score"],names:r["curriculum_names"],failed:r["curriculum_failed_attempts"],successSteps:r["curriculum_success_steps"],activeGoal:r["goal"]}}};
 }
+function validate(f){const rejected=observerAdmission(f);if(rejected)return rejected;return observerRecord(f);}
 const observerSnapshotFollows=(...p)=>((p[7]<p[0])||((p[0]===p[7])&&((p[9]===0)&&((p[8]<p[1])||((p[1]===p[8])&&((p[2]===1)||(((p[6]===1)&&(p[13]===0))||((p[10]<p[3])||((p[3]===p[10])&&((p[11]<p[4])||((p[4]===p[11])&&(p[12]<p[5]))))))))))));
 const observerAfter=(...p)=>((p[3]<p[0])||((p[0]===p[3])&&((p[4]<p[1])||((p[1]===p[4])&&(p[5]<p[2])))));
 const observerAgreementFollows=(...p)=>((p[3]<p[0])||((p[0]===p[3])&&((p[5]===0)&&((p[4]<p[1])||((p[1]===p[4])&&(p[2]===1))))));
