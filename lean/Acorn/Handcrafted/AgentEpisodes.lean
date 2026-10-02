@@ -107,9 +107,11 @@ theorem TemporalControl.option_episodes (state : TemporalControl profile config 
 /-- Boundary metaDecision dispatch has a new active slot exactly when its observation records a start. -/
 theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (declared : DeclaredPotentials) (reward : Binary32) (decision : PolicyDecision metaCount)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
+    (decision : PolicyDecision metaCount)
     (ended : Option EndEvent) (observed : TemporalDecision)
-    (executed : state.dispatchMeta models features declared reward decision ended = some (next, observed)) :
+    (executed : state.dispatchMeta models features declared reward goal decision ended =
+      some (next, observed)) :
     next.lifetime = state.lifetime ∧ next.activeSlot = observed.started ∧ observed.ended = ended := by
   unfold TemporalControl.dispatchMeta at executed
   generalize prepared : state.learnMeta features decision = credited at executed
@@ -154,9 +156,11 @@ theorem TemporalControl.close_lifetime (state : TemporalControl profile config c
 theorem TemporalControl.boundary_episodes (state next : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
     (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen))))
     (ended : Option EndEvent) (observed : TemporalDecision)
-    (executed : state.atBoundary models plan features declared reward closing ended = some (next, observed)) :
+    (executed : state.atBoundary models plan features declared reward goal closing ended =
+      some (next, observed)) :
     next.lifetime = state.lifetime ∧ next.activeSlot = observed.started ∧
       observed.ended.map (·.slot) = (closing.map (·.slot)).orElse (fun _ => ended.map (·.slot)) := by
   unfold TemporalControl.atBoundary at executed
@@ -171,15 +175,16 @@ theorem TemporalControl.boundary_episodes (state next : TemporalControl profile 
   cases hc : refreshed.2 with
   | none =>
     simp only [hc] at executed
-    have proof := drawn.1.dispatch_episodes next models features declared reward drawn.2 ended observed executed
+    have proof := drawn.1.dispatch_episodes next models features declared reward goal drawn.2 ended observed
+      executed
     refine ⟨proof.1.trans drawnLifetime, proof.2.1, ?_⟩
     rw [proof.2.2, ← closingSlot, hc]
     rfl
   | some owner =>
     simp only [hc] at executed
     have proof := (drawn.1.closeOption models owner reward drawn.2.continuation).1.dispatch_episodes next models
-      features declared reward drawn.2 (some (drawn.1.closeOption models owner reward drawn.2.continuation).2)
-      observed executed
+      features declared reward goal drawn.2
+      (some (drawn.1.closeOption models owner reward drawn.2.continuation).2) observed executed
     refine ⟨proof.1.trans ((drawn.1.close_lifetime models owner reward _).trans drawnLifetime), proof.2.1, ?_⟩
     rw [proof.2.2, ← closingSlot, hc]
     rfl
@@ -261,7 +266,7 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
       | idle =>
         simp only [phase] at executed
         have proof := (prepared.withPhase .idle).boundary_episodes next models plan features declared reward
-          none none observed executed
+          goal none none observed executed
         refine ⟨proof.1.trans preparedLifetime, ?_⟩
         have empty : state.activeSlot = none := by
           rw [← preparedActive]; simp [TemporalControl.activeSlot, phase]
@@ -270,7 +275,7 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
       | exploring run =>
         simp only [phase] at executed
         have proof := (prepared.withPhase .idle).boundary_episodes next models plan features declared reward
-          none none observed executed
+          goal none none observed executed
         refine ⟨proof.1.trans preparedLifetime, ?_⟩
         have empty : state.activeSlot = none := by
           rw [← preparedActive]; simp [TemporalControl.activeSlot, phase]
@@ -311,14 +316,14 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
               ⟨slot, ⟨activation, value, reason⟩, none⟩
             cases criterion with
             | differential =>
-              have proof := free.boundary_episodes next models plan features declared reward
+              have proof := free.boundary_episodes next models plan features declared reward goal
                 (some closing) none observed executed
               refine ⟨proof.1.trans preparedLifetime, ?_⟩
               rw [active, proof.2.1, proof.2.2]
               exact .ending slot observed.started
             | discounted =>
               let closed := free.closeOption models closing reward (comparisonValue .discounted metaPolicy)
-              have proof := closed.1.boundary_episodes next models plan features declared reward
+              have proof := closed.1.boundary_episodes next models plan features declared reward goal
                 none (some closed.2) observed executed
               refine ⟨proof.1.trans ((free.close_lifetime models closing reward _).trans preparedLifetime), ?_⟩
               rw [active, proof.2.1, proof.2.2]
@@ -377,6 +382,16 @@ theorem TemporalControl.select_primitive (state next : TemporalControl profile c
     rw [same] at proof
     exact proof.2.1
 
+/-- Off-policy option learning records no episode and moves no activation. -/
+theorem TemporalControl.follow_episodes (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision) :
+    (state.followOptions models features declared reward goal decision).lifetime = state.lifetime ∧
+      (state.followOptions models features declared reward goal decision).activeSlot =
+        state.activeSlot := by
+  rw [TemporalControl.followOptions_eq]
+  split <;> exact ⟨rfl, rfl⟩
+
 /-- Stored episode counts agree with the outstanding invocation and immutable hierarchy mode. -/
 def TemporalControl.Episodes (state : TemporalControl profile config criterion dimension) : Prop :=
   Lifetime.OptionsValid state.lifetime.options state.activeSlot ∧
@@ -417,13 +432,19 @@ theorem TemporalControl.step_episodes (state next : TemporalControl profile conf
     cases executed
     have trace := state.select_episodes result.1 (modelOperations criterion dimension)
       (planningBoundary planning) features (spatialPotentials observation) reward goal result.2 valid.2 selected
+    have follow := result.1.follow_episodes (modelOperations criterion dimension) features
+      (spatialPotentials observation) reward goal result.2
+    generalize result.1.followOptions (modelOperations criterion dimension) features
+      (spatialPotentials observation) reward goal result.2 = followed at follow ⊢
     constructor
     · change Lifetime.OptionsValid
-        (result.1.finish features observation reward result.2).lifetime.options result.1.activeSlot
-      rw [TemporalControl.finish_options, trace.1]
+        (followed.finish features observation reward result.2).lifetime.options followed.activeSlot
+      rw [TemporalControl.finish_options, follow.1, follow.2, trace.1]
       apply trace.2.record_valid _ result.2.episodeEnd _ valid.1
       simp [TemporalDecision.episodeEnd, Option.map_map, Function.comp_def]
     · intro primitive
+      change followed.activeSlot = none
+      rw [follow.2]
       exact state.select_primitive result.1 (modelOperations criterion dimension) (planningBoundary planning)
         features (spatialPotentials observation) reward goal result.2 primitive selected
 

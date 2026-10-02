@@ -12,16 +12,26 @@ import Acorn.Handcrafted.PredictionControl
 
 This dispatcher consumes one already-encoded observation and its preceding
 reward. It composes persistent exploration, option policies, assignment refresh,
-SMDP meta credit, primitive credit, prediction feedback and the old-gain clock.
+SMDP meta credit, off-policy option learning, primitive credit, prediction
+feedback and the old-gain clock.
 The full agent supplies encoding/retirement order. Model learning and the selected
 planning algorithm execute the current managed owners. No attempt timeout is a termination input.
 
 Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence
 112 (1999), equations (8)–(9), p. 190 and §6, pp. 204–205, supplies the SMDP
 and intra-option forms. Acorn's PAR-9 uses executed-action Sarsa, and PAR-15
-centers every layer with one shared pre-observation gain. Nominal epsilon means
-are used only for interruption; differential terminal credit uses the next
-sampled meta action after refresh and planning.
+centers every layer with one shared pre-observation gain. For the executing
+option, nominal epsilon means are used only for interruption, and differential
+terminal credit uses the next sampled meta action after refresh and planning.
+
+After selection, every option that is not executing learns from the action
+actually taken (PAR-17): Sutton, Machado et al., *Reward-respecting subtasks for
+model-based reinforcement learning*, Artificial Intelligence 324 (2023), 104001,
+arXiv:2202.03466v4, §3, equation (10) and §4, equation (17). The executing option
+keeps its on-policy update, and an ending option's terminal credit keeps its owner.
+A stop of an option that is not executing credits the nominal meta value in both
+criteria, since no meta action is drawn for it. An option selected to start
+executing first settles the transition it was following.
 -/
 namespace Acorn.Handcrafted
 open Features
@@ -300,10 +310,13 @@ def skillOfMeta (action : Action metaCount.word.toNat) : Option (Fin Acorn.Featu
     some ⟨action.val - 1, by have bound := action.isLt; change action.val < 4 at bound; change action.val - 1 < 3; omega⟩
 
 /-- Credit the sampled meta action, then execute its primitive or option choice.
-The selected action is already fixed before either credit operation. -/
+The selected action is already fixed before either credit operation. A selected
+option first settles the transition it was following off-policy, against the
+frozen meta snapshot of this decision, and then starts its invocation. -/
 def TemporalControl.dispatchMeta (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (declared : DeclaredPotentials) (reward : Binary32) (decision : PolicyDecision metaCount)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
+    (decision : PolicyDecision metaCount)
     (ended : Option EndEvent) : Option (TemporalControl profile config criterion dimension × TemporalDecision) := do
   let state := state.learnMeta features decision
   match skillOfMeta decision.action with
@@ -311,7 +324,10 @@ def TemporalControl.dispatchMeta (state : TemporalControl profile config criteri
   | some slot =>
     let skill := state.runtime.lifecycle.consumers.skills.get slot
     let potential ← skill.interest.potential features declared
-    let begun := skill.beginTemporal models features potential (profile.mode != .frozen) state.skillRate
+    let settled := skill.settleTemporal models features potential goal
+      (comparisonValue criterion decision.snapshot) state.skillRate reward state.average.rate
+      (profile.mode != .frozen)
+    let begun := settled.beginTemporal models features potential (profile.mode != .frozen) state.skillRate
     pure ((state.withSkill slot begun.1).stepOption models slot begun.2.1 begun.2.2 reward
       decision.snapshot.values (some decision) true ended)
 
@@ -320,6 +336,7 @@ terminal credit, then learns meta. It starts the newly selected option immediate
 def TemporalControl.atBoundary (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
     (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))) (ended : Option EndEvent) :
     Option (TemporalControl profile config criterion dimension × TemporalDecision) :=
   let refreshed := state.refreshFree closing
@@ -330,7 +347,7 @@ def TemporalControl.atBoundary (state : TemporalControl profile config criterion
     | some closing =>
       let result := drawn.1.closeOption models closing reward decision.continuation
       (result.1, some result.2)
-  state.dispatchMeta models features declared reward decision ended
+  state.dispatchMeta models features declared reward goal decision ended
 
 /-- Advance the rate and owed meta reward, then observe models before dispatch.
 The operation preserves occupancy and the incoming random/gain state. -/
@@ -360,7 +377,7 @@ def TemporalControl.selectWithOperations (state : TemporalControl profile config
   let phase := state.runtime.references.phase
   let state := state.withPhase .idle
   match phase with
-  | .idle | .exploring _ => state.atBoundary models plan features declared reward none none
+  | .idle | .exploring _ => state.atBoundary models plan features declared reward goal none none
   | .option slot activation =>
     let skill := state.runtime.lifecycle.consumers.skills.get slot
     let potential ← skill.interest.potential features declared
@@ -374,10 +391,88 @@ def TemporalControl.selectWithOperations (state : TemporalControl profile config
       let closing : Closing config criterion dimension (EndingPayload (profile.mode != .frozen)) :=
         ⟨slot, ⟨activation, potential, reason⟩, none⟩
       match criterion with
-      | .differential => state.atBoundary models plan features declared reward (some closing) none
+      | .differential => state.atBoundary models plan features declared reward goal (some closing) none
       | .discounted =>
         let result := state.closeOption models closing reward estimate
-        result.1.atBoundary models plan features declared reward none (some result.2)
+        result.1.atBoundary models plan features declared reward goal none (some result.2)
+
+/-- The option occupying dispatch after selection, if any. -/
+def TemporalControl.executing (state : TemporalControl profile config criterion dimension) :
+    Option (Fin Acorn.FeatureConstants.skillCount) :=
+  match state.runtime.references.phase with
+  | .option slot _ => some slot
+  | .idle | .exploring _ => none
+
+/-- The stopping estimate options that are not executing compare against: the
+nominal value of the frame's meta snapshot. When a meta decision was drawn at this
+frame it is that decision's own frozen snapshot, values and rate; otherwise no
+meta learner has changed since the values were read, and the current rate is theirs. -/
+def TemporalControl.stoppingEstimate (state : TemporalControl profile config criterion dimension)
+    (decision : TemporalDecision) : Binary32 :=
+  match decision.metaDecision with
+  | some drawn => comparisonValue criterion drawn.snapshot
+  | none => comparisonValue criterion
+      (⟨decision.metaValues, state.metaRate⟩ : PolicySnapshot metaCount)
+
+/-- One slot's share of a followed frame. The executing option keeps its own
+on-policy update and is linked to no off-policy trajectory. A slot whose declared
+potential source is not supplied learns nothing and is unlinked. -/
+def followSlot (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (action : Action primitiveCount.word.toNat)
+    (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32) (gain : RewardRate)
+    (executing : Bool) (skill : Skill config criterion dimension) : Skill config criterion dimension :=
+  if executing then { skill with following := none } else
+    match skill.interest.potential features declared with
+    | some potential =>
+      skill.followTemporal models features potential goal estimate rate action behaviour reward
+        gain
+    | none => { skill with following := none }
+
+/-- Every option that is not executing learns from the frame's actual action and
+its reported behaviour masses, in table order, after selection and before the
+common completion boundary, so each reads the same pre-observation gain as the
+executing option. Frozen and primitive-only profiles do no option learning. No
+random draw is consumed. -/
+def TemporalControl.followOptions (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision) :
+    TemporalControl profile config criterion dimension :=
+  if profile.usesHierarchy && profile.mode != .frozen then
+    let estimate := state.stoppingEstimate decision
+    let rate := state.skillRate
+    let executing := state.executing
+    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+      credit, creditMatches, average, schedule, lifetime⟩ := state
+    let followed := skills.mapFinIdx fun index skill bound =>
+      followSlot models features declared goal estimate rate decision.action
+        decision.probabilities reward average.rate (executing == some ⟨index, bound⟩) skill
+    ⟨⟨⟨representation, ⟨control, metaController, followed, demons⟩⟩, refresh, references⟩,
+      credit, creditMatches, average, schedule, lifetime⟩
+  else state
+
+/-- Consuming the ensemble before the option updates preserves the complete
+composition: only the skill table changes, slot by slot. -/
+theorem TemporalControl.followOptions_eq (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision) :
+    state.followOptions models features declared reward goal decision =
+      if profile.usesHierarchy && profile.mode != .frozen then
+        { state with runtime := { state.runtime with lifecycle := { state.runtime.lifecycle with
+          consumers := { state.runtime.lifecycle.consumers with
+            skills := state.runtime.lifecycle.consumers.skills.mapFinIdx fun index skill bound =>
+              followSlot models features declared goal (state.stoppingEstimate decision)
+                state.skillRate decision.action decision.probabilities reward state.average.rate
+                (state.executing == some ⟨index, bound⟩) skill } } } }
+      else state := by
+  cases state with
+  | mk runtime credit creditMatches average rate lifetime =>
+    cases runtime with
+    | mk lifecycle refresh references =>
+      cases lifecycle with
+      | mk representation consumers =>
+        cases consumers
+        rfl
 
 /-- Current selection executes concrete model learning and the explicit planning choice. -/
 def TemporalControl.select (state : TemporalControl profile config criterion dimension)
@@ -387,14 +482,17 @@ def TemporalControl.select (state : TemporalControl profile config criterion dim
   state.selectWithOperations (modelOperations criterion dimension) (planningBoundary planning)
     features declared reward goal
 
-/-- One local temporal transition finishes credit and feedback on every selected path.
+/-- One local temporal transition: selection, off-policy learning of every option
+that is not executing, then credit and feedback on every selected path.
 The input active set belongs to the caller's current encoding frame. -/
 def TemporalControl.step (state : TemporalControl profile config criterion dimension)
     (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32) (goal : Bool) :
     Option (TemporalControl profile config criterion dimension × TemporalDecision) := do
   let (selected, decision) ← state.select planning features (spatialPotentials obs) reward goal
-  pure (selected.finish features obs reward decision, decision)
+  let followed := selected.followOptions (modelOperations criterion dimension) features
+    (spatialPotentials obs) reward goal decision
+  pure (followed.finish features obs reward decision, decision)
 
 /-- Attempt/curriculum events request future ranking without modifying an active
 option, serving a run, clearing trajectories or changing random state. -/

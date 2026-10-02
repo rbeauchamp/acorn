@@ -275,6 +275,15 @@ checkpoint restore or a trajectory boundary. -/
 def clearTransient (state : NumericState config dimension) : NumericState config dimension :=
   { state with transient := TransientState.zero dimension }
 
+/-- Drop every eligible trace structurally: zero all nine registers of each
+eligible index and empty the list. Knowledge, the previous prediction and the
+weight-change aggregate are kept, and no arithmetic reads a trace. The work is
+the eligible length, not the capacity. -/
+def releaseEligible (state : NumericState config dimension) : NumericState config dimension :=
+  let cleared := state.transient.eligible.foldl (fun next idx => next.clearFeatureRegisters idx)
+    state
+  { cleared with transient := { cleared.transient with eligible := #[] } }
+
 /-- Raw ordered prediction `Σ_{i∈F} w[i]` over the unique active features, in
 first-occurrence order; no output projection is applied. -/
 def linearPrediction (state : NumericState config dimension) (features : ActiveSet dimension) :
@@ -736,6 +745,8 @@ inductive Entry (dimension : Dimension) where
   | install (weights beta : List Binary32)
   /-- Clear process-local state. -/
   | clear
+  /-- Release every eligible trace, in work proportional to their number. -/
+  | release
 
 /-- Execute one interface operation using the same definitions as the direct
 methods. Their observation results remain available from those methods. -/
@@ -753,12 +764,13 @@ def Entry.apply (entry : Entry dimension) (state : NumericState config dimension
   | .restoreBeta raw => state.restoreLogStepSizes raw
   | .install weights beta => state.installRestored weights beta
   | .clear => state.clearTransient
+  | .release => state.releaseEligible
 
 /-- Phase after an entry: true permits a following standalone second loop.
 This phase governs composed resource safety, not the standalone input domain. -/
 def nextReady (entry : Entry dimension) (before : Bool) : Bool :=
   match entry with
-  | .first .. | .terminal .. | .install .. | .clear => true
+  | .first .. | .terminal .. | .install .. | .clear | .release => true
   | .second .. | .step .. | .beginTrajectory .. => false
   | .plan .. | .retire .. | .restoreWeights .. | .restoreBeta .. => before
 

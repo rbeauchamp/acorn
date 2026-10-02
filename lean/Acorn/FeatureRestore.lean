@@ -66,7 +66,8 @@ structure PrimaryImage (dimension : Dimension) (discounts : List Discount) where
   demons : DemonImages dimension discounts
 
 /-- Restore the complete receiving primary state, install saved target identities,
-and reset every model under its criterion-specific storage shape. -/
+reset every model under its criterion-specific storage shape, and link no skill
+to a frame from before the restore. -/
 def Ensemble.restore {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
     (image : PrimaryImage dimension discounts)
@@ -74,8 +75,18 @@ def Ensemble.restore {config : Config} {criterion : Criterion} {dimension : Dime
     Ensemble config criterion dimension discounts :=
   ⟨ensemble.control.restore image.control, ensemble.metaController.restore image.metaController,
     Vector.ofFn (fun i => ⟨.learned assignments[i.val],
-      ensemble.skills[i.val].policy.restore image.skills[i.val], Model.initial dimension criterion⟩),
+      ensemble.skills[i.val].policy.restore image.skills[i.val], Model.initial dimension criterion,
+      none⟩),
     ensemble.demons.restore image.demons⟩
+
+/-- Every restored slot starts with no stored off-policy trajectory. -/
+theorem Ensemble.restore_unlinked {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    (image : PrimaryImage dimension discounts)
+    (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    (ensemble.restore image assignments).skills[slot.val].following = none := by
+  simp [Ensemble.restore]
 
 /-- Feature metadata received from the file decoder, before any mutation. -/
 structure RawFeatureImage (dimension : Dimension) (discounts : List Discount) where

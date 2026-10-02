@@ -13,6 +13,11 @@ Sutton, *Swift-Sarsa: Fast and Robust Linear Control*, arXiv:2507.19539v1
 (2025), Algorithm 1. It is not the paper's arg-max. Multiply-high bins and
 53-bit branch draws retain the current RNG's finite-word law. Reported masses
 are nominal binary32 epsilon masses, not exact probabilities of those bins.
+
+Credit for an action the frozen policy did not draw follows Precup, Sutton &
+Singh, *Eligibility Traces for Off-Policy Policy Evaluation*, ICML (2000), §4,
+Algorithm 2 (tree backup): it reads the frozen policy's own nominal masses and
+no probability of the policy that selected the action.
 -/
 namespace Acorn.Features
 
@@ -192,5 +197,82 @@ def PolicySnapshot.expected (snapshot : PolicySnapshot count) : Binary32 :=
     (totals.2.1.div (Binary64.ofUInt64 totals.2.2.toUInt64))
   let value := value.add (eps.mul (totals.1.div (Binary64.ofUInt64 count.word)))
   (Conversion.narrow value).saturate lower upper
+
+/-- Whether the frame's action was selected with this policy's own distribution:
+the behaviour's reported masses equal the frozen policy's nominal masses, word for
+word. Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial
+Intelligence 112 (1999), §5, p. 202, call an action consistent with an option when
+it "was selected with the distribution π(s_t, ·)". The test reads no action: every
+action of a consistent frame is a sample of the policy, exploratory ones included.
+A served exploratory step reports a point mass and so matches no policy that
+gives two actions positive mass. -/
+def PolicySnapshot.consistent (snapshot : PolicySnapshot count)
+    (behaviour : Vector Binary32 count.word.toNat) : Bool :=
+  decide (snapshot.probabilities = behaviour)
+
+/-- Consistency is equality of the two mass vectors. -/
+theorem PolicySnapshot.consistent_iff (snapshot : PolicySnapshot count)
+    (behaviour : Vector Binary32 count.word.toNat) :
+    snapshot.consistent behaviour = true ↔ snapshot.probabilities = behaviour := by
+  simp [PolicySnapshot.consistent]
+
+/-- On a consistent frame every action has the same reported mass under the
+behaviour as under the frozen policy, so an importance ratio of the two is one
+wherever it is defined. -/
+theorem PolicySnapshot.consistent_mass (snapshot : PolicySnapshot count)
+    (behaviour : Vector Binary32 count.word.toNat) (action : Action count.word.toNat)
+    (consistent : snapshot.consistent behaviour = true) :
+    snapshot.probabilities.get action = behaviour.get action := by
+  rw [(snapshot.consistent_iff behaviour).mp consistent]
+
+/-- A policy's own decision is consistent with it: the masses a draw reports are
+those of the snapshot it was drawn from. -/
+theorem PolicyDecision.consistent_own (decision : PolicyDecision count) :
+    decision.snapshot.consistent decision.probabilities = true :=
+  (decision.snapshot.consistent_iff _).mpr rfl
+
+/-- Nominal mass of one action under the frozen ε-greedy policy: the word
+`probabilities` reports, admitted as a probability. A NaN mass admits as zero. -/
+def PolicySnapshot.mass (snapshot : PolicySnapshot count) (action : Action count.word.toNat) :
+    SwiftTd.ExploreRate :=
+  SwiftTd.ExploreRate.project (snapshot.probabilities.get action)
+
+/-- Tree-backup error of the completed transition against the frozen policy's
+expected value: `r + γ Σ_a π(a|s′) q(s′, a) − q(s, a)`, in the exact add, multiply,
+subtract order. -/
+def Controller.backupError {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat) (snapshot : PolicySnapshot count)
+    (reward : Binary32) : Binary32 :=
+  (reward.add (config.rule.gamma.mul snapshot.expected)).sub controller.vOld
+
+/-- Tree-backup credit for an action the frozen policy did not draw. Precup, Sutton
+& Singh, ICML (2000), §4, Algorithm 2: the error bootstraps from the policy's
+expected value, `δ = r + γ Σ_a π(a|s′) q(s′, a) − q(s, a)`, and earlier traces decay
+by `γλ π(a′|s′)` for the action `a′` taken at `s′`. Acorn's π is the frozen policy's
+nominal ε-greedy mass and the sum is `expected`. The correction is a probability by
+type; no probability of the selecting policy enters. A taken action outside the
+candidates multiplies earlier traces by ε over the action count, and the source's
+experimental normalization by the largest mass (p. 5) is not applied. -/
+def Controller.backupStep {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
+    (action : Action count.word.toNat) (reward : Binary32) :
+    Controller config dimension count.word.toNat :=
+  controller.creditStep features action (snapshot.values.get action)
+    (controller.backupError snapshot reward)
+    (controller.traceDecay.mul (snapshot.mass action).value)
+
+/-- The tree-backup trace correction is a stored probability, in [0, 1], for every
+snapshot, including raw nonfinite value words. -/
+theorem PolicySnapshot.mass_bounded (snapshot : PolicySnapshot count)
+    (action : Action count.word.toNat) :
+    SwiftTd.exploreRange.Contains (snapshot.mass action).value := (snapshot.mass action).legal
+
+/-- Tree-backup credit lags the taken action's frozen value, as the on-policy update does. -/
+theorem Controller.backupStep_lag {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
+    (action : Action count.word.toNat) (reward : Binary32) :
+    (controller.backupStep features snapshot action reward).vOld = snapshot.values.get action := rfl
 
 end Acorn.Features

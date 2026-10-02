@@ -11,8 +11,9 @@ import Acorn.Handcrafted.TemporalControl
 The local option interface permits arbitrary declared sources and refuses a
 mismatch. The complete agent admits only learned interests and its actual D2
 producer, and no two of its slots hold the same learned unit. These structural
-proofs close both across every learning, refresh and retirement write; they do
-not assume a successful dispatch.
+proofs close both across every learning, refresh and retirement write, including
+the off-policy learning of options that are not executing; they do not assume a
+successful dispatch.
 -/
 namespace Acorn.Handcrafted
 open Features
@@ -241,13 +242,58 @@ theorem TemporalControl.finish_aligned (state : TemporalControl profile config c
     (reward : Binary32) (decision : TemporalDecision) :
     (state.finish features observation reward decision).Aligned := aligned
 
+/-- A followed slot keeps its interest whether it is executing, linked or refused. -/
+theorem followSlot_interest (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (action : Action primitiveCount.word.toNat)
+    (behaviour : Vector Binary32 primitiveCount.word.toNat)
+    (reward : Binary32) (gain : RewardRate) (executing : Bool)
+    (skill : Skill config criterion dimension) :
+    (followSlot models features declared goal estimate rate action behaviour reward gain executing
+      skill).interest = skill.interest := by
+  unfold followSlot
+  split
+  · rfl
+  · split
+    · exact skill.followTemporal_interest models features _ goal estimate rate action behaviour
+        reward gain
+    · rfl
+
+/-- A table with the same interest in every slot stays aligned and distinct. -/
+theorem TemporalControl.sameInterests_aligned (state next : TemporalControl profile config criterion dimension)
+    (aligned : state.Aligned)
+    (same : ∀ index : Fin Acorn.FeatureConstants.skillCount,
+      next.runtime.lifecycle.consumers.skills[index.val].interest =
+        state.runtime.lifecycle.consumers.skills[index.val].interest) : next.Aligned := by
+  refine ⟨fun index => ?_, Assignment.Distinct.mono aligned.2 fun index unit named => ?_⟩
+  · rw [same index]
+    exact aligned.1 index
+  · rw [Vector.getElem_map] at named ⊢
+    rw [same index] at named
+    exact named
+
+/-- Off-policy option learning writes policies, models and trajectory links only;
+every slot keeps the interest whose potential it read. -/
+theorem TemporalControl.followOptions_aligned (state : TemporalControl profile config criterion dimension)
+    (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) (decision : TemporalDecision) :
+    (state.followOptions models features declared reward goal decision).Aligned := by
+  apply state.sameInterests_aligned _ aligned
+  intro index
+  rw [TemporalControl.followOptions_eq]
+  split
+  · simp only [Vector.getElem_mapFinIdx]
+    exact followSlot_interest ..
+  · rfl
+
 /-- The drawn meta decision has a potential for its receiving option, when selected. -/
 theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (observation : Host.Observation) (reward : Binary32)
-    (decision : PolicyDecision metaCount) (ended : Option EndEvent) :
-    ∃ next selected, state.dispatchMeta models features (spatialPotentials observation) reward decision ended =
-      some (next, selected) ∧ next.Aligned := by
+    (goal : Bool) (decision : PolicyDecision metaCount) (ended : Option EndEvent) :
+    ∃ next selected, state.dispatchMeta models features (spatialPotentials observation) reward goal
+        decision ended = some (next, selected) ∧ next.Aligned := by
   unfold TemporalControl.dispatchMeta
   generalize hl : state.learnMeta features decision = learned
   have learnedAligned : learned.Aligned := by
@@ -265,7 +311,7 @@ theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile conf
     apply TemporalControl.stepOption_aligned (values := decision.snapshot.values)
       (decision := some decision) (started := true) (ended := ended)
     apply learned.withSkill_aligned learnedAligned
-    rw [Skill.beginTemporal_interest]
+    rw [Skill.beginTemporal_interest, Skill.settleTemporal_interest]
     rfl
 
 /-- A free boundary always has a potential for the selected receiving skill;
@@ -273,11 +319,11 @@ planning and detached terminal credit preserve that source alignment. -/
 theorem TemporalControl.boundary_total (state : TemporalControl profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary config criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (observation : Host.Observation) (reward : Binary32)
+    (observation : Host.Observation) (reward : Binary32) (goal : Bool)
     (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen))))
     (ended : Option EndEvent) :
-    ∃ next decision, state.atBoundary models plan features (spatialPotentials observation) reward closing ended =
-      some (next, decision) ∧ next.Aligned := by
+    ∃ next decision, state.atBoundary models plan features (spatialPotentials observation) reward goal
+        closing ended = some (next, decision) ∧ next.Aligned := by
   unfold TemporalControl.atBoundary
   generalize hr : state.refreshFree closing = refreshed
   have refreshedAligned : refreshed.1.Aligned := by
@@ -288,7 +334,7 @@ theorem TemporalControl.boundary_total (state : TemporalControl profile config c
   have drawnAligned : drawn.1.Aligned := by rw [← hd]; exact refreshedAligned
   cases hc : refreshed.2 with
   | none =>
-    exact drawn.1.dispatchMeta_total drawnAligned models features observation reward drawn.2 ended
+    exact drawn.1.dispatchMeta_total drawnAligned models features observation reward goal drawn.2 ended
   | some owner =>
     apply TemporalControl.dispatchMeta_total
     exact drawn.1.closeOption_aligned drawnAligned models owner reward _
@@ -316,8 +362,8 @@ theorem TemporalControl.select_total (state : TemporalControl profile config cri
     split
     · exact ⟨_, _, rfl, (prepared.withPhase .idle).primitive_aligned preparedAligned features (Vector.replicate _ .zero) none none⟩
     · split
-      · exact (prepared.withPhase .idle).boundary_total preparedAligned models plan features observation reward none none
-      · exact (prepared.withPhase .idle).boundary_total preparedAligned models plan features observation reward none none
+      · exact (prepared.withPhase .idle).boundary_total preparedAligned models plan features observation reward goal none none
+      · exact (prepared.withPhase .idle).boundary_total preparedAligned models plan features observation reward goal none none
       · rename_i slot activation phase
         obtain ⟨potential, hpotential⟩ := Interest.aligned_potential
           ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get slot).interest
@@ -337,7 +383,7 @@ theorem TemporalControl.select_total (state : TemporalControl profile config cri
             apply TemporalControl.boundary_total
             exact (prepared.withPhase .idle).closeOption_aligned preparedAligned models _ reward _
           | differential =>
-            exact (prepared.withPhase .idle).boundary_total preparedAligned models plan features observation reward _ none
+            exact (prepared.withPhase .idle).boundary_total preparedAligned models plan features observation reward goal _ none
 
 /-- Actual model/planning execution and common completion have no missing
 application-internal potential oracle at the full-agent boundary. -/
@@ -347,8 +393,12 @@ theorem TemporalControl.step_total (state : TemporalControl profile config crite
     ∃ next decision, state.step planning features observation reward goal = some (next, decision) ∧ next.Aligned := by
   obtain ⟨selected, decision, selectedEq, selectedAligned⟩ := state.select_total aligned
     (modelOperations criterion dimension) (planningBoundary planning) features observation reward goal
-  refine ⟨selected.finish features observation reward decision, decision, ?_,
-    selected.finish_aligned selectedAligned features observation reward decision⟩
+  refine ⟨(selected.followOptions (modelOperations criterion dimension) features
+      (spatialPotentials observation) reward goal decision).finish features observation reward
+      decision, decision, ?_,
+    TemporalControl.finish_aligned _ (selected.followOptions_aligned selectedAligned
+      (modelOperations criterion dimension) features (spatialPotentials observation) reward goal
+      decision) features observation reward decision⟩
   simp [TemporalControl.step, TemporalControl.select, selectedEq]
 
 end Acorn.Handcrafted
