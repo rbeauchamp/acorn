@@ -264,7 +264,7 @@ require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.34.0"
 
 require regula from git
-  "https://github.com/rbeauchamp/regula" @ "v0.3.1"
+  "https://github.com/rbeauchamp/regula" @ "v0.4.0"
 
 /-- Real-valued rounding theory about Lean core's float model. Only the proof
 library's bridge module imports it; no executable library does. -/
