@@ -265,3 +265,23 @@ require mathlib from git
 
 require regula from git
   "https://github.com/rbeauchamp/regula" @ "v0.3.1"
+
+/-- Real-valued rounding theory about Lean core's float model. Only the proof
+library's bridge module imports it; no executable library does. -/
+require floatlib from git
+  "https://github.com/lean-dojo/FloatLib" @ "1e83f09ed8c41a953cf8f93d26c210778177b94a"
+
+/-- The FloatLib modules the proof bridge imports, read from the bridge's own import
+lines so that it stays their single owner. Provisioning builds this target beside
+Mathlib; FloatLib publishes no build cache, and verification must not compile a
+dependency inside its deadline. -/
+target floatlibBridge pkg : Unit := do
+  let source ← IO.FS.readFile (pkg.dir / "AcornVerif" / "FloatLibBridge.lean")
+  let mut job : Job Unit := Job.nil
+  for line in source.splitOn "\n" do
+    if line.startsWith "import FloatLib." then
+      let name := ((line.drop 7).trimAscii.toString).toName
+      let some mod ← findModule? name
+        | error s!"the FloatLib bridge imports an unknown module: {name}"
+      job := job.mix (← mod.leanArts.fetch)
+  return job

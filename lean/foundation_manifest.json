@@ -20,7 +20,7 @@
       "library": "AcornVerif",
       "claim": "standard-logical",
       "execution": "report",
-      "rationale": "Contracts about the executing Acorn definitions, with the supporting Mathlib mathematics stated under explicit hypotheses. Mathlib's real analysis and classical reasoning use Classical.choice. The library has no executable. Execution stays report because checked was measured to fail with Regula v0.3.0: RG3002 fired 296 times, every finding in AcornVerif, naming compiled definitions there that reach Bool.rec, List.rec or Option.rec. Each is reached as a compiler-simplification boundary and as the partial-computation implementation that Mathlib.Util.CompileInductive generates, and Mathlib owns both."
+      "rationale": "Contracts about the executing Acorn definitions, with the supporting Mathlib mathematics stated under explicit hypotheses. Mathlib's real analysis and classical reasoning use Classical.choice. One bridge module connects the executing binary32 and binary64 wrappers to FloatLib's real-valued rounding theorems, which depend on the same three axioms; no other module imports FloatLib. The library has no executable. Execution stays report because checked was measured to fail with Regula v0.3.0: RG3002 fired 296 times, every finding in AcornVerif, naming compiled definitions there that reach Bool.rec, List.rec or Option.rec. Each is reached as a compiler-simplification boundary and as the partial-computation implementation that Mathlib.Util.CompileInductive generates, and Mathlib owns both."
     },
     {
       "library": "NativeApp",

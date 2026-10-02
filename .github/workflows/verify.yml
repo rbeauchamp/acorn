@@ -45,6 +45,14 @@ jobs:
         # Regula's lint driver and audit worker are compiled here, so both jobs
         # provision the same dependency cache.
         run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
+      - name: Provision the FloatLib modules the proof bridge imports
+        working-directory: lean
+        # FloatLib publishes no build cache. This step compiles the modules that
+        # AcornVerif.FloatLibBridge imports, so verification never compiles a
+        # dependency inside its deadline. It runs on a cache hit too, where it has
+        # nothing to build, so that a new bridge import is provisioned without a
+        # lock change.
+        run: lake build floatlibBridge
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before project verification
@@ -93,6 +101,14 @@ jobs:
         # Regula's lint driver and audit worker are compiled here, so both jobs
         # provision the same dependency cache.
         run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
+      - name: Provision the FloatLib modules the proof bridge imports
+        working-directory: lean
+        # FloatLib publishes no build cache. This step compiles the modules that
+        # AcornVerif.FloatLibBridge imports, so verification never compiles a
+        # dependency inside its deadline. It runs on a cache hit too, where it has
+        # nothing to build, so that a new bridge import is provisioned without a
+        # lock change.
+        run: lake build floatlibBridge
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before the audit

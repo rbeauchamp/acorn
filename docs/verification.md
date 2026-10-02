@@ -44,10 +44,13 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib)` from the repository root
-to provision the pinned toolchain/dependencies; the build compiles only modules
-absent from the upstream cache. Do not use `lake update` to resolve a missing
-dependency; that changes the selected versions.
+`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge)` from the
+repository root to provision the pinned toolchain/dependencies; the build compiles
+only Mathlib modules absent from the upstream cache. FloatLib publishes no cache,
+so the same command compiles the FloatLib modules that the proof bridge imports.
+The offline bootstrap refuses to run until they are built: verification never
+compiles a dependency inside its deadline. Do not use `lake update` to resolve a
+missing dependency; that changes the selected versions.
 
 Build with `./scripts/lean.sh build acorn-viewer`; Lake also builds its declared
 core and checkpoint-helper dependencies. OpenSSL is required for build-time
@@ -175,7 +178,10 @@ partial boundary that their compiled code reaches outside the Lean toolchain's
 own trusted base. AcornVerif claims report mode, where each boundary is reported
 and not failed: its compiled definitions reach the recursors that Mathlib
 compiles for Bool, List and Option, boundaries Mathlib owns, so checked mode
-rejects them. The compiler, native runtime, operating system and spawned
+rejects them. One bridge module in AcornVerif is the only importer of FloatLib,
+a proof dependency whose theorems use the same three axioms and whose compiled
+functions reach the same Mathlib-owned boundaries; the boundary audit refuses a
+FloatLib import by any executing module. The compiler, native runtime, operating system and spawned
 processes stay trusted in both modes. AcornTools is excluded with the six tool
 executables; it is the reviewed tooling trust boundary.
 

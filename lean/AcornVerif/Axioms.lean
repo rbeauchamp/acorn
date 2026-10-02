@@ -34,6 +34,7 @@ import AcornVerif.CurrentArithmetic
 import AcornVerif.CurrentOrder
 import AcornVerif.CurrentOperations
 import AcornVerif.CurrentDivision
+import AcornVerif.FloatLibBridge
 import AcornVerif.CurrentIntervals
 import AcornVerif.CurrentReduction
 import AcornVerif.CurrentSeries
@@ -2030,6 +2031,262 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentDivision.binary64_div_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentDivision.binary64_div_finite_error
+
+/-- info: 'AcornVerif.FloatLibBridge.unpackedToReal_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.unpackedToReal_eq
+
+/-- info: 'AcornVerif.FloatLibBridge.toReal_ofModel_fits' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.toReal_ofModel_fits
+
+/-- info: 'AcornVerif.FloatLibBridge.mul_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.mul_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.add_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.add_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.neg_isFinite' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.neg_isFinite
+
+/-- info: 'AcornVerif.FloatLibBridge.neg_fits' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.neg_fits
+
+/-- info: 'AcornVerif.FloatLibBridge.unpackedToReal_neg' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.unpackedToReal_neg
+
+/-- info: 'AcornVerif.FloatLibBridge.sub_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.sub_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.abs_ratio' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.abs_ratio
+
+/-- info: 'AcornVerif.FloatLibBridge.div_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.div_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.format64' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.format64
+
+/-- info: 'AcornVerif.FloatLibBridge.toModel_model64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.toModel_model64
+
+/-- info: 'AcornVerif.FloatLibBridge.toReal_model64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.toReal_model64
+
+/-- info: 'AcornVerif.FloatLibBridge.isFinite_model64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.isFinite_model64
+
+/-- info: 'AcornVerif.FloatLibBridge.canonical64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.canonical64
+
+/-- info: 'AcornVerif.FloatLibBridge.model64_add' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model64_add
+
+/-- info: 'AcornVerif.FloatLibBridge.model64_sub' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model64_sub
+
+/-- info: 'AcornVerif.FloatLibBridge.model64_mul' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model64_mul
+
+/-- info: 'AcornVerif.FloatLibBridge.model64_div' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model64_div
+
+/-- info: 'AcornVerif.FloatLibBridge.binary64_add_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary64_add_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.binary64_sub_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary64_sub_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.binary64_mul_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary64_mul_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.binary64_div_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary64_div_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.format32' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.format32
+
+/-- info: 'AcornVerif.FloatLibBridge.toModel_model32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.toModel_model32
+
+/-- info: 'AcornVerif.FloatLibBridge.toReal_model32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.toReal_model32
+
+/-- info: 'AcornVerif.FloatLibBridge.isFinite_model32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.isFinite_model32
+
+/-- info: 'AcornVerif.FloatLibBridge.canonical32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.canonical32
+
+/-- info: 'AcornVerif.FloatLibBridge.model32_add' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model32_add
+
+/-- info: 'AcornVerif.FloatLibBridge.model32_sub' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model32_sub
+
+/-- info: 'AcornVerif.FloatLibBridge.model32_mul' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model32_mul
+
+/-- info: 'AcornVerif.FloatLibBridge.model32_div' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.model32_div
+
+/-- info: 'AcornVerif.FloatLibBridge.binary32_add_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary32_add_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.binary32_sub_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary32_sub_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.binary32_mul_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary32_mul_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.binary32_div_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary32_div_roundAt
+
+/-- info: 'AcornVerif.FloatLibBridge.roundAt64_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.roundAt64_error
+
+/-- info: 'AcornVerif.FloatLibBridge.binary64_div_half_unit_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.binary64_div_half_unit_error
+
+/-- info: 'AcornVerif.FloatLibBridge.nearestEven_eq_roundQuotientEven' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.nearestEven_eq_roundQuotientEven
+
+/-- info: 'AcornVerif.FloatLibBridge.nearest32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.nearest32
+
+/-- info: 'AcornVerif.FloatLibBridge.band030_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.band030_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.band0335_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.band0335_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.band060_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.band060_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.band072_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.band072_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.band080_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.band080_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.moist040_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.moist040_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.gamma90_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.gamma90_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.gamma95_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.gamma95_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.gamma99_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.gamma99_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.alphaInit5e5_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.alphaInit5e5_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.alphaInit1e4_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.alphaInit1e4_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.epsilon1e5_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.epsilon1e5_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.eta01_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.eta01_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.eta025_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.eta025_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.etaMin1e10_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.etaMin1e10_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.decay0999_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.decay0999_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.meta1e3_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.meta1e3_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.meta3e2_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.meta3e2_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.tie1e6_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.tie1e6_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.epsStart_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.epsStart_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.epsMin_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.epsMin_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.epsDecay_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.epsDecay_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.optionEpsilon_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.optionEpsilon_nearest
+
+/-- info: 'AcornVerif.FloatLibBridge.exploreRate1e2_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.FloatLibBridge.exploreRate1e2_nearest
 
 /-- info: 'AcornVerif.CurrentIntervals.model_sub_positive_zero' depends on axioms: [propext] -/
 #guard_msgs in

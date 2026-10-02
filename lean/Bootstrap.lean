@@ -48,6 +48,22 @@ def regularFile (path : System.FilePath) : IO Unit := do
   unless ← regularFileAvailable path do
     throw (IO.userError s!"missing provisioned file: {path}")
 
+/-- The proof bridge is the single owner of its FloatLib imports. Every module it
+imports must already be built in the provisioned package: FloatLib publishes no
+build cache, and verification must not compile a dependency inside its deadline. -/
+def bridgeImportsAvailable : IO Bool := do
+  regularFile "AcornVerif/FloatLibBridge.lean"
+  let source ← IO.FS.readFile "AcornVerif/FloatLibBridge.lean"
+  let mut available := true
+  for line in source.splitOn "\n" do
+    if line.startsWith "import FloatLib." then
+      let mut path : System.FilePath := ".lake/packages/floatlib/.lake/build/lib/lean"
+      for part in ((line.drop 7).trimAscii.toString).splitOn "." do
+        path := path / (← component part)
+      let built ← regularFileAvailable (path.addExtension "olean")
+      available := available && built
+  return available
+
 /-- Admitted local replacements preserve every dependency's locked identity fields. -/
 def overrides : IO (Json × Bool) := do
   regularFile "lake-manifest.json"
@@ -86,6 +102,7 @@ def overrides : IO (Json × Bool) := do
       ("configFile", toJson config), ("manifestFile", toJson manifest),
       ("type", toJson "path"), ("dir", toJson dir)])
   let mathlibAvailable ← regularFileAvailable ".lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean"
+  let bridgeAvailable ← bridgeImportsAvailable
   let ambient ← try
     let _ ← System.FilePath.symlinkMetadata ".lake/package-overrides.json"
     pure true
@@ -94,7 +111,7 @@ def overrides : IO (Json × Bool) := do
   if ambient then
     throw (IO.userError "unbound .lake/package-overrides.json; remove the ambient override")
   return (Json.mkObj [("version", toJson "1.2.0"), ("packages", toJson entries)],
-    available && mathlibAvailable)
+    available && mathlibAvailable && bridgeAvailable)
 
 /-- Interpreted `lean --run` still executes `main` after header-time warnings, such as
 a deprecated import, that `warningAsError` does not reach. This file must elaborate
