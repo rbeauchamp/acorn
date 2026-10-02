@@ -15,7 +15,7 @@ are argued to pass. The third, non-degeneracy, has its correction and its
 formal characterization here and its closure owed: the standard asks for a
 theorem over the executed code, which only an implementing change can supply.
 That change owes the theorems under [Proof obligations](#proof-obligations).
-Three earlier drafts were refuted and a fourth corrected;
+Three earlier drafts were refuted and two later ones corrected;
 [Refutation attempt](#refutation-attempt) records how.
 
 **Claim status.** Claims carry the labels of the
@@ -156,8 +156,8 @@ Each locator below was read on the page for this proposal; see
   is then the sub-sampled process's own, and that weighting by the ratio
   instead may match the target policy's value function better.
 - **Intra-option model learning** updates the model of every option whose
-  policy is consistent with the action taken. The method requires the option's
-  policy to be deterministic and uses no importance ratio. It is given for the
+  policy is consistent with the action taken. The method requires the option
+  to be Markov and its policy deterministic, and uses no importance ratio. It is given for the
   one-step, tabular case with a fixed option [[4]](#r4).
 - **V-trace** truncates both the ratio on the error and the ratio in the trace,
   each at its own level [[8]](#r8). TDRC's authors describe Vtrace as TD with
@@ -175,8 +175,8 @@ Each locator below was read on the page for this proposal; see
   step size and carries a regularization term [[6]](#r6). Its updates are not
   gradients; its convergence theorem holds under conditions on that term and
   on the step-size ratio. Its prediction experiments adapt a vector of step
-  sizes with Adagrad, and it reports GTD2 as the slowest of the methods it
-  compares.
+  sizes with Adagrad, and it reports that GTD2 generally learns more slowly
+  than the other methods it compares.
 - **Emphatic TD(λ)** keeps one weight vector and scales updates by a follow-on
   trace that is multiplied by the previous step's ratio [[7]](#r7).
 
@@ -851,7 +851,8 @@ decides it.
    demons' α = 5·10⁻⁵ and η = 0.1 (proposed). Per-weight adaptation is left to
    a follow-up.
 5. **Questions.** All eleven signals for each of three options (proposed), or
-   the reward signal only, at a tenth of the cost.
+   the reward signal only, at an eleventh of the learner storage and update
+   work. The candidate-set and classification work would be unchanged.
 6. **Ties.** Any candidate action is consistent (proposed), or a canonical
    first-candidate tie-break. The second gives a deterministic target, as the
    consistency rule's source requires, and discards eight of every nine of an
@@ -887,9 +888,11 @@ for this proposal, in the linked version. Five limits apply.
 
 ## Refutation attempt
 
-*Refutation attempt.* The proposal has had four reviews. Each read the page
-against the code at a71ed08 and against the cited pages. None built or ran the
-repository's code; where a review checked algebra by machine or searched
+*Refutation attempt.* The proposal has had five reviews. Each read the page
+against the code and against the cited pages: the first four at a71ed08, the
+fifth at d67cf78, two commits later, where every declaration and figure the
+page names still holds. None built or ran the repository's code beyond
+compiling the appendix; where a review checked algebra by machine or searched
 numerically, that is stated.
 
 **First review**, of the first draft: a fresh-context reviewer instructed only
@@ -984,8 +987,35 @@ rising by at most about 10⁻⁹ in relative terms on a step and falling over
 30,000 steps. That is a diagnostic of its own transcription, not of repository
 code, and it is the rounding term obligation 1 owes.
 
-**Not attacked.** The changes made after the fourth review, including the
-reading of reference 11, have had no refutation attempt of their own.
+**Fifth review**, of the fifth draft, which carried the fourth review's
+changes: a validation pipeline's review step.
+
+| Finding | Change |
+|---|---|
+| The page said TDRC's paper reports GTD2 as the slowest method it compares. The paper says GTD2 generally learns more slowly; its tables do not make it the slowest everywhere. | Reworded. |
+| Decision 5 said the reward signal alone costs a tenth. It is three learners against 33, an eleventh, and the shared per-step work does not shrink. | Reworded. |
+| Reference 4 also requires the option to be Markov, and its model update is two equations. | Stated; locator corrected. |
+
+It attacked and did not break:
+
+- the seven-step scalar step against Algorithm 2 as printed, at ratio one, by
+  hand reduction, and against Proximal GTD2(λ) at trace parameter zero, ratio
+  one and equal step sizes;
+- the zero-residual identity, the bound on the subtracted terms, the guard,
+  the projection argument, the residual bound, the plain-GTD2 change, the
+  per-weight statement, the fixed-point equation and its objective, the gate
+  identity, the instability family and every arithmetic figure, each
+  re-derived by hand;
+- the appendix, extracted from the page and compiled against the pinned
+  Mathlib, with weakened variants confirmed to fail;
+- every statement about the Lean code and every inline code span;
+- the attributions at their locators in all eleven references, including
+  reference 11's sub-sampling section, assumption and theorem;
+- the statements about issues 16, 10 and 11 against the issue text;
+- counts, obligation numbers and anchors.
+
+**Not attacked.** The fifth review's three wording changes have had no
+refutation attempt of their own.
 
 ## Appendix: the algebra in Lean
 
@@ -1090,8 +1120,9 @@ theorem family (K γ w0 W : ℝ) :
 4. <a id="r4"></a>Richard S. Sutton, Doina Precup and Satinder Singh, "Between
    MDPs and semi-MDPs: A framework for temporal abstraction in reinforcement
    learning", Artificial Intelligence 112 (1999), §5, pp. 201–203: the
-   deterministic-policy requirement (p. 201), eq. (18) and the consistency rule
-   (p. 202), consistency for deterministic options (p. 203)
+   requirement of a Markov option with a deterministic policy (p. 201), eqs.
+   (18)–(19) and the consistency rule (p. 202), consistency for deterministic
+   options (p. 203)
    ([PDF](https://people.cs.umass.edu/~barto/courses/cs687/Sutton-Precup-Singh-AIJ99.pdf)).
 5. <a id="r5"></a>Richard S. Sutton, Marlos C. Machado, G. Zacharias Holland,
    David Szepesvari, Finbarr Timbers, Brian Tanner and Adam White,
