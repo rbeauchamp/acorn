@@ -758,17 +758,11 @@ const KIND_COLORS = ["#3a6ea5","#d9c58b","#7da05e","#5c8a3f","#2e6b2f","#8a8a8a"
 const ACTIONS  = ["N","S","E","W","Wait","Harvest","CraftAxe","CraftBoat","Eat"];
 let ACTION_LABELS = ACTIONS;
 let dayLength  = 2048;
-const UNSEEN = 255;
-/* The telemetry schema this page reads, the tile-kind count, and the largest
-   world side the viewer server keeps a map for (`worldmap::MAX_SIDE`). Each is
-   spelled once here and held equal to the core's or the server's by the gate
-   suite, like the shape constants below. */
-const SCHEMA = 10;
-const N_KIND = 8;
-const MAX_MAP_SIDE = 4096;
-const N_DEM = 11, N_CTL = 9, N_META = 4, N_TILE = 121;
-const N_SKILL = N_META - 1, N_OPTION_END = 3, N_GOAL_FAMILY = 4;
-const HISTORY_BINS = 64, CYCLE_BINS = 16, EXACT_CYCLES = 8;
+/* The telemetry schema this page reads and every shape constant — `SCHEMA`,
+   `UNSEEN`, `MAX_MAP_SIDE`, `N_KIND`, `N_DEM`, `N_CTL`, `N_META`, `N_TILE`,
+   `N_SKILL`, `N_OPTION_END`, `N_GOAL_FAMILY`, `N_MODEL`, `HISTORY_BINS`,
+   `CYCLE_BINS`, `EXACT_CYCLES` — are declared by the generated kernel above,
+   each with its Lean owner's value (`Acorn.Host.Viewer.BrowserConstant`). */
 /* One colour and one CSS class per option *slot*. The stream identifies a
    running option by slot index; what the slot is pursuing is a separate fact
    the stream also carries (`subtask_policy`, `subtask_unit`, `subtask_bonus`),
@@ -793,13 +787,9 @@ function skillName(i) {
 }
 function skillClass(i) { return SKILL_CLASSES[i] || "none"; }
 /* A meta action is one hand-off to the primitive controller followed by one
-   entry per skill — the core's `skill_of_meta_index`, which maps index 0 to
-   "no skill". Derived from the count so it stays the right length if the skill
-   set changes. `AcornTools/Corpus/Browser.lean` checks these shapes against the core's
-   own constants, and that every name in `FLOAT_FIELDS` / `INT_FIELDS` is a
-   key the core actually emits: the two crates cannot import each other, so a
-   shape spelled twice needs a build gate or the page silently refuses every
-   frame. */
+   entry per skill, index 0 being "no skill". Derived from the count so it
+   stays the right length if the skill set changes; `N_META = N_SKILL + 1` is
+   proved beside the kernel's constants. */
 function metaNames() {
   return ["primitive", ...Array.from({length: Math.max(0, N_META-1)}, (_, i) => skillName(i))];
 }
@@ -840,11 +830,15 @@ const pct = (x, d) => (x*100).toFixed(d == null ? 1 : d) + "%";
    once into preallocated typed arrays. Frames are addressed by a monotonic
    id; slot = id % CAP. Valid ids are [head-CAP, head-1], which makes the ring
    wrap-safe — scrubbing across the wrap point stays in time order.
+   The generated kernel's `observerRing` binds the store to `CAP`: `S` is the
+   columns, `slot` the ring index of an id, `store(id, f)` the write of a
+   validated record — never called with anything else — and `frame(id)` a
+   plain view of one stored frame for the renderers, the generated inverse of
+   `store` from the same column table.
    ========================================================================== */
 const CAP = 30000;
-const S = observerFrameStore(CAP,N_DEM,N_CTL,N_META,N_TILE,N_SKILL,N_OPTION_END,N_GOAL_FAMILY);
+const {S, slot, store, frame} = observerRing(CAP);
 let head = 0;                       // frames ever accepted; newest id = head-1
-const slot = (id) => id % CAP;
 
 /* --------------------------------------------------------------------------
    Everything derived from *the agent*, in one object.
@@ -911,291 +905,17 @@ const has = (id) => id >= oldestId() && id <= newestId();
    from a healthy one.
    -------------------------------------------------------------------------- */
 
-/** A finite number, or `null`/non-finite → `NaN`. Anything else → `undefined`. */
-function num(v) {
-  if (v === null) return NaN;
-  return typeof v === "number" ? v : undefined;
-}
-/** Why `validate` refuses a frame: a closed set. Each member owns exactly
- *  one counter in `refused` and one remedy in `drawStreamHealth`, so a
- *  refusal can neither go uncounted nor be reported under another cause's
- *  remedy. */
-const Reject = Object.freeze({
-  /** `schema_version` is not the one this page reads: the page and the core
-   *  were built from different trees. */
-  schema: "schema",
-  /** A fixed count or an array length disagrees with this page's constants:
-   *  the same build skew, seen in a shape rather than in the schema number. */
-  cardinality: "cardinality",
-  /** A required key is absent: the page requires a field this core does not
-   *  emit. A source defect; rebuilding will not fix it. */
-  missingField: "missingField",
-  /** A key is present but does not hold the value the schema promises — a
-   *  non-numeric scalar, a wrong-sign integer, a malformed array element, a
-   *  flag, an id, a provenance string, a name. The emitter or the transport
-   *  is wrong; rebuilding will not fix it. */
-  malformed: "malformed",
-});
-/** Refuse the whole frame for `why`, naming the `key` that failed. */
-function refuse(why, key) { return { why, key }; }
+/* `Reject` — why a frame is refused: a closed set, each member with one counter
+   in `refused` and one remedy in `drawStreamHealth` — is declared by the
+   generated kernel from the reasons its admission returns. */
 
-/** What is wrong with a wire array before its elements are read: absent,
- *  not an array, the wrong length — or nothing (`null`). */
-function arrayShape(v, n) {
-  if (v === undefined) return Reject.missingField;
-  if (!Array.isArray(v)) return Reject.malformed;
-  if (v.length !== n) return Reject.cardinality;
-  return null;
-}
-/** An array of exactly `n` numbers, with `null` mapped to `NaN`. */
-function nums(v, n) {
-  const shape = arrayShape(v, n);
-  if (shape) return shape;
-  const out = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const x = num(v[i]);
-    if (x === undefined) return Reject.malformed;
-    out[i] = x;
-  }
-  return out;
-}
-/** A float64 array, retaining lifetime sums without float32 truncation. */
-function nums64(v, n) {
-  const shape = arrayShape(v, n);
-  if (shape) return shape;
-  const out = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const x = num(v[i]);
-    if (x === undefined) return Reject.malformed;
-    out[i] = x;
-  }
-  return out;
-}
-/** A safe non-negative integer array. */
-function ints(v, n) {
-  const shape = arrayShape(v, n);
-  if (shape) return shape;
-  const out = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    if (!Number.isSafeInteger(v[i]) || v[i] < 0) return Reject.malformed;
-    out[i] = v[i];
-  }
-  return out;
-}
-/** A non-negative integer array where `null` means "none", kept as −1: the
- *  wire's `subtask_unit` is a unit index or `null` for a neutral slot. The
- *  admitted range is exactly what the `Int32Array` behind it can hold, so the
- *  stored value is the wire value and the bound checked against
- *  `imprint_units` afterwards is checked on the value the core sent. */
-function optInts(v, n) {
-  const shape = arrayShape(v, n);
-  if (shape) return shape;
-  const out = new Int32Array(n);
-  for (let i = 0; i < n; i++) {
-    if (v[i] === null) { out[i] = -1; continue; }
-    if (!Number.isInteger(v[i]) || v[i] < 0 || v[i] > 0x7fffffff) return Reject.malformed;
-    out[i] = v[i];
-  }
-  return out;
-}
-/** An array of exactly `n` strings. */
-function names(v, n) {
-  const shape = arrayShape(v, n);
-  if (shape) return shape;
-  return v.every(x => typeof x === "string") ? v : Reject.malformed;
-}
-/** An array of exactly `n` tile kinds, `0..8`. A value that is not a kind
- *  refuses the frame: painted, it would be counted as sensed terrain and
- *  drawn in no colour the legend names. */
-function kinds(v, n) {
-  const shape = arrayShape(v, n);
-  if (shape) return shape;
-  const out = new Uint8Array(n);
-  for (let i = 0; i < n; i++) {
-    if (!Number.isInteger(v[i]) || v[i] < 0 || v[i] >= N_KIND) return Reject.malformed;
-    out[i] = v[i];
-  }
-  return out;
-}
-/** An array of exactly `n` byte-valued numbers. */
-function bytes(v, n) {
-  const shape = arrayShape(v, n);
-  if (shape) return shape;
-  const out = new Uint8Array(n);
-  for (let i = 0; i < n; i++) {
-    if (typeof v[i] !== "number" || !Number.isFinite(v[i])) return Reject.malformed;
-    out[i] = v[i];
-  }
-  return out;
-}
+/* `validate` — a decoded frame into `{rec, nonFiniteKey, agreement}`, or
+   `{why, key}`, the `Reject` reason and the wire key it failed on, to drop it
+   whole — is declared by the generated kernel. Admission and conversion are
+   both generated from the core's own schema: the record has one field per
+   wire key, named by that key, and the conversion cannot refuse because
+   admission already held every value to its shape. */
 
-/** The integer scalars every frame must carry, all required and finite. */
-const INT_FIELDS = ["schema_version","checkpoint_format","control_criterion","timestamp_ms","world_step","lifetime_step","agent_epoch","x","y","facing","action","skill","ev","goal","attempt",
-                    "tier","energy","wood","stone","food","gold","gkind","gitem",
-                    "gx","gy","gn","side","seed","cycle","goal_count","attempt_cap","step_cap","cycle_cap",
-                    "weight_space","learner_count","primitive_count","meta_count","skill_count","option_end_count","demon_count",
-                    "history_bins","cycle_bins","exact_cycles","settle_stride",
-                    "n_tilings","imprint_units","retire_count","day_length","regrow","food_interval","food_cap","deer_cap",
-                    "update_us","environment_us","process_uptime_ms","checkpoint_failures","telemetry_refusals","telemetry_drops",
-                    "meta_action","option_start","option_end_skill","option_end_duration","option_end_reason","option_elapsed",
-                    "planning_steps","lifetime_reward_count"];
-/** Integer scalars that may be `null` for "none yet" — kept as −1, never 0,
- *  which would be a legitimate step or unit index. */
-const OPT_INT_FIELDS = ["retire_step","retire_unit"];
-/** The float scalars, where `null` is a legitimate non-finite marker. */
-const FLOAT_FIELDS = ["reward","reward_rate","eps","mean_alpha","a_ctl","a_dem","lifetime_reward_sum","settle_remaining"];
-
-/** The arrays a frame must carry: record field, wire key, reader, length. */
-const ARRAY_FIELDS = [
-  ["dem", "demons", nums, N_DEM],
-  ["cum", "cums", nums, N_DEM],
-  ["ctl", "control", nums, N_CTL],
-  ["met", "meta", nums, N_META],
-  ["optModRew", "option_model_rewards", nums, N_SKILL],
-  ["optModCont", "option_model_continuations", nums, N_SKILL],
-  ["optModDuration", "option_model_durations", nums, N_SKILL],
-  ["planningErrors", "planning_errors", nums, N_SKILL],
-  ["subtaskUnit", "subtask_unit", optInts, N_SKILL],
-  ["subtaskBonus", "subtask_bonus", nums, N_SKILL],
-  ["actProb", "action_probabilities", nums, N_CTL],
-  ["metaProb", "meta_probabilities", nums, N_META],
-  ["alphaControl", "alpha_control_all", nums, N_CTL],
-  ["alphaMeta", "alpha_meta_all", nums, N_META],
-  ["alphaOptions", "alpha_option_all", nums, N_CTL*N_SKILL],
-  ["alphaDemons", "alpha_demon_all", nums, N_DEM],
-  ["alphaModels", "alpha_models", nums, 3*N_SKILL],
-  ["creditControl", "credit_control", ints, N_CTL],
-  ["creditMeta", "credit_meta", ints, N_META],
-  ["creditOptions", "credit_options", ints, N_CTL*N_SKILL],
-  ["creditDemons", "credit_demons", ints, N_DEM],
-  ["creditModels", "credit_models", ints, 3*N_SKILL],
-  ["lifeErrorSum", "lifetime_error_sum", nums64, N_DEM],
-  ["lifeErrorCount", "lifetime_error_count", ints, N_DEM],
-  ["settledReturn", "settled_return", nums, N_DEM],
-  ["settledError", "settled_error", nums, N_DEM],
-  ["lifeOptStarted", "lifetime_option_started", ints, N_SKILL],
-  ["lifeOptCompleted", "lifetime_option_completed", ints, N_SKILL],
-  ["lifeOptDuration", "lifetime_option_duration", ints, N_SKILL],
-  ["lifeOptEndReasons", "lifetime_option_end_reasons", ints, N_SKILL*N_OPTION_END],
-  ["lifeGoalAttempts", "lifetime_goal_attempts", ints, N_GOAL_FAMILY],
-  ["lifeGoalSuccesses", "lifetime_goal_successes", ints, N_GOAL_FAMILY],
-  ["lifeGoalSteps", "lifetime_goal_steps", ints, N_GOAL_FAMILY],
-  ["lifeCycleAttempts", "lifetime_cycle_attempts", ints, N_GOAL_FAMILY*CYCLE_BINS],
-  ["lifeCycleSuccesses", "lifetime_cycle_successes", ints, N_GOAL_FAMILY*CYCLE_BINS],
-  ["lifeCycleSteps", "lifetime_cycle_steps", ints, N_GOAL_FAMILY*CYCLE_BINS],
-  ["rewardHistorySum", "lifetime_reward_history_sum", nums64, HISTORY_BINS],
-  ["rewardHistoryCount", "lifetime_reward_history_count", ints, HISTORY_BINS],
-  ["errorHistorySum", "lifetime_error_history_sum", nums64, HISTORY_BINS],
-  ["errorHistoryCount", "lifetime_error_history_count", ints, HISTORY_BINS],
-  ["tiles", "tiles", kinds, N_TILE],
-  ["extra", "tile_extra", bytes, N_TILE],
-  ["actionNames", "action_names", names, N_CTL],
-  ["metaNames", "meta_names", names, N_META],
-  ["skillNames", "skill_names", names, N_SKILL],
-  ["demonNames", "demon_names", names, N_DEM],
-  ["goalFamilyNames", "goal_family_names", names, N_GOAL_FAMILY],
-  ["demonTargetPolicy", "demon_target_policy", names, N_DEM],
-  ["dgam", "demon_gamma", nums, N_DEM],
-  ["dhorizon", "demon_horizon", nums, N_DEM],
-  ["lifeRewardFamilySum", "lifetime_reward_family_sum", nums64, N_GOAL_FAMILY],
-  ["lifeRewardFamilyCount", "lifetime_reward_family_count", ints, N_GOAL_FAMILY],
-];
-/** The record arrays whose readings are checked for a non-finite value. */
-const FINITE_ARRAYS = ["dem","cum","ctl","met","actProb","metaProb","optModRew","optModCont","optModDuration","planningErrors","subtaskBonus",
-                       "alphaControl","alphaMeta","alphaOptions","alphaDemons","alphaModels","settledReturn","settledError"];
-/** Resource readings, where `null` is a legitimate "not measured". */
-const RESOURCE_FIELDS = [
-  ["coreRssBytes", "core_rss_bytes"],
-  ["checkpointBytes", "checkpoint_bytes"],
-  ["checkpointWriteUs", "checkpoint_write_us"],
-];
-
-/** Validate a decoded frame into `{rec}`, or return `{why, key}` — the
- *  `Reject` reason and the wire key it failed on — to drop it whole. */
-function validate(f) {
-  const rejected = observerAdmission(f);
-  if (rejected) return rejected;
-  const r = {};
-  for (const k of INT_FIELDS) r[k] = f[k];
-  for (const k of OPT_INT_FIELDS) r[k] = f[k] === null ? -1 : f[k];
-  let nonFiniteKey = null;
-  for (const k of FLOAT_FIELDS) {
-    const v = num(f[k]);
-    if (!Number.isFinite(v)) nonFiniteKey ??= k;
-    r[k] = v;
-  }
-  for (const [field, key, read, n] of ARRAY_FIELDS) {
-    const out = read(f[key], n);
-    if (typeof out === "string") return refuse(out, key);
-    r[field] = out;
-  }
-  for (const field of FINITE_ARRAYS)
-    for (const x of r[field]) if (!Number.isFinite(x)) { nonFiniteKey ??= field; break; }
-  r.axe = f.axe; r.boat = f.boat; r.done = f.done; r.end = f.end; r.explored = f.explored;
-  r.runId = f.run_id; r.origin = f.origin; r.decisionSource = f.decision_source;
-  r.subtaskPolicy = f.subtask_policy;
-  r.sourceSha256 = f.source_sha256; r.buildSha256 = f.build_sha256; r.auditDigest = f.audit_digest;
-  for (const [field, key] of RESOURCE_FIELDS) {
-    if (!(key in f)) return refuse(Reject.missingField, key);
-    const v = num(f[key]);
-    if (v === undefined) return refuse(Reject.malformed, key);
-    r[field] = v;
-  }
-  r.agreement = {
-    process:f.process_started_ms, source:f.source_sha256, build:f.build_sha256,
-    started:f.agreement_started, stopped:f.agreement_stopped, clock:f.lifetime_step,
-    scale:f.agreement_scale, score:f.agreement_score, text:f.agreement_text, error:f.agreement_error,
-    names:f.demon_names, policies:f.demon_target_policy, gamma:f.demon_gamma,
-    envelope:f.demon_horizon.map(h=>2*h), stride:f.settle_stride,
-    channelScore:f.agreement_channel_score, channelText:f.agreement_channel_text,
-    channelError:f.agreement_channel_error, count:f.agreement_count, pending:f.agreement_pending,
-    censored:f.agreement_censored, status:f.agreement_status, horizon:f.agreement_horizon,
-    startFirst:f.agreement_start_first, startLast:f.agreement_start_last,
-    settlementFirst:f.agreement_settlement_first, settlementLast:f.agreement_settlement_last,
-    tail:f.agreement_tail, rounding:f.agreement_rounding,
-    historyClock:f.agreement_history_clock, historyScore:f.agreement_history_score,
-    goalProgress:{invalid:f.goal_progress_invalid, cycle:f.goal_progress_cycle,
-      resolved:f.goal_progress_resolved, achieved:f.goal_progress_achieved,
-      attempt:f.goal_progress_attempt,
-      completeCycle:f.goal_progress_completed_cycle, completeAchieved:f.goal_progress_completed_achieved,
-      score:f.goal_progress_score, goals:f.goal_count, attempts:f.attempt_cap, steps:f.step_cap,
-      activeGoal:f.goal, names:f.curriculum_names, failed:f.curriculum_failed_attempts,
-      successSteps:f.curriculum_success_steps},
-  };
-  r.nonFinite = nonFiniteKey !== null; r.nonFiniteKey = nonFiniteKey;
-  return { rec: r };
-}
-
-/** Write a validated record into the ring. Never called with anything else. */
-function store(id, f) { observerStore(id, f); }
-
-/** A plain view of one stored frame, for the renderers. */
-function frame(id) {
-  const i = slot(id);
-  return {
-    id, i, worldStep:S.worldStep[i], lifetimeStep:S.lifetimeStep[i],
-    runId:S.runId[i], agentEpoch:S.agentEpoch[i],
-    origin:S.origin[i]===1 ? "resumed" : S.origin[i]===2 ? "cleared" : "fresh",
-    x:S.x[i], y:S.y[i], facing:S.facing[i], action:S.action[i],
-    skill:S.skill[i], ev:S.ev[i], goal:S.goal[i], attempt:S.attempt[i], tier:S.tier[i],
-    cycle:S.cycle[i], goalCount:S.goalCount[i], attemptCap:S.attemptCap[i],
-    energy:S.energy[i], wood:S.wood[i], stone:S.stone[i], food:S.food[i], gold:S.gold[i],
-    reward:S.reward[i], eps:S.eps[i], alpha:S.alpha[i],
-    rewardRate:S.rewardRate[i], criterion:S.criterion[i],
-    aCtl:S.aCtl[i], aDem:S.aDem[i],
-    decisionSource:["primitive","exploration_start","exploration_continuation","option"][S.decisionSource[i]],
-    explored:!!S.explored[i], metaAction:S.metaAction[i], optionStart:S.optStart[i],
-    optionEnd:S.optEnd[i], optionEndReason:S.optEndReason[i], optionEndDuration:S.optEndDuration[i],
-    optionElapsed:S.optElapsed[i], lifeRewardSum:S.lifeRewardSum[i],
-    lifeRewardCount:S.lifeRewardCount[i], lifeErrorSum:S.lifeErrorSum[i],
-    lifeErrorCount:S.lifeErrorCount[i],
-    planningSteps:S.planningSteps[i],
-    retireCount:S.retireCount[i], retireStep:S.retireStep[i], retireUnit:S.retireUnit[i],
-    gkind:S.gkind[i], gitem:S.gitem[i], gx:S.gx[i], gy:S.gy[i], gn:S.gn[i],
-    axe:!!(S.flags[i]&1), boat:!!(S.flags[i]&2),
-    done:!!(S.flags[i]&4), end:!!(S.flags[i]&8),
-  };
-}
 /** What option slot `k` was pursuing at frame index `i` (ring slot). */
 function subtaskOf(i, k) {
   return { unit: S.subtaskUnit[i*N_SKILL+k], bonus: S.subtaskBonus[i*N_SKILL+k] };
@@ -1403,8 +1123,8 @@ function contiguous(a, b) {
 
 /** Snapshot replacement has its own process/clock boundary, independent of the
  * raw-frame ring. Same-clock graceful-stop accounting can advance once. */
-function admitAgreement(f) {
-  const next=f.agreement, previous=A.latestAgreement;
+function admitAgreement(next) {
+  const previous=A.latestAgreement;
   if(previous){
     const n=next.goalProgress,p=previous.goalProgress;
     if(!observerSnapshotFollows(next.process,next.clock,Number(next.stopped),n.cycle,n.resolved,n.attempt,Number(n.invalid),
@@ -1434,9 +1154,9 @@ function tdSurprise(id) {
    skill ending and beginning on one decision is therefore two episodes, never
    merged into a browser-inferred run. */
 function noteOption(f) {
-  A.optStarted = observerSum(f.lifeOptStarted);
-  A.optLenSum = observerSum(f.lifeOptDuration);
-  A.optLenN = observerSum(f.lifeOptCompleted);
+  A.optStarted = observerSum(f.lifetime_option_started);
+  A.optLenSum = observerSum(f.lifetime_option_duration);
+  A.optLenN = observerSum(f.lifetime_option_completed);
 }
 
 /* ==========================================================================
@@ -1529,10 +1249,9 @@ function resetAgentBuffer() {
    `#conn` said `live` and the frames/s counter looked healthy. A guard whose
    result nobody can see is not a guard (INV-4); `drawStreamHealth` is what
    makes this one visible, and it runs whether or not a frame ever arrived.
-   Every list `validate` reads its required keys from — the scalar, optional
-   integer and flag lists, the string, array and resource tables — is held to
-   the emitter's keys by `AcornTools/Corpus/Browser.lean`, and each closed string value to
-   the emitter's match arms.
+   Admission and the record conversion are generated from the emitter's own
+   schema (`Acorn.Host.Viewer.browserSchema`), so the keys and shapes
+   `validate` requires are the emitter's.
    One counter per `Reject` member, derived from the set so a reason cannot
    lack a counter; each keeps the keys it was refused for, so the remedy can
    name them. */
@@ -1581,28 +1300,28 @@ function pushFrame(raw) {
   // refused: they are the expected tail of a Clear or a restart, carry no
   // defect, and have no remedy a readout could offer.
   if (ctlState && typeof ctlState.runId === "string" &&
-      (f.runId !== ctlState.runId || f.agent_epoch !== ctlState.agentEpoch)) {
+      (f.run_id !== ctlState.runId || f.agent_epoch !== ctlState.agentEpoch)) {
     return Intake.skipped;
   }
-  if (identity.runId !== f.runId || identity.agentEpoch !== f.agent_epoch) {
+  if (identity.runId !== f.run_id || identity.agentEpoch !== f.agent_epoch) {
     if (identity.runId !== null) identity.changes++;
-    identity.runId = f.runId;
+    identity.runId = f.run_id;
     identity.agentEpoch = f.agent_epoch;
     identity.origin = f.origin;
     identity.at = null;
     resetAgentBuffer();
   }
-  if (f.nonFinite) { A.nonFinite++; if (f.nonFiniteKey && !A.nonFiniteKeys.includes(f.nonFiniteKey)) A.nonFiniteKeys.push(f.nonFiniteKey); }
+  if (v.nonFiniteKey !== null) { A.nonFinite++; if (!A.nonFiniteKeys.includes(v.nonFiniteKey)) A.nonFiniteKeys.push(v.nonFiniteKey); }
   // Lifetime is monotonic across a successful resume. A terminal frame is the
   // sole legal repeat: it reports the result of the action at the preceding
   // lifetime step after world time advanced once. Older replay is ignored.
-  const agreementUpdated = admitAgreement(f);
+  const agreementUpdated = admitAgreement(v.agreement);
   const fresh = f.timestamp_ms > newestTimestamp;
   if (fresh) newestTimestamp = f.timestamp_ms;
   if (lastLifetimeStep >= 0) {
     if (!observerFollows(f.lifetime_step, f.world_step, Number(f.end),
         lastLifetimeStep, lastWorldStep, Number(lastEnd))) {
-      if(agreementUpdated && f.agreement.stopped && f.lifetime_step === lastLifetimeStep &&
+      if(agreementUpdated && v.agreement.stopped && f.lifetime_step === lastLifetimeStep &&
          f.world_step === lastWorldStep) return Intake.skipped;
       return fresh ? Intake.rewound : Intake.skipped;
     }
@@ -1610,38 +1329,39 @@ function pushFrame(raw) {
   lastWorldStep = f.world_step;
   lastLifetimeStep = f.lifetime_step;
   lastEnd = f.end;
-  if (!A.gammas && f.dgam) A.gammas = f.dgam;
-  A.effectiveHorizons = f.dhorizon;
-  A.actionNames = f.actionNames; A.demonNames = f.demonNames;
-  A.goalFamilyNames = f.goalFamilyNames;
-  A.demonTargetPolicy=f.demonTargetPolicy;
-  ACTION_LABELS=f.actionNames; SKILL_WIRE=f.skillNames;
+  if (!A.gammas) A.gammas = f.demon_gamma;
+  A.effectiveHorizons = f.demon_horizon;
+  A.actionNames = f.action_names; A.demonNames = f.demon_names;
+  A.goalFamilyNames = f.goal_family_names;
+  A.demonTargetPolicy=f.demon_target_policy;
+  ACTION_LABELS=f.action_names; SKILL_WIRE=f.skill_names;
   // The subtask policy decides what a slot may be called (see `skillName`).
   // Labels are rebuilt whenever it is learned, so no display ever shows the
   // hand-authored names for a learned slot.
-  if (SUBTASK_POLICY !== f.subtaskPolicy) {
-    SUBTASK_POLICY = f.subtaskPolicy;
+  if (SUBTASK_POLICY !== f.subtask_policy) {
+    SUBTASK_POLICY = f.subtask_policy;
     META_LABELS = metaNames();
   }
-  A.sourceSha256 = f.sourceSha256; A.buildSha256 = f.buildSha256; A.auditDigest = f.auditDigest;
+  A.sourceSha256 = f.source_sha256; A.buildSha256 = f.build_sha256; A.auditDigest = f.audit_digest;
   A.latestLifetime = {
     lifetimeStep:f.lifetime_step,
     rewardSum:f.lifetime_reward_sum, rewardCount:f.lifetime_reward_count,
-    rewardFamilySum:f.lifeRewardFamilySum, rewardFamilyCount:f.lifeRewardFamilyCount,
-    errorSum:f.lifeErrorSum, errorCount:f.lifeErrorCount,
-    goalAttempts:f.lifeGoalAttempts, goalSuccesses:f.lifeGoalSuccesses, goalSteps:f.lifeGoalSteps,
-    rewardHistorySum:f.rewardHistorySum, rewardHistoryCount:f.rewardHistoryCount,
-    errorHistorySum:f.errorHistorySum, errorHistoryCount:f.errorHistoryCount,
+    rewardFamilySum:f.lifetime_reward_family_sum, rewardFamilyCount:f.lifetime_reward_family_count,
+    errorSum:f.lifetime_error_sum, errorCount:f.lifetime_error_count,
+    goalAttempts:f.lifetime_goal_attempts, goalSuccesses:f.lifetime_goal_successes,
+    goalSteps:f.lifetime_goal_steps,
+    rewardHistorySum:f.lifetime_reward_history_sum, rewardHistoryCount:f.lifetime_reward_history_count,
+    errorHistorySum:f.lifetime_error_history_sum, errorHistoryCount:f.lifetime_error_history_count,
   };
   A.latestResources = {
     updateUs:f.update_us, environmentUs:f.environment_us, uptimeMs:f.process_uptime_ms,
-    rss:f.coreRssBytes, checkpointBytes:f.checkpointBytes,
-    checkpointWriteUs:f.checkpointWriteUs, checkpointFailures:f.checkpoint_failures,
+    rss:f.core_rss_bytes, checkpointBytes:f.checkpoint_bytes,
+    checkpointWriteUs:f.checkpoint_write_us, checkpointFailures:f.checkpoint_failures,
     refusals:f.telemetry_refusals, drops:f.telemetry_drops,
     weightSpace:f.weight_space, nTilings:f.n_tilings, imprintUnits:f.imprint_units,
   };
   dayLength=f.day_length;
-  enterWorld(f.runId, f.side, f.seed);
+  enterWorld(f.run_id, f.side, f.seed);
 
   if (ctlState && ctlState.mapPartial === true && ctlState.runId === worldRunId && ctlState.seed === seed) serverMapPartial = true;
 
@@ -1664,7 +1384,7 @@ function pushFrame(raw) {
   // its (unit, bonus) triple differs from the last frame's; a retirement or a
   // planning backup when the lifetime counter moved. These drive the "live
   // now" state of the loop nodes and are facts about the stream.
-  const key = Array.from(f.subtaskUnit).join(",") + "|" + Array.from(f.subtaskBonus, b => b.toFixed(4)).join(",");
+  const key = Array.from(f.subtask_unit).join(",") + "|" + Array.from(f.subtask_bonus, b => b.toFixed(4)).join(",");
   if (key !== A.subtaskKey) { if (A.subtaskKey) A.subtaskChangedAt = id; A.subtaskKey = key; }
   if (f.retire_count !== A.retireCount) { if (id > 0) A.retireChangedAt = id; A.retireCount = f.retire_count; }
   if (f.planning_steps !== A.planningSteps) { if (id > 0) A.planningChangedAt = id; A.planningSteps = f.planning_steps; }
@@ -1696,7 +1416,7 @@ function pushFrame(raw) {
       if (surprise.length > 400) surprise.shift();
     }
     alphaCtl.push(f.a_ctl); alphaDem.push(f.a_dem);
-    alphaMetaHist.push(meanPositive(f.alphaMeta)); alphaOptHist.push(meanPositive(f.alphaOptions));
+    alphaMetaHist.push(meanPositive(f.alpha_meta_all)); alphaOptHist.push(meanPositive(f.alpha_option_all));
     if (alphaCtl.length > 400) {
       alphaCtl.shift(); alphaDem.shift(); alphaMetaHist.shift(); alphaOptHist.shift();
     }
@@ -1764,7 +1484,7 @@ function windowStats(id) {
   const ratio = value => ObserverMath.ratio(value,n);
   const allZero = (field,width) => indices.every(i =>
     S[field].subarray(i*width,(i+1)*width).every(v => v === 0));
-  const decisionIndices = indices.filter(i => !(S.flags[i]&8));
+  const decisionIndices = indices.filter(i => !S.end[i]);
   const boundaryCount = (field,label) => ObserverMath.countEqual([label],
     decisionIndices.map(i => [S[field][i]]));
   const paired = (first,second) => ObserverMath.pairedLatency([],
@@ -1779,10 +1499,10 @@ function windowStats(id) {
     optionShare:ratio(n-ObserverMath.countEqual([UNSEEN],observerRows(values('skill')))),
     skillShare:counts('skill',N_SKILL).map(ratio), reward:average('reward'),
     selProb:observerMean(indices.map(i => S.actProb[i*N_CTL+S.action[i]])),
-    starts:decisionIndices.length-boundaryCount('optStart',UNSEEN),
-    ends:decisionIndices.length-boundaryCount('optEnd',UNSEEN),
+    starts:decisionIndices.length-boundaryCount('optionStart',UNSEEN),
+    ends:decisionIndices.length-boundaryCount('optionEnd',UNSEEN),
     endReasons:Array.from({length:3}, (_, label) => ObserverMath.countEqual([label],
-      decisionIndices.filter(i => S.optEnd[i] !== UNSEEN).map(i => [S.optEndReason[i]]))),
+      decisionIndices.filter(i => S.optionEnd[i] !== UNSEEN).map(i => [S.optionEndReason[i]]))),
     ctlAllZero:allZero('ctl',N_CTL), metAllZero:allZero('met',N_META),
     eps:average('eps'), aCtl:meanPositive(values('aCtl')), aDem:meanPositive(values('aDem')),
     aMeta:familyRate('alphaMeta',N_META), aOpt:familyRate('alphaOptions',N_CTL*N_SKILL),
@@ -2234,8 +1954,8 @@ function drawCredits(f) {
     f.i*N_CTL*N_SKILL,f.i*N_CTL*N_SKILL+N_CTL*N_SKILL);
   const demA=S.alphaDemons.subarray(f.i*N_DEM,f.i*N_DEM+N_DEM);
   const demC=S.creditDemons.subarray(f.i*N_DEM,f.i*N_DEM+N_DEM);
-  const modA=S.alphaModels.subarray(f.i*3*N_SKILL,f.i*3*N_SKILL+3*N_SKILL);
-  const modC=S.creditModels.subarray(f.i*3*N_SKILL,f.i*3*N_SKILL+3*N_SKILL);
+  const modA=S.alphaModels.subarray(f.i*N_MODEL*N_SKILL,(f.i+1)*N_MODEL*N_SKILL);
+  const modC=S.creditModels.subarray(f.i*N_MODEL*N_SKILL,(f.i+1)*N_MODEL*N_SKILL);
   $("credit_control").textContent=creditText(ctlA,ctlC,A.actionNames);
   $("credit_meta").textContent=creditText(metaA,metaC,META_LABELS);
   const optionNames=[];
@@ -2928,8 +2648,8 @@ function drawRibbon(cursorId) {
   ribG.strokeStyle="rgba(230,237,243,.85)"; ribG.lineWidth=1;
   for (let id=Math.max(from,oldestId()); id<=to; id++) {
     const si=slot(id);
-    if(S.flags[si]&8)continue; // terminal result repeats the preceding decision record
-    const start=S.optStart[si]!==UNSEEN, end=S.optEnd[si]!==UNSEEN;
+    if(S.end[si])continue; // terminal result repeats the preceding decision record
+    const start=S.optionStart[si]!==UNSEEN, end=S.optionEnd[si]!==UNSEEN;
     if(!start&&!end)continue;
     const X=Math.round(px(id))+0.5;
     ribG.beginPath();
@@ -3191,24 +2911,20 @@ async function sendCmd(cmd) {
   }
 }
 
-/* The three transient states are shown, not skipped. A Clear takes as long as
+/* `RUN_LABEL` — button action, state word, style class and whether the phase is
+   in transit, for each actual phase — is declared by the generated kernel from
+   the supervisor's exhaustive phase projection (`Acorn.Host.Viewer.Phase.runLabel`).
+   The three transient states are shown, not skipped: a Clear takes as long as
    the core needs to finish its attempt — up to about 20 s — and a button that
    sat unchanged for that long would read as a click that did nothing. */
-const RUN_LABEL = {
-  starting: ["Stop",  "starting…", "busy",  true],
-  running:  ["Stop",  "running",   "on",    false],
-  stopping: ["Stop",  "stopping…", "busy",  true],
-  clearing: ["Stop",  "clearing…", "busy",  true],
-  stopped:  ["Start", "stopped",   "off",   false],
-};
 
 // The connection label for a core that is not running. A stop the operator
 // did not ask for — the supervisor's `failed` and `restart_scheduled`
 // transitions, a spawn that failed or a core that exited on its own — keeps
 // its reason: it is the one line that says what happened (UX-18), and neither
 // the control frame that follows an `eos` nor the watchdog's later ticks may
-// erase it. The tags are the supervisor's `Transition::tag` spellings.
-const UNASKED_STOPS = ["failed", "restart_scheduled"];
+// erase it. `UNASKED_STOPS` is declared by the generated kernel from the
+// supervisor's own transition tags (`Acorn.Host.Viewer.unaskedStops`).
 const unaskedStop = (ctl) => ctl.actual === "stopped" && UNASKED_STOPS.includes(ctl.transition);
 // Text and class together: a stop the operator did not ask for is a fault
 // and keeps the fault colour; a stop they asked for, and every transit

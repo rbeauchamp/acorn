@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.Viewer.HttpServer
-import Acorn.Host.Viewer.BrowserSchema
+import Acorn.Host.Viewer.BrowserKernel
 
 /-!
 # Compiled observer resources
