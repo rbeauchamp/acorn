@@ -858,6 +858,108 @@ theorem first_loop_ready (state : NumericState config dimension) (delta vDelta d
   · intro idx valid before
     omega
 
+/-- A finite trace decayed by zero is a zero encoding under the actual multiply. -/
+theorem zero_decay_trace (word : Binary32) (finite : word.Finite) :
+    (word.mul .zero).isZero = true := by
+  rw [Binary32.isZero_eq_key, mul32_zero word finite]
+  rfl
+
+/-- From the head of a unique worklist, the first loop leaves nothing eligible when
+every listed trace decays to a zero encoding: each visit prunes, so the cursor
+never advances. Raw errors and accumulators remain unrestricted. -/
+theorem first_loop_go_empty (state : NumericState config dimension)
+    (work : Array (FeatIdx dimension)) (pos : Nat) (delta vDelta decay : Binary32)
+    (start : pos = 0) (unique : work.toList.Nodup) (references : ReferencesLegal state)
+    (absorbed : ∀ (j : Nat) (valid : j < work.size),
+      ((state.transient.z.get work[j]).value.mul decay).isZero = true) :
+    (NumericState.learnFirstLoopGo config delta vDelta decay state work pos).transient.eligible =
+      #[] := by
+  induction state, work, pos using
+      NumericState.learnFirstLoopGo.induct config delta vDelta decay with
+  | case1 state work pos valid idx next equation ih =>
+    dsimp only [idx] at equation ih
+    have nextReferences : ReferencesLegal next := by
+      have unchanged := first_element_reference state work[pos] delta vDelta decay
+      rw [equation] at unchanged
+      intro idx
+      simpa only [← unchanged] using references idx
+    have frame : ∀ other, work[pos] ≠ other →
+        ((next.clearFeatureRegisters work[pos]).transient.z.get other).value =
+          (state.transient.z.get other).value := by
+      intro other different
+      rw [registers_trace_eq _ _ other (clear_feature_other next work[pos] other different)]
+      have kept := registers_trace_eq _ _ other
+        (first_element_frame state work[pos] other different delta vDelta decay).2.2
+      rw [equation] at kept
+      exact kept
+    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    simp only [equation, ite_true]
+    refine ih start (swap_remove_nodup work pos valid unique)
+      (clear_feature_references next work[pos] nextReferences) ?_
+    intro j inside
+    have original : j < work.size := by rw [swap_remove_size] at inside; omega
+    have last : work.size - 1 < work.size := by omega
+    have element := swap_remove_get work pos valid j inside
+    by_cases here : pos = j
+    · have distinct : work[pos] ≠ work[work.size - 1] := by
+        intro same
+        have := (array_nodup_iff work).mp unique pos (work.size - 1) valid last same
+        rw [swap_remove_size] at inside
+        omega
+      rw [ite_eq_left here] at element
+      rw [element, frame _ distinct]
+      exact absorbed _ last
+    · have distinct : work[pos] ≠ work[j] := fun same =>
+        here ((array_nodup_iff work).mp unique pos j valid original same)
+      rw [ite_eq_right here] at element
+      rw [element, frame _ distinct]
+      exact absorbed j original
+  | case2 state work pos valid idx next prune equation noPrune ih =>
+    dsimp only [idx] at equation
+    exfalso
+    have retained : (state.firstLoopElement work[pos] delta vDelta decay).2 = false := by
+      rw [equation]
+      exact Bool.eq_false_iff.mpr noPrune
+    have nonzero :=
+      first_element_retained_nonzero state work[pos] delta vDelta decay references retained
+    have trace : ((state.firstLoopElement work[pos] delta vDelta decay).1.transient.z.get
+        work[pos]).value = (state.transient.z.get work[pos]).value.mul decay := by
+      simp only [NumericState.firstLoopElement, vector_get, Vector.getElem_set_self]
+    rw [trace, absorbed pos valid] at nonzero
+    contradiction
+  | case3 state work pos finished =>
+    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
+    subst start
+    have empty : work.size = 0 := by omega
+    exact Array.eq_empty_of_size_eq_zero empty
+
+/-- The public first loop leaves nothing eligible when every eligible trace decays
+to a zero encoding, for arbitrary raw error, accumulator and decay words. -/
+theorem first_loop_empty (state : NumericState config dimension) (delta vDelta decay : Binary32)
+    (unique : state.transient.eligible.toList.Nodup) (references : ReferencesLegal state)
+    (absorbed : ∀ idx ∈ state.transient.eligible,
+      ((state.transient.z.get idx).value.mul decay).isZero = true) :
+    (state.learnFirstLoop config delta vDelta decay).transient.eligible = #[] := by
+  unfold NumericState.learnFirstLoop
+  apply first_loop_go_empty
+  · rfl
+  · exact unique
+  · exact references
+  · intro j valid
+    exact absorbed _ (Array.getElem_mem valid)
+
+/-- At zero trace decay the first loop leaves nothing eligible whenever every
+eligible trace is finite, for arbitrary raw error and accumulator words. The
+actual binary32 multiply supplies the zero product
+(`AcornVerif.CurrentLearnerArithmetic.mul32_zero`). A nonfinite trace is outside
+this statement. -/
+theorem first_loop_stop (state : NumericState config dimension) (delta vDelta : Binary32)
+    (unique : state.transient.eligible.toList.Nodup) (references : ReferencesLegal state)
+    (finite : ∀ idx ∈ state.transient.eligible, (state.transient.z.get idx).value.Finite) :
+    (state.learnFirstLoop config delta vDelta .zero).transient.eligible = #[] :=
+  first_loop_empty state delta vDelta .zero unique references fun idx member =>
+    zero_decay_trace _ (finite idx member)
+
 /-- Equal complete transient storage carries the same core invariant,
 independently of any legal weight or beta changes. -/
 theorem core_of_transient_eq (before after : NumericState config dimension)
@@ -940,6 +1042,113 @@ theorem retire_core (state : NumericState config dimension) (idx : FeatIdx dimen
     exact ⟨support, clear_feature_references state idx core.2⟩
   · exact ⟨clear_feature_supported state idx core.1, clear_feature_references state idx core.2⟩
 
+/-- Clearing registers over any index list zeroes exactly the listed indices'
+registers and leaves every other index's registers alone. -/
+theorem clear_fold_registers (indices : List (FeatIdx dimension))
+    (state : NumericState config dimension) (idx : FeatIdx dimension) :
+    registers (indices.foldl (fun next i => next.clearFeatureRegisters i) state) idx =
+      if idx ∈ indices then Vector.replicate 9 Binary32.zero else registers state idx := by
+  induction indices generalizing state with
+  | nil => simp
+  | cons head rest ih =>
+    rw [List.foldl_cons, ih]
+    by_cases same : head = idx
+    · subst same
+      simp [clear_feature_self]
+    · have other : idx ≠ head := fun equal => same equal.symm
+      simp [other, clear_feature_other state head idx same]
+
+/-- Clearing registers over any index list keeps every pruning reference legal. -/
+theorem clear_fold_references (indices : List (FeatIdx dimension))
+    (state : NumericState config dimension) (legal : ReferencesLegal state) :
+    ReferencesLegal (indices.foldl (fun next i => next.clearFeatureRegisters i) state) := by
+  induction indices generalizing state with
+  | nil => exact legal
+  | cons head rest ih =>
+    rw [List.foldl_cons]
+    exact ih (state.clearFeatureRegisters head) (clear_feature_references state head legal)
+
+/-- Clearing one index's registers writes process-local storage only: every
+weight and every step-size word is kept. -/
+theorem clear_feature_knowledge (state : NumericState config dimension)
+    (idx other : FeatIdx dimension) :
+    (state.clearFeatureRegisters idx).weights.get other = state.weights.get other ∧
+      ((state.clearFeatureRegisters idx).beta.get other).value =
+        (state.beta.get other).value := by
+  simp only [NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
+    NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
+    NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
+    NumericState.writeLastAlpha, and_self]
+
+/-- Clearing registers over any index list writes process-local storage only. -/
+theorem clear_fold_knowledge (indices : List (FeatIdx dimension))
+    (state : NumericState config dimension) (other : FeatIdx dimension) :
+    (indices.foldl (fun next i => next.clearFeatureRegisters i) state).weights.get other =
+        state.weights.get other ∧
+      ((indices.foldl (fun next i => next.clearFeatureRegisters i) state).beta.get other).value =
+        (state.beta.get other).value := by
+  induction indices generalizing state with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons head rest ih =>
+    rw [List.foldl_cons]
+    have step := ih (state.clearFeatureRegisters head)
+    have one := clear_feature_knowledge state head other
+    exact ⟨step.1.trans one.1, step.2.trans one.2⟩
+
+/-- Release leaves nothing eligible, for every state and every trace word. -/
+theorem release_empty (state : NumericState config dimension) :
+    state.releaseEligible.eligibleCount = 0 := rfl
+
+/-- Release writes no knowledge: every weight and every step size is kept. -/
+theorem release_knowledge (state : NumericState config dimension) (idx : FeatIdx dimension) :
+    state.releaseEligible.weights.get idx = state.weights.get idx ∧
+      (state.releaseEligible.beta.get idx).value = (state.beta.get idx).value := by
+  have fold := clear_fold_knowledge state.transient.eligible.toList state idx
+  rw [Array.foldl_toList] at fold
+  exact fold
+
+/-- Release re-establishes the complete support and reference invariants. -/
+theorem release_core (state : NumericState config dimension) (core : CoreInv state) :
+    CoreInv state.releaseEligible := by
+  constructor
+  · intro idx _
+    have value := clear_fold_registers state.transient.eligible.toList state idx
+    rw [Array.foldl_toList] at value
+    have same : registers state.releaseEligible idx = registers
+        (state.transient.eligible.foldl (fun next i => next.clearFeatureRegisters i) state) idx :=
+      rfl
+    rw [same, value]
+    split
+    · rfl
+    · rename_i absent
+      exact core.1 idx (by simpa using absent)
+  · have legal := clear_fold_references state.transient.eligible.toList state core.2
+    rw [Array.foldl_toList] at legal
+    exact legal
+
+/-- Release establishes the next admission's premises by its empty eligible sequence. -/
+theorem release_ready (state : NumericState config dimension) : Ready state.releaseEligible := by
+  simp [Ready, NumericState.releaseEligible]
+
+/-- With nothing eligible, a first loop is the identity for arbitrary raw error,
+accumulator and decay words: it reads no trace and writes no weight. -/
+theorem first_loop_idle (state : NumericState config dimension) (delta vDelta decay : Binary32)
+    (empty : state.transient.eligible = #[]) :
+    state.learnFirstLoop config delta vDelta decay = state := by
+  unfold NumericState.learnFirstLoop
+  dsimp only
+  rw [empty, NumericState.learnFirstLoopGo, dite_eq_right (by simp)]
+  cases state with
+  | mk rails weights beta transient =>
+    cases transient
+    simp_all
+
+/-- After a release, the next first loop credits nothing: it is the identity,
+whatever its raw arguments and whatever the released traces were. -/
+theorem release_idle (state : NumericState config dimension) (delta vDelta decay : Binary32) :
+    state.releaseEligible.learnFirstLoop config delta vDelta decay = state.releaseEligible :=
+  first_loop_idle _ delta vDelta decay rfl
+
 /-- Every constructor of the complete public interface preserves the core
 invariant. The closed operation domain makes omissions a compiler error. -/
 theorem entry_core (entry : Entry dimension) (state : NumericState config dimension)
@@ -957,6 +1166,7 @@ theorem entry_core (entry : Entry dimension) (state : NumericState config dimens
   | restoreBeta raw => exact core
   | install weights beta => exact install_core state weights beta
   | clear => exact clear_core state
+  | release => exact release_core state core
 
 /-- All finite interface histories from a valid state preserve the core
 invariant, without a normal-stream or loop-scheduling restriction. -/
@@ -1078,6 +1288,7 @@ theorem entry_schedule (entry : Entry dimension) (state : NumericState config di
     have ready : Ready (state.installRestored weights beta) := clear_ready _
     exact ⟨ready.1, fun _ => ready⟩
   | clear => exact ⟨(clear_ready state).1, fun _ => clear_ready state⟩
+  | release => exact ⟨(release_ready state).1, fun _ => release_ready state⟩
   | restoreWeights raw => exact invariant.2
   | restoreBeta raw => exact invariant.2
   | plan features target =>

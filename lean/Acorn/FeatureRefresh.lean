@@ -256,6 +256,23 @@ theorem FreeDispatch.install_cache {shape : PatchShape} {config : Config} {crite
     (state.install slot target).predictions[slot.val] = ModelCache.initial := by
   simp [FreeDispatch.install, changed]
 
+/-- A changed unit identity starts with no stored off-policy trajectory. -/
+theorem FreeDispatch.install_unlinked {shape : PatchShape} {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config)
+    (changed : state.lifecycle.consumers.skills[slot.val].interest.sameAssignment target = false) :
+    (state.install slot target).lifecycle.consumers.skills[slot.val].following = none := by
+  simp [FreeDispatch.install, changed, Skill.initial]
+
+/-- A released slot starts with no stored off-policy trajectory. -/
+theorem Ensemble.release_unlinked {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    (unit : Fin config.units.count) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (held : ensemble.skills[slot.val].interest.held.holds unit = true) :
+    (ensemble.release unit).skills[slot.val].following = none := by
+  simp [Ensemble.release, held, Skill.initial]
+
 /-- Every installed slot has exactly its requested target, including the unchanged branch. -/
 theorem FreeDispatch.install_target {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}

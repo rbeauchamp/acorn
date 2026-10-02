@@ -197,6 +197,18 @@ def Interest.held {config : Config} : Interest config → Assignment config
   | .learned assignment => assignment
   | .declared _ _ => .neutral
 
+/-- Off-policy trajectory of an option that is not executing. It links the option's
+learners to the preceding frame of the stream the agent actually followed. -/
+structure Following where
+  /-- Actions followed since the trajectory began, capped by the option duration:
+  the age the option would have reached had it started there. -/
+  age : Fin (Acorn.FeatureConstants.optionMaxDuration + 1)
+  /-- Whether the model has a live trajectory: the preceding frame's action was
+  selected with the option's own distribution. -/
+  live : Bool
+  /-- Potential observed at the preceding frame. -/
+  previous : Bool
+
 /-- Complete storage belonging to one option assignment. -/
 structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension) where
   /-- Objective identity, retained by feature-slot retirement. -/
@@ -205,11 +217,14 @@ structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension
   policy : Controller (criterion.config .optionSkill) dimension Acorn.FeatureConstants.primitiveCount
   /-- Current model consumers. -/
   model : Model dimension criterion
+  /-- Off-policy trajectory of these learners while the option is not executing.
+  Fresh and restored storage has none, so no frame is credited to a later objective. -/
+  following : Option Following
 
-/-- Fresh policy and model for the selected target. -/
+/-- Fresh policy and model for the selected target, linked to no earlier frame. -/
 def Skill.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
     (interest : Interest config) : Skill config criterion dimension :=
-  ⟨interest, Controller.initial _ _ _, Model.initial _ _⟩
+  ⟨interest, Controller.initial _ _ _, Model.initial _ _, none⟩
 
 /-- Each policy reader followed by its three model reader positions. -/
 def Skill.readers {config : Config} {criterion : Criterion} {dimension : Dimension}
@@ -219,8 +234,8 @@ def Skill.readers {config : Config} {criterion : Criterion} {dimension : Dimensi
 /-- Reset knowledge in the complete skill while retaining its target identity. -/
 def Skill.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
     (skill : Skill config criterion dimension) (feature : FeatIdx dimension) : Skill config criterion dimension :=
-  let ⟨interest, policy, model⟩ := skill
-  ⟨interest, policy.retire feature, model.retire feature⟩
+  let ⟨interest, policy, model, following⟩ := skill
+  ⟨interest, policy.retire feature, model.retire feature, following⟩
 
 /-- All current learned consumers; dimensions, criteria and channel layout are nominal. -/
 structure Ensemble (config : Config) (criterion : Criterion) (dimension : Dimension)

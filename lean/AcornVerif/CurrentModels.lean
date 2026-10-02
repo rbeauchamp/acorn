@@ -50,6 +50,21 @@ theorem terminal_clears (model : Model dimension criterion) (reward terminal : B
   · rcases member with rfl | rfl <;> rfl
   · rcases member with rfl | rfl | rfl <;> rfl
 
+/-- Closing a model learner's off-policy trajectory leaves it nothing eligible,
+for every state, trace and target word. -/
+theorem stop_trajectory_empty {learnerConfig : Acorn.Config}
+    (learner : Managed learnerConfig dimension) (target : Binary32) :
+    (learner.stopTrajectory target).state.eligibleCount = 0 := rfl
+
+/-- A model restart credits no earlier transition: after its release the step's
+first loop is the identity, so the step is exactly its second loop on the released
+state, with the new lags. -/
+theorem restart_trajectory_first {learnerConfig : Acorn.Config}
+    (learner : Managed learnerConfig dimension) (delta vDelta decay : Binary32) :
+    (learner.apply .release trivial).state.learnFirstLoop learnerConfig delta vDelta decay =
+      (learner.apply .release trivial).state :=
+  release_idle learner.state delta vDelta decay
+
 /-- All model state after every update retains the existing schedule and capacity. -/
 theorem model_schedule (model : Model dimension criterion)
     (reader : PackedLearner dimension) (_member : reader ∈ model.stored) :

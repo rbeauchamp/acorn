@@ -19,6 +19,12 @@ reward, duration and continuation targets. The scalar continuation tracks a
 changing controller through scalar approximations.
 Every update uses existing managed, criterion-indexed storage, so retirement
 and assignment replacement reach the same state. Raw transient words are retained.
+
+Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence 112
+(1999), §5, equations (18)–(19), p. 202, learn a model from every action
+consistent with its option: selected with the option policy's own distribution.
+The restart and stop entries below serve that use: an option that is not executing
+learns along runs of frames whose action was so selected.
 -/
 namespace Acorn.Features
 
@@ -104,10 +110,49 @@ def Model.terminal {dimension : Dimension} {criterion : Criterion}
     .differential (r.apply (.terminal reward) trivial) (c.apply (.terminal target) trivial)
       (d.apply (.terminal .one) trivial)
 
+/-- Start one learner's trajectory on its existing storage. The remaining traces are
+released first, so the ordinary step visits no earlier trace and credits no earlier
+transition; it lays the initial traces and both lags. -/
+def Managed.restartTrajectory {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (features : SwiftTd.ActiveSet dimension) :
+    Managed config dimension :=
+  (learner.apply .release trivial).apply (.step features .zero) trivial
+
+/-- Stopping credit for one learner against its own lags, at zero trace decay:
+the factor γλ(1 − β) of Sutton, Machado et al. (2023), §3, at β = 1. Whatever the
+first loop retained is then released, so nothing stays eligible. -/
+def Managed.stopTrajectory {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (target : Binary32) : Managed config dimension :=
+  (learner.apply (.first (target.sub learner.state.transient.vOld)
+    learner.state.transient.vDelta .zero) trivial).apply .release trivial
+
+/-- Start a model trajectory at the given age for an option that is not executing,
+without the full-width transient clear of `Model.begin`. -/
+def Model.restart {dimension : Dimension} {criterion : Criterion}
+    (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension) (age : ModelAge) :
+    Model dimension criterion :=
+  let features := modelInput criterion base age
+  match model with
+  | .discounted r c => .discounted (r.restartTrajectory features) (c.restartTrajectory features)
+  | .differential r c d =>
+    .differential (r.restartTrajectory features) (c.restartTrajectory features)
+      (d.restartTrajectory features)
+
+/-- Close a live trajectory toward raw reward, the discounted terminal continuation
+and unit duration, the targets `Model.terminal` reads. Sutton, Machado et al.
+(2023), §4, equation (17), stops every option's model where its stopping function does. -/
+def Model.stop {dimension : Dimension} {criterion : Criterion}
+    (model : Model dimension criterion) (reward terminal : Binary32) : Model dimension criterion :=
+  let target := criterion.modelTerminal terminal
+  match model with
+  | .discounted r c => .discounted (r.stopTrajectory reward) (c.stopTrajectory target)
+  | .differential r c d =>
+    .differential (r.stopTrajectory reward) (c.stopTrajectory target) (d.stopTrajectory .one)
+
 /-- Concrete temporal operations use the current model definitions. -/
 def modelOperations (criterion : Criterion) (dimension : Dimension) : OptionModelOps criterion dimension :=
   ⟨Model.begin, Model.step, Model.terminal, fun model features =>
-    (model.predict features ⟨0, by decide⟩).cache⟩
+    (model.predict features ⟨0, by decide⟩).cache, Model.restart, Model.stop⟩
 
 /-- Signed differential backup without a gain write; discounted horizon projection. -/
 def ModelPrediction.target {criterion : Criterion} (prediction : ModelPrediction criterion)

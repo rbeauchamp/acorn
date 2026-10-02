@@ -6,7 +6,7 @@ audit mutations. In this repository those categories have concrete owners:
 
 | Owning artifact | Where it lives | How to run or probe it |
 |---|---|---|
-| Universal Lean theorem | `lean/`, axiom-audited in `Axioms.lean` | `./scripts/verify.sh` — source/compiled policy, execution links, native routes and dependent-axiom inventory; provision Mathlib and the FloatLib modules the proof bridge imports separately |
+| Universal Lean theorem | `lean/`, axiom-audited in `Axioms.lean` | `./scripts/verify.sh` — source/compiled policy, execution links, native routes and dependent-axiom inventory; provision the pinned dependencies separately, as [platform setup](../../../../docs/verification.md#platform-setup) describes |
 | Typed invariant / compiler refinement | current proof-bearing Lean state, private construction and typed admission | `./scripts/lean.sh build acorn-core acorn-viewer`; the complete suite checks every discovered module |
 | Deterministic audit mutation | `Acorn.Host.AuditPins` and printed pin/checksum pairs | explicit `./scripts/verify.sh diagnostics` runs the derived, annealed and differential arms; a moved digest on a semantics-preserving change is a finding, not a re-pin |
 | Gate tamper-sensitivity | actual changed Lean gate owner | use a disposable missing-owner, bypass or stale-dependency mutation where it bears on the changed admission contract; restore before the final pass |
