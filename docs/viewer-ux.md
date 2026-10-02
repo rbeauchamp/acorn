@@ -910,9 +910,12 @@ What each panel must show. How it draws it is the code's.
   but cannot re-adopt an archived run or re-key a memory Clear has reset. The server keeps a map only for a side up to
   `mapSideCapacity` (4,096); a larger `--cmd` world is shown from frames and the
   browser's own storage, has no server memory, and its tile says so. The
-  unseen byte, the kind count, the window side and the side limit are each
-  spelled once in the page and once in the server, and the gate suite holds
-  every pair equal, and both to the core's own constants.
+  page declares none of the unseen byte, the kind count, the window's tile
+  count or the side limit: the generated kernel emits each from its Lean
+  definition (`Acorn.Host.Viewer.BrowserConstant`). The unseen byte and the
+  side limit are the server's own, the tile count is the square of the core's
+  window side, and the kind count is the bound admission places on every
+  sensed tile (`BrowserConstant.tileKinds_admitted`).
 - **UX-45 · Browser storage.** The explored map and the trail are saved to
   `localStorage` (key `acorn-viewer-world-v1`) on a timer while either has
   changed since the last save, and on unload; on load they are restored (the
@@ -1111,7 +1114,7 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Step-size curves | plasticity panel | Alberta Plan Step 1, arXiv:2208.11173v3 **PDF p. 6**: *“All of that user expertise should be replaced by a meta-algorithm for setting the step-size parameter…”* The panel plots Acorn’s current step sizes. |
 | intra-option-credit / derived-exploration-rate studies | **out of viewer scope** | PAR-9 / PAR-10 identify the mechanisms, pinned above. |
 | Rendered inspection and compiler checks | contributor verification | AC-R4 geometries and AC-R6 check results cover presentation and implementation. |
-| `FLOAT_FIELDS` ⊆ emit keys | gate, not a surface | `AcornTools.Corpus.Browser` binds conversion keys to `browserSchema`. |
+| Record keys = emit keys | proof, not a surface | The page's record conversion and frame store are generated from `browserSchema`. `browserRecord_keys` proves the record has a field for every schema key and no other; `browserColumns_live` proves each ring column reads a schema key at the schema's array width. |
 
 ## Appendix A · Constants this document quotes
 

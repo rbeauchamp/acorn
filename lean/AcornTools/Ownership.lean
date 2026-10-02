@@ -42,7 +42,8 @@ def modules : Array Name := #[
   `Acorn.Host.Metrics, `Acorn.Host.Observation, `Acorn.Host.Runner,
   `Acorn.Host.Task, `Acorn.Host.TemporalProfile, `Acorn.Host.Terrain,
   `Acorn.Host.Viewer.Admission, `Acorn.Host.Viewer.AgentTelemetry, `Acorn.Host.Viewer.Broadcast,
-  `Acorn.Host.Viewer.BrowserMath, `Acorn.Host.Viewer.BrowserNat, `Acorn.Host.Viewer.BrowserSchema,
+  `Acorn.Host.Viewer.BrowserKernel, `Acorn.Host.Viewer.BrowserMath, `Acorn.Host.Viewer.BrowserNat,
+  `Acorn.Host.Viewer.BrowserRecord, `Acorn.Host.Viewer.BrowserSchema, `Acorn.Host.Viewer.BrowserStore,
   `Acorn.Host.Viewer.Buffer, `Acorn.Host.Viewer.ClockProgram, `Acorn.Host.Viewer.ControlRequest,
   `Acorn.Host.Viewer.ControlTelemetry, `Acorn.Host.Viewer.CoreTelemetry, `Acorn.Host.Viewer.FeatureTelemetry, `Acorn.Host.Viewer.GoalProtocol, `Acorn.Host.Viewer.GoalAchievement,
   `Acorn.Host.Viewer.HttpServer, `Acorn.Host.Viewer.IdentityHandshake, `Acorn.Host.Viewer.Lifecycle,
@@ -139,6 +140,10 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Viewer.Lifecycle.retire),
   (`Acorn.Host.Viewer.BrowserSchema, `Acorn.Host.Viewer.browserSchema_execution,
     `Acorn.Host.Viewer.coreTelemetry),
+  (`Acorn.Host.Viewer.BrowserRecord, `Acorn.Host.Viewer.browserRecord_keys,
+    `Acorn.Host.Viewer.browserRecordFields),
+  (`Acorn.Host.Viewer.BrowserStore, `Acorn.Host.Viewer.browserColumns_live,
+    `Acorn.Host.Viewer.browserColumns),
   (`NativeApp.MutationAudit, `NativeApp.AuditArm.incumbent_profile,
     `NativeApp.AuditArm.construction)
 ]

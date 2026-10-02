@@ -1,161 +1,261 @@
-function observerFrameStore(CAP,N_DEM,N_CTL,N_META,N_TILE,N_SKILL,N_OPTION_END,N_GOAL_FAMILY){return {
-  worldStep:new Float64Array(CAP),
-  lifetimeStep:new Float64Array(CAP),
+const SCHEMA=10,UNSEEN=255,MAX_MAP_SIDE=4096,N_KIND=8,N_DEM=11,N_CTL=9,N_META=4,N_TILE=121,N_SKILL=3,N_OPTION_END=3,N_GOAL_FAMILY=4,N_MODEL=3,HISTORY_BINS=64,CYCLE_BINS=16,EXACT_CYCLES=8;
+const Reject=Object.freeze({schema:"schema",cardinality:"cardinality",missingField:"missingField",malformed:"malformed"});
+const RUN_LABEL={"starting":["Stop","starting…","busy",true],"running":["Stop","running","on",false],"stopping":["Stop","stopping…","busy",true],"clearing":["Stop","clearing…","busy",true],"stopped":["Start","stopped","off",false]};
+const UNASKED_STOPS=["failed","restart_scheduled"];
+function observerFrameStore(CAP){return {
+  runId:new Array(CAP),
   agentEpoch:new Float64Array(CAP),
   origin:new Float64Array(CAP),
+  updateUs:new Float64Array(CAP),
+  environmentUs:new Float64Array(CAP),
+  goalCount:new Float64Array(CAP),
+  attemptCap:new Float64Array(CAP),
+  worldStep:new Float64Array(CAP),
   x:new Float64Array(CAP),
   y:new Float64Array(CAP),
   facing:new Float64Array(CAP),
-  action:new Float64Array(CAP),
-  skill:new Float64Array(CAP),
-  ev:new Float64Array(CAP),
-  flags:new Float64Array(CAP),
-  goal:new Float64Array(CAP),
-  attempt:new Float64Array(CAP),
-  tier:new Float64Array(CAP),
-  cycle:new Float64Array(CAP),
-  goalCount:new Float64Array(CAP),
-  attemptCap:new Float64Array(CAP),
   energy:new Float64Array(CAP),
   wood:new Float64Array(CAP),
   stone:new Float64Array(CAP),
   food:new Float64Array(CAP),
   gold:new Float64Array(CAP),
+  axe:new Float64Array(CAP),
+  boat:new Float64Array(CAP),
+  action:new Float64Array(CAP),
   reward:new Float64Array(CAP),
-  eps:new Float64Array(CAP),
-  alpha:new Float64Array(CAP),
-  rewardRate:new Float64Array(CAP),
-  criterion:new Float64Array(CAP),
-  aCtl:new Float64Array(CAP),
-  aDem:new Float64Array(CAP),
-  updateUs:new Float64Array(CAP),
-  environmentUs:new Float64Array(CAP),
+  done:new Float64Array(CAP),
+  ev:new Float64Array(CAP),
+  goal:new Float64Array(CAP),
+  attempt:new Float64Array(CAP),
+  tier:new Float64Array(CAP),
+  cycle:new Float64Array(CAP),
   gkind:new Float64Array(CAP),
   gitem:new Float64Array(CAP),
   gx:new Float64Array(CAP),
   gy:new Float64Array(CAP),
   gn:new Float64Array(CAP),
-  planningSteps:new Float64Array(CAP),
-  retireCount:new Float64Array(CAP),
-  retireStep:new Float64Array(CAP),
-  retireUnit:new Float64Array(CAP),
-  decisionSource:new Float64Array(CAP),
-  explored:new Float64Array(CAP),
-  metaAction:new Float64Array(CAP),
-  optStart:new Float64Array(CAP),
-  optEnd:new Float64Array(CAP),
-  optEndReason:new Float64Array(CAP),
-  optEndDuration:new Float64Array(CAP),
-  optElapsed:new Float64Array(CAP),
-  lifeRewardSum:new Float64Array(CAP),
-  lifeRewardCount:new Float64Array(CAP),
-  lifeErrorSum:new Float64Array(CAP),
-  lifeErrorCount:new Float64Array(CAP),
-  runStart:new Float64Array(CAP),
-  dem:new Float64Array(CAP*N_DEM),
-  cum:new Float64Array(CAP*N_DEM),
-  alphaDemons:new Float64Array(CAP*N_DEM),
-  creditDemons:new Float64Array(CAP*N_DEM),
-  lifeErrorCountD:new Float64Array(CAP*N_DEM),
-  settledReturn:new Float64Array(CAP*N_DEM),
-  settledError:new Float64Array(CAP*N_DEM),
-  ctl:new Float64Array(CAP*N_CTL),
-  actProb:new Float64Array(CAP*N_CTL),
+  tiles:new Uint8Array(CAP*N_TILE),
+  extra:new Uint8Array(CAP*N_TILE),
+  end:new Float64Array(CAP),
+  lifetimeStep:new Float64Array(CAP),
+  rewardRate:new Float64Array(CAP),
+  eps:new Float64Array(CAP),
+  alpha:new Float64Array(CAP),
+  aCtl:new Float64Array(CAP),
+  aDem:new Float64Array(CAP),
   alphaControl:new Float64Array(CAP*N_CTL),
-  creditControl:new Float64Array(CAP*N_CTL),
-  met:new Float64Array(CAP*N_META),
-  metaProb:new Float64Array(CAP*N_META),
   alphaMeta:new Float64Array(CAP*N_META),
+  alphaOptions:new Float64Array(CAP*N_CTL*N_SKILL),
+  alphaDemons:new Float64Array(CAP*N_DEM),
+  alphaModels:new Float64Array(CAP*N_MODEL*N_SKILL),
+  creditControl:new Float64Array(CAP*N_CTL),
   creditMeta:new Float64Array(CAP*N_META),
+  creditOptions:new Float64Array(CAP*N_CTL*N_SKILL),
+  creditDemons:new Float64Array(CAP*N_DEM),
+  creditModels:new Float64Array(CAP*N_MODEL*N_SKILL),
   optModRew:new Float64Array(CAP*N_SKILL),
   optModCont:new Float64Array(CAP*N_SKILL),
   optModDuration:new Float64Array(CAP*N_SKILL),
   planningErrors:new Float64Array(CAP*N_SKILL),
-  subtaskUnit:new Float64Array(CAP*N_SKILL),
-  subtaskBonus:new Float64Array(CAP*N_SKILL),
+  planningSteps:new Float64Array(CAP),
+  decisionSource:new Float64Array(CAP),
+  skill:new Float64Array(CAP),
+  explored:new Float64Array(CAP),
+  ctl:new Float64Array(CAP*N_CTL),
+  met:new Float64Array(CAP*N_META),
+  actProb:new Float64Array(CAP*N_CTL),
+  metaProb:new Float64Array(CAP*N_META),
+  metaAction:new Float64Array(CAP),
+  optionStart:new Float64Array(CAP),
+  optionEnd:new Float64Array(CAP),
+  optionEndDuration:new Float64Array(CAP),
+  optionEndReason:new Float64Array(CAP),
+  optionElapsed:new Float64Array(CAP),
+  lifeRewardSum:new Float64Array(CAP),
+  lifeRewardCount:new Float64Array(CAP),
+  lifeRewardFamilySum:new Float64Array(CAP*N_GOAL_FAMILY),
+  lifeRewardFamilyCount:new Float64Array(CAP*N_GOAL_FAMILY),
+  lifeErrorSum:new Float64Array(CAP),
+  lifeErrorCount:new Float64Array(CAP),
+  lifeErrorCountD:new Float64Array(CAP*N_DEM),
+  settledReturn:new Float64Array(CAP*N_DEM),
+  settledError:new Float64Array(CAP*N_DEM),
   lifeOptStarted:new Float64Array(CAP*N_SKILL),
   lifeOptCompleted:new Float64Array(CAP*N_SKILL),
   lifeOptDuration:new Float64Array(CAP*N_SKILL),
-  alphaOptions:new Float64Array(CAP*N_CTL*N_SKILL),
-  creditOptions:new Float64Array(CAP*N_CTL*N_SKILL),
-  alphaModels:new Float64Array(CAP*3*N_SKILL),
-  creditModels:new Float64Array(CAP*3*N_SKILL),
   lifeOptEndReasons:new Float64Array(CAP*N_SKILL*N_OPTION_END),
   lifeGoalAttempts:new Float64Array(CAP*N_GOAL_FAMILY),
   lifeGoalSuccesses:new Float64Array(CAP*N_GOAL_FAMILY),
   lifeGoalSteps:new Float64Array(CAP*N_GOAL_FAMILY),
-  lifeRewardFamilySum:new Float64Array(CAP*N_GOAL_FAMILY),
-  lifeRewardFamilyCount:new Float64Array(CAP*N_GOAL_FAMILY),
   cycleAttempts:new Float64Array(CAP*N_GOAL_FAMILY),
   cycleSuccesses:new Float64Array(CAP*N_GOAL_FAMILY),
   cycleSteps:new Float64Array(CAP*N_GOAL_FAMILY),
-  runId:new Array(CAP),
-  tiles:new Uint8Array(CAP*N_TILE), extra:new Uint8Array(CAP*N_TILE),
+  criterion:new Float64Array(CAP),
+  retireStep:new Float64Array(CAP),
+  retireUnit:new Float64Array(CAP),
+  retireCount:new Float64Array(CAP),
+  subtaskUnit:new Float64Array(CAP*N_SKILL),
+  subtaskBonus:new Float64Array(CAP*N_SKILL),
+  dem:new Float64Array(CAP*N_DEM),
+  cum:new Float64Array(CAP*N_DEM),
+  runStart:new Float64Array(CAP),
 };}
-function observerStore(id, f) {
-  const i = slot(id);
-  S.worldStep[i]=f.world_step; S.lifetimeStep[i]=f.lifetime_step;
-  S.runId[i]=f.runId; S.agentEpoch[i]=f.agent_epoch;
-  S.origin[i] = f.origin === "resumed" ? 1 : f.origin === "cleared" ? 2 : 0;
-  S.x[i]=f.x; S.y[i]=f.y; S.facing[i]=f.facing; S.action[i]=f.action;
-  S.skill[i]=f.skill; S.ev[i]=f.ev; S.goal[i]=f.goal; S.attempt[i]=f.attempt;
-  S.tier[i]=f.tier; S.cycle[i]=f.cycle; S.goalCount[i]=f.goal_count;
-  S.attemptCap[i]=f.attempt_cap; S.energy[i]=f.energy; S.wood[i]=f.wood;
-  S.stone[i]=f.stone; S.food[i]=f.food;
-  S.gold[i]=f.gold; S.reward[i]=f.reward; S.eps[i]=f.eps;
-  S.rewardRate[i]=f.reward_rate; S.criterion[i]=f.control_criterion;
-  S.alpha[i]=f.mean_alpha; S.aCtl[i]=f.a_ctl; S.aDem[i]=f.a_dem;
-  S.updateUs[i]=f.update_us; S.environmentUs[i]=f.environment_us;
-  S.gkind[i]=f.gkind; S.gitem[i]=f.gitem;
-  S.gx[i]=f.gx; S.gy[i]=f.gy; S.gn[i]=f.gn;
-  S.flags[i] = (f.axe?1:0)|(f.boat?2:0)|(f.done?4:0)|(f.end?8:0);
-  S.dem.set(f.dem, i*N_DEM);
-  S.cum.set(f.cum, i*N_DEM);
-  S.ctl.set(f.ctl, i*N_CTL);
-  S.met.set(f.met, i*N_META);
-  S.actProb.set(f.actProb, i*N_CTL); S.metaProb.set(f.metaProb, i*N_META);
-  S.decisionSource[i] = ["primitive","exploration_start","exploration_continuation","option"].indexOf(f.decisionSource);
-  S.explored[i] = f.explored ? 1 : 0; S.metaAction[i]=f.meta_action;
-  S.optStart[i]=f.option_start; S.optEnd[i]=f.option_end_skill;
-  S.optEndReason[i]=f.option_end_reason; S.optEndDuration[i]=f.option_end_duration;
-  S.optElapsed[i]=f.option_elapsed;
-  S.optModRew.set(f.optModRew, i*N_SKILL);
-  S.optModCont.set(f.optModCont, i*N_SKILL);
-  S.optModDuration.set(f.optModDuration, i*N_SKILL);
-  S.planningSteps[i]=f.planning_steps;
-  S.planningErrors.set(f.planningErrors, i*N_SKILL);
-  S.subtaskUnit.set(f.subtaskUnit, i*N_SKILL); S.subtaskBonus.set(f.subtaskBonus, i*N_SKILL);
-  S.retireCount[i]=f.retire_count; S.retireStep[i]=f.retire_step; S.retireUnit[i]=f.retire_unit;
-  S.alphaControl.set(f.alphaControl,i*N_CTL); S.alphaMeta.set(f.alphaMeta,i*N_META);
-  S.alphaOptions.set(f.alphaOptions,i*N_CTL*N_SKILL); S.alphaDemons.set(f.alphaDemons,i*N_DEM);
-  S.alphaModels.set(f.alphaModels,i*3*N_SKILL);
-  S.creditControl.set(f.creditControl,i*N_CTL); S.creditMeta.set(f.creditMeta,i*N_META);
-  S.creditOptions.set(f.creditOptions,i*N_CTL*N_SKILL); S.creditDemons.set(f.creditDemons,i*N_DEM);
-  S.creditModels.set(f.creditModels,i*3*N_SKILL);
-  S.lifeRewardSum[i]=f.lifetime_reward_sum; S.lifeRewardCount[i]=f.lifetime_reward_count;
-  S.lifeErrorSum[i]=observerSum(f.lifeErrorSum);
-  S.lifeErrorCount[i]=observerSum(f.lifeErrorCount);
-  S.lifeErrorCountD.set(f.lifeErrorCount,i*N_DEM); S.settledReturn.set(f.settledReturn,i*N_DEM);
-  S.settledError.set(f.settledError,i*N_DEM);
-  S.lifeOptStarted.set(f.lifeOptStarted,i*N_SKILL);
-  S.lifeOptCompleted.set(f.lifeOptCompleted,i*N_SKILL);
-  S.lifeOptDuration.set(f.lifeOptDuration,i*N_SKILL);
-  S.lifeOptEndReasons.set(f.lifeOptEndReasons,i*N_SKILL*N_OPTION_END);
-  S.lifeGoalAttempts.set(f.lifeGoalAttempts,i*N_GOAL_FAMILY);
-  S.lifeGoalSuccesses.set(f.lifeGoalSuccesses,i*N_GOAL_FAMILY);
-  S.lifeGoalSteps.set(f.lifeGoalSteps,i*N_GOAL_FAMILY);
-  S.lifeRewardFamilySum.set(f.lifeRewardFamilySum,i*N_GOAL_FAMILY);
-  S.lifeRewardFamilyCount.set(f.lifeRewardFamilyCount,i*N_GOAL_FAMILY);
-  const cb=cycleBucket(f.cycle);
-  for(let family=0;family<N_GOAL_FAMILY;family++){
-    const src=family*CYCLE_BINS+cb,dst=i*N_GOAL_FAMILY+family;
-    S.cycleAttempts[dst]=f.lifeCycleAttempts[src];
-    S.cycleSuccesses[dst]=f.lifeCycleSuccesses[src];
-    S.cycleSteps[dst]=f.lifeCycleSteps[src];
-  }
-  S.tiles.set(f.tiles, i*N_TILE);
-  S.extra.set(f.extra, i*N_TILE);
+function observerStore(S,i,f){
+const b=observerCycleBucket(f["cycle"]);
+S.runId[i]=f["run_id"];
+S.agentEpoch[i]=f["agent_epoch"];
+S.origin[i]=["fresh","resumed","cleared"].indexOf(f["origin"]);
+S.updateUs[i]=f["update_us"];
+S.environmentUs[i]=f["environment_us"];
+S.goalCount[i]=f["goal_count"];
+S.attemptCap[i]=f["attempt_cap"];
+S.worldStep[i]=f["world_step"];
+S.x[i]=f["x"];
+S.y[i]=f["y"];
+S.facing[i]=f["facing"];
+S.energy[i]=f["energy"];
+S.wood[i]=f["wood"];
+S.stone[i]=f["stone"];
+S.food[i]=f["food"];
+S.gold[i]=f["gold"];
+S.axe[i]=f["axe"]?1:0;
+S.boat[i]=f["boat"]?1:0;
+S.action[i]=f["action"];
+S.reward[i]=f["reward"];
+S.done[i]=f["done"]?1:0;
+S.ev[i]=f["ev"];
+S.goal[i]=f["goal"];
+S.attempt[i]=f["attempt"];
+S.tier[i]=f["tier"];
+S.cycle[i]=f["cycle"];
+S.gkind[i]=f["gkind"];
+S.gitem[i]=f["gitem"];
+S.gx[i]=f["gx"];
+S.gy[i]=f["gy"];
+S.gn[i]=f["gn"];
+S.tiles.set(f["tiles"],i*N_TILE);
+S.extra.set(f["tile_extra"],i*N_TILE);
+S.end[i]=f["end"]?1:0;
+S.lifetimeStep[i]=f["lifetime_step"];
+S.rewardRate[i]=f["reward_rate"];
+S.eps[i]=f["eps"];
+S.alpha[i]=f["mean_alpha"];
+S.aCtl[i]=f["a_ctl"];
+S.aDem[i]=f["a_dem"];
+S.alphaControl.set(f["alpha_control_all"],i*N_CTL);
+S.alphaMeta.set(f["alpha_meta_all"],i*N_META);
+S.alphaOptions.set(f["alpha_option_all"],i*N_CTL*N_SKILL);
+S.alphaDemons.set(f["alpha_demon_all"],i*N_DEM);
+S.alphaModels.set(f["alpha_models"],i*N_MODEL*N_SKILL);
+S.creditControl.set(f["credit_control"],i*N_CTL);
+S.creditMeta.set(f["credit_meta"],i*N_META);
+S.creditOptions.set(f["credit_options"],i*N_CTL*N_SKILL);
+S.creditDemons.set(f["credit_demons"],i*N_DEM);
+S.creditModels.set(f["credit_models"],i*N_MODEL*N_SKILL);
+S.optModRew.set(f["option_model_rewards"],i*N_SKILL);
+S.optModCont.set(f["option_model_continuations"],i*N_SKILL);
+S.optModDuration.set(f["option_model_durations"],i*N_SKILL);
+S.planningErrors.set(f["planning_errors"],i*N_SKILL);
+S.planningSteps[i]=f["planning_steps"];
+S.decisionSource[i]=["primitive","exploration_start","exploration_continuation","option"].indexOf(f["decision_source"]);
+S.skill[i]=f["skill"];
+S.explored[i]=f["explored"]?1:0;
+S.ctl.set(f["control"],i*N_CTL);
+S.met.set(f["meta"],i*N_META);
+S.actProb.set(f["action_probabilities"],i*N_CTL);
+S.metaProb.set(f["meta_probabilities"],i*N_META);
+S.metaAction[i]=f["meta_action"];
+S.optionStart[i]=f["option_start"];
+S.optionEnd[i]=f["option_end_skill"];
+S.optionEndDuration[i]=f["option_end_duration"];
+S.optionEndReason[i]=f["option_end_reason"];
+S.optionElapsed[i]=f["option_elapsed"];
+S.lifeRewardSum[i]=f["lifetime_reward_sum"];
+S.lifeRewardCount[i]=f["lifetime_reward_count"];
+S.lifeRewardFamilySum.set(f["lifetime_reward_family_sum"],i*N_GOAL_FAMILY);
+S.lifeRewardFamilyCount.set(f["lifetime_reward_family_count"],i*N_GOAL_FAMILY);
+S.lifeErrorSum[i]=observerSum(f["lifetime_error_sum"]);
+S.lifeErrorCount[i]=observerSum(f["lifetime_error_count"]);
+S.lifeErrorCountD.set(f["lifetime_error_count"],i*N_DEM);
+S.settledReturn.set(f["settled_return"],i*N_DEM);
+S.settledError.set(f["settled_error"],i*N_DEM);
+S.lifeOptStarted.set(f["lifetime_option_started"],i*N_SKILL);
+S.lifeOptCompleted.set(f["lifetime_option_completed"],i*N_SKILL);
+S.lifeOptDuration.set(f["lifetime_option_duration"],i*N_SKILL);
+S.lifeOptEndReasons.set(f["lifetime_option_end_reasons"],i*N_SKILL*N_OPTION_END);
+S.lifeGoalAttempts.set(f["lifetime_goal_attempts"],i*N_GOAL_FAMILY);
+S.lifeGoalSuccesses.set(f["lifetime_goal_successes"],i*N_GOAL_FAMILY);
+S.lifeGoalSteps.set(f["lifetime_goal_steps"],i*N_GOAL_FAMILY);
+for(let k=0;k<N_GOAL_FAMILY;k++)S.cycleAttempts[i*N_GOAL_FAMILY+k]=f["lifetime_cycle_attempts"][k*CYCLE_BINS+b];
+for(let k=0;k<N_GOAL_FAMILY;k++)S.cycleSuccesses[i*N_GOAL_FAMILY+k]=f["lifetime_cycle_successes"][k*CYCLE_BINS+b];
+for(let k=0;k<N_GOAL_FAMILY;k++)S.cycleSteps[i*N_GOAL_FAMILY+k]=f["lifetime_cycle_steps"][k*CYCLE_BINS+b];
+S.criterion[i]=f["control_criterion"];
+S.retireStep[i]=f["retire_step"];
+S.retireUnit[i]=f["retire_unit"];
+S.retireCount[i]=f["retire_count"];
+S.subtaskUnit.set(f["subtask_unit"],i*N_SKILL);
+S.subtaskBonus.set(f["subtask_bonus"],i*N_SKILL);
+S.dem.set(f["demons"],i*N_DEM);
+S.cum.set(f["cums"],i*N_DEM);
 }
+function observerFrame(S,id,i){return {id,i,
+runId:S.runId[i],
+agentEpoch:S.agentEpoch[i],
+origin:["fresh","resumed","cleared"][S.origin[i]],
+updateUs:S.updateUs[i],
+environmentUs:S.environmentUs[i],
+goalCount:S.goalCount[i],
+attemptCap:S.attemptCap[i],
+worldStep:S.worldStep[i],
+x:S.x[i],
+y:S.y[i],
+facing:S.facing[i],
+energy:S.energy[i],
+wood:S.wood[i],
+stone:S.stone[i],
+food:S.food[i],
+gold:S.gold[i],
+axe:!!S.axe[i],
+boat:!!S.boat[i],
+action:S.action[i],
+reward:S.reward[i],
+done:!!S.done[i],
+ev:S.ev[i],
+goal:S.goal[i],
+attempt:S.attempt[i],
+tier:S.tier[i],
+cycle:S.cycle[i],
+gkind:S.gkind[i],
+gitem:S.gitem[i],
+gx:S.gx[i],
+gy:S.gy[i],
+gn:S.gn[i],
+end:!!S.end[i],
+lifetimeStep:S.lifetimeStep[i],
+rewardRate:S.rewardRate[i],
+eps:S.eps[i],
+alpha:S.alpha[i],
+aCtl:S.aCtl[i],
+aDem:S.aDem[i],
+planningSteps:S.planningSteps[i],
+decisionSource:["primitive","exploration_start","exploration_continuation","option"][S.decisionSource[i]],
+skill:S.skill[i],
+explored:!!S.explored[i],
+metaAction:S.metaAction[i],
+optionStart:S.optionStart[i],
+optionEnd:S.optionEnd[i],
+optionEndDuration:S.optionEndDuration[i],
+optionEndReason:S.optionEndReason[i],
+optionElapsed:S.optionElapsed[i],
+lifeRewardSum:S.lifeRewardSum[i],
+lifeRewardCount:S.lifeRewardCount[i],
+lifeErrorSum:S.lifeErrorSum[i],
+lifeErrorCount:S.lifeErrorCount[i],
+criterion:S.criterion[i],
+retireStep:S.retireStep[i],
+retireUnit:S.retireUnit[i],
+retireCount:S.retireCount[i]};}
+function observerRing(CAP){const S=observerFrameStore(CAP),slot=id=>id%CAP;return {S,slot,store:(id,f)=>observerStore(S,slot(id),f),frame:id=>observerFrame(S,id,slot(id))};}
 const ObserverMath=Object.freeze({
 sum:(p,rows)=>{const a=rows.reduce((a,x)=>[(a[0]+x[0])],[(0e-1074)]);return a[0];},
 mean:(p,rows)=>{const a=rows.reduce((a,x)=>[(a[0]+x[0]),(a[1]+(10000000000000000000000000000000000000000000000000000e-52))],[(0e-1074),(0e-1074)]);return (((0e-1074)<a[1])?(a[0]/a[1]):NaN);},
@@ -176,431 +276,431 @@ enoughSamples:(...p)=>((p[0]<(30000000000000000000000000000000000000000000000000
 function observerGoalItemLabel(code,count=1){const labels=({0:["—","—"],1:["Wood","Wood"],2:["Stone","Stones"],3:["Food","Food"],4:["Gold","Gold"],11:["Axe","Axes"],12:["Boat","Boats"]})[code];return labels?.[count===1?0:1]??'—';}
 function observerGoalText(gkind,gitem,gx,gy,gn){switch(gkind){case 0:return '—';case 1:return 'Go to the gold target ('+gx+', '+gy+')';case 2:return 'Hold at least '+gn+' '+observerGoalItemLabel(gitem,gn).toLowerCase();case 3:return 'Own '+observerGoalItemLabel(gitem);case 4:return 'Continue for '+gn+' world steps in this attempt';default:return '—';}}
 function observerAdmission(f){
-if(!f||typeof f!=='object'||Array.isArray(f))return {why:'malformed',key:'frame'};
-if(!Object.hasOwn(f,"schema_version"))return {why:'missingField',key:"schema_version"};
-if(!(Number.isSafeInteger(f["schema_version"])&&f["schema_version"]>=0))return {why:'malformed',key:"schema_version"};
-if(!Object.hasOwn(f,"source_sha256"))return {why:'missingField',key:"source_sha256"};
-if(!(typeof f["source_sha256"]==='string'))return {why:'malformed',key:"source_sha256"};
-if(!Object.hasOwn(f,"build_sha256"))return {why:'missingField',key:"build_sha256"};
-if(!(typeof f["build_sha256"]==='string'))return {why:'malformed',key:"build_sha256"};
-if(!Object.hasOwn(f,"audit_digest"))return {why:'missingField',key:"audit_digest"};
-if(!(typeof f["audit_digest"]==='string'))return {why:'malformed',key:"audit_digest"};
-if(!Object.hasOwn(f,"run_id"))return {why:'missingField',key:"run_id"};
-if(!(typeof f["run_id"]==='string'))return {why:'malformed',key:"run_id"};
-if(!Object.hasOwn(f,"agent_epoch"))return {why:'missingField',key:"agent_epoch"};
-if(!(Number.isSafeInteger(f["agent_epoch"])&&f["agent_epoch"]>=0))return {why:'malformed',key:"agent_epoch"};
-if(!Object.hasOwn(f,"origin"))return {why:'missingField',key:"origin"};
-if(!(typeof f["origin"]==='string'))return {why:'malformed',key:"origin"};
-if(!Object.hasOwn(f,"timestamp_ms"))return {why:'missingField',key:"timestamp_ms"};
-if(!(Number.isSafeInteger(f["timestamp_ms"])&&f["timestamp_ms"]>=0))return {why:'malformed',key:"timestamp_ms"};
-if(!Object.hasOwn(f,"update_us"))return {why:'missingField',key:"update_us"};
-if(!(Number.isSafeInteger(f["update_us"])&&f["update_us"]>=0))return {why:'malformed',key:"update_us"};
-if(!Object.hasOwn(f,"environment_us"))return {why:'missingField',key:"environment_us"};
-if(!(Number.isSafeInteger(f["environment_us"])&&f["environment_us"]>=0))return {why:'malformed',key:"environment_us"};
-if(!Object.hasOwn(f,"process_uptime_ms"))return {why:'missingField',key:"process_uptime_ms"};
-if(!(Number.isSafeInteger(f["process_uptime_ms"])&&f["process_uptime_ms"]>=0))return {why:'malformed',key:"process_uptime_ms"};
-if(!Object.hasOwn(f,"process_started_ms"))return {why:'missingField',key:"process_started_ms"};
-if(!(Number.isSafeInteger(f["process_started_ms"])&&f["process_started_ms"]>=0))return {why:'malformed',key:"process_started_ms"};
-if(!Object.hasOwn(f,"core_rss_bytes"))return {why:'missingField',key:"core_rss_bytes"};
-if(!(f["core_rss_bytes"]===null||(Number.isSafeInteger(f["core_rss_bytes"])&&f["core_rss_bytes"]>=0)))return {why:'malformed',key:"core_rss_bytes"};
-if(!Object.hasOwn(f,"checkpoint_bytes"))return {why:'missingField',key:"checkpoint_bytes"};
-if(!(f["checkpoint_bytes"]===null||(Number.isSafeInteger(f["checkpoint_bytes"])&&f["checkpoint_bytes"]>=0)))return {why:'malformed',key:"checkpoint_bytes"};
-if(!Object.hasOwn(f,"checkpoint_write_us"))return {why:'missingField',key:"checkpoint_write_us"};
-if(!(f["checkpoint_write_us"]===null||(Number.isSafeInteger(f["checkpoint_write_us"])&&f["checkpoint_write_us"]>=0)))return {why:'malformed',key:"checkpoint_write_us"};
-if(!Object.hasOwn(f,"checkpoint_failures"))return {why:'missingField',key:"checkpoint_failures"};
-if(!(Number.isSafeInteger(f["checkpoint_failures"])&&f["checkpoint_failures"]>=0))return {why:'malformed',key:"checkpoint_failures"};
-if(!Object.hasOwn(f,"telemetry_refusals"))return {why:'missingField',key:"telemetry_refusals"};
-if(!(Number.isSafeInteger(f["telemetry_refusals"])&&f["telemetry_refusals"]>=0))return {why:'malformed',key:"telemetry_refusals"};
-if(!Object.hasOwn(f,"telemetry_drops"))return {why:'missingField',key:"telemetry_drops"};
-if(!(Number.isSafeInteger(f["telemetry_drops"])&&f["telemetry_drops"]>=0))return {why:'malformed',key:"telemetry_drops"};
-if(!Object.hasOwn(f,"goal_count"))return {why:'missingField',key:"goal_count"};
-if(!(Number.isSafeInteger(f["goal_count"])&&f["goal_count"]>=0))return {why:'malformed',key:"goal_count"};
-if(!Object.hasOwn(f,"attempt_cap"))return {why:'missingField',key:"attempt_cap"};
-if(!(Number.isSafeInteger(f["attempt_cap"])&&f["attempt_cap"]>=0))return {why:'malformed',key:"attempt_cap"};
-if(!Object.hasOwn(f,"step_cap"))return {why:'missingField',key:"step_cap"};
-if(!(Number.isSafeInteger(f["step_cap"])&&f["step_cap"]>=0))return {why:'malformed',key:"step_cap"};
-if(!Object.hasOwn(f,"cycle_cap"))return {why:'missingField',key:"cycle_cap"};
-if(!(Number.isSafeInteger(f["cycle_cap"])&&f["cycle_cap"]>=0))return {why:'malformed',key:"cycle_cap"};
-if(!Object.hasOwn(f,"goal_progress_invalid"))return {why:'missingField',key:"goal_progress_invalid"};
-if(!(typeof f["goal_progress_invalid"]==='boolean'))return {why:'malformed',key:"goal_progress_invalid"};
-if(!Object.hasOwn(f,"goal_progress_cycle"))return {why:'missingField',key:"goal_progress_cycle"};
-if(!(Number.isSafeInteger(f["goal_progress_cycle"])&&f["goal_progress_cycle"]>=0))return {why:'malformed',key:"goal_progress_cycle"};
-if(!Object.hasOwn(f,"goal_progress_resolved"))return {why:'missingField',key:"goal_progress_resolved"};
-if(!(Number.isSafeInteger(f["goal_progress_resolved"])&&f["goal_progress_resolved"]>=0))return {why:'malformed',key:"goal_progress_resolved"};
-if(!Object.hasOwn(f,"goal_progress_attempt"))return {why:'missingField',key:"goal_progress_attempt"};
-if(!(Number.isSafeInteger(f["goal_progress_attempt"])&&f["goal_progress_attempt"]>=0))return {why:'malformed',key:"goal_progress_attempt"};
-if(!Object.hasOwn(f,"goal_progress_achieved"))return {why:'missingField',key:"goal_progress_achieved"};
-if(!(Number.isSafeInteger(f["goal_progress_achieved"])&&f["goal_progress_achieved"]>=0))return {why:'malformed',key:"goal_progress_achieved"};
-if(!Object.hasOwn(f,"goal_progress_completed_cycle"))return {why:'missingField',key:"goal_progress_completed_cycle"};
-if(!(f["goal_progress_completed_cycle"]===null||(Number.isSafeInteger(f["goal_progress_completed_cycle"])&&f["goal_progress_completed_cycle"]>=0)))return {why:'malformed',key:"goal_progress_completed_cycle"};
-if(!Object.hasOwn(f,"goal_progress_completed_achieved"))return {why:'missingField',key:"goal_progress_completed_achieved"};
-if(!(f["goal_progress_completed_achieved"]===null||(Number.isSafeInteger(f["goal_progress_completed_achieved"])&&f["goal_progress_completed_achieved"]>=0)))return {why:'malformed',key:"goal_progress_completed_achieved"};
-if(!Object.hasOwn(f,"goal_progress_score"))return {why:'missingField',key:"goal_progress_score"};
-if(!(f["goal_progress_score"]===null||(Number.isSafeInteger(f["goal_progress_score"])&&f["goal_progress_score"]>=0)))return {why:'malformed',key:"goal_progress_score"};
-if(!Object.hasOwn(f,"curriculum_names"))return {why:'missingField',key:"curriculum_names"};
-if(!(Array.isArray(f["curriculum_names"])&&f["curriculum_names"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"curriculum_names"};
-if(!Object.hasOwn(f,"curriculum_failed_attempts"))return {why:'missingField',key:"curriculum_failed_attempts"};
-if(!(Array.isArray(f["curriculum_failed_attempts"])&&f["curriculum_failed_attempts"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"curriculum_failed_attempts"};
-if(!Object.hasOwn(f,"curriculum_success_steps"))return {why:'missingField',key:"curriculum_success_steps"};
-if(!(Array.isArray(f["curriculum_success_steps"])&&f["curriculum_success_steps"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"curriculum_success_steps"};
-if(!Object.hasOwn(f,"world_step"))return {why:'missingField',key:"world_step"};
-if(!(Number.isSafeInteger(f["world_step"])&&f["world_step"]>=0))return {why:'malformed',key:"world_step"};
-if(!Object.hasOwn(f,"seed"))return {why:'missingField',key:"seed"};
-if(!(Number.isSafeInteger(f["seed"])&&f["seed"]>=0))return {why:'malformed',key:"seed"};
-if(!Object.hasOwn(f,"side"))return {why:'missingField',key:"side"};
-if(!(Number.isSafeInteger(f["side"])&&f["side"]>=0))return {why:'malformed',key:"side"};
-if(!Object.hasOwn(f,"day_length"))return {why:'missingField',key:"day_length"};
-if(!(Number.isSafeInteger(f["day_length"])&&f["day_length"]>=0))return {why:'malformed',key:"day_length"};
-if(!Object.hasOwn(f,"regrow"))return {why:'missingField',key:"regrow"};
-if(!(Number.isSafeInteger(f["regrow"])&&f["regrow"]>=0))return {why:'malformed',key:"regrow"};
-if(!Object.hasOwn(f,"food_interval"))return {why:'missingField',key:"food_interval"};
-if(!(Number.isSafeInteger(f["food_interval"])&&f["food_interval"]>=0))return {why:'malformed',key:"food_interval"};
-if(!Object.hasOwn(f,"food_cap"))return {why:'missingField',key:"food_cap"};
-if(!(Number.isSafeInteger(f["food_cap"])&&f["food_cap"]>=0))return {why:'malformed',key:"food_cap"};
-if(!Object.hasOwn(f,"deer_cap"))return {why:'missingField',key:"deer_cap"};
-if(!(Number.isSafeInteger(f["deer_cap"])&&f["deer_cap"]>=0))return {why:'malformed',key:"deer_cap"};
-if(!Object.hasOwn(f,"x"))return {why:'missingField',key:"x"};
-if(!Number.isSafeInteger(f["x"]))return {why:'malformed',key:"x"};
-if(!Object.hasOwn(f,"y"))return {why:'missingField',key:"y"};
-if(!Number.isSafeInteger(f["y"]))return {why:'malformed',key:"y"};
-if(!Object.hasOwn(f,"facing"))return {why:'missingField',key:"facing"};
-if(!(Number.isSafeInteger(f["facing"])&&f["facing"]>=0))return {why:'malformed',key:"facing"};
-if(!Object.hasOwn(f,"energy"))return {why:'missingField',key:"energy"};
-if(!(Number.isSafeInteger(f["energy"])&&f["energy"]>=0))return {why:'malformed',key:"energy"};
-if(!Object.hasOwn(f,"wood"))return {why:'missingField',key:"wood"};
-if(!(Number.isSafeInteger(f["wood"])&&f["wood"]>=0))return {why:'malformed',key:"wood"};
-if(!Object.hasOwn(f,"stone"))return {why:'missingField',key:"stone"};
-if(!(Number.isSafeInteger(f["stone"])&&f["stone"]>=0))return {why:'malformed',key:"stone"};
-if(!Object.hasOwn(f,"food"))return {why:'missingField',key:"food"};
-if(!(Number.isSafeInteger(f["food"])&&f["food"]>=0))return {why:'malformed',key:"food"};
-if(!Object.hasOwn(f,"gold"))return {why:'missingField',key:"gold"};
-if(!(Number.isSafeInteger(f["gold"])&&f["gold"]>=0))return {why:'malformed',key:"gold"};
-if(!Object.hasOwn(f,"axe"))return {why:'missingField',key:"axe"};
-if(!(typeof f["axe"]==='boolean'))return {why:'malformed',key:"axe"};
-if(!Object.hasOwn(f,"boat"))return {why:'missingField',key:"boat"};
-if(!(typeof f["boat"]==='boolean'))return {why:'malformed',key:"boat"};
-if(!Object.hasOwn(f,"action"))return {why:'missingField',key:"action"};
-if(!(Number.isSafeInteger(f["action"])&&f["action"]>=0))return {why:'malformed',key:"action"};
-if(!Object.hasOwn(f,"reward"))return {why:'missingField',key:"reward"};
-if(!(f["reward"]===null||(typeof f["reward"]==='number'&&Number.isFinite(f["reward"])&&Number.isFinite(Math.fround(f["reward"])))))return {why:'malformed',key:"reward"};
-if(!Object.hasOwn(f,"done"))return {why:'missingField',key:"done"};
-if(!(typeof f["done"]==='boolean'))return {why:'malformed',key:"done"};
-if(!Object.hasOwn(f,"ev"))return {why:'missingField',key:"ev"};
-if(!(Number.isSafeInteger(f["ev"])&&f["ev"]>=0))return {why:'malformed',key:"ev"};
-if(!Object.hasOwn(f,"goal"))return {why:'missingField',key:"goal"};
-if(!(Number.isSafeInteger(f["goal"])&&f["goal"]>=0))return {why:'malformed',key:"goal"};
-if(!Object.hasOwn(f,"attempt"))return {why:'missingField',key:"attempt"};
-if(!(Number.isSafeInteger(f["attempt"])&&f["attempt"]>=0))return {why:'malformed',key:"attempt"};
-if(!Object.hasOwn(f,"tier"))return {why:'missingField',key:"tier"};
-if(!(Number.isSafeInteger(f["tier"])&&f["tier"]>=0))return {why:'malformed',key:"tier"};
-if(!Object.hasOwn(f,"cycle"))return {why:'missingField',key:"cycle"};
-if(!(Number.isSafeInteger(f["cycle"])&&f["cycle"]>=0))return {why:'malformed',key:"cycle"};
-if(!Object.hasOwn(f,"gkind"))return {why:'missingField',key:"gkind"};
-if(![0,1,2,3,4].includes(f["gkind"]))return {why:'malformed',key:"gkind"};
-if(!Object.hasOwn(f,"gitem"))return {why:'missingField',key:"gitem"};
-if(![0,1,2,3,4,11,12].includes(f["gitem"]))return {why:'malformed',key:"gitem"};
-if(!Object.hasOwn(f,"gx"))return {why:'missingField',key:"gx"};
-if(!Number.isSafeInteger(f["gx"]))return {why:'malformed',key:"gx"};
-if(!Object.hasOwn(f,"gy"))return {why:'missingField',key:"gy"};
-if(!Number.isSafeInteger(f["gy"]))return {why:'malformed',key:"gy"};
-if(!Object.hasOwn(f,"gn"))return {why:'missingField',key:"gn"};
-if(!(Number.isSafeInteger(f["gn"])&&f["gn"]>=0))return {why:'malformed',key:"gn"};
-if(!Object.hasOwn(f,"tiles"))return {why:'missingField',key:"tiles"};
-if(Array.isArray(f["tiles"])&&f["tiles"].length!==121)return {why:'cardinality',key:"tiles"};
-if(!(Array.isArray(f["tiles"])&&f["tiles"].length===121&&f["tiles"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"tiles"};
-if(!Object.hasOwn(f,"tile_extra"))return {why:'missingField',key:"tile_extra"};
-if(Array.isArray(f["tile_extra"])&&f["tile_extra"].length!==121)return {why:'cardinality',key:"tile_extra"};
-if(!(Array.isArray(f["tile_extra"])&&f["tile_extra"].length===121&&f["tile_extra"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"tile_extra"};
-if(!Object.hasOwn(f,"end"))return {why:'missingField',key:"end"};
-if(!(typeof f["end"]==='boolean'))return {why:'malformed',key:"end"};
-if(!Object.hasOwn(f,"lifetime_step"))return {why:'missingField',key:"lifetime_step"};
-if(!(Number.isSafeInteger(f["lifetime_step"])&&f["lifetime_step"]>=0))return {why:'malformed',key:"lifetime_step"};
-if(!Object.hasOwn(f,"reward_rate"))return {why:'missingField',key:"reward_rate"};
-if(!(f["reward_rate"]===null||(typeof f["reward_rate"]==='number'&&Number.isFinite(f["reward_rate"])&&Number.isFinite(Math.fround(f["reward_rate"])))))return {why:'malformed',key:"reward_rate"};
-if(!Object.hasOwn(f,"eps"))return {why:'missingField',key:"eps"};
-if(!(f["eps"]===null||(typeof f["eps"]==='number'&&Number.isFinite(f["eps"])&&Number.isFinite(Math.fround(f["eps"])))))return {why:'malformed',key:"eps"};
-if(!Object.hasOwn(f,"mean_alpha"))return {why:'missingField',key:"mean_alpha"};
-if(!(f["mean_alpha"]===null||(typeof f["mean_alpha"]==='number'&&Number.isFinite(f["mean_alpha"])&&Number.isFinite(Math.fround(f["mean_alpha"])))))return {why:'malformed',key:"mean_alpha"};
-if(!Object.hasOwn(f,"a_ctl"))return {why:'missingField',key:"a_ctl"};
-if(!(f["a_ctl"]===null||(typeof f["a_ctl"]==='number'&&Number.isFinite(f["a_ctl"])&&Number.isFinite(Math.fround(f["a_ctl"])))))return {why:'malformed',key:"a_ctl"};
-if(!Object.hasOwn(f,"a_dem"))return {why:'missingField',key:"a_dem"};
-if(!(f["a_dem"]===null||(typeof f["a_dem"]==='number'&&Number.isFinite(f["a_dem"])&&Number.isFinite(Math.fround(f["a_dem"])))))return {why:'malformed',key:"a_dem"};
-if(!Object.hasOwn(f,"alpha_control_all"))return {why:'missingField',key:"alpha_control_all"};
-if(Array.isArray(f["alpha_control_all"])&&f["alpha_control_all"].length!==9)return {why:'cardinality',key:"alpha_control_all"};
-if(!(Array.isArray(f["alpha_control_all"])&&f["alpha_control_all"].length===9&&f["alpha_control_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"alpha_control_all"};
-if(!Object.hasOwn(f,"alpha_meta_all"))return {why:'missingField',key:"alpha_meta_all"};
-if(Array.isArray(f["alpha_meta_all"])&&f["alpha_meta_all"].length!==4)return {why:'cardinality',key:"alpha_meta_all"};
-if(!(Array.isArray(f["alpha_meta_all"])&&f["alpha_meta_all"].length===4&&f["alpha_meta_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"alpha_meta_all"};
-if(!Object.hasOwn(f,"alpha_option_all"))return {why:'missingField',key:"alpha_option_all"};
-if(Array.isArray(f["alpha_option_all"])&&f["alpha_option_all"].length!==27)return {why:'cardinality',key:"alpha_option_all"};
-if(!(Array.isArray(f["alpha_option_all"])&&f["alpha_option_all"].length===27&&f["alpha_option_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"alpha_option_all"};
-if(!Object.hasOwn(f,"alpha_demon_all"))return {why:'missingField',key:"alpha_demon_all"};
-if(Array.isArray(f["alpha_demon_all"])&&f["alpha_demon_all"].length!==11)return {why:'cardinality',key:"alpha_demon_all"};
-if(!(Array.isArray(f["alpha_demon_all"])&&f["alpha_demon_all"].length===11&&f["alpha_demon_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"alpha_demon_all"};
-if(!Object.hasOwn(f,"alpha_models"))return {why:'missingField',key:"alpha_models"};
-if(Array.isArray(f["alpha_models"])&&f["alpha_models"].length!==9)return {why:'cardinality',key:"alpha_models"};
-if(!(Array.isArray(f["alpha_models"])&&f["alpha_models"].length===9&&f["alpha_models"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"alpha_models"};
-if(!Object.hasOwn(f,"credit_control"))return {why:'missingField',key:"credit_control"};
-if(Array.isArray(f["credit_control"])&&f["credit_control"].length!==9)return {why:'cardinality',key:"credit_control"};
-if(!(Array.isArray(f["credit_control"])&&f["credit_control"].length===9&&f["credit_control"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"credit_control"};
-if(!Object.hasOwn(f,"credit_meta"))return {why:'missingField',key:"credit_meta"};
-if(Array.isArray(f["credit_meta"])&&f["credit_meta"].length!==4)return {why:'cardinality',key:"credit_meta"};
-if(!(Array.isArray(f["credit_meta"])&&f["credit_meta"].length===4&&f["credit_meta"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"credit_meta"};
-if(!Object.hasOwn(f,"credit_options"))return {why:'missingField',key:"credit_options"};
-if(Array.isArray(f["credit_options"])&&f["credit_options"].length!==27)return {why:'cardinality',key:"credit_options"};
-if(!(Array.isArray(f["credit_options"])&&f["credit_options"].length===27&&f["credit_options"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"credit_options"};
-if(!Object.hasOwn(f,"credit_demons"))return {why:'missingField',key:"credit_demons"};
-if(Array.isArray(f["credit_demons"])&&f["credit_demons"].length!==11)return {why:'cardinality',key:"credit_demons"};
-if(!(Array.isArray(f["credit_demons"])&&f["credit_demons"].length===11&&f["credit_demons"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"credit_demons"};
-if(!Object.hasOwn(f,"credit_models"))return {why:'missingField',key:"credit_models"};
-if(Array.isArray(f["credit_models"])&&f["credit_models"].length!==9)return {why:'cardinality',key:"credit_models"};
-if(!(Array.isArray(f["credit_models"])&&f["credit_models"].length===9&&f["credit_models"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"credit_models"};
-if(!Object.hasOwn(f,"option_model_rewards"))return {why:'missingField',key:"option_model_rewards"};
-if(Array.isArray(f["option_model_rewards"])&&f["option_model_rewards"].length!==3)return {why:'cardinality',key:"option_model_rewards"};
-if(!(Array.isArray(f["option_model_rewards"])&&f["option_model_rewards"].length===3&&f["option_model_rewards"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"option_model_rewards"};
-if(!Object.hasOwn(f,"option_model_continuations"))return {why:'missingField',key:"option_model_continuations"};
-if(Array.isArray(f["option_model_continuations"])&&f["option_model_continuations"].length!==3)return {why:'cardinality',key:"option_model_continuations"};
-if(!(Array.isArray(f["option_model_continuations"])&&f["option_model_continuations"].length===3&&f["option_model_continuations"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"option_model_continuations"};
-if(!Object.hasOwn(f,"option_model_durations"))return {why:'missingField',key:"option_model_durations"};
-if(Array.isArray(f["option_model_durations"])&&f["option_model_durations"].length!==3)return {why:'cardinality',key:"option_model_durations"};
-if(!(Array.isArray(f["option_model_durations"])&&f["option_model_durations"].length===3&&f["option_model_durations"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"option_model_durations"};
-if(!Object.hasOwn(f,"planning_errors"))return {why:'missingField',key:"planning_errors"};
-if(Array.isArray(f["planning_errors"])&&f["planning_errors"].length!==3)return {why:'cardinality',key:"planning_errors"};
-if(!(Array.isArray(f["planning_errors"])&&f["planning_errors"].length===3&&f["planning_errors"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"planning_errors"};
-if(!Object.hasOwn(f,"planning_steps"))return {why:'missingField',key:"planning_steps"};
-if(!(Number.isSafeInteger(f["planning_steps"])&&f["planning_steps"]>=0))return {why:'malformed',key:"planning_steps"};
-if(!Object.hasOwn(f,"decision_source"))return {why:'missingField',key:"decision_source"};
-if(!(typeof f["decision_source"]==='string'))return {why:'malformed',key:"decision_source"};
-if(!Object.hasOwn(f,"skill"))return {why:'missingField',key:"skill"};
-if(!(Number.isSafeInteger(f["skill"])&&f["skill"]>=0))return {why:'malformed',key:"skill"};
-if(!Object.hasOwn(f,"explored"))return {why:'missingField',key:"explored"};
-if(!(typeof f["explored"]==='boolean'))return {why:'malformed',key:"explored"};
-if(!Object.hasOwn(f,"control"))return {why:'missingField',key:"control"};
-if(Array.isArray(f["control"])&&f["control"].length!==9)return {why:'cardinality',key:"control"};
-if(!(Array.isArray(f["control"])&&f["control"].length===9&&f["control"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"control"};
-if(!Object.hasOwn(f,"meta"))return {why:'missingField',key:"meta"};
-if(Array.isArray(f["meta"])&&f["meta"].length!==4)return {why:'cardinality',key:"meta"};
-if(!(Array.isArray(f["meta"])&&f["meta"].length===4&&f["meta"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"meta"};
-if(!Object.hasOwn(f,"action_probabilities"))return {why:'missingField',key:"action_probabilities"};
-if(Array.isArray(f["action_probabilities"])&&f["action_probabilities"].length!==9)return {why:'cardinality',key:"action_probabilities"};
-if(!(Array.isArray(f["action_probabilities"])&&f["action_probabilities"].length===9&&f["action_probabilities"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"action_probabilities"};
-if(!Object.hasOwn(f,"meta_probabilities"))return {why:'missingField',key:"meta_probabilities"};
-if(Array.isArray(f["meta_probabilities"])&&f["meta_probabilities"].length!==4)return {why:'cardinality',key:"meta_probabilities"};
-if(!(Array.isArray(f["meta_probabilities"])&&f["meta_probabilities"].length===4&&f["meta_probabilities"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"meta_probabilities"};
-if(!Object.hasOwn(f,"meta_action"))return {why:'missingField',key:"meta_action"};
-if(!(Number.isSafeInteger(f["meta_action"])&&f["meta_action"]>=0))return {why:'malformed',key:"meta_action"};
-if(!Object.hasOwn(f,"option_start"))return {why:'missingField',key:"option_start"};
-if(!(Number.isSafeInteger(f["option_start"])&&f["option_start"]>=0))return {why:'malformed',key:"option_start"};
-if(!Object.hasOwn(f,"option_end_skill"))return {why:'missingField',key:"option_end_skill"};
-if(!(Number.isSafeInteger(f["option_end_skill"])&&f["option_end_skill"]>=0))return {why:'malformed',key:"option_end_skill"};
-if(!Object.hasOwn(f,"option_end_duration"))return {why:'missingField',key:"option_end_duration"};
-if(!(Number.isSafeInteger(f["option_end_duration"])&&f["option_end_duration"]>=0))return {why:'malformed',key:"option_end_duration"};
-if(!Object.hasOwn(f,"option_end_reason"))return {why:'missingField',key:"option_end_reason"};
-if(!(Number.isSafeInteger(f["option_end_reason"])&&f["option_end_reason"]>=0))return {why:'malformed',key:"option_end_reason"};
-if(!Object.hasOwn(f,"option_elapsed"))return {why:'missingField',key:"option_elapsed"};
-if(!(Number.isSafeInteger(f["option_elapsed"])&&f["option_elapsed"]>=0))return {why:'malformed',key:"option_elapsed"};
-if(!Object.hasOwn(f,"lifetime_reward_sum"))return {why:'missingField',key:"lifetime_reward_sum"};
-if(!(f["lifetime_reward_sum"]===null||(typeof f["lifetime_reward_sum"]==='number'&&Number.isFinite(f["lifetime_reward_sum"]))))return {why:'malformed',key:"lifetime_reward_sum"};
-if(!Object.hasOwn(f,"lifetime_reward_count"))return {why:'missingField',key:"lifetime_reward_count"};
-if(!(Number.isSafeInteger(f["lifetime_reward_count"])&&f["lifetime_reward_count"]>=0))return {why:'malformed',key:"lifetime_reward_count"};
-if(!Object.hasOwn(f,"lifetime_reward_family_sum"))return {why:'missingField',key:"lifetime_reward_family_sum"};
-if(Array.isArray(f["lifetime_reward_family_sum"])&&f["lifetime_reward_family_sum"].length!==4)return {why:'cardinality',key:"lifetime_reward_family_sum"};
-if(!(Array.isArray(f["lifetime_reward_family_sum"])&&f["lifetime_reward_family_sum"].length===4&&f["lifetime_reward_family_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:'malformed',key:"lifetime_reward_family_sum"};
-if(!Object.hasOwn(f,"lifetime_reward_family_count"))return {why:'missingField',key:"lifetime_reward_family_count"};
-if(Array.isArray(f["lifetime_reward_family_count"])&&f["lifetime_reward_family_count"].length!==4)return {why:'cardinality',key:"lifetime_reward_family_count"};
-if(!(Array.isArray(f["lifetime_reward_family_count"])&&f["lifetime_reward_family_count"].length===4&&f["lifetime_reward_family_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_reward_family_count"};
-if(!Object.hasOwn(f,"lifetime_reward_history_sum"))return {why:'missingField',key:"lifetime_reward_history_sum"};
-if(Array.isArray(f["lifetime_reward_history_sum"])&&f["lifetime_reward_history_sum"].length!==64)return {why:'cardinality',key:"lifetime_reward_history_sum"};
-if(!(Array.isArray(f["lifetime_reward_history_sum"])&&f["lifetime_reward_history_sum"].length===64&&f["lifetime_reward_history_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:'malformed',key:"lifetime_reward_history_sum"};
-if(!Object.hasOwn(f,"lifetime_reward_history_count"))return {why:'missingField',key:"lifetime_reward_history_count"};
-if(Array.isArray(f["lifetime_reward_history_count"])&&f["lifetime_reward_history_count"].length!==64)return {why:'cardinality',key:"lifetime_reward_history_count"};
-if(!(Array.isArray(f["lifetime_reward_history_count"])&&f["lifetime_reward_history_count"].length===64&&f["lifetime_reward_history_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_reward_history_count"};
-if(!Object.hasOwn(f,"lifetime_error_history_sum"))return {why:'missingField',key:"lifetime_error_history_sum"};
-if(Array.isArray(f["lifetime_error_history_sum"])&&f["lifetime_error_history_sum"].length!==64)return {why:'cardinality',key:"lifetime_error_history_sum"};
-if(!(Array.isArray(f["lifetime_error_history_sum"])&&f["lifetime_error_history_sum"].length===64&&f["lifetime_error_history_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:'malformed',key:"lifetime_error_history_sum"};
-if(!Object.hasOwn(f,"lifetime_error_history_count"))return {why:'missingField',key:"lifetime_error_history_count"};
-if(Array.isArray(f["lifetime_error_history_count"])&&f["lifetime_error_history_count"].length!==64)return {why:'cardinality',key:"lifetime_error_history_count"};
-if(!(Array.isArray(f["lifetime_error_history_count"])&&f["lifetime_error_history_count"].length===64&&f["lifetime_error_history_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_error_history_count"};
-if(!Object.hasOwn(f,"lifetime_error_sum"))return {why:'missingField',key:"lifetime_error_sum"};
-if(Array.isArray(f["lifetime_error_sum"])&&f["lifetime_error_sum"].length!==11)return {why:'cardinality',key:"lifetime_error_sum"};
-if(!(Array.isArray(f["lifetime_error_sum"])&&f["lifetime_error_sum"].length===11&&f["lifetime_error_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:'malformed',key:"lifetime_error_sum"};
-if(!Object.hasOwn(f,"lifetime_error_count"))return {why:'missingField',key:"lifetime_error_count"};
-if(Array.isArray(f["lifetime_error_count"])&&f["lifetime_error_count"].length!==11)return {why:'cardinality',key:"lifetime_error_count"};
-if(!(Array.isArray(f["lifetime_error_count"])&&f["lifetime_error_count"].length===11&&f["lifetime_error_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_error_count"};
-if(!Object.hasOwn(f,"settled_return"))return {why:'missingField',key:"settled_return"};
-if(Array.isArray(f["settled_return"])&&f["settled_return"].length!==11)return {why:'cardinality',key:"settled_return"};
-if(!(Array.isArray(f["settled_return"])&&f["settled_return"].length===11&&f["settled_return"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"settled_return"};
-if(!Object.hasOwn(f,"settled_error"))return {why:'missingField',key:"settled_error"};
-if(Array.isArray(f["settled_error"])&&f["settled_error"].length!==11)return {why:'cardinality',key:"settled_error"};
-if(!(Array.isArray(f["settled_error"])&&f["settled_error"].length===11&&f["settled_error"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"settled_error"};
-if(!Object.hasOwn(f,"lifetime_option_started"))return {why:'missingField',key:"lifetime_option_started"};
-if(Array.isArray(f["lifetime_option_started"])&&f["lifetime_option_started"].length!==3)return {why:'cardinality',key:"lifetime_option_started"};
-if(!(Array.isArray(f["lifetime_option_started"])&&f["lifetime_option_started"].length===3&&f["lifetime_option_started"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_option_started"};
-if(!Object.hasOwn(f,"lifetime_option_completed"))return {why:'missingField',key:"lifetime_option_completed"};
-if(Array.isArray(f["lifetime_option_completed"])&&f["lifetime_option_completed"].length!==3)return {why:'cardinality',key:"lifetime_option_completed"};
-if(!(Array.isArray(f["lifetime_option_completed"])&&f["lifetime_option_completed"].length===3&&f["lifetime_option_completed"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_option_completed"};
-if(!Object.hasOwn(f,"lifetime_option_duration"))return {why:'missingField',key:"lifetime_option_duration"};
-if(Array.isArray(f["lifetime_option_duration"])&&f["lifetime_option_duration"].length!==3)return {why:'cardinality',key:"lifetime_option_duration"};
-if(!(Array.isArray(f["lifetime_option_duration"])&&f["lifetime_option_duration"].length===3&&f["lifetime_option_duration"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_option_duration"};
-if(!Object.hasOwn(f,"lifetime_option_end_reasons"))return {why:'missingField',key:"lifetime_option_end_reasons"};
-if(Array.isArray(f["lifetime_option_end_reasons"])&&f["lifetime_option_end_reasons"].length!==9)return {why:'cardinality',key:"lifetime_option_end_reasons"};
-if(!(Array.isArray(f["lifetime_option_end_reasons"])&&f["lifetime_option_end_reasons"].length===9&&f["lifetime_option_end_reasons"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_option_end_reasons"};
-if(!Object.hasOwn(f,"lifetime_goal_attempts"))return {why:'missingField',key:"lifetime_goal_attempts"};
-if(Array.isArray(f["lifetime_goal_attempts"])&&f["lifetime_goal_attempts"].length!==4)return {why:'cardinality',key:"lifetime_goal_attempts"};
-if(!(Array.isArray(f["lifetime_goal_attempts"])&&f["lifetime_goal_attempts"].length===4&&f["lifetime_goal_attempts"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_goal_attempts"};
-if(!Object.hasOwn(f,"lifetime_goal_successes"))return {why:'missingField',key:"lifetime_goal_successes"};
-if(Array.isArray(f["lifetime_goal_successes"])&&f["lifetime_goal_successes"].length!==4)return {why:'cardinality',key:"lifetime_goal_successes"};
-if(!(Array.isArray(f["lifetime_goal_successes"])&&f["lifetime_goal_successes"].length===4&&f["lifetime_goal_successes"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_goal_successes"};
-if(!Object.hasOwn(f,"lifetime_goal_steps"))return {why:'missingField',key:"lifetime_goal_steps"};
-if(Array.isArray(f["lifetime_goal_steps"])&&f["lifetime_goal_steps"].length!==4)return {why:'cardinality',key:"lifetime_goal_steps"};
-if(!(Array.isArray(f["lifetime_goal_steps"])&&f["lifetime_goal_steps"].length===4&&f["lifetime_goal_steps"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_goal_steps"};
-if(!Object.hasOwn(f,"lifetime_cycle_attempts"))return {why:'missingField',key:"lifetime_cycle_attempts"};
-if(Array.isArray(f["lifetime_cycle_attempts"])&&f["lifetime_cycle_attempts"].length!==64)return {why:'cardinality',key:"lifetime_cycle_attempts"};
-if(!(Array.isArray(f["lifetime_cycle_attempts"])&&f["lifetime_cycle_attempts"].length===64&&f["lifetime_cycle_attempts"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_cycle_attempts"};
-if(!Object.hasOwn(f,"lifetime_cycle_successes"))return {why:'missingField',key:"lifetime_cycle_successes"};
-if(Array.isArray(f["lifetime_cycle_successes"])&&f["lifetime_cycle_successes"].length!==64)return {why:'cardinality',key:"lifetime_cycle_successes"};
-if(!(Array.isArray(f["lifetime_cycle_successes"])&&f["lifetime_cycle_successes"].length===64&&f["lifetime_cycle_successes"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_cycle_successes"};
-if(!Object.hasOwn(f,"lifetime_cycle_steps"))return {why:'missingField',key:"lifetime_cycle_steps"};
-if(Array.isArray(f["lifetime_cycle_steps"])&&f["lifetime_cycle_steps"].length!==64)return {why:'cardinality',key:"lifetime_cycle_steps"};
-if(!(Array.isArray(f["lifetime_cycle_steps"])&&f["lifetime_cycle_steps"].length===64&&f["lifetime_cycle_steps"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"lifetime_cycle_steps"};
-if(!Object.hasOwn(f,"agreement_version"))return {why:'missingField',key:"agreement_version"};
-if(!(Number.isSafeInteger(f["agreement_version"])&&f["agreement_version"]>=0))return {why:'malformed',key:"agreement_version"};
-if(!Object.hasOwn(f,"agreement_scale"))return {why:'missingField',key:"agreement_scale"};
-if(!(Number.isSafeInteger(f["agreement_scale"])&&f["agreement_scale"]>=0))return {why:'malformed',key:"agreement_scale"};
-if(!Object.hasOwn(f,"agreement_started"))return {why:'missingField',key:"agreement_started"};
-if(!(f["agreement_started"]===null||(Number.isSafeInteger(f["agreement_started"])&&f["agreement_started"]>=0)))return {why:'malformed',key:"agreement_started"};
-if(!Object.hasOwn(f,"agreement_stopped"))return {why:'missingField',key:"agreement_stopped"};
-if(!(typeof f["agreement_stopped"]==='boolean'))return {why:'malformed',key:"agreement_stopped"};
-if(!Object.hasOwn(f,"agreement_score"))return {why:'missingField',key:"agreement_score"};
-if(!(f["agreement_score"]===null||(Number.isSafeInteger(f["agreement_score"])&&f["agreement_score"]>=0)))return {why:'malformed',key:"agreement_score"};
-if(!Object.hasOwn(f,"agreement_text"))return {why:'missingField',key:"agreement_text"};
-if(!(f["agreement_text"]===null||(typeof f["agreement_text"]==='string')))return {why:'malformed',key:"agreement_text"};
-if(!Object.hasOwn(f,"agreement_error"))return {why:'missingField',key:"agreement_error"};
-if(!(f["agreement_error"]===null||(Number.isSafeInteger(f["agreement_error"])&&f["agreement_error"]>=0)))return {why:'malformed',key:"agreement_error"};
-if(!Object.hasOwn(f,"agreement_channel_score"))return {why:'missingField',key:"agreement_channel_score"};
-if(Array.isArray(f["agreement_channel_score"])&&f["agreement_channel_score"].length!==11)return {why:'cardinality',key:"agreement_channel_score"};
-if(!(Array.isArray(f["agreement_channel_score"])&&f["agreement_channel_score"].length===11&&f["agreement_channel_score"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_channel_score"};
-if(!Object.hasOwn(f,"agreement_channel_text"))return {why:'missingField',key:"agreement_channel_text"};
-if(Array.isArray(f["agreement_channel_text"])&&f["agreement_channel_text"].length!==11)return {why:'cardinality',key:"agreement_channel_text"};
-if(!(Array.isArray(f["agreement_channel_text"])&&f["agreement_channel_text"].length===11&&f["agreement_channel_text"].every(v=>(v===null||(typeof v==='string')))))return {why:'malformed',key:"agreement_channel_text"};
-if(!Object.hasOwn(f,"agreement_channel_error"))return {why:'missingField',key:"agreement_channel_error"};
-if(Array.isArray(f["agreement_channel_error"])&&f["agreement_channel_error"].length!==11)return {why:'cardinality',key:"agreement_channel_error"};
-if(!(Array.isArray(f["agreement_channel_error"])&&f["agreement_channel_error"].length===11&&f["agreement_channel_error"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_channel_error"};
-if(!Object.hasOwn(f,"agreement_count"))return {why:'missingField',key:"agreement_count"};
-if(Array.isArray(f["agreement_count"])&&f["agreement_count"].length!==11)return {why:'cardinality',key:"agreement_count"};
-if(!(Array.isArray(f["agreement_count"])&&f["agreement_count"].length===11&&f["agreement_count"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"agreement_count"};
-if(!Object.hasOwn(f,"agreement_pending"))return {why:'missingField',key:"agreement_pending"};
-if(Array.isArray(f["agreement_pending"])&&f["agreement_pending"].length!==11)return {why:'cardinality',key:"agreement_pending"};
-if(!(Array.isArray(f["agreement_pending"])&&f["agreement_pending"].length===11&&f["agreement_pending"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"agreement_pending"};
-if(!Object.hasOwn(f,"agreement_censored"))return {why:'missingField',key:"agreement_censored"};
-if(Array.isArray(f["agreement_censored"])&&f["agreement_censored"].length!==11)return {why:'cardinality',key:"agreement_censored"};
-if(!(Array.isArray(f["agreement_censored"])&&f["agreement_censored"].length===11&&f["agreement_censored"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"agreement_censored"};
-if(!Object.hasOwn(f,"agreement_status"))return {why:'missingField',key:"agreement_status"};
-if(Array.isArray(f["agreement_status"])&&f["agreement_status"].length!==11)return {why:'cardinality',key:"agreement_status"};
-if(!(Array.isArray(f["agreement_status"])&&f["agreement_status"].length===11&&f["agreement_status"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"agreement_status"};
-if(!Object.hasOwn(f,"agreement_horizon"))return {why:'missingField',key:"agreement_horizon"};
-if(Array.isArray(f["agreement_horizon"])&&f["agreement_horizon"].length!==11)return {why:'cardinality',key:"agreement_horizon"};
-if(!(Array.isArray(f["agreement_horizon"])&&f["agreement_horizon"].length===11&&f["agreement_horizon"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:'malformed',key:"agreement_horizon"};
-if(!Object.hasOwn(f,"agreement_start_first"))return {why:'missingField',key:"agreement_start_first"};
-if(Array.isArray(f["agreement_start_first"])&&f["agreement_start_first"].length!==11)return {why:'cardinality',key:"agreement_start_first"};
-if(!(Array.isArray(f["agreement_start_first"])&&f["agreement_start_first"].length===11&&f["agreement_start_first"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_start_first"};
-if(!Object.hasOwn(f,"agreement_start_last"))return {why:'missingField',key:"agreement_start_last"};
-if(Array.isArray(f["agreement_start_last"])&&f["agreement_start_last"].length!==11)return {why:'cardinality',key:"agreement_start_last"};
-if(!(Array.isArray(f["agreement_start_last"])&&f["agreement_start_last"].length===11&&f["agreement_start_last"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_start_last"};
-if(!Object.hasOwn(f,"agreement_settlement_first"))return {why:'missingField',key:"agreement_settlement_first"};
-if(Array.isArray(f["agreement_settlement_first"])&&f["agreement_settlement_first"].length!==11)return {why:'cardinality',key:"agreement_settlement_first"};
-if(!(Array.isArray(f["agreement_settlement_first"])&&f["agreement_settlement_first"].length===11&&f["agreement_settlement_first"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_settlement_first"};
-if(!Object.hasOwn(f,"agreement_settlement_last"))return {why:'missingField',key:"agreement_settlement_last"};
-if(Array.isArray(f["agreement_settlement_last"])&&f["agreement_settlement_last"].length!==11)return {why:'cardinality',key:"agreement_settlement_last"};
-if(!(Array.isArray(f["agreement_settlement_last"])&&f["agreement_settlement_last"].length===11&&f["agreement_settlement_last"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_settlement_last"};
-if(!Object.hasOwn(f,"agreement_tail"))return {why:'missingField',key:"agreement_tail"};
-if(Array.isArray(f["agreement_tail"])&&f["agreement_tail"].length!==11)return {why:'cardinality',key:"agreement_tail"};
-if(!(Array.isArray(f["agreement_tail"])&&f["agreement_tail"].length===11&&f["agreement_tail"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_tail"};
-if(!Object.hasOwn(f,"agreement_rounding"))return {why:'missingField',key:"agreement_rounding"};
-if(Array.isArray(f["agreement_rounding"])&&f["agreement_rounding"].length!==11)return {why:'cardinality',key:"agreement_rounding"};
-if(!(Array.isArray(f["agreement_rounding"])&&f["agreement_rounding"].length===11&&f["agreement_rounding"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_rounding"};
-if(!Object.hasOwn(f,"agreement_history_clock"))return {why:'missingField',key:"agreement_history_clock"};
-if(Array.isArray(f["agreement_history_clock"])&&f["agreement_history_clock"].length!==64)return {why:'cardinality',key:"agreement_history_clock"};
-if(!(Array.isArray(f["agreement_history_clock"])&&f["agreement_history_clock"].length===64&&f["agreement_history_clock"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_history_clock"};
-if(!Object.hasOwn(f,"agreement_history_score"))return {why:'missingField',key:"agreement_history_score"};
-if(Array.isArray(f["agreement_history_score"])&&f["agreement_history_score"].length!==64)return {why:'cardinality',key:"agreement_history_score"};
-if(!(Array.isArray(f["agreement_history_score"])&&f["agreement_history_score"].length===64&&f["agreement_history_score"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"agreement_history_score"};
-if(!Object.hasOwn(f,"checkpoint_format"))return {why:'missingField',key:"checkpoint_format"};
-if(!(Number.isSafeInteger(f["checkpoint_format"])&&f["checkpoint_format"]>=0))return {why:'malformed',key:"checkpoint_format"};
-if(!Object.hasOwn(f,"control_criterion"))return {why:'missingField',key:"control_criterion"};
-if(!(Number.isSafeInteger(f["control_criterion"])&&f["control_criterion"]>=0))return {why:'malformed',key:"control_criterion"};
-if(!Object.hasOwn(f,"weight_space"))return {why:'missingField',key:"weight_space"};
-if(!(Number.isSafeInteger(f["weight_space"])&&f["weight_space"]>=0))return {why:'malformed',key:"weight_space"};
-if(!Object.hasOwn(f,"primitive_count"))return {why:'missingField',key:"primitive_count"};
-if(!(Number.isSafeInteger(f["primitive_count"])&&f["primitive_count"]>=0))return {why:'malformed',key:"primitive_count"};
-if(!Object.hasOwn(f,"meta_count"))return {why:'missingField',key:"meta_count"};
-if(!(Number.isSafeInteger(f["meta_count"])&&f["meta_count"]>=0))return {why:'malformed',key:"meta_count"};
-if(!Object.hasOwn(f,"skill_count"))return {why:'missingField',key:"skill_count"};
-if(!(Number.isSafeInteger(f["skill_count"])&&f["skill_count"]>=0))return {why:'malformed',key:"skill_count"};
-if(!Object.hasOwn(f,"option_end_count"))return {why:'missingField',key:"option_end_count"};
-if(!(Number.isSafeInteger(f["option_end_count"])&&f["option_end_count"]>=0))return {why:'malformed',key:"option_end_count"};
-if(!Object.hasOwn(f,"demon_count"))return {why:'missingField',key:"demon_count"};
-if(!(Number.isSafeInteger(f["demon_count"])&&f["demon_count"]>=0))return {why:'malformed',key:"demon_count"};
-if(!Object.hasOwn(f,"learner_count"))return {why:'missingField',key:"learner_count"};
-if(!(Number.isSafeInteger(f["learner_count"])&&f["learner_count"]>=0))return {why:'malformed',key:"learner_count"};
-if(!Object.hasOwn(f,"history_bins"))return {why:'missingField',key:"history_bins"};
-if(!(Number.isSafeInteger(f["history_bins"])&&f["history_bins"]>=0))return {why:'malformed',key:"history_bins"};
-if(!Object.hasOwn(f,"cycle_bins"))return {why:'missingField',key:"cycle_bins"};
-if(!(Number.isSafeInteger(f["cycle_bins"])&&f["cycle_bins"]>=0))return {why:'malformed',key:"cycle_bins"};
-if(!Object.hasOwn(f,"exact_cycles"))return {why:'missingField',key:"exact_cycles"};
-if(!(Number.isSafeInteger(f["exact_cycles"])&&f["exact_cycles"]>=0))return {why:'malformed',key:"exact_cycles"};
-if(!Object.hasOwn(f,"settle_stride"))return {why:'missingField',key:"settle_stride"};
-if(!(Number.isSafeInteger(f["settle_stride"])&&f["settle_stride"]>=0))return {why:'malformed',key:"settle_stride"};
-if(!Object.hasOwn(f,"settle_remaining"))return {why:'missingField',key:"settle_remaining"};
-if(!(f["settle_remaining"]===null||(typeof f["settle_remaining"]==='number'&&Number.isFinite(f["settle_remaining"])&&Number.isFinite(Math.fround(f["settle_remaining"])))))return {why:'malformed',key:"settle_remaining"};
-if(!Object.hasOwn(f,"n_tilings"))return {why:'missingField',key:"n_tilings"};
-if(!(Number.isSafeInteger(f["n_tilings"])&&f["n_tilings"]>=0))return {why:'malformed',key:"n_tilings"};
-if(!Object.hasOwn(f,"imprint_units"))return {why:'missingField',key:"imprint_units"};
-if(!(Number.isSafeInteger(f["imprint_units"])&&f["imprint_units"]>=0))return {why:'malformed',key:"imprint_units"};
-if(!Object.hasOwn(f,"retire_step"))return {why:'missingField',key:"retire_step"};
-if(!(f["retire_step"]===null||(Number.isSafeInteger(f["retire_step"])&&f["retire_step"]>=0)))return {why:'malformed',key:"retire_step"};
-if(!Object.hasOwn(f,"retire_unit"))return {why:'missingField',key:"retire_unit"};
-if(!(f["retire_unit"]===null||(Number.isSafeInteger(f["retire_unit"])&&f["retire_unit"]>=0)))return {why:'malformed',key:"retire_unit"};
-if(!Object.hasOwn(f,"retire_count"))return {why:'missingField',key:"retire_count"};
-if(!(Number.isSafeInteger(f["retire_count"])&&f["retire_count"]>=0))return {why:'malformed',key:"retire_count"};
-if(!Object.hasOwn(f,"subtask_policy"))return {why:'missingField',key:"subtask_policy"};
-if(!(typeof f["subtask_policy"]==='string'))return {why:'malformed',key:"subtask_policy"};
-if(!Object.hasOwn(f,"subtask_unit"))return {why:'missingField',key:"subtask_unit"};
-if(Array.isArray(f["subtask_unit"])&&f["subtask_unit"].length!==3)return {why:'cardinality',key:"subtask_unit"};
-if(!(Array.isArray(f["subtask_unit"])&&f["subtask_unit"].length===3&&f["subtask_unit"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:'malformed',key:"subtask_unit"};
-if(!Object.hasOwn(f,"subtask_bonus"))return {why:'missingField',key:"subtask_bonus"};
-if(Array.isArray(f["subtask_bonus"])&&f["subtask_bonus"].length!==3)return {why:'cardinality',key:"subtask_bonus"};
-if(!(Array.isArray(f["subtask_bonus"])&&f["subtask_bonus"].length===3&&f["subtask_bonus"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"subtask_bonus"};
-if(!Object.hasOwn(f,"action_names"))return {why:'missingField',key:"action_names"};
-if(Array.isArray(f["action_names"])&&f["action_names"].length!==9)return {why:'cardinality',key:"action_names"};
-if(!(Array.isArray(f["action_names"])&&f["action_names"].length===9&&f["action_names"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"action_names"};
-if(!Object.hasOwn(f,"meta_names"))return {why:'missingField',key:"meta_names"};
-if(Array.isArray(f["meta_names"])&&f["meta_names"].length!==4)return {why:'cardinality',key:"meta_names"};
-if(!(Array.isArray(f["meta_names"])&&f["meta_names"].length===4&&f["meta_names"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"meta_names"};
-if(!Object.hasOwn(f,"skill_names"))return {why:'missingField',key:"skill_names"};
-if(Array.isArray(f["skill_names"])&&f["skill_names"].length!==3)return {why:'cardinality',key:"skill_names"};
-if(!(Array.isArray(f["skill_names"])&&f["skill_names"].length===3&&f["skill_names"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"skill_names"};
-if(!Object.hasOwn(f,"goal_family_names"))return {why:'missingField',key:"goal_family_names"};
-if(Array.isArray(f["goal_family_names"])&&f["goal_family_names"].length!==4)return {why:'cardinality',key:"goal_family_names"};
-if(!(Array.isArray(f["goal_family_names"])&&f["goal_family_names"].length===4&&f["goal_family_names"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"goal_family_names"};
-if(!Object.hasOwn(f,"demons"))return {why:'missingField',key:"demons"};
-if(Array.isArray(f["demons"])&&f["demons"].length!==11)return {why:'cardinality',key:"demons"};
-if(!(Array.isArray(f["demons"])&&f["demons"].length===11&&f["demons"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"demons"};
-if(!Object.hasOwn(f,"cums"))return {why:'missingField',key:"cums"};
-if(Array.isArray(f["cums"])&&f["cums"].length!==11)return {why:'cardinality',key:"cums"};
-if(!(Array.isArray(f["cums"])&&f["cums"].length===11&&f["cums"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"cums"};
-if(!Object.hasOwn(f,"demon_names"))return {why:'missingField',key:"demon_names"};
-if(Array.isArray(f["demon_names"])&&f["demon_names"].length!==11)return {why:'cardinality',key:"demon_names"};
-if(!(Array.isArray(f["demon_names"])&&f["demon_names"].length===11&&f["demon_names"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"demon_names"};
-if(!Object.hasOwn(f,"demon_target_policy"))return {why:'missingField',key:"demon_target_policy"};
-if(Array.isArray(f["demon_target_policy"])&&f["demon_target_policy"].length!==11)return {why:'cardinality',key:"demon_target_policy"};
-if(!(Array.isArray(f["demon_target_policy"])&&f["demon_target_policy"].length===11&&f["demon_target_policy"].every(v=>(typeof v==='string'))))return {why:'malformed',key:"demon_target_policy"};
-if(!Object.hasOwn(f,"demon_gamma"))return {why:'missingField',key:"demon_gamma"};
-if(Array.isArray(f["demon_gamma"])&&f["demon_gamma"].length!==11)return {why:'cardinality',key:"demon_gamma"};
-if(!(Array.isArray(f["demon_gamma"])&&f["demon_gamma"].length===11&&f["demon_gamma"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"demon_gamma"};
-if(!Object.hasOwn(f,"demon_horizon"))return {why:'missingField',key:"demon_horizon"};
-if(Array.isArray(f["demon_horizon"])&&f["demon_horizon"].length!==11)return {why:'cardinality',key:"demon_horizon"};
-if(!(Array.isArray(f["demon_horizon"])&&f["demon_horizon"].length===11&&f["demon_horizon"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:'malformed',key:"demon_horizon"};
+if(!f||typeof f!=='object'||Array.isArray(f))return {why:"malformed",key:"frame"};
+if(!Object.hasOwn(f,"schema_version"))return {why:"missingField",key:"schema_version"};
+if(!(Number.isSafeInteger(f["schema_version"])&&f["schema_version"]>=0))return {why:"malformed",key:"schema_version"};
+if(!Object.hasOwn(f,"source_sha256"))return {why:"missingField",key:"source_sha256"};
+if(!(typeof f["source_sha256"]==='string'))return {why:"malformed",key:"source_sha256"};
+if(!Object.hasOwn(f,"build_sha256"))return {why:"missingField",key:"build_sha256"};
+if(!(typeof f["build_sha256"]==='string'))return {why:"malformed",key:"build_sha256"};
+if(!Object.hasOwn(f,"audit_digest"))return {why:"missingField",key:"audit_digest"};
+if(!(typeof f["audit_digest"]==='string'))return {why:"malformed",key:"audit_digest"};
+if(!Object.hasOwn(f,"run_id"))return {why:"missingField",key:"run_id"};
+if(!(typeof f["run_id"]==='string'))return {why:"malformed",key:"run_id"};
+if(!Object.hasOwn(f,"agent_epoch"))return {why:"missingField",key:"agent_epoch"};
+if(!(Number.isSafeInteger(f["agent_epoch"])&&f["agent_epoch"]>=0))return {why:"malformed",key:"agent_epoch"};
+if(!Object.hasOwn(f,"origin"))return {why:"missingField",key:"origin"};
+if(!(typeof f["origin"]==='string'))return {why:"malformed",key:"origin"};
+if(!Object.hasOwn(f,"timestamp_ms"))return {why:"missingField",key:"timestamp_ms"};
+if(!(Number.isSafeInteger(f["timestamp_ms"])&&f["timestamp_ms"]>=0))return {why:"malformed",key:"timestamp_ms"};
+if(!Object.hasOwn(f,"update_us"))return {why:"missingField",key:"update_us"};
+if(!(Number.isSafeInteger(f["update_us"])&&f["update_us"]>=0))return {why:"malformed",key:"update_us"};
+if(!Object.hasOwn(f,"environment_us"))return {why:"missingField",key:"environment_us"};
+if(!(Number.isSafeInteger(f["environment_us"])&&f["environment_us"]>=0))return {why:"malformed",key:"environment_us"};
+if(!Object.hasOwn(f,"process_uptime_ms"))return {why:"missingField",key:"process_uptime_ms"};
+if(!(Number.isSafeInteger(f["process_uptime_ms"])&&f["process_uptime_ms"]>=0))return {why:"malformed",key:"process_uptime_ms"};
+if(!Object.hasOwn(f,"process_started_ms"))return {why:"missingField",key:"process_started_ms"};
+if(!(Number.isSafeInteger(f["process_started_ms"])&&f["process_started_ms"]>=0))return {why:"malformed",key:"process_started_ms"};
+if(!Object.hasOwn(f,"core_rss_bytes"))return {why:"missingField",key:"core_rss_bytes"};
+if(!(f["core_rss_bytes"]===null||(Number.isSafeInteger(f["core_rss_bytes"])&&f["core_rss_bytes"]>=0)))return {why:"malformed",key:"core_rss_bytes"};
+if(!Object.hasOwn(f,"checkpoint_bytes"))return {why:"missingField",key:"checkpoint_bytes"};
+if(!(f["checkpoint_bytes"]===null||(Number.isSafeInteger(f["checkpoint_bytes"])&&f["checkpoint_bytes"]>=0)))return {why:"malformed",key:"checkpoint_bytes"};
+if(!Object.hasOwn(f,"checkpoint_write_us"))return {why:"missingField",key:"checkpoint_write_us"};
+if(!(f["checkpoint_write_us"]===null||(Number.isSafeInteger(f["checkpoint_write_us"])&&f["checkpoint_write_us"]>=0)))return {why:"malformed",key:"checkpoint_write_us"};
+if(!Object.hasOwn(f,"checkpoint_failures"))return {why:"missingField",key:"checkpoint_failures"};
+if(!(Number.isSafeInteger(f["checkpoint_failures"])&&f["checkpoint_failures"]>=0))return {why:"malformed",key:"checkpoint_failures"};
+if(!Object.hasOwn(f,"telemetry_refusals"))return {why:"missingField",key:"telemetry_refusals"};
+if(!(Number.isSafeInteger(f["telemetry_refusals"])&&f["telemetry_refusals"]>=0))return {why:"malformed",key:"telemetry_refusals"};
+if(!Object.hasOwn(f,"telemetry_drops"))return {why:"missingField",key:"telemetry_drops"};
+if(!(Number.isSafeInteger(f["telemetry_drops"])&&f["telemetry_drops"]>=0))return {why:"malformed",key:"telemetry_drops"};
+if(!Object.hasOwn(f,"goal_count"))return {why:"missingField",key:"goal_count"};
+if(!(Number.isSafeInteger(f["goal_count"])&&f["goal_count"]>=0))return {why:"malformed",key:"goal_count"};
+if(!Object.hasOwn(f,"attempt_cap"))return {why:"missingField",key:"attempt_cap"};
+if(!(Number.isSafeInteger(f["attempt_cap"])&&f["attempt_cap"]>=0))return {why:"malformed",key:"attempt_cap"};
+if(!Object.hasOwn(f,"step_cap"))return {why:"missingField",key:"step_cap"};
+if(!(Number.isSafeInteger(f["step_cap"])&&f["step_cap"]>=0))return {why:"malformed",key:"step_cap"};
+if(!Object.hasOwn(f,"cycle_cap"))return {why:"missingField",key:"cycle_cap"};
+if(!(Number.isSafeInteger(f["cycle_cap"])&&f["cycle_cap"]>=0))return {why:"malformed",key:"cycle_cap"};
+if(!Object.hasOwn(f,"goal_progress_invalid"))return {why:"missingField",key:"goal_progress_invalid"};
+if(!(typeof f["goal_progress_invalid"]==='boolean'))return {why:"malformed",key:"goal_progress_invalid"};
+if(!Object.hasOwn(f,"goal_progress_cycle"))return {why:"missingField",key:"goal_progress_cycle"};
+if(!(Number.isSafeInteger(f["goal_progress_cycle"])&&f["goal_progress_cycle"]>=0))return {why:"malformed",key:"goal_progress_cycle"};
+if(!Object.hasOwn(f,"goal_progress_resolved"))return {why:"missingField",key:"goal_progress_resolved"};
+if(!(Number.isSafeInteger(f["goal_progress_resolved"])&&f["goal_progress_resolved"]>=0))return {why:"malformed",key:"goal_progress_resolved"};
+if(!Object.hasOwn(f,"goal_progress_attempt"))return {why:"missingField",key:"goal_progress_attempt"};
+if(!(Number.isSafeInteger(f["goal_progress_attempt"])&&f["goal_progress_attempt"]>=0))return {why:"malformed",key:"goal_progress_attempt"};
+if(!Object.hasOwn(f,"goal_progress_achieved"))return {why:"missingField",key:"goal_progress_achieved"};
+if(!(Number.isSafeInteger(f["goal_progress_achieved"])&&f["goal_progress_achieved"]>=0))return {why:"malformed",key:"goal_progress_achieved"};
+if(!Object.hasOwn(f,"goal_progress_completed_cycle"))return {why:"missingField",key:"goal_progress_completed_cycle"};
+if(!(f["goal_progress_completed_cycle"]===null||(Number.isSafeInteger(f["goal_progress_completed_cycle"])&&f["goal_progress_completed_cycle"]>=0)))return {why:"malformed",key:"goal_progress_completed_cycle"};
+if(!Object.hasOwn(f,"goal_progress_completed_achieved"))return {why:"missingField",key:"goal_progress_completed_achieved"};
+if(!(f["goal_progress_completed_achieved"]===null||(Number.isSafeInteger(f["goal_progress_completed_achieved"])&&f["goal_progress_completed_achieved"]>=0)))return {why:"malformed",key:"goal_progress_completed_achieved"};
+if(!Object.hasOwn(f,"goal_progress_score"))return {why:"missingField",key:"goal_progress_score"};
+if(!(f["goal_progress_score"]===null||(Number.isSafeInteger(f["goal_progress_score"])&&f["goal_progress_score"]>=0)))return {why:"malformed",key:"goal_progress_score"};
+if(!Object.hasOwn(f,"curriculum_names"))return {why:"missingField",key:"curriculum_names"};
+if(!(Array.isArray(f["curriculum_names"])&&f["curriculum_names"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"curriculum_names"};
+if(!Object.hasOwn(f,"curriculum_failed_attempts"))return {why:"missingField",key:"curriculum_failed_attempts"};
+if(!(Array.isArray(f["curriculum_failed_attempts"])&&f["curriculum_failed_attempts"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"curriculum_failed_attempts"};
+if(!Object.hasOwn(f,"curriculum_success_steps"))return {why:"missingField",key:"curriculum_success_steps"};
+if(!(Array.isArray(f["curriculum_success_steps"])&&f["curriculum_success_steps"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"curriculum_success_steps"};
+if(!Object.hasOwn(f,"world_step"))return {why:"missingField",key:"world_step"};
+if(!(Number.isSafeInteger(f["world_step"])&&f["world_step"]>=0))return {why:"malformed",key:"world_step"};
+if(!Object.hasOwn(f,"seed"))return {why:"missingField",key:"seed"};
+if(!(Number.isSafeInteger(f["seed"])&&f["seed"]>=0))return {why:"malformed",key:"seed"};
+if(!Object.hasOwn(f,"side"))return {why:"missingField",key:"side"};
+if(!(Number.isSafeInteger(f["side"])&&f["side"]>=0))return {why:"malformed",key:"side"};
+if(!Object.hasOwn(f,"day_length"))return {why:"missingField",key:"day_length"};
+if(!(Number.isSafeInteger(f["day_length"])&&f["day_length"]>=0))return {why:"malformed",key:"day_length"};
+if(!Object.hasOwn(f,"regrow"))return {why:"missingField",key:"regrow"};
+if(!(Number.isSafeInteger(f["regrow"])&&f["regrow"]>=0))return {why:"malformed",key:"regrow"};
+if(!Object.hasOwn(f,"food_interval"))return {why:"missingField",key:"food_interval"};
+if(!(Number.isSafeInteger(f["food_interval"])&&f["food_interval"]>=0))return {why:"malformed",key:"food_interval"};
+if(!Object.hasOwn(f,"food_cap"))return {why:"missingField",key:"food_cap"};
+if(!(Number.isSafeInteger(f["food_cap"])&&f["food_cap"]>=0))return {why:"malformed",key:"food_cap"};
+if(!Object.hasOwn(f,"deer_cap"))return {why:"missingField",key:"deer_cap"};
+if(!(Number.isSafeInteger(f["deer_cap"])&&f["deer_cap"]>=0))return {why:"malformed",key:"deer_cap"};
+if(!Object.hasOwn(f,"x"))return {why:"missingField",key:"x"};
+if(!Number.isSafeInteger(f["x"]))return {why:"malformed",key:"x"};
+if(!Object.hasOwn(f,"y"))return {why:"missingField",key:"y"};
+if(!Number.isSafeInteger(f["y"]))return {why:"malformed",key:"y"};
+if(!Object.hasOwn(f,"facing"))return {why:"missingField",key:"facing"};
+if(!(Number.isSafeInteger(f["facing"])&&f["facing"]>=0))return {why:"malformed",key:"facing"};
+if(!Object.hasOwn(f,"energy"))return {why:"missingField",key:"energy"};
+if(!(Number.isSafeInteger(f["energy"])&&f["energy"]>=0))return {why:"malformed",key:"energy"};
+if(!Object.hasOwn(f,"wood"))return {why:"missingField",key:"wood"};
+if(!(Number.isSafeInteger(f["wood"])&&f["wood"]>=0))return {why:"malformed",key:"wood"};
+if(!Object.hasOwn(f,"stone"))return {why:"missingField",key:"stone"};
+if(!(Number.isSafeInteger(f["stone"])&&f["stone"]>=0))return {why:"malformed",key:"stone"};
+if(!Object.hasOwn(f,"food"))return {why:"missingField",key:"food"};
+if(!(Number.isSafeInteger(f["food"])&&f["food"]>=0))return {why:"malformed",key:"food"};
+if(!Object.hasOwn(f,"gold"))return {why:"missingField",key:"gold"};
+if(!(Number.isSafeInteger(f["gold"])&&f["gold"]>=0))return {why:"malformed",key:"gold"};
+if(!Object.hasOwn(f,"axe"))return {why:"missingField",key:"axe"};
+if(!(typeof f["axe"]==='boolean'))return {why:"malformed",key:"axe"};
+if(!Object.hasOwn(f,"boat"))return {why:"missingField",key:"boat"};
+if(!(typeof f["boat"]==='boolean'))return {why:"malformed",key:"boat"};
+if(!Object.hasOwn(f,"action"))return {why:"missingField",key:"action"};
+if(!(Number.isSafeInteger(f["action"])&&f["action"]>=0))return {why:"malformed",key:"action"};
+if(!Object.hasOwn(f,"reward"))return {why:"missingField",key:"reward"};
+if(!(f["reward"]===null||(typeof f["reward"]==='number'&&Number.isFinite(f["reward"])&&Number.isFinite(Math.fround(f["reward"])))))return {why:"malformed",key:"reward"};
+if(!Object.hasOwn(f,"done"))return {why:"missingField",key:"done"};
+if(!(typeof f["done"]==='boolean'))return {why:"malformed",key:"done"};
+if(!Object.hasOwn(f,"ev"))return {why:"missingField",key:"ev"};
+if(!(Number.isSafeInteger(f["ev"])&&f["ev"]>=0))return {why:"malformed",key:"ev"};
+if(!Object.hasOwn(f,"goal"))return {why:"missingField",key:"goal"};
+if(!(Number.isSafeInteger(f["goal"])&&f["goal"]>=0))return {why:"malformed",key:"goal"};
+if(!Object.hasOwn(f,"attempt"))return {why:"missingField",key:"attempt"};
+if(!(Number.isSafeInteger(f["attempt"])&&f["attempt"]>=0))return {why:"malformed",key:"attempt"};
+if(!Object.hasOwn(f,"tier"))return {why:"missingField",key:"tier"};
+if(!(Number.isSafeInteger(f["tier"])&&f["tier"]>=0))return {why:"malformed",key:"tier"};
+if(!Object.hasOwn(f,"cycle"))return {why:"missingField",key:"cycle"};
+if(!(Number.isSafeInteger(f["cycle"])&&f["cycle"]>=0))return {why:"malformed",key:"cycle"};
+if(!Object.hasOwn(f,"gkind"))return {why:"missingField",key:"gkind"};
+if(![0,1,2,3,4].includes(f["gkind"]))return {why:"malformed",key:"gkind"};
+if(!Object.hasOwn(f,"gitem"))return {why:"missingField",key:"gitem"};
+if(![0,1,2,3,4,11,12].includes(f["gitem"]))return {why:"malformed",key:"gitem"};
+if(!Object.hasOwn(f,"gx"))return {why:"missingField",key:"gx"};
+if(!Number.isSafeInteger(f["gx"]))return {why:"malformed",key:"gx"};
+if(!Object.hasOwn(f,"gy"))return {why:"missingField",key:"gy"};
+if(!Number.isSafeInteger(f["gy"]))return {why:"malformed",key:"gy"};
+if(!Object.hasOwn(f,"gn"))return {why:"missingField",key:"gn"};
+if(!(Number.isSafeInteger(f["gn"])&&f["gn"]>=0))return {why:"malformed",key:"gn"};
+if(!Object.hasOwn(f,"tiles"))return {why:"missingField",key:"tiles"};
+if(Array.isArray(f["tiles"])&&f["tiles"].length!==121)return {why:"cardinality",key:"tiles"};
+if(!(Array.isArray(f["tiles"])&&f["tiles"].length===121&&f["tiles"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"tiles"};
+if(!Object.hasOwn(f,"tile_extra"))return {why:"missingField",key:"tile_extra"};
+if(Array.isArray(f["tile_extra"])&&f["tile_extra"].length!==121)return {why:"cardinality",key:"tile_extra"};
+if(!(Array.isArray(f["tile_extra"])&&f["tile_extra"].length===121&&f["tile_extra"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"tile_extra"};
+if(!Object.hasOwn(f,"end"))return {why:"missingField",key:"end"};
+if(!(typeof f["end"]==='boolean'))return {why:"malformed",key:"end"};
+if(!Object.hasOwn(f,"lifetime_step"))return {why:"missingField",key:"lifetime_step"};
+if(!(Number.isSafeInteger(f["lifetime_step"])&&f["lifetime_step"]>=0))return {why:"malformed",key:"lifetime_step"};
+if(!Object.hasOwn(f,"reward_rate"))return {why:"missingField",key:"reward_rate"};
+if(!(f["reward_rate"]===null||(typeof f["reward_rate"]==='number'&&Number.isFinite(f["reward_rate"])&&Number.isFinite(Math.fround(f["reward_rate"])))))return {why:"malformed",key:"reward_rate"};
+if(!Object.hasOwn(f,"eps"))return {why:"missingField",key:"eps"};
+if(!(f["eps"]===null||(typeof f["eps"]==='number'&&Number.isFinite(f["eps"])&&Number.isFinite(Math.fround(f["eps"])))))return {why:"malformed",key:"eps"};
+if(!Object.hasOwn(f,"mean_alpha"))return {why:"missingField",key:"mean_alpha"};
+if(!(f["mean_alpha"]===null||(typeof f["mean_alpha"]==='number'&&Number.isFinite(f["mean_alpha"])&&Number.isFinite(Math.fround(f["mean_alpha"])))))return {why:"malformed",key:"mean_alpha"};
+if(!Object.hasOwn(f,"a_ctl"))return {why:"missingField",key:"a_ctl"};
+if(!(f["a_ctl"]===null||(typeof f["a_ctl"]==='number'&&Number.isFinite(f["a_ctl"])&&Number.isFinite(Math.fround(f["a_ctl"])))))return {why:"malformed",key:"a_ctl"};
+if(!Object.hasOwn(f,"a_dem"))return {why:"missingField",key:"a_dem"};
+if(!(f["a_dem"]===null||(typeof f["a_dem"]==='number'&&Number.isFinite(f["a_dem"])&&Number.isFinite(Math.fround(f["a_dem"])))))return {why:"malformed",key:"a_dem"};
+if(!Object.hasOwn(f,"alpha_control_all"))return {why:"missingField",key:"alpha_control_all"};
+if(Array.isArray(f["alpha_control_all"])&&f["alpha_control_all"].length!==9)return {why:"cardinality",key:"alpha_control_all"};
+if(!(Array.isArray(f["alpha_control_all"])&&f["alpha_control_all"].length===9&&f["alpha_control_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"alpha_control_all"};
+if(!Object.hasOwn(f,"alpha_meta_all"))return {why:"missingField",key:"alpha_meta_all"};
+if(Array.isArray(f["alpha_meta_all"])&&f["alpha_meta_all"].length!==4)return {why:"cardinality",key:"alpha_meta_all"};
+if(!(Array.isArray(f["alpha_meta_all"])&&f["alpha_meta_all"].length===4&&f["alpha_meta_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"alpha_meta_all"};
+if(!Object.hasOwn(f,"alpha_option_all"))return {why:"missingField",key:"alpha_option_all"};
+if(Array.isArray(f["alpha_option_all"])&&f["alpha_option_all"].length!==27)return {why:"cardinality",key:"alpha_option_all"};
+if(!(Array.isArray(f["alpha_option_all"])&&f["alpha_option_all"].length===27&&f["alpha_option_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"alpha_option_all"};
+if(!Object.hasOwn(f,"alpha_demon_all"))return {why:"missingField",key:"alpha_demon_all"};
+if(Array.isArray(f["alpha_demon_all"])&&f["alpha_demon_all"].length!==11)return {why:"cardinality",key:"alpha_demon_all"};
+if(!(Array.isArray(f["alpha_demon_all"])&&f["alpha_demon_all"].length===11&&f["alpha_demon_all"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"alpha_demon_all"};
+if(!Object.hasOwn(f,"alpha_models"))return {why:"missingField",key:"alpha_models"};
+if(Array.isArray(f["alpha_models"])&&f["alpha_models"].length!==9)return {why:"cardinality",key:"alpha_models"};
+if(!(Array.isArray(f["alpha_models"])&&f["alpha_models"].length===9&&f["alpha_models"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"alpha_models"};
+if(!Object.hasOwn(f,"credit_control"))return {why:"missingField",key:"credit_control"};
+if(Array.isArray(f["credit_control"])&&f["credit_control"].length!==9)return {why:"cardinality",key:"credit_control"};
+if(!(Array.isArray(f["credit_control"])&&f["credit_control"].length===9&&f["credit_control"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"credit_control"};
+if(!Object.hasOwn(f,"credit_meta"))return {why:"missingField",key:"credit_meta"};
+if(Array.isArray(f["credit_meta"])&&f["credit_meta"].length!==4)return {why:"cardinality",key:"credit_meta"};
+if(!(Array.isArray(f["credit_meta"])&&f["credit_meta"].length===4&&f["credit_meta"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"credit_meta"};
+if(!Object.hasOwn(f,"credit_options"))return {why:"missingField",key:"credit_options"};
+if(Array.isArray(f["credit_options"])&&f["credit_options"].length!==27)return {why:"cardinality",key:"credit_options"};
+if(!(Array.isArray(f["credit_options"])&&f["credit_options"].length===27&&f["credit_options"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"credit_options"};
+if(!Object.hasOwn(f,"credit_demons"))return {why:"missingField",key:"credit_demons"};
+if(Array.isArray(f["credit_demons"])&&f["credit_demons"].length!==11)return {why:"cardinality",key:"credit_demons"};
+if(!(Array.isArray(f["credit_demons"])&&f["credit_demons"].length===11&&f["credit_demons"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"credit_demons"};
+if(!Object.hasOwn(f,"credit_models"))return {why:"missingField",key:"credit_models"};
+if(Array.isArray(f["credit_models"])&&f["credit_models"].length!==9)return {why:"cardinality",key:"credit_models"};
+if(!(Array.isArray(f["credit_models"])&&f["credit_models"].length===9&&f["credit_models"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"credit_models"};
+if(!Object.hasOwn(f,"option_model_rewards"))return {why:"missingField",key:"option_model_rewards"};
+if(Array.isArray(f["option_model_rewards"])&&f["option_model_rewards"].length!==3)return {why:"cardinality",key:"option_model_rewards"};
+if(!(Array.isArray(f["option_model_rewards"])&&f["option_model_rewards"].length===3&&f["option_model_rewards"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"option_model_rewards"};
+if(!Object.hasOwn(f,"option_model_continuations"))return {why:"missingField",key:"option_model_continuations"};
+if(Array.isArray(f["option_model_continuations"])&&f["option_model_continuations"].length!==3)return {why:"cardinality",key:"option_model_continuations"};
+if(!(Array.isArray(f["option_model_continuations"])&&f["option_model_continuations"].length===3&&f["option_model_continuations"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"option_model_continuations"};
+if(!Object.hasOwn(f,"option_model_durations"))return {why:"missingField",key:"option_model_durations"};
+if(Array.isArray(f["option_model_durations"])&&f["option_model_durations"].length!==3)return {why:"cardinality",key:"option_model_durations"};
+if(!(Array.isArray(f["option_model_durations"])&&f["option_model_durations"].length===3&&f["option_model_durations"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"option_model_durations"};
+if(!Object.hasOwn(f,"planning_errors"))return {why:"missingField",key:"planning_errors"};
+if(Array.isArray(f["planning_errors"])&&f["planning_errors"].length!==3)return {why:"cardinality",key:"planning_errors"};
+if(!(Array.isArray(f["planning_errors"])&&f["planning_errors"].length===3&&f["planning_errors"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"planning_errors"};
+if(!Object.hasOwn(f,"planning_steps"))return {why:"missingField",key:"planning_steps"};
+if(!(Number.isSafeInteger(f["planning_steps"])&&f["planning_steps"]>=0))return {why:"malformed",key:"planning_steps"};
+if(!Object.hasOwn(f,"decision_source"))return {why:"missingField",key:"decision_source"};
+if(!(typeof f["decision_source"]==='string'))return {why:"malformed",key:"decision_source"};
+if(!Object.hasOwn(f,"skill"))return {why:"missingField",key:"skill"};
+if(!(Number.isSafeInteger(f["skill"])&&f["skill"]>=0))return {why:"malformed",key:"skill"};
+if(!Object.hasOwn(f,"explored"))return {why:"missingField",key:"explored"};
+if(!(typeof f["explored"]==='boolean'))return {why:"malformed",key:"explored"};
+if(!Object.hasOwn(f,"control"))return {why:"missingField",key:"control"};
+if(Array.isArray(f["control"])&&f["control"].length!==9)return {why:"cardinality",key:"control"};
+if(!(Array.isArray(f["control"])&&f["control"].length===9&&f["control"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"control"};
+if(!Object.hasOwn(f,"meta"))return {why:"missingField",key:"meta"};
+if(Array.isArray(f["meta"])&&f["meta"].length!==4)return {why:"cardinality",key:"meta"};
+if(!(Array.isArray(f["meta"])&&f["meta"].length===4&&f["meta"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"meta"};
+if(!Object.hasOwn(f,"action_probabilities"))return {why:"missingField",key:"action_probabilities"};
+if(Array.isArray(f["action_probabilities"])&&f["action_probabilities"].length!==9)return {why:"cardinality",key:"action_probabilities"};
+if(!(Array.isArray(f["action_probabilities"])&&f["action_probabilities"].length===9&&f["action_probabilities"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"action_probabilities"};
+if(!Object.hasOwn(f,"meta_probabilities"))return {why:"missingField",key:"meta_probabilities"};
+if(Array.isArray(f["meta_probabilities"])&&f["meta_probabilities"].length!==4)return {why:"cardinality",key:"meta_probabilities"};
+if(!(Array.isArray(f["meta_probabilities"])&&f["meta_probabilities"].length===4&&f["meta_probabilities"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"meta_probabilities"};
+if(!Object.hasOwn(f,"meta_action"))return {why:"missingField",key:"meta_action"};
+if(!(Number.isSafeInteger(f["meta_action"])&&f["meta_action"]>=0))return {why:"malformed",key:"meta_action"};
+if(!Object.hasOwn(f,"option_start"))return {why:"missingField",key:"option_start"};
+if(!(Number.isSafeInteger(f["option_start"])&&f["option_start"]>=0))return {why:"malformed",key:"option_start"};
+if(!Object.hasOwn(f,"option_end_skill"))return {why:"missingField",key:"option_end_skill"};
+if(!(Number.isSafeInteger(f["option_end_skill"])&&f["option_end_skill"]>=0))return {why:"malformed",key:"option_end_skill"};
+if(!Object.hasOwn(f,"option_end_duration"))return {why:"missingField",key:"option_end_duration"};
+if(!(Number.isSafeInteger(f["option_end_duration"])&&f["option_end_duration"]>=0))return {why:"malformed",key:"option_end_duration"};
+if(!Object.hasOwn(f,"option_end_reason"))return {why:"missingField",key:"option_end_reason"};
+if(!(Number.isSafeInteger(f["option_end_reason"])&&f["option_end_reason"]>=0))return {why:"malformed",key:"option_end_reason"};
+if(!Object.hasOwn(f,"option_elapsed"))return {why:"missingField",key:"option_elapsed"};
+if(!(Number.isSafeInteger(f["option_elapsed"])&&f["option_elapsed"]>=0))return {why:"malformed",key:"option_elapsed"};
+if(!Object.hasOwn(f,"lifetime_reward_sum"))return {why:"missingField",key:"lifetime_reward_sum"};
+if(!(f["lifetime_reward_sum"]===null||(typeof f["lifetime_reward_sum"]==='number'&&Number.isFinite(f["lifetime_reward_sum"]))))return {why:"malformed",key:"lifetime_reward_sum"};
+if(!Object.hasOwn(f,"lifetime_reward_count"))return {why:"missingField",key:"lifetime_reward_count"};
+if(!(Number.isSafeInteger(f["lifetime_reward_count"])&&f["lifetime_reward_count"]>=0))return {why:"malformed",key:"lifetime_reward_count"};
+if(!Object.hasOwn(f,"lifetime_reward_family_sum"))return {why:"missingField",key:"lifetime_reward_family_sum"};
+if(Array.isArray(f["lifetime_reward_family_sum"])&&f["lifetime_reward_family_sum"].length!==4)return {why:"cardinality",key:"lifetime_reward_family_sum"};
+if(!(Array.isArray(f["lifetime_reward_family_sum"])&&f["lifetime_reward_family_sum"].length===4&&f["lifetime_reward_family_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:"malformed",key:"lifetime_reward_family_sum"};
+if(!Object.hasOwn(f,"lifetime_reward_family_count"))return {why:"missingField",key:"lifetime_reward_family_count"};
+if(Array.isArray(f["lifetime_reward_family_count"])&&f["lifetime_reward_family_count"].length!==4)return {why:"cardinality",key:"lifetime_reward_family_count"};
+if(!(Array.isArray(f["lifetime_reward_family_count"])&&f["lifetime_reward_family_count"].length===4&&f["lifetime_reward_family_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_reward_family_count"};
+if(!Object.hasOwn(f,"lifetime_reward_history_sum"))return {why:"missingField",key:"lifetime_reward_history_sum"};
+if(Array.isArray(f["lifetime_reward_history_sum"])&&f["lifetime_reward_history_sum"].length!==64)return {why:"cardinality",key:"lifetime_reward_history_sum"};
+if(!(Array.isArray(f["lifetime_reward_history_sum"])&&f["lifetime_reward_history_sum"].length===64&&f["lifetime_reward_history_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:"malformed",key:"lifetime_reward_history_sum"};
+if(!Object.hasOwn(f,"lifetime_reward_history_count"))return {why:"missingField",key:"lifetime_reward_history_count"};
+if(Array.isArray(f["lifetime_reward_history_count"])&&f["lifetime_reward_history_count"].length!==64)return {why:"cardinality",key:"lifetime_reward_history_count"};
+if(!(Array.isArray(f["lifetime_reward_history_count"])&&f["lifetime_reward_history_count"].length===64&&f["lifetime_reward_history_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_reward_history_count"};
+if(!Object.hasOwn(f,"lifetime_error_history_sum"))return {why:"missingField",key:"lifetime_error_history_sum"};
+if(Array.isArray(f["lifetime_error_history_sum"])&&f["lifetime_error_history_sum"].length!==64)return {why:"cardinality",key:"lifetime_error_history_sum"};
+if(!(Array.isArray(f["lifetime_error_history_sum"])&&f["lifetime_error_history_sum"].length===64&&f["lifetime_error_history_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:"malformed",key:"lifetime_error_history_sum"};
+if(!Object.hasOwn(f,"lifetime_error_history_count"))return {why:"missingField",key:"lifetime_error_history_count"};
+if(Array.isArray(f["lifetime_error_history_count"])&&f["lifetime_error_history_count"].length!==64)return {why:"cardinality",key:"lifetime_error_history_count"};
+if(!(Array.isArray(f["lifetime_error_history_count"])&&f["lifetime_error_history_count"].length===64&&f["lifetime_error_history_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_error_history_count"};
+if(!Object.hasOwn(f,"lifetime_error_sum"))return {why:"missingField",key:"lifetime_error_sum"};
+if(Array.isArray(f["lifetime_error_sum"])&&f["lifetime_error_sum"].length!==11)return {why:"cardinality",key:"lifetime_error_sum"};
+if(!(Array.isArray(f["lifetime_error_sum"])&&f["lifetime_error_sum"].length===11&&f["lifetime_error_sum"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v))))))return {why:"malformed",key:"lifetime_error_sum"};
+if(!Object.hasOwn(f,"lifetime_error_count"))return {why:"missingField",key:"lifetime_error_count"};
+if(Array.isArray(f["lifetime_error_count"])&&f["lifetime_error_count"].length!==11)return {why:"cardinality",key:"lifetime_error_count"};
+if(!(Array.isArray(f["lifetime_error_count"])&&f["lifetime_error_count"].length===11&&f["lifetime_error_count"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_error_count"};
+if(!Object.hasOwn(f,"settled_return"))return {why:"missingField",key:"settled_return"};
+if(Array.isArray(f["settled_return"])&&f["settled_return"].length!==11)return {why:"cardinality",key:"settled_return"};
+if(!(Array.isArray(f["settled_return"])&&f["settled_return"].length===11&&f["settled_return"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"settled_return"};
+if(!Object.hasOwn(f,"settled_error"))return {why:"missingField",key:"settled_error"};
+if(Array.isArray(f["settled_error"])&&f["settled_error"].length!==11)return {why:"cardinality",key:"settled_error"};
+if(!(Array.isArray(f["settled_error"])&&f["settled_error"].length===11&&f["settled_error"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"settled_error"};
+if(!Object.hasOwn(f,"lifetime_option_started"))return {why:"missingField",key:"lifetime_option_started"};
+if(Array.isArray(f["lifetime_option_started"])&&f["lifetime_option_started"].length!==3)return {why:"cardinality",key:"lifetime_option_started"};
+if(!(Array.isArray(f["lifetime_option_started"])&&f["lifetime_option_started"].length===3&&f["lifetime_option_started"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_option_started"};
+if(!Object.hasOwn(f,"lifetime_option_completed"))return {why:"missingField",key:"lifetime_option_completed"};
+if(Array.isArray(f["lifetime_option_completed"])&&f["lifetime_option_completed"].length!==3)return {why:"cardinality",key:"lifetime_option_completed"};
+if(!(Array.isArray(f["lifetime_option_completed"])&&f["lifetime_option_completed"].length===3&&f["lifetime_option_completed"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_option_completed"};
+if(!Object.hasOwn(f,"lifetime_option_duration"))return {why:"missingField",key:"lifetime_option_duration"};
+if(Array.isArray(f["lifetime_option_duration"])&&f["lifetime_option_duration"].length!==3)return {why:"cardinality",key:"lifetime_option_duration"};
+if(!(Array.isArray(f["lifetime_option_duration"])&&f["lifetime_option_duration"].length===3&&f["lifetime_option_duration"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_option_duration"};
+if(!Object.hasOwn(f,"lifetime_option_end_reasons"))return {why:"missingField",key:"lifetime_option_end_reasons"};
+if(Array.isArray(f["lifetime_option_end_reasons"])&&f["lifetime_option_end_reasons"].length!==9)return {why:"cardinality",key:"lifetime_option_end_reasons"};
+if(!(Array.isArray(f["lifetime_option_end_reasons"])&&f["lifetime_option_end_reasons"].length===9&&f["lifetime_option_end_reasons"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_option_end_reasons"};
+if(!Object.hasOwn(f,"lifetime_goal_attempts"))return {why:"missingField",key:"lifetime_goal_attempts"};
+if(Array.isArray(f["lifetime_goal_attempts"])&&f["lifetime_goal_attempts"].length!==4)return {why:"cardinality",key:"lifetime_goal_attempts"};
+if(!(Array.isArray(f["lifetime_goal_attempts"])&&f["lifetime_goal_attempts"].length===4&&f["lifetime_goal_attempts"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_goal_attempts"};
+if(!Object.hasOwn(f,"lifetime_goal_successes"))return {why:"missingField",key:"lifetime_goal_successes"};
+if(Array.isArray(f["lifetime_goal_successes"])&&f["lifetime_goal_successes"].length!==4)return {why:"cardinality",key:"lifetime_goal_successes"};
+if(!(Array.isArray(f["lifetime_goal_successes"])&&f["lifetime_goal_successes"].length===4&&f["lifetime_goal_successes"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_goal_successes"};
+if(!Object.hasOwn(f,"lifetime_goal_steps"))return {why:"missingField",key:"lifetime_goal_steps"};
+if(Array.isArray(f["lifetime_goal_steps"])&&f["lifetime_goal_steps"].length!==4)return {why:"cardinality",key:"lifetime_goal_steps"};
+if(!(Array.isArray(f["lifetime_goal_steps"])&&f["lifetime_goal_steps"].length===4&&f["lifetime_goal_steps"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_goal_steps"};
+if(!Object.hasOwn(f,"lifetime_cycle_attempts"))return {why:"missingField",key:"lifetime_cycle_attempts"};
+if(Array.isArray(f["lifetime_cycle_attempts"])&&f["lifetime_cycle_attempts"].length!==64)return {why:"cardinality",key:"lifetime_cycle_attempts"};
+if(!(Array.isArray(f["lifetime_cycle_attempts"])&&f["lifetime_cycle_attempts"].length===64&&f["lifetime_cycle_attempts"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_cycle_attempts"};
+if(!Object.hasOwn(f,"lifetime_cycle_successes"))return {why:"missingField",key:"lifetime_cycle_successes"};
+if(Array.isArray(f["lifetime_cycle_successes"])&&f["lifetime_cycle_successes"].length!==64)return {why:"cardinality",key:"lifetime_cycle_successes"};
+if(!(Array.isArray(f["lifetime_cycle_successes"])&&f["lifetime_cycle_successes"].length===64&&f["lifetime_cycle_successes"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_cycle_successes"};
+if(!Object.hasOwn(f,"lifetime_cycle_steps"))return {why:"missingField",key:"lifetime_cycle_steps"};
+if(Array.isArray(f["lifetime_cycle_steps"])&&f["lifetime_cycle_steps"].length!==64)return {why:"cardinality",key:"lifetime_cycle_steps"};
+if(!(Array.isArray(f["lifetime_cycle_steps"])&&f["lifetime_cycle_steps"].length===64&&f["lifetime_cycle_steps"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"lifetime_cycle_steps"};
+if(!Object.hasOwn(f,"agreement_version"))return {why:"missingField",key:"agreement_version"};
+if(!(Number.isSafeInteger(f["agreement_version"])&&f["agreement_version"]>=0))return {why:"malformed",key:"agreement_version"};
+if(!Object.hasOwn(f,"agreement_scale"))return {why:"missingField",key:"agreement_scale"};
+if(!(Number.isSafeInteger(f["agreement_scale"])&&f["agreement_scale"]>=0))return {why:"malformed",key:"agreement_scale"};
+if(!Object.hasOwn(f,"agreement_started"))return {why:"missingField",key:"agreement_started"};
+if(!(f["agreement_started"]===null||(Number.isSafeInteger(f["agreement_started"])&&f["agreement_started"]>=0)))return {why:"malformed",key:"agreement_started"};
+if(!Object.hasOwn(f,"agreement_stopped"))return {why:"missingField",key:"agreement_stopped"};
+if(!(typeof f["agreement_stopped"]==='boolean'))return {why:"malformed",key:"agreement_stopped"};
+if(!Object.hasOwn(f,"agreement_score"))return {why:"missingField",key:"agreement_score"};
+if(!(f["agreement_score"]===null||(Number.isSafeInteger(f["agreement_score"])&&f["agreement_score"]>=0)))return {why:"malformed",key:"agreement_score"};
+if(!Object.hasOwn(f,"agreement_text"))return {why:"missingField",key:"agreement_text"};
+if(!(f["agreement_text"]===null||(typeof f["agreement_text"]==='string')))return {why:"malformed",key:"agreement_text"};
+if(!Object.hasOwn(f,"agreement_error"))return {why:"missingField",key:"agreement_error"};
+if(!(f["agreement_error"]===null||(Number.isSafeInteger(f["agreement_error"])&&f["agreement_error"]>=0)))return {why:"malformed",key:"agreement_error"};
+if(!Object.hasOwn(f,"agreement_channel_score"))return {why:"missingField",key:"agreement_channel_score"};
+if(Array.isArray(f["agreement_channel_score"])&&f["agreement_channel_score"].length!==11)return {why:"cardinality",key:"agreement_channel_score"};
+if(!(Array.isArray(f["agreement_channel_score"])&&f["agreement_channel_score"].length===11&&f["agreement_channel_score"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_channel_score"};
+if(!Object.hasOwn(f,"agreement_channel_text"))return {why:"missingField",key:"agreement_channel_text"};
+if(Array.isArray(f["agreement_channel_text"])&&f["agreement_channel_text"].length!==11)return {why:"cardinality",key:"agreement_channel_text"};
+if(!(Array.isArray(f["agreement_channel_text"])&&f["agreement_channel_text"].length===11&&f["agreement_channel_text"].every(v=>(v===null||(typeof v==='string')))))return {why:"malformed",key:"agreement_channel_text"};
+if(!Object.hasOwn(f,"agreement_channel_error"))return {why:"missingField",key:"agreement_channel_error"};
+if(Array.isArray(f["agreement_channel_error"])&&f["agreement_channel_error"].length!==11)return {why:"cardinality",key:"agreement_channel_error"};
+if(!(Array.isArray(f["agreement_channel_error"])&&f["agreement_channel_error"].length===11&&f["agreement_channel_error"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_channel_error"};
+if(!Object.hasOwn(f,"agreement_count"))return {why:"missingField",key:"agreement_count"};
+if(Array.isArray(f["agreement_count"])&&f["agreement_count"].length!==11)return {why:"cardinality",key:"agreement_count"};
+if(!(Array.isArray(f["agreement_count"])&&f["agreement_count"].length===11&&f["agreement_count"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"agreement_count"};
+if(!Object.hasOwn(f,"agreement_pending"))return {why:"missingField",key:"agreement_pending"};
+if(Array.isArray(f["agreement_pending"])&&f["agreement_pending"].length!==11)return {why:"cardinality",key:"agreement_pending"};
+if(!(Array.isArray(f["agreement_pending"])&&f["agreement_pending"].length===11&&f["agreement_pending"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"agreement_pending"};
+if(!Object.hasOwn(f,"agreement_censored"))return {why:"missingField",key:"agreement_censored"};
+if(Array.isArray(f["agreement_censored"])&&f["agreement_censored"].length!==11)return {why:"cardinality",key:"agreement_censored"};
+if(!(Array.isArray(f["agreement_censored"])&&f["agreement_censored"].length===11&&f["agreement_censored"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"agreement_censored"};
+if(!Object.hasOwn(f,"agreement_status"))return {why:"missingField",key:"agreement_status"};
+if(Array.isArray(f["agreement_status"])&&f["agreement_status"].length!==11)return {why:"cardinality",key:"agreement_status"};
+if(!(Array.isArray(f["agreement_status"])&&f["agreement_status"].length===11&&f["agreement_status"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"agreement_status"};
+if(!Object.hasOwn(f,"agreement_horizon"))return {why:"missingField",key:"agreement_horizon"};
+if(Array.isArray(f["agreement_horizon"])&&f["agreement_horizon"].length!==11)return {why:"cardinality",key:"agreement_horizon"};
+if(!(Array.isArray(f["agreement_horizon"])&&f["agreement_horizon"].length===11&&f["agreement_horizon"].every(v=>(Number.isSafeInteger(v)&&v>=0))))return {why:"malformed",key:"agreement_horizon"};
+if(!Object.hasOwn(f,"agreement_start_first"))return {why:"missingField",key:"agreement_start_first"};
+if(Array.isArray(f["agreement_start_first"])&&f["agreement_start_first"].length!==11)return {why:"cardinality",key:"agreement_start_first"};
+if(!(Array.isArray(f["agreement_start_first"])&&f["agreement_start_first"].length===11&&f["agreement_start_first"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_start_first"};
+if(!Object.hasOwn(f,"agreement_start_last"))return {why:"missingField",key:"agreement_start_last"};
+if(Array.isArray(f["agreement_start_last"])&&f["agreement_start_last"].length!==11)return {why:"cardinality",key:"agreement_start_last"};
+if(!(Array.isArray(f["agreement_start_last"])&&f["agreement_start_last"].length===11&&f["agreement_start_last"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_start_last"};
+if(!Object.hasOwn(f,"agreement_settlement_first"))return {why:"missingField",key:"agreement_settlement_first"};
+if(Array.isArray(f["agreement_settlement_first"])&&f["agreement_settlement_first"].length!==11)return {why:"cardinality",key:"agreement_settlement_first"};
+if(!(Array.isArray(f["agreement_settlement_first"])&&f["agreement_settlement_first"].length===11&&f["agreement_settlement_first"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_settlement_first"};
+if(!Object.hasOwn(f,"agreement_settlement_last"))return {why:"missingField",key:"agreement_settlement_last"};
+if(Array.isArray(f["agreement_settlement_last"])&&f["agreement_settlement_last"].length!==11)return {why:"cardinality",key:"agreement_settlement_last"};
+if(!(Array.isArray(f["agreement_settlement_last"])&&f["agreement_settlement_last"].length===11&&f["agreement_settlement_last"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_settlement_last"};
+if(!Object.hasOwn(f,"agreement_tail"))return {why:"missingField",key:"agreement_tail"};
+if(Array.isArray(f["agreement_tail"])&&f["agreement_tail"].length!==11)return {why:"cardinality",key:"agreement_tail"};
+if(!(Array.isArray(f["agreement_tail"])&&f["agreement_tail"].length===11&&f["agreement_tail"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_tail"};
+if(!Object.hasOwn(f,"agreement_rounding"))return {why:"missingField",key:"agreement_rounding"};
+if(Array.isArray(f["agreement_rounding"])&&f["agreement_rounding"].length!==11)return {why:"cardinality",key:"agreement_rounding"};
+if(!(Array.isArray(f["agreement_rounding"])&&f["agreement_rounding"].length===11&&f["agreement_rounding"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_rounding"};
+if(!Object.hasOwn(f,"agreement_history_clock"))return {why:"missingField",key:"agreement_history_clock"};
+if(Array.isArray(f["agreement_history_clock"])&&f["agreement_history_clock"].length!==64)return {why:"cardinality",key:"agreement_history_clock"};
+if(!(Array.isArray(f["agreement_history_clock"])&&f["agreement_history_clock"].length===64&&f["agreement_history_clock"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_history_clock"};
+if(!Object.hasOwn(f,"agreement_history_score"))return {why:"missingField",key:"agreement_history_score"};
+if(Array.isArray(f["agreement_history_score"])&&f["agreement_history_score"].length!==64)return {why:"cardinality",key:"agreement_history_score"};
+if(!(Array.isArray(f["agreement_history_score"])&&f["agreement_history_score"].length===64&&f["agreement_history_score"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"agreement_history_score"};
+if(!Object.hasOwn(f,"checkpoint_format"))return {why:"missingField",key:"checkpoint_format"};
+if(!(Number.isSafeInteger(f["checkpoint_format"])&&f["checkpoint_format"]>=0))return {why:"malformed",key:"checkpoint_format"};
+if(!Object.hasOwn(f,"control_criterion"))return {why:"missingField",key:"control_criterion"};
+if(!(Number.isSafeInteger(f["control_criterion"])&&f["control_criterion"]>=0))return {why:"malformed",key:"control_criterion"};
+if(!Object.hasOwn(f,"weight_space"))return {why:"missingField",key:"weight_space"};
+if(!(Number.isSafeInteger(f["weight_space"])&&f["weight_space"]>=0))return {why:"malformed",key:"weight_space"};
+if(!Object.hasOwn(f,"primitive_count"))return {why:"missingField",key:"primitive_count"};
+if(!(Number.isSafeInteger(f["primitive_count"])&&f["primitive_count"]>=0))return {why:"malformed",key:"primitive_count"};
+if(!Object.hasOwn(f,"meta_count"))return {why:"missingField",key:"meta_count"};
+if(!(Number.isSafeInteger(f["meta_count"])&&f["meta_count"]>=0))return {why:"malformed",key:"meta_count"};
+if(!Object.hasOwn(f,"skill_count"))return {why:"missingField",key:"skill_count"};
+if(!(Number.isSafeInteger(f["skill_count"])&&f["skill_count"]>=0))return {why:"malformed",key:"skill_count"};
+if(!Object.hasOwn(f,"option_end_count"))return {why:"missingField",key:"option_end_count"};
+if(!(Number.isSafeInteger(f["option_end_count"])&&f["option_end_count"]>=0))return {why:"malformed",key:"option_end_count"};
+if(!Object.hasOwn(f,"demon_count"))return {why:"missingField",key:"demon_count"};
+if(!(Number.isSafeInteger(f["demon_count"])&&f["demon_count"]>=0))return {why:"malformed",key:"demon_count"};
+if(!Object.hasOwn(f,"learner_count"))return {why:"missingField",key:"learner_count"};
+if(!(Number.isSafeInteger(f["learner_count"])&&f["learner_count"]>=0))return {why:"malformed",key:"learner_count"};
+if(!Object.hasOwn(f,"history_bins"))return {why:"missingField",key:"history_bins"};
+if(!(Number.isSafeInteger(f["history_bins"])&&f["history_bins"]>=0))return {why:"malformed",key:"history_bins"};
+if(!Object.hasOwn(f,"cycle_bins"))return {why:"missingField",key:"cycle_bins"};
+if(!(Number.isSafeInteger(f["cycle_bins"])&&f["cycle_bins"]>=0))return {why:"malformed",key:"cycle_bins"};
+if(!Object.hasOwn(f,"exact_cycles"))return {why:"missingField",key:"exact_cycles"};
+if(!(Number.isSafeInteger(f["exact_cycles"])&&f["exact_cycles"]>=0))return {why:"malformed",key:"exact_cycles"};
+if(!Object.hasOwn(f,"settle_stride"))return {why:"missingField",key:"settle_stride"};
+if(!(Number.isSafeInteger(f["settle_stride"])&&f["settle_stride"]>=0))return {why:"malformed",key:"settle_stride"};
+if(!Object.hasOwn(f,"settle_remaining"))return {why:"missingField",key:"settle_remaining"};
+if(!(f["settle_remaining"]===null||(typeof f["settle_remaining"]==='number'&&Number.isFinite(f["settle_remaining"])&&Number.isFinite(Math.fround(f["settle_remaining"])))))return {why:"malformed",key:"settle_remaining"};
+if(!Object.hasOwn(f,"n_tilings"))return {why:"missingField",key:"n_tilings"};
+if(!(Number.isSafeInteger(f["n_tilings"])&&f["n_tilings"]>=0))return {why:"malformed",key:"n_tilings"};
+if(!Object.hasOwn(f,"imprint_units"))return {why:"missingField",key:"imprint_units"};
+if(!(Number.isSafeInteger(f["imprint_units"])&&f["imprint_units"]>=0))return {why:"malformed",key:"imprint_units"};
+if(!Object.hasOwn(f,"retire_step"))return {why:"missingField",key:"retire_step"};
+if(!(f["retire_step"]===null||(Number.isSafeInteger(f["retire_step"])&&f["retire_step"]>=0)))return {why:"malformed",key:"retire_step"};
+if(!Object.hasOwn(f,"retire_unit"))return {why:"missingField",key:"retire_unit"};
+if(!(f["retire_unit"]===null||(Number.isSafeInteger(f["retire_unit"])&&f["retire_unit"]>=0)))return {why:"malformed",key:"retire_unit"};
+if(!Object.hasOwn(f,"retire_count"))return {why:"missingField",key:"retire_count"};
+if(!(Number.isSafeInteger(f["retire_count"])&&f["retire_count"]>=0))return {why:"malformed",key:"retire_count"};
+if(!Object.hasOwn(f,"subtask_policy"))return {why:"missingField",key:"subtask_policy"};
+if(!(typeof f["subtask_policy"]==='string'))return {why:"malformed",key:"subtask_policy"};
+if(!Object.hasOwn(f,"subtask_unit"))return {why:"missingField",key:"subtask_unit"};
+if(Array.isArray(f["subtask_unit"])&&f["subtask_unit"].length!==3)return {why:"cardinality",key:"subtask_unit"};
+if(!(Array.isArray(f["subtask_unit"])&&f["subtask_unit"].length===3&&f["subtask_unit"].every(v=>(v===null||(Number.isSafeInteger(v)&&v>=0)))))return {why:"malformed",key:"subtask_unit"};
+if(!Object.hasOwn(f,"subtask_bonus"))return {why:"missingField",key:"subtask_bonus"};
+if(Array.isArray(f["subtask_bonus"])&&f["subtask_bonus"].length!==3)return {why:"cardinality",key:"subtask_bonus"};
+if(!(Array.isArray(f["subtask_bonus"])&&f["subtask_bonus"].length===3&&f["subtask_bonus"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"subtask_bonus"};
+if(!Object.hasOwn(f,"action_names"))return {why:"missingField",key:"action_names"};
+if(Array.isArray(f["action_names"])&&f["action_names"].length!==9)return {why:"cardinality",key:"action_names"};
+if(!(Array.isArray(f["action_names"])&&f["action_names"].length===9&&f["action_names"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"action_names"};
+if(!Object.hasOwn(f,"meta_names"))return {why:"missingField",key:"meta_names"};
+if(Array.isArray(f["meta_names"])&&f["meta_names"].length!==4)return {why:"cardinality",key:"meta_names"};
+if(!(Array.isArray(f["meta_names"])&&f["meta_names"].length===4&&f["meta_names"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"meta_names"};
+if(!Object.hasOwn(f,"skill_names"))return {why:"missingField",key:"skill_names"};
+if(Array.isArray(f["skill_names"])&&f["skill_names"].length!==3)return {why:"cardinality",key:"skill_names"};
+if(!(Array.isArray(f["skill_names"])&&f["skill_names"].length===3&&f["skill_names"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"skill_names"};
+if(!Object.hasOwn(f,"goal_family_names"))return {why:"missingField",key:"goal_family_names"};
+if(Array.isArray(f["goal_family_names"])&&f["goal_family_names"].length!==4)return {why:"cardinality",key:"goal_family_names"};
+if(!(Array.isArray(f["goal_family_names"])&&f["goal_family_names"].length===4&&f["goal_family_names"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"goal_family_names"};
+if(!Object.hasOwn(f,"demons"))return {why:"missingField",key:"demons"};
+if(Array.isArray(f["demons"])&&f["demons"].length!==11)return {why:"cardinality",key:"demons"};
+if(!(Array.isArray(f["demons"])&&f["demons"].length===11&&f["demons"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"demons"};
+if(!Object.hasOwn(f,"cums"))return {why:"missingField",key:"cums"};
+if(Array.isArray(f["cums"])&&f["cums"].length!==11)return {why:"cardinality",key:"cums"};
+if(!(Array.isArray(f["cums"])&&f["cums"].length===11&&f["cums"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"cums"};
+if(!Object.hasOwn(f,"demon_names"))return {why:"missingField",key:"demon_names"};
+if(Array.isArray(f["demon_names"])&&f["demon_names"].length!==11)return {why:"cardinality",key:"demon_names"};
+if(!(Array.isArray(f["demon_names"])&&f["demon_names"].length===11&&f["demon_names"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"demon_names"};
+if(!Object.hasOwn(f,"demon_target_policy"))return {why:"missingField",key:"demon_target_policy"};
+if(Array.isArray(f["demon_target_policy"])&&f["demon_target_policy"].length!==11)return {why:"cardinality",key:"demon_target_policy"};
+if(!(Array.isArray(f["demon_target_policy"])&&f["demon_target_policy"].length===11&&f["demon_target_policy"].every(v=>(typeof v==='string'))))return {why:"malformed",key:"demon_target_policy"};
+if(!Object.hasOwn(f,"demon_gamma"))return {why:"missingField",key:"demon_gamma"};
+if(Array.isArray(f["demon_gamma"])&&f["demon_gamma"].length!==11)return {why:"cardinality",key:"demon_gamma"};
+if(!(Array.isArray(f["demon_gamma"])&&f["demon_gamma"].length===11&&f["demon_gamma"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"demon_gamma"};
+if(!Object.hasOwn(f,"demon_horizon"))return {why:"missingField",key:"demon_horizon"};
+if(Array.isArray(f["demon_horizon"])&&f["demon_horizon"].length!==11)return {why:"cardinality",key:"demon_horizon"};
+if(!(Array.isArray(f["demon_horizon"])&&f["demon_horizon"].length===11&&f["demon_horizon"].every(v=>(v===null||(typeof v==='number'&&Number.isFinite(v)&&Number.isFinite(Math.fround(v)))))))return {why:"malformed",key:"demon_horizon"};
 if(!(f["curriculum_names"].length===f["goal_count"]))return {why:"malformed",key:"curriculum_names"};
 if(!(f["curriculum_failed_attempts"].length===f["goal_count"]))return {why:"malformed",key:"curriculum_failed_attempts"};
 if(!(f["curriculum_success_steps"].length===f["goal_count"]))return {why:"malformed",key:"curriculum_success_steps"};
@@ -661,6 +761,191 @@ if(!f["tiles"].every(v=>(v>=0&&v<8)))return {why:"malformed",key:"tiles"};
 if(!f["tile_extra"].every(v=>(v>=0&&v<256)))return {why:"malformed",key:"tile_extra"};
 return null;
 }
+function observerNumber(v){return v===null?NaN:v;}
+function observerIndex(v){return v===null?-1:v;}
+function observerRecord(f){
+const r={};let n=null;
+r["schema_version"]=f["schema_version"];
+r["source_sha256"]=f["source_sha256"];
+r["build_sha256"]=f["build_sha256"];
+r["audit_digest"]=f["audit_digest"];
+r["run_id"]=f["run_id"];
+r["agent_epoch"]=f["agent_epoch"];
+r["origin"]=f["origin"];
+r["timestamp_ms"]=f["timestamp_ms"];
+r["update_us"]=f["update_us"];
+r["environment_us"]=f["environment_us"];
+r["process_uptime_ms"]=f["process_uptime_ms"];
+r["process_started_ms"]=f["process_started_ms"];
+r["core_rss_bytes"]=observerNumber(f["core_rss_bytes"]);
+r["checkpoint_bytes"]=observerNumber(f["checkpoint_bytes"]);
+r["checkpoint_write_us"]=observerNumber(f["checkpoint_write_us"]);
+r["checkpoint_failures"]=f["checkpoint_failures"];
+r["telemetry_refusals"]=f["telemetry_refusals"];
+r["telemetry_drops"]=f["telemetry_drops"];
+r["goal_count"]=f["goal_count"];
+r["attempt_cap"]=f["attempt_cap"];
+r["step_cap"]=f["step_cap"];
+r["cycle_cap"]=f["cycle_cap"];
+r["goal_progress_invalid"]=f["goal_progress_invalid"];
+r["goal_progress_cycle"]=f["goal_progress_cycle"];
+r["goal_progress_resolved"]=f["goal_progress_resolved"];
+r["goal_progress_attempt"]=f["goal_progress_attempt"];
+r["goal_progress_achieved"]=f["goal_progress_achieved"];
+r["goal_progress_completed_cycle"]=f["goal_progress_completed_cycle"];
+r["goal_progress_completed_achieved"]=f["goal_progress_completed_achieved"];
+r["goal_progress_score"]=f["goal_progress_score"];
+r["curriculum_names"]=f["curriculum_names"];
+r["curriculum_failed_attempts"]=f["curriculum_failed_attempts"];
+r["curriculum_success_steps"]=f["curriculum_success_steps"];
+r["world_step"]=f["world_step"];
+r["seed"]=f["seed"];
+r["side"]=f["side"];
+r["day_length"]=f["day_length"];
+r["regrow"]=f["regrow"];
+r["food_interval"]=f["food_interval"];
+r["food_cap"]=f["food_cap"];
+r["deer_cap"]=f["deer_cap"];
+r["x"]=f["x"];
+r["y"]=f["y"];
+r["facing"]=f["facing"];
+r["energy"]=f["energy"];
+r["wood"]=f["wood"];
+r["stone"]=f["stone"];
+r["food"]=f["food"];
+r["gold"]=f["gold"];
+r["axe"]=f["axe"];
+r["boat"]=f["boat"];
+r["action"]=f["action"];
+r["reward"]=observerNumber(f["reward"]);if(!Number.isFinite(r["reward"]))n??="reward";
+r["done"]=f["done"];
+r["ev"]=f["ev"];
+r["goal"]=f["goal"];
+r["attempt"]=f["attempt"];
+r["tier"]=f["tier"];
+r["cycle"]=f["cycle"];
+r["gkind"]=f["gkind"];
+r["gitem"]=f["gitem"];
+r["gx"]=f["gx"];
+r["gy"]=f["gy"];
+r["gn"]=f["gn"];
+r["tiles"]=Float64Array.from(f["tiles"]);
+r["tile_extra"]=Float64Array.from(f["tile_extra"]);
+r["end"]=f["end"];
+r["lifetime_step"]=f["lifetime_step"];
+r["reward_rate"]=observerNumber(f["reward_rate"]);if(!Number.isFinite(r["reward_rate"]))n??="reward_rate";
+r["eps"]=observerNumber(f["eps"]);if(!Number.isFinite(r["eps"]))n??="eps";
+r["mean_alpha"]=observerNumber(f["mean_alpha"]);if(!Number.isFinite(r["mean_alpha"]))n??="mean_alpha";
+r["a_ctl"]=observerNumber(f["a_ctl"]);if(!Number.isFinite(r["a_ctl"]))n??="a_ctl";
+r["a_dem"]=observerNumber(f["a_dem"]);if(!Number.isFinite(r["a_dem"]))n??="a_dem";
+r["alpha_control_all"]=Float32Array.from(f["alpha_control_all"],observerNumber);if(!r["alpha_control_all"].every(Number.isFinite))n??="alpha_control_all";
+r["alpha_meta_all"]=Float32Array.from(f["alpha_meta_all"],observerNumber);if(!r["alpha_meta_all"].every(Number.isFinite))n??="alpha_meta_all";
+r["alpha_option_all"]=Float32Array.from(f["alpha_option_all"],observerNumber);if(!r["alpha_option_all"].every(Number.isFinite))n??="alpha_option_all";
+r["alpha_demon_all"]=Float32Array.from(f["alpha_demon_all"],observerNumber);if(!r["alpha_demon_all"].every(Number.isFinite))n??="alpha_demon_all";
+r["alpha_models"]=Float32Array.from(f["alpha_models"],observerNumber);if(!r["alpha_models"].every(Number.isFinite))n??="alpha_models";
+r["credit_control"]=Float64Array.from(f["credit_control"]);
+r["credit_meta"]=Float64Array.from(f["credit_meta"]);
+r["credit_options"]=Float64Array.from(f["credit_options"]);
+r["credit_demons"]=Float64Array.from(f["credit_demons"]);
+r["credit_models"]=Float64Array.from(f["credit_models"]);
+r["option_model_rewards"]=Float32Array.from(f["option_model_rewards"],observerNumber);if(!r["option_model_rewards"].every(Number.isFinite))n??="option_model_rewards";
+r["option_model_continuations"]=Float32Array.from(f["option_model_continuations"],observerNumber);if(!r["option_model_continuations"].every(Number.isFinite))n??="option_model_continuations";
+r["option_model_durations"]=Float32Array.from(f["option_model_durations"],observerNumber);if(!r["option_model_durations"].every(Number.isFinite))n??="option_model_durations";
+r["planning_errors"]=Float32Array.from(f["planning_errors"],observerNumber);if(!r["planning_errors"].every(Number.isFinite))n??="planning_errors";
+r["planning_steps"]=f["planning_steps"];
+r["decision_source"]=f["decision_source"];
+r["skill"]=f["skill"];
+r["explored"]=f["explored"];
+r["control"]=Float32Array.from(f["control"],observerNumber);if(!r["control"].every(Number.isFinite))n??="control";
+r["meta"]=Float32Array.from(f["meta"],observerNumber);if(!r["meta"].every(Number.isFinite))n??="meta";
+r["action_probabilities"]=Float32Array.from(f["action_probabilities"],observerNumber);if(!r["action_probabilities"].every(Number.isFinite))n??="action_probabilities";
+r["meta_probabilities"]=Float32Array.from(f["meta_probabilities"],observerNumber);if(!r["meta_probabilities"].every(Number.isFinite))n??="meta_probabilities";
+r["meta_action"]=f["meta_action"];
+r["option_start"]=f["option_start"];
+r["option_end_skill"]=f["option_end_skill"];
+r["option_end_duration"]=f["option_end_duration"];
+r["option_end_reason"]=f["option_end_reason"];
+r["option_elapsed"]=f["option_elapsed"];
+r["lifetime_reward_sum"]=observerNumber(f["lifetime_reward_sum"]);if(!Number.isFinite(r["lifetime_reward_sum"]))n??="lifetime_reward_sum";
+r["lifetime_reward_count"]=f["lifetime_reward_count"];
+r["lifetime_reward_family_sum"]=Float64Array.from(f["lifetime_reward_family_sum"],observerNumber);if(!r["lifetime_reward_family_sum"].every(Number.isFinite))n??="lifetime_reward_family_sum";
+r["lifetime_reward_family_count"]=Float64Array.from(f["lifetime_reward_family_count"]);
+r["lifetime_reward_history_sum"]=Float64Array.from(f["lifetime_reward_history_sum"],observerNumber);if(!r["lifetime_reward_history_sum"].every(Number.isFinite))n??="lifetime_reward_history_sum";
+r["lifetime_reward_history_count"]=Float64Array.from(f["lifetime_reward_history_count"]);
+r["lifetime_error_history_sum"]=Float64Array.from(f["lifetime_error_history_sum"],observerNumber);if(!r["lifetime_error_history_sum"].every(Number.isFinite))n??="lifetime_error_history_sum";
+r["lifetime_error_history_count"]=Float64Array.from(f["lifetime_error_history_count"]);
+r["lifetime_error_sum"]=Float64Array.from(f["lifetime_error_sum"],observerNumber);if(!r["lifetime_error_sum"].every(Number.isFinite))n??="lifetime_error_sum";
+r["lifetime_error_count"]=Float64Array.from(f["lifetime_error_count"]);
+r["settled_return"]=Float32Array.from(f["settled_return"],observerNumber);if(!r["settled_return"].every(Number.isFinite))n??="settled_return";
+r["settled_error"]=Float32Array.from(f["settled_error"],observerNumber);if(!r["settled_error"].every(Number.isFinite))n??="settled_error";
+r["lifetime_option_started"]=Float64Array.from(f["lifetime_option_started"]);
+r["lifetime_option_completed"]=Float64Array.from(f["lifetime_option_completed"]);
+r["lifetime_option_duration"]=Float64Array.from(f["lifetime_option_duration"]);
+r["lifetime_option_end_reasons"]=Float64Array.from(f["lifetime_option_end_reasons"]);
+r["lifetime_goal_attempts"]=Float64Array.from(f["lifetime_goal_attempts"]);
+r["lifetime_goal_successes"]=Float64Array.from(f["lifetime_goal_successes"]);
+r["lifetime_goal_steps"]=Float64Array.from(f["lifetime_goal_steps"]);
+r["lifetime_cycle_attempts"]=Float64Array.from(f["lifetime_cycle_attempts"]);
+r["lifetime_cycle_successes"]=Float64Array.from(f["lifetime_cycle_successes"]);
+r["lifetime_cycle_steps"]=Float64Array.from(f["lifetime_cycle_steps"]);
+r["agreement_version"]=f["agreement_version"];
+r["agreement_scale"]=f["agreement_scale"];
+r["agreement_started"]=f["agreement_started"];
+r["agreement_stopped"]=f["agreement_stopped"];
+r["agreement_score"]=f["agreement_score"];
+r["agreement_text"]=f["agreement_text"];
+r["agreement_error"]=f["agreement_error"];
+r["agreement_channel_score"]=f["agreement_channel_score"];
+r["agreement_channel_text"]=f["agreement_channel_text"];
+r["agreement_channel_error"]=f["agreement_channel_error"];
+r["agreement_count"]=f["agreement_count"];
+r["agreement_pending"]=Float64Array.from(f["agreement_pending"]);
+r["agreement_censored"]=f["agreement_censored"];
+r["agreement_status"]=f["agreement_status"];
+r["agreement_horizon"]=Float64Array.from(f["agreement_horizon"]);
+r["agreement_start_first"]=f["agreement_start_first"];
+r["agreement_start_last"]=f["agreement_start_last"];
+r["agreement_settlement_first"]=f["agreement_settlement_first"];
+r["agreement_settlement_last"]=f["agreement_settlement_last"];
+r["agreement_tail"]=f["agreement_tail"];
+r["agreement_rounding"]=f["agreement_rounding"];
+r["agreement_history_clock"]=f["agreement_history_clock"];
+r["agreement_history_score"]=f["agreement_history_score"];
+r["checkpoint_format"]=f["checkpoint_format"];
+r["control_criterion"]=f["control_criterion"];
+r["weight_space"]=f["weight_space"];
+r["primitive_count"]=f["primitive_count"];
+r["meta_count"]=f["meta_count"];
+r["skill_count"]=f["skill_count"];
+r["option_end_count"]=f["option_end_count"];
+r["demon_count"]=f["demon_count"];
+r["learner_count"]=f["learner_count"];
+r["history_bins"]=f["history_bins"];
+r["cycle_bins"]=f["cycle_bins"];
+r["exact_cycles"]=f["exact_cycles"];
+r["settle_stride"]=f["settle_stride"];
+r["settle_remaining"]=observerNumber(f["settle_remaining"]);if(!Number.isFinite(r["settle_remaining"]))n??="settle_remaining";
+r["n_tilings"]=f["n_tilings"];
+r["imprint_units"]=f["imprint_units"];
+r["retire_step"]=observerIndex(f["retire_step"]);
+r["retire_unit"]=observerIndex(f["retire_unit"]);
+r["retire_count"]=f["retire_count"];
+r["subtask_policy"]=f["subtask_policy"];
+r["subtask_unit"]=Int32Array.from(f["subtask_unit"],observerIndex);
+r["subtask_bonus"]=Float32Array.from(f["subtask_bonus"],observerNumber);if(!r["subtask_bonus"].every(Number.isFinite))n??="subtask_bonus";
+r["action_names"]=f["action_names"];
+r["meta_names"]=f["meta_names"];
+r["skill_names"]=f["skill_names"];
+r["goal_family_names"]=f["goal_family_names"];
+r["demons"]=Float32Array.from(f["demons"],observerNumber);if(!r["demons"].every(Number.isFinite))n??="demons";
+r["cums"]=Float32Array.from(f["cums"],observerNumber);if(!r["cums"].every(Number.isFinite))n??="cums";
+r["demon_names"]=f["demon_names"];
+r["demon_target_policy"]=f["demon_target_policy"];
+r["demon_gamma"]=Float32Array.from(f["demon_gamma"],observerNumber);if(!r["demon_gamma"].every(Number.isFinite))n??="demon_gamma";
+r["demon_horizon"]=Float32Array.from(f["demon_horizon"],observerNumber);if(!r["demon_horizon"].every(Number.isFinite))n??="demon_horizon";
+return {rec:r,nonFiniteKey:n,agreement:{source:r["source_sha256"],build:r["build_sha256"],process:r["process_started_ms"],clock:r["lifetime_step"],scale:r["agreement_scale"],started:r["agreement_started"],stopped:r["agreement_stopped"],score:r["agreement_score"],text:r["agreement_text"],error:r["agreement_error"],channelScore:r["agreement_channel_score"],channelText:r["agreement_channel_text"],channelError:r["agreement_channel_error"],count:r["agreement_count"],pending:r["agreement_pending"],censored:r["agreement_censored"],status:r["agreement_status"],horizon:r["agreement_horizon"],startFirst:r["agreement_start_first"],startLast:r["agreement_start_last"],settlementFirst:r["agreement_settlement_first"],settlementLast:r["agreement_settlement_last"],tail:r["agreement_tail"],rounding:r["agreement_rounding"],historyClock:r["agreement_history_clock"],historyScore:r["agreement_history_score"],stride:r["settle_stride"],names:r["demon_names"],policies:r["demon_target_policy"],gamma:r["demon_gamma"],envelope:Array.from(r["demon_horizon"],v=>2*v),goalProgress:{goals:r["goal_count"],attempts:r["attempt_cap"],steps:r["step_cap"],invalid:r["goal_progress_invalid"],cycle:r["goal_progress_cycle"],resolved:r["goal_progress_resolved"],attempt:r["goal_progress_attempt"],achieved:r["goal_progress_achieved"],completeCycle:r["goal_progress_completed_cycle"],completeAchieved:r["goal_progress_completed_achieved"],score:r["goal_progress_score"],names:r["curriculum_names"],failed:r["curriculum_failed_attempts"],successSteps:r["curriculum_success_steps"],activeGoal:r["goal"]}}};
+}
+function validate(f){const rejected=observerAdmission(f);if(rejected)return rejected;return observerRecord(f);}
 const observerSnapshotFollows=(...p)=>((p[7]<p[0])||((p[0]===p[7])&&((p[9]===0)&&((p[8]<p[1])||((p[1]===p[8])&&((p[2]===1)||(((p[6]===1)&&(p[13]===0))||((p[10]<p[3])||((p[3]===p[10])&&((p[11]<p[4])||((p[4]===p[11])&&(p[12]<p[5]))))))))))));
 const observerAfter=(...p)=>((p[3]<p[0])||((p[0]===p[3])&&((p[4]<p[1])||((p[1]===p[4])&&(p[5]<p[2])))));
 const observerAgreementFollows=(...p)=>((p[3]<p[0])||((p[0]===p[3])&&((p[5]===0)&&((p[4]<p[1])||((p[1]===p[4])&&(p[2]===1))))));

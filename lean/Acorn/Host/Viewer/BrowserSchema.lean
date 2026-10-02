@@ -4,16 +4,18 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.Viewer.CoreTelemetry
-import Acorn.Host.Viewer.BrowserMath
-import Acorn.Host.Viewer.ClockProgram
-import Acorn.Host.Viewer.BrowserNat
+import Acorn.Host.Viewer.ControlTelemetry
 
 /-!
 # Browser schema linked to the executing emitter
 
 The kernel checks the schema against every native capture, independently of
 configuration, state and terminal status. The executable schema is retained as
-closed data so the browser requires no initialized agent or world.
+closed data so the browser requires no initialized agent or world. Whole-frame,
+envelope, control and map admission are emitted from it and from the closed
+refinements below; `Acorn.Host.Viewer.BrowserRecord` and
+`Acorn.Host.Viewer.BrowserStore` derive the page's record and frame store from
+the same list.
 -/
 namespace Acorn.Host.Viewer
 open Features Handcrafted
@@ -309,27 +311,63 @@ def browserGoalTextJavascript : String :=
       "case " ++ toString kind.code ++ ":return " ++ goalTextExpression kind ++ ";") ++
     "default:return '—';}}\n"
 
+/-- Why the page refuses a whole frame: a closed set, each member with one page counter
+and one remedy in the stream-health readout. -/
+inductive BrowserRefusal where
+  /-- `schema_version` is not the one this page reads: the page and the core were built
+  from different trees. -/
+  | schema
+  /-- A fixed count or an array length disagrees with the schema: the same build skew,
+  seen in a shape. -/
+  | cardinality
+  /-- A required key is absent: a source defect that rebuilding does not fix. -/
+  | missingField
+  /-- A key is present without the value its schema promises: the emitter or the
+  transport is wrong. -/
+  | malformed
+
+/-- Wire spelling of a refusal, also the page's counter key. -/
+def BrowserRefusal.tag : BrowserRefusal → String
+  | .schema => "schema" | .cardinality => "cardinality"
+  | .missingField => "missingField" | .malformed => "malformed"
+
+/-- Every refusal reason; the page keeps one counter per member. -/
+def BrowserRefusal.all : List BrowserRefusal :=
+  [.schema, .cardinality, .missingField, .malformed]
+
+/-- No refusal reason lacks a page counter. -/
+theorem BrowserRefusal.all_complete (refusal : BrowserRefusal) :
+    refusal ∈ BrowserRefusal.all := by
+  cases refusal <;> simp [BrowserRefusal.all]
+
+/-- The page's refusal vocabulary, emitted from the reasons admission returns. -/
+def browserRefusalJavascript : String :=
+  "const Reject=Object.freeze({" ++
+    String.intercalate "," (BrowserRefusal.all.map fun refusal =>
+      refusal.tag ++ ":" ++ telemetryString refusal.tag) ++ "});\n"
+
+private def refuse (why : BrowserRefusal) (key : String) : String :=
+  "return {why:" ++ telemetryString why.tag ++ ",key:" ++ telemetryString key ++ "};\n"
+
 /-- Generated whole-record admission returns the refused wire key and reason.
 The native emitter/schema equality owns structural coverage; refinements own
 the browser projection domain. Unknown fields remain forward-compatible. -/
 def browserAdmissionJavascript : String :=
   "function observerAdmission(f){\nif(!f||typeof f!=='object'||Array.isArray(f))" ++
-    "return {why:'malformed',key:'frame'};\n" ++
+    refuse .malformed "frame" ++
   String.join (browserSchema.map fun (key, shape) =>
     let access := "f[" ++ telemetryString key ++ "]"
     let cardinality := match shape with
       | .array count _ => s!"if(Array.isArray({access})&&{access}.length!=={count})" ++
-          "return {why:'cardinality',key:" ++ telemetryString key ++ "};\n"
+          refuse .cardinality key
       | _ => ""
-    "if(!Object.hasOwn(f," ++ telemetryString key ++ "))return {why:'missingField',key:" ++
-      telemetryString key ++ "};\n" ++ cardinality ++ "if(!" ++ shape.browserPredicate access ++
-      ")return {why:'malformed',key:" ++ telemetryString key ++ "};\n") ++
+    "if(!Object.hasOwn(f," ++ telemetryString key ++ "))" ++ refuse .missingField key ++
+      cardinality ++ "if(!" ++ shape.browserPredicate access ++ ")" ++ refuse .malformed key) ++
   String.join (browserRules.map fun (key, rule) =>
-    let why := match rule with
-      | .exact _ => if key == "schema_version" then "schema" else "cardinality"
-      | _ => "malformed"
-    "if(!" ++ rule.javascript ("f[" ++ telemetryString key ++ "]") ++
-      ")return {why:" ++ telemetryString why ++ ",key:" ++ telemetryString key ++ "};\n") ++
+    let why : BrowserRefusal := match rule with
+      | .exact _ => if key == "schema_version" then .schema else .cardinality
+      | _ => .malformed
+    "if(!" ++ rule.javascript ("f[" ++ telemetryString key ++ "]") ++ ")" ++ refuse why key) ++
   "return null;\n}\n"
 
 private def rulesFunction (name : String) (rules : List (String × BrowserRule)) : String :=
@@ -351,7 +389,7 @@ def browserControlRules : List (String × BrowserRule) :=
    ("transition", .tags ["initialized", "start_requested", "stop_requested", "clear_requested",
      "core_started", "core_stopped", "restart_scheduled", "archiving", "cleared", "failed"]),
    ("transitionReason", .shape .text), ("reason", .shape .text),
-   ("actual", .tags ["starting", "running", "stopping", "clearing", "stopped"]),
+   ("actual", .tags (Phase.representatives.map Phase.controlTag)),
    ("desired", .tags ["running", "stopped"]), ("seed", .shape .natural),
    ("checkpointRefused", .shape .flag), ("clearDisabled", .shape (.optional .text)),
    ("terminalWarning", .shape (.optional .text)),
@@ -362,106 +400,9 @@ def browserMapRules : List (String × BrowserRule) :=
   [("runId", .hex 16), ("side", .shape .natural), ("side", .positive), ("side", .range 4097),
    ("seed", .shape .natural), ("kinds", .shape .text), ("partial", .shape .flag)]
 
-/-- Numeric columns have one representation, derived uniformly from their extents.
-Safe integers and widened binary32 values fit the browser's binary64 domain.
-No per-column storage-width choice exists. JavaScript execution remains trusted. -/
-def browserNumberColumns : List (String × List String) :=
-  [
-    ("CAP", ["worldStep", "lifetimeStep", "agentEpoch", "origin", "x", "y", "facing", "action", "skill", "ev", "flags", "goal", "attempt", "tier", "cycle", "goalCount", "attemptCap", "energy", "wood", "stone", "food", "gold", "reward", "eps", "alpha", "rewardRate", "criterion", "aCtl", "aDem", "updateUs", "environmentUs", "gkind", "gitem", "gx", "gy", "gn", "planningSteps", "retireCount", "retireStep", "retireUnit", "decisionSource", "explored", "metaAction", "optStart", "optEnd", "optEndReason", "optEndDuration", "optElapsed", "lifeRewardSum", "lifeRewardCount", "lifeErrorSum", "lifeErrorCount", "runStart"]),
-    ("CAP*N_DEM", ["dem", "cum", "alphaDemons", "creditDemons", "lifeErrorCountD", "settledReturn", "settledError"]),
-    ("CAP*N_CTL", ["ctl", "actProb", "alphaControl", "creditControl"]),
-    ("CAP*N_META", ["met", "metaProb", "alphaMeta", "creditMeta"]),
-    ("CAP*N_SKILL", ["optModRew", "optModCont", "optModDuration", "planningErrors", "subtaskUnit", "subtaskBonus", "lifeOptStarted", "lifeOptCompleted", "lifeOptDuration"]),
-    ("CAP*N_CTL*N_SKILL", ["alphaOptions", "creditOptions"]),
-    ("CAP*3*N_SKILL", ["alphaModels", "creditModels"]),
-    ("CAP*N_SKILL*N_OPTION_END", ["lifeOptEndReasons"]),
-    ("CAP*N_GOAL_FAMILY", ["lifeGoalAttempts", "lifeGoalSuccesses", "lifeGoalSteps", "lifeRewardFamilySum", "lifeRewardFamilyCount", "cycleAttempts", "cycleSuccesses", "cycleSteps"])
-  ]
-
-/-- Emit every numeric column through the same binary64 allocation constructor. -/
-def browserNumberStorageJavascript : String :=
-  String.intercalate "\n" (browserNumberColumns.flatMap fun (extent, names) =>
-    names.map fun name => s!"  {name}:new Float64Array({extent}),")
-
-/-- Storage and intake share the generated browser kernel. The two byte columns
-contain only sensor kind/extra codes bounded by admission; text keeps its identity.
-Direct assignments preserve admitted values under JavaScript typed-array semantics. -/
-def browserStorageJavascript : String :=
-  "function observerFrameStore(CAP,N_DEM,N_CTL,N_META,N_TILE,N_SKILL,N_OPTION_END,N_GOAL_FAMILY){return {\n" ++
-  browserNumberStorageJavascript ++ "\n" ++ String.intercalate "\n" [
-    "  runId:new Array(CAP),",
-    "  tiles:new Uint8Array(CAP*N_TILE), extra:new Uint8Array(CAP*N_TILE),",
-    "};}",
-    "function observerStore(id, f) {",
-    "  const i = slot(id);",
-    "  S.worldStep[i]=f.world_step; S.lifetimeStep[i]=f.lifetime_step;",
-    "  S.runId[i]=f.runId; S.agentEpoch[i]=f.agent_epoch;",
-    "  S.origin[i] = f.origin === \"resumed\" ? 1 : f.origin === \"cleared\" ? 2 : 0;",
-    "  S.x[i]=f.x; S.y[i]=f.y; S.facing[i]=f.facing; S.action[i]=f.action;",
-    "  S.skill[i]=f.skill; S.ev[i]=f.ev; S.goal[i]=f.goal; S.attempt[i]=f.attempt;",
-    "  S.tier[i]=f.tier; S.cycle[i]=f.cycle; S.goalCount[i]=f.goal_count;",
-    "  S.attemptCap[i]=f.attempt_cap; S.energy[i]=f.energy; S.wood[i]=f.wood;",
-    "  S.stone[i]=f.stone; S.food[i]=f.food;",
-    "  S.gold[i]=f.gold; S.reward[i]=f.reward; S.eps[i]=f.eps;",
-    "  S.rewardRate[i]=f.reward_rate; S.criterion[i]=f.control_criterion;",
-    "  S.alpha[i]=f.mean_alpha; S.aCtl[i]=f.a_ctl; S.aDem[i]=f.a_dem;",
-    "  S.updateUs[i]=f.update_us; S.environmentUs[i]=f.environment_us;",
-    "  S.gkind[i]=f.gkind; S.gitem[i]=f.gitem;",
-    "  S.gx[i]=f.gx; S.gy[i]=f.gy; S.gn[i]=f.gn;",
-    "  S.flags[i] = (f.axe?1:0)|(f.boat?2:0)|(f.done?4:0)|(f.end?8:0);",
-    "  S.dem.set(f.dem, i*N_DEM);",
-    "  S.cum.set(f.cum, i*N_DEM);",
-    "  S.ctl.set(f.ctl, i*N_CTL);",
-    "  S.met.set(f.met, i*N_META);",
-    "  S.actProb.set(f.actProb, i*N_CTL); S.metaProb.set(f.metaProb, i*N_META);",
-    "  S.decisionSource[i] = [\"primitive\",\"exploration_start\",\"exploration_continuation\",\"option\"].indexOf(f.decisionSource);",
-    "  S.explored[i] = f.explored ? 1 : 0; S.metaAction[i]=f.meta_action;",
-    "  S.optStart[i]=f.option_start; S.optEnd[i]=f.option_end_skill;",
-    "  S.optEndReason[i]=f.option_end_reason; S.optEndDuration[i]=f.option_end_duration;",
-    "  S.optElapsed[i]=f.option_elapsed;",
-    "  S.optModRew.set(f.optModRew, i*N_SKILL);",
-    "  S.optModCont.set(f.optModCont, i*N_SKILL);",
-    "  S.optModDuration.set(f.optModDuration, i*N_SKILL);",
-    "  S.planningSteps[i]=f.planning_steps;",
-    "  S.planningErrors.set(f.planningErrors, i*N_SKILL);",
-    "  S.subtaskUnit.set(f.subtaskUnit, i*N_SKILL); S.subtaskBonus.set(f.subtaskBonus, i*N_SKILL);",
-    "  S.retireCount[i]=f.retire_count; S.retireStep[i]=f.retire_step; S.retireUnit[i]=f.retire_unit;",
-    "  S.alphaControl.set(f.alphaControl,i*N_CTL); S.alphaMeta.set(f.alphaMeta,i*N_META);",
-    "  S.alphaOptions.set(f.alphaOptions,i*N_CTL*N_SKILL); S.alphaDemons.set(f.alphaDemons,i*N_DEM);",
-    "  S.alphaModels.set(f.alphaModels,i*3*N_SKILL);",
-    "  S.creditControl.set(f.creditControl,i*N_CTL); S.creditMeta.set(f.creditMeta,i*N_META);",
-    "  S.creditOptions.set(f.creditOptions,i*N_CTL*N_SKILL); S.creditDemons.set(f.creditDemons,i*N_DEM);",
-    "  S.creditModels.set(f.creditModels,i*3*N_SKILL);",
-    "  S.lifeRewardSum[i]=f.lifetime_reward_sum; S.lifeRewardCount[i]=f.lifetime_reward_count;",
-    "  S.lifeErrorSum[i]=observerSum(f.lifeErrorSum);",
-    "  S.lifeErrorCount[i]=observerSum(f.lifeErrorCount);",
-    "  S.lifeErrorCountD.set(f.lifeErrorCount,i*N_DEM); S.settledReturn.set(f.settledReturn,i*N_DEM);",
-    "  S.settledError.set(f.settledError,i*N_DEM);",
-    "  S.lifeOptStarted.set(f.lifeOptStarted,i*N_SKILL);",
-    "  S.lifeOptCompleted.set(f.lifeOptCompleted,i*N_SKILL);",
-    "  S.lifeOptDuration.set(f.lifeOptDuration,i*N_SKILL);",
-    "  S.lifeOptEndReasons.set(f.lifeOptEndReasons,i*N_SKILL*N_OPTION_END);",
-    "  S.lifeGoalAttempts.set(f.lifeGoalAttempts,i*N_GOAL_FAMILY);",
-    "  S.lifeGoalSuccesses.set(f.lifeGoalSuccesses,i*N_GOAL_FAMILY);",
-    "  S.lifeGoalSteps.set(f.lifeGoalSteps,i*N_GOAL_FAMILY);",
-    "  S.lifeRewardFamilySum.set(f.lifeRewardFamilySum,i*N_GOAL_FAMILY);",
-    "  S.lifeRewardFamilyCount.set(f.lifeRewardFamilyCount,i*N_GOAL_FAMILY);",
-    "  const cb=cycleBucket(f.cycle);",
-    "  for(let family=0;family<N_GOAL_FAMILY;family++){",
-    "    const src=family*CYCLE_BINS+cb,dst=i*N_GOAL_FAMILY+family;",
-    "    S.cycleAttempts[dst]=f.lifeCycleAttempts[src];",
-    "    S.cycleSuccesses[dst]=f.lifeCycleSuccesses[src];",
-    "    S.cycleSteps[dst]=f.lifeCycleSteps[src];",
-    "  }",
-    "  S.tiles.set(f.tiles, i*N_TILE);",
-    "  S.extra.set(f.extra, i*N_TILE);",
-    "}",
-    ""]
-
-/-- One generated resource owns admission and observer calculations together. -/
-def browserKernelJavascript : String :=
-  browserStorageJavascript ++ BrowserMath.javascript ++ browserGoalLabelsJavascript ++ browserGoalTextJavascript ++ browserAdmissionJavascript ++ ClockProgram.javascript ++ BrowserNat.javascript ++
-    rulesFunction "observerEnvelope" browserEnvelopeRules ++
+/-- Envelope, control and map admission, each independent of whole-frame admission. -/
+def browserRulesJavascript : String :=
+  rulesFunction "observerEnvelope" browserEnvelopeRules ++
     rulesFunction "observerControl" browserControlRules ++
     rulesFunction "observerMap" browserMapRules
 

@@ -3,16 +3,19 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Host.Viewer.BrowserSchema
-import Acorn.Host.Viewer.MapCodec
-import Acorn.Host.Viewer.ControlTelemetry
+import Acorn.Host.Viewer.Buffer
+import Acorn.Host.Viewer.Retry
 import Acorn.Host.Viewer.SupervisedProcess
+import Acorn.Host.Viewer.WorldMemory
 
 /-! # Browser execution wiring admission
 
-The generated kernel owns numeric programs and whole-frame admission. This
-lexical gate binds the handwritten observer to those owners and holds its
-request/timer inventory. Rendered browser behavior is inspected separately.
+The generated kernel owns the page's constants, frame store and its ring binding,
+whole-frame admission, record conversion, validation and numeric programs; their
+agreement with the schema is proved beside their definitions. This lexical gate
+holds only what stays handwritten: the call sites that route the observer through
+those owners, and its request/timer inventory. Rendered browser behavior is
+inspected separately.
 -/
 namespace AcornBrowserAudit
 open Acorn.Host.Viewer
@@ -88,63 +91,6 @@ def scripts (page : String) : IO String := do
     result := result ++ (← code source)
   return result
 
-private def literals (text : String) : List String :=
-  ((text.splitOn "\"").zipIdx).filterMap fun (part, index) =>
-    if index % 2 == 1 then some part else none
-
-private def table (page name : String) : IO String := do
-  let [_, rest] := page.splitOn ("const " ++ name ++ " = [")
-    | throw (IO.userError s!"missing/duplicate browser table {name}")
-  let some content := (rest.splitOn "];").head?
-    | throw (IO.userError s!"unclosed browser table {name}")
-  return content
-
-private def numeric (script expression : String) : Option Nat := do
-  let mut product := 1
-  for factor in (compact expression).splitOn "*" do
-    let value ← if factor == "N_SKILL" then do
-        let metaCount ← number script "N_META"
-        pure (metaCount - 1)
-      else factor.toNat? |>.orElse fun _ => number script factor
-    product := product * value
-  return product
-
-private def tables (page script : String) : IO Unit := do
-  let keys := browserSchema.map Prod.fst
-  for name in ["INT_FIELDS", "OPT_INT_FIELDS", "FLOAT_FIELDS"] do
-    let fields := literals (← table page name)
-    require (!fields.isEmpty && fields.eraseDups.length == fields.length && fields.all keys.contains)
-      s!"scalar conversion keys differ from native schema: {name}"
-  let rows := ((← table page "ARRAY_FIELDS").splitOn "\n").filter
-    (fun row => row.trimAscii.toString.startsWith "[")
-  require (!rows.isEmpty) "array conversion table is empty"
-  let mut seen := []
-  for row in rows do
-    let [_, key] := literals row | throw (IO.userError "unreadable browser array key")
-    require (!seen.contains key) s!"duplicate browser array key {key}"
-    seen := key :: seen
-    let some (_, .array width _) := browserSchema.find? (fun field => field.1 == key)
-      | throw (IO.userError s!"browser array not in native schema: {key}")
-    let columns := row.trimAscii.toString.splitOn ","
-    let widthText := ((columns.filter (!·.trimAscii.isEmpty)).getLast?).getD ""
-    let widthText := (widthText.replace "]" "").trimAscii.toString
-    require (numeric script widthText == some width) s!"array conversion dimension differs: {key}"
-  for row in ((← table page "RESOURCE_FIELDS").splitOn "\n").filter
-      (fun row => row.trimAscii.toString.startsWith "[") do
-    let [_, key] := literals row | throw (IO.userError "unreadable browser resource key")
-    require (keys.contains key) s!"resource key missing from native schema: {key}"
-  let tags := literals (← table page "UNASKED_STOPS")
-  require (tags == [ControlTransition.failed.tag, ControlTransition.restartScheduled.tag])
-    "unasked-stop transitions differ from native owner"
-  let [_, labels] := page.splitOn "const RUN_LABEL = {"
-    | throw (IO.userError "missing/duplicate run labels")
-  let labels := ((labels.splitOn "\n};").headD "").splitOn "\n" |>.filterMap fun row =>
-    match row.splitOn ":" with
-    | name :: _ :: _ => some name.trimAscii.toString
-    | _ => none
-  let expected := [Phase.starting 0, .running 0, .stopping 0, .archiving, .idle].map Phase.controlTag
-  require (labels == expected) "run labels differ from exhaustive native lifecycle projection"
-
 private def documentConstants (script : String) : IO Unit := do
   let text ← IO.FS.readFile "docs/viewer-ux.md"
   let [_, appendix] := text.splitOn "## Appendix A"
@@ -169,7 +115,7 @@ private def documentConstants (script : String) : IO Unit := do
     | _ => pure ()
   require (seen.length ≥ 2 && native.all (fun row => seen.contains row.1)) "missing native constant rows"
 
-/-- Check the generated-program call sites and native schema dimensions. -/
+/-- Check the generated-program call sites and the request/timer inventory. -/
 def check : IO Unit := do
   let page ← IO.FS.readFile "viewer/static/index.html"
   let script := compact (← scripts page)
@@ -177,11 +123,6 @@ def check : IO Unit := do
     require ((script.splitOn token).length == count + 1) s!"request/timer inventory differs: {token}"
   require (page.contains "fetch(\"/control\"") "request target differs from /control"
   require ((page.splitOn "/* LEAN_BROWSER_KERNEL */").length == 2) "kernel insertion must be unique"
-  require (script.contains "constS=observerFrameStore(CAP,N_DEM,N_CTL,N_META,N_TILE,N_SKILL,N_OPTION_END,N_GOAL_FAMILY);")
-    "frame storage bypasses generated numeric representation"
-  require ((script.splitOn "constS=").length == 2) "frame storage owner is not unique"
-  require ((← body script "store(id,f)") == "observerStore(id,f);")
-    "frame storage writes bypass generated preservation"
   let part ← body script "admitEnvelope(f)"
   require (part.contains "if(!observerEnvelope(f)||!ctlState||f.run_id!==ctlState.runId||f.agent_epoch!==ctlState.agentEpoch)returnfalse;") "admitEnvelope(f) bypasses its admitted wiring"
   require (part.contains "constnext=[f.timestamp_ms,f.lifetime_step,f.world_step];") "admitEnvelope(f) bypasses its admitted wiring"
@@ -201,7 +142,7 @@ def check : IO Unit := do
   require (part.contains "$().title=WORLD_TILE_NOTE;") "resetReadouts() bypasses its admitted wiring"
   let part ← body script "meanPositive(values)"
   require (part.contains "returnObserverMath.meanPositive([],observerRows(values));") "meanPositive(values) bypasses its admitted wiring"
-  let part ← body script "admitAgreement(f)"
+  let part ← body script "admitAgreement(next)"
   require (part.contains "if(!observerSnapshotFollows(next.process,next.clock,Number(next.stopped),n.cycle,n.resolved,n.attempt,Number(n.invalid),previous.process,previous.clock,Number(previous.stopped),p.cycle,p.resolved,p.attempt,Number(p.invalid)))returnfalse;")
     "agreement replacement bypasses generated process/clock admission"
   require (part.contains "A.latestAgreement=next;") "agreement must retain the authoritative snapshot"
@@ -210,20 +151,9 @@ def check : IO Unit := do
   let goalText ← body script "goalText(gkind,gitem,gx,gy,gn)"
   require (goalText == "returnobserverGoalText(gkind,gitem,gx,gy,gn);")
     "goal presentation must use the exhaustive semantic vocabulary"
-  let validate ← body script "validate(f)"
-  require (validate.startsWith "constrejected=observerAdmission(f);if(rejected)returnrejected;")
-    "conversion must follow complete frame admission"
   let connect ← body script "connect()"
   require ((connect.splitOn "received++").length == 2) "capture counter must have one guarded increment"
   require (page.contains "$(\"t_world\").title = WORLD_TILE_NOTE;") "readout reset omits world-tile title"
-  for (name, value) in [("SCHEMA", telemetrySchemaVersion), ("UNSEEN", (MapCell.byte none).toNat), ("MAX_MAP_SIDE", mapSideCapacity),
-      ("N_DEM", Acorn.FeatureConstants.demonCount), ("N_CTL", Acorn.FeatureConstants.primitiveCount),
-      ("N_META", Acorn.FeatureConstants.metaActionCount), ("N_TILE", 121),
-      ("N_KIND", 8), ("N_OPTION_END", 3), ("N_GOAL_FAMILY", 4),
-      ("HISTORY_BINS", Acorn.FeatureConstants.historyBins), ("CYCLE_BINS", Acorn.FeatureConstants.cycleBins), ("EXACT_CYCLES", Acorn.FeatureConstants.exactCycles)] do
-    require (number script name == some value) s!"dimension differs: {name}"
-  require (script.contains "N_SKILL=N_META-1") "skill dimension must derive from meta dimension"
-  tables page script
   documentConstants script
   IO.println "browser: generated program wiring and request/timer inventory admitted"
 
