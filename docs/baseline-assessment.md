@@ -75,8 +75,8 @@ Verdicts:
 | Potential-based shaping [[8]](#r8) | Option learning aid | Present | **Faithful** | [PAR-6](prior-art-review.md#par-6--potential-based-shaping), with limits declared. |
 | Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted** (after U4) | Before U4 only the executing option learned (F-F). Every option that is not executing now learns from the action taken ([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)). The meta-controller's option values still learn by SMDP credit alone. |
 | Intra-option primitive credit [[9]](#r9) | Data reuse | Primitive Sarsa learns from every executed step | **Adapted** | [PAR-9](prior-art-review.md#par-9--intra-option-value-learning). One of the links that genuinely supports the rest. |
-| Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | A reward part, a transition part over at most 63 ranked feature slots and a residual for the value the ranked slots do not carry | **Adapted** (after U5) | Before U5 there was no transition part, and the continuation was a value estimator (F-B). Each row of the transition part is now the source's TD update ([[7]](#r7) eq. (17)) with the terminal target γ·x_j that eq. (15) requires; the ranked subset, the residual and the action-value nominal are declared adaptations ([PAR-13](prior-art-review.md#par-13--option-expectation-models)). |
-| Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Backups of every option's value toward r̂ + v̂(n̂, w) + residual with the current weights, at free boundaries | **Adapted** (after U5) | Before U5 the backup had no look-ahead with the current value function (F-B). `PlanningResult.lookAhead` now applies the meta-controller's current weights to the predicted slots; each option's action value is backed up and the maximum is the meta-controller's choice ([PAR-14](prior-art-review.md#par-14--background-planning)). |
+| Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | A reward part, a transition part over at most 63 ranked feature slots, and a shared residual with one deviation per meta action for the value the ranked slots do not carry | **Adapted** (after U5) | Before U5 there was no transition part, and the continuation was a value estimator (F-B). Each row of the transition part is now the source's TD update ([[7]](#r7) eq. (17)) with the terminal target γ·x_j that eq. (15) requires; the ranked subset, the residual with its per-action deviations and the action-value nominal are declared adaptations ([PAR-13](prior-art-review.md#par-13--option-expectation-models)). |
+| Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Backups of every option's value toward r̂ plus the nominal value of each action's v̂(n̂, w) + residual, with the current weights, at free boundaries | **Adapted** (after U5) | Before U5 the backup had no look-ahead with the current value function (F-B). `PlanningResult.lookAhead` now applies the meta-controller's current weights to the predicted slots; each option's action value is backed up and the maximum is the meta-controller's choice ([PAR-14](prior-art-review.md#par-14--background-planning)). |
 | Search control [[11]](#r11) | Step 9 | A sweep over the 128 most recent earlier feature vectors, one per decision boundary, against the order they were written in | **Adapted, minimal** (after U5) | Before U5 planning happened only at the current state. The store holds feature vectors only. Priorities and other strategies are open ([#15](https://github.com/rbeauchamp/acorn/issues/15)). |
 | εz-greedy [[12]](#r12) | Step 9 exploration | Capped 1/n-tail duration ([D3](learned-only-binding.md#d3--exploration-duration--step-9)) and, since U2, a declared rate ε = 0.01 ([D6](learned-only-binding.md#d6--exploration-rate--step-9)) | **Adapted** (after U2) | The duration law is a tail-equivalent surrogate for the published zeta law. At 86ce779 the rate was a local derivation with no published source, starting near 0.63 (F-C); U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)) replaced it with a value the source uses. |
 | Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)). Average-reward GVFs are absent. |
@@ -515,15 +515,22 @@ learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
   memory budget: the largest power of two for which all three transition parts
   fit in one weight vector (`rankWidth_budget`, `rankWidth_maximal`). The last
   position is the constant input.
-- **Residual.** The value function reads every active feature, so the scalar
-  continuation now predicts only the part of an outcome's value the ranked slots
-  do not carry (`Transition.residual`). With no ranked slot it is the earlier
-  scalar model; with every slot ranked it vanishes.
-- **Backup.** Planning moves each option's value toward r̂ plus the current value
-  function applied to the predicted slots plus the residual
-  (`PlanningResult.lookAhead`). A change in a ranked slot's value weight changes
-  the backed-up value wherever a row predicts that slot, at the next look-ahead
-  there and with no new termination of the option. A predecessor's own value
+- **Residual.** The value function reads every active feature, so for each meta
+  action the model also predicts that action's value at the outcome's unranked
+  slots. It does so in two parts that add up exactly: a shared residual, which
+  the full-width continuation learner predicts (`Transition.residual`), and a
+  deviation per action, which a small learner predicts from the ranked positions
+  and a bias (`Transition.outcome`). Predicting the deviations from the ranked
+  positions alone is a declared approximation of UNKNOWN accuracy; full-width
+  learners per action are
+  [#47](https://github.com/rbeauchamp/acorn/issues/47).
+- **Backup.** For each meta action the value of the predicted outcome is the
+  current value weights at the predicted slots plus the shared residual plus that
+  action's deviation; the maximum or mean over actions is taken after, and
+  planning moves the option's value toward r̂ plus the result
+  (`Transition.outcomeValues`, `PlanningResult.lookAhead`). A change in a ranked
+  slot's value weight for any action moves that action's value at the next
+  look-ahead, with no new termination of the option. A predecessor's own value
   moves when planning next backs it up.
 - **Search control.** Each learning frame is recorded, when it completes, in a
   store of the 128 most recent feature vectors. Each decision boundary backs up
@@ -533,39 +540,51 @@ learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
   reward or successor.
 - **Change of subset.** Every free decision boundary installs the current ranking
   in every model; a slot that stays ranked keeps its position and its row's
-  weights from every other retained slot, and a retired ranked slot vacates every position that holds it
-  (`Transition.rerank`, `Transition.retire`). Installed only at a subtask
+  weights from every other retained slot, and a retired ranked slot vacates its
+  position (`Transition.rerank`, `Transition.retire`). A slot is held at one
+  position only, by a field of the ranking's type. Installed only at a subtask
   refresh, the ranking stayed empty through each audit campaign.
 - **Selection name and pins.** `--planning expectation` replaces `scalar`. The
   transition part is process-local like the other model learners, so the
   checkpoint format is unchanged. All three audit pins changed, because the
   model targets and the planning backups changed.
 
-Machine-checked: `CurrentPlanning.ranked_value_rounding` and
-`CurrentPlanning.discounted_backup_rounding` (the executed backed-up value
+Machine-checked: `CurrentPlanning.outcome_value_rounding`,
+`CurrentPlanning.discounted_backup_rounding` and
+`CurrentPlanning.differential_backup_rounding` (the executed backed-up value
 against the exact expression, with its rounding bound, for at most 64 ranked
-positions), `CurrentPlanning.expectation_linear`,
-`CurrentPlanning.expectation_maximum_le` and
-`CurrentPlanning.expectation_maximum_eq` (what an expectation model keeps under
-a maximum over action values), `CurrentPlanning.backup_propagation` and
-`CurrentPlanning.ranked_values_congr` (the dependence on the value weights),
-`CurrentPlanning.transition_storage`, `CurrentPlanning.transition_table`,
-`CurrentPlanning.transition_budget` and `CurrentPlanning.default_width`
-(storage), `CurrentPlanning.ranked_input_work`,
-`CurrentPlanning.row_work` and `CurrentPlanning.boundary_work` (work),
+positions and stored residual predictions of summed magnitude at most 1024),
+`CurrentPolicyMean.expected_sandwich` (the executed tie-window mean of
+differential control against the convex combination it approximates),
+`CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,
+`CurrentPlanning.expectation_maximum_eq` and
+`CurrentPlanning.expectation_sandwiched` (what an expectation model keeps under
+a maximum or a tie-window mean over action values),
+`CurrentPlanning.outcome_value_propagation`,
+`CurrentPlanning.outcome_decomposition` and
+`CurrentPlanning.deterministic_outcome` (the dependence of every per-action
+value on the value weights, and that the shared residual and the deviations lose
+nothing of a share), `CurrentPlanning.transition_storage`,
+`CurrentPlanning.transition_table`, `CurrentPlanning.transition_budget`,
+`CurrentPlanning.default_budget` and `CurrentPlanning.default_width` (storage),
+`CurrentPlanning.ranked_input_work`, `CurrentPlanning.row_work`,
+`CurrentPlanning.deviation_work`, `CurrentPlanning.changed_work` and
+`CurrentPlanning.boundary_work` (work),
 `CurrentPlanning.differential_target_bound` (the differential backed-up value
-stays finite), `CurrentPlanning.rerank_retained`,
-`CurrentPlanning.rerank_weights`, `CurrentPlanning.retire_vacated` and
-`FreeDispatch.refreshModels_retains` (a change of subset),
+stays finite for every state), `RankedFeatures.slot_unique`,
+`CurrentPlanning.indicator_exact`, `CurrentPlanning.rerank_retained`,
+`CurrentPlanning.rerank_weights`, `CurrentPlanning.rerank_deviations`,
+`CurrentPlanning.retire_vacated` and `FreeDispatch.refreshModels_retains` (the
+ranking and a change of subset),
 `FeatureRuntime.retire_recent` (stored frames after retirement),
 `RankedFeatures.input_membership` (a row reads exactly the active ranked slots
 and the constant input), and
 `CurrentModels.planning_primitive`, `CurrentModels.planning_traces` and
 `CurrentModels.planning_lags` (what planning leaves alone). U5 does not
 establish what share of an outcome's value the ranked slots carry, that the
-models become accurate, that planning with a learned linear model is stable
-([[10]](#r10) §5.1 and §7.1), or that planning improves decisions. The rounding of
-the differential ε-mean is not bounded.
+models or the per-action deviations become accurate, that planning with a
+learned linear model is stable ([[10]](#r10) §5.1 and §7.1), or that planning
+improves decisions.
 
 ### Alternatives weighed
 

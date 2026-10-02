@@ -32,20 +32,26 @@ Three adaptations are material.
   One position is a constant input, so a row has a bias weight
   (`RankedFeatures.bias`).
 * *Residual.* The value function reads all features, so the ranked features carry
-  only part of an outcome's value. The continuation learner predicts the rest: its
-  terminal target is `γ` times the outcome's nominal value minus the nominal value
-  of its ranked features alone, both under the value function current at that
-  frame (`Transition.residual`). A backed-up value is then the reward part, plus the
-  current value function applied to the predicted ranked features, plus the
-  predicted residual. With no ranked slot the residual is the whole continuation, a
-  scalar continuation model. If every active feature of a terminal frame were ranked,
-  its residual target would be zero in exact arithmetic and the backup the source's
-  equation (19); the width budget keeps that case out of reach.
+  only part of an outcome's value. For each meta action the rest is its value at the
+  outcome's unranked features, its unranked share. The share is learned in two parts
+  whose sum is the share exactly: a shared residual, the outcome's nominal value
+  minus the nominal value of its ranked features alone, which the full-width
+  continuation learner predicts (`Transition.residual`); and the action's deviation
+  from it, which one small learner per meta action predicts from the ranked
+  positions and the bias (`Transition.outcome`). The value of the predicted outcome
+  for one action is the current weights applied to the predicted ranked features,
+  plus the predicted shared residual, plus that action's predicted deviation; the
+  maximum or mean over actions is taken after (`Transition.outcomeValues`). Combined
+  after instead, one scalar residual would hide a change at a ranked feature whenever
+  the ranked values and the complete values are maximal at different actions. The
+  deviations are predicted from the ranked positions alone, which is coarser than a
+  full-width learner per action; how accurate they are is not known.
 * *Action values.* The source's value function is one linear function of the
   features. Acorn's is the meta-controller's nominal value of four linear action
   values (PAR-2), so each action value of the predicted features is exactly linear
   in them and their nominal combination is not; `AcornVerif.CurrentPlanning` states
-  the identity and the inequality that replaces Wan et al.'s §4 equality.
+  the identity, the inequality that replaces Wan et al.'s §4 equality under the
+  maximum, and the same inequality up to the tie window under the differential mean.
 
 Wan, Naik & Sutton, *Average-Reward Learning and Planning with Options*, NeurIPS 34
 (2021), section 5, equations (18)–(23), supplies the differential reward and
@@ -116,23 +122,43 @@ def ValueFunction.rankedNominal (value : ValueFunction criterion dimension)
   comparisonValue criterion
     (⟨value.rankedValues ranked expected, value.epsilon⟩ : PolicySnapshot metaCount)
 
+/-- The transition part's prediction at a row input: each row's ordered weight sum,
+admitted as an expected feature value. -/
+def Transition.expectedAt (transition : Transition dimension criterion)
+    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
+    Vector Expectation (rankDimension dimension).capacity :=
+  transition.rows.map fun row =>
+    Bounded32.project expectationRange (row.state.linearPrediction input)
+
 /-- The transition part's prediction `n̂(x, o)` at a frame: each row's ordered weight
 sum over the active ranked positions and the constant input, admitted as an expected
 feature value. -/
 def Transition.expected (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
     Vector Expectation (rankDimension dimension).capacity :=
-  let input := transition.ranked.input features
-  transition.rows.map fun row =>
-    Bounded32.project expectationRange (row.state.linearPrediction input)
+  transition.expectedAt (transition.ranked.input features)
 
-/-- The current value function applied to the predicted ranked features. It reads the
-value weights at each query, so a change in a ranked slot's weight needs no new
-experience of the option to reach this word. -/
+/-- The value of the predicted outcome for each meta action: the current value weights
+applied to the predicted ranked features, plus the predicted shared residual, plus
+that action's predicted deviation. Each action's value is complete before any maximum
+or mean is taken, so a change in a ranked slot's weight for any action reaches that
+action's word at the next query, with no new experience of the option. -/
+def Transition.outcomeValues (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) : Vector Binary32 metaCount.word.toNat :=
+  let input := transition.ranked.input features
+  let ranked := value.rankedValues transition.ranked (transition.expectedAt input)
+  Vector.ofFn fun action =>
+    ((ranked.get action).add shared).add
+      ((transition.deviations.get action).state.linearPrediction input)
+
+/-- Nominal value of the predicted outcome: the maximum or policy mean of its
+per-action values. -/
 def Transition.lookahead (transition : Transition dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
-    Binary32 :=
-  value.rankedNominal transition.ranked (transition.expected features)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) : Binary32 :=
+  comparisonValue criterion
+    (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
 
 /-- The part of an observed frame's nominal value its ranked features do not carry:
 the frame's nominal value minus the nominal value of its ranked features alone,
@@ -150,37 +176,95 @@ def Transition.residualTarget (transition : Transition dimension criterion)
     Binary32 :=
   criterion.rule.gamma.mul (transition.residual value features)
 
-/-- Update the row of every occupied position. A vacant position models no slot: its
-row is fresh, predicts nothing that is read, and is left as it is, so the work of a
-model update is the number of occupied positions and not the ranked width. -/
+/-- What a model learns from a terminal frame under the current value function: which
+ranked slots are active, the discounted shared residual, and each meta action's
+discounted deviation. An action's unranked share is its value at the frame minus its
+value at the frame's ranked slots; its deviation is that share minus the shared
+residual, so shared residual plus deviation is the share. -/
+structure Outcome (dimension : Dimension) where
+  /-- One at each active ranked position and zero elsewhere. -/
+  seen : Vector Expectation (rankDimension dimension).capacity
+  /-- Terminal target of the continuation learner. -/
+  shared : Binary32
+  /-- Terminal target of each meta action's deviation learner. -/
+  deviations : Vector Binary32 metaCount.word.toNat
+
+/-- Read a terminal frame once: the frame's action values, their part at the ranked
+slots, the shared residual and every deviation, all under the same current weights. -/
+def Transition.outcome (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    Outcome dimension :=
+  let seen := transition.ranked.indicator features
+  let complete := value.controller.predictAll features
+  let ranked := value.rankedValues transition.ranked seen
+  let residual := (comparisonValue criterion
+      (⟨complete, value.epsilon⟩ : PolicySnapshot metaCount)).sub
+    (comparisonValue criterion (⟨ranked, value.epsilon⟩ : PolicySnapshot metaCount))
+  ⟨seen, criterion.rule.gamma.mul residual, Vector.ofFn fun action =>
+    criterion.rule.gamma.mul (((complete.get action).sub (ranked.get action)).sub residual)⟩
+
+/-- The shared target an outcome carries is the residual target. -/
+theorem Transition.outcome_shared (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    (transition.outcome value features).shared = transition.residualTarget value features := rfl
+
+/-- Update the row of every occupied position and every deviation learner. Callers
+bind the ranked dimension, the learner configuration and the discount once, outside the
+per-learner functions, so no update re-derives the ranked width. A vacant
+position models no slot: its row is fresh, predicts nothing that is read, and is left
+as it is, so the work of a model update is the number of occupied positions plus the
+meta action count, and not the ranked width. -/
 def Transition.updateRows (transition : Transition dimension criterion)
     (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
+      Managed (criterion.config .demon) (rankDimension dimension))
+    (deviate : Action metaCount.word.toNat →
+      Managed (criterion.config .demon) (rankDimension dimension) →
       Managed (criterion.config .demon) (rankDimension dimension)) :
     Transition dimension criterion :=
-  let ⟨ranked, rows⟩ := transition
+  let ⟨ranked, rows, deviations⟩ := transition
   ⟨ranked, rows.mapFinIdx fun index row bound =>
-    if (ranked.slots[index]'bound).isSome then update ⟨index, bound⟩ row else row⟩
+    if (ranked.slots[index]'bound).isSome then update ⟨index, bound⟩ row else row,
+    deviations.mapFinIdx fun index learner bound => deviate ⟨index, bound⟩ learner⟩
 
-/-- Start every modeled row's trajectory at the frame's ranked features. -/
+/-- Start every modeled row's and every deviation learner's trajectory at the frame's
+ranked features. -/
 def Transition.begin (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
   let input := transition.ranked.input features
-  transition.updateRows fun _ row => row.apply (.beginTrajectory input) trivial
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  transition.updateRows
+    (fun _ row => Managed.apply (config := config) (dimension := rank) row
+      (.beginTrajectory input) trivial)
+    (fun _ learner => Managed.apply (config := config) (dimension := rank) learner
+      (.beginTrajectory input) trivial)
 
-/-- Credit a completed transition to every modeled row with cumulant zero: equation
-(17) at `β = 0`. -/
+/-- Credit a completed transition to every modeled row and deviation learner with
+cumulant zero: equation (17) at `β = 0`. -/
 def Transition.step (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
   let input := transition.ranked.input features
-  transition.updateRows fun _ row => row.apply (.step input .zero) trivial
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  transition.updateRows
+    (fun _ row => Managed.apply (config := config) (dimension := rank) row
+      (.step input .zero) trivial)
+    (fun _ learner => Managed.apply (config := config) (dimension := rank) learner
+      (.step input .zero) trivial)
 
 /-- Close every modeled row toward `γ` times its own slot's indicator at the terminal
-frame: equation (17) at `β = 1`, with the discount equation (15) requires. -/
+frame, equation (17) at `β = 1` with the discount equation (15) requires, and every
+deviation learner toward its action's discounted deviation. -/
 def Transition.terminal (transition : Transition dimension criterion)
-    (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
-  let seen := transition.ranked.indicator features
-  transition.updateRows fun position row =>
-    row.apply (.terminal (criterion.rule.gamma.mul (seen.get position).value)) trivial
+    (outcome : Outcome dimension) : Transition dimension criterion :=
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  let gamma := criterion.rule.gamma
+  transition.updateRows
+    (fun position row => Managed.apply (config := config) (dimension := rank) row
+      (.terminal (gamma.mul (outcome.seen.get position).value)) trivial)
+    (fun action learner => Managed.apply (config := config) (dimension := rank) learner
+      (.terminal (outcome.deviations.get action)) trivial)
 
 /-- Evaluate current stored learners at the actual age-augmented input, under the
 current value function. The reward and residual read the age-augmented features;
@@ -188,16 +272,15 @@ the transition rows read the ranked features, which carry no age. -/
 def Model.predict (model : Model dimension criterion) (value : ValueFunction criterion dimension)
     (base : SwiftTd.ActiveSet dimension) (age : ModelAge) : ModelPrediction criterion :=
   let features := modelInput criterion base age
-  let lookahead := model.transition.lookahead value base
   match model with
-  | .discounted reward continuation _ =>
+  | .discounted reward continuation transition =>
     ⟨Bounded32.project _ (reward.state.predict features),
       Criterion.discounted.modelContinuation
-        (lookahead.add (continuation.state.linearPrediction features)),
+        (transition.lookahead value base (continuation.state.linearPrediction features)),
       Bounded32.project _ .one⟩
-  | .differential reward continuation duration _ =>
+  | .differential reward continuation duration transition =>
     ⟨Bounded32.project _ (reward.state.predict features),
-      lookahead.add (continuation.state.linearPrediction features),
+      transition.lookahead value base (continuation.state.linearPrediction features),
       Bounded32.project _ (duration.state.predict features)⟩
 
 /-- Prime all model learners on initiation features at age zero. -/
@@ -227,18 +310,21 @@ def Model.step (model : Model dimension criterion) (base : SwiftTd.ActiveSet dim
       (d.apply (.step features .one) trivial) (t.step base)
 
 /-- Close every learner through the terminal entry that clears its transient state,
-at the terminal frame: raw reward, the discounted residual of the frame's nominal
-value, unit duration, and each ranked slot's discounted indicator. -/
+at the terminal frame: raw reward, the discounted shared residual of the frame's
+nominal value, unit duration, each ranked slot's discounted indicator and each meta
+action's discounted deviation. -/
 def Model.terminal (model : Model dimension criterion) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (reward : Binary32) : Model dimension criterion :=
-  let target := model.transition.residualTarget value features
   match model with
   | .discounted r c t =>
-    .discounted (r.apply (.terminal reward) trivial) (c.apply (.terminal target) trivial)
-      (t.terminal features)
+    let outcome := t.outcome value features
+    .discounted (r.apply (.terminal reward) trivial) (c.apply (.terminal outcome.shared) trivial)
+      (t.terminal outcome)
   | .differential r c d t =>
-    .differential (r.apply (.terminal reward) trivial) (c.apply (.terminal target) trivial)
-      (d.apply (.terminal .one) trivial) (t.terminal features)
+    let outcome := t.outcome value features
+    .differential (r.apply (.terminal reward) trivial)
+      (c.apply (.terminal outcome.shared) trivial) (d.apply (.terminal .one) trivial)
+      (t.terminal outcome)
 
 /-- Start one learner's trajectory on its existing storage. The remaining traces are
 released first, so the ordinary step visits no earlier trace and credits no earlier
@@ -256,19 +342,30 @@ def Managed.stopTrajectory {config : Acorn.Config} {dimension : Dimension}
   (learner.apply (.first (target.sub learner.state.transient.vOld)
     learner.state.transient.vDelta .zero) trivial).apply .release trivial
 
-/-- Start every modeled row's trajectory on existing storage, without a transient clear. -/
+/-- Start every modeled row's and every deviation learner's trajectory on existing
+storage, without a transient clear. -/
 def Transition.restart (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
   let input := transition.ranked.input features
-  transition.updateRows fun _ row => row.restartTrajectory input
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  transition.updateRows
+    (fun _ row => Managed.restartTrajectory (config := config) (dimension := rank) row input)
+    (fun _ learner =>
+      Managed.restartTrajectory (config := config) (dimension := rank) learner input)
 
-/-- Close every modeled row's stored trajectory toward the targets `Transition.terminal`
-reads. -/
+/-- Close every modeled row's and every deviation learner's stored trajectory toward
+the targets `Transition.terminal` reads. -/
 def Transition.stop (transition : Transition dimension criterion)
-    (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
-  let seen := transition.ranked.indicator features
-  transition.updateRows fun position row =>
-    row.stopTrajectory (criterion.rule.gamma.mul (seen.get position).value)
+    (outcome : Outcome dimension) : Transition dimension criterion :=
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  let gamma := criterion.rule.gamma
+  transition.updateRows
+    (fun position row => Managed.stopTrajectory (config := config) (dimension := rank) row
+      (gamma.mul (outcome.seen.get position).value))
+    (fun action learner => Managed.stopTrajectory (config := config) (dimension := rank)
+      learner (outcome.deviations.get action))
 
 /-- Start a model trajectory at the given age for an option that is not executing,
 without the full-width transient clear of `Model.begin`. -/
@@ -287,13 +384,14 @@ frame. Sutton, Machado et al. (2023), §4, equation (17), stops every option's m
 where its stopping function does. -/
 def Model.stop (model : Model dimension criterion) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (reward : Binary32) : Model dimension criterion :=
-  let target := model.transition.residualTarget value features
   match model with
   | .discounted r c t =>
-    .discounted (r.stopTrajectory reward) (c.stopTrajectory target) (t.stop features)
+    let outcome := t.outcome value features
+    .discounted (r.stopTrajectory reward) (c.stopTrajectory outcome.shared) (t.stop outcome)
   | .differential r c d t =>
-    .differential (r.stopTrajectory reward) (c.stopTrajectory target) (d.stopTrajectory .one)
-      (t.stop features)
+    let outcome := t.outcome value features
+    .differential (r.stopTrajectory reward) (c.stopTrajectory outcome.shared)
+      (d.stopTrajectory .one) (t.stop outcome)
 
 /-- Concrete temporal operations use the current model definitions. -/
 def modelOperations (criterion : Criterion) (dimension : Dimension) : OptionModelOps criterion dimension :=
@@ -332,10 +430,14 @@ theorem Transition.expected_legal (transition : Transition dimension criterion)
 /-- A model update changes no ranked slot and no row of a vacant position. -/
 theorem Transition.updateRows_frame (transition : Transition dimension criterion)
     (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
+      Managed (criterion.config .demon) (rankDimension dimension))
+    (deviate : Action metaCount.word.toNat →
+      Managed (criterion.config .demon) (rankDimension dimension) →
       Managed (criterion.config .demon) (rankDimension dimension)) :
-    (transition.updateRows update).ranked = transition.ranked ∧
+    (transition.updateRows update deviate).ranked = transition.ranked ∧
       ∀ position : RankIdx dimension, transition.ranked.slots[position.val] = none →
-        (transition.updateRows update).rows[position.val] = transition.rows[position.val] := by
+        (transition.updateRows update deviate).rows[position.val] =
+          transition.rows[position.val] := by
   refine ⟨rfl, fun position vacant => ?_⟩
   simp [Transition.updateRows, vacant]
 

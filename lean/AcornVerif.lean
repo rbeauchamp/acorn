@@ -36,6 +36,7 @@ import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentPlanning
+import AcornVerif.CurrentPolicyMean
 import AcornVerif.Checkpoint
 import AcornVerif.AverageReward
 import AcornVerif.ModelConstants

@@ -23,16 +23,19 @@ def controllerChecksum {config : Acorn.Config} {dimension : Dimension} {actions 
     (hash ^^^ Rng.rotateLeft learner.state.stateChecksum 7) * NumericState.checksumMultiplier)
     Rng.fnvOffset
 
-/-- Transition checksum folds every ranked slot word and every row's knowledge, in
-position order; a vacant position folds the all-ones word, which is no slot. -/
+/-- Transition checksum folds every ranked slot word, every row's knowledge in position
+order and every deviation learner's knowledge in action order; a vacant position folds
+the all-ones word, which is no slot. -/
 def transitionChecksum {dimension : Dimension} {criterion : Criterion}
     (transition : Transition dimension criterion) : UInt64 :=
   let slots := transition.ranked.slots.foldl (fun hash slot =>
     (hash ^^^ (match slot with
       | some feature => feature.val.toUInt64
       | none => 0xffffffffffffffff)) * NumericState.checksumMultiplier) Rng.fnvOffset
-  transition.rows.foldl (fun hash row =>
+  let rows := transition.rows.foldl (fun hash row =>
     (hash ^^^ Rng.rotateLeft row.state.stateChecksum 7) * NumericState.checksumMultiplier) slots
+  transition.deviations.foldl (fun hash learner =>
+    (hash ^^^ Rng.rotateLeft learner.state.stateChecksum 11) * NumericState.checksumMultiplier) rows
 
 /-- Model checksum traverses the actual stored criterion-dependent learners and the
 transition part. -/

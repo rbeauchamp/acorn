@@ -294,7 +294,8 @@ def FreeDispatch.rerankModels {shape : PatchShape} {config : Config} {criterion 
   let order := rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights
   { state with lifecycle := { state.lifecycle with consumers := { state.lifecycle.consumers with
       skills := state.lifecycle.consumers.skills.map fun skill =>
-        { skill with model := skill.model.rerank order } } } }
+        { skill with model := skill.model.rerank order (rankedSlots_nodup dimension config
+          state.lifecycle.consumers.demons.rankingWeights) } } } }
 
 /-- The complete free-boundary refresh: consume one coalesced request, installing the
 slot-stable assignment ranking if one was pending, then install the current feature
@@ -333,7 +334,9 @@ theorem FreeDispatch.rerankModels_skill {shape : PatchShape} {config : Config}
     state.rerankModels.lifecycle.consumers.skills[slot.val] =
       { state.lifecycle.consumers.skills[slot.val] with
         model := state.lifecycle.consumers.skills[slot.val].model.rerank
-          (rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights) } := by
+          (rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights)
+          (rankedSlots_nodup dimension config
+            state.lifecycle.consumers.demons.rankingWeights) } := by
   simp [FreeDispatch.rerankModels]
 
 /-- Reranking the models keeps distinct held units. -/
@@ -723,7 +726,9 @@ theorem FreeDispatch.refreshModels_model {shape : PatchShape} {config : Config}
       state.lifecycle.consumers.skills[other.val].interest.held.identity ≠ some unit) :
     state.refreshModels.lifecycle.consumers.skills[slot.val].model =
       state.lifecycle.consumers.skills[slot.val].model.rerank
-        (rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights) := by
+        (rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights)
+        (rankedSlots_nodup dimension config
+          state.lifecycle.consumers.demons.rankingWeights) := by
   have kept := (state.refresh_retains slot unit bonus holds ranked first).2.1
   unfold FreeDispatch.refreshModels
   rw [state.refreshRanked.rerankModels_skill slot, state.refresh_demons, kept]

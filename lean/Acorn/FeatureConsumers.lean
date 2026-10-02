@@ -170,19 +170,26 @@ def Criterion.config (criterion : Criterion) (role : Role) : Acorn.Config :=
 a learner predicting whether that slot is active when the option stops, discounted by
 the time until then, from the ranked slots active now. Row `j` holds the `j`-th row
 of the matrix `W_o` of Sutton, Machado et al. (2023), §4, equation (16), restricted
-to the ranked slots, so the part stores exactly the square of the ranked width in
-weights. -/
+to the ranked slots. One further learner per meta action, over the same input,
+predicts how far that action's value at the outcome's unranked slots lies from the
+shared residual. The part stores the ranked width times the ranked width plus the
+meta action count in weights. -/
 structure Transition (dimension : Dimension) (criterion : Criterion) where
   /-- The slots modeled, in position order. -/
   ranked : RankedFeatures dimension
   /-- One learner per position, over the ranked positions as its feature space. -/
   rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
     (rankDimension dimension).capacity
+  /-- One learner per meta action, over the ranked positions: the deviation of that
+  action's unranked share of an outcome's value from the shared residual. -/
+  deviations : Vector (Managed (criterion.config .demon) (rankDimension dimension))
+    Acorn.FeatureConstants.metaActionCount
 
 /-- A fresh transition part models no slot and has learned nothing. -/
 def Transition.initial (dimension : Dimension) (criterion : Criterion) :
     Transition dimension criterion :=
-  ⟨.empty dimension, Vector.replicate _ (Managed.initial _ _)⟩
+  ⟨.empty dimension, Vector.replicate _ (Managed.initial _ _),
+    Vector.replicate _ (Managed.initial _ _)⟩
 
 /-- Reset what was learned about the given positions: each such row starts fresh,
 and every other row forgets its weight from each such position as an input, through
@@ -196,13 +203,26 @@ def Transition.forget {dimension : Dimension} {criterion : Criterion}
     if positions.contains ⟨index, bound⟩ then Managed.initial _ _
     else positions.foldl (fun learner position => learner.retire position) row
 
-/-- Install a new ranking. A slot that stays ranked keeps its position, its row and
-its weights from every other retained slot; every changed position is forgotten. -/
+/-- Every learner forgets its weight from each given position as an input, through its
+own retirement entry. The deviation learners read the ranked positions and model none
+of them, so a changed position costs them one input column each. -/
+def Transition.forgetColumns {dimension : Dimension} {criterion : Criterion} {count : Nat}
+    (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) count)
+    (positions : List (RankIdx dimension)) :
+    Vector (Managed (criterion.config .demon) (rankDimension dimension)) count :=
+  learners.map fun learner =>
+    positions.foldl (fun current position => current.retire position) learner
+
+/-- Install a ranking of distinct slots. A slot that stays ranked keeps its position,
+its row and its weights from every other retained slot; every changed position is
+forgotten. -/
 def Transition.rerank {dimension : Dimension} {criterion : Criterion}
-    (transition : Transition dimension criterion) (order : List (FeatIdx dimension)) :
-    Transition dimension criterion :=
-  let ranked := transition.ranked.rerank order
-  ⟨ranked, Transition.forget transition.rows (transition.ranked.changed ranked)⟩
+    (transition : Transition dimension criterion) (order : List (FeatIdx dimension))
+    (fresh : order.Nodup) : Transition dimension criterion :=
+  let ranked := transition.ranked.rerank order fresh
+  let changed := transition.ranked.changed ranked
+  ⟨ranked, Transition.forget transition.rows changed,
+    Transition.forgetColumns transition.deviations changed⟩
 
 /-- Retire a feature slot. A slot that is not ranked leaves the part unchanged; a
 ranked one vacates every position that holds it, whose rows and input columns are
@@ -214,7 +234,8 @@ def Transition.retire {dimension : Dimension} {criterion : Criterion}
   | [] => transition
   | position :: more =>
     ⟨transition.ranked.vacate (position :: more),
-      Transition.forget transition.rows (position :: more)⟩
+      Transition.forget transition.rows (position :: more),
+      Transition.forgetColumns transition.deviations (position :: more)⟩
 
 /-- Optional duration storage follows the criterion by construction. Every model
 also stores the transition part of its expectation model. -/
@@ -241,13 +262,13 @@ def Model.transition {dimension : Dimension} {criterion : Criterion}
 
 /-- Install a new ranking in the transition part, keeping every full-width learner. -/
 def Model.rerank {dimension : Dimension} {criterion : Criterion}
-    (model : Model dimension criterion) (order : List (FeatIdx dimension)) :
-    Model dimension criterion :=
+    (model : Model dimension criterion) (order : List (FeatIdx dimension))
+    (fresh : order.Nodup) : Model dimension criterion :=
   match model with
   | .discounted reward continuation transition =>
-    .discounted reward continuation (transition.rerank order)
+    .discounted reward continuation (transition.rerank order fresh)
   | .differential reward continuation duration transition =>
-    .differential reward continuation duration (transition.rerank order)
+    .differential reward continuation duration (transition.rerank order fresh)
 
 /-- All three reader positions; discounted duration deliberately aliases reward.
 Transition rows hold weights at ranked positions and read no feature slot. -/

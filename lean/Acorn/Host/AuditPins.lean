@@ -18,16 +18,16 @@ and the declared D6 exploration rate.
 namespace Acorn.Host.AuditPins
 
 /-- Deployed ranked, declared-rate, discounted action digest. -/
-def declaredDigest : UInt64 := 0x1f06d07ff0192e8b
+def declaredDigest : UInt64 := 0x3ea4b72d584c56f1
 /-- Knowledge checksum paired with the deployed digest. -/
-def declaredChecksum : UInt64 := 0x5e43a33f51993a9b
+def declaredChecksum : UInt64 := 0x42fcabda2200a8ab
 /-- Annealed incumbent action digest. -/
-def annealedDigest : UInt64 := 0xb1edd22df70f4663
+def annealedDigest : UInt64 := 0xb033e8926b40c162
 /-- Knowledge checksum paired with the incumbent digest. -/
-def annealedChecksum : UInt64 := 0x26b4e9080578617b
+def annealedChecksum : UInt64 := 0x774e6c1a9e0e9189
 /-- Differential research action digest. -/
-def differentialDigest : UInt64 := 0xc15da626fcf27b4d
+def differentialDigest : UInt64 := 0x9b2a5aaa0bd8e12e
 /-- Knowledge checksum paired with the differential digest. -/
-def differentialChecksum : UInt64 := 0xf815941ae978025a
+def differentialChecksum : UInt64 := 0x812da8aad89ba364
 
 end Acorn.Host.AuditPins

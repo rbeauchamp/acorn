@@ -23,7 +23,8 @@ power of two `k` for which the transition parts of all options together,
 
 A position keeps its slot while that slot stays ranked, so the weights learned
 for it survive a change of subset; a position whose slot leaves the ranking takes
-the next entrant or stays vacant. Positions index a second, smaller dimension, so
+the next entrant or stays vacant. A slot is held at one position only and the last
+position holds none: both are fields of the structure, kept by every construction. Positions index a second, smaller dimension, so
 each row of the transition part is an ordinary learner over that dimension.
 -/
 namespace Acorn.Features
@@ -206,6 +207,38 @@ theorem tabulate_fold {dimension : Dimension}
         exact Or.inl (tabulateStep_enters slots table position feature held)
       · exact Or.inr ⟨position, later, held⟩
 
+/-- Two entries of a slot list never name one slot. -/
+def SlotsDistinct {α : Type} (first second : Option α) : Prop :=
+  ∀ slot, first = some slot → second ≠ some slot
+
+/-- Pairwise-distinct entries hold each slot at one index only. -/
+theorem distinct_index {α : Type} {size : Nat} (slots : Vector (Option α) size)
+    (distinct : slots.toList.Pairwise SlotsDistinct) (first second : Fin size) (slot : α)
+    (left : slots[first.val] = some slot) (right : slots[second.val] = some slot) :
+    first = second := by
+  have pairs := List.pairwise_iff_getElem.mp distinct
+  apply Fin.ext
+  rcases Nat.lt_trichotomy first.val second.val with lower | same | higher
+  · exact absurd (by simpa using right)
+      (pairs first.val second.val (by simp) (by simp) lower slot (by simpa using left))
+  · exact same
+  · exact absurd (by simpa using left)
+      (pairs second.val first.val (by simp) (by simp) higher slot (by simpa using right))
+
+/-- Entries that hold each slot at one index only are pairwise distinct. -/
+theorem index_distinct {α : Type} {size : Nat} (slots : Vector (Option α) size)
+    (unique : ∀ (first second : Fin size) (slot : α), slots[first.val] = some slot →
+      slots[second.val] = some slot → first = second) :
+    slots.toList.Pairwise SlotsDistinct := by
+  rw [List.pairwise_iff_getElem]
+  intro first second firstBound secondBound lower slot left right
+  have firstInside : first < size := by simpa using firstBound
+  have secondInside : second < size := by simpa using secondBound
+  have same := unique ⟨first, firstInside⟩ ⟨second, secondInside⟩ slot (by simpa using left)
+    (by simpa using right)
+  have equal : first = second := congrArg Fin.val same
+  omega
+
 /-- The feature slots an expectation model predicts, in a fixed position order, with
 the lookup table from slot to position. -/
 structure RankedFeatures (dimension : Dimension) where
@@ -218,20 +251,33 @@ structure RankedFeatures (dimension : Dimension) where
   /-- The last position holds no slot: it is the bias of every row's input. -/
   reserved : slots[(rankDimension dimension).capacity - 1]'(Nat.sub_lt
     (rankDimension dimension).positive (by decide)) = none
+  /-- No slot is modeled at two positions. -/
+  distinct : slots.toList.Pairwise SlotsDistinct
 
 variable {dimension : Dimension}
 
-/-- The only constructor: the table is built from the slots, and the last position is
-vacant. -/
+/-- The only constructor: the table is built from the slots, the last position is
+vacant and no slot is held twice. -/
 def RankedFeatures.ofSlots
     (slots : Vector (Option (FeatIdx dimension)) (rankDimension dimension).capacity)
     (reserved : slots[(rankDimension dimension).capacity - 1]'(Nat.sub_lt
-      (rankDimension dimension).positive (by decide)) = none) :
-    RankedFeatures dimension := ⟨slots, tabulate slots, rfl, reserved⟩
+      (rankDimension dimension).positive (by decide)) = none)
+    (distinct : slots.toList.Pairwise SlotsDistinct) :
+    RankedFeatures dimension := ⟨slots, tabulate slots, rfl, reserved, distinct⟩
 
 /-- No slot is ranked: fresh, released and restored models start here. -/
 def RankedFeatures.empty (dimension : Dimension) : RankedFeatures dimension :=
-  .ofSlots (Vector.replicate _ none) (by simp)
+  .ofSlots (Vector.replicate _ none) (by simp) (by
+    apply index_distinct
+    intro first second slot left
+    simp at left)
+
+/-- A slot is modeled at one position only, in every ranking: the structure carries it. -/
+theorem RankedFeatures.slot_unique (ranked : RankedFeatures dimension)
+    (first second : RankIdx dimension) (feature : FeatIdx dimension)
+    (left : ranked.slots[first.val] = some feature)
+    (right : ranked.slots[second.val] = some feature) : first = second :=
+  distinct_index ranked.slots ranked.distinct first second feature left right
 
 /-- Position of a slot, read from the table and checked against the slots, so a
 returned position holds that slot whatever the table contains. The bound is read from
@@ -419,6 +465,95 @@ theorem fillVacant_length {α : Type} (slots : List (Option α)) (entrants : Lis
     | some held => simp [fillVacant, ih]
     | none => cases entrants <;> simp [fillVacant, ih]
 
+/-- Every entry of a filled list is an entry of the slots or a placed entrant. -/
+theorem fillVacant_mem {α : Type} (slots : List (Option α)) (entrants : List α)
+    (entry : Option α) (member : entry ∈ fillVacant slots entrants) :
+    entry ∈ slots ∨ ∃ entrant ∈ entrants, entry = some entrant := by
+  induction slots generalizing entrants with
+  | nil => simp [fillVacant] at member
+  | cons slot rest ih =>
+    cases slot with
+    | some held =>
+      simp only [fillVacant, List.mem_cons] at member
+      rcases member with same | later
+      · exact Or.inl (by simp [same])
+      · rcases ih entrants later with inside | ⟨entrant, isEntrant, same⟩
+        · exact Or.inl (List.mem_cons_of_mem _ inside)
+        · exact Or.inr ⟨entrant, isEntrant, same⟩
+    | none =>
+      cases entrants with
+      | nil =>
+        simp only [fillVacant, List.mem_cons] at member
+        rcases member with same | later
+        · exact Or.inl (by simp [same])
+        · rcases ih [] later with inside | ⟨entrant, isEntrant, _⟩
+          · exact Or.inl (List.mem_cons_of_mem _ inside)
+          · simp at isEntrant
+      | cons entrant others =>
+        simp only [fillVacant, List.mem_cons] at member
+        rcases member with same | later
+        · exact Or.inr ⟨entrant, by simp, same⟩
+        · rcases ih others later with inside | ⟨other, isEntrant, same⟩
+          · exact Or.inl (List.mem_cons_of_mem _ inside)
+          · exact Or.inr ⟨other, List.mem_cons_of_mem _ isEntrant, same⟩
+
+/-- Filling keeps the entries distinct when the entrants are distinct and none of them
+is already held. -/
+theorem fillVacant_distinct {α : Type} (slots : List (Option α)) (entrants : List α)
+    (distinct : slots.Pairwise SlotsDistinct) (fresh : entrants.Nodup)
+    (apart : ∀ entrant ∈ entrants, some entrant ∉ slots) :
+    (fillVacant slots entrants).Pairwise SlotsDistinct := by
+  induction slots generalizing entrants with
+  | nil => simp [fillVacant]
+  | cons slot rest ih =>
+    rw [List.pairwise_cons] at distinct
+    have restApart : ∀ entrant ∈ entrants, some entrant ∉ rest :=
+      fun entrant member inside => apart entrant member (List.mem_cons_of_mem _ inside)
+    cases slot with
+    | some held =>
+      simp only [fillVacant]
+      rw [List.pairwise_cons]
+      refine ⟨?_, ih entrants distinct.2 fresh restApart⟩
+      intro entry member named same equal
+      cases same
+      rcases fillVacant_mem rest entrants entry member with inside | ⟨entrant, isEntrant, placed⟩
+      · exact distinct.1 entry inside held rfl equal
+      · rw [equal] at placed
+        cases placed
+        exact apart held isEntrant (by simp)
+    | none =>
+      cases entrants with
+      | nil =>
+        simp only [fillVacant]
+        rw [List.pairwise_cons]
+        refine ⟨?_, ih [] distinct.2 fresh restApart⟩
+        intro entry _ named same
+        cases same
+      | cons entrant others =>
+        simp only [fillVacant]
+        rw [List.pairwise_cons]
+        have parts := List.nodup_cons.mp fresh
+        refine ⟨?_, ih others distinct.2 parts.2
+          (fun other member => restApart other (List.mem_cons_of_mem _ member))⟩
+        intro entry member named same equal
+        cases same
+        rcases fillVacant_mem rest others entry member with inside | ⟨other, isOther, placed⟩
+        · exact restApart entrant (by simp) (equal ▸ inside)
+        · rw [equal] at placed
+          cases placed
+          exact parts.1 isOther
+
+/-- A kept entry is the entry it was. -/
+theorem kept_source {α : Type} (keep : α → Bool) (entry : Option α) (slot : α)
+    (kept : entry.filter keep = some slot) : entry = some slot := by
+  cases entry with
+  | none => simp at kept
+  | some held =>
+    simp only [Option.filter] at kept
+    split at kept
+    · exact kept
+    · cases kept
+
 /-- Position-stable merge of held slots with a ranking: a held slot that is still
 ranked keeps its position, and every other position takes the next ranked slot that
 no position holds, in rank order, or becomes vacant. -/
@@ -430,6 +565,22 @@ def mergeSlots {α : Type} [BEq α] (held : List (Option α)) (order : List α) 
 theorem mergeSlots_length {α : Type} [BEq α] (held : List (Option α)) (order : List α) :
     (mergeSlots held order).length = held.length := by
   simp [mergeSlots, fillVacant_length]
+
+/-- Merging distinct held slots with a ranking of distinct slots keeps them distinct. -/
+theorem mergeSlots_distinct {α : Type} [BEq α] [LawfulBEq α] (held : List (Option α))
+    (order : List α) (distinct : held.Pairwise SlotsDistinct) (fresh : order.Nodup) :
+    (mergeSlots held order).Pairwise SlotsDistinct := by
+  unfold mergeSlots
+  apply fillVacant_distinct
+  · refine distinct.map _ ?_
+    intro first second apart slot kept equal
+    exact apart slot (kept_source _ first slot kept) (kept_source _ second slot equal)
+  · exact fresh.sublist List.filter_sublist
+  · intro entrant member inside
+    have absent := (List.mem_filter.mp member).2
+    obtain ⟨original, isHeld, kept⟩ := List.mem_map.mp inside
+    rw [kept_source _ original entrant kept] at isHeld
+    simp [isHeld] at absent
 
 /-- The slots after installing a ranking: the merge runs over every position but the
 last, which stays vacant for the bias. -/
@@ -448,17 +599,33 @@ theorem RankedFeatures.merged_reserved (ranked : RankedFeatures dimension)
     simp [mergeSlots_length]
   simp [RankedFeatures.merged, ← length]
 
-/-- Install a new ranking, keeping the position of every slot that stays ranked. A
-ranking that changes no position returns the receiver, so the lookup table is rebuilt
-only when a slot enters or leaves. -/
-def RankedFeatures.rerank (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension)) :
-    RankedFeatures dimension :=
+/-- The merge of a ranking of distinct slots holds no slot twice. -/
+theorem RankedFeatures.merged_distinct (ranked : RankedFeatures dimension)
+    (order : List (FeatIdx dimension)) (fresh : order.Nodup) :
+    (ranked.merged order).toList.Pairwise SlotsDistinct := by
+  have held : ranked.slots.toList.dropLast.Pairwise SlotsDistinct :=
+    ranked.distinct.sublist (List.dropLast_sublist _)
+  have merge := mergeSlots_distinct ranked.slots.toList.dropLast order held fresh
+  change (mergeSlots ranked.slots.toList.dropLast order ++ [none]).Pairwise SlotsDistinct
+  rw [List.pairwise_append]
+  refine ⟨merge, by simp, ?_⟩
+  intro first _ second last slot _ equal
+  rw [List.mem_singleton.mp last] at equal
+  cases equal
+
+/-- Install a ranking of distinct slots, keeping the position of every slot that stays
+ranked. A ranking that changes no position returns the receiver, so the lookup table is
+rebuilt only when a slot enters or leaves. -/
+def RankedFeatures.rerank (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
+    (fresh : order.Nodup) : RankedFeatures dimension :=
   if ranked.merged order = ranked.slots then ranked
   else .ofSlots (ranked.merged order) (ranked.merged_reserved order)
+    (ranked.merged_distinct order fresh)
 
 /-- Whether or not a position changed, the slots after a ranking are the merge. -/
 theorem RankedFeatures.rerank_slots (ranked : RankedFeatures dimension)
-    (order : List (FeatIdx dimension)) : (ranked.rerank order).slots = ranked.merged order := by
+    (order : List (FeatIdx dimension)) (fresh : order.Nodup) :
+    (ranked.rerank order fresh).slots = ranked.merged order := by
   unfold RankedFeatures.rerank
   split
   · rename_i same
@@ -510,7 +677,16 @@ def RankedFeatures.vacate (ranked : RankedFeatures dimension)
     rw [cleared]
     split
     · rfl
-    · exact vacant)
+    · exact vacant) (by
+    apply index_distinct
+    intro first second slot left right
+    rw [clearSlots_get positions ranked.slots first] at left
+    rw [clearSlots_get positions ranked.slots second] at right
+    split at left
+    · cases left
+    · split at right
+      · cases right
+      · exact ranked.slot_unique first second slot left right)
 
 /-- After vacating every position that holds a slot, no position holds it. -/
 theorem RankedFeatures.vacate_holding (ranked : RankedFeatures dimension)

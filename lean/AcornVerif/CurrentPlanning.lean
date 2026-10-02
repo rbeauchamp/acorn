@@ -3,9 +3,8 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import AcornVerif.CurrentBackupBounds
+import AcornVerif.CurrentPolicyMean
 import AcornVerif.CurrentRetirement
-import AcornVerif.FloatLibBridge
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.Group.MinMax
@@ -28,25 +27,31 @@ The first part is real arithmetic and concerns no executed definition.
 Acorn's value function is the nominal value of several linear action values, so
 that equality holds for each action value and not for their maximum:
 `expectation_maximum_le` is the inequality that replaces it, and
-`expectation_maximum_eq` its equality case. `backup_propagation` is the
-dependence of a backed-up action value on the value weights, and
-`deterministic_backup` shows that the ranked part plus the residual is the whole
-discounted value of a deterministic outcome under unchanged weights.
+`expectation_maximum_eq` its equality case. The differential nominal value is a
+tie-window mean, which is not convex; `expectation_sandwiched` gives the same
+inequality up to the slack of `AcornVerif.CurrentPolicyMean.expected_sandwich`.
+`backup_propagation` is the dependence of a backed-up action value on the value
+weights.
 
-The second part concerns the executed definitions of `Acorn.Models`.
-`ranked_value_rounding` bounds the distance between each executed action value of
-a predicted feature vector and the exact dot product of the stored words, and
-`discounted_backup_rounding` bounds the distance between the executed discounted
-backed-up value and the same expression in exact arithmetic. Each product and
-each addition is the exact result rounded once to nearest-even
-(`AcornVerif.FloatLibBridge`), and the two horizon projections are exact. The
-rounding bound assumes at most 64 ranked positions, which `default_width` shows
-for the 16 384-slot dimension; the finiteness and magnitude statements hold for
-every dimension. `differential_target_bound` keeps the differential backed-up
-value finite; the rounding of the nominal policy mean, which the executing code
-evaluates in binary64, is not bounded here.
+The second part concerns the executed definitions of `Acorn.Models`. The value of the
+predicted outcome is formed per meta action: the value weights at the predicted ranked
+features, plus the shared residual prediction, plus that action's deviation prediction.
+`ranked_value_rounding` and `outcome_value_rounding` bound the distance between each
+executed per-action value and the exact sum of the stored words;
+`outcome_value_propagation` is its dependence on the value weights, and
+`outcome_decomposition` and `deterministic_outcome` show that the shared residual and
+the deviations lose nothing of an action's unranked share. `discounted_backup_rounding`
+and `differential_backup_rounding` bound the distance between the executed backed-up
+value and the same expression in exact arithmetic. Each binary32 product, sum and
+difference is the exact result rounded once to nearest-even
+(`AcornVerif.FloatLibBridge`), and the horizon projections are exact. The rounding
+bounds assume at most 64 ranked positions, which `default_width` shows for the
+16 384-slot dimension, and stored shared and deviation predictions of summed magnitude
+at most 1024; `outcome_value_bound` and `differential_target_bound` keep every value
+finite without either hypothesis.
 
-The last part states storage and work. Native primitive and compiler
+The last part states storage and work, what a change of subset keeps, the terminal
+target of a row and the reach of search control. Native primitive and compiler
 correspondence remain the arithmetic layer's declared trust boundary.
 -/
 
@@ -54,6 +59,7 @@ open Acorn Acorn.Features
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder AcornVerif.CurrentPrediction
 open AcornVerif.CurrentLearner AcornVerif.CurrentFeatureConsumers
 open AcornVerif.CurrentBackupBounds AcornVerif.CurrentModelArithmetic AcornVerif.FloatLibBridge
+open AcornVerif.CurrentPolicyMean
 
 namespace AcornVerif.CurrentPlanning
 
@@ -118,6 +124,55 @@ theorem expectation_maximum_eq [Nonempty actions] (mass : outcomes → ℚ)
     _ ≤ _ := Finset.le_sup' (fun a => ∑ j, weight a j * ∑ i, mass i * outcome i j)
       (Finset.mem_univ best)
 
+/-- The nominal value differential control uses is a mean over a tie set that depends
+on the values, so it is not convex and no Jensen inequality holds for it. What holds:
+a nominal value that lies within `slack` below the convex combination
+`(1 − rate) · max + rate · mean` and never above it satisfies the inequality of
+`expectation_maximum_le` up to `slack`. The value of the expected action values is at
+most the expected value plus the slack, for every finite distribution. -/
+theorem expectation_sandwiched [Nonempty actions] (mass : outcomes → ℚ)
+    (nonnegative : ∀ i, 0 ≤ mass i) (total : ∑ i, mass i = 1) (rate slack : ℚ)
+    (rateHigh : rate ≤ 1) (value : outcomes → actions → ℚ)
+    (nominal : (actions → ℚ) → ℚ)
+    (sandwich : ∀ q : actions → ℚ,
+      (1 - rate) * Finset.univ.sup' Finset.univ_nonempty q +
+          rate * ((∑ a, q a) / (Fintype.card actions : ℚ)) - slack ≤ nominal q ∧
+        nominal q ≤ (1 - rate) * Finset.univ.sup' Finset.univ_nonempty q +
+          rate * ((∑ a, q a) / (Fintype.card actions : ℚ))) :
+    nominal (fun a => ∑ i, mass i * value i a) ≤ ∑ i, mass i * nominal (value i) + slack := by
+  have greatest : Finset.univ.sup' Finset.univ_nonempty (fun a => ∑ i, mass i * value i a) ≤
+      ∑ i, mass i * Finset.univ.sup' Finset.univ_nonempty (value i) := by
+    apply Finset.sup'_le
+    intro a _
+    apply Finset.sum_le_sum
+    intro i _
+    exact mul_le_mul_of_nonneg_left (Finset.le_sup' (value i) (Finset.mem_univ a))
+      (nonnegative i)
+  have mean : (∑ a, ∑ i, mass i * value i a) / (Fintype.card actions : ℚ) =
+      ∑ i, mass i * ((∑ a, value i a) / (Fintype.card actions : ℚ)) := by
+    rw [Finset.sum_comm, Finset.sum_div]
+    exact Finset.sum_congr rfl fun i _ => by rw [← Finset.mul_sum, mul_div_assoc]
+  have complement : 0 ≤ 1 - rate := by linarith
+  have each : ∀ i, mass i * ((1 - rate) * Finset.univ.sup' Finset.univ_nonempty (value i) +
+      rate * ((∑ a, value i a) / (Fintype.card actions : ℚ))) ≤
+      mass i * (nominal (value i) + slack) := fun i =>
+    mul_le_mul_of_nonneg_left (by linarith [(sandwich (value i)).1]) (nonnegative i)
+  have summed := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => each i
+  have expand : ∑ i, mass i * (nominal (value i) + slack) =
+      ∑ i, mass i * nominal (value i) + slack := by
+    simp only [mul_add, Finset.sum_add_distrib, ← Finset.sum_mul, total, one_mul]
+  have convex : ∑ i, mass i * ((1 - rate) * Finset.univ.sup' Finset.univ_nonempty (value i) +
+      rate * ((∑ a, value i a) / (Fintype.card actions : ℚ))) =
+      (1 - rate) * ∑ i, mass i * Finset.univ.sup' Finset.univ_nonempty (value i) +
+        rate * ∑ i, mass i * ((∑ a, value i a) / (Fintype.card actions : ℚ)) := by
+    simp only [mul_add, Finset.sum_add_distrib, Finset.mul_sum]
+    congr 1 <;> exact Finset.sum_congr rfl fun i _ => by ring
+  have upper := (sandwich fun a => ∑ i, mass i * value i a).2
+  rw [mean] at upper
+  have scaled := mul_le_mul_of_nonneg_left greatest complement
+  rw [expand, convex] at summed
+  linarith
+
 /-- A change of the value weights changes one backed-up action value of a fixed
 predicted feature vector by exactly the weight change applied to that vector. A
 scalar continuation has no such term: its value does not read the weights. -/
@@ -126,26 +181,6 @@ theorem backup_propagation (before after expected : features → ℚ) :
       ∑ j, (after j - before j) * expected j := by
   rw [← Finset.sum_sub_distrib]
   exact Finset.sum_congr rfl fun j _ => by ring
-
-/-- For a deterministic outcome reached with discount `discount`, the maximum over
-the ranked parts of the discounted action values plus the discounted residual is
-the discounted maximum of the complete action values. -/
-theorem deterministic_backup [Nonempty actions] (discount : ℚ) (nonnegative : 0 ≤ discount)
-    (complete ranked : actions → ℚ) :
-    Finset.univ.sup' Finset.univ_nonempty (fun a => discount * ranked a) +
-        discount * (Finset.univ.sup' Finset.univ_nonempty complete -
-          Finset.univ.sup' Finset.univ_nonempty ranked) =
-      discount * Finset.univ.sup' Finset.univ_nonempty complete := by
-  have scaled : Finset.univ.sup' Finset.univ_nonempty (fun a => discount * ranked a) =
-      discount * Finset.univ.sup' Finset.univ_nonempty ranked := by
-    apply le_antisymm
-    · exact Finset.sup'_le _ _ fun a _ => mul_le_mul_of_nonneg_left
-        (Finset.le_sup' ranked (Finset.mem_univ a)) nonnegative
-    · obtain ⟨a, _, attained⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty ranked
-      rw [attained]
-      exact Finset.le_sup' (fun a => discount * ranked a) (Finset.mem_univ a)
-  rw [scaled]
-  ring
 
 end Identities
 
@@ -402,200 +437,7 @@ theorem ranked_values_vacant (value : ValueFunction criterion dimension)
   rw [rankedValues_get, vacant]
   rfl
 
-/-! ## The ordered maximum and the nominal mean -/
-
-/-- A fold that keeps one of its two arguments at every step returns its start or a
-list element. -/
-theorem fold_choice_member {α : Type} (choose : α → α → α)
-    (either : ∀ kept item, choose kept item = kept ∨ choose kept item = item)
-    (items : List α) (first : α) : items.foldl choose first ∈ first :: items := by
-  induction items generalizing first with
-  | nil => simp
-  | cons head tail ih =>
-    have inner := ih (choose first head)
-    simp only [List.foldl_cons]
-    rcases List.mem_cons.mp inner with same | later
-    · rcases either first head with kept | taken
-      · rw [same, kept]
-        simp
-      · rw [same, taken]
-        simp
-    · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ later)
-
-/-- The ordered maximum fold dominates its start and every finite list element. -/
-theorem fold_best_dominates (words : List Binary32) (first : Binary32)
-    (finite : ∀ word ∈ first :: words, word.Finite) :
-    ∀ word ∈ first :: words, numerical32 word ≤ numerical32
-      (words.foldl (fun best value => if best.less value then value else best) first) := by
-  induction words generalizing first with
-  | nil =>
-    intro word member
-    have same : word = first := by simpa using member
-    subst same
-    exact le_refl _
-  | cons head tail ih =>
-    intro word member
-    have firstFinite := finite first (by simp)
-    have headFinite := finite head (by simp)
-    have compare := numerical32_less first head firstFinite headFinite
-    have chosenFinite : (if first.less head then head else first).Finite := by
-      split <;> assumption
-    have rest : ∀ other ∈ (if first.less head then head else first) :: tail,
-        other.Finite := by
-      intro other inside
-      rcases List.mem_cons.mp inside with same | later
-      · rw [same]
-        exact chosenFinite
-      · exact finite other (by simp [later])
-    have tailBound := ih (if first.less head then head else first) rest
-    have chosenBound := tailBound (if first.less head then head else first) (by simp)
-    have firstLe : numerical32 first ≤
-        numerical32 (if first.less head then head else first) := by
-      split
-      · rename_i less
-        rw [compare] at less
-        exact le_of_lt (of_decide_eq_true less)
-      · exact le_refl _
-    have headLe : numerical32 head ≤
-        numerical32 (if first.less head then head else first) := by
-      split
-      · exact le_refl _
-      · rename_i notLess
-        rw [compare] at notLess
-        exact not_lt.mp (by simpa using notLess)
-    simp only [List.foldl_cons]
-    rcases List.mem_cons.mp member with same | later
-    · rw [same]
-      exact le_trans firstLe chosenBound
-    · rcases List.mem_cons.mp later with same | inTail
-      · rw [same]
-        exact le_trans headLe chosenBound
-      · exact tailBound word (List.mem_cons_of_mem _ inTail)
-
-variable {count : Word.Count}
-
-/-- A snapshot's words are its first word followed by the rest. -/
-theorem snapshot_words (snapshot : PolicySnapshot count) :
-    snapshot.values.toList =
-      snapshot.values.get (firstAction count) :: snapshot.values.toList.drop 1 := by
-  have positive : 0 < snapshot.values.toList.length := by
-    rw [Vector.length_toList]
-    exact count.positive
-  have head := List.drop_eq_getElem_cons positive
-  rw [List.drop_zero] at head
-  rw [head]
-  simp [firstAction, vector_get]
-
-/-- A word is one of a snapshot's words exactly when some action has it. -/
-theorem snapshot_member (snapshot : PolicySnapshot count) (word : Binary32) :
-    word ∈ snapshot.values.toList ↔ ∃ action, word = snapshot.values.get action := by
-  constructor
-  · intro inside
-    obtain ⟨index, bound, same⟩ := List.mem_iff_getElem.mp inside
-    have small : index < count.word.toNat := by simpa using bound
-    exact ⟨⟨index, small⟩, by simp [vector_get, ← same]⟩
-  · rintro ⟨action, rfl⟩
-    exact List.mem_iff_getElem.mpr ⟨action.val, by simp, by simp [vector_get]⟩
-
-/-- The ordered maximum of finite action values is one of them and dominates each. -/
-theorem best_spec (snapshot : PolicySnapshot count)
-    (finite : ∀ action, (snapshot.values.get action).Finite) :
-    (∃ action, snapshot.best = snapshot.values.get action) ∧
-      ∀ action, numerical32 (snapshot.values.get action) ≤ numerical32 snapshot.best := by
-  have words := snapshot_words snapshot
-  have allFinite : ∀ word ∈ snapshot.values.get (firstAction count) ::
-      snapshot.values.toList.drop 1, word.Finite := by
-    intro word inside
-    rw [← words] at inside
-    obtain ⟨action, rfl⟩ := (snapshot_member snapshot word).mp inside
-    exact finite action
-  have member := fold_choice_member
-    (fun best value : Binary32 => if best.less value then value else best)
-    (fun kept item => by by_cases less : kept.less item <;> simp [less])
-    (snapshot.values.toList.drop 1) (snapshot.values.get (firstAction count))
-  rw [← words] at member
-  refine ⟨(snapshot_member snapshot _).mp member, fun action => ?_⟩
-  exact fold_best_dominates (snapshot.values.toList.drop 1)
-    (snapshot.values.get (firstAction count)) allFinite (snapshot.values.get action)
-    (by rw [← words]; exact (snapshot_member snapshot _).mpr ⟨action, rfl⟩)
-
-/-- Saturation between two finite words is finite and no larger than the larger of
-them, for every input word including NaNs and infinities. -/
-theorem saturate_hull (value lower upper : Binary32) (lowerFinite : lower.Finite)
-    (upperFinite : upper.Finite) :
-    (value.saturate lower upper).Finite ∧
-      |numerical32 (value.saturate lower upper)| ≤
-        max |numerical32 lower| |numerical32 upper| := by
-  unfold Binary32.saturate
-  split
-  · exact ⟨lowerFinite, le_max_left _ _⟩
-  · split
-    · exact ⟨upperFinite, le_max_right _ _⟩
-    · rename_i notLow notHigh
-      have notNaN : value.isNaN = false := by
-        cases nan : value.isNaN
-        · rfl
-        · simp [nan] at notLow
-      have keys : lower.key ≤ value.key ∧ value.key ≤ upper.key := by
-        simp only [Binary32.less_eq_key, notNaN, Binary32.finite_not_nan lower lowerFinite,
-          Binary32.finite_not_nan upper upperFinite, Bool.not_false, Bool.true_and,
-          Bool.false_or, decide_eq_true_eq] at notLow notHigh
-        omega
-      have finite : value.Finite := by
-        have low : lower.magnitude < 0x7f800000 := lowerFinite
-        have high : upper.magnitude < 0x7f800000 := upperFinite
-        have lowKey : -(lower.magnitude : Int) ≤ lower.key := by
-          unfold Binary32.key
-          split <;> omega
-        have highKey : upper.key ≤ (upper.magnitude : Int) := by
-          unfold Binary32.key
-          split <;> omega
-        have valueKey : value.key = (value.magnitude : Int) ∨
-            value.key = -(value.magnitude : Int) := by
-          unfold Binary32.key
-          split
-          · exact Or.inr rfl
-          · exact Or.inl rfl
-        change value.magnitude < 0x7f800000
-        omega
-      have low := (numerical32_order lower value lowerFinite finite).mpr keys.1
-      have high := (numerical32_order value upper finite upperFinite).mpr keys.2
-      refine ⟨finite, abs_le.mpr ⟨?_, ?_⟩⟩
-      · have := neg_abs_le (numerical32 lower)
-        have := le_max_left |numerical32 lower| |numerical32 upper|
-        linarith
-      · have := le_abs_self (numerical32 upper)
-        have := le_max_right |numerical32 lower| |numerical32 upper|
-        linarith
-
-/-- The nominal policy mean of finite, bounded action values is finite and within the
-same bound: the executed mean is saturated between two of the action values. -/
-theorem expected_bound (snapshot : PolicySnapshot count) (radius : ℚ)
-    (bounded : ∀ action, (snapshot.values.get action).Finite ∧
-      |numerical32 (snapshot.values.get action)| ≤ radius) :
-    snapshot.expected.Finite ∧ |numerical32 snapshot.expected| ≤ radius := by
-  have lowerMember := fold_choice_member
-    (fun lo v : Binary32 => if v.less lo then v else lo)
-    (fun kept item => by by_cases less : item.less kept <;> simp [less])
-    snapshot.values.toList (snapshot.values.get (firstAction count))
-  have lowerWord : ∃ action,
-      snapshot.values.toList.foldl (fun lo v : Binary32 => if v.less lo then v else lo)
-        (snapshot.values.get (firstAction count)) = snapshot.values.get action := by
-    rcases List.mem_cons.mp lowerMember with same | inside
-    · exact ⟨firstAction count, same⟩
-    · exact (snapshot_member snapshot _).mp inside
-  obtain ⟨low, lowerSame⟩ := lowerWord
-  obtain ⟨high, upperSame⟩ := (best_spec snapshot fun action => (bounded action).1).1
-  have hull : ∀ word : Binary32,
-      (word.saturate (snapshot.values.get low) (snapshot.values.get high)).Finite ∧
-        |numerical32 (word.saturate (snapshot.values.get low) (snapshot.values.get high))| ≤
-          radius := by
-    intro word
-    have inside := saturate_hull word _ _ (bounded low).1 (bounded high).1
-    exact ⟨inside.1, le_trans inside.2 (max_le (bounded low).2 (bounded high).2)⟩
-  unfold PolicySnapshot.expected
-  simp only [lowerSame, upperSame]
-  exact hull _
+/-! ## The nominal value of the ranked action values -/
 
 /-- For every criterion and dimension, the executed nominal value of a predicted
 feature vector is finite and inside the ordered-sum envelope of the occupied positions. -/
@@ -620,56 +462,302 @@ theorem ranked_nominal_bound (value : ValueFunction criterion dimension)
     exact expected_bound
       (⟨value.rankedValues ranked expected, value.epsilon⟩ : PolicySnapshot metaCount) _ each
 
-/-! ## The discounted backed-up value -/
+/-! ## The value of the predicted outcome, per action -/
 
-/-- The meta-controller has an action, so a maximum over its actions exists. -/
-instance : Nonempty (Action metaCount.word.toNat) := ⟨firstAction metaCount⟩
+variable {count : Word.Count}
 
-/-- The exact discounted nominal value of an expected feature vector at the ranked
-slots: the maximum over meta actions of the exact dot products. -/
-def exactRankedBest (value : ValueFunction .discounted dimension)
-    (ranked : RankedFeatures dimension)
-    (expected : Vector Expectation (rankDimension dimension).capacity) : ℚ :=
-  Finset.univ.sup' Finset.univ_nonempty (exactRankedValue value ranked expected)
+/-- A machine action space has an action, so a maximum over its actions exists. -/
+instance : Nonempty (Action count.word.toNat) := ⟨firstAction count⟩
 
-/-- The executed discounted look-ahead is within one term allowance per occupied
-position of the exact maximum over meta actions: the ordered maximum selects a word
-and adds no rounding. -/
-theorem ranked_best_rounding (value : ValueFunction .discounted dimension)
-    (ranked : RankedFeatures dimension)
-    (expected : Vector Expectation (rankDimension dimension).capacity)
-    (narrow : (rankDimension dimension).capacity ≤ 64) :
-    (value.rankedNominal ranked expected).Finite ∧
-      |numerical32 (value.rankedNominal ranked expected) -
-        exactRankedBest value ranked expected| ≤ (ranked.occupied.length : ℚ) * termRadius ∧
-      |numerical32 (value.rankedNominal ranked expected)| ≤
-        102 * (ranked.occupied.length : ℚ) := by
-  have each := fun action => ranked_value_rounding value ranked expected action narrow
-  have spec := best_spec
-    (⟨value.rankedValues ranked expected, value.epsilon⟩ : PolicySnapshot metaCount)
-    fun action => (each action).1
+/-- The ordered maximum of action values, each finite and within `radius` of an exact
+value, is finite and within `radius` of the exact maximum: it selects a word and adds
+no rounding. -/
+theorem best_rounding (snapshot : PolicySnapshot count) (exact : Action count.word.toNat → ℚ)
+    (radius : ℚ)
+    (close : ∀ action, (snapshot.values.get action).Finite ∧
+      |numerical32 (snapshot.values.get action) - exact action| ≤ radius) :
+    snapshot.best.Finite ∧
+      |numerical32 snapshot.best - Finset.univ.sup' Finset.univ_nonempty exact| ≤ radius := by
+  have spec := best_spec snapshot fun action => (close action).1
   obtain ⟨chosen, same⟩ := spec.1
-  have nominal : value.rankedNominal ranked expected =
-      (value.rankedValues ranked expected).get chosen := same
-  rw [nominal]
-  refine ⟨(each chosen).1, abs_le.mpr ⟨?_, ?_⟩, (each chosen).2.2⟩
-  · obtain ⟨best, _, attained⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty
-      (exactRankedValue value ranked expected)
-    have dominated : numerical32 ((value.rankedValues ranked expected).get best) ≤
-        numerical32 ((value.rankedValues ranked expected).get chosen) := by
-      have largest := spec.2 best
-      rw [same] at largest
-      exact largest
-    have close := (abs_le.mp (each best).2.1).1
-    unfold exactRankedBest
+  rw [same]
+  refine ⟨(close chosen).1, abs_le.mpr ⟨?_, ?_⟩⟩
+  · obtain ⟨best, _, attained⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty exact
+    have dominated := spec.2 best
+    rw [same] at dominated
+    have near := (abs_le.mp (close best).2).1
     rw [attained]
     linarith
-  · have upper : exactRankedValue value ranked expected chosen ≤
-        Finset.univ.sup' Finset.univ_nonempty (exactRankedValue value ranked expected) :=
-      Finset.le_sup' (exactRankedValue value ranked expected) (Finset.mem_univ chosen)
-    have close := (abs_le.mp (each chosen).2.1).2
-    unfold exactRankedBest
+  · have upper : exact chosen ≤ Finset.univ.sup' Finset.univ_nonempty exact :=
+      Finset.le_sup' exact (Finset.mem_univ chosen)
+    have near := (abs_le.mp (close chosen).2).2
     linarith
+
+/-- One deviation learner's prediction at a frame: its ordered weight sum over the
+active ranked positions and the bias. -/
+def deviationWord (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) (action : Action metaCount.word.toNat) : Binary32 :=
+  (transition.deviations.get action).state.linearPrediction (transition.ranked.input features)
+
+/-- A deviation prediction is finite and inside the ordered-sum envelope of its input. -/
+theorem deviation_bound (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) (action : Action metaCount.word.toNat) :
+    (deviationWord transition features action).Finite ∧
+      |numerical32 (deviationWord transition features action)| ≤
+        predictionRadius (transition.ranked.input features).indices.length :=
+  prediction_bound (transition.deviations.get action).state (transition.ranked.input features)
+
+/-- The exact value of the predicted outcome for one meta action: the dot product of
+the stored value weights with the stored predicted features, plus the stored shared
+residual prediction, plus the stored deviation prediction of that action. -/
+def exactOutcomeValue (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (action : Action metaCount.word.toNat) : ℚ :=
+  exactRankedValue value transition.ranked (transition.expected features) action +
+    numerical32 shared + numerical32 (deviationWord transition features action)
+
+/-- Each executed outcome value is the ranked action value plus the shared residual
+plus the action's deviation, added in that order. -/
+theorem outcomeValues_get (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (action : Action metaCount.word.toNat) :
+    (transition.outcomeValues value features shared).get action =
+      (((value.rankedValues transition.ranked (transition.expected features)).get action).add
+        shared).add (deviationWord transition features action) := by
+  simp [Transition.outcomeValues, Transition.expected, deviationWord, vector_get]
+
+/-- Two successive additions whose partial sums stay within `2^13`: the result is
+finite, within `2^(-10)` more of the exact sum than its first operand was of its exact
+value, and below 8000 in magnitude. -/
+theorem add_twice (ranked shared deviation : Binary32) (exact radius : ℚ)
+    (rankedFinite : ranked.Finite) (sharedFinite : shared.Finite)
+    (deviationFinite : deviation.Finite)
+    (close : |numerical32 ranked - exact| ≤ radius) (small : |numerical32 ranked| ≤ 6528)
+    (room : |numerical32 shared| + |numerical32 deviation| ≤ 1024) :
+    ((ranked.add shared).add deviation).Finite ∧
+      |numerical32 ((ranked.add shared).add deviation) -
+        (exact + numerical32 shared + numerical32 deviation)| ≤ radius + 1 / 1024 ∧
+      |numerical32 ((ranked.add shared).add deviation)| ≤ 8000 := by
+  have sharedSize := abs_nonneg (numerical32 shared)
+  have deviationSize := abs_nonneg (numerical32 deviation)
+  have firstTriangle := abs_add_le (numerical32 ranked) (numerical32 shared)
+  have first := binary32_rounded_add ranked shared rankedFinite sharedFinite (by linarith)
+  have firstError := binary32_add_sum_error ranked shared rankedFinite sharedFinite first.1
+    (by linarith)
+  have firstSize : |numerical32 (ranked.add shared)| ≤
+      |numerical32 ranked| + |numerical32 shared| + 1 / 2048 := by
+    have triangle := abs_add_le
+      (numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared))
+      (numerical32 ranked + numerical32 shared)
+    rw [sub_add_cancel] at triangle
+    linarith
+  have secondTriangle := abs_add_le (numerical32 (ranked.add shared)) (numerical32 deviation)
+  have second := binary32_rounded_add (ranked.add shared) deviation first.1 deviationFinite
+    (by linarith)
+  have secondError := binary32_add_sum_error (ranked.add shared) deviation first.1
+    deviationFinite second.1 (by linarith)
+  refine ⟨second.1, ?_, ?_⟩
+  · have split : numerical32 ((ranked.add shared).add deviation) -
+        (exact + numerical32 shared + numerical32 deviation) =
+        (numerical32 ((ranked.add shared).add deviation) -
+          (numerical32 (ranked.add shared) + numerical32 deviation)) +
+        ((numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared)) +
+          (numerical32 ranked - exact)) := by ring
+    rw [split]
+    have outer := abs_add_le
+      (numerical32 ((ranked.add shared).add deviation) -
+        (numerical32 (ranked.add shared) + numerical32 deviation))
+      ((numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared)) +
+        (numerical32 ranked - exact))
+    have inner := abs_add_le
+      (numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared))
+      (numerical32 ranked - exact)
+    linarith
+  · have triangle := abs_add_le
+      (numerical32 ((ranked.add shared).add deviation) -
+        (numerical32 (ranked.add shared) + numerical32 deviation))
+      (numerical32 (ranked.add shared) + numerical32 deviation)
+    rw [sub_add_cancel] at triangle
+    linarith
+
+/-- Backup identity with its rounding bound, per action. For every transition part,
+value function and frame with at most 64 ranked positions, and stored shared and
+deviation predictions of summed magnitude at most 1024, the executed value of the
+predicted outcome for one action is finite and within one term allowance per occupied
+position plus `2^(-10)` of the exact sum of the stored words. -/
+theorem outcome_value_rounding (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (action : Action metaCount.word.toNat)
+    (narrow : (rankDimension dimension).capacity ≤ 64) (finite : shared.Finite)
+    (room : |numerical32 shared| +
+      |numerical32 (deviationWord transition features action)| ≤ 1024) :
+    ((transition.outcomeValues value features shared).get action).Finite ∧
+      |numerical32 ((transition.outcomeValues value features shared).get action) -
+        exactOutcomeValue transition value features shared action| ≤
+          (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024 ∧
+      |numerical32 ((transition.outcomeValues value features shared).get action)| ≤ 8000 := by
+  rw [outcomeValues_get]
+  have ranked := ranked_value_rounding value transition.ranked (transition.expected features)
+    action narrow
+  have few : (transition.ranked.occupied.length : ℚ) ≤ 64 := by
+    exact_mod_cast le_trans transition.ranked.occupied_length narrow
+  exact add_twice _ shared _ _ _ ranked.1 finite (deviation_bound transition features action).1
+    ranked.2.1 (by linarith [ranked.2.2]) room
+
+/-- Dependence on the value weights, over the executed definitions and for the complete
+per-action value: between two value functions, with the transition part and the shared
+prediction held fixed, the exact value of the predicted outcome for an action differs
+by the weight change at each occupied slot times that slot's predicted activity. The
+maximum or mean over actions is taken after, so no change at a ranked slot is hidden by
+another action's value. -/
+theorem outcome_value_propagation (transition : Transition dimension criterion)
+    (before after : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (action : Action metaCount.word.toNat) :
+    exactOutcomeValue transition after features shared action -
+        exactOutcomeValue transition before features shared action =
+      (transition.ranked.occupied.map fun entry =>
+        (numerical32 ((after.controller.learners.get action).state.weights.get entry.2).value -
+          numerical32 ((before.controller.learners.get action).state.weights.get entry.2).value) *
+          numerical32 ((transition.expected features).get entry.1).value).sum := by
+  rw [← ranked_value_propagation before after transition.ranked (transition.expected features)
+    action]
+  unfold exactOutcomeValue
+  ring
+
+/-- The shared residual and an action's deviation add up to that action's unranked
+share, in exact arithmetic: whatever the shared part is, nothing of the share is lost.
+`complete` is the action's value at the terminal frame, `ranked` its value at the
+frame's ranked slots, `residual` the shared residual and `discount` the terminal
+discount of `Transition.outcome`. -/
+theorem outcome_decomposition (discount complete ranked residual : ℚ) :
+    discount * residual + discount * ((complete - ranked) - residual) =
+      discount * (complete - ranked) := by
+  ring
+
+/-- For a deterministic outcome reached with discount `discount`, the maximum over
+actions of the discounted ranked part plus the discounted shared residual plus the
+discounted deviation is the discounted maximum of the complete action values, whatever
+the shared residual is. With the ranked parts read from the current weights, a change
+at a ranked slot for any action therefore reaches the backed-up value. -/
+theorem deterministic_outcome {actions : Type} [Fintype actions] [Nonempty actions]
+    (discount : ℚ) (nonnegative : 0 ≤ discount) (complete ranked share : actions → ℚ)
+    (residual : ℚ) (split : ∀ action, complete action = ranked action + share action) :
+    Finset.univ.sup' Finset.univ_nonempty (fun action =>
+        discount * ranked action + discount * residual +
+          discount * (share action - residual)) =
+      discount * Finset.univ.sup' Finset.univ_nonempty complete := by
+  have each : (fun action => discount * ranked action + discount * residual +
+      discount * (share action - residual)) = fun action => discount * complete action := by
+    funext action
+    rw [split action]
+    ring
+  rw [each]
+  apply le_antisymm
+  · exact Finset.sup'_le _ _ fun action _ => mul_le_mul_of_nonneg_left
+      (Finset.le_sup' complete (Finset.mem_univ action)) nonnegative
+  · obtain ⟨best, _, attained⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty complete
+    rw [attained]
+    exact Finset.le_sup' (fun action => discount * complete action) (Finset.mem_univ best)
+
+/-- Two successive additions of finite words inside their envelopes stay finite and
+inside the summed envelopes, with machine-rounding slack. -/
+theorem add_twice_bound (ranked shared deviation : Binary32) (first second third : ℚ)
+    (rankedFinite : ranked.Finite) (sharedFinite : shared.Finite)
+    (deviationFinite : deviation.Finite) (rankedBound : |numerical32 ranked| ≤ first)
+    (sharedBound : |numerical32 shared| ≤ second)
+    (deviationBound : |numerical32 deviation| ≤ third) (firstCap : first ≤ 8388608)
+    (secondCap : second ≤ 4294967296) (thirdCap : third ≤ 8388608) :
+    ((ranked.add shared).add deviation).Finite ∧
+      |numerical32 ((ranked.add shared).add deviation)| ≤ first + second + third + 512 := by
+  have radius : (2 : ℚ) ^ (max ((33 : Int) - 24) (-149)) / 2 = 256 := by norm_num
+  have firstTriangle := abs_add_le (numerical32 ranked) (numerical32 shared)
+  have inner := binary32_add_finite_strict_error ranked shared rankedFinite sharedFinite 33
+    (by decide) (by norm_num; linarith)
+  have innerSlack := inner.2
+  rw [radius] at innerSlack
+  have innerSize : |numerical32 (ranked.add shared)| ≤ first + second + 256 := by
+    have triangle := abs_add_le
+      (numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared))
+      (numerical32 ranked + numerical32 shared)
+    rw [sub_add_cancel] at triangle
+    linarith
+  have secondTriangle := abs_add_le (numerical32 (ranked.add shared)) (numerical32 deviation)
+  have outer := binary32_add_finite_strict_error (ranked.add shared) deviation inner.1
+    deviationFinite 33 (by decide) (by norm_num; linarith)
+  have outerSlack := outer.2
+  rw [radius] at outerSlack
+  refine ⟨outer.1, ?_⟩
+  have triangle := abs_add_le
+    (numerical32 ((ranked.add shared).add deviation) -
+      (numerical32 (ranked.add shared) + numerical32 deviation))
+    (numerical32 (ranked.add shared) + numerical32 deviation)
+  rw [sub_add_cancel] at triangle
+  linarith
+
+/-- Envelope of one outcome value: the ordered-sum envelopes of the occupied positions,
+of the shared prediction's input and of the row input, plus machine-rounding slack. -/
+def outcomeRadius (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) (inputs : Nat) : ℚ :=
+  predictionRadius transition.ranked.occupied.length + predictionRadius inputs +
+    predictionRadius (transition.ranked.input features).indices.length + 512
+
+/-- A ranked width is at most `2^15`. -/
+theorem rank_capacity (dimension : Dimension) : (rankDimension dimension).capacity ≤ 32768 := by
+  have bound := rankExponentFrom_le dimension.capacity 15 0
+  change rankWidth dimension ≤ 2 ^ 15
+  rw [rankWidth_eq]
+  exact Nat.pow_le_pow_right (by decide) (by unfold rankExponent; omega)
+
+/-- The ordered-sum envelope of the occupied positions is at most `2^23`. -/
+theorem ranked_radius (ranked : RankedFeatures dimension) :
+    predictionRadius ranked.occupied.length ≤ 8388608 := by
+  have width := le_trans ranked.occupied_length (rank_capacity dimension)
+  unfold predictionRadius
+  have small := Nat.min_le_left ranked.occupied.length (2 ^ 24)
+  have scaled : min ranked.occupied.length (2 ^ 24) * 256 ≤ 32768 * 256 :=
+    Nat.mul_le_mul_right 256 (le_trans small width)
+  exact_mod_cast scaled
+
+/-- An ordered-sum envelope is at most `2^32`. -/
+theorem radius_cap (inputs : Nat) : predictionRadius inputs ≤ 4294967296 := by
+  unfold predictionRadius
+  have := Nat.min_le_right inputs (2 ^ 24)
+  exact_mod_cast Nat.mul_le_mul_right 256 this
+
+/-- The envelope of a row input is at most `2^23`. -/
+theorem input_radius (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    predictionRadius (ranked.input features).indices.length ≤ 8388608 := by
+  have width := le_trans (active_cardinality (ranked.input features)) (rank_capacity dimension)
+  unfold predictionRadius
+  have small := Nat.min_le_left (ranked.input features).indices.length (2 ^ 24)
+  have scaled : min (ranked.input features).indices.length (2 ^ 24) * 256 ≤ 32768 * 256 :=
+    Nat.mul_le_mul_right 256 (le_trans small width)
+  exact_mod_cast scaled
+
+/-- For every criterion, dimension, state and frame, every executed outcome value is
+finite and inside its envelope, given a finite shared prediction inside its own. -/
+theorem outcome_value_bound (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (inputs : Nat) (action : Action metaCount.word.toNat)
+    (finite : shared.Finite) (bound : |numerical32 shared| ≤ predictionRadius inputs) :
+    ((transition.outcomeValues value features shared).get action).Finite ∧
+      |numerical32 ((transition.outcomeValues value features shared).get action)| ≤
+        outcomeRadius transition features inputs := by
+  rw [outcomeValues_get]
+  have ranked := ranked_value_bound value transition.ranked (transition.expected features) action
+  have deviation := deviation_bound transition features action
+  exact add_twice_bound _ shared _ _ _ _ ranked.1 finite deviation.1 ranked.2 bound deviation.2
+    (ranked_radius transition.ranked) (radius_cap inputs) (input_radius transition.ranked features)
+
+/-! ## The discounted backed-up value -/
+
+/-- The exact discounted value of the predicted outcome: the maximum over meta actions
+of the exact per-action values. -/
+def exactOutcomeBest (transition : Transition dimension .discounted)
+    (value : ValueFunction .discounted dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) : ℚ :=
+  Finset.univ.sup' Finset.univ_nonempty (exactOutcomeValue transition value features shared)
 
 /-- The discounted horizon as a rational. -/
 def horizon : ℚ := numerical32 Discount.g99.horizon
@@ -766,128 +854,340 @@ theorem clamped_add (left right : Binary32) (leftFinite : left.Finite)
         (binary32_add_unit_error left right leftFinite rightFinite sum.1 small)
 
 /-- Backup identity with its rounding bound, for the executed discounted backed-up
-value. Let `V` be the exact maximum over meta actions of the dot products of the stored
-value weights with the stored predicted features, `ρ` the stored residual prediction
-and `r` the stored reward prediction. For every model, value function, frame and gain,
-with at most 64 ranked positions, the executed target is within one term allowance per
-occupied position plus `2^(-16)` of `clamp (r + clamp (V + ρ))`, where `clamp` is the
-exact projection onto the prediction range. -/
+value. Let `V` be the exact maximum over meta actions of: the dot product of the stored
+value weights with the stored predicted features, plus the stored shared residual
+prediction, plus the stored deviation prediction of that action; and `r` the stored
+reward prediction. For every model, value function, frame and gain with at most 64
+ranked positions, and stored shared and deviation predictions of summed magnitude at
+most 1024, the executed target is within one term allowance per occupied position plus
+`2^(-10) + 2^(-17)` of `clamp (r + clamp V)`, where `clamp` is the exact projection onto
+the prediction range. -/
 theorem discounted_backup_rounding
     (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
     (transition : Transition dimension .discounted)
     (value : ValueFunction .discounted dimension) (features : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) (gain : RewardRate) (narrow : (rankDimension dimension).capacity ≤ 64) :
+    (age : ModelAge) (gain : RewardRate) (narrow : (rankDimension dimension).capacity ≤ 64)
+    (room : ∀ action, |numerical32 (continuation.state.linearPrediction
+        (modelInput .discounted features age))| +
+      |numerical32 (deviationWord transition features action)| ≤ 1024) :
     let prediction := (Model.discounted reward continuation transition).predict value features age
     |numerical32 (prediction.target gain) -
       clamp (numerical32 prediction.reward.value +
-        clamp (exactRankedBest value transition.ranked (transition.expected features) +
-          numerical32 (continuation.state.linearPrediction
-            (modelInput .discounted features age))))| ≤
-      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 := by
+        clamp (exactOutcomeBest transition value features
+          (continuation.state.linearPrediction (modelInput .discounted features age))))| ≤
+      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024 + 1 / 131072 := by
   intro prediction
-  have look := ranked_best_rounding value transition.ranked (transition.expected features) narrow
-  have residual := prediction_bound continuation.state (modelInput .discounted features age)
-  change (continuation.state.linearPrediction (modelInput .discounted features age)).Finite ∧
-    |numerical32 (continuation.state.linearPrediction (modelInput .discounted features age))| ≤
-      predictionRadius (modelInput .discounted features age).indices.length at residual
-  have radiusCap : predictionRadius (modelInput .discounted features age).indices.length ≤
-      4294967296 := by
-    unfold predictionRadius
-    have := Nat.min_le_right (modelInput .discounted features age).indices.length (2 ^ 24)
-    exact_mod_cast Nat.mul_le_mul_right 256 this
-  have few : (transition.ranked.occupied.length : ℚ) ≤ 64 := by
-    exact_mod_cast le_trans transition.ranked.occupied_length narrow
-  have innerBound : |numerical32 (value.rankedNominal transition.ranked
-      (transition.expected features)) + numerical32 (continuation.state.linearPrediction
-        (modelInput .discounted features age))| ≤ 8589934592 :=
-    le_trans (abs_add_le _ _) (by linarith [look.2.2, residual.2])
-  have inner := clamped_add _ _ look.1 residual.1 innerBound
-  have continuationValue := project_numeric _ inner.1
-  have continuationRange := clamp_range (numerical32 ((value.rankedNominal transition.ranked
-    (transition.expected features)).add (continuation.state.linearPrediction
-      (modelInput .discounted features age))))
-  have continuationFinite := (Prediction.project .g99 ((value.rankedNominal transition.ranked
-    (transition.expected features)).add (continuation.state.linearPrediction
-      (modelInput .discounted features age)))).legal.1
+  have sharedBound := prediction_bound continuation.state (modelInput .discounted features age)
+  change (continuation.state.linearPrediction (modelInput .discounted features age)).Finite ∧ _
+    at sharedBound
+  have each := fun action => outcome_value_rounding transition value features
+    (continuation.state.linearPrediction (modelInput .discounted features age)) action narrow
+    sharedBound.1 (room action)
+  have best := best_rounding
+    (⟨transition.outcomeValues value features
+      (continuation.state.linearPrediction (modelInput .discounted features age)),
+      value.epsilon⟩ : PolicySnapshot metaCount)
+    (exactOutcomeValue transition value features
+      (continuation.state.linearPrediction (modelInput .discounted features age)))
+    ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024)
+    fun action => ⟨(each action).1, (each action).2.1⟩
+  have continuationValue := project_numeric _ best.1
+  have continuationFinite := (Prediction.project .g99 (PolicySnapshot.best
+    (⟨transition.outcomeValues value features
+      (continuation.state.linearPrediction (modelInput .discounted features age)),
+      value.epsilon⟩ : PolicySnapshot metaCount))).legal.1
+  have continuationRange := clamp_range (numerical32 (PolicySnapshot.best
+    (⟨transition.outcomeValues value features
+      (continuation.state.linearPrediction (modelInput .discounted features age)),
+      value.epsilon⟩ : PolicySnapshot metaCount)))
+  rw [← continuationValue] at continuationRange
   have rewardBounds := CurrentModels.interval_numeric _ prediction.reward
   have lowerValue : numerical32 (Criterion.discounted.modelRewardRange).lower = 0 := by decide
   rw [lowerValue] at rewardBounds
   have rewardTop : numerical32 (Criterion.discounted.modelRewardRange).upper = horizon := rfl
   rw [rewardTop] at rewardBounds
   have top := horizon_bounds
-  rw [← continuationValue] at continuationRange
-  have outerBound : |numerical32 prediction.reward.value + numerical32 (Prediction.project .g99
-      ((value.rankedNominal transition.ranked (transition.expected features)).add
-        (continuation.state.linearPrediction (modelInput .discounted features age)))).value| ≤
-      8589934592 :=
-    abs_le.mpr ⟨by linarith [rewardBounds.1, continuationRange.1],
-      by linarith [rewardBounds.2, continuationRange.2]⟩
-  have outer := clamped_add _ _ prediction.reward.legal.1 continuationFinite outerBound
+  have outer := clamped_add prediction.reward.value _ prediction.reward.legal.1
+    continuationFinite
+    (abs_le.mpr ⟨by linarith [rewardBounds.1, continuationRange.1],
+      by linarith [rewardBounds.2, continuationRange.2]⟩)
   have target : numerical32 (prediction.target gain) = clamp (numerical32
-      (prediction.reward.value.add (Prediction.project .g99
-        ((value.rankedNominal transition.ranked (transition.expected features)).add
-          (continuation.state.linearPrediction (modelInput .discounted features age)))).value)) :=
+      (prediction.reward.value.add (Prediction.project .g99 (PolicySnapshot.best
+        (⟨transition.outcomeValues value features
+          (continuation.state.linearPrediction (modelInput .discounted features age)),
+          value.epsilon⟩ : PolicySnapshot metaCount))).value)) :=
     project_numeric _ outer.1
   rw [target]
-  have first := clamp_lipschitz
-    (numerical32 prediction.reward.value + numerical32 (Prediction.project .g99
-      ((value.rankedNominal transition.ranked (transition.expected features)).add
-        (continuation.state.linearPrediction (modelInput .discounted features age)))).value)
-    (numerical32 prediction.reward.value +
-      clamp (exactRankedBest value transition.ranked (transition.expected features) +
-        numerical32 (continuation.state.linearPrediction
-          (modelInput .discounted features age))))
-  have second := clamp_lipschitz
-    (numerical32 (value.rankedNominal transition.ranked (transition.expected features)) +
-      numerical32 (continuation.state.linearPrediction (modelInput .discounted features age)))
-    (exactRankedBest value transition.ranked (transition.expected features) +
-      numerical32 (continuation.state.linearPrediction (modelInput .discounted features age)))
-  rw [add_sub_add_left_eq_sub] at first
-  rw [add_sub_add_right_eq_sub] at second
-  rw [continuationValue] at first outer
+  rw [continuationValue] at outer
+  have inner := clamp_lipschitz
+    (numerical32 (PolicySnapshot.best
+      (⟨transition.outcomeValues value features
+        (continuation.state.linearPrediction (modelInput .discounted features age)),
+        value.epsilon⟩ : PolicySnapshot metaCount)))
+    (exactOutcomeBest transition value features
+      (continuation.state.linearPrediction (modelInput .discounted features age)))
+  have lifted := clamp_lipschitz
+    (numerical32 prediction.reward.value + clamp (numerical32 (PolicySnapshot.best
+      (⟨transition.outcomeValues value features
+        (continuation.state.linearPrediction (modelInput .discounted features age)),
+        value.epsilon⟩ : PolicySnapshot metaCount))))
+    (numerical32 prediction.reward.value + clamp (exactOutcomeBest transition value features
+      (continuation.state.linearPrediction (modelInput .discounted features age))))
+  rw [add_sub_add_left_eq_sub] at lifted
   have chain := abs_sub_le
     (clamp (numerical32 (prediction.reward.value.add (Prediction.project .g99
-      ((value.rankedNominal transition.ranked (transition.expected features)).add
-        (continuation.state.linearPrediction (modelInput .discounted features age)))).value)))
-    (clamp (numerical32 prediction.reward.value + clamp (numerical32
-      ((value.rankedNominal transition.ranked (transition.expected features)).add
-        (continuation.state.linearPrediction (modelInput .discounted features age))))))
-    (clamp (numerical32 prediction.reward.value +
-      clamp (exactRankedBest value transition.ranked (transition.expected features) +
-        numerical32 (continuation.state.linearPrediction
-          (modelInput .discounted features age)))))
-  have middle := abs_sub_le
-    (clamp (numerical32 ((value.rankedNominal transition.ranked
-      (transition.expected features)).add (continuation.state.linearPrediction
-        (modelInput .discounted features age)))))
-    (clamp (numerical32 (value.rankedNominal transition.ranked (transition.expected features)) +
-      numerical32 (continuation.state.linearPrediction (modelInput .discounted features age))))
-    (clamp (exactRankedBest value transition.ranked (transition.expected features) +
-      numerical32 (continuation.state.linearPrediction (modelInput .discounted features age))))
-  linarith [outer.2, inner.2, look.2.1]
+      (PolicySnapshot.best (⟨transition.outcomeValues value features
+        (continuation.state.linearPrediction (modelInput .discounted features age)),
+        value.epsilon⟩ : PolicySnapshot metaCount))).value)))
+    (clamp (numerical32 prediction.reward.value + clamp (numerical32 (PolicySnapshot.best
+      (⟨transition.outcomeValues value features
+        (continuation.state.linearPrediction (modelInput .discounted features age)),
+        value.epsilon⟩ : PolicySnapshot metaCount)))))
+    (clamp (numerical32 prediction.reward.value + clamp (exactOutcomeBest transition value
+      features (continuation.state.linearPrediction (modelInput .discounted features age)))))
+  have bestClose : |numerical32 (PolicySnapshot.best
+      (⟨transition.outcomeValues value features
+        (continuation.state.linearPrediction (modelInput .discounted features age)),
+        value.epsilon⟩ : PolicySnapshot metaCount)) -
+      exactOutcomeBest transition value features
+        (continuation.state.linearPrediction (modelInput .discounted features age))| ≤
+      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024 := best.2
+  linarith [outer.2]
+
+/-! ## The differential backed-up value -/
+
+/-- The words of a vector summed in list order are the sum over its indices. -/
+theorem words_sum {size : Nat} (words : Vector Binary32 size) :
+    (words.toList.map numerical32).sum = ∑ action : Fin size, numerical32 (words.get action) := by
+  rw [← List.sum_ofFn]
+  congr 1
+  apply List.ext_getElem
+  · simp
+  · intro index first second
+    simp [vector_get]
+
+/-- The convex combination of action values within `radius` of exact values is within
+`radius` of the same combination of the exact values. -/
+theorem greedy_mean_close (snapshot : PolicySnapshot count)
+    (exact : Action count.word.toNat → ℚ) (radius : ℚ)
+    (close : ∀ action, (snapshot.values.get action).Finite ∧
+      |numerical32 (snapshot.values.get action) - exact action| ≤ radius) :
+    |greedyMean snapshot -
+      ((1 - numerical32 snapshot.epsilon.value) * Finset.univ.sup' Finset.univ_nonempty exact +
+        numerical32 snapshot.epsilon.value *
+          ((∑ action, exact action) / (count.word.toNat : ℚ)))| ≤ radius := by
+  have rateBounds := CurrentModels.interval_numeric SwiftTd.exploreRange snapshot.epsilon
+  have rateLower : numerical32 SwiftTd.exploreRange.lower = 0 := by decide
+  have rateUpper : numerical32 SwiftTd.exploreRange.upper = 1 := by
+    change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (-23 : Int) = 1
+    norm_num
+  rw [rateLower, rateUpper] at rateBounds
+  have best := (best_rounding snapshot exact radius close).2
+  have positive : (0 : ℚ) < (count.word.toNat : ℚ) := by exact_mod_cast count.positive
+  have nonnegative : 0 ≤ radius := le_trans (abs_nonneg _) (close (firstAction count)).2
+  have sums : |(snapshot.values.toList.map numerical32).sum - ∑ action, exact action| ≤
+      (count.word.toNat : ℚ) * radius := by
+    rw [words_sum, ← Finset.sum_sub_distrib]
+    refine le_trans (Finset.abs_sum_le_sum_abs _ _) ?_
+    have each := Finset.sum_le_sum fun action (_ : action ∈ Finset.univ) => (close action).2
+    simpa using each
+  have mean : |(snapshot.values.toList.map numerical32).sum / (count.word.toNat : ℚ) -
+      (∑ action, exact action) / (count.word.toNat : ℚ)| ≤ radius := by
+    rw [← sub_div, abs_div, abs_of_pos positive, div_le_iff₀ positive]
+    linarith
+  have complement : 0 ≤ 1 - numerical32 snapshot.epsilon.value := by linarith [rateBounds.2]
+  unfold greedyMean
+  have split : (1 - numerical32 snapshot.epsilon.value) * numerical32 snapshot.best +
+      numerical32 snapshot.epsilon.value *
+        ((snapshot.values.toList.map numerical32).sum / (count.word.toNat : ℚ)) -
+      ((1 - numerical32 snapshot.epsilon.value) *
+        Finset.univ.sup' Finset.univ_nonempty exact +
+        numerical32 snapshot.epsilon.value *
+          ((∑ action, exact action) / (count.word.toNat : ℚ))) =
+      (1 - numerical32 snapshot.epsilon.value) *
+        (numerical32 snapshot.best - Finset.univ.sup' Finset.univ_nonempty exact) +
+      numerical32 snapshot.epsilon.value *
+        ((snapshot.values.toList.map numerical32).sum / (count.word.toNat : ℚ) -
+          (∑ action, exact action) / (count.word.toNat : ℚ)) := by ring
+  rw [split]
+  have triangle := abs_add_le
+    ((1 - numerical32 snapshot.epsilon.value) *
+      (numerical32 snapshot.best - Finset.univ.sup' Finset.univ_nonempty exact))
+    (numerical32 snapshot.epsilon.value *
+      ((snapshot.values.toList.map numerical32).sum / (count.word.toNat : ℚ) -
+        (∑ action, exact action) / (count.word.toNat : ℚ)))
+  rw [abs_mul, abs_mul, abs_of_nonneg complement, abs_of_nonneg rateBounds.1] at triangle
+  have first := mul_le_mul_of_nonneg_left best complement
+  have second := mul_le_mul_of_nonneg_left mean rateBounds.1
+  nlinarith
+
+/-- The exact differential value of the predicted outcome with one greedy action:
+`(1 − ε)` times the maximum over meta actions of the exact per-action values plus `ε`
+times their mean. The executed value averages the actions within the tie window of
+the maximum, so it can lie below this by the window. -/
+def exactOutcomeMean (transition : Transition dimension .differential)
+    (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) : ℚ :=
+  (1 - numerical32 value.epsilon.value) *
+      Finset.univ.sup' Finset.univ_nonempty (exactOutcomeValue transition value features shared) +
+    numerical32 value.epsilon.value *
+      ((∑ action, exactOutcomeValue transition value features shared action) /
+        (metaCount.word.toNat : ℚ))
+
+/-- The executed differential value of the predicted outcome against the exact
+expression. For every transition part, value function and frame with at most 64
+ranked positions, and stored shared and deviation predictions of summed magnitude at
+most 1024, the executed word is finite, at most `exactOutcomeMean` plus one term
+allowance per occupied position plus `2^(-10)` plus `meanRadius`, and at least
+`exactOutcomeMean` less the same with `meanSlack` in place of `meanRadius`. -/
+theorem outcome_mean_rounding (transition : Transition dimension .differential)
+    (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (narrow : (rankDimension dimension).capacity ≤ 64)
+    (finite : shared.Finite)
+    (room : ∀ action, |numerical32 shared| +
+      |numerical32 (deviationWord transition features action)| ≤ 1024) :
+    (transition.lookahead value features shared).Finite ∧
+      exactOutcomeMean transition value features shared -
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024 + meanSlack) ≤
+        numerical32 (transition.lookahead value features shared) ∧
+      numerical32 (transition.lookahead value features shared) ≤
+        exactOutcomeMean transition value features shared +
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024 + meanRadius) ∧
+      |numerical32 (transition.lookahead value features shared)| ≤ 8000 := by
+  have each := fun action => outcome_value_rounding transition value features shared action
+    narrow finite (room action)
+  have sandwich := expected_sandwich
+    (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
+    (by decide) fun action => ⟨(each action).1, (each action).2.2⟩
+  have close := greedy_mean_close
+    (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
+    (exactOutcomeValue transition value features shared)
+    ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024)
+    fun action => ⟨(each action).1, (each action).2.1⟩
+  have size := expected_bound
+    (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
+    8000 fun action => ⟨(each action).1, (each action).2.2⟩
+  have bounds := abs_le.mp close
+  change (PolicySnapshot.expected (⟨transition.outcomeValues value features shared,
+    value.epsilon⟩ : PolicySnapshot metaCount)).Finite ∧ _
+  unfold exactOutcomeMean
+  refine ⟨sandwich.1, ?_, ?_, size.2⟩
+  · have lower := sandwich.2.1
+    change _ ≤ numerical32 (PolicySnapshot.expected (⟨transition.outcomeValues value features
+      shared, value.epsilon⟩ : PolicySnapshot metaCount))
+    linarith [bounds.1]
+  · have upper := sandwich.2.2
+    change numerical32 (PolicySnapshot.expected (⟨transition.outcomeValues value features
+      shared, value.epsilon⟩ : PolicySnapshot metaCount)) ≤ _
+    linarith [bounds.2]
+
+/-- Backup identity with its rounding bound, for the executed differential backed-up
+value. Let `M` be `exactOutcomeMean` of the stored words, `r`, `d` the stored reward and
+duration predictions and `g` the gain. For every model, value function, frame and gain
+with at most 64 ranked positions, and stored shared and deviation predictions of summed
+magnitude at most 1024, the executed target is finite and lies between
+`r − g · d + M` less one term allowance per occupied position, `2^(-10)`, `meanSlack`,
+`2^(-16)` and `2^(-11)`, and `r − g · d + M` plus the same with `meanRadius` in place
+of `meanSlack`. The lower side is wider by the tie window of the nominal mean. -/
+theorem differential_backup_rounding
+    (r c d : Managed (Criterion.config .differential .demon) dimension)
+    (transition : Transition dimension .differential)
+    (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) (gain : RewardRate) (narrow : (rankDimension dimension).capacity ≤ 64)
+    (room : ∀ action, |numerical32 (c.state.linearPrediction
+        (modelInput .differential features age))| +
+      |numerical32 (deviationWord transition features action)| ≤ 1024) :
+    let prediction := (Model.differential r c d transition).predict value features age
+    (prediction.target gain).Finite ∧
+      numerical32 prediction.reward.value -
+          numerical32 gain.value * numerical32 prediction.duration.value +
+          exactOutcomeMean transition value features
+            (c.state.linearPrediction (modelInput .differential features age)) -
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024 + meanSlack +
+            1 / 65536 + 1 / 2048) ≤ numerical32 (prediction.target gain) ∧
+      numerical32 (prediction.target gain) ≤
+        numerical32 prediction.reward.value -
+          numerical32 gain.value * numerical32 prediction.duration.value +
+          exactOutcomeMean transition value features
+            (c.state.linearPrediction (modelInput .differential features age)) +
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 1024 + meanRadius +
+            1 / 65536 + 1 / 2048) := by
+  intro prediction
+  have sharedBound := prediction_bound c.state (modelInput .differential features age)
+  change (c.state.linearPrediction (modelInput .differential features age)).Finite ∧ _
+    at sharedBound
+  have outcome := outcome_mean_rounding transition value features
+    (c.state.linearPrediction (modelInput .differential features age)) narrow sharedBound.1 room
+  have rb := CurrentModels.interval_numeric _ prediction.reward
+  have db := CurrentModels.interval_numeric _ prediction.duration
+  have gb := CurrentModels.interval_numeric _ gain
+  have one : numerical32 Binary32.one = 1 := by
+    change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (-23 : Int) = 1
+    norm_num
+  have cap : numerical32
+      (Binary32.ofUInt64 Acorn.FeatureConstants.optionMaxDuration.toUInt64) = 128 := by
+    rw [show Binary32.ofUInt64 Acorn.FeatureConstants.optionMaxDuration.toUInt64 =
+      Binary32.mk 0x43000000 by decide]
+    change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (-16 : Int) = 128
+    norm_num
+  simp only [Criterion.modelRewardRange, zero_numeric, cap] at rb
+  simp only [modelDurationRange, one, cap] at db
+  change numerical32 (Binary32.mk 0x3f800000) = 1 at one
+  simp only [rewardRange, zero_numeric, one] at gb
+  have productBound : |numerical32 gain.value * numerical32 prediction.duration.value| ≤ 128 := by
+    rw [abs_of_nonneg (mul_nonneg gb.1 (by linarith [db.1]))]
+    nlinarith [gb.2, db.2]
+  have product := binary32_rounded_mul gain.value prediction.duration.value gain.legal.1
+    prediction.duration.legal.1 (by linarith)
+  have productError := binary32_mul_unit_error gain.value prediction.duration.value
+    gain.legal.1 prediction.duration.legal.1 product.1 productBound
+  have capWord := binary32_rounded_exact (Binary32.mk 0x43000000) (by decide)
+  have capValue : numerical32 (Binary32.mk 0x43000000) = 128 := by
+    change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (-16 : Int) = 128
+    norm_num
+  rw [capValue] at capWord
+  have productHigh : numerical32 (gain.value.mul prediction.duration.value) ≤ 128 :=
+    Rounded.mono product.2 capWord (le_trans (le_abs_self _) productBound)
+  have productLow : 0 ≤ numerical32 (gain.value.mul prediction.duration.value) :=
+    Rounded.mono rounded_zero product.2 (mul_nonneg gb.1 (by linarith [db.1]))
+  have differenceBound : |numerical32 prediction.reward.value -
+      numerical32 (gain.value.mul prediction.duration.value)| ≤ 128 :=
+    abs_le.mpr ⟨by linarith [rb.1], by linarith [rb.2]⟩
+  have centered := centered_reward_bound prediction.reward.value gain.value
+    prediction.duration.value prediction.reward.legal.1 gain.legal.1 prediction.duration.legal.1
+    rb gb db
+  have centeredError := binary32_sub_unit_error prediction.reward.value
+    (gain.value.mul prediction.duration.value) prediction.reward.legal.1 product.1 centered.1
+    differenceBound
+  have continuationSame : prediction.continuation = transition.lookahead value features
+      (c.state.linearPrediction (modelInput .differential features age)) := rfl
+  have sumBound : |numerical32 (prediction.reward.value.sub
+      (gain.value.mul prediction.duration.value)) + numerical32 prediction.continuation| ≤
+      8192 := by
+    rw [continuationSame]
+    exact le_trans (abs_add_le _ _) (by linarith [centered.2, outcome.2.2.2])
+  have sum := binary32_rounded_add
+    (prediction.reward.value.sub (gain.value.mul prediction.duration.value))
+    prediction.continuation centered.1 (continuationSame ▸ outcome.1) (by linarith)
+  have sumError := binary32_add_sum_error
+    (prediction.reward.value.sub (gain.value.mul prediction.duration.value))
+    prediction.continuation centered.1 (continuationSame ▸ outcome.1) sum.1 sumBound
+  have target : prediction.target gain = (prediction.reward.value.sub
+      (gain.value.mul prediction.duration.value)).add prediction.continuation := rfl
+  rw [target]
+  have sumBounds := abs_le.mp sumError
+  have centeredBounds := abs_le.mp centeredError
+  have productBounds := abs_le.mp productError
+  rw [continuationSame] at sumBounds ⊢
+  refine ⟨continuationSame ▸ sum.1, ?_, ?_⟩
+  · linarith [outcome.2.1]
+  · linarith [outcome.2.2.1]
 
 /-! ## The differential backed-up value stays finite -/
 
-/-- A ranked width is at most `2^15`. -/
-theorem rank_capacity (dimension : Dimension) : (rankDimension dimension).capacity ≤ 32768 := by
-  have bound := rankExponentFrom_le dimension.capacity 15 0
-  change rankWidth dimension ≤ 2 ^ 15
-  rw [rankWidth_eq]
-  exact Nat.pow_le_pow_right (by decide) (by unfold rankExponent; omega)
-
-/-- The ordered-sum envelope of the occupied positions is at most `2^23`. -/
-theorem ranked_radius (ranked : RankedFeatures dimension) :
-    predictionRadius ranked.occupied.length ≤ 8388608 := by
-  have width := le_trans ranked.occupied_length (rank_capacity dimension)
-  unfold predictionRadius
-  have small := Nat.min_le_left ranked.occupied.length (2 ^ 24)
-  have scaled : min ranked.occupied.length (2 ^ 24) * 256 ≤ 32768 * 256 :=
-    Nat.mul_le_mul_right 256 (le_trans small width)
-  exact_mod_cast scaled
-
-/-- The differential value of the predicted outcome is finite and inside the summed
-envelopes of the residual and the look-ahead, for every model state, value function
-and frame. The rational envelope includes machine-rounding slack; it is not a clip. -/
+/-- The differential value of the predicted outcome is finite and inside the outcome
+envelope, for every model state, value function and frame. The rational envelope
+includes machine-rounding slack; it is not a clip. -/
 theorem differential_continuation_bound
     (r c d : Managed (Criterion.config .differential .demon) dimension)
     (transition : Transition dimension .differential)
@@ -895,44 +1195,17 @@ theorem differential_continuation_bound
     (age : ModelAge) :
     let prediction := (Model.differential r c d transition).predict value features age
     prediction.continuation.Finite ∧ |numerical32 prediction.continuation| ≤
-      predictionRadius (modelInput .differential features age).indices.length +
-        predictionRadius transition.ranked.occupied.length + 256 := by
+      outcomeRadius transition features (modelInput .differential features age).indices.length := by
   intro prediction
-  have look := ranked_nominal_bound value transition.ranked (transition.expected features)
-  have residual := prediction_bound c.state (modelInput .differential features age)
+  have shared := prediction_bound c.state (modelInput .differential features age)
   change (c.state.linearPrediction (modelInput .differential features age)).Finite ∧
     |numerical32 (c.state.linearPrediction (modelInput .differential features age))| ≤
-      predictionRadius (modelInput .differential features age).indices.length at residual
-  have radiusCap : predictionRadius (modelInput .differential features age).indices.length ≤
-      4294967296 := by
-    unfold predictionRadius
-    have := Nat.min_le_right (modelInput .differential features age).indices.length (2 ^ 24)
-    exact_mod_cast Nat.mul_le_mul_right 256 this
-  have rankedCap := ranked_radius transition.ranked
-  have triangle := abs_add_le
-    (numerical32 (value.rankedNominal transition.ranked (transition.expected features)))
-    (numerical32 (c.state.linearPrediction (modelInput .differential features age)))
-  have sum := binary32_add_finite_strict_error
-    (value.rankedNominal transition.ranked (transition.expected features))
-    (c.state.linearPrediction (modelInput .differential features age)) look.1 residual.1 33
-    (by decide) (by norm_num; linarith [look.2, residual.2])
-  have slack : |numerical32 prediction.continuation -
-      (numerical32 (value.rankedNominal transition.ranked (transition.expected features)) +
-        numerical32 (c.state.linearPrediction (modelInput .differential features age)))| ≤
-      256 := by
-    have radius : (2 : ℚ) ^ (max ((33 : Int) - 24) (-149)) / 2 = 256 := by norm_num
-    have bound := sum.2
-    rw [radius] at bound
-    exact bound
-  refine ⟨sum.1, ?_⟩
-  have outer := abs_add_le
-    (numerical32 prediction.continuation -
-      (numerical32 (value.rankedNominal transition.ranked (transition.expected features)) +
-        numerical32 (c.state.linearPrediction (modelInput .differential features age))))
-    (numerical32 (value.rankedNominal transition.ranked (transition.expected features)) +
-      numerical32 (c.state.linearPrediction (modelInput .differential features age)))
-  rw [sub_add_cancel] at outer
-  linarith [look.2, residual.2]
+      predictionRadius (modelInput .differential features age).indices.length at shared
+  exact expected_bound
+    (⟨transition.outcomeValues value features
+      (c.state.linearPrediction (modelInput .differential features age)), value.epsilon⟩ :
+      PolicySnapshot metaCount) _
+    fun action => outcome_value_bound transition value features _ _ action shared.1 shared.2
 
 /-- The executed differential backed-up value is finite under the actual producer
 ranges, for every model state, value function, frame and gain. -/
@@ -943,8 +1216,8 @@ theorem differential_target_bound
     (age : ModelAge) (gain : RewardRate) :
     let prediction := (Model.differential r c d transition).predict value features age
     (prediction.target gain).Finite ∧ |numerical32 (prediction.target gain)| ≤
-      predictionRadius (modelInput .differential features age).indices.length +
-        predictionRadius transition.ranked.occupied.length + 640 := by
+      outcomeRadius transition features (modelInput .differential features age).indices.length +
+        384 := by
   intro prediction
   have rb := CurrentModels.interval_numeric _ prediction.reward
   have db := CurrentModels.interval_numeric _ prediction.duration
@@ -967,14 +1240,12 @@ theorem differential_target_bound
     rb gb db
   have continuation := differential_continuation_bound r c d transition value features age
   change prediction.continuation.Finite ∧ |numerical32 prediction.continuation| ≤
-    predictionRadius (modelInput .differential features age).indices.length +
-      predictionRadius transition.ranked.occupied.length + 256 at continuation
-  have radiusCap : predictionRadius (modelInput .differential features age).indices.length ≤
-      4294967296 := by
-    unfold predictionRadius
-    have := Nat.min_le_right (modelInput .differential features age).indices.length (2 ^ 24)
-    exact_mod_cast Nat.mul_le_mul_right 256 this
+    outcomeRadius transition features (modelInput .differential features age).indices.length
+    at continuation
+  have sharedCap := radius_cap (modelInput .differential features age).indices.length
   have rankedCap := ranked_radius transition.ranked
+  have inputCap := input_radius transition.ranked features
+  unfold outcomeRadius at continuation ⊢
   have triangle := abs_add_le
     (numerical32 (prediction.reward.value.sub (gain.value.mul prediction.duration.value)))
     (numerical32 prediction.continuation)
@@ -999,23 +1270,29 @@ theorem differential_target_bound
 
 /-! ## Storage and work -/
 
-/-- Retained logical slots of one transition part, summed over its row learners. -/
+/-- Retained logical slots of one transition part, summed over its row learners and
+its deviation learners. -/
 def transitionSlots (transition : Transition dimension criterion) : Nat :=
-  (transition.rows.toList.map fun row => retainedSlots row.state).sum
+  (transition.rows.toList.map fun row => retainedSlots row.state).sum +
+    (transition.deviations.toList.map fun learner => retainedSlots learner.state).sum
 
-/-- A transition part holds exactly the square of the ranked width in weights: one
-row per position, each over the ranked positions. -/
+/-- A transition part holds the ranked width times the ranked width plus the meta
+action count in weights: one row per position and one deviation learner per meta
+action, each over the ranked positions. -/
 theorem transition_weights (transition : Transition dimension criterion) :
-    transition.rows.toList.length * (rankDimension dimension).capacity =
-      rankWidth dimension * rankWidth dimension := by
+    (transition.rows.toList.length + transition.deviations.toList.length) *
+        (rankDimension dimension).capacity =
+      (rankWidth dimension + Acorn.FeatureConstants.metaActionCount) * rankWidth dimension := by
   simp
 
-/-- The logical retained storage of a transition part's rows is quadratic in the
-ranked width, independently of stream length: each row is a learner over the ranked
-positions. The part also holds the slot vector and the lookup table of
-`transition_table`. Native object headers and allocator reuse are separate. -/
+/-- The logical retained storage of a transition part's learners is quadratic in the
+ranked width, independently of stream length: each row and each deviation learner is a
+learner over the ranked positions. The part also holds the slot vector and the lookup
+table of `transition_table`. Native object headers and allocator reuse are separate. -/
 theorem transition_storage (transition : Transition dimension criterion) :
-    transitionSlots transition ≤ rankWidth dimension * (13 * rankWidth dimension + 2) := by
+    transitionSlots transition ≤
+      (rankWidth dimension + Acorn.FeatureConstants.metaActionCount) *
+        (13 * rankWidth dimension + 2) := by
   have bound (rows : List (Managed (criterion.config .demon) (rankDimension dimension))) :
       (rows.map fun row => retainedSlots row.state).sum ≤
         rows.length * (13 * rankWidth dimension + 2) := by
@@ -1026,7 +1303,12 @@ theorem transition_storage (transition : Transition dimension criterion) :
         retained_slots_unique row.state (managed_schedule row).2.1
       simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.add_mul, Nat.one_mul]
       omega
-  simpa [transitionSlots] using bound transition.rows.toList
+  have rows := bound transition.rows.toList
+  have deviations := bound transition.deviations.toList
+  simp only [Vector.length_toList] at rows deviations
+  unfold transitionSlots
+  rw [Nat.add_mul]
+  exact Nat.add_le_add rows deviations
 
 /-- Beside its rows a transition part holds one lookup word per feature slot and one
 slot word per position: linear in the dimension, and outside the weight budget. -/
@@ -1054,6 +1336,15 @@ theorem default_width (dimension : Dimension) (standard : dimension.capacity = 1
   rw [standard]
   decide
 
+/-- For 16 384 feature slots the transition parts of all options, deviation learners
+included, hold 13 056 weights: within one weight vector. -/
+theorem default_budget (dimension : Dimension) (standard : dimension.capacity = 16384) :
+    Acorn.FeatureConstants.skillCount *
+        (((rankDimension dimension).capacity + Acorn.FeatureConstants.metaActionCount) *
+          (rankDimension dimension).capacity) ≤ dimension.capacity := by
+  rw [default_width dimension standard, standard]
+  decide
+
 /-- A row's input has at most the ranked width of positions, and at most one more than
 the frame has active features, so one row's prediction reads at most that many weights. -/
 theorem ranked_input_work (ranked : RankedFeatures dimension)
@@ -1066,6 +1357,25 @@ theorem ranked_input_work (ranked : RankedFeatures dimension)
 theorem row_work (transition : Transition dimension criterion) (position : RankIdx dimension) :
     (transition.rows.get position).state.eligibleCount ≤ (rankDimension dimension).capacity :=
   managed_capacity _
+
+/-- Every deviation learner keeps an eligibility list within the ranked width, after
+every update. -/
+theorem deviation_work (transition : Transition dimension criterion)
+    (action : Action metaCount.word.toNat) :
+    (transition.deviations.get action).state.eligibleCount ≤ (rankDimension dimension).capacity :=
+  managed_capacity _
+
+/-- A change of ranking changes at most the ranked width of positions. Each retained
+row and each deviation learner then retires each changed position once, and one
+retirement searches that learner's eligibility list, at most the ranked width
+(`row_work`, `deviation_work`): the work of forgetting is at most the number of
+learners times the changed positions times the ranked width. -/
+theorem changed_work (before after : RankedFeatures dimension) :
+    (before.changed after).length ≤ (rankDimension dimension).capacity := by
+  have bound := List.length_filter_le
+    (fun position : RankIdx dimension => after.slots[position.val] != before.slots[position.val])
+    (List.finRange (rankDimension dimension).capacity)
+  simpa [RankedFeatures.changed] using bound
 
 /-- A planning boundary performs a fixed number of look-aheads: every option at the
 current and at one stored feature vector. -/
@@ -1177,8 +1487,9 @@ theorem held_inside (ranked : RankedFeatures dimension) (position : RankIdx dime
 /-- Installing a ranking keeps every held slot that is still ranked at its position. -/
 theorem rerank_retained (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
     (position : RankIdx dimension) (feature : FeatIdx dimension)
+    (fresh : order.Nodup)
     (held : ranked.slots[position.val] = some feature) (still : feature ∈ order) :
-    (ranked.rerank order).slots[position.val] = some feature := by
+    (ranked.rerank order fresh).slots[position.val] = some feature := by
   have reserved := held_inside ranked position feature held
   have inside : position.val < ranked.slots.toList.length - 1 := by
     rw [Vector.length_toList]
@@ -1200,9 +1511,10 @@ theorem rerank_retained (ranked : RankedFeatures dimension) (order : List (FeatI
 
 /-- After installing a ranking every modeled slot is ranked. -/
 theorem rerank_ranked (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
-    (position : RankIdx dimension) (feature : FeatIdx dimension)
-    (modeled : (ranked.rerank order).slots[position.val] = some feature) : feature ∈ order := by
-  have inside : (ranked.rerank order).slots[position.val] ∈
+    (fresh : order.Nodup) (position : RankIdx dimension) (feature : FeatIdx dimension)
+    (modeled : (ranked.rerank order fresh).slots[position.val] = some feature) :
+    feature ∈ order := by
+  have inside : (ranked.rerank order fresh).slots[position.val] ∈
       mergeSlots ranked.slots.toList.dropLast order ++ [none] := by
     simp [RankedFeatures.rerank_slots, RankedFeatures.merged]
   rw [modeled] at inside
@@ -1227,6 +1539,45 @@ theorem retire_vacated (transition : Transition dimension criterion)
     rw [← holding]
     exact transition.ranked.vacate_holding feature position
 
+/-- Retiring positions keeps a learner's weight from every other position. -/
+theorem retire_fold_other (retired : List (RankIdx dimension)) (column : RankIdx dimension) :
+    ∀ learner : Managed (criterion.config .demon) (rankDimension dimension), column ∉ retired →
+      (retired.foldl (fun current position => current.retire position)
+        learner).state.weights.get column = learner.state.weights.get column := by
+  induction retired with
+  | nil => intro learner _; rfl
+  | cons head tail ih =>
+    intro learner absent
+    have different : column ≠ head := fun same => absent (by simp [same])
+    have rest : column ∉ tail := fun inside => absent (List.mem_cons_of_mem _ inside)
+    rw [List.foldl_cons, ih (learner.retire head) rest]
+    exact CurrentRetirement.retireIndex_weight_other learner.state head column different
+
+/-- Retiring positions zeroes a learner's weight from each of them. -/
+theorem retire_fold_column (retired : List (RankIdx dimension)) (column : RankIdx dimension) :
+    ∀ learner : Managed (criterion.config .demon) (rankDimension dimension),
+      (column ∈ retired ∨ (learner.state.weights.get column).value = Binary32.zero) →
+      ((retired.foldl (fun current position => current.retire position)
+        learner).state.weights.get column).value = Binary32.zero := by
+  induction retired with
+  | nil =>
+    intro learner source
+    rcases source with member | zero
+    · simp at member
+    · exact zero
+  | cons head tail ih =>
+    intro learner source
+    rw [List.foldl_cons]
+    apply ih (learner.retire head)
+    by_cases same : column = head
+    · rw [same]
+      exact Or.inr (retire_registers learner.state head).2.1
+    · rcases source with member | zero
+      · exact Or.inl ((List.mem_cons.mp member).resolve_left same)
+      · refine Or.inr ?_
+        have kept := CurrentRetirement.retireIndex_weight_other learner.state head column same
+        exact (congrArg Weight.value kept).trans zero
+
 /-- Forgetting positions leaves every other row's weight from every other position
 bit-identical: only the forgotten rows and input columns lose what was learned. -/
 theorem forget_other
@@ -1236,24 +1587,11 @@ theorem forget_other
     (keptRow : row ∉ positions) (keptColumn : column ∉ positions) :
     ((Transition.forget rows positions).get row).state.weights.get column =
       (rows.get row).state.weights.get column := by
-  have fold : ∀ (retired : List (RankIdx dimension)) (learner : Managed
-      (criterion.config .demon) (rankDimension dimension)), column ∉ retired →
-      (retired.foldl (fun current position => current.retire position) learner).state.weights.get
-        column = learner.state.weights.get column := by
-    intro retired
-    induction retired with
-    | nil => intro learner _; rfl
-    | cons head tail ih =>
-      intro learner absent
-      have different : column ≠ head := fun same => absent (by simp [same])
-      have rest : column ∉ tail := fun inside => absent (List.mem_cons_of_mem _ inside)
-      rw [List.foldl_cons, ih (learner.retire head) rest]
-      exact CurrentRetirement.retireIndex_weight_other learner.state head column different
   have skipped : (positions.contains row) = false := by
     simpa [List.contains_iff_mem] using keptRow
   simp only [Transition.forget, vector_get, Vector.getElem_mapFinIdx, Fin.eta, skipped,
     Bool.false_eq_true, ↓reduceIte]
-  exact fold positions _ keptColumn
+  exact retire_fold_other positions column _ keptColumn
 
 /-- Forgetting a position zeroes every other row's weight from it: no row keeps what
 it learned about the slot that was there. -/
@@ -1264,35 +1602,11 @@ theorem forget_column
     (keptRow : row ∉ positions) (forgotten : column ∈ positions) :
     (((Transition.forget rows positions).get row).state.weights.get column).value =
       Binary32.zero := by
-  have fold : ∀ (retired : List (RankIdx dimension)) (learner : Managed
-      (criterion.config .demon) (rankDimension dimension)),
-      (column ∈ retired ∨ (learner.state.weights.get column).value = Binary32.zero) →
-      ((retired.foldl (fun current position => current.retire position)
-        learner).state.weights.get column).value = Binary32.zero := by
-    intro retired
-    induction retired with
-    | nil =>
-      intro learner source
-      rcases source with member | zero
-      · simp at member
-      · exact zero
-    | cons head tail ih =>
-      intro learner source
-      rw [List.foldl_cons]
-      apply ih (learner.retire head)
-      by_cases same : column = head
-      · rw [same]
-        exact Or.inr (retire_registers learner.state head).2.1
-      · rcases source with member | zero
-        · exact Or.inl ((List.mem_cons.mp member).resolve_left same)
-        · refine Or.inr ?_
-          have kept := CurrentRetirement.retireIndex_weight_other learner.state head column same
-          exact (congrArg Weight.value kept).trans zero
   have skipped : (positions.contains row) = false := by
     simpa [List.contains_iff_mem] using keptRow
   simp only [Transition.forget, vector_get, Vector.getElem_mapFinIdx, Fin.eta, skipped,
     Bool.false_eq_true, ↓reduceIte]
-  exact fold positions _ (Or.inl forgotten)
+  exact retire_fold_column positions column _ (Or.inl forgotten)
 
 /-- Forgetting a position replaces its row by a fresh learner. -/
 theorem forget_row
@@ -1302,51 +1616,89 @@ theorem forget_row
     (Transition.forget rows positions).get row = Managed.initial _ _ := by
   simp [Transition.forget, vector_get, forgotten]
 
+/-- A deviation learner keeps its weight from every position that is not forgotten. -/
+theorem forgetColumns_other {size : Nat}
+    (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) size)
+    (positions : List (RankIdx dimension)) (index : Fin size) (column : RankIdx dimension)
+    (kept : column ∉ positions) :
+    ((Transition.forgetColumns learners positions).get index).state.weights.get column =
+      (learners.get index).state.weights.get column := by
+  simp only [Transition.forgetColumns, vector_get, Vector.getElem_map]
+  exact retire_fold_other positions column _ kept
+
+/-- A deviation learner's weight from a forgotten position is zero. -/
+theorem forgetColumns_column {size : Nat}
+    (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) size)
+    (positions : List (RankIdx dimension)) (index : Fin size) (column : RankIdx dimension)
+    (forgotten : column ∈ positions) :
+    (((Transition.forgetColumns learners positions).get index).state.weights.get column).value =
+      Binary32.zero := by
+  simp only [Transition.forgetColumns, vector_get, Vector.getElem_map]
+  exact retire_fold_column positions column _ (Or.inl forgotten)
+
 /-- A position whose slot stays ranked is not among the changed positions. -/
 theorem retained_unchanged (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
-    (position : RankIdx dimension) (feature : FeatIdx dimension)
+    (fresh : order.Nodup) (position : RankIdx dimension) (feature : FeatIdx dimension)
     (held : ranked.slots[position.val] = some feature) (still : feature ∈ order) :
-    position ∉ ranked.changed (ranked.rerank order) := by
+    position ∉ ranked.changed (ranked.rerank order fresh) := by
   intro inside
   have differs := (List.mem_filter.mp inside).2
-  rw [rerank_retained ranked order position feature held still, held] at differs
+  rw [rerank_retained ranked order position feature fresh held still, held] at differs
   simp at differs
 
 /-- The bias position is never among the changed positions: it holds no slot before
 or after any ranking. -/
-theorem bias_unchanged (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension)) :
-    RankedFeatures.bias dimension ∉ ranked.changed (ranked.rerank order) := by
+theorem bias_unchanged (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
+    (fresh : order.Nodup) :
+    RankedFeatures.bias dimension ∉ ranked.changed (ranked.rerank order fresh) := by
   intro inside
   have differs := (List.mem_filter.mp inside).2
-  rw [(ranked.rerank order).bias_vacant, ranked.bias_vacant] at differs
+  rw [(ranked.rerank order fresh).bias_vacant, ranked.bias_vacant] at differs
   simp at differs
 
 /-- A change of subset keeps what was learned between retained slots: the weight a
 retained slot's row holds for another retained slot is bit-identical after the new
 ranking is installed. Weights from a changed position are zeroed (`forget_column`). -/
 theorem rerank_weights (transition : Transition dimension criterion)
-    (order : List (FeatIdx dimension)) (row column : RankIdx dimension)
+    (order : List (FeatIdx dimension)) (fresh : order.Nodup) (row column : RankIdx dimension)
     (rowFeature columnFeature : FeatIdx dimension)
     (rowHeld : transition.ranked.slots[row.val] = some rowFeature)
     (rowStill : rowFeature ∈ order)
     (columnHeld : transition.ranked.slots[column.val] = some columnFeature)
     (columnStill : columnFeature ∈ order) :
-    ((transition.rerank order).rows.get row).state.weights.get column =
+    ((transition.rerank order fresh).rows.get row).state.weights.get column =
       (transition.rows.get row).state.weights.get column :=
   forget_other transition.rows _ row column
-    (retained_unchanged transition.ranked order row rowFeature rowHeld rowStill)
-    (retained_unchanged transition.ranked order column columnFeature columnHeld columnStill)
+    (retained_unchanged transition.ranked order fresh row rowFeature rowHeld rowStill)
+    (retained_unchanged transition.ranked order fresh column columnFeature columnHeld columnStill)
 
 /-- A change of subset keeps a retained slot's bias weight bit-identical. -/
 theorem rerank_bias (transition : Transition dimension criterion)
-    (order : List (FeatIdx dimension)) (row : RankIdx dimension) (rowFeature : FeatIdx dimension)
+    (order : List (FeatIdx dimension)) (fresh : order.Nodup) (row : RankIdx dimension)
+    (rowFeature : FeatIdx dimension)
     (rowHeld : transition.ranked.slots[row.val] = some rowFeature)
     (rowStill : rowFeature ∈ order) :
-    ((transition.rerank order).rows.get row).state.weights.get (RankedFeatures.bias dimension) =
+    ((transition.rerank order fresh).rows.get row).state.weights.get
+        (RankedFeatures.bias dimension) =
       (transition.rows.get row).state.weights.get (RankedFeatures.bias dimension) :=
   forget_other transition.rows _ row (RankedFeatures.bias dimension)
-    (retained_unchanged transition.ranked order row rowFeature rowHeld rowStill)
-    (bias_unchanged transition.ranked order)
+    (retained_unchanged transition.ranked order fresh row rowFeature rowHeld rowStill)
+    (bias_unchanged transition.ranked order fresh)
+
+/-- A change of subset keeps every deviation learner's weight from each retained slot
+and from the bias bit-identical. -/
+theorem rerank_deviations (transition : Transition dimension criterion)
+    (order : List (FeatIdx dimension)) (fresh : order.Nodup)
+    (action : Action metaCount.word.toNat) (column : RankIdx dimension)
+    (kept : (∃ feature, transition.ranked.slots[column.val] = some feature ∧ feature ∈ order) ∨
+      column = RankedFeatures.bias dimension) :
+    ((transition.rerank order fresh).deviations.get action).state.weights.get column =
+      (transition.deviations.get action).state.weights.get column := by
+  refine forgetColumns_other transition.deviations _ action column ?_
+  rcases kept with ⟨feature, held, still⟩ | bias
+  · exact retained_unchanged transition.ranked order fresh column feature held still
+  · rw [bias]
+    exact bias_unchanged transition.ranked order fresh
 
 /-- The bias position is never a predicted outcome: no occupied entry names it, so no
 action value reads it and no row at it is updated. -/
@@ -1363,6 +1715,66 @@ theorem bias_unoccupied (ranked : RankedFeatures dimension)
     have inside := held_inside ranked position feature held
     have last : position.val = (rankDimension dimension).capacity - 1 := congrArg Fin.val same
     omega
+
+/-! ## The terminal target of a row -/
+
+/-- Setting the entries at a list of positions leaves every other entry as it was. -/
+theorem fold_present (positions : List (RankIdx dimension)) :
+    ∀ (seen : Vector Expectation (rankDimension dimension).capacity)
+      (position : RankIdx dimension),
+      (positions.foldl (fun current active =>
+        current.set active.val Expectation.present active.isLt) seen).get position =
+        if position ∈ positions then Expectation.present else seen.get position := by
+  induction positions with
+  | nil => intro seen position; simp
+  | cons head rest ih =>
+    intro seen position
+    rw [List.foldl_cons, ih (seen.set head.val Expectation.present head.isLt) position]
+    by_cases later : position ∈ rest
+    · simp [later]
+    · by_cases same : position = head
+      · subst same
+        simp [later, vector_get]
+      · have different : head.val ≠ position.val := fun equal => same (Fin.ext equal.symm)
+        simp [later, same, vector_get, Vector.getElem_set_ne _ _ different]
+
+/-- A slot is looked up at exactly the position that holds it. -/
+theorem position_exact (ranked : RankedFeatures dimension) (position : RankIdx dimension)
+    (feature : FeatIdx dimension) (held : ranked.slots[position.val] = some feature) :
+    ranked.position feature = some position := by
+  obtain ⟨found, located⟩ := ranked.position_complete position feature held
+  rw [located, ranked.slot_unique found position feature
+    (ranked.position_slot feature found located) held]
+
+/-- The indicator of a frame is one at an occupied position exactly when that position's
+slot is active in the frame, and zero otherwise. With `Transition.terminal` this is the
+terminal target of every row: `γ` times its own slot's activity at the terminal frame. -/
+theorem indicator_exact (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) (position : RankIdx dimension)
+    (feature : FeatIdx dimension) (held : ranked.slots[position.val] = some feature) :
+    (ranked.indicator features).get position =
+      if feature ∈ features.indices then Expectation.present else Expectation.absent := by
+  have fold := fold_present (ranked.active features).indices
+    (Vector.replicate _ Expectation.absent) position
+  have member : position ∈ (ranked.active features).indices ↔ feature ∈ features.indices := by
+    constructor
+    · intro inside
+      obtain ⟨other, active, modeled⟩ := ranked.active_sound features position inside
+      rw [held] at modeled
+      rw [Option.some.inj modeled]
+      exact active
+    · intro active
+      obtain ⟨found, inside, modeled⟩ := ranked.active_complete features position feature held
+        active
+      rw [← ranked.slot_unique found position feature modeled held]
+      exact inside
+  unfold RankedFeatures.indicator
+  rw [fold]
+  by_cases active : feature ∈ features.indices
+  · simp [active, member.mpr active]
+  · have absent : position ∉ (ranked.active features).indices := fun inside =>
+      active (member.mp inside)
+    simp [active, absent, vector_get]
 
 /-! ## Search control -/
 
