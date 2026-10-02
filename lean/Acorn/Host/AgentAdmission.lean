@@ -23,7 +23,7 @@ structure AgentConstruction where
   profile : FeatureProfile
   /-- Criterion fixes the numeric rules and model arity. -/
   criterion : Criterion
-  /-- Explicit scalar planning selection. -/
+  /-- Explicit planning selection. -/
   planning : PlanningSelection
   /-- Receiver-owned feature salt, tilings and unit capacity. -/
   config : Features.Config

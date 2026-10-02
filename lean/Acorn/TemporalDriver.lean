@@ -9,7 +9,7 @@ import Acorn.Handcrafted.TemporalControl
 # Native option/exploration consumer
 
 This invokes the actual option policy and persistent sampler on arbitrary raw
-inputs. It executes the actual scalar models and planner and is not a full-agent runner.
+inputs. It executes the actual expectation models and planner and is not a full-agent runner.
 Output is an execution observation, never a correctness oracle or learning study.
 The temporal entry point uses these same concrete definitions.
 -/
@@ -40,18 +40,21 @@ credit with dynamic inputs. Each current criterion uses the same typed kernel. -
     | .learned assignment => assignment.potential features
     | .declared _ _ => false
   let models := modelOperations criterion dimension
+  let value : ValueFunction criterion dimension :=
+    ⟨Controller.initial _ _ _, SwiftTd.ExploreRate.never⟩
   let begun := skill.beginTemporal models features potential true .own
   let stepped := begun.1.stepTemporal models begun.2.1 begun.2.2 ⟨word.toUInt32⟩ (.project .zero) (Rng.Xoshiro256.seed seed)
   let stopped := match stepped.1.decideOption stepped.2.1 features potential (word &&& 1 == 1) .zero .own with
-    | .ending reason => stepped.1.endTemporal models ⟨stepped.2.1, potential, reason⟩
-        ⟨word.toUInt32⟩ .zero (.project .zero)
+    | .ending reason => stepped.1.endTemporal models value features
+        ⟨stepped.2.1, potential, reason⟩ ⟨word.toUInt32⟩ .zero (.project .zero)
     | .continuing next => (stepped.1.stepTemporal models stepped.2.1 next ⟨word.toUInt32⟩ (.project .zero) stepped.2.2.2).1
   let snapshot := stopped.policy.snapshot (count := primitiveCount) features (stopped.policy.exploreRate (count := primitiveCount))
   let persistent := snapshot.drawPersistent stepped.2.2.2
   let planning : PlanningResult criterion dimension :=
     ⟨Controller.initial _ _ _, Vector.replicate _ ModelCache.initial, seed,
-      Vector.replicate _ .zero⟩
-  let planned := planningBoundary .scalar planning (Vector.replicate _ stopped) features (.project .zero)
+      Vector.replicate _ .zero, (RecentFeatures.cold dimension).record features⟩
+  let planned := planningBoundary .expectation planning (Vector.replicate _ stopped) features
+    (.project .zero) SwiftTd.ExploreRate.never
   (stepped.2.2.1.action.val, persistent.1.action.val,
     ((planned.controller.predictAll features).get (metaOfSkill ⟨0, by decide⟩)).bits)
 

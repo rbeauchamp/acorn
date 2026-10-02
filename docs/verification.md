@@ -267,17 +267,18 @@ still decides whether the prose describes that owner faithfully.
 
 ## Mutation diagnostics
 
-**Pinned digest: `7433307b046fd16c`**
+**Pinned digest: `1f06d07ff0192e8b`**
 
 ```sh
-lean/.lake/build/bin/acorn-core audit --expect 7433307b046fd16c
+lean/.lake/build/bin/acorn-core audit --expect 1f06d07ff0192e8b
 ```
 
-Paired checksum `385b2f84db38eef2`. The deployed arm runs the ranked profile
+Paired checksum `5e43a33f51993a9b`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record
-the published generate-and-test tester and task-reading generator (PAR-11, D7)
-and off-policy option learning (PAR-17);
+the published generate-and-test tester and task-reading generator (PAR-11, D7),
+off-policy option learning (PAR-17) and option expectation models with planning under
+the current values (PAR-13, PAR-14);
 the declared-rate and differential pins also record the stable, sign-correct
 reward-respecting subtask and declared-rate dynamics decisions. The fixed audit arms
 are compared through these paired digests. Run these optional diagnostics

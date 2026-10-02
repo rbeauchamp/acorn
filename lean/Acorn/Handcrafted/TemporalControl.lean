@@ -32,6 +32,12 @@ keeps its on-policy update, and an ending option's terminal credit keeps its own
 A stop of an option that is not executing credits the nominal meta value in both
 criteria, since no meta action is drawn for it. An option selected to start
 executing first settles the transition it was following.
+
+Every model operation that needs a value reads the meta-controller as it stands at
+that operation (`TemporalControl.valueFunction`): the model caches before dispatch,
+planning, and the residual target at each model close. Each frame is recorded in the
+bounded recent-frame store at the common completion boundary, after selection and
+planning, so planning's search control backs up only at earlier frames.
 -/
 namespace Acorn.Handcrafted
 open Features
@@ -83,7 +89,8 @@ def TemporalControl.recordEpisodes (state : TemporalControl profile config crite
   { state with lifetime := { state.lifetime with
       options := Lifetime.recordOptions state.lifetime.options decision.episodeEnd decision.started } }
 
-/-- Complete one selected primitive step: primitive credit, demons, then gain.
+/-- Complete one selected primitive step: primitive credit, demons, then gain, and
+record the frame for later search control.
 Every selection branch uses this single completion boundary. Retirement is the
 full-agent owner's next operation, after every learner has consumed this frame. -/
 def TemporalControl.finish (state : TemporalControl profile config criterion dimension)
@@ -101,7 +108,8 @@ def TemporalControl.finish (state : TemporalControl profile config criterion dim
   ⟨⟨⟨representation, ⟨predicted.control.controller, metaController, skills, predicted.demons⟩⟩,
       refresh, { references with
         demonPredictions := predicted.predictions, demonErrors := predicted.errors,
-        pendingAction := predicted.control.pending, lastDecision := some decision }⟩,
+        pendingAction := predicted.control.pending, lastDecision := some decision,
+        recent := references.recent.record features }⟩,
     predicted.control.credit, predicted.creditMatches, predicted.control.average, rate,
     predicted.lifetime⟩
 
@@ -120,7 +128,8 @@ theorem TemporalControl.finish_eq (state : TemporalControl profile config criter
           control := predicted.control.controller, demons := predicted.demons } }
         references := { state.runtime.references with
           demonPredictions := predicted.predictions, demonErrors := predicted.errors,
-          pendingAction := predicted.control.pending, lastDecision := some decision } }
+          pendingAction := predicted.control.pending, lastDecision := some decision,
+          recent := state.runtime.references.recent.record features } }
       credit := predicted.control.credit
       creditMatches := predicted.creditMatches
       average := predicted.control.average
@@ -179,6 +188,12 @@ theorem TemporalControl.declared_rates (state : TemporalControl profile config c
     RateState.declared_controller state.rate declared _ _, fun own => ?_⟩
   simp only [TemporalControl.skillRate, RateState.declared_skill state.rate declared,
     ConsumerRate.resolve]
+
+/-- The current value function: the meta-controller as it stands, with the rate its
+nominal policy resolves to now. Model targets and model caches read it. -/
+def TemporalControl.valueFunction (state : TemporalControl profile config criterion dimension) :
+    ValueFunction criterion dimension :=
+  ⟨state.runtime.lifecycle.consumers.metaController, state.metaRate⟩
 
 /-- Replace exactly one option's managed storage. -/
 def TemporalControl.withSkill (state : TemporalControl profile config criterion dimension)
@@ -283,12 +298,15 @@ theorem TemporalControl.stepOption_eq (state : TemporalControl profile config cr
         rfl
 
 /-- Terminal credit goes to the detached old owner when identity changed.
-Its result is discarded with that retired objective, never written into the replacement. -/
+Its result is discarded with that retired objective, never written into the replacement.
+The model closes at the terminal frame under the current value function. -/
 def TemporalControl.closeOption (state : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (closing : Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))
     (reward terminal : Binary32) : TemporalControl profile config criterion dimension × EndEvent :=
   let owner := closing.oldOwner.getD (state.runtime.lifecycle.consumers.skills.get closing.slot)
-  let ended := owner.endTemporal models closing.activation reward terminal state.average.rate
+  let ended := owner.endTemporal models state.valueFunction features closing.activation reward
+    terminal state.average.rate
   let state := match closing.oldOwner with
     | none => state.withSkill closing.slot ended
     | some _ => state
@@ -300,26 +318,31 @@ def TemporalControl.refreshFree (state : TemporalControl profile config criterio
     TemporalControl profile config criterion dimension × Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen))) :=
   let free : FreeDispatch Host.patchShape config criterion dimension demonLayout.tail (EndingPayload (profile.mode != .frozen)) :=
     ⟨state.runtime.lifecycle, state.runtime.refresh, state.runtime.references.modelPredictions, closing⟩
-  let free := free.refreshRanked
+  let free := free.refreshModels
   ({ state with runtime := { state.runtime with
     lifecycle := free.lifecycle
     refresh := free.refresh
     references := { state.runtime.references with modelPredictions := free.predictions } } }, free.closing)
 
-/-- Plan only at a free learning boundary, using the unchanged old host gain. -/
+/-- Plan only at a free learning boundary, using the unchanged old host gain and
+the meta-controller's current rate. Search control reads and advances the stored
+recent frames. -/
 def TemporalControl.planFree (state : TemporalControl profile config criterion dimension)
     (plan : PlanBoundary config criterion dimension) (features : SwiftTd.ActiveSet dimension) :
     TemporalControl profile config criterion dimension :=
   let planning : PlanningResult criterion dimension := ⟨state.runtime.lifecycle.consumers.metaController,
-    state.runtime.references.modelPredictions, state.runtime.references.planningSteps, state.runtime.references.planningErrors⟩
+    state.runtime.references.modelPredictions, state.runtime.references.planningSteps, state.runtime.references.planningErrors,
+    state.runtime.references.recent⟩
   let planning := if profile.mode == .frozen then { planning with errors := Vector.replicate _ .zero }
     else plan planning state.runtime.lifecycle.consumers.skills features state.average.rate
+      state.metaRate
   { state with runtime := { state.runtime with
     lifecycle := { state.runtime.lifecycle with consumers := { state.runtime.lifecycle.consumers with metaController := planning.controller } }
     references := { state.runtime.references with
       modelPredictions := planning.predictions
       planningSteps := planning.steps
-      planningErrors := planning.errors } } }
+      planningErrors := planning.errors
+      recent := planning.recent } } }
 
 /-- Freeze and draw the next meta action before any terminal or boundary credit. -/
 def TemporalControl.drawMeta (state : TemporalControl profile config criterion dimension)
@@ -388,7 +411,7 @@ def TemporalControl.dispatchMeta (state : TemporalControl profile config criteri
   | some slot =>
     let skill := state.runtime.lifecycle.consumers.skills.get slot
     let potential ← skill.interest.potential features declared
-    let settled := skill.settleTemporal models features potential goal
+    let settled := skill.settleTemporal models state.valueFunction features potential goal
       (comparisonValue criterion decision.snapshot) state.skillRate reward state.average.rate
       (profile.mode != .frozen)
     let begun := settled.beginTemporal models features potential (profile.mode != .frozen) state.skillRate
@@ -409,11 +432,12 @@ def TemporalControl.atBoundary (state : TemporalControl profile config criterion
   let (state, ended) := match refreshed.2 with
     | none => (drawn.1, ended)
     | some closing =>
-      let result := drawn.1.closeOption models closing reward decision.continuation
+      let result := drawn.1.closeOption models features closing reward decision.continuation
       (result.1, some result.2)
   state.dispatchMeta models features declared reward goal decision ended
 
-/-- Advance the rate and owed meta reward, then observe models before dispatch.
+/-- Advance the rate and owed meta reward, then observe models before dispatch under
+the current value function.
 The operation preserves occupancy and the incoming random/gain state. -/
 def TemporalControl.prepareSelection (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -423,7 +447,8 @@ def TemporalControl.prepareSelection (state : TemporalControl profile config cri
     state.withGap (state.gap.accumulate reward criterion.rule.gamma) else state
   let state := if profile.usesHierarchy then
     { state with runtime := { state.runtime with references := { state.runtime.references with
-      modelPredictions := state.runtime.lifecycle.consumers.skills.map (fun skill => models.predict skill.model features) } } }
+      modelPredictions := state.runtime.lifecycle.consumers.skills.map
+        (fun skill => models.predict skill.model state.valueFunction features) } } }
     else state
   state
 
@@ -457,7 +482,7 @@ def TemporalControl.selectWithOperations (state : TemporalControl profile config
       match criterion with
       | .differential => state.atBoundary models plan features declared reward goal (some closing) none
       | .discounted =>
-        let result := state.closeOption models closing reward estimate
+        let result := state.closeOption models features closing reward estimate
         result.1.atBoundary models plan features declared reward goal none (some result.2)
 
 /-- The sole active option, derived from exclusive occupancy. -/
@@ -481,7 +506,8 @@ def TemporalControl.stoppingEstimate (state : TemporalControl profile config cri
 /-- One slot's share of a followed frame. The executing option keeps its own
 on-policy update and is linked to no off-policy trajectory. A slot whose declared
 potential source is not supplied learns nothing and is unlinked. -/
-def followSlot (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+def followSlot (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32) (gain : RewardRate)
@@ -489,8 +515,8 @@ def followSlot (models : OptionModelOps criterion dimension) (features : SwiftTd
   if executing then { skill with following := none } else
     match skill.interest.potential features declared with
     | some potential =>
-      skill.followTemporal models features potential goal estimate rate action behaviour reward
-        gain
+      skill.followTemporal models value features potential goal estimate rate action behaviour
+        reward gain
     | none => { skill with following := none }
 
 /-- Every option that is not executing learns from the frame's actual action and
@@ -506,10 +532,11 @@ def TemporalControl.followOptions (state : TemporalControl profile config criter
     let estimate := state.stoppingEstimate decision
     let rate := state.skillRate
     let executing := state.activeSlot
+    let value := state.valueFunction
     let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
       credit, creditMatches, average, schedule, lifetime⟩ := state
     let followed := skills.mapFinIdx fun index skill bound =>
-      followSlot models features declared goal estimate rate decision.action
+      followSlot models value features declared goal estimate rate decision.action
         decision.probabilities reward average.rate (executing == some ⟨index, bound⟩) skill
     ⟨⟨⟨representation, ⟨control, metaController, followed, demons⟩⟩, refresh, references⟩,
       credit, creditMatches, average, schedule, lifetime⟩
@@ -525,8 +552,9 @@ theorem TemporalControl.followOptions_eq (state : TemporalControl profile config
         { state with runtime := { state.runtime with lifecycle := { state.runtime.lifecycle with
           consumers := { state.runtime.lifecycle.consumers with
             skills := state.runtime.lifecycle.consumers.skills.mapFinIdx fun index skill bound =>
-              followSlot models features declared goal (state.stoppingEstimate decision)
-                state.skillRate decision.action decision.probabilities reward state.average.rate
+              followSlot models state.valueFunction features declared goal
+                (state.stoppingEstimate decision) state.skillRate decision.action
+                decision.probabilities reward state.average.rate
                 (state.activeSlot == some ⟨index, bound⟩) skill } } } }
       else state := by
   cases state with

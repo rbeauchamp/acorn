@@ -23,15 +23,29 @@ def controllerChecksum {config : Acorn.Config} {dimension : Dimension} {actions 
     (hash ^^^ Rng.rotateLeft learner.state.stateChecksum 7) * NumericState.checksumMultiplier)
     Rng.fnvOffset
 
-/-- Model checksum traverses the actual stored criterion-dependent learners. -/
+/-- Transition checksum folds every ranked slot word and every row's knowledge, in
+position order; a vacant position folds the all-ones word, which is no slot. -/
+def transitionChecksum {dimension : Dimension} {criterion : Criterion}
+    (transition : Transition dimension criterion) : UInt64 :=
+  let slots := transition.ranked.slots.foldl (fun hash slot =>
+    (hash ^^^ (match slot with
+      | some feature => feature.val.toUInt64
+      | none => 0xffffffffffffffff)) * NumericState.checksumMultiplier) Rng.fnvOffset
+  transition.rows.foldl (fun hash row =>
+    (hash ^^^ Rng.rotateLeft row.state.stateChecksum 7) * NumericState.checksumMultiplier) slots
+
+/-- Model checksum traverses the actual stored criterion-dependent learners and the
+transition part. -/
 def modelChecksum {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : UInt64 :=
   match model with
-  | .discounted reward continuation =>
-    reward.state.stateChecksum ^^^ Rng.rotateLeft continuation.state.stateChecksum 7
-  | .differential reward continuation duration =>
+  | .discounted reward continuation transition =>
     reward.state.stateChecksum ^^^ Rng.rotateLeft continuation.state.stateChecksum 7 ^^^
-      Rng.rotateLeft duration.state.stateChecksum 17
+      Rng.rotateLeft (transitionChecksum transition) 29
+  | .differential reward continuation duration transition =>
+    reward.state.stateChecksum ^^^ Rng.rotateLeft continuation.state.stateChecksum 7 ^^^
+      Rng.rotateLeft duration.state.stateChecksum 17 ^^^
+      Rng.rotateLeft (transitionChecksum transition) 29
 
 /-- Every demon contributes once in horizon order. -/
 def demonChecksum {dimension : Dimension} {discounts : List Discount}

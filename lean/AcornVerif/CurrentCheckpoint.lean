@@ -157,7 +157,7 @@ theorem saved_weight_identity {config : Acorn.Config} {dimension : Dimension}
     ((receiver.restore (knowledge source)).state.weights.get index).value =
       (source.state.weights.get index).value := by
   rw [restored_weight]
-  simp only [knowledge, Vector.get, Vector.toArray_map, Array.getElem_map]
+  simp only [knowledge, Vector.get, Vector.toArray_map, Array.getElem_map, Weight.project_eq]
   exact config.rule.domain.symmetric_project_identity _ (weight_legal _)
 
 /-- Equal immutable configurations give identical receiver bounds for every saved beta. -/

@@ -6,7 +6,7 @@ Authors: acorn contributors
 import AcornVerif.CurrentLearnerArithmetic
 
 /-!
-# Machine arithmetic for raw scalar backups
+# Machine arithmetic for raw model backups
 
 The small reward-duration intermediate is bounded before its addition to the
 raw aggregate continuation. These lemmas connect the executing binary32

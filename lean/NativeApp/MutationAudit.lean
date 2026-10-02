@@ -83,7 +83,7 @@ spatial subtask construction is owned by `AuditArm.construction`. -/
 def AuditArm.options (arm : AuditArm) : Except Cli.Error Cli.Streaming := do
   let world ← (WorldConfig.standard 0x00a6000000000001 ⟨512, by decide⟩).mapError Cli.Error.world
   return {
-    common := ⟨if arm = .annealed then .annealed else .ranked, world, 1500, 6, 1, .scalar⟩
+    common := ⟨if arm = .annealed then .annealed else .ranked, world, 1500, 6, 1, .expectation⟩
     attempts := 2
     criterion := some (if arm = .differential then .differential else .discounted)
     checkpoint := none, checkpointEvery := 0, baseline := false, telemetry := false

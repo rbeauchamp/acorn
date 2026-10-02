@@ -70,6 +70,13 @@ theorem _root_.Acorn.Features.FreeDispatch.refresh_closing_slot
     exact fold _ _
   · rfl
 
+/-- The complete refresh, which also reranks every model, preserves the closing slot. -/
+theorem _root_.Acorn.Features.FreeDispatch.refreshModels_closing_slot
+    {shape : PatchShape} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload) :
+    state.refreshModels.closing.map (·.slot) = state.closing.map (·.slot) := by
+  exact state.refresh_closing_slot
+
 /-- Primitive selection creates no active option and preserves the supplied closing event. -/
 theorem TemporalControl.primitive_episodes (state : TemporalControl profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 metaCount.word.toNat)
@@ -133,16 +140,17 @@ theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile 
 theorem TemporalControl.refresh_episode_slot (state : TemporalControl profile config criterion dimension)
     (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).2.map (·.slot) = closing.map (·.slot) := by
-  exact (FreeDispatch.refresh_closing_slot
+  exact (FreeDispatch.refreshModels_closing_slot
     (⟨state.runtime.lifecycle, state.runtime.refresh, state.runtime.references.modelPredictions, closing⟩ :
       FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
         (EndingPayload (profile.mode != .frozen))))
 
 /-- Terminal credit does not itself record an episode; the common finish boundary records it once. -/
 theorem TemporalControl.close_lifetime (state : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (closing : Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))
-    (reward terminal : Binary32) : (state.closeOption models closing reward terminal).1.lifetime = state.lifetime := by
+    (reward terminal : Binary32) :
+    (state.closeOption models features closing reward terminal).1.lifetime = state.lifetime := by
   unfold TemporalControl.closeOption
   split <;> rfl
 
@@ -176,10 +184,12 @@ theorem TemporalControl.boundary_episodes (state next : TemporalControl profile 
     rfl
   | some owner =>
     simp only [hc] at executed
-    have proof := (drawn.1.closeOption models owner reward drawn.2.continuation).1.dispatch_episodes next models
-      features declared reward goal drawn.2
-      (some (drawn.1.closeOption models owner reward drawn.2.continuation).2) observed executed
-    refine ⟨proof.1.trans ((drawn.1.close_lifetime models owner reward _).trans drawnLifetime), proof.2.1, ?_⟩
+    have proof := (drawn.1.closeOption models features owner reward
+      drawn.2.continuation).1.dispatch_episodes next models features declared reward goal drawn.2
+      (some (drawn.1.closeOption models features owner reward drawn.2.continuation).2) observed
+      executed
+    refine ⟨proof.1.trans ((drawn.1.close_lifetime models features owner reward _).trans
+      drawnLifetime), proof.2.1, ?_⟩
     rw [proof.2.2, ← closingSlot, hc]
     rfl
 
@@ -316,10 +326,12 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
               rw [active, proof.2.1, proof.2.2]
               exact .ending slot observed.started
             | discounted =>
-              let closed := free.closeOption models closing reward (comparisonValue .discounted metaPolicy)
+              let closed := free.closeOption models features closing reward
+                (comparisonValue .discounted metaPolicy)
               have proof := closed.1.boundary_episodes next models plan features declared reward goal
                 none (some closed.2) observed executed
-              refine ⟨proof.1.trans ((free.close_lifetime models closing reward _).trans preparedLifetime), ?_⟩
+              refine ⟨proof.1.trans ((free.close_lifetime models features closing reward _).trans
+                preparedLifetime), ?_⟩
               rw [active, proof.2.1, proof.2.2]
               exact .ending slot observed.started
 

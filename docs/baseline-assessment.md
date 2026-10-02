@@ -27,20 +27,22 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 
 **Partly.**
 
-- **Learners: met.** Every one of Acorn's 57 learners is SwiftTD or Swift-Sarsa,
+- **Learners: met.** Every one of Acorn's 57 full-width learners, and every row
+  of the option models' transition parts, is SwiftTD or Swift-Sarsa,
   transcribed with declared corrections
   ([PAR-1](prior-art-review.md#par-1--swifttd),
   [PAR-2](prior-art-review.md#par-2--swift-sarsa)). This matches OaK's
   requirement that each learned weight has its own meta-learned step size.
   GVF predictions are fed back as features, and nothing is replayed.
-- **Architecture: shape only.** The FC-STOMP chain (feature construction,
-  subtasks, options, models, planning) is wired, but two links run on local
-  substitutes that drop the property their source relies on: the option models
-  and planning. U3 replaced a third, the feature tester, with the published
-  one. A composition defect (F-A) erased option learning until U1 repaired it,
-  and a locally derived exploration rate made
-  about 90% of early primitive steps random until U2 replaced it (F-C).
-  Options learned only while executing until U4 (F-F).
+- **Architecture: wired, with declared adaptations.** The FC-STOMP chain (feature
+  construction, subtasks, options, models, planning) is wired. Two links ran on
+  local substitutes that dropped the property their source relies on, the option
+  models and planning, until U5 replaced them with expectation models over a
+  ranked feature subset and backups under the current values (F-B). U3 replaced
+  a third, the feature tester, with the published one. A composition defect
+  (F-A) erased option learning until U1 repaired it, and a locally derived
+  exploration rate made about 90% of early primitive steps random until U2
+  replaced it (F-C). Options learned only while executing until U4 (F-F).
 - **Learning: UNKNOWN.** Whether the agent learns anything in its world has not
   been observed.
 
@@ -73,9 +75,9 @@ Verdicts:
 | Potential-based shaping [[8]](#r8) | Option learning aid | Present | **Faithful** | [PAR-6](prior-art-review.md#par-6--potential-based-shaping), with limits declared. |
 | Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted** (after U4) | Before U4 only the executing option learned (F-F). Every option that is not executing now learns from the action taken ([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)). The meta-controller's option values still learn by SMDP credit alone. |
 | Intra-option primitive credit [[9]](#r9) | Data reuse | Primitive Sarsa learns from every executed step | **Adapted** | [PAR-9](prior-art-review.md#par-9--intra-option-value-learning). One of the links that genuinely supports the rest. |
-| Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | Scalar reward and continuation models | **Substituted** | There is no transition part (`Model.terminal`). The continuation's terminal target is a meta-controller value, so it is a value estimator, not a model (F-B). |
-| Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Three signed backups toward r̂ + ĉ at the current features, at free boundaries | **Substituted** | `PlanningResult.backup` has no look-ahead with the current value function; it distils a second estimator of the meta values (F-B). |
-| Search control [[11]](#r11) | Step 9 | — | **Missing** | Planning happens only at the current state. |
+| Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | A reward part, a transition part over at most 63 ranked feature slots and a residual for the value the ranked slots do not carry | **Adapted** (after U5) | Before U5 there was no transition part, and the continuation was a value estimator (F-B). Each row of the transition part is now the source's TD update ([[7]](#r7) eq. (17)) with the terminal target γ·x_j that eq. (15) requires; the ranked subset, the residual and the action-value nominal are declared adaptations ([PAR-13](prior-art-review.md#par-13--option-expectation-models)). |
+| Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Backups of every option's value toward r̂ + v̂(n̂, w) + residual with the current weights, at free boundaries | **Adapted** (after U5) | Before U5 the backup had no look-ahead with the current value function (F-B). `PlanningResult.lookAhead` now applies the meta-controller's current weights to the predicted slots; each option's action value is backed up and the maximum is the meta-controller's choice ([PAR-14](prior-art-review.md#par-14--background-planning)). |
+| Search control [[11]](#r11) | Step 9 | A sweep over the 128 most recent earlier feature vectors, one per decision boundary, against the order they were written in | **Adapted, minimal** (after U5) | Before U5 planning happened only at the current state. The store holds feature vectors only. Priorities and other strategies are open ([#15](https://github.com/rbeauchamp/acorn/issues/15)). |
 | εz-greedy [[12]](#r12) | Step 9 exploration | Capped 1/n-tail duration ([D3](learned-only-binding.md#d3--exploration-duration--step-9)) and, since U2, a declared rate ε = 0.01 ([D6](learned-only-binding.md#d6--exploration-rate--step-9)) | **Adapted** (after U2) | The duration law is a tail-equivalent surrogate for the published zeta law. At 86ce779 the rate was a local derivation with no published source, starting near 0.63 (F-C); U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)) replaced it with a value the source uses. |
 | Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)). Average-reward GVFs are absent. |
 | Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | A cheap, general fix for discounted methods with discount near 1. Acorn uses γ = 0.99 throughout. |
@@ -84,14 +86,15 @@ Verdicts:
 | Utility feedback [[20]](#r20) | Step 11: feedback that assesses the utility of every element and replaces the least useful | — | **Missing (declared)** | The complete OaK loop is outside the implementation ([design](design.md#implementation-scope)). |
 | Nonlinear continual learning [[6]](#r6) [[16]](#r16) | Continual deep learning | Linear learners only | **Missing** | Outside the baseline's scope, and the current research front. |
 
-**Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 9 adapted,
-2 substituted (models, planning) and 5 missing, counting U3's tester and generator
-and U4's off-policy option learning as adapted. The frontier and design
-acknowledge utility feedback and learned agent state, and design Step 3 and
+**Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 12 adapted,
+none substituted and 4 missing, counting U3's tester and generator, U4's
+off-policy option learning and U5's models, planning and search control as
+adapted. At the assessed commit the models and planning were substituted and
+search control was missing. The frontier and design acknowledge utility feedback
+and learned agent state, and design Step 3 and
 [PAR-3](prior-art-review.md#par-3--horde) declare the on-policy specialization
-of the prediction questions; the other three missing rows
-(search control, reward centering and nonlinear continual learning) were not
-previously recorded.
+of the prediction questions; the other two missing rows (reward centering and
+nonlinear continual learning) were not previously recorded.
 
 Correctness of what exists (state legality, admission, numeric containment and
 the proved identities) is strong and machine-checked. The weakness is fidelity
@@ -140,7 +143,12 @@ retired. How often that happens is UNKNOWN: it depends on the stream.
 
 ### F-B · The option model is a value estimator, so planning cannot plan
 
-**Status: open; U5 addresses it.** Argued.
+**Status: addressed by U5 for the ranked share of an outcome's value**
+([#11](https://github.com/rbeauchamp/acorn/issues/11)): the value at the ranked
+slots is read from the current weights, and the rest is still a learned value
+estimate, the residual. The
+[U5 section](#what-u5-changed) lists what changed and what is proved. The finding
+below describes the assessed commit. Argued.
 
 - **What the source specifies.** An approximate option model has a reward part
   r̂(x, o) and a transition part n̂(x, o) ≈ E[γᴷ x(S_K)] ([[7]](#r7) §4,
@@ -329,8 +337,8 @@ taken, on every step of a learning hierarchy
 
 **Verdict on composition.** The components coexisted far more than they
 supported one another. The chain was wired, but F-A cut it periodically, F-B
-neutralizes its planning end, F-F starved its option end until U4 and F-E left
-its feature-construction end inert until U3.
+neutralized its planning end until U5, F-F starved its option end until U4 and
+F-E left its feature-construction end inert until U3.
 
 ## Measured against the published OaK and Alberta Plan designs
 
@@ -393,7 +401,7 @@ derivation, not measurement.
 | U2 | Published εz-greedy with a declared ε of 0.01, replacing the derived rate in the default | [[12]](#r12) | S | Initial behaviour was about 90% random (F-C) | **Landed** ([#23](https://github.com/rbeauchamp/acorn/pull/23)) |
 | U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
-| U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | Open ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
+| U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it learns at all | Open ([#12](https://github.com/rbeauchamp/acorn/issues/12)); needs owner authorization |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
@@ -490,6 +498,74 @@ a frame's behaviour has the distribution of an option that is not executing,
 or that option policies and models improve. Each option that is not executing
 costs about one executing-option step on every frame. The meta-controller's option values still
 learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
+
+### What U5 changed
+
+- **Transition part.** Each option's model has a transition part: for each of at
+  most 63 ranked feature slots, a learner that predicts whether the slot is
+  active when the option stops, discounted by the time until then, from the
+  ranked slots active now and a constant input. Each row takes the source's
+  update, TD with cumulant zero ([[7]](#r7) §4, eq. (17)), as an ordinary SwiftTD
+  learner (`Transition.step`, `Transition.terminal`). Its terminal target is
+  γ·x_j, which eq. (15) requires; eq. (17) as printed passes x_j
+  (`option_model_terminal_discount_correction`).
+- **Ranked subset.** The slots are those of the ranked score blocks of positive
+  Demon-0 weight, the subtask ranking continued from 3 entries to 63
+  ([[20]](#r20) Step 8(d), p. 9). The width of 64 positions follows from a
+  memory budget: the largest power of two for which all three transition parts
+  fit in one weight vector (`rankWidth_budget`, `rankWidth_maximal`). The last
+  position is the constant input.
+- **Residual.** The value function reads every active feature, so the scalar
+  continuation now predicts only the part of an outcome's value the ranked slots
+  do not carry (`Transition.residual`). With no ranked slot it is the earlier
+  scalar model; with every slot ranked it vanishes.
+- **Backup.** Planning moves each option's value toward r̂ plus the current value
+  function applied to the predicted slots plus the residual
+  (`PlanningResult.lookAhead`). A change in a ranked slot's value weight changes
+  the backed-up value wherever a row predicts that slot, at the next look-ahead
+  there and with no new termination of the option. A predecessor's own value
+  moves when planning next backs it up.
+- **Search control.** Each learning frame is recorded, when it completes, in a
+  store of the 128 most recent feature vectors. Each decision boundary backs up
+  every option at the current vector and at one stored earlier vector; the
+  stored position moves one step per boundary against the write order
+  (`planningBoundary`, `RecentFeatures.advance`). The store holds no action,
+  reward or successor.
+- **Change of subset.** Every free decision boundary installs the current ranking
+  in every model; a slot that stays ranked keeps its position and its row's
+  weights from every other retained slot, and a retired ranked slot vacates every position that holds it
+  (`Transition.rerank`, `Transition.retire`). Installed only at a subtask
+  refresh, the ranking stayed empty through each audit campaign.
+- **Selection name and pins.** `--planning expectation` replaces `scalar`. The
+  transition part is process-local like the other model learners, so the
+  checkpoint format is unchanged. All three audit pins changed, because the
+  model targets and the planning backups changed.
+
+Machine-checked: `CurrentPlanning.ranked_value_rounding` and
+`CurrentPlanning.discounted_backup_rounding` (the executed backed-up value
+against the exact expression, with its rounding bound, for at most 64 ranked
+positions), `CurrentPlanning.expectation_linear`,
+`CurrentPlanning.expectation_maximum_le` and
+`CurrentPlanning.expectation_maximum_eq` (what an expectation model keeps under
+a maximum over action values), `CurrentPlanning.backup_propagation` and
+`CurrentPlanning.ranked_values_congr` (the dependence on the value weights),
+`CurrentPlanning.transition_storage`, `CurrentPlanning.transition_table`,
+`CurrentPlanning.transition_budget` and `CurrentPlanning.default_width`
+(storage), `CurrentPlanning.ranked_input_work`,
+`CurrentPlanning.row_work` and `CurrentPlanning.boundary_work` (work),
+`CurrentPlanning.differential_target_bound` (the differential backed-up value
+stays finite), `CurrentPlanning.rerank_retained`,
+`CurrentPlanning.rerank_weights`, `CurrentPlanning.retire_vacated` and
+`FreeDispatch.refreshModels_retains` (a change of subset),
+`FeatureRuntime.retire_recent` (stored frames after retirement),
+`RankedFeatures.input_membership` (a row reads exactly the active ranked slots
+and the constant input), and
+`CurrentModels.planning_primitive`, `CurrentModels.planning_traces` and
+`CurrentModels.planning_lags` (what planning leaves alone). U5 does not
+establish what share of an outcome's value the ranked slots carry, that the
+models become accurate, that planning with a learned linear model is stable
+([[10]](#r10) §5.1 and §7.1), or that planning improves decisions. The rounding of
+the differential ε-mean is not bounded.
 
 ### Alternatives weighed
 

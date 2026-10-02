@@ -110,6 +110,15 @@ theorem _root_.Acorn.Features.FreeDispatch.refresh_aligned (state : FreeDispatch
     exact fold _ _ aligned
   · exact aligned
 
+/-- The complete refresh, which also reranks every model, preserves source alignment. -/
+theorem _root_.Acorn.Features.FreeDispatch.refreshModels_aligned (state : FreeDispatch shape config criterion dimension discounts payload)
+    (aligned : state.lifecycle.consumers.Aligned) :
+    state.refreshModels.lifecycle.consumers.Aligned := by
+  unfold FreeDispatch.refreshModels
+  intro slot
+  rw [FreeDispatch.rerankModels_skill]
+  exact FreeDispatch.refresh_aligned state aligned slot
+
 /-- The policy/model operations never replace the skill's interest. -/
 theorem _root_.Acorn.Features.Skill.beginTemporal_interest (skill : Skill config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -128,9 +137,11 @@ theorem _root_.Acorn.Features.Skill.stepTemporal_interest {mode : Bool} (skill :
 
 /-- Terminal policy/model credit retains its original objective. -/
 theorem _root_.Acorn.Features.Skill.endTemporal_interest {mode : Bool} (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (ending : EndingPayload mode)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (ending : EndingPayload mode)
     (reward terminal : Binary32) (gain : RewardRate) :
-    (skill.endTemporal models ending reward terminal gain).interest = skill.interest := by
+    (skill.endTemporal models value features ending reward terminal gain).interest =
+      skill.interest := by
   unfold Skill.endTemporal
   split <;> exact (skill.terminal_owners ending.activation ending.potential reward terminal gain).1
 
@@ -211,8 +222,10 @@ theorem TemporalControl.stepOption_aligned (state : TemporalControl profile conf
 /-- Terminal credit updates the matching current owner or discards the detached one. -/
 theorem TemporalControl.closeOption_aligned (state : TemporalControl profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
     (closing : Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))
-    (reward terminal : Binary32) : (state.closeOption models closing reward terminal).1.Aligned := by
+    (reward terminal : Binary32) :
+    (state.closeOption models features closing reward terminal).1.Aligned := by
   unfold TemporalControl.closeOption
   dsimp only
   cases old : closing.oldOwner with
@@ -228,7 +241,7 @@ theorem TemporalControl.refreshFree_aligned (state : TemporalControl profile con
     (aligned : state.Aligned)
     (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).1.Aligned :=
-  ⟨FreeDispatch.refresh_aligned _ aligned.1, FreeDispatch.refresh_preserves_distinct _ aligned.2⟩
+  ⟨FreeDispatch.refreshModels_aligned _ aligned.1, FreeDispatch.refreshModels_distinct _ aligned.2⟩
 
 /-- Repaying meta credit cannot replace an option's source declaration. -/
 theorem TemporalControl.learnMeta_aligned (state : TemporalControl profile config criterion dimension)
@@ -245,19 +258,20 @@ theorem TemporalControl.finish_aligned (state : TemporalControl profile config c
 
 /-- A followed slot keeps its interest whether it is executing, linked or refused. -/
 theorem followSlot_interest (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat)
     (reward : Binary32) (gain : RewardRate) (executing : Bool)
     (skill : Skill config criterion dimension) :
-    (followSlot models features declared goal estimate rate action behaviour reward gain executing
-      skill).interest = skill.interest := by
+    (followSlot models value features declared goal estimate rate action behaviour reward gain
+      executing skill).interest = skill.interest := by
   unfold followSlot
   split
   · rfl
   · split
-    · exact skill.followTemporal_interest models features _ goal estimate rate action behaviour
-        reward gain
+    · exact skill.followTemporal_interest models value features _ goal estimate rate action
+        behaviour reward gain
     · rfl
 
 /-- A table with the same interest in every slot stays aligned and distinct. -/
@@ -341,7 +355,7 @@ theorem TemporalControl.boundary_total (state : TemporalControl profile config c
     exact drawn.1.dispatchMeta_total drawnAligned models features observation reward goal drawn.2 ended
   | some owner =>
     apply TemporalControl.dispatchMeta_total
-    exact drawn.1.closeOption_aligned drawnAligned models owner reward _
+    exact drawn.1.closeOption_aligned drawnAligned models features owner reward _
 
 /-- Every aligned local state selects a real action, with the same priority
 dispatcher and matching potential producer, and retains source alignment. -/
@@ -385,7 +399,8 @@ theorem TemporalControl.select_total (state : TemporalControl profile config cri
           cases criterion with
           | discounted =>
             apply TemporalControl.boundary_total
-            exact (prepared.withPhase .idle).closeOption_aligned preparedAligned models _ reward _
+            exact (prepared.withPhase .idle).closeOption_aligned preparedAligned models features _
+              reward _
           | differential =>
             exact (prepared.withPhase .idle).boundary_total preparedAligned models plan features observation reward goal _ none
 

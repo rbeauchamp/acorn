@@ -18,6 +18,14 @@ releases a slot holding the replaced unit only at a free boundary. An ending
 activation retains the replaced owner for terminal credit. The activation payload
 is parametric: refresh neither reads nor rewrites it. Continuing activations do
 not inhabit this free-boundary interface.
+
+The same ranking decides which feature slots every option's expectation model
+reads and predicts (Sutton, Bowling and Pilarski, *The Alberta Plan for AI Research*,
+arXiv:2208.11173v3 (2023), Step 8(d), p. 9): the ranked score blocks of positive
+Demon-0 weight, one fewer than the ranked width, of which the first `skillCount` are
+the subtask candidates. Every free boundary installs it in every model, after the
+assignments of a pending refresh; a slot that stays ranked keeps its position, its row
+and that row's weights from every other retained slot.
 -/
 namespace Acorn.Features
 
@@ -231,6 +239,112 @@ def FreeDispatch.refreshRanked {shape : PatchShape} {config : Config} {criterion
     (List.finRange Acorn.FeatureConstants.skillCount).foldl
       (fun current slot => current.install slot targets[slot.val]) state
   else state
+
+/-- The feature slots an expectation model reads and predicts: the slot of each
+ranked score block of positive Demon-0 weight, in rank order, at most one fewer than
+the ranked width because the last position is the bias. The slots are distinct
+(`rankedSlots_nodup`). -/
+def rankedSlots (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension) : List (FeatIdx dimension) :=
+  (ranked ((rankDimension dimension).capacity - 1)
+    ((List.finRange config.units.count).filterMap (candidateOfWeight config weights))).map
+    fun candidate => unitFeature dimension config candidate.unit
+
+/-- A candidate's key is the weight word at its own slot. -/
+theorem candidateOfWeight_key (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension) (unit : Fin config.units.count)
+    (candidate : Candidate config) (found : candidateOfWeight config weights unit = some candidate) :
+    candidate.key = (weights.get (unitFeature dimension config candidate.unit)).value.bits.toNat := by
+  unfold candidateOfWeight at found
+  dsimp only at found
+  split at found
+  · cases found
+    rfl
+  · contradiction
+
+/-- The ranked slots are distinct: ranked score blocks have strictly decreasing keys,
+and a candidate's key is the weight word at its slot, so two candidates at one slot
+would have one key. -/
+theorem rankedSlots_nodup (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension) :
+    (rankedSlots dimension config weights).Nodup := by
+  unfold rankedSlots
+  rw [List.Nodup, List.pairwise_map]
+  refine (ranked_strict _ _).imp_of_mem ?_
+  intro first second left right lower same
+  obtain ⟨_, _, foundLeft⟩ := List.mem_filterMap.mp (ranked_subset _ _ first left)
+  obtain ⟨_, _, foundRight⟩ := List.mem_filterMap.mp (ranked_subset _ _ second right)
+  rw [candidateOfWeight_key dimension config weights _ first foundLeft,
+    candidateOfWeight_key dimension config weights _ second foundRight, same] at lower
+  exact Nat.lt_irrefl _ lower
+
+/-- The work and result bound of the model ranking is the ranked width less the bias. -/
+theorem rankedSlots_length (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension) :
+    (rankedSlots dimension config weights).length ≤ (rankDimension dimension).capacity - 1 := by
+  simpa [rankedSlots] using ranked_length ((rankDimension dimension).capacity - 1)
+    ((List.finRange config.units.count).filterMap (candidateOfWeight config weights))
+
+/-- Install the current feature ranking in every option's expectation model. Only the
+transition parts change; objectives, policies and full-width model learners are kept. -/
+def FreeDispatch.rerankModels {shape : PatchShape} {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload) :
+    FreeDispatch shape config criterion dimension discounts payload :=
+  let order := rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights
+  { state with lifecycle := { state.lifecycle with consumers := { state.lifecycle.consumers with
+      skills := state.lifecycle.consumers.skills.map fun skill =>
+        { skill with model := skill.model.rerank order } } } }
+
+/-- The complete free-boundary refresh: consume one coalesced request, installing the
+slot-stable assignment ranking if one was pending, then install the current feature
+ranking in every option model. The models take the ranking at every free boundary:
+a request is pending only after an achieved attempt or a new curriculum cycle, and
+the first of them precede every reward, so a ranking installed only then would stay
+empty. The merge is position-stable, so a slot that stays ranked keeps its row. -/
+def FreeDispatch.refreshModels {shape : PatchShape} {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload) :
+    FreeDispatch shape config criterion dimension discounts payload :=
+  state.refreshRanked.rerankModels
+
+/-- Reranking the models keeps the refresh request, cache, closing owner,
+representation and every non-skill consumer. `rerankModels_skill` gives each slot's
+objective, policy and trajectory link. -/
+theorem FreeDispatch.rerankModels_preserves {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload) :
+    state.rerankModels.refresh = state.refresh ∧
+      state.rerankModels.predictions = state.predictions ∧
+      state.rerankModels.closing = state.closing ∧
+      state.rerankModels.lifecycle.representation = state.lifecycle.representation ∧
+      state.rerankModels.lifecycle.consumers.metaController =
+        state.lifecycle.consumers.metaController ∧
+      state.rerankModels.lifecycle.consumers.control = state.lifecycle.consumers.control ∧
+      state.rerankModels.lifecycle.consumers.demons = state.lifecycle.consumers.demons :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- Reranking the models writes each slot's model and nothing else of the slot: the
+model is the slot's own model reranked with the receiver's current ranking. -/
+theorem FreeDispatch.rerankModels_skill {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    state.rerankModels.lifecycle.consumers.skills[slot.val] =
+      { state.lifecycle.consumers.skills[slot.val] with
+        model := state.lifecycle.consumers.skills[slot.val].model.rerank
+          (rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights) } := by
+  simp [FreeDispatch.rerankModels]
+
+/-- Reranking the models keeps distinct held units. -/
+theorem FreeDispatch.rerankModels_distinct {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (distinct : state.lifecycle.consumers.Distinct) :
+    state.rerankModels.lifecycle.consumers.Distinct := by
+  apply Assignment.Distinct.mono distinct
+  intro slot unit named
+  simpa [FreeDispatch.rerankModels] using named
 
 /-- Unchanged unit identity writes only the target objective: no learner, cache,
 meta-controller row or pending-credit mutation. -/
@@ -532,5 +646,86 @@ theorem FreeDispatch.refresh_retains {shape : PatchShape} {config : Config} {cri
     exact ⟨kept.1, kept.2.1, kept.2.2.1, kept.2.2.2, raised, installed.trans (by rw [target]), raises⟩
   · simp only [FreeDispatch.refreshRanked, Refresh.take, pending, Bool.false_eq_true, ↓reduceIte]
     exact ⟨trivial, trivial, trivial, trivial, bonus, holds, Nat.le_refl _⟩
+
+
+/-- Assignment refresh reads the Demon-0 weights and never writes a demon. -/
+theorem FreeDispatch.refresh_demons {shape : PatchShape} {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload) :
+    state.refreshRanked.lifecycle.consumers.demons = state.lifecycle.consumers.demons := by
+  unfold FreeDispatch.refreshRanked
+  dsimp only [Refresh.take]
+  split
+  · generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+      (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
+    have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
+        (current : FreeDispatch shape config criterion dimension discounts payload) :
+        (slots.foldl (fun next slot => next.install slot targets[slot.val])
+          current).lifecycle.consumers.demons = current.lifecycle.consumers.demons := by
+      induction slots generalizing current with
+      | nil => rfl
+      | cons slot rest ih =>
+        exact (ih (current.install slot targets[slot.val])).trans
+          (current.install_preserves slot targets[slot.val]).2.1
+    exact fold _ _
+  · rfl
+
+/-- Every complete refresh, pending or not, keeps distinct held units. -/
+theorem FreeDispatch.refreshModels_distinct {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (distinct : state.lifecycle.consumers.Distinct) :
+    state.refreshModels.lifecycle.consumers.Distinct := by
+  exact state.refreshRanked.rerankModels_distinct (state.refresh_preserves_distinct distinct)
+
+/-- T1 for the complete refresh: for every state and Demon-0 weight array, the first
+slot holding a still-ranked unit keeps its policy, cached prediction and
+meta-controller row bit-identical, and keeps that unit with a held bonus that never
+decreases. Its model is `refreshModels_model`'s. -/
+theorem FreeDispatch.refreshModels_retains {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count) (bonus : Bonus)
+    (holds : state.lifecycle.consumers.skills[slot.val].interest = .learned (.selected unit bonus))
+    (ranked : unit ∈ (rankedCandidates dimension config
+      state.lifecycle.consumers.demons.rankingWeights).map (·.unit))
+    (first : ∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val →
+      state.lifecycle.consumers.skills[other.val].interest.held.identity ≠ some unit) :
+    state.refreshModels.lifecycle.consumers.skills[slot.val].policy =
+        state.lifecycle.consumers.skills[slot.val].policy ∧
+      state.refreshModels.predictions[slot.val] = state.predictions[slot.val] ∧
+      state.refreshModels.lifecycle.consumers.metaController.learners[(metaOfSkill slot).val] =
+        state.lifecycle.consumers.metaController.learners[(metaOfSkill slot).val] ∧
+      ∃ raised : Bonus, state.refreshModels.lifecycle.consumers.skills[slot.val].interest =
+        .learned (.selected unit raised) ∧ bonus.value.bits.toNat ≤ raised.value.bits.toNat := by
+  have kept := state.refresh_retains slot unit bonus holds ranked first
+  obtain ⟨raised, interest, raises⟩ := kept.2.2.2.2
+  unfold FreeDispatch.refreshModels
+  have reranked := state.refreshRanked.rerankModels_skill slot
+  refine ⟨?_, kept.2.2.1, kept.2.2.2.1, raised, ?_, raises⟩
+  · rw [reranked]
+    exact kept.1
+  · rw [reranked]
+    exact interest
+
+/-- The retained slot's model across a refresh, pending or not, is its own model with
+the current feature ranking installed: its reward, continuation and duration learners
+are untouched, and its transition part keeps the position and weights of every slot
+that stays ranked. -/
+theorem FreeDispatch.refreshModels_model {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (slot : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count) (bonus : Bonus)
+    (holds : state.lifecycle.consumers.skills[slot.val].interest = .learned (.selected unit bonus))
+    (ranked : unit ∈ (rankedCandidates dimension config
+      state.lifecycle.consumers.demons.rankingWeights).map (·.unit))
+    (first : ∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val →
+      state.lifecycle.consumers.skills[other.val].interest.held.identity ≠ some unit) :
+    state.refreshModels.lifecycle.consumers.skills[slot.val].model =
+      state.lifecycle.consumers.skills[slot.val].model.rerank
+        (rankedSlots dimension config state.lifecycle.consumers.demons.rankingWeights) := by
+  have kept := (state.refresh_retains slot unit bonus holds ranked first).2.1
+  unfold FreeDispatch.refreshModels
+  rw [state.refreshRanked.rerankModels_skill slot, state.refresh_demons, kept]
 
 end Acorn.Features

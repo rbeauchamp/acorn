@@ -14,23 +14,34 @@ the [roadmap](https://github.com/users/rbeauchamp/projects/10) tracks.
 
 **Do the learned models predict useful consequences of executing an option?**
 
-Model accuracy under changing policies and representations is an open question.
-A refresh keeps the model of every option whose unit stays ranked; models restart
-only when their subtask's unit leaves the ranking or is replaced.
-Extensions must preserve shared units, target alignment and age semantics.
+Each option has an expectation model over a ranked subset of feature slots
+([PAR-13](prior-art-review.md#par-13--option-expectation-models)): a reward part,
+a transition part that predicts which ranked slots are active when the option
+stops, and a residual for the value the ranked slots do not carry. Model accuracy
+under changing policies and representations is an open question, as is the share
+of an outcome's value the ranked slots carry. A refresh keeps the model of every
+option whose unit stays ranked, and every free boundary keeps, within each
+model, the row of every slot that stays ranked and its weights from the other
+retained slots; models restart only
+when their subtask's unit leaves the ranking or is replaced. Extensions must
+preserve shared units, target alignment and age semantics.
 
 *Refutation attempt.* Challenge whether the executed target denotes the claimed
 quantity; then assess a prospective, isolated quality/benefit comparison. The
 [baseline assessment](baseline-assessment.md#f-b--the-option-model-is-a-value-estimator-so-planning-cannot-plan)
-argues that the continuation's terminal target is a meta-controller value, so the
-scalar model estimates a value rather than a transition.
+records why the earlier scalar continuation estimated a value rather than a
+transition.
 
 ## F2 · Planning benefit
 
 **Do model-based updates improve decisions enough to justify their cost?**
 
-The comparison must account for model error, planning cost and the decisions
-affected by the backups.
+Planning backs up each option's value from its expectation model with the
+current value weights, at the current feature vector and at one stored recent one
+per decision boundary
+([PAR-14](prior-art-review.md#par-14--background-planning)). The comparison must
+account for model error, planning cost and the decisions affected by the backups.
+Search control beyond a fixed sweep over the stored vectors is separate work.
 
 *Refutation attempt.* Check target/backup compatibility before attributing a
 measured effect to planning.
@@ -92,7 +103,7 @@ control remains **demoted** and ineligible for default use.
 | Viewer | One-way telemetry and lifecycle-only stop | Designed for a single local operator on loopback. |
 | Resources | Source/IR-linked structural contracts and bounded stored updates | Physical latency and memory costs depend on the workload and platform. |
 | Learning quality | Explicit research selection and promotion rules | Prospective qualification remains open. |
-| C-AC5 | Declared-rate arm `7433307b046fd16c`, checksum `385b2f84db38eef2`; annealed arm `73355bc3ce9747ff`, checksum `3e761e92a9584855`; differential arm `e75a9f5260ce566a`, checksum `ea34c0f0eb25b8bb` | The fixed audit arms are compared through these paired values. All three pins record the generate-and-test tester and task-reading generator (PAR-11, D7) and off-policy option learning (PAR-17); the declared-rate and differential pins also record the stable, sign-correct subtask (#8) and declared-rate (D6) dynamics decisions. |
+| C-AC5 | Declared-rate arm `1f06d07ff0192e8b`, checksum `5e43a33f51993a9b`; annealed arm `b1edd22df70f4663`, checksum `26b4e9080578617b`; differential arm `c15da626fcf27b4d`, checksum `f815941ae978025a` | The fixed audit arms are compared through these paired values. All three pins record the generate-and-test tester and task-reading generator (PAR-11, D7), off-policy option learning (PAR-17) and option expectation models with planning under the current values (PAR-13, PAR-14); the declared-rate and differential pins also record the stable, sign-correct subtask (#8) and declared-rate (D6) dynamics decisions. |
 
 See [verification](verification.md), [performance priorities](performance-engineering.md) and
 [prior-art admission/promotion](prior-art-review.md).
