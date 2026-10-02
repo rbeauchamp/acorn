@@ -555,9 +555,10 @@ Machine-checked: `CurrentPlanning.outcome_value_rounding`,
 `CurrentPlanning.discounted_backup_rounding` and
 `CurrentPlanning.differential_backup_rounding` (the executed backed-up value
 against the exact expression, with its rounding bound, for at most 64 ranked
-positions and every model state, at the scale the prediction envelopes of the
-active inputs give; `CurrentPlanning.discounted_backup_small` and
-`CurrentPlanning.differential_backup_small` are the tight conditional case),
+positions; the discounted bound holds for every model state with no further
+hypothesis, and the differential bound scales with the magnitude of the values
+the backup returns, which `CurrentPlanning.differential_backup_relative` states
+for every model state),
 `CurrentPolicyMean.expected_sandwich` (the executed tie-window mean of
 differential control against the convex combination it approximates),
 `CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,

@@ -143,20 +143,24 @@ def Transition.expected (transition : Transition dimension criterion)
 /-- The value of the predicted outcome for each meta action: the current value weights
 applied to the predicted ranked features, plus the predicted shared residual, plus
 that action's predicted deviation. Each action's value is complete before any maximum
-or mean is taken. Before rounding, a change in a ranked slot's weight for any action
-moves that action's value by the change times the slot's predicted activity, at the
-next query and with no new experience of the option
-(`AcornVerif.CurrentPlanning.outcome_value_propagation`). The executed word follows
-within the rounding allowance of `outcome_value_rounding`; a change smaller than the
-binary32 spacing at the word's magnitude can leave the word as it was. -/
+or mean is taken. The three parts are accumulated in binary64 and the total is
+narrowed once, so a shared residual and a deviation that cancel do not absorb the
+ranked part: the word is the total rounded at the total's own magnitude, whatever the
+magnitudes of the parts (`AcornVerif.CurrentPlanning.outcome_value_rounding`). Before
+rounding, a change in a ranked slot's weight for any action moves that action's value
+by the change times the slot's predicted activity, at the next query and with no new
+experience of the option (`AcornVerif.CurrentPlanning.outcome_value_propagation`); a
+change smaller than the binary32 spacing at the word's magnitude can leave the word
+as it was. -/
 def Transition.outcomeValues (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : Vector Binary32 metaCount.word.toNat :=
   let input := transition.ranked.input features
   let ranked := value.rankedValues transition.ranked (transition.expectedAt input)
+  let wide := Conversion.widen shared
   Vector.ofFn fun action =>
-    ((ranked.get action).add shared).add
-      ((transition.deviations.get action).state.linearPrediction input)
+    Conversion.narrow (((Conversion.widen (ranked.get action)).add wide).add
+      (Conversion.widen ((transition.deviations.get action).state.linearPrediction input)))
 
 /-- Nominal value of the predicted outcome: the maximum or policy mean of its
 per-action values. -/

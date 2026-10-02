@@ -44,15 +44,18 @@ and the deviations lose nothing of an action's unranked share. `discounted_backu
 and `differential_backup_rounding` bound the distance between the executed backed-up
 value and the same expression in exact arithmetic, for every model state.
 
-The per-action sums are formed before any projection, so their rounding follows the
-magnitude of the stored predictions. That magnitude is bounded by the prediction
-envelope of the active inputs, for every learner state, because every stored weight is
-inside its rule's domain. The contracts therefore carry a scale `2^k`, `k` up to 20:
-they hold whenever the envelopes of the active inputs fit below `8000 · 2^k`, a
-condition on input counts and not on the stored state, with allowances proportional to
-`2^k`. `discounted_backup_total` and `differential_backup_total` take `k = 20`, which
-every input satisfies. `discounted_backup_small` and `differential_backup_small` are
-the tight case, conditional on stored predictions of summed magnitude at most 1024.
+Each per-action total is accumulated in binary64 and narrowed once, so its rounding
+follows the magnitude of the total and not of its parts: a shared residual and a
+deviation that cancel lose nothing of the ranked part (`wide_total`). Every stored
+weight is inside its rule's domain, so the parts are inside their prediction envelopes
+for every learner state and the binary64 additions never leave their exact range.
+`discounted_backup_rounding` therefore has no hypothesis beyond the ranked width: a
+total beyond the prediction range projects to the same endpoint as its exact value
+(`outcome_value_clamped`). The differential continuation is a raw binary32 word with no
+range, so its allowance follows the magnitude of the values the backup returns:
+`differential_backup_rounding` carries a scale `2^k`, `k` up to 20, for exact
+per-action values at most `7000 · 2^k`, and `differential_backup_relative` states the
+same for every model state with the factor `max 1 (magnitude / 3500)`.
 Each binary32 product, sum and difference is the exact result rounded once to
 nearest-even; the horizon projections are exact. The rounding bounds assume at most 64
 ranked positions, which `default_width` shows for the 16 384-slot dimension.
@@ -523,117 +526,239 @@ def exactOutcomeValue (transition : Transition dimension criterion)
   exactRankedValue value transition.ranked (transition.expected features) action +
     numerical32 shared + numerical32 (deviationWord transition features action)
 
-/-- Each executed outcome value is the ranked action value plus the shared residual
-plus the action's deviation, added in that order. -/
+/-- A ranked width is at most `2^15`. -/
+theorem rank_capacity (dimension : Dimension) : (rankDimension dimension).capacity ≤ 32768 := by
+  have bound := rankExponentFrom_le dimension.capacity 15 0
+  change rankWidth dimension ≤ 2 ^ 15
+  rw [rankWidth_eq]
+  exact Nat.pow_le_pow_right (by decide) (by unfold rankExponent; omega)
+
+/-- The ordered-sum envelope of the occupied positions is at most `2^23`. -/
+theorem ranked_radius (ranked : RankedFeatures dimension) :
+    predictionRadius ranked.occupied.length ≤ 8388608 := by
+  have width := le_trans ranked.occupied_length (rank_capacity dimension)
+  unfold predictionRadius
+  have small := Nat.min_le_left ranked.occupied.length (2 ^ 24)
+  have scaled : min ranked.occupied.length (2 ^ 24) * 256 ≤ 32768 * 256 :=
+    Nat.mul_le_mul_right 256 (le_trans small width)
+  exact_mod_cast scaled
+
+/-- An ordered-sum envelope is at most `2^32`. -/
+theorem radius_cap (inputs : Nat) : predictionRadius inputs ≤ 4294967296 := by
+  unfold predictionRadius
+  have := Nat.min_le_right inputs (2 ^ 24)
+  exact_mod_cast Nat.mul_le_mul_right 256 this
+
+/-- The envelope of a row input is at most `2^23`. -/
+theorem input_radius (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    predictionRadius (ranked.input features).indices.length ≤ 8388608 := by
+  have width := le_trans (active_cardinality (ranked.input features)) (rank_capacity dimension)
+  unfold predictionRadius
+  have small := Nat.min_le_left (ranked.input features).indices.length (2 ^ 24)
+  have scaled : min (ranked.input features).indices.length (2 ^ 24) * 256 ≤ 32768 * 256 :=
+    Nat.mul_le_mul_right 256 (le_trans small width)
+  exact_mod_cast scaled
+
+/-- The binary64 total of one outcome value: the three words widened and added in
+order. -/
+def wideOutcome (ranked shared deviation : Binary32) : Binary64 :=
+  ((Conversion.widen ranked).add (Conversion.widen shared)).add (Conversion.widen deviation)
+
+/-- Each executed outcome value is the binary64 total of the ranked action value, the
+shared residual and the action's deviation, narrowed once. -/
 theorem outcomeValues_get (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (action : Action metaCount.word.toNat) :
     (transition.outcomeValues value features shared).get action =
-      (((value.rankedValues transition.ranked (transition.expected features)).get action).add
-        shared).add (deviationWord transition features action) := by
-  simp [Transition.outcomeValues, Transition.expected, deviationWord, vector_get]
+      Conversion.narrow (wideOutcome
+        ((value.rankedValues transition.ranked (transition.expected features)).get action)
+        shared (deviationWord transition features action)) := by
+  simp [Transition.outcomeValues, Transition.expected, deviationWord, wideOutcome, vector_get]
 
-/-- Two successive additions whose partial sums stay below `2^13 · 2^k`: the result is
-finite, within `2^(-11) · 2^k` more of the exact sum than its first operand was of its
-exact value, and at most `8000 · 2^k` in magnitude. -/
-theorem add_twice (ranked shared deviation : Binary32) (exact radius : ℚ) (k : Nat)
-    (small : k ≤ 20) (rankedFinite : ranked.Finite) (sharedFinite : shared.Finite)
-    (deviationFinite : deviation.Finite)
-    (close : |numerical32 ranked - exact| ≤ radius) (size : |numerical32 ranked| ≤ 6528)
-    (room : 6528 + |numerical32 shared| + |numerical32 deviation| + 1 / 2048 * (2 : ℚ) ^ k ≤
-      8000 * (2 : ℚ) ^ k) :
-    ((ranked.add shared).add deviation).Finite ∧
-      |numerical32 ((ranked.add shared).add deviation) -
-        (exact + numerical32 shared + numerical32 deviation)| ≤
-          radius + 1 / 2048 * (2 : ℚ) ^ k ∧
-      |numerical32 ((ranked.add shared).add deviation)| ≤ 8000 * (2 : ℚ) ^ k := by
-  have scale : (0 : ℚ) < (2 : ℚ) ^ k := pow_pos (by norm_num) k
-  have sharedSize := abs_nonneg (numerical32 shared)
-  have deviationSize := abs_nonneg (numerical32 deviation)
+/-- The binary64 total of three finite words inside the prediction envelopes is finite,
+within `2^(-16)` of their exact sum, and no larger than their magnitudes allow.
+Widening is exact and each binary64 addition is rounded at magnitude at most `2^36`, so
+two parts that cancel lose nothing of the third. -/
+theorem wide_total (ranked shared deviation : Binary32)
+    (rankedFinite : ranked.Finite) (sharedFinite : shared.Finite)
+    (deviationFinite : deviation.Finite) (rankedBound : |numerical32 ranked| ≤ 8388608)
+    (sharedBound : |numerical32 shared| ≤ 4294967296)
+    (deviationBound : |numerical32 deviation| ≤ 8388608) :
+    (wideOutcome ranked shared deviation).Finite ∧
+      |numerical64 (wideOutcome ranked shared deviation) -
+        (numerical32 ranked + numerical32 shared + numerical32 deviation)| ≤ 1 / 65536 ∧
+      |numerical64 (wideOutcome ranked shared deviation)| ≤
+        |numerical32 ranked| + |numerical32 shared| + |numerical32 deviation| + 1 / 65536 := by
+  have radius : (1 : ℚ) / 137438953472 * (2 : ℚ) ^ 20 = 1 / 131072 := by norm_num
+  have limit : (65536 : ℚ) * (2 : ℚ) ^ 20 = 68719476736 := by norm_num
   have firstTriangle := abs_add_le (numerical32 ranked) (numerical32 shared)
-  have first := binary32_add_scaled ranked shared k small rankedFinite sharedFinite
-    (by linarith)
-  have firstSize : |numerical32 (ranked.add shared)| ≤
-      |numerical32 ranked| + |numerical32 shared| + 1 / 4096 * (2 : ℚ) ^ k := by
+  have first := binary64_add_scaled (Conversion.widen ranked) (Conversion.widen shared) 20
+    (by decide) (Conversion.widen_finite ranked rankedFinite)
+    (Conversion.widen_finite shared sharedFinite)
+    (by rw [numerical_widen_exact ranked rankedFinite, numerical_widen_exact shared sharedFinite,
+      limit]; linarith)
+  have firstError := first.2
+  rw [numerical_widen_exact ranked rankedFinite, numerical_widen_exact shared sharedFinite,
+    radius] at firstError
+  have firstSize : |numerical64 ((Conversion.widen ranked).add (Conversion.widen shared))| ≤
+      |numerical32 ranked| + |numerical32 shared| + 1 / 131072 := by
     have triangle := abs_add_le
-      (numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared))
-      (numerical32 ranked + numerical32 shared)
+      (numerical64 ((Conversion.widen ranked).add (Conversion.widen shared)) -
+        (numerical32 ranked + numerical32 shared)) (numerical32 ranked + numerical32 shared)
     rw [sub_add_cancel] at triangle
-    linarith [first.2]
-  have secondTriangle := abs_add_le (numerical32 (ranked.add shared)) (numerical32 deviation)
-  have second := binary32_add_scaled (ranked.add shared) deviation k small first.1
-    deviationFinite (by linarith)
-  refine ⟨second.1, ?_, ?_⟩
-  · have split : numerical32 ((ranked.add shared).add deviation) -
-        (exact + numerical32 shared + numerical32 deviation) =
-        (numerical32 ((ranked.add shared).add deviation) -
-          (numerical32 (ranked.add shared) + numerical32 deviation)) +
-        ((numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared)) +
-          (numerical32 ranked - exact)) := by ring
+    linarith
+  have secondTriangle := abs_add_le
+    (numerical64 ((Conversion.widen ranked).add (Conversion.widen shared)))
+    (numerical32 deviation)
+  have second := binary64_add_scaled ((Conversion.widen ranked).add (Conversion.widen shared))
+    (Conversion.widen deviation) 20 (by decide) first.1
+    (Conversion.widen_finite deviation deviationFinite)
+    (by rw [numerical_widen_exact deviation deviationFinite, limit]; linarith)
+  have secondError := second.2
+  rw [numerical_widen_exact deviation deviationFinite, radius] at secondError
+  change (((Conversion.widen ranked).add (Conversion.widen shared)).add
+      (Conversion.widen deviation)).Finite ∧
+    |numerical64 (((Conversion.widen ranked).add (Conversion.widen shared)).add
+      (Conversion.widen deviation)) -
+        (numerical32 ranked + numerical32 shared + numerical32 deviation)| ≤ 1 / 65536 ∧
+    |numerical64 (((Conversion.widen ranked).add (Conversion.widen shared)).add
+      (Conversion.widen deviation))| ≤
+        |numerical32 ranked| + |numerical32 shared| + |numerical32 deviation| + 1 / 65536
+  have close : |numerical64 (((Conversion.widen ranked).add (Conversion.widen shared)).add
+      (Conversion.widen deviation)) -
+        (numerical32 ranked + numerical32 shared + numerical32 deviation)| ≤ 1 / 65536 := by
+    have split : numerical64 (((Conversion.widen ranked).add (Conversion.widen shared)).add
+        (Conversion.widen deviation)) -
+          (numerical32 ranked + numerical32 shared + numerical32 deviation) =
+        (numerical64 (((Conversion.widen ranked).add (Conversion.widen shared)).add
+          (Conversion.widen deviation)) -
+            (numerical64 ((Conversion.widen ranked).add (Conversion.widen shared)) +
+              numerical32 deviation)) +
+          (numerical64 ((Conversion.widen ranked).add (Conversion.widen shared)) -
+            (numerical32 ranked + numerical32 shared)) := by ring
     rw [split]
-    have outer := abs_add_le
-      (numerical32 ((ranked.add shared).add deviation) -
-        (numerical32 (ranked.add shared) + numerical32 deviation))
-      ((numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared)) +
-        (numerical32 ranked - exact))
-    have inner := abs_add_le
-      (numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared))
-      (numerical32 ranked - exact)
-    linarith [first.2, second.2]
-  · have triangle := abs_add_le
-      (numerical32 ((ranked.add shared).add deviation) -
-        (numerical32 (ranked.add shared) + numerical32 deviation))
-      (numerical32 (ranked.add shared) + numerical32 deviation)
-    rw [sub_add_cancel] at triangle
-    linarith [second.2]
+    have triangle := abs_add_le
+      (numerical64 (((Conversion.widen ranked).add (Conversion.widen shared)).add
+        (Conversion.widen deviation)) -
+          (numerical64 ((Conversion.widen ranked).add (Conversion.widen shared)) +
+            numerical32 deviation))
+      (numerical64 ((Conversion.widen ranked).add (Conversion.widen shared)) -
+        (numerical32 ranked + numerical32 shared))
+    linarith
+  refine ⟨second.1, close, ?_⟩
+  have triangle := abs_add_le
+    (numerical64 (((Conversion.widen ranked).add (Conversion.widen shared)).add
+      (Conversion.widen deviation)) -
+        (numerical32 ranked + numerical32 shared + numerical32 deviation))
+    (numerical32 ranked + numerical32 shared + numerical32 deviation)
+  rw [sub_add_cancel] at triangle
+  have inner := abs_add_le (numerical32 ranked + numerical32 shared) (numerical32 deviation)
+  linarith
 
-/-- Backup identity with its rounding bound, per action, at the magnitude of the stored
-words. For every transition part, value function and frame with at most 64 ranked
-positions, and any `k` up to 20 with
-`6528 + |shared| + |deviation| + 2^k / 2048 ≤ 8000 · 2^k`, the executed value of the
-predicted outcome for one action is finite, within one term allowance per occupied
-position plus `2^(-11) · 2^k` of the exact sum of the stored words, and at most
-`8000 · 2^k` in magnitude. `2^(-11) · 2^k` is the binary32 spacing below `2^13 · 2^k`:
-the two additions are formed before any projection, so their rounding follows the
-magnitude of the stored predictions. -/
-theorem outcome_value_rounding (transition : Transition dimension criterion)
+/-- One term allowance per occupied position is below one for at most 64 positions. -/
+theorem allowance_small (ranked : RankedFeatures dimension)
+    (narrow : (rankDimension dimension).capacity ≤ 64) :
+    0 ≤ (ranked.occupied.length : ℚ) * termRadius ∧
+      (ranked.occupied.length : ℚ) * termRadius ≤ 1 / 16 := by
+  have few : (ranked.occupied.length : ℚ) ≤ 64 := by
+    exact_mod_cast le_trans ranked.occupied_length narrow
+  have positive : (0 : ℚ) ≤ (ranked.occupied.length : ℚ) := Nat.cast_nonneg _
+  unfold termRadius
+  constructor
+  · positivity
+  · nlinarith
+
+/-- The binary64 total of one outcome value, for every model state: finite, within one
+term allowance per occupied position plus `2^(-16)` of the exact sum of the stored
+words, and below `2^33`. The hypothesis on the shared word is the cap every prediction
+envelope satisfies. -/
+theorem outcome_total (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (shared : Binary32) (action : Action metaCount.word.toNat) (k : Nat) (small : k ≤ 20)
+    (shared : Binary32) (action : Action metaCount.word.toNat)
     (narrow : (rankDimension dimension).capacity ≤ 64) (finite : shared.Finite)
-    (room : 6528 + |numerical32 shared| +
-      |numerical32 (deviationWord transition features action)| + 1 / 2048 * (2 : ℚ) ^ k ≤
-        8000 * (2 : ℚ) ^ k) :
-    ((transition.outcomeValues value features shared).get action).Finite ∧
-      |numerical32 ((transition.outcomeValues value features shared).get action) -
+    (bound : |numerical32 shared| ≤ 4294967296) :
+    (wideOutcome
+        ((value.rankedValues transition.ranked (transition.expected features)).get action)
+        shared (deviationWord transition features action)).Finite ∧
+      |numerical64 (wideOutcome
+        ((value.rankedValues transition.ranked (transition.expected features)).get action)
+        shared (deviationWord transition features action)) -
         exactOutcomeValue transition value features shared action| ≤
-          (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 2048 * (2 : ℚ) ^ k ∧
-      |numerical32 ((transition.outcomeValues value features shared).get action)| ≤
-        8000 * (2 : ℚ) ^ k := by
-  rw [outcomeValues_get]
+          (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 ∧
+      |numerical64 (wideOutcome
+        ((value.rankedValues transition.ranked (transition.expected features)).get action)
+        shared (deviationWord transition features action))| ≤ 4311744513 := by
   have ranked := ranked_value_rounding value transition.ranked (transition.expected features)
     action narrow
   have few : (transition.ranked.occupied.length : ℚ) ≤ 64 := by
     exact_mod_cast le_trans transition.ranked.occupied_length narrow
-  exact add_twice _ shared _ _ _ k small ranked.1 finite
-    (deviation_bound transition features action).1 ranked.2.1 (by linarith [ranked.2.2]) room
+  have deviation := deviation_bound transition features action
+  have deviationCap := le_trans deviation.2 (input_radius transition.ranked features)
+  have total := wide_total _ shared _ ranked.1 finite deviation.1 (by linarith [ranked.2.2])
+    bound deviationCap
+  refine ⟨total.1, ?_, by linarith [total.2.2, ranked.2.2]⟩
+  unfold exactOutcomeValue
+  have split : numerical64 (wideOutcome
+      ((value.rankedValues transition.ranked (transition.expected features)).get action)
+      shared (deviationWord transition features action)) -
+        (exactRankedValue value transition.ranked (transition.expected features) action +
+          numerical32 shared + numerical32 (deviationWord transition features action)) =
+      (numerical64 (wideOutcome
+        ((value.rankedValues transition.ranked (transition.expected features)).get action)
+        shared (deviationWord transition features action)) -
+          (numerical32 ((value.rankedValues transition.ranked
+            (transition.expected features)).get action) + numerical32 shared +
+              numerical32 (deviationWord transition features action))) +
+        (numerical32 ((value.rankedValues transition.ranked
+          (transition.expected features)).get action) -
+            exactRankedValue value transition.ranked (transition.expected features) action) := by
+    ring
+  rw [split]
+  have triangle := abs_add_le
+    (numerical64 (wideOutcome
+      ((value.rankedValues transition.ranked (transition.expected features)).get action)
+      shared (deviationWord transition features action)) -
+        (numerical32 ((value.rankedValues transition.ranked
+          (transition.expected features)).get action) + numerical32 shared +
+            numerical32 (deviationWord transition features action)))
+    (numerical32 ((value.rankedValues transition.ranked
+      (transition.expected features)).get action) -
+        exactRankedValue value transition.ranked (transition.expected features) action)
+  linarith [total.2.1, ranked.2.1]
 
-/-- The room of `outcome_value_rounding` from the prediction envelopes alone. A shared
-prediction read from `inputs` active features and a deviation prediction read from the
-row input are each inside their ordered-sum envelope, for every learner state, because
-every stored weight is inside its rule's domain. So the room holds whenever the
-envelopes fit, which is a condition on the counts of active inputs and not on the
-stored state. -/
-theorem envelope_room (transition : Transition dimension criterion)
-    (features : SwiftTd.ActiveSet dimension) (shared : Binary32) (inputs k : Nat)
-    (action : Action metaCount.word.toNat)
-    (bound : |numerical32 shared| ≤ predictionRadius inputs)
-    (fits : 6528 + predictionRadius inputs +
-      predictionRadius (transition.ranked.input features).indices.length +
-        1 / 2048 * (2 : ℚ) ^ k ≤ 8000 * (2 : ℚ) ^ k) :
-    6528 + |numerical32 shared| + |numerical32 (deviationWord transition features action)| +
-      1 / 2048 * (2 : ℚ) ^ k ≤ 8000 * (2 : ℚ) ^ k := by
-  have deviation := (deviation_bound transition features action).2
-  linarith
+/-- Backup identity with its rounding bound, per action, at the magnitude of the value
+itself. For every transition part, value function and frame with at most 64 ranked
+positions, and any `k` up to 20 with the exact value at most `7000 · 2^k` in magnitude,
+the executed value of the predicted outcome for one action is finite, within one term
+allowance per occupied position plus `2^(-16) + 2^(-11) · 2^k` of the exact sum of the
+stored words, and at most `8000 · 2^k` in magnitude. `2^(-11) · 2^k` is the binary32
+spacing below `2^13 · 2^k`: the one narrowing rounds at the magnitude of the total, and
+the magnitudes of the shared and deviation parts do not enter. -/
+theorem outcome_value_rounding (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (action : Action metaCount.word.toNat) (k : Nat) (small : k ≤ 20)
+    (narrow : (rankDimension dimension).capacity ≤ 64) (finite : shared.Finite)
+    (bound : |numerical32 shared| ≤ 4294967296)
+    (size : |exactOutcomeValue transition value features shared action| ≤ 7000 * (2 : ℚ) ^ k) :
+    ((transition.outcomeValues value features shared).get action).Finite ∧
+      |numerical32 ((transition.outcomeValues value features shared).get action) -
+        exactOutcomeValue transition value features shared action| ≤
+          (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
+            1 / 2048 * (2 : ℚ) ^ k ∧
+      |numerical32 ((transition.outcomeValues value features shared).get action)| ≤
+        8000 * (2 : ℚ) ^ k := by
+  rw [outcomeValues_get]
+  have scale : (1 : ℚ) ≤ (2 : ℚ) ^ k := one_le_pow₀ (by norm_num)
+  have total := outcome_total transition value features shared action narrow finite bound
+  have allowance := allowance_small transition.ranked narrow
+  have reach := abs_le.mp total.2.1
+  have sizes := abs_le.mp size
+  have narrowed := narrow_scaled _ k small total.1
+    (abs_le.mpr ⟨by linarith [reach.1, sizes.1], by linarith [reach.2, sizes.2]⟩)
+  have step := abs_le.mp narrowed.2
+  exact ⟨narrowed.1, abs_le.mpr ⟨by linarith [reach.1, step.1], by linarith [reach.2, step.2]⟩,
+    abs_le.mpr ⟨by linarith [reach.1, step.1, sizes.1], by linarith [reach.2, step.2, sizes.2]⟩⟩
 
 /-- Dependence on the value weights, over the executed definitions and for the complete
 per-action value: between two value functions, with the transition part and the shared
@@ -691,81 +816,12 @@ theorem deterministic_outcome {actions : Type} [Fintype actions] [Nonempty actio
     rw [attained]
     exact Finset.le_sup' (fun action => discount * complete action) (Finset.mem_univ best)
 
-/-- Two successive additions of finite words inside their envelopes stay finite and
-inside the summed envelopes, with machine-rounding slack. -/
-theorem add_twice_bound (ranked shared deviation : Binary32) (first second third : ℚ)
-    (rankedFinite : ranked.Finite) (sharedFinite : shared.Finite)
-    (deviationFinite : deviation.Finite) (rankedBound : |numerical32 ranked| ≤ first)
-    (sharedBound : |numerical32 shared| ≤ second)
-    (deviationBound : |numerical32 deviation| ≤ third) (firstCap : first ≤ 8388608)
-    (secondCap : second ≤ 4294967296) (thirdCap : third ≤ 8388608) :
-    ((ranked.add shared).add deviation).Finite ∧
-      |numerical32 ((ranked.add shared).add deviation)| ≤ first + second + third + 512 := by
-  have radius : (2 : ℚ) ^ (max ((33 : Int) - 24) (-149)) / 2 = 256 := by norm_num
-  have firstTriangle := abs_add_le (numerical32 ranked) (numerical32 shared)
-  have inner := binary32_add_finite_strict_error ranked shared rankedFinite sharedFinite 33
-    (by decide) (by norm_num; linarith)
-  have innerSlack := inner.2
-  rw [radius] at innerSlack
-  have innerSize : |numerical32 (ranked.add shared)| ≤ first + second + 256 := by
-    have triangle := abs_add_le
-      (numerical32 (ranked.add shared) - (numerical32 ranked + numerical32 shared))
-      (numerical32 ranked + numerical32 shared)
-    rw [sub_add_cancel] at triangle
-    linarith
-  have secondTriangle := abs_add_le (numerical32 (ranked.add shared)) (numerical32 deviation)
-  have outer := binary32_add_finite_strict_error (ranked.add shared) deviation inner.1
-    deviationFinite 33 (by decide) (by norm_num; linarith)
-  have outerSlack := outer.2
-  rw [radius] at outerSlack
-  refine ⟨outer.1, ?_⟩
-  have triangle := abs_add_le
-    (numerical32 ((ranked.add shared).add deviation) -
-      (numerical32 (ranked.add shared) + numerical32 deviation))
-    (numerical32 (ranked.add shared) + numerical32 deviation)
-  rw [sub_add_cancel] at triangle
-  linarith
-
 /-- Envelope of one outcome value: the ordered-sum envelopes of the occupied positions,
 of the shared prediction's input and of the row input, plus machine-rounding slack. -/
 def outcomeRadius (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) (inputs : Nat) : ℚ :=
   predictionRadius transition.ranked.occupied.length + predictionRadius inputs +
-    predictionRadius (transition.ranked.input features).indices.length + 512
-
-/-- A ranked width is at most `2^15`. -/
-theorem rank_capacity (dimension : Dimension) : (rankDimension dimension).capacity ≤ 32768 := by
-  have bound := rankExponentFrom_le dimension.capacity 15 0
-  change rankWidth dimension ≤ 2 ^ 15
-  rw [rankWidth_eq]
-  exact Nat.pow_le_pow_right (by decide) (by unfold rankExponent; omega)
-
-/-- The ordered-sum envelope of the occupied positions is at most `2^23`. -/
-theorem ranked_radius (ranked : RankedFeatures dimension) :
-    predictionRadius ranked.occupied.length ≤ 8388608 := by
-  have width := le_trans ranked.occupied_length (rank_capacity dimension)
-  unfold predictionRadius
-  have small := Nat.min_le_left ranked.occupied.length (2 ^ 24)
-  have scaled : min ranked.occupied.length (2 ^ 24) * 256 ≤ 32768 * 256 :=
-    Nat.mul_le_mul_right 256 (le_trans small width)
-  exact_mod_cast scaled
-
-/-- An ordered-sum envelope is at most `2^32`. -/
-theorem radius_cap (inputs : Nat) : predictionRadius inputs ≤ 4294967296 := by
-  unfold predictionRadius
-  have := Nat.min_le_right inputs (2 ^ 24)
-  exact_mod_cast Nat.mul_le_mul_right 256 this
-
-/-- The envelope of a row input is at most `2^23`. -/
-theorem input_radius (ranked : RankedFeatures dimension)
-    (features : SwiftTd.ActiveSet dimension) :
-    predictionRadius (ranked.input features).indices.length ≤ 8388608 := by
-  have width := le_trans (active_cardinality (ranked.input features)) (rank_capacity dimension)
-  unfold predictionRadius
-  have small := Nat.min_le_left (ranked.input features).indices.length (2 ^ 24)
-  have scaled : min (ranked.input features).indices.length (2 ^ 24) * 256 ≤ 32768 * 256 :=
-    Nat.mul_le_mul_right 256 (le_trans small width)
-  exact_mod_cast scaled
+    predictionRadius (transition.ranked.input features).indices.length + 513
 
 /-- For every criterion, dimension, state and frame, every executed outcome value is
 finite and inside its envelope, given a finite shared prediction inside its own. -/
@@ -779,8 +835,29 @@ theorem outcome_value_bound (transition : Transition dimension criterion)
   rw [outcomeValues_get]
   have ranked := ranked_value_bound value transition.ranked (transition.expected features) action
   have deviation := deviation_bound transition features action
-  exact add_twice_bound _ shared _ _ _ _ ranked.1 finite deviation.1 ranked.2 bound deviation.2
-    (ranked_radius transition.ranked) (radius_cap inputs) (input_radius transition.ranked features)
+  have rankedCap := ranked_radius transition.ranked
+  have sharedCap := radius_cap inputs
+  have deviationCap := input_radius transition.ranked features
+  have total := wide_total _ shared _ ranked.1 finite deviation.1 (le_trans ranked.2 rankedCap)
+    (le_trans bound sharedCap) (le_trans deviation.2 deviationCap)
+  have narrowed := narrow_scaled _ 20 (by decide) total.1 (by norm_num; linarith [total.2.2])
+  have radius : (1 : ℚ) / 2048 * (2 : ℚ) ^ 20 = 512 := by norm_num
+  have step := narrowed.2
+  rw [radius] at step
+  refine ⟨narrowed.1, ?_⟩
+  unfold outcomeRadius
+  have triangle := abs_add_le
+    (numerical32 (Conversion.narrow (wideOutcome
+      ((value.rankedValues transition.ranked (transition.expected features)).get action)
+      shared (deviationWord transition features action))) -
+        numerical64 (wideOutcome
+          ((value.rankedValues transition.ranked (transition.expected features)).get action)
+          shared (deviationWord transition features action)))
+    (numerical64 (wideOutcome
+      ((value.rankedValues transition.ranked (transition.expected features)).get action)
+      shared (deviationWord transition features action)))
+  rw [sub_add_cancel] at triangle
+  linarith [total.2.2]
 
 /-! ## The discounted backed-up value -/
 
@@ -885,10 +962,99 @@ theorem clamped_add (left right : Binary32) (leftFinite : left.Finite)
       exact le_trans (clamp_lipschitz _ _)
         (binary32_add_unit_error left right leftFinite rightFinite sum.1 small)
 
+/-- The exact projection is monotone. -/
+theorem clamp_mono {x y : ℚ} (order : x ≤ y) : clamp x ≤ clamp y :=
+  max_le_max (min_le_min order le_rfl) le_rfl
+
+/-- At or above the horizon the exact projection is the horizon. -/
+theorem clamp_above {x : ℚ} (above : horizon ≤ x) : clamp x = horizon := by
+  unfold clamp
+  rw [min_eq_right above, max_eq_left horizon_bounds.1]
+
+/-- At or below zero the exact projection is zero. -/
+theorem clamp_below {x : ℚ} (below : x ≤ 0) : clamp x = 0 := by
+  unfold clamp
+  exact max_eq_right (le_trans (min_le_left _ _) below)
+
+/-- The projected executed value of the predicted outcome for one action, for every
+model state: within one term allowance per occupied position plus
+`2^(-16) + 2^(-11)` of the projected exact sum of the stored words. Inside `2^13` the one
+narrowing is rounded at the total's magnitude; beyond it the narrowed word stays beyond
+the prediction range on the same side, where both projections are the same endpoint.
+No hypothesis is made on the stored shared or deviation predictions. -/
+theorem outcome_value_clamped (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) (action : Action metaCount.word.toNat)
+    (narrow : (rankDimension dimension).capacity ≤ 64) (finite : shared.Finite)
+    (bound : |numerical32 shared| ≤ 4294967296) :
+    ((transition.outcomeValues value features shared).get action).Finite ∧
+      |clamp (numerical32 ((transition.outcomeValues value features shared).get action)) -
+        clamp (exactOutcomeValue transition value features shared action)| ≤
+          (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 + 1 / 2048 := by
+  rw [outcomeValues_get]
+  have total := outcome_total transition value features shared action narrow finite bound
+  have allowance := allowance_small transition.ranked narrow
+  have reach := abs_le.mp total.2.1
+  have top := horizon_bounds
+  have wide := narrow_scaled _ 20 (by decide) total.1 (by norm_num; linarith [total.2.2])
+  have radius : (1 : ℚ) / 2048 * (2 : ℚ) ^ 20 = 512 := by norm_num
+  have far := wide.2
+  rw [radius] at far
+  have farBounds := abs_le.mp far
+  refine ⟨wide.1, ?_⟩
+  by_cases inside : |numerical64 (wideOutcome
+      ((value.rankedValues transition.ranked (transition.expected features)).get action)
+      shared (deviationWord transition features action))| ≤ 8192
+  · have tight := narrow_scaled _ 0 (by decide) total.1 (by simpa using inside)
+    have step := tight.2
+    rw [pow_zero, mul_one] at step
+    have stepBounds := abs_le.mp step
+    exact le_trans (clamp_lipschitz _ _)
+      (abs_le.mpr ⟨by linarith [reach.1, stepBounds.1], by linarith [reach.2, stepBounds.2]⟩)
+  · rcases lt_or_ge 8192 (numerical64 (wideOutcome
+        ((value.rankedValues transition.ranked (transition.expected features)).get action)
+        shared (deviationWord transition features action))) with above | notAbove
+    · rw [clamp_above (by linarith [farBounds.1]), clamp_above (by linarith [reach.2]),
+        sub_self, abs_zero]
+      linarith [allowance.1]
+    · have below : numerical64 (wideOutcome
+          ((value.rankedValues transition.ranked (transition.expected features)).get action)
+          shared (deviationWord transition features action)) < -8192 := by
+        by_contra failure
+        exact inside (abs_le.mpr ⟨not_lt.mp failure, notAbove⟩)
+      rw [clamp_below (by linarith [farBounds.2]), clamp_below (by linarith [reach.1]),
+        sub_self, abs_zero]
+      linarith [allowance.1]
+
+/-- The projected ordered maximum of action values, each finite and with projection
+within `radius` of the projection of an exact value, is finite and within `radius` of
+the projected exact maximum: the maximum selects a word and the projection is
+monotone. -/
+theorem best_clamped {count : Word.Count} (snapshot : PolicySnapshot count)
+    (exact : Action count.word.toNat → ℚ) (radius : ℚ)
+    (close : ∀ action, (snapshot.values.get action).Finite ∧
+      |clamp (numerical32 (snapshot.values.get action)) - clamp (exact action)| ≤ radius) :
+    snapshot.best.Finite ∧
+      |clamp (numerical32 snapshot.best) -
+        clamp (Finset.univ.sup' Finset.univ_nonempty exact)| ≤ radius := by
+  have spec := best_spec snapshot fun action => (close action).1
+  obtain ⟨chosen, same⟩ := spec.1
+  refine ⟨by rw [same]; exact (close chosen).1, abs_le.mpr ⟨?_, ?_⟩⟩
+  · obtain ⟨best, _, attained⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty exact
+    have dominated := clamp_mono (spec.2 best)
+    have near := (abs_le.mp (close best).2).1
+    rw [attained]
+    linarith
+  · have upper := clamp_mono (Finset.le_sup' exact (Finset.mem_univ chosen))
+    have near := (abs_le.mp (close chosen).2).2
+    rw [same]
+    linarith
+
 /-- The discounted backed-up value from per-action values that are each finite and
-within `radius` of their exact values: the ordered maximum selects a word, both
-projections are exact, and the one remaining addition is rounded inside the prediction
-range, so the executed target is within `radius + 2^(-17)` of `clamp (r + clamp V)`. -/
+whose projections are within `radius` of the projections of their exact values: the
+ordered maximum selects a word, both projections are exact, and the one remaining
+addition is rounded inside the prediction range, so the executed target is within
+`radius + 2^(-17)` of `clamp (r + clamp V)`. -/
 theorem discounted_backup_close
     (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
     (transition : Transition dimension .discounted)
@@ -897,12 +1063,12 @@ theorem discounted_backup_close
     (each : ∀ action, ((transition.outcomeValues value features
         (continuation.state.linearPrediction (modelInput .discounted features age))).get
           action).Finite ∧
-      |numerical32 ((transition.outcomeValues value features
+      |clamp (numerical32 ((transition.outcomeValues value features
         (continuation.state.linearPrediction (modelInput .discounted features age))).get
-          action) -
-        exactOutcomeValue transition value features
+          action)) -
+        clamp (exactOutcomeValue transition value features
           (continuation.state.linearPrediction (modelInput .discounted features age))
-          action| ≤ radius) :
+          action)| ≤ radius) :
     let prediction := (Model.discounted reward continuation transition).predict value features age
     |numerical32 (prediction.target gain) -
       clamp (numerical32 prediction.reward.value +
@@ -910,7 +1076,7 @@ theorem discounted_backup_close
           (continuation.state.linearPrediction (modelInput .discounted features age))))| ≤
       radius + 1 / 131072 := by
   intro prediction
-  have best := best_rounding
+  have best := best_clamped
     (⟨transition.outcomeValues value features
       (continuation.state.linearPrediction (modelInput .discounted features age)),
       value.epsilon⟩ : PolicySnapshot metaCount)
@@ -945,13 +1111,6 @@ theorem discounted_backup_close
     project_numeric _ outer.1
   rw [target]
   rw [continuationValue] at outer
-  have inner := clamp_lipschitz
-    (numerical32 (PolicySnapshot.best
-      (⟨transition.outcomeValues value features
-        (continuation.state.linearPrediction (modelInput .discounted features age)),
-        value.epsilon⟩ : PolicySnapshot metaCount)))
-    (exactOutcomeBest transition value features
-      (continuation.state.linearPrediction (modelInput .discounted features age)))
   have lifted := clamp_lipschitz
     (numerical32 prediction.reward.value + clamp (numerical32 (PolicySnapshot.best
       (⟨transition.outcomeValues value features
@@ -971,73 +1130,28 @@ theorem discounted_backup_close
         value.epsilon⟩ : PolicySnapshot metaCount)))))
     (clamp (numerical32 prediction.reward.value + clamp (exactOutcomeBest transition value
       features (continuation.state.linearPrediction (modelInput .discounted features age)))))
-  have bestClose : |numerical32 (PolicySnapshot.best
+  have bestClose : |clamp (numerical32 (PolicySnapshot.best
       (⟨transition.outcomeValues value features
         (continuation.state.linearPrediction (modelInput .discounted features age)),
-        value.epsilon⟩ : PolicySnapshot metaCount)) -
-      exactOutcomeBest transition value features
-        (continuation.state.linearPrediction (modelInput .discounted features age))| ≤
+        value.epsilon⟩ : PolicySnapshot metaCount))) -
+      clamp (exactOutcomeBest transition value features
+        (continuation.state.linearPrediction (modelInput .discounted features age)))| ≤
       radius := best.2
   linarith [outer.2]
-
-/-- The largest envelope: with `k = 20` the room of `outcome_value_rounding` holds for
-every count of active inputs. -/
-theorem envelope_total (transition : Transition dimension criterion)
-    (features : SwiftTd.ActiveSet dimension) (inputs : Nat) :
-    6528 + predictionRadius inputs +
-      predictionRadius (transition.ranked.input features).indices.length +
-        1 / 2048 * (2 : ℚ) ^ 20 ≤ 8000 * (2 : ℚ) ^ 20 := by
-  have first := radius_cap inputs
-  have second := input_radius transition.ranked features
-  norm_num
-  linarith
 
 /-- Backup identity with its rounding bound, for the executed discounted backed-up
 value, for every model state. Let `V` be the exact maximum over meta actions of: the
 dot product of the stored value weights with the stored predicted features, plus the
 stored shared residual prediction, plus the stored deviation prediction of that
 action; and `r` the stored reward prediction. For every model, value function, frame
-and gain with at most 64 ranked positions, and any `k` up to 20 for which the
-prediction envelopes of the active inputs fit below `8000 · 2^k`, the executed target
-is within one term allowance per occupied position plus `2^(-11) · 2^k + 2^(-17)` of
+and gain with at most 64 ranked positions, the executed target is within one term
+allowance per occupied position plus `2^(-16) + 2^(-11) + 2^(-17)` of
 `clamp (r + clamp V)`, where `clamp` is the exact projection onto the prediction range.
-The hypothesis is on the counts of active inputs; no hypothesis is made on the stored
-state. `discounted_backup_total` takes `k = 20`, which every input satisfies, and
-`discounted_backup_small` is the tight case. -/
+The only hypothesis is the ranked width: none is made on the stored state or on the
+counts of active inputs, so the statement covers restored weights. Each per-action
+total is rounded once, at its own magnitude, and a total beyond the prediction range
+projects to the same endpoint as its exact value. -/
 theorem discounted_backup_rounding
-    (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
-    (transition : Transition dimension .discounted)
-    (value : ValueFunction .discounted dimension) (features : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) (gain : RewardRate) (k : Nat) (small : k ≤ 20)
-    (narrow : (rankDimension dimension).capacity ≤ 64)
-    (fits : 6528 + predictionRadius (modelInput .discounted features age).indices.length +
-      predictionRadius (transition.ranked.input features).indices.length +
-        1 / 2048 * (2 : ℚ) ^ k ≤ 8000 * (2 : ℚ) ^ k) :
-    let prediction := (Model.discounted reward continuation transition).predict value features age
-    |numerical32 (prediction.target gain) -
-      clamp (numerical32 prediction.reward.value +
-        clamp (exactOutcomeBest transition value features
-          (continuation.state.linearPrediction (modelInput .discounted features age))))| ≤
-      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 2048 * (2 : ℚ) ^ k +
-        1 / 131072 := by
-  have sharedBound := prediction_bound continuation.state (modelInput .discounted features age)
-  change (continuation.state.linearPrediction (modelInput .discounted features age)).Finite ∧
-    |numerical32 (continuation.state.linearPrediction (modelInput .discounted features age))| ≤
-      predictionRadius (modelInput .discounted features age).indices.length at sharedBound
-  exact discounted_backup_close reward continuation transition value features age gain _
-    fun action =>
-      have result := outcome_value_rounding transition value features
-        (continuation.state.linearPrediction (modelInput .discounted features age)) action k
-        small narrow sharedBound.1
-        (envelope_room transition features _ _ k action sharedBound.2 fits)
-      ⟨result.1, result.2.1⟩
-
-/-- The discounted backup identity with no hypothesis beyond the ranked width: for
-every model state, value function, frame and gain, the executed target is within one
-term allowance per occupied position plus `2^9 + 2^(-17)` of `clamp (r + clamp V)`.
-`2^9` is the binary32 spacing at the largest magnitude a prediction envelope allows; the
-bound is as loose as that magnitude is large. -/
-theorem discounted_backup_total
     (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
     (transition : Transition dimension .discounted)
     (value : ValueFunction .discounted dimension) (features : SwiftTd.ActiveSet dimension)
@@ -1047,43 +1161,16 @@ theorem discounted_backup_total
       clamp (numerical32 prediction.reward.value +
         clamp (exactOutcomeBest transition value features
           (continuation.state.linearPrediction (modelInput .discounted features age))))| ≤
-      (transition.ranked.occupied.length : ℚ) * termRadius + 512 + 1 / 131072 := by
-  have result := discounted_backup_rounding reward continuation transition value features age
-    gain 20 (by decide) narrow (envelope_total transition features _)
-  have scale : (1 : ℚ) / 2048 * (2 : ℚ) ^ 20 = 512 := by norm_num
-  rw [scale] at result
-  exact result
-
-/-- The tight case of the discounted backup identity, conditional on the stored state:
-when the stored shared and deviation predictions have summed magnitude at most 1024,
-the executed target is within one term allowance per occupied position plus
-`2^(-11) + 2^(-17)` of `clamp (r + clamp V)`. Nothing enforces the condition;
-`discounted_backup_rounding` is the statement without it. -/
-theorem discounted_backup_small
-    (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
-    (transition : Transition dimension .discounted)
-    (value : ValueFunction .discounted dimension) (features : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) (gain : RewardRate) (narrow : (rankDimension dimension).capacity ≤ 64)
-    (room : ∀ action, |numerical32 (continuation.state.linearPrediction
-        (modelInput .discounted features age))| +
-      |numerical32 (deviationWord transition features action)| ≤ 1024) :
-    let prediction := (Model.discounted reward continuation transition).predict value features age
-    |numerical32 (prediction.target gain) -
-      clamp (numerical32 prediction.reward.value +
-        clamp (exactOutcomeBest transition value features
-          (continuation.state.linearPrediction (modelInput .discounted features age))))| ≤
-      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 2048 + 1 / 131072 := by
+      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 + 1 / 2048 +
+        1 / 131072 := by
   have sharedBound := prediction_bound continuation.state (modelInput .discounted features age)
-  change (continuation.state.linearPrediction (modelInput .discounted features age)).Finite ∧ _
-    at sharedBound
-  have result := discounted_backup_close reward continuation transition value features age
-    gain ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 2048 * (2 : ℚ) ^ 0)
-    fun action =>
-      have each := outcome_value_rounding transition value features
-        (continuation.state.linearPrediction (modelInput .discounted features age)) action 0
-        (by decide) narrow sharedBound.1 (by norm_num; linarith [room action])
-      ⟨each.1, each.2.1⟩
-  simpa using result
+  change (continuation.state.linearPrediction (modelInput .discounted features age)).Finite ∧
+    |numerical32 (continuation.state.linearPrediction (modelInput .discounted features age))| ≤
+      predictionRadius (modelInput .discounted features age).indices.length at sharedBound
+  exact discounted_backup_close reward continuation transition value features age gain _
+    fun action => outcome_value_clamped transition value features
+      (continuation.state.linearPrediction (modelInput .discounted features age)) action narrow
+      sharedBound.1 (le_trans sharedBound.2 (radius_cap _))
 
 /-! ## The differential backed-up value -/
 
@@ -1237,38 +1324,38 @@ def exactOutcomeMean (transition : Transition dimension .differential)
         (metaCount.word.toNat : ℚ))
 
 /-- The executed differential value of the predicted outcome against the exact
-expression, at the magnitude of the stored words. For every transition part, value
-function and frame with at most 64 ranked positions, and any `k` up to 20 with the room
-of `outcome_value_rounding` for every action, the executed word is finite, at most
-`exactOutcomeMean` plus one term allowance per occupied position plus
-`(2^(-11) + meanRadius) · 2^k`, at least `exactOutcomeMean` less the same with
+expression, at the magnitude of the per-action values. For every transition part, value
+function and frame with at most 64 ranked positions, and any `k` up to 20 with every
+exact per-action value at most `7000 · 2^k` in magnitude, the executed word is finite,
+at most `exactOutcomeMean` plus one term allowance per occupied position plus
+`2^(-16) + (2^(-11) + meanRadius) · 2^k`, at least `exactOutcomeMean` less the same with
 `meanSlack` in place of `meanRadius`, and at most `8000 · 2^k` in magnitude. -/
 theorem outcome_mean_rounding (transition : Transition dimension .differential)
     (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (k : Nat) (small : k ≤ 20)
     (narrow : (rankDimension dimension).capacity ≤ 64) (finite : shared.Finite)
-    (room : ∀ action, 6528 + |numerical32 shared| +
-      |numerical32 (deviationWord transition features action)| + 1 / 2048 * (2 : ℚ) ^ k ≤
-        8000 * (2 : ℚ) ^ k) :
+    (bound : |numerical32 shared| ≤ 4294967296)
+    (size : ∀ action, |exactOutcomeValue transition value features shared action| ≤
+      7000 * (2 : ℚ) ^ k) :
     (transition.lookahead value features shared).Finite ∧
       exactOutcomeMean transition value features shared -
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 2048 * (2 : ℚ) ^ k +
-            meanSlack * (2 : ℚ) ^ k) ≤
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
+            1 / 2048 * (2 : ℚ) ^ k + meanSlack * (2 : ℚ) ^ k) ≤
         numerical32 (transition.lookahead value features shared) ∧
       numerical32 (transition.lookahead value features shared) ≤
         exactOutcomeMean transition value features shared +
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 2048 * (2 : ℚ) ^ k +
-            meanRadius * (2 : ℚ) ^ k) ∧
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
+            1 / 2048 * (2 : ℚ) ^ k + meanRadius * (2 : ℚ) ^ k) ∧
       |numerical32 (transition.lookahead value features shared)| ≤ 8000 * (2 : ℚ) ^ k := by
   have each := fun action => outcome_value_rounding transition value features shared action k
-    small narrow finite (room action)
+    small narrow finite bound (size action)
   have sandwich := expected_sandwich
     (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
     k small (by decide) fun action => ⟨(each action).1, (each action).2.2⟩
   have close := greedy_mean_close
     (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
     (exactOutcomeValue transition value features shared)
-    ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 2048 * (2 : ℚ) ^ k)
+    ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 + 1 / 2048 * (2 : ℚ) ^ k)
     fun action => ⟨(each action).1, (each action).2.1⟩
   have size := expected_bound
     (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
@@ -1287,42 +1374,52 @@ theorem outcome_mean_rounding (transition : Transition dimension .differential)
       shared, value.epsilon⟩ : PolicySnapshot metaCount)) ≤ _
     linarith [bounds.2]
 
-/-- The differential backed-up value from a room for every action: the centering
-`r − g · d` is rounded twice at magnitude at most `2^7`, and the last addition once below
-`2^13 · 2^k`. -/
-theorem differential_backup_close
+/-- Backup identity with its rounding bound, for the executed differential backed-up
+value, at the magnitude of the per-action values. Let `M` be `exactOutcomeMean` of the
+stored words, `r`, `d` the stored reward and duration predictions and `g` the gain. For
+every model, value function, frame and gain with at most 64 ranked positions, and any
+`k` up to 20 with every exact per-action value at most `7000 · 2^k` in magnitude, the
+executed target is finite and lies between `r − g · d + M` less one term allowance per
+occupied position, `2^(-15)` and `(3 · 2^(-12) + meanSlack) · 2^k`, and `r − g · d + M`
+plus the same with `meanRadius` in place of `meanSlack`. The lower side is wider by the
+tie window of the nominal mean. The centering `r − g · d` is rounded twice at magnitude
+at most `2^7` and the last addition once below `2^13 · 2^k`. The hypothesis is on the
+values the backup returns, not on the stored shared or deviation predictions: the
+differential continuation is a raw binary32 word, so its rounding follows its own
+magnitude. `differential_backup_relative` removes the hypothesis. -/
+theorem differential_backup_rounding
     (r c d : Managed (Criterion.config .differential .demon) dimension)
     (transition : Transition dimension .differential)
     (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
     (age : ModelAge) (gain : RewardRate) (k : Nat) (small : k ≤ 20)
     (narrow : (rankDimension dimension).capacity ≤ 64)
-    (room : ∀ action, 6528 + |numerical32 (c.state.linearPrediction
-        (modelInput .differential features age))| +
-      |numerical32 (deviationWord transition features action)| + 1 / 2048 * (2 : ℚ) ^ k ≤
-        8000 * (2 : ℚ) ^ k) :
+    (size : ∀ action, |exactOutcomeValue transition value features
+      (c.state.linearPrediction (modelInput .differential features age)) action| ≤
+        7000 * (2 : ℚ) ^ k) :
     let prediction := (Model.differential r c d transition).predict value features age
     (prediction.target gain).Finite ∧
       numerical32 prediction.reward.value -
           numerical32 gain.value * numerical32 prediction.duration.value +
           exactOutcomeMean transition value features
             (c.state.linearPrediction (modelInput .differential features age)) -
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
             (3 / 4096 + meanSlack) * (2 : ℚ) ^ k) ≤ numerical32 (prediction.target gain) ∧
       numerical32 (prediction.target gain) ≤
         numerical32 prediction.reward.value -
           numerical32 gain.value * numerical32 prediction.duration.value +
           exactOutcomeMean transition value features
             (c.state.linearPrediction (modelInput .differential features age)) +
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
             (3 / 4096 + meanRadius) * (2 : ℚ) ^ k) := by
   intro prediction
   have scale : (1 : ℚ) ≤ (2 : ℚ) ^ k := one_le_pow₀ (by norm_num)
   have sharedBound := prediction_bound c.state (modelInput .differential features age)
-  change (c.state.linearPrediction (modelInput .differential features age)).Finite ∧ _
-    at sharedBound
+  change (c.state.linearPrediction (modelInput .differential features age)).Finite ∧
+    |numerical32 (c.state.linearPrediction (modelInput .differential features age))| ≤
+      predictionRadius (modelInput .differential features age).indices.length at sharedBound
   have outcome := outcome_mean_rounding transition value features
     (c.state.linearPrediction (modelInput .differential features age)) k small narrow
-    sharedBound.1 room
+    sharedBound.1 (le_trans sharedBound.2 (radius_cap _)) size
   have rb := CurrentModels.interval_numeric _ prediction.reward
   have db := CurrentModels.interval_numeric _ prediction.duration
   have gb := CurrentModels.interval_numeric _ gain
@@ -1385,105 +1482,92 @@ theorem differential_backup_close
   · linarith [outcome.2.1]
   · linarith [outcome.2.2.1]
 
-/-- Backup identity with its rounding bound, for the executed differential backed-up
-value, for every model state. Let `M` be `exactOutcomeMean` of the stored words, `r`, `d`
-the stored reward and duration predictions and `g` the gain. For every model, value
-function, frame and gain with at most 64 ranked positions, and any `k` up to 20 for
-which the prediction envelopes of the active inputs fit below `8000 · 2^k`, the executed
-target is finite and lies between `r − g · d + M` less one term allowance per occupied
-position, `2^(-16)` and `(3 · 2^(-12) + meanSlack) · 2^k`, and `r − g · d + M` plus the
-same with `meanRadius` in place of `meanSlack`. The lower side is wider by the tie window
-of the nominal mean. The hypothesis is on the counts of active inputs; no hypothesis is
-made on the stored state. `differential_backup_total` takes `k = 20`, which every input
-satisfies, and `differential_backup_small` is the tight case. -/
-theorem differential_backup_rounding
-    (r c d : Managed (Criterion.config .differential .demon) dimension)
-    (transition : Transition dimension .differential)
-    (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) (gain : RewardRate) (k : Nat) (small : k ≤ 20)
-    (narrow : (rankDimension dimension).capacity ≤ 64)
-    (fits : 6528 + predictionRadius (modelInput .differential features age).indices.length +
-      predictionRadius (transition.ranked.input features).indices.length +
-        1 / 2048 * (2 : ℚ) ^ k ≤ 8000 * (2 : ℚ) ^ k) :
-    let prediction := (Model.differential r c d transition).predict value features age
-    (prediction.target gain).Finite ∧
-      numerical32 prediction.reward.value -
-          numerical32 gain.value * numerical32 prediction.duration.value +
-          exactOutcomeMean transition value features
-            (c.state.linearPrediction (modelInput .differential features age)) -
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
-            (3 / 4096 + meanSlack) * (2 : ℚ) ^ k) ≤ numerical32 (prediction.target gain) ∧
-      numerical32 (prediction.target gain) ≤
-        numerical32 prediction.reward.value -
-          numerical32 gain.value * numerical32 prediction.duration.value +
-          exactOutcomeMean transition value features
-            (c.state.linearPrediction (modelInput .differential features age)) +
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
-            (3 / 4096 + meanRadius) * (2 : ℚ) ^ k) := by
-  have sharedBound := prediction_bound c.state (modelInput .differential features age)
-  change (c.state.linearPrediction (modelInput .differential features age)).Finite ∧
-    |numerical32 (c.state.linearPrediction (modelInput .differential features age))| ≤
-      predictionRadius (modelInput .differential features age).indices.length at sharedBound
-  exact differential_backup_close r c d transition value features age gain k small narrow
-    fun action => envelope_room transition features _ _ k action sharedBound.2 fits
+/-- A magnitude at most `7000 · 2^n` has a scale `2^k`, `k ≤ n`, that covers it and is
+at most `max 1 (magnitude / 3500)`: the least power of two that covers it. -/
+theorem scale_exists (magnitude : ℚ) (n : Nat) (cap : magnitude ≤ 7000 * (2 : ℚ) ^ n) :
+    ∃ k, k ≤ n ∧ magnitude ≤ 7000 * (2 : ℚ) ^ k ∧
+      (2 : ℚ) ^ k ≤ max 1 (magnitude / 3500) := by
+  induction n with
+  | zero => exact ⟨0, le_rfl, cap, by simp⟩
+  | succ n ih =>
+    by_cases fits : magnitude ≤ 7000 * (2 : ℚ) ^ n
+    · obtain ⟨k, small, room, scale⟩ := ih fits
+      exact ⟨k, Nat.le_succ_of_le small, room, scale⟩
+    · refine ⟨n + 1, le_rfl, cap, le_trans ?_ (le_max_right _ _)⟩
+      rw [pow_succ, le_div_iff₀ (by norm_num)]
+      linarith [not_le.mp fits]
 
-/-- The differential backup identity with no hypothesis beyond the ranked width: for
-every model state, value function, frame and gain, the executed target is finite and
-within the allowance of `differential_backup_rounding` at `k = 20` of `r − g · d + M`.
-The bound is as loose as the largest prediction envelope is large. -/
-theorem differential_backup_total
-    (r c d : Managed (Criterion.config .differential .demon) dimension)
-    (transition : Transition dimension .differential)
-    (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) (gain : RewardRate) (narrow : (rankDimension dimension).capacity ≤ 64) :
-    let prediction := (Model.differential r c d transition).predict value features age
-    (prediction.target gain).Finite ∧
-      numerical32 prediction.reward.value -
-          numerical32 gain.value * numerical32 prediction.duration.value +
-          exactOutcomeMean transition value features
-            (c.state.linearPrediction (modelInput .differential features age)) -
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
-            (3 / 4096 + meanSlack) * (2 : ℚ) ^ 20) ≤ numerical32 (prediction.target gain) ∧
-      numerical32 (prediction.target gain) ≤
-        numerical32 prediction.reward.value -
-          numerical32 gain.value * numerical32 prediction.duration.value +
-          exactOutcomeMean transition value features
-            (c.state.linearPrediction (modelInput .differential features age)) +
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
-            (3 / 4096 + meanRadius) * (2 : ℚ) ^ 20) :=
-  differential_backup_rounding r c d transition value features age gain 20 (by decide) narrow
-    (envelope_total transition features _)
-
-/-- The tight case of the differential backup identity, conditional on the stored
-state: when the stored shared and deviation predictions have summed magnitude at most
-1024, the allowance is that of `differential_backup_rounding` at `k = 0`. Nothing
-enforces the condition; `differential_backup_rounding` is the statement without it. -/
-theorem differential_backup_small
+/-- The differential backup identity for every model state, with the allowance relative
+to the magnitude of the values the backup returns. For every model, value function,
+frame and gain with at most 64 ranked positions, and any `magnitude` bounding the exact
+per-action values, the executed target is finite and lies between `r − g · d + M` less
+one term allowance per occupied position, `2^(-15)` and
+`(3 · 2^(-12) + meanSlack) · max 1 (magnitude / 3500)`, and `r − g · d + M` plus the same
+with `meanRadius` in place of `meanSlack`. Such a `magnitude` always exists, so no
+hypothesis restricts the stored state; restored weights are covered. The factor is one
+while the per-action values stay within 3500 and grows in proportion beyond, which is
+the spacing of the binary32 words the backup returns. -/
+theorem differential_backup_relative
     (r c d : Managed (Criterion.config .differential .demon) dimension)
     (transition : Transition dimension .differential)
     (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
     (age : ModelAge) (gain : RewardRate) (narrow : (rankDimension dimension).capacity ≤ 64)
-    (room : ∀ action, |numerical32 (c.state.linearPrediction
-        (modelInput .differential features age))| +
-      |numerical32 (deviationWord transition features action)| ≤ 1024) :
+    (magnitude : ℚ)
+    (within : ∀ action, |exactOutcomeValue transition value features
+      (c.state.linearPrediction (modelInput .differential features age)) action| ≤ magnitude) :
     let prediction := (Model.differential r c d transition).predict value features age
     (prediction.target gain).Finite ∧
       numerical32 prediction.reward.value -
           numerical32 gain.value * numerical32 prediction.duration.value +
           exactOutcomeMean transition value features
             (c.state.linearPrediction (modelInput .differential features age)) -
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
-            (3 / 4096 + meanSlack)) ≤ numerical32 (prediction.target gain) ∧
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
+            (3 / 4096 + meanSlack) * max 1 (magnitude / 3500)) ≤
+        numerical32 (prediction.target gain) ∧
       numerical32 (prediction.target gain) ≤
         numerical32 prediction.reward.value -
           numerical32 gain.value * numerical32 prediction.duration.value +
           exactOutcomeMean transition value features
             (c.state.linearPrediction (modelInput .differential features age)) +
-          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 65536 +
-            (3 / 4096 + meanRadius)) := by
-  have result := differential_backup_close r c d transition value features age gain 0
-    (by decide) narrow fun action => by norm_num; linarith [room action]
-  simpa using result
+          ((transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
+            (3 / 4096 + meanRadius) * max 1 (magnitude / 3500)) := by
+  have sharedBound := prediction_bound c.state (modelInput .differential features age)
+  change (c.state.linearPrediction (modelInput .differential features age)).Finite ∧
+    |numerical32 (c.state.linearPrediction (modelInput .differential features age))| ≤
+      predictionRadius (modelInput .differential features age).indices.length at sharedBound
+  have allowance := allowance_small transition.ranked narrow
+  have capped : ∀ action, |exactOutcomeValue transition value features
+      (c.state.linearPrediction (modelInput .differential features age)) action| ≤
+      7000 * (2 : ℚ) ^ 20 := by
+    intro action
+    have total := outcome_total transition value features
+      (c.state.linearPrediction (modelInput .differential features age)) action narrow
+      sharedBound.1 (le_trans sharedBound.2 (radius_cap _))
+    have reach := abs_le.mp total.2.1
+    have size := abs_le.mp total.2.2
+    norm_num
+    exact abs_le.mpr ⟨by linarith, by linarith⟩
+  obtain ⟨k, small, room, scale⟩ := scale_exists (min magnitude (7000 * (2 : ℚ) ^ 20)) 20
+    (min_le_right _ _)
+  have wider : (2 : ℚ) ^ k ≤ max 1 (magnitude / 3500) :=
+    le_trans scale (max_le_max le_rfl
+      (div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num)))
+  have result := differential_backup_rounding r c d transition value features age gain k small
+    narrow fun action => le_trans (le_min (within action) (capped action)) room
+  have slack : (0 : ℚ) ≤ 3 / 4096 + meanSlack := by unfold meanSlack meanRadius; norm_num
+  have radius : (0 : ℚ) ≤ 3 / 4096 + meanRadius := by unfold meanRadius; norm_num
+  have lowerScale := mul_le_mul_of_nonneg_left wider slack
+  have upperScale := mul_le_mul_of_nonneg_left wider radius
+  have lower : (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
+      (3 / 4096 + meanSlack) * (2 : ℚ) ^ k ≤
+      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
+        (3 / 4096 + meanSlack) * max 1 (magnitude / 3500) := by linarith
+  have upper : (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
+      (3 / 4096 + meanRadius) * (2 : ℚ) ^ k ≤
+      (transition.ranked.occupied.length : ℚ) * termRadius + 1 / 32768 +
+        (3 / 4096 + meanRadius) * max 1 (magnitude / 3500) := by linarith
+  exact ⟨result.1, le_trans (sub_le_sub_left lower _) result.2.1,
+    le_trans result.2.2 (add_le_add le_rfl upper)⟩
 
 /-! ## The differential backed-up value stays finite -/
 

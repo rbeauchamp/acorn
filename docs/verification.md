@@ -267,13 +267,13 @@ still decides whether the prose describes that owner faithfully.
 
 ## Mutation diagnostics
 
-**Pinned digest: `3ea4b72d584c56f1`**
+**Pinned digest: `b1f613d0b887e2ec`**
 
 ```sh
-lean/.lake/build/bin/acorn-core audit --expect 3ea4b72d584c56f1
+lean/.lake/build/bin/acorn-core audit --expect b1f613d0b887e2ec
 ```
 
-Paired checksum `42fcabda2200a8ab`. The deployed arm runs the ranked profile
+Paired checksum `82e22258e9546064`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
