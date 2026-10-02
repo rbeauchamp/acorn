@@ -101,7 +101,11 @@ run as a pass. Run the complete command to check all verification owners.
 The complete discovered module inventory must equal the explicitly admitted
 ownership inventory. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
-a maintained module with a non-empty module docstring. Before any Lake command,
+a maintained module with a non-empty module docstring. Ownership admission
+refuses a facet-qualified build key in the root package's Lake configuration:
+the Lake of Lean v4.34.0 stores such a key apart from its target's own entry, so
+a second route to that target runs a second job on the same output file. Before
+any Lake command,
 `Bootstrap.lean` must elaborate with no message, and Lake runs with `--wfail`, so
 any warning, including a header-time warning such as a deprecated import, fails
 the build. Source/compiled admission checks imports, capability owners, artifact
