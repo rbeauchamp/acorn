@@ -1,5 +1,4 @@
 .lake/
-/lean/tmp/
 lake-packages/
 *.olean
 *.ilean

@@ -20,11 +20,8 @@ namespace AcornCorpus
 private def require (legal : Bool) (message : String) : IO Unit :=
   unless legal do throw (IO.userError message)
 
--- Regula writes scratch copies of Lean sources under `lean/tmp/.regula-scratch` and a
--- killed run leaves them (https://github.com/rbeauchamp/regula/issues/172). The
--- exclusion is removed once Regula keeps them under `.lake`.
 private def excluded : List String := [".git", "target", "viewer/target", "gates/target",
-  "lean/.lake", "lean/lake-packages", "lean/tmp/.regula-scratch", "session"]
+  "lean/.lake", "lean/lake-packages", "session"]
 
 /-- The complete corpus is traversed without symlink or unreadable-file fallback. -/
 def files : IO (Array String) := do
