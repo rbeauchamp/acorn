@@ -5,7 +5,8 @@ states the property and assumptions it checks. For installation and a first run,
 start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
-Lean/Mathlib dependencies, a C compiler, OpenSSL 3, ShellCheck and GNU coreutils.
+Lean, Mathlib and FloatLib dependencies, a C compiler, OpenSSL 3, ShellCheck and
+GNU coreutils.
 The hard 360-second deadline includes project compilation and every ordinary
 check. It uses process-group SIGKILL with no grace period or budget override;
 missing, skipped or timed-out checks fail. OS scheduling and signal delivery
@@ -19,8 +20,11 @@ verification command remains required for documentation changes.
 Use `./scripts/start.sh` for automatic setup and launch, or
 `./scripts/start.sh --prepare-only` to prepare and build without learning.
 It uses Homebrew on macOS and apt-get on Ubuntu/Debian. It installs missing
-prerequisites and provisions the pinned Lean/Mathlib dependencies; repeat launches
-use the offline bootstrap when those dependencies are already available.
+prerequisites and provisions the pinned Lean, Mathlib and FloatLib dependencies;
+repeat launches use the offline bootstrap when those dependencies are already
+available. The bootstrap status that decides this builds nothing, writes only the
+launcher's own override file and asks Lake whether the FloatLib modules the proof
+bridge imports are current.
 The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.

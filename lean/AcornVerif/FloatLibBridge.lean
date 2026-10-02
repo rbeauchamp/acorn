@@ -49,6 +49,37 @@ Each statement concerns finite operands and a finite result: `roundAt` rounds
 on a grid with no upper exponent bound, and exceptional words have no real
 value. Native primitive and compiler correspondence remain the arithmetic
 layer's declared trust boundary.
+
+## FloatLib notice
+
+Two proofs in this module adapt proof text from
+`FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean` at FloatLib
+commit `1e83f09ed8c41a953cf8f93d26c210778177b94a`. `fraction_accuracy` adapts the
+private `accuracyRepresents_accuracyOfFraction`. The zero-quotient branch of
+`div_roundAt` adapts the scaling tail of `toReal_ofModel_div_finite_eq_roundAt`.
+FloatLib's licence notice covers that text:
+
+MIT License
+
+Copyright (c) 2026 FloatLib
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 -/
 
 open Acorn
@@ -200,7 +231,9 @@ theorem sub_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
 /-- The floor and remainder of a natural quotient carry Lean core's accuracy
 record of the real quotient. FloatLib proves the same statement as the private
 `accuracyRepresents_accuracyOfFraction` in `Arithmetic/LeanModel.lean`, which no
-importer can name. -/
+importer can name. This proof is adapted from that one under the FloatLib notice
+in the module documentation: the case analysis on the remainder comparison is
+FloatLib's, and the quotient split is derived here from Euclidean division. -/
 theorem fraction_accuracy (numerator denominator : Nat) (positive : 0 < denominator) :
     accuracyRepresents (numerator / denominator)
       (accuracyOfFraction (numerator % denominator) denominator)
@@ -334,7 +367,11 @@ when its packed result is finite, is the exact real quotient rounded once to
 nearest-even. A nonzero provisional quotient is FloatLib's
 `toReal_ofModel_div_finite_eq_roundAt`; a zero provisional quotient with a
 nonzero dividend is `roundWithAccuracy_zero_roundAt` on the remainder's
-accuracy record. -/
+accuracy record. That branch then identifies the scaled quotient with the
+quotient of the operands' real values by the closing steps of FloatLib's proof
+of `toReal_ofModel_div_finite_eq_roundAt`: the target exponent, shift and
+numerator definitions, the scaling identity and the sign cases are adapted from
+it under the FloatLib notice in the module documentation. -/
 theorem div_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (left right : UnpackedFloat) (leftFinite : left.isFinite = true)
     (rightFinite : right.isFinite = true) (nonzero : unpackedValue right ≠ 0)

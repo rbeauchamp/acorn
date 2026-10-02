@@ -139,8 +139,9 @@ def run (args : List String) : IO UInt32 := do
   if available then IO.FS.writeFile path (contents.compress ++ "\n")
   let ready ← if available then bridgeImportsBuilt path else pure false
   -- This status is the launcher's sole provisioning admission: 0 means ready,
-  -- 2 means missing dependencies, and every refusal returns 1. It builds nothing
-  -- and writes only the override file above.
+  -- 2 means missing dependencies, and every refusal returns 1. It builds nothing,
+  -- writes only the override file above and asks Lake whether the FloatLib modules
+  -- the bridge imports are current.
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do
     throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")
