@@ -274,6 +274,7 @@ theorem Controller.backupStep_lag {config : Acorn.Config} {dimension : Dimension
     (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
     (action : Action count.word.toNat) (reward : Binary32) :
-    (controller.backupStep features snapshot action reward).vOld = snapshot.values.get action := rfl
+    (controller.backupStep features snapshot action reward).vOld = snapshot.values.get action := by
+  rw [Controller.backupStep, Controller.creditStep_eq]
 
 end Acorn.Features

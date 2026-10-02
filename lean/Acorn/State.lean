@@ -251,6 +251,72 @@ def LogStepSize.admit {config : Config} (rails : StepSizeRails config) (raw : Bi
 def LogStepSize.alpha {config : Config} {rails : StepSizeRails config}
     (stored : LogStepSize rails) : Binary32 := Portable.exp stored.value
 
+/-- The step size of `next`: the word `stored` when `next` holds the same word as
+`previous`, whose step size `stored` is, and the portable evaluation otherwise.
+An unchanged log step size therefore costs no evaluation. -/
+def LogStepSize.alphaAfter {config : Config} {rails : StepSizeRails config}
+    (previous : LogStepSize rails) (stored : Binary32) (next : LogStepSize rails) : Binary32 :=
+  if next.value = previous.value then stored else next.alpha
+
+/-- Reusing a step size for an unchanged word is evaluating it: the portable
+exponential is a function of the stored word alone. This holds for every pair of
+stored words, including both rails. -/
+theorem LogStepSize.alphaAfter_eq {config : Config} {rails : StepSizeRails config}
+    (previous : LogStepSize rails) (stored : Binary32) (next : LogStepSize rails)
+    (evaluated : stored = previous.alpha) : previous.alphaAfter stored next = next.alpha := by
+  subst evaluated
+  unfold LogStepSize.alphaAfter
+  split
+  · rename_i same
+    exact congrArg Portable.exp same.symm
+  · rfl
+
+/-- A step size reused beside its own log step size is the portable exponential of
+the next one, whether or not the word changed. -/
+theorem LogStepSize.alphaAfter_self {config : Config} {rails : StepSizeRails config}
+    (previous next : LogStepSize rails) : previous.alphaAfter previous.alpha next = next.alpha :=
+  previous.alphaAfter_eq previous.alpha next rfl
+
+/-- Each stored step size is the portable exponential of the log step size stored
+at the same index. A learner state carries this as a field, so a step size is read
+without evaluation and no stored step size can differ from the one its log step
+size evaluates to. -/
+def LogStepSize.Evaluated {config : Config} {rails : StepSizeRails config} {capacity : Nat}
+    (beta : Vector (LogStepSize rails) capacity) (alpha : Vector Binary32 capacity) : Prop :=
+  ∀ (index : Nat) (inside : index < capacity), alpha[index] = beta[index].alpha
+
+/-- Writing a log step size and its own step size at one index keeps every pair
+evaluated; every other index keeps its pair. -/
+theorem LogStepSize.Evaluated.set {config : Config} {rails : StepSizeRails config}
+    {capacity : Nat} {beta : Vector (LogStepSize rails) capacity}
+    {alpha : Vector Binary32 capacity} (evaluated : LogStepSize.Evaluated beta alpha)
+    (index : Nat) (inside : index < capacity) (value : LogStepSize rails) (word : Binary32)
+    (same : word = value.alpha) :
+    LogStepSize.Evaluated (beta.set index value inside) (alpha.set index word inside) := by
+  intro other otherInside
+  by_cases here : index = other
+  · subst here
+    rw [Vector.getElem_set_self, Vector.getElem_set_self]
+    exact same
+  · rw [Vector.getElem_set_ne inside otherInside here,
+      Vector.getElem_set_ne inside otherInside here]
+    exact evaluated other otherInside
+
+/-- One log step size at every index beside its own step size is evaluated. -/
+theorem LogStepSize.Evaluated.replicate {config : Config} {rails : StepSizeRails config}
+    (capacity : Nat) (value : LogStepSize rails) :
+    LogStepSize.Evaluated (Vector.replicate capacity value)
+      (Vector.replicate capacity value.alpha) := by
+  intro index inside
+  rw [Vector.getElem_replicate, Vector.getElem_replicate]
+
+/-- Evaluating every log step size gives evaluated step sizes. -/
+theorem LogStepSize.Evaluated.map {config : Config} {rails : StepSizeRails config}
+    {capacity : Nat} (beta : Vector (LogStepSize rails) capacity) :
+    LogStepSize.Evaluated beta (beta.map fun stored => stored.alpha) := by
+  intro index inside
+  rw [Vector.getElem_map]
+
 /-- The initial log step is projected through the same receiving interval. -/
 def StepSizeRails.initial {config : Config} (rails : StepSizeRails config) :
     LogStepSize rails := LogStepSize.project rails (Portable.ln config.alphaInitial)
@@ -399,8 +465,13 @@ structure NumericState (config : Config) (dimension : Dimension) where
   rails : StepSizeRails config
   /-- Criterion-indexed weight storage. -/
   weights : WeightArray config.rule dimension
-  /-- Step-size storage indexed by those same rails. -/
+  /-- Log-step-size storage indexed by those same rails. -/
   beta : Vector (LogStepSize rails) dimension.capacity
+  /-- The step size of each stored log step size, so a read evaluates nothing.
+  It is a function of `beta` and holds no knowledge of its own. -/
+  alpha : Vector Binary32 dimension.capacity
+  /-- Every stored step size is the portable exponential of its log step size. -/
+  evaluated : LogStepSize.Evaluated beta alpha
   /-- Dimension-preserving raw process-local state. -/
   transient : TransientState dimension
 
@@ -409,7 +480,22 @@ elements carry the receiver's invariant before any learning loop is available. -
 def NumericState.initial (config : Config) (dimension : Dimension) : NumericState config dimension :=
   let rails := StepSizeRails.ofConfig config
   ⟨rails, Vector.replicate _ (Weight.project config.rule .zero),
-    Vector.replicate _ rails.initial, TransientState.zero dimension⟩
+    Vector.replicate _ rails.initial, Vector.replicate _ rails.initial.alpha,
+    LogStepSize.Evaluated.replicate _ rails.initial, TransientState.zero dimension⟩
+
+/-- The stored step size of one feature, read without evaluation. It is marked
+`@[inline]` so that the compiled read is a field access, not a call that takes
+the whole state; that is a performance choice and changes no value. -/
+@[inline] def NumericState.stepSize {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (index : FeatIdx dimension) : Binary32 :=
+  state.alpha.get index
+
+/-- A stored step size is the portable exponential of the stored log step size,
+for every state of the type and every index. -/
+theorem NumericState.stepSize_eq {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (index : FeatIdx dimension) :
+    state.stepSize index = (state.beta.get index).alpha :=
+  state.evaluated index.val index.isLt
 
 /-- A raw weight write cannot replace the configuration or bypass its projection. -/
 def NumericState.writeWeight {config : Config} {dimension : Dimension}
@@ -417,10 +503,20 @@ def NumericState.writeWeight {config : Config} {dimension : Dimension}
     NumericState config dimension :=
   { state with weights := state.weights.set index.val (Weight.project config.rule raw) index.isLt }
 
+/-- Install an already-legal log step size without a further projection, beside
+its portable exponential: the listed write of one log step size. -/
+def NumericState.writeBetaValue {config : Config} {dimension : Dimension}
+    (state : NumericState config dimension) (index : FeatIdx dimension)
+    (value : LogStepSize state.rails) : NumericState config dimension :=
+  { state with
+    beta := state.beta.set index.val value index.isLt
+    alpha := state.alpha.set index.val value.alpha index.isLt
+    evaluated := state.evaluated.set index.val index.isLt value value.alpha rfl }
+
 /-- A raw log-step write cannot switch rails or bypass saturation. -/
 def NumericState.writeBeta {config : Config} {dimension : Dimension}
     (state : NumericState config dimension) (index : FeatIdx dimension) (raw : Binary32) :
     NumericState config dimension :=
-  { state with beta := state.beta.set index.val (LogStepSize.project state.rails raw) index.isLt }
+  state.writeBetaValue index (LogStepSize.project state.rails raw)
 
 end Acorn

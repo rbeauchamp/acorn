@@ -123,7 +123,7 @@ theorem _root_.Acorn.Features.Skill.stepTemporal_interest {mode : Bool} (skill :
     (next : OptionContinuation dimension activation) (reward : Binary32) (gain : RewardRate)
     (rng : Rng.Xoshiro256) :
     (skill.stepTemporal models activation next reward gain rng).1.interest = skill.interest := by
-  simp only [Skill.stepTemporal]
+  simp only [Skill.stepTemporal_eq]
   split <;> simp only [Skill.optionStep] <;> split <;> rfl
 
 /-- Terminal policy/model credit retains its original objective. -/
@@ -203,6 +203,7 @@ theorem TemporalControl.stepOption_aligned (state : TemporalControl profile conf
     (values : Vector Binary32 metaCount.word.toNat) (decision : Option (PolicyDecision metaCount))
     (started : Bool) (ended : Option EndEvent) :
     (state.stepOption models slot activation next reward values decision started ended).1.Aligned := by
+  rw [TemporalControl.stepOption_eq]
   apply state.withSkill_aligned aligned slot
   rw [Skill.stepTemporal_interest]
   rfl
@@ -233,7 +234,7 @@ theorem TemporalControl.refreshFree_aligned (state : TemporalControl profile con
 theorem TemporalControl.learnMeta_aligned (state : TemporalControl profile config criterion dimension)
     (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
     (state.learnMeta features decision).Aligned := by
-  unfold TemporalControl.learnMeta
+  rw [TemporalControl.learnMeta_eq]
   split <;> exact aligned
 
 /-- The common finish changes primitive credit, demons and gain, retaining every option source. -/
@@ -307,7 +308,10 @@ theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile conf
     obtain ⟨potential, hp⟩ := Interest.aligned_potential
       (learned.runtime.lifecycle.consumers.skills.get slot).interest hs features observation
     simp only [hp, bind, Option.bind]
-    refine ⟨_, _, rfl, ?_⟩
+    have total : ∀ result : TemporalControl profile config criterion dimension × TemporalDecision,
+        result.1.Aligned → ∃ next selected, some result = some (next, selected) ∧ next.Aligned :=
+      fun result resultAligned => ⟨result.1, result.2, rfl, resultAligned⟩
+    apply total
     apply TemporalControl.stepOption_aligned (values := decision.snapshot.values)
       (decision := some decision) (started := true) (ended := ended)
     apply learned.withSkill_aligned learnedAligned

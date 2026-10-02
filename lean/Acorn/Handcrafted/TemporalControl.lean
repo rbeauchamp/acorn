@@ -231,20 +231,56 @@ def TemporalControl.serve (state : TemporalControl profile config criterion dime
     pure (state, ⟨.explorationContinuation, action, values, servedProbabilities action, true, metaValues, none, none, none⟩)
   | .idle | .option _ _ => none
 
-/-- Install a drawn option action and retain the same slot/activation for the next frame. -/
+/-- Install a drawn option action and retain the same slot/activation for the next frame.
+The state is consumed and the option taken out of the table before its learners
+are updated, and `TemporalControl.stepOption_eq` proves the result equal to the
+listed composition. The ordering is meant to let the runtime reuse the learners'
+storage when the state and the option are referenced nowhere else; that is a
+performance expectation, not a proved property (see `detachedUpdate`). -/
 def TemporalControl.stepOption (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : (OptionActivation (profile.mode != .frozen))) (next : OptionContinuation dimension activation)
     (reward : Binary32) (metaValues : Vector Binary32 metaCount.word.toNat)
     (metaDecision : Option (PolicyDecision metaCount)) (started : Bool) (ended : Option EndEvent) :
     TemporalControl profile config criterion dimension × TemporalDecision :=
-  let skill := state.runtime.lifecycle.consumers.skills.get slot
-  let result := skill.stepTemporal models activation next reward state.average.rate state.runtime.references.rng
-  let state := (state.withSkill slot result.1).withPhase (.option slot result.2.1)
-  let state := { state with runtime := { state.runtime with references := { state.runtime.references with rng := result.2.2.2 } } }
-  let decision := result.2.2.1
-  (state, ⟨.option slot, decision.action, decision.snapshot.values, decision.probabilities,
-    decision.explored, metaValues, metaDecision, if started then some slot else none, ended⟩)
+  let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+    credit, creditMatches, average, rate, lifetime⟩ := state
+  let stepped := detachedUpdate skills slot fun skill =>
+    skill.stepTemporal models activation next reward average.rate references.rng
+  let decision := stepped.2.2.1
+  (⟨⟨⟨representation, ⟨control, metaController, stepped.1, demons⟩⟩, refresh,
+      { references with phase := .option slot stepped.2.1, rng := stepped.2.2.2 }⟩,
+      credit, creditMatches, average, rate, lifetime⟩,
+    ⟨.option slot, decision.action, decision.snapshot.values, decision.probabilities,
+      decision.explored, metaValues, metaDecision, if started then some slot else none, ended⟩)
+
+/-- Taking the option out of the table before its update preserves the complete
+composition, for every state, slot, activation and reward word: the stepped
+option is written back to its slot, and the phase and random state follow it. -/
+theorem TemporalControl.stepOption_eq (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : (OptionActivation (profile.mode != .frozen))) (next : OptionContinuation dimension activation)
+    (reward : Binary32) (metaValues : Vector Binary32 metaCount.word.toNat)
+    (metaDecision : Option (PolicyDecision metaCount)) (started : Bool) (ended : Option EndEvent) :
+    state.stepOption models slot activation next reward metaValues metaDecision started ended =
+      let skill := state.runtime.lifecycle.consumers.skills.get slot
+      let result := skill.stepTemporal models activation next reward state.average.rate
+        state.runtime.references.rng
+      let state := (state.withSkill slot result.1).withPhase (.option slot result.2.1)
+      let state := { state with runtime := { state.runtime with references :=
+        { state.runtime.references with rng := result.2.2.2 } } }
+      let decision := result.2.2.1
+      (state, ⟨.option slot, decision.action, decision.snapshot.values, decision.probabilities,
+        decision.explored, metaValues, metaDecision, if started then some slot else none, ended⟩) := by
+  cases state with
+  | mk runtime credit creditMatches average rate lifetime =>
+    cases runtime with
+    | mk lifecycle refresh references =>
+      cases lifecycle with
+      | mk representation consumers =>
+        cases consumers
+        simp only [TemporalControl.stepOption, detachedUpdate_eq]
+        rfl
 
 /-- Terminal credit goes to the detached old owner when identity changed.
 Its result is discarded with that retired objective, never written into the replacement. -/
@@ -292,17 +328,45 @@ def TemporalControl.drawMeta (state : TemporalControl profile config criterion d
   let drawn := (state.runtime.lifecycle.consumers.metaController.snapshot (count := metaCount) features state.metaRate).draw state.runtime.references.rng
   ({ state with runtime := { state.runtime with references := { state.runtime.references with rng := drawn.2 } } }, drawn.1)
 
-/-- Repay and close the meta span using its actual already-drawn action. -/
+/-- Repay and close the meta span using its actual already-drawn action. The state
+is consumed before the controller is credited, and `TemporalControl.learnMeta_eq`
+proves the result equal to the listed composition. The ordering is meant to let
+the runtime reuse the rows' storage when the state is referenced nowhere else;
+that is a performance expectation, not a proved property. -/
 def TemporalControl.learnMeta (state : TemporalControl profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
     TemporalControl profile config criterion dimension :=
   if profile.mode == .frozen then state else
     let owed := state.gap.close
-    let controller := state.runtime.lifecycle.consumers.metaController.policyStep features decision
-      (criterion.center owed.1 owed.2 state.average.rate) owed.2
-    let state := state.withGap .closed
-    { state with runtime := { state.runtime with lifecycle := { state.runtime.lifecycle with
-      consumers := { state.runtime.lifecycle.consumers with metaController := controller } } } }
+    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+      credit, creditMatches, average, rate, lifetime⟩ := state
+    let controller := metaController.policyStep features decision
+      (criterion.center owed.1 owed.2 average.rate) owed.2
+    ⟨⟨⟨representation, ⟨control, controller, skills, demons⟩⟩, refresh,
+        { references with gapSteps := CreditGap.closed.steps, gapReward := CreditGap.closed.reward }⟩,
+      credit, creditMatches, average, rate, lifetime⟩
+
+/-- Consuming the state before the meta-controller's update preserves the complete
+composition, for every state, feature list and drawn decision: the controller is
+credited the owed span and the span is closed. -/
+theorem TemporalControl.learnMeta_eq (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
+    state.learnMeta features decision =
+      if profile.mode == .frozen then state else
+        let owed := state.gap.close
+        let controller := state.runtime.lifecycle.consumers.metaController.policyStep features
+          decision (criterion.center owed.1 owed.2 state.average.rate) owed.2
+        let state := state.withGap .closed
+        { state with runtime := { state.runtime with lifecycle := { state.runtime.lifecycle with
+          consumers := { state.runtime.lifecycle.consumers with metaController := controller } } } } := by
+  cases state with
+  | mk runtime credit creditMatches average rate lifetime =>
+    cases runtime with
+    | mk lifecycle refresh references =>
+      cases lifecycle with
+      | mk representation consumers =>
+        cases consumers
+        rfl
 
 /-- Meta zero delegates to primitives; each other admitted action names exactly one skill. -/
 def skillOfMeta (action : Action metaCount.word.toNat) : Option (Fin Acorn.FeatureConstants.skillCount) :=

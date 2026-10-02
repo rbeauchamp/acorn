@@ -78,10 +78,10 @@ def modelSlots (model : Model dimension criterion) : Nat :=
 /-- Each model's logical retained storage is linear in its receiving dimension,
 independently of stream length. Native object headers and allocator reuse are separate. -/
 theorem model_storage (model : Model dimension criterion) :
-    modelSlots model ≤ model.stored.length * (12 * dimension.capacity + 2) := by
+    modelSlots model ≤ model.stored.length * (13 * dimension.capacity + 2) := by
   have bound (readers : List (PackedLearner dimension)) :
       (readers.map (fun reader => retainedSlots reader.2.state)).sum ≤
-        readers.length * (12 * dimension.capacity + 2) := by
+        readers.length * (13 * dimension.capacity + 2) := by
     induction readers with
     | nil => simp
     | cons reader rest ih =>
@@ -322,7 +322,7 @@ theorem first_model_omitted {mode : Bool} (skill : Skill config criterion dimens
     (skill.stepTemporal (modelOperations criterion dimension) activation next reward gain
       rng).1.model =
       skill.model := by
-  simp [Skill.stepTemporal, first, Skill.optionStep]
+  simp [Skill.stepTemporal_eq, first, Skill.optionStep]
   split <;> rfl
 
 /-- Continuing model credit consumes raw reward and the pre-increment age,
@@ -334,7 +334,7 @@ theorem continuing_model_owner {mode : Bool} (skill : Skill config criterion dim
     (skill.stepTemporal (modelOperations criterion dimension) activation next reward gain
       rng).1.model =
       skill.model.step next.features activation.age reward := by
-  simp [Skill.stepTemporal, Skill.optionStep, learning, continuing, modelOperations]
+  simp [Skill.stepTemporal_eq, Skill.optionStep, learning, continuing, modelOperations]
 
 /-- Every model transition retains its option objective. -/
 theorem model_assignment {mode : Bool} (skill : Skill config criterion dimension)
@@ -343,7 +343,7 @@ theorem model_assignment {mode : Bool} (skill : Skill config criterion dimension
     (skill.stepTemporal (modelOperations criterion dimension) activation next reward gain
       rng).1.interest =
       skill.interest := by
-  unfold Skill.stepTemporal
+  rw [Skill.stepTemporal_eq]
   split <;> dsimp only [Skill.optionStep] <;> split <;> rfl
 
 /-- A changed unit identity resets the very model storage used by prediction and planning. -/

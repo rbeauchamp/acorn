@@ -243,11 +243,16 @@ def writeP (state : NumericState config dimension) (idx : FeatIdx dimension) (wo
   { state with transient := { state.transient with
       p := state.transient.p.set idx.val ⟨word⟩ idx.isLt } }
 
-/-- Install an already-legal log step size without a further projection: the
-re-anchor word read from the learner's own rails. -/
-def writeBetaValue (state : NumericState config dimension) (idx : FeatIdx dimension)
-    (value : LogStepSize state.rails) : NumericState config dimension :=
-  { state with beta := state.beta.set idx.val value idx.isLt }
+/-- The step size the first loop adapts: the re-anchor word's when the weight
+projection binds, the stored one otherwise. Either is the portable exponential of
+the log step size the listed element reads. -/
+theorem anchor_stepSize (state : NumericState config dimension) (idx : FeatIdx dimension)
+    (clipped : Bool) :
+    (if clipped then state.rails.initial.alpha else state.stepSize idx) =
+      (if clipped then state.rails.initial else state.beta.get idx).alpha := by
+  cases clipped
+  · exact state.stepSize_eq idx
+  · rfl
 
 /-- Zero every per-index transient register at `idx`, leaving the knowledge
 slots alone: the register half of the PAR-1 drop path. -/
@@ -307,7 +312,11 @@ def predict (state : NumericState config dimension) (features : ActiveSet dimens
 projects through the immutable criterion and re-anchors the adaptation state
 when the projection binds; the β write saturates through one total
 `LogStepSize` projection; the `h` register lags so the accumulating `hTemp`
-stays the eq. (32) h_t. Returns the updated state and whether the decayed
+stays the eq. (32) h_t. The step size `e^{β[i]}` is read from storage, and
+the one stored for the adapted `β[i]` is that word again when the adaptation
+leaves `β[i]` unchanged and its portable exponential otherwise;
+`firstLoopElement_eq` equates the element with the listed one, whose every
+exponential is evaluated. Returns the updated state and whether the decayed
 trace fell to `ε · lastAlpha`, the pruning condition. The element never
 touches the eligible list. -/
 def firstLoopElement (state : NumericState config dimension) (idx : FeatIdx dimension)
@@ -318,19 +327,24 @@ def firstLoopElement (state : NumericState config dimension) (idx : FeatIdx dime
   let weight := Weight.project config.rule raw
   let clipped := !(weight.value.numericallyEqual raw)
   let beta := if clipped then state.rails.initial else state.beta.get idx
+  let alpha := if clipped then state.rails.initial.alpha else state.stepSize idx
   let p := if clipped then Binary32.zero else (state.transient.p.get idx).value
   let zBar := if clipped then Binary32.zero else (state.transient.zBar.get idx).value
   let h := if clipped then Binary32.zero else (state.transient.h.get idx).value
   let hTemp := if clipped then Binary32.zero else (state.transient.hTemp.get idx).value
   let stepped := beta.value.add
-    (((config.metaStep.div beta.alpha).mul (delta.sub vDelta)).mul p)
+    (((config.metaStep.div alpha).mul (delta.sub vDelta)).mul p)
+  let adapted := LogStepSize.project state.rails stepped
   let nextH := (hTemp.add (delta.mul zBar)).sub
     ((state.transient.zDelta.get idx).value.mul vDelta)
   let z := (state.transient.z.get idx).value.mul traceDecay
   let next : NumericState config dimension := {
     state with
     weights := state.weights.set idx.val weight idx.isLt
-    beta := state.beta.set idx.val (LogStepSize.project state.rails stepped) idx.isLt
+    beta := state.beta.set idx.val adapted idx.isLt
+    alpha := state.alpha.set idx.val (beta.alphaAfter alpha adapted) idx.isLt
+    evaluated := state.evaluated.set idx.val idx.isLt adapted (beta.alphaAfter alpha adapted)
+      (beta.alphaAfter_eq alpha adapted (state.anchor_stepSize idx clipped))
     transient := {
       state.transient with
       z := state.transient.z.set idx.val ⟨z⟩ idx.isLt
@@ -343,6 +357,48 @@ def firstLoopElement (state : NumericState config dimension) (idx : FeatIdx dime
       deltaWeight := state.transient.deltaWeight.set idx.val
         ⟨if clipped then .zero else dw⟩ idx.isLt } }
   (next, z.lessOrEqual ((state.transient.lastAlpha.get idx).value.mul config.epsilon))
+
+/-- The executing first-loop element is the listed one: every word is the one
+Algorithm 1 lists with `e^{β[i]}` the portable exponential of the log step size it
+adapts, the re-anchor word when the weight projection binds and the stored one
+otherwise, and the adapted log step size is stored beside its own exponential.
+Reading the stored step size and keeping it for an unchanged word change nothing.
+This holds for every state, index and raw argument word. -/
+theorem firstLoopElement_eq (state : NumericState config dimension) (idx : FeatIdx dimension)
+    (delta vDelta traceDecay : Binary32) :
+    state.firstLoopElement idx delta vDelta traceDecay =
+      let dw := (delta.mul (state.transient.z.get idx).value).sub
+        ((state.transient.zDelta.get idx).value.mul vDelta)
+      let raw := (state.weights.get idx).value.add dw
+      let weight := Weight.project config.rule raw
+      let clipped := !(weight.value.numericallyEqual raw)
+      let beta := if clipped then state.rails.initial else state.beta.get idx
+      let p := if clipped then Binary32.zero else (state.transient.p.get idx).value
+      let zBar := if clipped then Binary32.zero else (state.transient.zBar.get idx).value
+      let h := if clipped then Binary32.zero else (state.transient.h.get idx).value
+      let hTemp := if clipped then Binary32.zero else (state.transient.hTemp.get idx).value
+      let stepped := beta.value.add
+        (((config.metaStep.div beta.alpha).mul (delta.sub vDelta)).mul p)
+      let nextH := (hTemp.add (delta.mul zBar)).sub
+        ((state.transient.zDelta.get idx).value.mul vDelta)
+      let z := (state.transient.z.get idx).value.mul traceDecay
+      let next : NumericState config dimension := {
+        state with
+        weights := state.weights.set idx.val weight idx.isLt
+        transient := {
+          state.transient with
+          z := state.transient.z.set idx.val ⟨z⟩ idx.isLt
+          zDelta := state.transient.zDelta.set idx.val ⟨.zero⟩ idx.isLt
+          zBar := state.transient.zBar.set idx.val ⟨zBar.mul traceDecay⟩ idx.isLt
+          p := state.transient.p.set idx.val ⟨p.mul traceDecay⟩ idx.isLt
+          hOld := state.transient.hOld.set idx.val ⟨h⟩ idx.isLt
+          h := state.transient.h.set idx.val ⟨hTemp⟩ idx.isLt
+          hTemp := state.transient.hTemp.set idx.val ⟨nextH⟩ idx.isLt
+          deltaWeight := state.transient.deltaWeight.set idx.val
+            ⟨if clipped then .zero else dw⟩ idx.isLt } }
+      (next.writeBetaValue idx (LogStepSize.project state.rails stepped),
+        z.lessOrEqual ((state.transient.lastAlpha.get idx).value.mul config.epsilon)) := by
+  simp only [firstLoopElement, anchor_stepSize, LogStepSize.alphaAfter_self, writeBetaValue]
 
 /-- The first-loop traversal: trace-eligible weights in eligible order with
 swap-remove pruning. The worklist is the state's eligible list at entry; each
@@ -382,8 +438,9 @@ trace and meta-gradient updates. A zero trace joins the eligible list, the
 only admission; the check reads the entry trace, before this element's writes.
 The caller supplies the three words no visit changes for a later one: the
 trace scale `scale = η/e`, the complement `oneSubT = 1 − t` of the trace
-total, and this feature's step size `alpha = e^{β[i]}`. Returns the updated
-state and shared update accumulator. -/
+total, and this feature's step size `alpha = e^{β[i]}`. The decayed log step
+size is stored beside its own portable exponential. Returns the updated state
+and shared update accumulator. -/
 def secondLoopElementAt (overshoot : Bool) (scale oneSubT alpha : Binary32)
     (state : NumericState config dimension) (vDelta : Binary32) (idx : FeatIdx dimension) :
     NumericState config dimension × Binary32 :=
@@ -398,14 +455,9 @@ def secondLoopElementAt (overshoot : Bool) (scale oneSubT alpha : Binary32)
   let hTemp := (((state.transient.hTemp.get idx).value.sub
     ((state.transient.hOld.get idx).value.mul (z.sub zd))).sub
       ((state.transient.h.get idx).value.mul zd))
-  let beta := if overshoot then
-    state.beta.set idx.val
-      (LogStepSize.project state.rails ((state.beta.get idx).value.add state.rails.decay)) idx.isLt
-    else state.beta
   let h := if overshoot then state.transient.h.set idx.val ⟨.zero⟩ idx.isLt else state.transient.h
   let next : NumericState config dimension := {
     state with
-    beta := beta
     transient := {
       state.transient with
       eligible := eligible
@@ -416,12 +468,16 @@ def secondLoopElementAt (overshoot : Bool) (scale oneSubT alpha : Binary32)
       zBar := state.transient.zBar.set idx.val ⟨if overshoot then .zero else zBar⟩ idx.isLt
       hTemp := state.transient.hTemp.set idx.val ⟨if overshoot then .zero else hTemp⟩ idx.isLt
       h := h } }
-  (next, vDelta)
+  (match overshoot with
+    | true => next.writeBetaValue idx
+        (LogStepSize.project next.rails ((next.beta.get idx).value.add next.rails.decay))
+    | false => next, vDelta)
 
 /-- The second-loop element as Algorithm 1 lists it: the scale `η/e` and
-complement `1 − t` come from its arguments, and its step size `e^{β[i]}` from
-the state it receives. The learner contracts are stated about this element.
-The executing traversal evaluates each of the three words once, and
+complement `1 − t` come from its arguments, and its step size `e^{β[i]}` is the
+portable exponential of the log step size in the state it receives. The learner
+contracts are stated about this element. The executing traversal computes the
+scale and complement once and reads each step size from storage, and
 `learnSecondLoop_eq_sumFrom` proves it equal to the fold of this element. -/
 def secondLoopElement (config : Config) (overshoot : Bool) (e t : Binary32)
     (state : NumericState config dimension) (vDelta : Binary32) (idx : FeatIdx dimension) :
@@ -443,10 +499,18 @@ theorem secondLoopElementAt_alpha (overshoot : Bool) (scale oneSubT alpha : Bina
   congr 1
   cases overshoot
   · rfl
-  · simp only [secondLoopElementAt, read, Vector.getElem_set, distinct, ite_false, ite_true]
+  · simp only [secondLoopElementAt, writeBetaValue, read,
+      Vector.getElem_set, distinct, ite_false]
+
+/-- The stored step sizes of a feature list are the portable exponentials of its
+stored log step sizes, in order, for every state and list. -/
+theorem stepSizes_eq (state : NumericState config dimension)
+    (indices : List (FeatIdx dimension)) :
+    indices.map state.stepSize = indices.map fun idx => (state.beta.get idx).alpha :=
+  List.map_congr_left fun idx _ => state.stepSize_eq idx
 
 /-- The second-loop traversal: the active features in first-occurrence order,
-each visit receiving its step size from the list evaluated at loop entry. The
+each visit receiving its step size from the list read at loop entry. The
 two lists advance together and a visit needs an entry of each, so traversal
 ends with the shorter; `learnSecondLoop` supplies one step size per index. -/
 def learnSecondLoopGo (overshoot : Bool) (scale oneSubT : Binary32) :
@@ -497,12 +561,12 @@ theorem learnSecondLoopGo_eq_foldl (config : Config) (overshoot : Bool) (e t : B
 /-- The second loop of the update: the active features in first-occurrence
 order. `τ = Σ_{i∈F} e^{β[i]}` (eq. (7), p. 845), one overshoot binding for
 both the trace scale and the step-size decay, and the shared `vDelta`
-accumulator returned to the caller. Each step size `e^{β[i]}` is evaluated
-once, for both `τ` and its feature's trace increment. -/
+accumulator returned to the caller. Each step size `e^{β[i]}` is read once
+from storage, for both `τ` and its feature's trace increment. -/
 def learnSecondLoop (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) (vDelta : Binary32) :
     NumericState config dimension × Binary32 :=
-  let alphas := features.indices.map fun idx => (state.beta.get idx).alpha
+  let alphas := features.indices.map state.stepSize
   let rate := Binary32.sumFrom .zero alphas
   let overshoot := config.eta.less rate
   let e := if overshoot then rate else config.eta
@@ -526,7 +590,7 @@ theorem learnSecondLoop_eq_sumFrom (config : Config) (state : NumericState confi
       features.indices.foldl
         (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
         (state, vDelta) := by
-  simp only [learnSecondLoop, Binary32.sumMap_eq]
+  simp only [learnSecondLoop, Binary32.sumMap_eq, stepSizes_eq]
   exact learnSecondLoopGo_eq_foldl config _ _ _ features.indices features.nodup state vDelta
 
 /-- One full single-learner update: predict, then the two loops with this
@@ -562,7 +626,7 @@ def terminalStep (config : Config) (state : NumericState config dimension) (targ
   (state.clearTransient, delta)
 
 /-- The planning weight traversal: the active features in first-occurrence
-order, each visit receiving its step size from the list evaluated at entry.
+order, each visit receiving its step size from the list read at entry.
 The two lists advance together and a visit needs an entry of each, so
 traversal ends with the shorter; `planStep` supplies one step size per index. -/
 def planWeightsGo (scale delta : Binary32) :
@@ -591,8 +655,8 @@ theorem planWeightsGo_eq_foldl (scale delta : Binary32) (indices : List (FeatIdx
 /-- A single background planning update toward `target` at `features` without
 modifying eligibility traces or meta-gradient registers (PAR-14; Dyna 1991,
 STOMP eq. (19)): `w[i] ← project (w[i] + (η/E)·α[i]·δ)`. A nonfinite or zero
-error is no update. Each step size `α[i]` is evaluated once, for both `E` and
-its feature's weight write. -/
+error is no update. Each step size `α[i]` is read once from storage, for both
+`E` and its feature's weight write. -/
 def planStep (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) (target : Binary32) :
     NumericState config dimension × Binary32 :=
@@ -600,7 +664,7 @@ def planStep (config : Config) (state : NumericState config dimension)
   let delta := target.sub v
   if !decide delta.Finite || delta.numericallyEqual .zero then (state, .zero)
   else
-    let alphas := features.indices.map fun idx => (state.beta.get idx).alpha
+    let alphas := features.indices.map state.stepSize
     let rate := Binary32.sumFrom .zero alphas
     let e := if config.eta.less rate then rate else config.eta
     (planWeightsGo (config.eta.div e) delta features.indices alphas state, delta)
@@ -623,7 +687,7 @@ theorem planStep_eq_foldl (config : Config) (state : NumericState config dimensi
           let stepSize := (scale.mul (state.beta.get idx).alpha).mul delta
           state.writeWeight idx ((state.weights.get idx).value.add stepSize)) state
         (state, delta) := by
-  simp only [planStep, planWeightsGo_eq_foldl]
+  simp only [planStep, stepSizes_eq, planWeightsGo_eq_foldl]
 
 /-- Replace one feature's knowledge and transients with a fresh unit's start
 state: the first eligible occurrence removed (the whole membership under
@@ -651,10 +715,16 @@ def restoreWeights (state : NumericState config dimension) (raw : List Binary32)
   { state with weights := SwiftTd.restorePrefix (Weight.project config.rule) state.weights raw }
 
 /-- Overwrite the learned log step sizes from an untrusted source, saturating
-each through this learner's own rails; the same zipped-prefix traversal. -/
+each through this learner's own rails; the same zipped-prefix traversal. Every
+step size is then evaluated from the restored log step sizes, so no stored step
+size crosses the restore boundary. -/
 def restoreLogStepSizes (state : NumericState config dimension) (raw : List Binary32) :
     NumericState config dimension :=
-  { state with beta := SwiftTd.restorePrefix (LogStepSize.project state.rails) state.beta raw }
+  let beta := SwiftTd.restorePrefix (LogStepSize.project state.rails) state.beta raw
+  { state with
+    beta := beta
+    alpha := beta.map fun stored => stored.alpha
+    evaluated := LogStepSize.Evaluated.map beta }
 
 /-- Exclusive restoration without learner or configuration replacement: both
 knowledge arrays through their own refinements, then process-local registers
@@ -707,8 +777,9 @@ def checksumMultiplier : UInt64 := 0x00000100000001b3
 def checksumRotate (word : UInt64) : UInt64 := (word <<< 13) ||| (word >>> 51)
 
 /-- A checksum of the learner knowledge state — the deterministic audit's raw
-material: per slot, the weight word is folded, mixed, the step-size word
-folded, and the accumulator rotated by 13, in index order. -/
+material: per slot, the weight word is folded, mixed, the log-step-size word
+folded, and the accumulator rotated by 13, in index order. The stored step
+sizes are a function of the log step sizes and are not folded. -/
 def stateChecksum (state : NumericState config dimension) : UInt64 :=
   (state.weights.zip state.beta).foldl (fun hash (weight, beta) =>
     checksumRotate (((hash ^^^ weight.value.bits.toUInt64) * checksumMultiplier) ^^^
