@@ -513,23 +513,20 @@ def NumericState.writeWeight {config : Config} {dimension : Dimension}
     NumericState config dimension :=
   { state with weights := state.weights.set index.val (Weight.project config.rule raw) index.isLt }
 
-/-- Install an already-legal log step size beside the step size the caller holds
-for it. The proof that the word is that log step size's portable exponential is
-erased at run time. -/
-def NumericState.writeStepSize {config : Config} {dimension : Dimension}
+/-- Install an already-legal log step size without a further projection, beside
+its portable exponential: the listed write of one log step size. -/
+def NumericState.writeBetaValue {config : Config} {dimension : Dimension}
     (state : NumericState config dimension) (index : FeatIdx dimension)
-    (value : LogStepSize state.rails) (word : Binary32) (same : word = value.alpha) :
-    NumericState config dimension :=
+    (value : LogStepSize state.rails) : NumericState config dimension :=
   { state with
     beta := state.beta.set index.val value index.isLt
-    alpha := state.alpha.set index.val word index.isLt
-    evaluated := state.evaluated.set index.val index.isLt value word same }
+    alpha := state.alpha.set index.val value.alpha index.isLt
+    evaluated := state.evaluated.set index.val index.isLt value value.alpha rfl }
 
 /-- A raw log-step write cannot switch rails or bypass saturation. -/
 def NumericState.writeBeta {config : Config} {dimension : Dimension}
     (state : NumericState config dimension) (index : FeatIdx dimension) (raw : Binary32) :
     NumericState config dimension :=
-  state.writeStepSize index (LogStepSize.project state.rails raw)
-    (LogStepSize.project state.rails raw).alpha rfl
+  state.writeBetaValue index (LogStepSize.project state.rails raw)
 
 end Acorn

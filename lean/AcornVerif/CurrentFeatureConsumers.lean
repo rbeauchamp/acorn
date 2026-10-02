@@ -66,8 +66,7 @@ theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
   have cleared := retire_registers before.2.state feature
   have rails : (before.2.state.retireIndex feature).rails = before.2.state.rails := by
     unfold NumericState.retireIndex
-    split <;> simp only [NumericState.writeBetaValue, NumericState.writeStepSize,
-      NumericState.writeWeight,
+    split <;> simp only [NumericState.writeBetaValue, NumericState.writeWeight,
       NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
       NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
       NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,

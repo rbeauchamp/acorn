@@ -243,20 +243,6 @@ def writeP (state : NumericState config dimension) (idx : FeatIdx dimension) (wo
   { state with transient := { state.transient with
       p := state.transient.p.set idx.val ⟨word⟩ idx.isLt } }
 
-/-- Install an already-legal log step size without a further projection, beside
-its portable exponential: the listed write of one log step size. -/
-def writeBetaValue (state : NumericState config dimension) (idx : FeatIdx dimension)
-    (value : LogStepSize state.rails) : NumericState config dimension :=
-  state.writeStepSize idx value value.alpha rfl
-
-/-- A step-size write stores the log step size it was given and that word's
-portable exponential, whichever word the writer held: it is the listed write. -/
-theorem writeStepSize_eq (state : NumericState config dimension) (idx : FeatIdx dimension)
-    (value : LogStepSize state.rails) (word : Binary32) (same : word = value.alpha) :
-    state.writeStepSize idx value word same = state.writeBetaValue idx value := by
-  subst same
-  rfl
-
 /-- The step size the first loop adapts: the re-anchor word's when the weight
 projection binds, the stored one otherwise. Either is the portable exponential of
 the log step size the listed element reads. -/
@@ -412,8 +398,7 @@ theorem firstLoopElement_eq (state : NumericState config dimension) (idx : FeatI
             ⟨if clipped then .zero else dw⟩ idx.isLt } }
       (next.writeBetaValue idx (LogStepSize.project state.rails stepped),
         z.lessOrEqual ((state.transient.lastAlpha.get idx).value.mul config.epsilon)) := by
-  simp only [firstLoopElement, anchor_stepSize, LogStepSize.alphaAfter_self, writeBetaValue,
-    NumericState.writeStepSize]
+  simp only [firstLoopElement, anchor_stepSize, LogStepSize.alphaAfter_self, writeBetaValue]
 
 /-- The first-loop traversal: trace-eligible weights in eligible order with
 swap-remove pruning. The worklist is the state's eligible list at entry; each
@@ -514,7 +499,7 @@ theorem secondLoopElementAt_alpha (overshoot : Bool) (scale oneSubT alpha : Bina
   congr 1
   cases overshoot
   · rfl
-  · simp only [secondLoopElementAt, writeBetaValue, NumericState.writeStepSize, read,
+  · simp only [secondLoopElementAt, writeBetaValue, read,
       Vector.getElem_set, distinct, ite_false]
 
 /-- The stored step sizes of a feature list are the portable exponentials of its

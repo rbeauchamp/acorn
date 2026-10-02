@@ -102,7 +102,7 @@ theorem retireIndex_weight_other (state : NumericState config dimension)
     NumericState.writeZ, NumericState.writeP, NumericState.writeZBar,
     NumericState.writeDeltaWeight, NumericState.writeZDelta, NumericState.writeH,
     NumericState.writeHOld, NumericState.writeHTemp, NumericState.writeLastAlpha,
-    NumericState.writeWeight, NumericState.writeBetaValue, NumericState.writeStepSize,
+    NumericState.writeWeight, NumericState.writeBetaValue,
     CurrentLearner.vector_get,
     Vector.getElem_set_ne _ _ distinct]
 

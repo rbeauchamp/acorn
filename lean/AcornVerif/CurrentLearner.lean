@@ -422,7 +422,7 @@ theorem second_element_overshoot (state : NumericState config dimension) (idx : 
       (LogStepSize.project state.rails
         ((state.beta.get idx).value.add state.rails.decay)).value := by
   simp [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
-    NumericState.writeBetaValue, NumericState.writeStepSize, vector_get]
+    NumericState.writeBetaValue, vector_get]
 
 /-- One active visit cannot change another feature's knowledge or registers. -/
 theorem second_element_frame (state : NumericState config dimension)
@@ -436,7 +436,7 @@ theorem second_element_frame (state : NumericState config dimension)
   have distinct : idx.val ≠ other.val := fun same => different (Fin.ext same)
   cases overshoot <;>
     simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
-      NumericState.writeBetaValue, NumericState.writeStepSize, registers,
+      NumericState.writeBetaValue, registers,
       vector_get, Vector.getElem_set, distinct, ite_false, ite_true, Bool.false_eq_true, and_self]
 
 /-- The only eligible admission of an active visit reads the entry trace. -/
@@ -562,7 +562,7 @@ theorem second_element_reference (state : NumericState config dimension) (idx : 
       (config.eta.div denominator).mul (state.beta.get idx).alpha := by
   cases overshoot <;>
     simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
-      NumericState.writeBetaValue, NumericState.writeStepSize, vector_get,
+      NumericState.writeBetaValue, vector_get,
       Vector.getElem_set_self, ite_false, ite_true, Bool.false_eq_true]
 
 /-- Existing eligible members survive an active visit in their existing order. -/
@@ -1422,7 +1422,6 @@ theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx 
     NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
     NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
     NumericState.writeLastAlpha, NumericState.writeWeight, NumericState.writeBetaValue,
-    NumericState.writeStepSize,
     vector_get, Weight.project, Bounded32.projectSymmetric, zero, Weight.value,
     show Array.replicate 9 Binary32.zero =
       #[Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero,
