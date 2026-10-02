@@ -421,7 +421,7 @@ theorem second_element_overshoot (state : NumericState config dimension) (idx : 
     (next.beta.get idx).value =
       (LogStepSize.project state.rails
         ((state.beta.get idx).value.add state.rails.decay)).value := by
-  simp [NumericState.secondLoopElement, vector_get]
+  simp [NumericState.secondLoopElement, NumericState.secondLoopElementAt, vector_get]
 
 /-- One active visit cannot change another feature's knowledge or registers. -/
 theorem second_element_frame (state : NumericState config dimension)
@@ -434,8 +434,8 @@ theorem second_element_frame (state : NumericState config dimension)
       registers next other = registers state other := by
   have distinct : idx.val ≠ other.val := fun same => different (Fin.ext same)
   cases overshoot <;>
-    simp only [NumericState.secondLoopElement, registers, vector_get,
-      Vector.getElem_set, distinct, ite_false, ite_true, Bool.false_eq_true, and_self]
+    simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt, registers,
+      vector_get, Vector.getElem_set, distinct, ite_false, ite_true, Bool.false_eq_true, and_self]
 
 /-- The only eligible admission of an active visit reads the entry trace. -/
 theorem second_element_eligible (state : NumericState config dimension) (idx : FeatIdx dimension)
@@ -557,7 +557,8 @@ theorem second_element_reference (state : NumericState config dimension) (idx : 
       (NumericState.secondLoopElement config overshoot denominator total state vDelta idx).1
     (next.transient.lastAlpha.get idx).value =
       (config.eta.div denominator).mul (state.beta.get idx).alpha := by
-  simp only [NumericState.secondLoopElement, vector_get, Vector.getElem_set_self]
+  simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt, vector_get,
+    Vector.getElem_set_self]
 
 /-- Existing eligible members survive an active visit in their existing order. -/
 theorem second_element_contains (state : NumericState config dimension)
@@ -626,8 +627,9 @@ theorem second_element_core (state : NumericState config dimension) (idx : FeatI
       (second_element_frame state idx other same _ _ _ _).2.2]
     exact core.2 other
 
-/-- Finite-prefix composition of the actual active traversal preserves the
-core invariant. No uniqueness premise is needed for this weaker guarantee. -/
+/-- Finite-prefix composition of the listed active fold preserves the core
+invariant; `NumericState.learnSecondLoop_eq_sumFrom` equates the executing
+traversal with it. No uniqueness premise is needed for this weaker guarantee. -/
 theorem second_fold_core (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (rate total vDelta : Binary32)
     (finite : rate.Finite) (core : CoreInv state) :
@@ -651,7 +653,7 @@ theorem second_loop_core (state : NumericState config dimension) (features : Act
   rw [NumericState.learnSecondLoop_eq_sumFrom]
   exact second_fold_core features.indices state _ _ vDelta finite core
 
-/-- Exact eligible-sequence change of the actual fold over unique active
+/-- Exact eligible-sequence change of the listed fold over unique active
 indices. The filter reads the entry state because earlier distinct visits
 cannot alter a later feature's trace. -/
 theorem second_fold_eligible (indices : List (FeatIdx dimension)) (unique : indices.Nodup)
@@ -690,8 +692,9 @@ theorem second_loop_eligible (state : NumericState config dimension)
     (vDelta : Binary32) :
     (state.learnSecondLoop config features vDelta).1.transient.eligible.toList =
       state.transient.eligible.toList ++
-        features.indices.filter (fun idx => (state.transient.z.get idx).value.isZero) :=
-  second_fold_eligible features.indices features.nodup state _ _ _ vDelta
+        features.indices.filter (fun idx => (state.transient.z.get idx).value.isZero) := by
+  rw [NumericState.learnSecondLoop_eq_sumFrom]
+  exact second_fold_eligible features.indices features.nodup state _ _ _ vDelta
 
 /-- The actual eligible count grows by precisely the number of zero-trace
 active admissions; repeated calls have no unconditional capacity bound. -/
@@ -866,8 +869,9 @@ theorem ready_of_transient_eq (before after : NumericState config dimension)
     (same : after.transient = before.transient) (ready : Ready before) : Ready after := by
   simpa only [Ready, same] using ready
 
-/-- The actual background weight traversal leaves every transient array,
-eligible element and aggregate word exactly unchanged. -/
+/-- The background weight fold that `NumericState.planStep_eq_foldl` equates
+the executing traversal with leaves every transient array, eligible element
+and aggregate word exactly unchanged. -/
 theorem plan_fold_transient (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (scale delta : Binary32) :
     (indices.foldl (fun s idx =>
@@ -883,7 +887,8 @@ update branches, for every raw target. -/
 theorem plan_transient (state : NumericState config dimension) (features : ActiveSet dimension)
     (target : Binary32) :
     (state.planStep config features target).1.transient = state.transient := by
-  dsimp only [NumericState.planStep]
+  rw [NumericState.planStep_eq_foldl]
+  dsimp only
   split
   · rfl
   · exact plan_fold_transient features.indices state _ _
