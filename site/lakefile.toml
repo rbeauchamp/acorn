@@ -1,0 +1,33 @@
+name = "acorn_site"
+defaultTargets = ["AcornSite", "AcornDocs"]
+# Share the Acorn package's dependency checkouts (Mathlib and its artifacts) instead of a
+# second copy. The ownership gate requires this lock manifest to lock every dependency of
+# `lean/lake-manifest.json` to the same revision.
+packagesDir = "../lean/.lake/packages"
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+warningAsError = true
+
+# Pinned Verso, the revision Regula's site uses on the same Lean and Mathlib; the exact
+# transitive revisions are locked in lake-manifest.json.
+[[require]]
+name = "verso"
+git = "https://github.com/leanprover/verso"
+rev = "cad4b633e75ea769b851f12f9ca3b4f0dfcc625f"
+
+# The Lean owners of what the documents cite: declarations, constants and audit pins.
+[[require]]
+name = "acorn"
+path = "../lean"
+
+# Site-owned Verso extensions: owner-checked references and the Markdown rendering.
+[[lean_lib]]
+name = "AcornSite"
+globs = ["AcornSite", "AcornSite.+"]
+
+# The documents.
+[[lean_lib]]
+name = "AcornDocs"
+globs = ["AcornDocs", "AcornDocs.+"]

@@ -1,6 +1,21 @@
-<!-- Generated from site/AcornDocs/Verification.lean by ./scripts/verify.sh site write. Edit that source, not this file. -->
+/-
+Copyright (c) 2026 acorn contributors. All rights reserved.
+Released under the MIT license as described in the repository LICENSE.
+Authors: acorn contributors
+-/
+import VersoManual
+import AcornSite
+import Acorn.Constants
+import Acorn.Host.Checkpoint.Admission
+import AcornVerif.CurrentConstants
 
-# Verification
+open Verso.Genre Manual
+open AcornSite
+
+#doc (Manual) "Verification" =>
+%%%
+tag := "verification"
+%%%
 
 This guide describes Acorn's compiler, proof and execution checks. Each theorem
 states the property and assumptions it checks. For installation and a first run,
@@ -17,7 +32,10 @@ are the trusted mechanisms that enforce this deadline.
 Project instruction changes have no live Acorn runtime surface. The complete
 verification command remains required for documentation changes.
 
-## Platform setup
+# Platform setup
+%%%
+tag := "platform-setup"
+%%%
 
 Use `./scripts/start.sh` for automatic setup and launch, or
 `./scripts/start.sh --prepare-only` to prepare and build without learning.
@@ -62,12 +80,15 @@ inside its deadline. Verification also builds the
 verification likewise requires to be built already. Do not use `lake update` to
 resolve a missing dependency; that changes the selected versions.
 
-Build with `./scripts/lean.sh build acorn-viewer`; Lake also builds its declared
+Build with {spliceCode}`s!"./scripts/lean.sh build {executable "acorn-viewer"}"`; Lake also builds its declared
 core and checkpoint-helper dependencies. OpenSSL is required for build-time
 source hashing. The launcher adds Homebrew's OpenSSL 3 to its own environment;
 manual builds need a usable OpenSSL on PATH.
 
-### Headless and advanced launch
+## Headless and advanced launch
+%%%
+tag := "headless-and-advanced-launch"
+%%%
 
 `./scripts/start.sh --no-browser` prints the actual bound loopback URL.
 `--run-dir DIR` selects another run directory and `--port N` selects a port;
@@ -75,7 +96,10 @@ the default port is allocated by the OS. Browser opening is optional and its
 failure does not stop the agent. Use `./scripts/start.sh --help` for the launcher
 options. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
 
-### Interrupted-launch recovery
+## Interrupted-launch recovery
+%%%
+tag := "interrupted-launch-recovery"
+%%%
 
 The launcher keeps `.acorn-launch/` outside the run directory so that Clear
 cannot remove its ownership lock. An ordinary exit removes the lock. A forced
@@ -88,7 +112,10 @@ temporary files (control, pid and installer.sh) and the
 empty `.acorn-launch/` directory, then rerun the launcher. Preserve `acorn-run/`.
 Do not manually launch another viewer against a directory already in use.
 
-### Build and verification failures
+## Build and verification failures
+%%%
+tag := "build-and-verification-failures"
+%%%
 
 If a tool is missing, install the named prerequisite before retrying. On macOS,
 check that `xcode-select -p` points to an installed, usable developer toolchain.
@@ -96,7 +123,10 @@ If verification reaches its 360-second deadline, retain the failing command
 and diagnostic for a focused report; do not raise the limit or treat a partial
 run as a pass. Run the complete command to check all verification owners.
 
-## Compiler and execution boundary
+# Compiler and execution boundary
+%%%
+tag := "compiler-and-execution-boundary"
+%%%
 
 The complete discovered module inventory must equal the explicitly admitted
 ownership inventory. Every retained native target is built and checked against
@@ -106,22 +136,18 @@ a maintained module with a non-empty module docstring. Before any Lake command,
 any warning, including a header-time warning such as a deprecated import, fails
 the build. Source/compiled admission checks imports, capability owners, artifact
 origins and native routes. Every project theorem is checked for axiom
-dependencies; only propext, Classical.choice and Quot.sound are admitted. The theorem inventory reports the
+dependencies; only {splice}`proseList (AcornTheoremCount.admittedAxioms.toList.map toString)` are admitted. The theorem inventory reports the
 checked declarations. Every proof passes through the kernel.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
-mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine
-words; `AcornVerif.CurrentConstants` checks the stated correspondence with rational and
+mathematics with explicit hypotheses. {leanModule}`Acorn.Constants` owns the shared machine
+words; {leanModule}`AcornVerif.CurrentConstants` checks the stated correspondence with rational and
 dimensional inputs used by the mathematical proofs. For example,
-`AcornVerif.CurrentConstants.explore_rate_value` states that the binary32 word of the
+{decl}`AcornVerif.CurrentConstants.explore_rate_value` states that the binary32 word of the
 declared exploration rate denotes the rational those proofs use:
 
-```lean
-theorem AcornVerif.CurrentConstants.explore_rate_value :
-  AcornVerif.CurrentArithmetic.numerical32 Acorn.Handcrafted.declaredRate.value =
-    AcornVerif.ModelConstants.exploreRate
-```
+{statement AcornVerif.CurrentConstants.explore_rate_value}
 
 Each theorem's actual type owns its domain, hypotheses and guarantee. Binary32
 and Binary64 proofs concern admitted finite words or explicitly stated conversion
@@ -130,7 +156,10 @@ rounding equivalence. Universal program properties are limited to their checked
 implementation linkage. Compiler/native runtime, filesystem stability, the
 reviewed build/gate tools, cryptographic tools and OS remain trusted boundaries.
 
-## Build and source inventory
+# Build and source inventory
+%%%
+tag := "build-and-source-inventory"
+%%%
 
 The build tools check one explicit source inventory, including every shared
 application/proof owner and native entry. Runtime `--research-profile` selects
@@ -158,7 +187,10 @@ acceptance result is cached. Source, boundary, native-route and browser checks
 remain required. Standalone ownership, theorem and corpus commands remain
 available for focused diagnostics.
 
-## Regula audit
+# Regula audit
+%%%
+tag := "regula-audit"
+%%%
 
 [Regula](https://github.com/rbeauchamp/regula) is a strict linter for Lean with a
 published standard. Acorn requires the release pinned in `lean/lakefile.lean` and
@@ -186,7 +218,7 @@ skip it as Lake's build directory.
 
 `lean/foundation_manifest.json` states what is audited. A claim names the
 strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
-NativeApp and Bootstrap, with the ten application executables, claim Regula's
+NativeApp and Bootstrap, with the {splice}`numberWord applicationExecutables.length` application executables, claim Regula's
 standard-logical profile: propext, Quot.sound and Classical.choice, and no other
 axiom. No stricter profile is attainable, because Lean's core definitions of
 binary32 and binary64 arithmetic depend on Classical.choice, as do the Mathlib
@@ -202,7 +234,7 @@ a proof dependency whose theorems use the same three axioms and whose compiled
 functions reach the same Mathlib-owned boundaries; the boundary audit refuses a
 FloatLib import by any executing module. The compiler, native runtime, operating
 system and spawned processes stay trusted in both modes. AcornTools is excluded
-with the six tool executables; it is the reviewed tooling trust boundary.
+with the {splice}`numberWord toolExecutables.length` tool executables; it is the reviewed tooling trust boundary.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial
@@ -220,7 +252,10 @@ admission remain required, and they overlap Regula's hole, axiom and
 unsafe/partial rules as independent implementations. An accepted audit covers
 Regula's mechanical rules for the claimed surfaces; it does not replace review.
 
-## Documentation site
+# Documentation site
+%%%
+tag := "documentation-site"
+%%%
 
 This guide is a [Verso](https://verso.lean-lang.org/) document,
 `site/AcornDocs/Verification.lean`, in a separate Lake package under site. A Verso
@@ -259,17 +294,20 @@ Lean's elaborator are trusted to build it. The build establishes that each
 reference exists, has the stated type and shows its owner's current value; review
 still decides whether the prose describes that owner faithfully.
 
-## Mutation diagnostics
+# Mutation diagnostics
+%%%
+tag := "mutation-diagnostics"
+%%%
 
-**Pinned digest: `7433307b046fd16c`**
+*Pinned digest: {spliceCode}`digest .declared`*
 
-```sh
-lean/.lake/build/bin/acorn-core audit --expect 7433307b046fd16c
+```spliced sh
+s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {digest .declared}"
 ```
 
-Paired checksum `385b2f84db38eef2`. The deployed arm runs the ranked profile
+Paired checksum {spliceCode}`checksum .declared`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
-command runs all three fixed arms under the same deadline. All three pins record
+command runs all {splice}`numberWord auditArms.length` fixed arms under the same deadline. All {splice}`numberWord auditArms.length` pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7)
 and off-policy option learning (PAR-17);
 the declared-rate and differential pins also record the stable, sign-correct
@@ -277,9 +315,12 @@ reward-respecting subtask and declared-rate dynamics decisions. The fixed audit 
 are compared through these paired digests. Run these optional diagnostics
 when investigating a dynamics change.
 
-## Checkpoint admission
+# Checkpoint admission
+%%%
+tag := "checkpoint-admission"
+%%%
 
-Format 16 preserves admitted learner state, generator and tester state,
+Format {splice}`toString Acorn.Checkpoint.formatVersion` preserves admitted learner state, generator and tester state,
 assignments and pending ranking requests for supported ranked profiles. Earlier
 formats are refused. Restore checks dimensions, identifiers,
 criterion and value domains before admitting state. An incompatible image is
@@ -287,7 +328,10 @@ refused and writes to that file are disabled. Learner state resumes; the world
 and transient process state restart. Filesystem persistence relies on the narrow
 C fsync helper, native IO and the operating system.
 
-## Viewer ownership boundaries
+# Viewer ownership boundaries
+%%%
+tag := "viewer-ownership-boundaries"
+%%%
 
 The viewer observes telemetry and supervises process lifecycle. Only a stop
 request enters the core, at an attempt boundary. Source/compiled ownership

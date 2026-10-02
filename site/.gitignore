@@ -1,0 +1,3 @@
+/.lake/
+# Rendered pages; nothing in this directory is published from a working copy.
+/_out/

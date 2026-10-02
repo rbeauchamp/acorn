@@ -94,6 +94,14 @@ def modules : Array Name := #[
   `AcornTools.OwnershipAudit, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount
 ]
 
+/-- The reviewed modules of the documentation site, the separate Lake package in `site/`;
+filesystem discovery rejects missing or extra owners. The site is documentation tooling over
+pinned Verso, a trust boundary outside the application's proof claim. -/
+def siteModules : Array Name := #[
+  `AcornDocs, `AcornDocs.Verification, `AcornSite, `AcornSite.Markdown, `AcornSite.Owners,
+  `AcornSite.Reference, `Main
+]
+
 /-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/
 def executables : Array (String × Name) := #[
   ("swifttd-native", `Acorn.SwiftTdDriver),
