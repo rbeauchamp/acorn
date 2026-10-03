@@ -818,7 +818,7 @@ theorem TemporalControl.select_drawn (state : TemporalControl profile config cri
 
 /-- A primitive-only profile draws no meta decision: it has no option to pursue a subtask,
 reaches no free dispatch and assigns none. -/
-theorem TemporalControl.select_primitive (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.primitive_undrawn (state : TemporalControl profile config criterion dimension)
     (primitive : profile.usesHierarchy = false)
     (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
