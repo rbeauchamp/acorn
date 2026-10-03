@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.CurrentDivision
+import FloatLib.Floats.Formats.BinaryInterchange.Analysis.StandardModel
 import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel
 import FloatLib.Floats.Formats.BinaryInterchange.Format.Catalog
 import FloatLib.Floats.Formats.BinaryInterchange.DirectedSemantics.Rational.RoundingSemantics.Executable
@@ -884,6 +885,52 @@ theorem roundAt32_error_sum (x : ℝ) (bound : |x| ≤ 8192) :
     |roundAt FloatFormat.binary32 x - x| ≤
         ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
     _ ≤ 1 / 2048 := by linarith
+
+/-- Nearest-even rounding to binary32 has FloatLib's standard model with gradual
+underflow: it moves a real by at most `2^(-24)` of its magnitude plus `2^(-150)`. -/
+theorem roundAt32_relative (x : ℝ) :
+    |roundAt FloatFormat.binary32 x - x| ≤ |x| / 16777216 + 1 / 2 ^ 150 := by
+  obtain ⟨δ, η, model, hδ, hη, _⟩ := roundAt_standardModel FloatFormat.binary32 x
+  have unit : unitRoundoffAt FloatFormat.binary32 = 1 / 16777216 := by
+    rw [unitRoundoffAt_eq]
+    norm_num [FloatFormat.binary32]
+  have under : underflowErrorAt FloatFormat.binary32 = 1 / 2 ^ 150 := by
+    have exponent : FloatFormat.minSubnormalExponent FloatFormat.binary32 - 1 = -150 := by
+      decide
+    rw [underflowErrorAt_eq, exponent]
+    norm_num
+  rw [unit] at hδ
+  rw [under] at hη
+  rw [model]
+  have split : x * (1 + δ) + η - x = x * δ + η := by ring
+  rw [split]
+  calc |x * δ + η| ≤ |x * δ| + |η| := abs_add_le _ _
+    _ = |x| * |δ| + |η| := by rw [abs_mul]
+    _ ≤ |x| * (1 / 16777216) + 1 / 2 ^ 150 :=
+        add_le_add (mul_le_mul_of_nonneg_left hδ (abs_nonneg _)) hη
+    _ = |x| / 16777216 + 1 / 2 ^ 150 := by ring
+
+/-- The executing binary32 addition with a finite result is within `2^(-24)` of the exact
+sum relative to its magnitude, plus `2^(-150)` (`binary32_add_roundAt`). -/
+theorem binary32_add_relative (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (finite : (left.add right).Finite) :
+    |numerical32 (left.add right) - (numerical32 left + numerical32 right)| ≤
+      |numerical32 left + numerical32 right| / 16777216 + 1 / 2 ^ 150 := by
+  have rounded := binary32_add_roundAt left right leftFinite rightFinite finite
+  have error := roundAt32_relative ((numerical32 left : ℝ) + (numerical32 right : ℝ))
+  rw [← rounded] at error
+  exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
+
+/-- The executing binary32 subtraction with a finite result is within `2^(-24)` of the
+exact difference relative to its magnitude, plus `2^(-150)` (`binary32_sub_roundAt`). -/
+theorem binary32_sub_relative (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (finite : (left.sub right).Finite) :
+    |numerical32 (left.sub right) - (numerical32 left - numerical32 right)| ≤
+      |numerical32 left - numerical32 right| / 16777216 + 1 / 2 ^ 150 := by
+  have rounded := binary32_sub_roundAt left right leftFinite rightFinite finite
+  have error := roundAt32_relative ((numerical32 left : ℝ) - (numerical32 right : ℝ))
+  rw [← rounded] at error
+  exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
 /-- The executing binary32 multiplication with a finite result is within `2^(-17)` of the
 exact product whenever that product has magnitude at most `2^7`: it is the product rounded

@@ -60,7 +60,7 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 ### D4 · Learner parameters — Step 1
 
-Domain-general learner coefficients and numerical rails are prescribed; per-feature step sizes adapt during learning.
+Domain-general learner coefficients and numerical rails are prescribed; per-feature step sizes adapt during learning. The off-policy questions of [PAR-18](prior-art-review.md#par-18--off-policy-questions) adapt none: their step size is the smaller of the demons' initial step size and their rate budget divided by the transition's active slots. They learn from no transition in which either active set exceeds 2¹⁶ slots, the size their rounding analysis covers.
 
 Loci: `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
 
@@ -71,9 +71,9 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 ### D5 · Prediction targets — Step 2
 
-The host defines reward/prediction targets and horizons. Prediction weights are updated from experience for these fixed questions.
+The host defines reward/prediction targets and horizons. Prediction weights are updated from experience for these fixed questions. Each option also asks the same eleven questions, at the same horizons, about its own policy, learned off-policy ([PAR-18](prior-art-review.md#par-18--off-policy-questions)).
 
-Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.Cumulants`, `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.Agent`.
+Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.Cumulants`, `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,

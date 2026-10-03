@@ -23,6 +23,7 @@ namespace AcornVerif.CurrentModels
 open Acorn Acorn.Features CurrentLearner CurrentFeatureConsumers
 
 variable {criterion : Criterion} {dimension : Dimension} {config : Features.Config}
+  {discounts : List Discount}
 
 /-- Discounted continuation and its backed-up target obey the actual horizon. -/
 theorem discounted_target_bound (model : Model dimension .discounted)
@@ -132,7 +133,7 @@ theorem plan_lags {cfg : Acorn.Config} {actions : Nat}
 
 /-- One look-ahead cannot touch the primitive delegation row. -/
 theorem lookAhead_primitive (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     ((state.lookAhead skills features gain rate slot).1.controller.learners.get ⟨0, by decide⟩) =
@@ -144,7 +145,7 @@ theorem lookAhead_primitive (state : PlanningResult criterion dimension)
 
 /-- Every look-ahead preserves every trajectory row. -/
 theorem lookAhead_traces (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) (row : Action metaCount.word.toNat) :
     ((state.lookAhead skills features gain rate slot).1.controller.learners.get
@@ -154,7 +155,7 @@ theorem lookAhead_traces (state : PlanningResult criterion dimension)
 /-- A look-ahead writes the controller only: the stored recent frames, the work
 count and both observers are those it received. -/
 theorem lookAhead_frame (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     (state.lookAhead skills features gain rate slot).1.recent = state.recent ∧
@@ -184,7 +185,7 @@ theorem planning_clock_bounds (clock : UInt64) :
 that each look-ahead keeps, for both the observed and the stored frame. -/
 theorem fold_controller (keeps : Controller (criterion.config .control) dimension
       metaCount.word.toNat → Prop)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (step : ∀ (state : PlanningResult criterion dimension)
       (slot : Fin Acorn.FeatureConstants.skillCount), keeps state.controller →
@@ -212,7 +213,7 @@ theorem result_controller
 /-- The controller after an expectation boundary is the controller after both rounds
 of backups: at the observed frame, then at the stored frame search control selects. -/
 theorem boundary_controller (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     (planningBoundary .expectation state skills features gain rate).controller =
       ((state.backupAll skills features gain rate).sweepAll skills
@@ -225,7 +226,7 @@ keeps at every feature vector: both rounds, at the current and the stored frame.
 theorem planning_controller (keeps : Controller (criterion.config .control) dimension
       metaCount.word.toNat → Prop)
     (selection : PlanningSelection) (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (step : ∀ (frame : SwiftTd.ActiveSet dimension) (state : PlanningResult criterion dimension)
       (slot : Fin Acorn.FeatureConstants.skillCount), keeps state.controller →
@@ -245,7 +246,7 @@ theorem planning_controller (keeps : Controller (criterion.config .control) dime
 /-- The full executed boundary preserves the primitive row, regardless of model values. -/
 theorem planning_primitive (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     ((planningBoundary selection state skills features gain rate).controller.learners.get
       ⟨0, by decide⟩) = state.controller.learners.get ⟨0, by decide⟩ :=
@@ -259,7 +260,7 @@ theorem planning_primitive (selection : PlanningSelection)
 /-- Every planning write preserves all eligibility and adaptation transients. -/
 theorem planning_traces (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (row : Action metaCount.word.toNat) :
     ((planningBoundary selection state skills features gain rate).controller.learners.get
@@ -274,7 +275,7 @@ theorem planning_traces (selection : PlanningSelection)
 /-- Planning keeps the controller's lags and deferred restart flag, at both frames. -/
 theorem planning_lags (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     (planningBoundary selection state skills features gain rate).controller.vOld =
         state.controller.vOld ∧
@@ -299,7 +300,7 @@ theorem interval_numeric (range : Interval32) (value : Bounded32 range) :
     (CurrentOrder.numerical32_order _ _ value.legal.1 range.upperFinite).mpr value.legal.2.2⟩
 
 /-- The first returned option action performs no model credit in either mode. -/
-theorem first_model_omitted {mode : Bool} (skill : Skill config criterion dimension)
+theorem first_model_omitted {mode : Bool} (skill : Skill config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256)
     (first : activation.age.val = 0) :
@@ -311,7 +312,7 @@ theorem first_model_omitted {mode : Bool} (skill : Skill config criterion dimens
 
 /-- Continuing model credit consumes raw reward and the pre-increment age,
 independently of the centered policy cumulant and shaping potential. -/
-theorem continuing_model_owner {mode : Bool} (skill : Skill config criterion dimension)
+theorem continuing_model_owner {mode : Bool} (skill : Skill config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256)
     (learning : activation.learning = true) (continuing : 0 < activation.age.val) :
@@ -321,7 +322,7 @@ theorem continuing_model_owner {mode : Bool} (skill : Skill config criterion dim
   simp [Skill.stepTemporal_eq, Skill.optionStep, learning, continuing, modelOperations]
 
 /-- Every model transition retains its option objective. -/
-theorem model_assignment {mode : Bool} (skill : Skill config criterion dimension)
+theorem model_assignment {mode : Bool} (skill : Skill config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
     (skill.stepTemporal (modelOperations criterion dimension) activation next reward gain

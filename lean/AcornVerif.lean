@@ -37,6 +37,7 @@ import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentPlanning
 import AcornVerif.CurrentPolicyMean
+import AcornVerif.CurrentOffPolicy
 import AcornVerif.Checkpoint
 import AcornVerif.AverageReward
 import AcornVerif.ModelConstants
@@ -45,6 +46,7 @@ import AcornVerif.StepSize
 import AcornVerif.MetaGradient
 import AcornVerif.Options
 import AcornVerif.Energy
+import AcornVerif.Extragradient
 import AcornVerif.Exploration
 import AcornVerif.Traces
 import AcornVerif.Retirement

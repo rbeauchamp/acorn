@@ -69,6 +69,15 @@ def weightSpace : ℕ := 16384
 This declaration does not inspect the checkpoint implementation. -/
 def knowledgeArraysPerLearner : ℕ := 2
 
+/-- Off-policy questions in the storage model: one per prediction channel for each option.
+`CurrentConstants.dimensions` checks this product. -/
+def questionCount : ℕ := 33
+
+/-- Two weight arrays per off-policy question (main and second), the per-signal count that
+`CurrentOffPolicy.bank_weights` proves of an executed bank.
+This declaration does not inspect the checkpoint implementation. -/
+def weightArraysPerQuestion : ℕ := 2
+
 /-- World side selected for the fixed dimensional comparison. -/
 def worldSide : ℕ := 1024
 

@@ -37,7 +37,7 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
   (`./lean/.lake/build/bin/acorn-core audit --expect b1f613d0b887e2ec`),
-  checksum `82e22258e9546064` (C-AC5), and by the gate suite
+  checksum `917e363ef00d48ed` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
 - **INV-1b · The control channel carries lifecycle only.** The core's stdin
@@ -704,7 +704,7 @@ What each panel must show. How it draws it is the code's.
   their caption names the actual count and interval. Legend values separately
   name their frame window in fast mode or the selected frame when paused/slow.
   Expandable rows expose the active step size and eligible-feature count for
-  every learner, including each option/action pair: a family mean never
+  every learner that adapts one, including each option/action pair: a family mean never
   substitutes for the selective-credit state it summarises. The panel is that
   α, with its source attribution in §10. Model arrays reserve
   reward, continuation and duration slots per option; discounted control marks

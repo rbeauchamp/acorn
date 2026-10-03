@@ -116,6 +116,11 @@ theorem Weight.project_eq (rule : ValueRule) (raw : Binary32) :
   | discounted discount => cases discount <;> rfl
   | differential => rfl
 
+/-- Projecting zero stores zero, under every rule. -/
+theorem Weight.project_zero (rule : ValueRule) : (Weight.project rule .zero).value = .zero := by
+  rw [Weight.project_eq]
+  exact rule.domain.symmetric_project_identity _ rule.domain.zeroLegal
+
 /-- Durable weights retain their original bits or are refused. -/
 def Weight.admit (rule : ValueRule) (raw : Binary32) : Option (Weight rule) :=
   (Bounded32.admit rule.domain.range raw).map Weight.mk

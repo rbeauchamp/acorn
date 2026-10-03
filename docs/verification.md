@@ -273,12 +273,13 @@ still decides whether the prose describes that owner faithfully.
 lean/.lake/build/bin/acorn-core audit --expect b1f613d0b887e2ec
 ```
 
-Paired checksum `82e22258e9546064`. The deployed arm runs the ranked profile
+Paired checksum `917e363ef00d48ed`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
-off-policy option learning (PAR-17) and option expectation models with planning under
-the current values (PAR-13, PAR-14);
+off-policy option learning (PAR-17), option expectation models with planning under
+the current values (PAR-13, PAR-14) and, in the checksums, every option's off-policy
+questions (PAR-18);
 the declared-rate and differential pins also record the stable, sign-correct
 reward-respecting subtask and declared-rate dynamics decisions. The fixed audit arms
 are compared through these paired digests. Run these optional diagnostics
@@ -290,8 +291,9 @@ Format 16 preserves admitted learner state, generator and tester state,
 assignments and pending ranking requests for supported ranked profiles. Earlier
 formats are refused. Restore checks dimensions, identifiers,
 criterion and value domains before admitting state. An incompatible image is
-refused and writes to that file are disabled. Learner state resumes; the world
-and transient process state restart. Filesystem persistence relies on the narrow
+refused and writes to that file are disabled. Stored learner state resumes; option
+models and each option's off-policy questions (PAR-18) are not stored and start
+afresh, and the world and transient process state restart. Filesystem persistence relies on the narrow
 C fsync helper, native IO and the operating system.
 
 ## Viewer ownership boundaries

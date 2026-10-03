@@ -34,7 +34,7 @@ credit with dynamic inputs. Each current criterion uses the same typed kernel. -
     ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
   let interest : Interest config :=
     .learned (diagnosticAssignment config ⟨0, by change 0 < 3; decide⟩ word)
-  let skill := Skill.initial config criterion dimension interest
+  let skill := Skill.initial config criterion dimension (discounts := []) interest
   let features : SwiftTd.ActiveSet dimension := ⟨[FeatIdx.fromHash dimension word], by simp⟩
   let potential := match interest with
     | .learned assignment => assignment.potential features

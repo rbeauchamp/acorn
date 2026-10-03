@@ -315,8 +315,9 @@ Paired checksum {spliceCode}`checksum .declared`. The deployed arm runs the rank
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all {splice}`numberWord auditArms.length` fixed arms under the same deadline. All {splice}`numberWord auditArms.length` pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
-off-policy option learning (PAR-17) and option expectation models with planning under
-the current values (PAR-13, PAR-14);
+off-policy option learning (PAR-17), option expectation models with planning under
+the current values (PAR-13, PAR-14) and, in the checksums, every option's off-policy
+questions (PAR-18);
 the declared-rate and differential pins also record the stable, sign-correct
 reward-respecting subtask and declared-rate dynamics decisions. The fixed audit arms
 are compared through these paired digests. Run these optional diagnostics
@@ -331,8 +332,9 @@ Format {splice}`toString Acorn.Checkpoint.formatVersion` preserves admitted lear
 assignments and pending ranking requests for supported ranked profiles. Earlier
 formats are refused. Restore checks dimensions, identifiers,
 criterion and value domains before admitting state. An incompatible image is
-refused and writes to that file are disabled. Learner state resumes; the world
-and transient process state restart. Filesystem persistence relies on the narrow
+refused and writes to that file are disabled. Stored learner state resumes; option
+models and each option's off-policy questions (PAR-18) are not stored and start
+afresh, and the world and transient process state restart. Filesystem persistence relies on the narrow
 C fsync helper, native IO and the operating system.
 
 # Viewer ownership boundaries

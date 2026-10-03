@@ -173,7 +173,7 @@ theorem holds_count_le (assignment : Acorn.Features.Assignment config) :
 
 /-- The slots together hold at most one unit each. -/
 theorem heldCount_le_slots :
-    ∀ (skills : List (Skill config criterion dimension)),
+    ∀ (skills : List (Skill config criterion dimension discounts)),
       (List.finRange config.units.count).countP
         (fun unit => skills.any (·.interest.held.holds unit)) ≤ skills.length
   | [] => by simp

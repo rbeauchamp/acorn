@@ -27,12 +27,15 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 
 **Partly.**
 
-- **Learners: met.** Every one of Acorn's 57 full-width learners, and every row
+- **Learners: met, with one declared exception.** Apart from the off-policy
+  questions, every one of Acorn's full-width learners (57), and every row
   of the option models' transition parts, is SwiftTD or Swift-Sarsa,
   transcribed with declared corrections
   ([PAR-1](prior-art-review.md#par-1--swifttd),
   [PAR-2](prior-art-review.md#par-2--swift-sarsa)). This matches OaK's
   requirement that each learned weight has its own meta-learned step size.
+  The off-policy questions, which no decision reads, adapt no step size
+  ([PAR-18](prior-art-review.md#par-18--off-policy-questions)).
   GVF predictions are fed back as features, and nothing is replayed.
 - **Architecture: wired, with declared adaptations.** The FC-STOMP chain (feature
   construction, subtasks, options, models, planning) is wired. Two links ran on
@@ -66,9 +69,9 @@ Verdicts:
 
 | Prior art | Alberta Plan / OaK role | In Acorn | Verdict | Evidence and consequence |
 |---|---|---|---|---|
-| IDBD → SwiftTD [[1]](#r1) [[2]](#r2) | Step 1; per-weight meta-learned step sizes | Every learner | **Faithful** | `NumericState.step` and its two loops transcribe Algorithm 1 of [[2]](#r2), with corrections declared in PAR-1. |
+| IDBD → SwiftTD [[1]](#r1) [[2]](#r2) | Step 1; per-weight meta-learned step sizes | Every learner except the off-policy questions | **Faithful** | `NumericState.step` and its two loops transcribe Algorithm 1 of [[2]](#r2), with corrections declared in PAR-1. The off-policy questions are the declared exception ([D4](learned-only-binding.md#d4--learner-parameters--step-1), [PAR-18](prior-art-review.md#par-18--off-policy-questions)): they run `GradientLearner.step` with one prescribed step size per transition and adapt none, because the per-step energy inequality they are chosen for measures the weights in a norm that a per-weight step size enters. |
 | Swift-Sarsa [[3]](#r3) | Step 4 (declared Sarsa in place of actor-critic) | Primitive, meta and option policies | **Faithful** | `Controller.valuesStep`: per-action value vectors sharing one error. The actor-critic departure is declared. |
-| Horde / GVFs [[4]](#r4) | Step 3 | 11 fixed on-policy GVFs whose bucketed predictions are re-encoded as features | **Adapted, partial** | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed and on-policy ([D5](learned-only-binding.md#d5--prediction-targets--step-2)). Feeding predictions back is a genuine, limited predictive state. |
+| Horde / GVFs [[4]](#r4) | Step 3 | 11 fixed on-policy GVFs whose bucketed predictions are re-encoded as features, and the same 11 questions about each option's policy learned off-policy | **Adapted** (after [#16](https://github.com/rbeauchamp/acorn/issues/16)) | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed ([D5](learned-only-binding.md#d5--prediction-targets--step-2)); those about the options' policies learn with GTD2-MP at trace parameter zero on frames whose action was selected with the option's own distribution ([PAR-18](prior-art-review.md#par-18--off-policy-questions)). No decision reads them yet. Feeding the on-policy predictions back is a genuine, limited predictive state. |
 | Generate and test: generator [[5]](#r5) | Step 2 | 512 random projections over the 11 × 11 tile-kind patch and the task words | **Adapted** (after U3) | Before U3 the generator read only the kind patch; it now also reads the task words (`observationPatch`, `taskContext`), so units can conjoin task and layout. Inventory and energy are still excluded (F-D). |
 | Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)); turnover follows from the rate by construction over eligible units (`Lifecycle.test_accrual`, F-E). Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code. |
 | Reward-respecting subtasks [[7]](#r7) | Step 10: highest-ranked features become subtasks | Three slots from the positive Demon-0 weights of imprint units, with held bonuses | **Adapted** (after U1) | U1 made candidates sign-correct, the bonus held, and identity the unit alone. One deviation remains: subtasks are not restricted to features whose weight is sometimes high and sometimes low ([PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks)). |
@@ -82,18 +85,18 @@ Verdicts:
 | Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)). Average-reward GVFs are absent. |
 | Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | A cheap, general fix for discounted methods with discount near 1. Acorn uses γ = 0.99 throughout. |
 | Learned agent state [[15]](#r15) | Perception | Only the fed-back GVF buckets | **Missing** | Severe partial observability (an 11 × 11 view of a 1024 × 1024 world) with no learned memory. |
-| Off-policy learning [[4]](#r4) [[7]](#r7) | Steps 3 and 10 | Options only | **Adapted, partial** (after U4) | Option policies learn by tree backup [[21]](#r21) and option models along frames whose action was selected with the option's own distribution ([[9]](#r9) §5). GVFs about other policies remain on-policy ([#16](https://github.com/rbeauchamp/acorn/issues/16)). |
+| Off-policy learning [[4]](#r4) [[7]](#r7) | Steps 3 and 10 | Options and the questions about their policies | **Adapted, partial** (after U4 and [#16](https://github.com/rbeauchamp/acorn/issues/16)) | Option policies learn by tree backup [[21]](#r21) and option models along frames whose action was selected with the option's own distribution ([[9]](#r9) §5). Each option's questions about its own policy learn along the same frames with a gradient-TD correction ([PAR-18](prior-art-review.md#par-18--off-policy-questions)). The option models still learn semi-gradient along those frames, without that correction. |
 | Utility feedback [[20]](#r20) | Step 11: feedback that assesses the utility of every element and replaces the least useful | — | **Missing (declared)** | The complete OaK loop is outside the implementation ([design](design.md#implementation-scope)). |
 | Nonlinear continual learning [[6]](#r6) [[16]](#r16) | Continual deep learning | Linear learners only | **Missing** | Outside the baseline's scope, and the current research front. |
 
 **Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 12 adapted,
 none substituted and 4 missing, counting U3's tester and generator, U4's
-off-policy option learning and U5's models, planning and search control as
-adapted. At the assessed commit the models and planning were substituted and
+off-policy option learning, U5's models, planning and search control and the
+off-policy questions of #16 as adapted. At the assessed commit the models and planning were substituted and
 search control was missing. The frontier and design acknowledge utility feedback
 and learned agent state, and design Step 3 and
 [PAR-3](prior-art-review.md#par-3--horde) declare the on-policy specialization
-of the prediction questions; the other two missing rows (reward centering and
+of the questions about the behaviour; the other two missing rows (reward centering and
 nonlinear continual learning) were not previously recorded.
 
 Correctness of what exists (state legality, admission, numeric containment and
@@ -104,8 +107,9 @@ and composition, which the proofs did not state and so could not catch.
 
 Two links genuinely support the rest of the system:
 
-- **SwiftTD under every learner.** Per-weight credit assignment protects each
-  learner from the roughly 1,300 active features, most of them irrelevant to it.
+- **SwiftTD under every learner except the off-policy questions.** Per-weight
+  credit assignment protects each such learner from the roughly 1,300 active
+  features, most of them irrelevant to it.
 - **Horde feedback and primitive credit on option steps.** Predictions become
   features, and executed option steps train the primitive controller (PAR-9).
 
@@ -346,12 +350,17 @@ F-E left its feature-construction end inert until U3.
 - **Matches.**
   - OaK asks that "all of its components learn continually" and that "each
     learned weight has a dedicated step-size parameter that is meta-learned
-    using online cross-validation" [[17]](#r17). Acorn matches both.
+    using online cross-validation" [[17]](#r17). Acorn matches both, except
+    that the off-policy questions adapt no step size
+    ([PAR-18](prior-art-review.md#par-18--off-policy-questions)).
   - Oak Lab's algorithms "learn in real-time without storing or replaying data"
     [[18]](#r18). Acorn matches this: batch size one, no replay, IDBD-family credit
     assignment.
-  - A small agent in a big world [[19]](#r19): about a million weights against a
-    1024 × 1024 world seen through an 11 × 11 window.
+  - A small agent in a big world [[19]](#r19): about three million learned
+    parameters, more than a third of them the off-policy questions' weights,
+    against a 1024 × 1024 world seen through an 11 × 11 window. The
+    [BigWorld proofs](../lean/AcornVerif/BigWorld.lean) own the count and its
+    margin under the declared state product.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
   way", and imagined outcomes "are then evaluated by the value functions"
@@ -386,7 +395,8 @@ F-E left its feature-construction end inert until U3.
 Going by the published designs, the agent they describe differs from Acorn at the
 model and planning links; U3 and U4 brought the feature-testing and
 option-learning links to adapted forms of the published mechanisms. The foundation is
-theirs: SwiftTD everywhere, reward-respecting feature-attainment subtasks, GVF
+theirs: SwiftTD under every learner except the off-policy questions,
+reward-respecting feature-attainment subtasks, GVF
 predictions as features, and continual operation without replay. Acorn's
 machine-checked state legality and admission have no counterpart in that work.
 
@@ -416,7 +426,6 @@ The roadmap also tracks the missing published pieces that no unit covers:
 - the Differential Q-learning TD-error update of the average-reward estimate
   ([#14](https://github.com/rbeauchamp/acorn/issues/14));
 - search control beyond U5's minimum ([#15](https://github.com/rbeauchamp/acorn/issues/15));
-- off-policy GVFs ([#16](https://github.com/rbeauchamp/acorn/issues/16));
 - learned agent state ([#17](https://github.com/rbeauchamp/acorn/issues/17));
 - utility feedback ([#18](https://github.com/rbeauchamp/acorn/issues/18));
 - nonlinear continual learning ([#19](https://github.com/rbeauchamp/acorn/issues/19)).

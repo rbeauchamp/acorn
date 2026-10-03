@@ -8,8 +8,9 @@ import Acorn.Host.AgentAdmission
 /-!
 # Current agent mutation checksum
 
-The checksum reads learner knowledge, pending ranking, gain for differential
-control, planning count, seed, clock, bank, generator and every unit's tester state.
+The checksum reads learner knowledge, including every option's off-policy question
+weights, pending ranking, gain for differential control, planning count, seed, clock,
+bank, generator and every unit's tester state.
 Transient credit, predictions, exploration state and observational lifetime
 records are outside this checksum. A changed hash identifies a change in the selected fields.
 -/
@@ -57,6 +58,24 @@ def demonChecksum {dimension : Dimension} {discounts : List Discount}
   | .nil => hash
   | .cons learner rest => demonChecksum rest (hash ^^^ Rng.rotateLeft learner.state.stateChecksum 17)
 
+/-- Fold every stored weight word, slot by slot. -/
+def weightsChecksum {rule : ValueRule} {dimension : Dimension}
+    (weights : WeightArray rule dimension) (hash : UInt64) : UInt64 :=
+  weights.foldl (fun hash weight =>
+    NumericState.checksumRotate ((hash ^^^ weight.value.bits.toUInt64) *
+      NumericState.checksumMultiplier)) hash
+
+/-- Every off-policy question contributes its main and then its second weights, in
+channel order. The caller seeds each option's fold with its slot, so two options whose
+questions hold the same words do not cancel. -/
+def questionsChecksum {dimension : Dimension} {discounts : List Discount}
+    (learners : GradientBank dimension discounts) (hash : UInt64) : UInt64 :=
+  match learners with
+  | .nil => hash
+  | .cons question rest =>
+    questionsChecksum rest
+      (weightsChecksum question.learner.second (weightsChecksum question.learner.main hash))
+
 /-- Fold the specified low bytes of a word in little-endian order. -/
 def checksumBytes (hash word : UInt64) (count : Nat) : UInt64 :=
   (List.range count).foldl (fun hash index =>
@@ -87,9 +106,13 @@ def agentChecksum {profile : FeatureProfile} {config : Features.Config} {criteri
   | .differential => hash := hash ^^^ Rng.rotateLeft agent.control.average.rate.value.bits.toUInt64 37
   hash := hash ^^^ Rng.rotateLeft (controllerChecksum ensemble.metaController) 5
   hash := hash ^^^ Rng.rotateLeft runtime.references.planningSteps 31
+  let mut slot : UInt64 := 0
   for skill in ensemble.skills do
     hash := hash ^^^ Rng.rotateLeft (controllerChecksum skill.policy) 11
     hash := hash ^^^ Rng.rotateLeft (modelChecksum skill.model) 7
+    hash := hash ^^^ Rng.rotateLeft
+      (questionsChecksum skill.questions.learners (Rng.fnvOffset ^^^ slot)) 47
+    slot := slot + 1
   hash := demonChecksum ensemble.demons hash
   hash := hash ^^^ Rng.rotateLeft config.seed 23
   hash := hash ^^^ (representation.progress.clock * 0x9e3779b97f4a7c15)
