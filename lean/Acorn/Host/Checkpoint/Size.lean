@@ -53,8 +53,8 @@ theorem vector_size {α : Type} (codec : Codec α) (size : Nat)
     ((vectorCodec codec count).encode values).length = count * size := by
   simpa [vectorCodec] using list_size codec size fixed values.toList
 
-/-- The signed header occupies exactly fifty-six bytes. -/
-theorem header_size (header : Header) : (headerCodec.encode header).length = 56 := by
+/-- The signed header occupies exactly fifty-two bytes. -/
+theorem header_size (header : Header) : (headerCodec.encode header).length = 52 := by
   simp [headerCodec, Codec.iso, Codec.pair, u32_size, u64_size, binary32_size]
 
 /-- Every saved assignment occupies exactly four words. -/
@@ -118,7 +118,7 @@ theorem lifetime_size (record : LifetimeWords) : (lifetimeCodec.encode record).l
   omega
 
 /-- The signed header extent agrees with the generated transition format owner. -/
-theorem header_source_size : 8 + 56 = Acorn.FeatureConstants.checkpointHeaderBytes := rfl
+theorem header_source_size : 8 + 52 = Acorn.FeatureConstants.checkpointHeaderBytes := rfl
 
 /-- The fixed lifetime extent agrees with the generated transition record owner. -/
 theorem lifetime_source_size : lifetimeBytes = Acorn.FeatureConstants.checkpointLifetimeBytes := rfl
@@ -144,7 +144,7 @@ theorem tester_size (tester : TesterWords) :
 
 /-- Payload size is linear in receiving capacity and the bank size. -/
 def payloadBytes (dimension : Dimension) (units : Nat) : Nat :=
-  56 + Acorn.FeatureConstants.skillCount * 16 + primaryCount * (dimension.capacity * 8) +
+  52 + Acorn.FeatureConstants.skillCount * 16 + primaryCount * (dimension.capacity * 8) +
     lifetimeBytes + (34 + (4 + units * 20))
 
 /-- The byte count applies to the actual writer, for arbitrary payload contents. -/

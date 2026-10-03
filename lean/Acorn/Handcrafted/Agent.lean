@@ -103,7 +103,7 @@ theorem TemporalControl.retire_episodes (state : TemporalControl profile config 
     (valid : state.Episodes) (active : Vector Bool config.units.count) :
     ({ state with runtime := state.runtime.retire active }).Episodes := by
   unfold TemporalControl.Episodes TemporalControl.activeSlot
-  rw [(state.runtime.retire_references active).1]
+  rw [state.runtime.retire_references active]
   exact valid
 
 /-- Frozen execution runs no tester; learning tests only after all frame consumers,
@@ -139,11 +139,11 @@ def Agent.censorObservations (state : Agent profile config criterion dimension p
     Agent profile config criterion dimension planning :=
   ⟨{ state.control with lifetime := state.control.lifetime.censor }, state.aligned, state.episodes⟩
 
-/-- Attempts request ranking and record their actual outcome without resetting
-the pending action, previous reward, active option, exploration or learner trajectories. -/
+/-- Attempts record their actual outcome as an observation only: no learner, pending
+action, previous reward, active option, exploration or learner trajectory reads it. -/
 def Agent.recordAttempt (state : Agent profile config criterion dimension planning)
     (family : Fin 4) (cycle steps : UInt64) (achieved : Bool) : Agent profile config criterion dimension planning :=
-  ⟨{ state.control.request cycle achieved with
+  ⟨{ state.control with
       lifetime := state.control.lifetime.recordAttempt family cycle steps achieved }, state.aligned, state.episodes⟩
 
 /-- Explicit clear is fresh construction, including both seeded streams and all observations. -/

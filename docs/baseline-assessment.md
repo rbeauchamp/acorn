@@ -130,8 +130,8 @@ model and reset its meta-controller row. Demon 0 updates a unit's weight on ever
 step where the unit has a nonzero trace and the TD error is nonzero; a trace lasts
 about 190 steps before pruning (γλ = 0.99 × 0.95, pruned at a factor of 10⁻⁵).
 A top-ranked unit is frequently active, so its bonus word differed at almost
-every refresh. Refresh becomes pending on every achieved attempt and every new
-curriculum cycle (`Refresh.request`). Success therefore reset the option policy,
+every refresh. A refresh then ran after every achieved attempt and every new
+curriculum cycle. Success therefore reset the option policy,
 model and meta row of most selected subtasks, returned their step sizes to their
 initial values, and raised their exploration rates back to the initial rate
 (F-C). The source instead sets the bonus weight to one of its higher values "so
@@ -143,7 +143,10 @@ U1 made identity the unit alone (`Assignment.same`) and made refresh slot-stable
 array, that the first slot holding a still-ranked unit keeps its policy, model,
 cached prediction and meta-controller row, and that its held bonus never
 decreases. A slot is now reinstalled only when its unit leaves the ranking or is
-retired. How often that happens is UNKNOWN: it depends on the stream.
+retired. How often that happens is UNKNOWN: it depends on the stream. Since
+[#57](https://github.com/rbeauchamp/acorn/issues/57) the refresh runs at every free
+decision boundary, so a unit that leaves the three ranked score blocks is replaced
+at the next free boundary rather than after the next achieved attempt.
 
 ### F-B · The option model is a value estimator, so planning cannot plan
 
@@ -378,9 +381,17 @@ F-E left its feature-construction end inert until U3.
   replace (F-E); U3's tester ranks by contribution utility and replaces at a
   declared rate.
 - **Temporal uniformity.** The plan's meta-algorithms for constructing
-  representations or subtasks "operate on every time step" ([[20]](#r20) p. 2). Acorn
-  triggers ranking from host attempt and cycle events. This is a mild, undeclared
-  departure.
+  representations or subtasks "operate on every time step" ([[20]](#r20) p. 2). At
+  86ce779 Acorn triggered the subtask ranking from host attempt and cycle events, an
+  undeclared departure that was not mild in a first pass: the first request was
+  consumed before the first reward was learned, so the options could run most of a
+  pass with no subtask ([#57](https://github.com/rbeauchamp/acorn/issues/57)). The
+  subtask ranking now runs at every free decision boundary and reads no host event;
+  after it the slots hold exactly the ranked candidates' units
+  (`FreeDispatch.refresh_covers`, `FreeDispatch.refresh_ranked`,
+  `FreeDispatch.refresh_full`). A free decision boundary is a step on which no option
+  continues and no committed exploration run is served, so the ranking still does not
+  run on the other steps.
 - **The route to representation search.** Swift-Sarsa is presented as opening
   the door to learning representations "by searching over hundreds of millions of
   features in parallel" [[3]](#r3), leaning on step-size credit assignment over
@@ -453,7 +464,7 @@ The roadmap also tracks the missing published pieces that no unit covers:
   slot holding it is released to the neutral objective
   (`FeatureRuntime.retire_releases`, `FeatureRuntime.retire_occupied`).
 - **Distinct units.** No two slots hold the same unit, from admission on:
-  every pending refresh leaves them distinct whatever it starts from
+  every refresh leaves them distinct whatever it starts from
   (`FreeDispatch.refresh_distinct`), and the initial state and every step carry
   distinctness within alignment (`TemporalControl.initial_aligned`,
   `TemporalControl.step_total`); checkpoint admission refuses an image whose

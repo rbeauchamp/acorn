@@ -666,38 +666,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Checkpoint.campaign_empty_accepted_iff
 
-/-- info: 'AcornVerif.Refresh.busy_preserves' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.busy_preserves
-
-/-- info: 'AcornVerif.Refresh.idle_completes' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.idle_completes
-
-/-- info: 'AcornVerif.Refresh.conservation' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.conservation
-
-/-- info: 'AcornVerif.Refresh.exclusive' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.exclusive
-
-/-- info: 'AcornVerif.Refresh.coalesces' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.coalesces
-
-/-- info: 'AcornVerif.Refresh.request_preserves' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.request_preserves
-
-/-- info: 'AcornVerif.Refresh.busy_stream_exact' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.busy_stream_exact
-
-/-- info: 'AcornVerif.Refresh.first_idle_exact' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.first_idle_exact
-
 /-- info: 'AcornVerif.Refresh.replacement_exact' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Refresh.replacement_exact
