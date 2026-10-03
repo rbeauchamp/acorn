@@ -14,6 +14,11 @@ producer, and no two of its slots hold the same learned unit. These structural
 proofs close both across every learning, refresh and retirement write, including
 the off-policy learning of options that are not executing; they do not assume a
 successful dispatch.
+
+The last section states the timing of the assignment refresh over the executed
+selection: with learned subtasks, every decision that draws a meta decision is taken
+with the slot-stable ranking of the Demon-0 weights it started from installed
+(`TemporalControl.select_assigns`).
 -/
 namespace Acorn.Handcrafted
 open Features
@@ -426,5 +431,415 @@ theorem TemporalControl.step_total (state : TemporalControl profile config crite
       (modelOperations criterion dimension) features (spatialPotentials observation) reward goal
       decision) features observation reward decision⟩
   simp [TemporalControl.step, TemporalControl.select, selectedEq]
+
+/-! ## Objectives at a free dispatch
+
+The same selection path carries each slot's objective from the assignment refresh to
+the state the decision returns. A decision that draws a meta decision is a free
+dispatch; a served exploration step, a continuing option and a primitive-only profile
+draw none. -/
+
+/-- Replacing one skill by one with the same interest changes no slot's interest. -/
+theorem TemporalControl.withSkill_interest (state : TemporalControl profile config criterion dimension)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (skill : Skill config criterion dimension demonLayout)
+    (same : skill.interest = state.runtime.lifecycle.consumers.skills[slot.val].interest)
+    (index : Fin Acorn.FeatureConstants.skillCount) :
+    (state.withSkill slot skill).runtime.lifecycle.consumers.skills[index.val].interest =
+      state.runtime.lifecycle.consumers.skills[index.val].interest := by
+  simp only [TemporalControl.withSkill, Vector.getElem_set]
+  split
+  · rename_i equal
+    have index_eq : slot = index := Fin.ext equal
+    subst index_eq
+    exact same
+  · rfl
+
+/-- A stepped option keeps every slot's interest. -/
+theorem TemporalControl.stepOption_interest (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (slot : Fin Acorn.FeatureConstants.skillCount) (activation : OptionActivation (profile.mode != .frozen))
+    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (values : Vector Binary32 metaCount.word.toNat) (decision : Option (PolicyDecision metaCount))
+    (started : Bool) (ended : Option EndEvent) (index : Fin Acorn.FeatureConstants.skillCount) :
+    (state.stepOption models slot activation next reward values decision started
+      ended).1.runtime.lifecycle.consumers.skills[index.val].interest =
+        state.runtime.lifecycle.consumers.skills[index.val].interest := by
+  rw [TemporalControl.stepOption_eq]
+  exact state.withSkill_interest slot _ (by rw [Skill.stepTemporal_interest]; rfl) index
+
+/-- Terminal credit keeps every slot's interest and writes no demon. -/
+theorem TemporalControl.closeOption_interest (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))
+    (reward terminal : Binary32) (index : Fin Acorn.FeatureConstants.skillCount) :
+    (state.closeOption models features closing reward
+      terminal).1.runtime.lifecycle.consumers.skills[index.val].interest =
+        state.runtime.lifecycle.consumers.skills[index.val].interest ∧
+      (state.closeOption models features closing reward
+        terminal).1.runtime.lifecycle.consumers.demons = state.runtime.lifecycle.consumers.demons := by
+  rw [TemporalControl.closeOption_eq]
+  dsimp only
+  cases old : closing.oldOwner with
+  | none =>
+    simp only [Option.getD_none]
+    exact ⟨state.withSkill_interest closing.slot _ (by rw [Skill.endTemporal_interest]; rfl) index,
+      rfl⟩
+  | some owner => exact ⟨rfl, rfl⟩
+
+/-- Meta credit keeps every slot's interest. -/
+theorem TemporalControl.learnMeta_interest (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount)
+    (index : Fin Acorn.FeatureConstants.skillCount) :
+    (state.learnMeta features decision).runtime.lifecycle.consumers.skills[index.val].interest =
+      state.runtime.lifecycle.consumers.skills[index.val].interest := by
+  rw [TemporalControl.learnMeta_eq]
+  split <;> rfl
+
+/-- The dispatch of a drawn meta decision keeps every slot's interest and records that
+decision. -/
+theorem TemporalControl.dispatchMeta_interest (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
+    (decision : PolicyDecision metaCount) (ended : Option EndEvent)
+    (next : TemporalControl profile config criterion dimension) (selected : TemporalDecision)
+    (executed : state.dispatchMeta models features declared reward goal decision ended =
+      some (next, selected)) :
+    selected.metaDecision = some decision ∧
+      ∀ index : Fin Acorn.FeatureConstants.skillCount,
+        next.runtime.lifecycle.consumers.skills[index.val].interest =
+          state.runtime.lifecycle.consumers.skills[index.val].interest := by
+  rw [TemporalControl.dispatchMeta_eq] at executed
+  have kept := state.learnMeta_interest features decision
+  generalize state.learnMeta features decision = learned at executed kept
+  dsimp only at executed
+  split at executed
+  · cases executed
+    exact ⟨rfl, kept⟩
+  · rename_i slot _
+    cases potential : (learned.runtime.lifecycle.consumers.skills.get slot).interest.potential
+        features declared with
+    | none => simp [potential, bind, Option.bind] at executed
+    | some value =>
+      simp only [potential, bind, Option.bind, pure, Option.some.injEq] at executed
+      generalize step : TemporalControl.stepOption _ _ _ _ _ _ _ _ _ _ = result at executed
+      obtain ⟨rfl, rfl⟩ : result.1 = next ∧ result.2 = selected := by
+        rw [executed]
+        exact ⟨rfl, rfl⟩
+      rw [← step]
+      refine ⟨?_, fun index => ?_⟩
+      · rw [TemporalControl.stepOption_eq]
+      · rw [TemporalControl.stepOption_interest,
+          TemporalControl.withSkill_interest _ _ _ ?_ index]
+        · exact kept index
+        · rw [Skill.beginTemporal_interest, Skill.settleTemporal_interest]
+          rfl
+
+/-- Every free dispatch records the meta decision it drew and leaves each slot the
+objective its refresh installed. -/
+theorem TemporalControl.atBoundary_interest (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
+    (ended : Option EndEvent)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.atBoundary models plan features declared reward goal closing ended =
+      some (next, decision)) :
+    decision.metaDecision.isSome = true ∧
+      ∀ index : Fin Acorn.FeatureConstants.skillCount,
+        next.runtime.lifecycle.consumers.skills[index.val].interest =
+          (state.refreshFree closing).1.runtime.lifecycle.consumers.skills[index.val].interest := by
+  unfold TemporalControl.atBoundary at executed
+  generalize state.refreshFree closing = refreshed at executed ⊢
+  dsimp only at executed
+  have drawnKept : ∀ index : Fin Acorn.FeatureConstants.skillCount,
+      ((refreshed.1.planFree plan features).drawMeta features).1.runtime.lifecycle.consumers.skills[index.val].interest =
+        refreshed.1.runtime.lifecycle.consumers.skills[index.val].interest := fun _ => rfl
+  generalize (refreshed.1.planFree plan features).drawMeta features = drawn at executed drawnKept
+  revert executed
+  cases refreshed.2 with
+  | none =>
+    intro executed
+    obtain ⟨recorded, kept⟩ := drawn.1.dispatchMeta_interest models features declared reward goal
+      drawn.2 ended next decision executed
+    exact ⟨by rw [recorded]; rfl, fun index => (kept index).trans (drawnKept index)⟩
+  | some owner =>
+    intro executed
+    obtain ⟨recorded, kept⟩ := TemporalControl.dispatchMeta_interest _ models features declared
+      reward goal drawn.2 _ next decision executed
+    exact ⟨by rw [recorded]; rfl, fun index => ((kept index).trans
+      (drawn.1.closeOption_interest models features owner reward _ index).1).trans (drawnKept index)⟩
+
+/-- With learned subtasks, every free dispatch leaves each slot the ranking's assignment
+for the Demon-0 weights and the objectives it started from. -/
+theorem TemporalControl.atBoundary_assigns (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
+    (ended : Option EndEvent)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.atBoundary models plan features declared reward goal closing ended =
+      some (next, decision))
+    (index : Fin Acorn.FeatureConstants.skillCount) :
+    next.runtime.lifecycle.consumers.skills[index.val].interest =
+      .learned (rankAssignments dimension config
+        (DemonBank.rankingWeights (discounts := demonLayout.tail)
+          state.runtime.lifecycle.consumers.demons)
+        (state.runtime.lifecycle.consumers.skills.map (·.interest.held)))[index.val] := by
+  rw [(state.atBoundary_interest models plan features declared reward goal closing ended next
+    decision executed).2 index, state.refreshFree_assigns learned closing]
+  exact (FreeDispatch.refreshModels_interest _ index).trans (FreeDispatch.refresh_targets _ index)
+
+/-- Selection preparation writes no learner, objective or representation. -/
+theorem TemporalControl.prepare_lifecycle (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    (state.prepareSelection models features reward).runtime.lifecycle = state.runtime.lifecycle := by
+  unfold TemporalControl.prepareSelection
+  dsimp only
+  split <;> split <;> rfl
+
+/-- A served exploration step draws no meta decision. -/
+theorem TemporalControl.serve_undrawn (state next : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
+    (served : state.serve features = some (next, decision)) : decision.metaDecision = none := by
+  unfold TemporalControl.serve at served
+  split at served
+  · rename_i run phase
+    cases hs : run.serve with
+    | none => simp [hs, bind, Option.bind] at served
+    | some pair =>
+      simp only [hs, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at served
+      obtain ⟨_, rfl⟩ := served
+      rfl
+  · contradiction
+  · contradiction
+
+/-- A fresh primitive choice records the meta decision it was given. -/
+theorem TemporalControl.choosePrimitive_meta (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 metaCount.word.toNat)
+    (decision : Option (PolicyDecision metaCount)) (ended : Option EndEvent) :
+    (state.choosePrimitive features values decision ended).2.metaDecision = decision := rfl
+
+/-- A stepped option records the meta decision it was given. -/
+theorem TemporalControl.stepOption_meta (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (slot : Fin Acorn.FeatureConstants.skillCount) (activation : OptionActivation (profile.mode != .frozen))
+    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (values : Vector Binary32 metaCount.word.toNat) (decision : Option (PolicyDecision metaCount))
+    (started : Bool) (ended : Option EndEvent) :
+    (state.stepOption models slot activation next reward values decision started
+      ended).2.metaDecision = decision := by
+  rw [TemporalControl.stepOption_eq]
+
+/-- A returned selection is its two components. -/
+theorem selected_eq {α β : Type} {result : α × β} {first : α} {second : β}
+    (executed : some result = some (first, second)) : result.1 = first ∧ result.2 = second := by
+  cases executed
+  exact ⟨rfl, rfl⟩
+
+/-- Timing over the executed selection: with learned subtasks, every decision that draws
+a meta decision is taken with the slot-stable ranking installed. Each slot's objective is
+the ranking's assignment for the Demon-0 weights and the objectives the decision started
+from; the reward delivered with the decision is learned afterwards, by `finish`. A served
+exploration step, a continuing option and a primitive-only profile draw no meta decision. -/
+theorem TemporalControl.select_assigns (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features declared reward goal =
+      some (next, decision))
+    (drawn : decision.metaDecision.isSome = true)
+    (index : Fin Acorn.FeatureConstants.skillCount) :
+    next.runtime.lifecycle.consumers.skills[index.val].interest =
+      .learned (rankAssignments dimension config
+        (DemonBank.rankingWeights (discounts := demonLayout.tail)
+          state.runtime.lifecycle.consumers.demons)
+        (state.runtime.lifecycle.consumers.skills.map (·.interest.held)))[index.val] := by
+  unfold TemporalControl.selectWithOperations at executed
+  rw [← state.prepare_lifecycle models features reward]
+  generalize state.prepareSelection models features reward = prepared at executed ⊢
+  dsimp only at executed
+  revert executed
+  cases served : prepared.serve features with
+  | some result =>
+    intro executed
+    obtain ⟨_, rfl⟩ := selected_eq executed
+    rw [prepared.serve_undrawn result.1 features result.2 served] at drawn
+    contradiction
+  | none =>
+    intro executed
+    simp only at executed
+    split at executed
+    · obtain ⟨_, rfl⟩ := selected_eq executed
+      rw [TemporalControl.choosePrimitive_meta] at drawn
+      contradiction
+    · split at executed
+      · exact (prepared.withPhase .idle).atBoundary_assigns learned models plan features declared
+          reward goal none none next decision executed index
+      · exact (prepared.withPhase .idle).atBoundary_assigns learned models plan features declared
+          reward goal none none next decision executed index
+      · rename_i slot activation phase
+        cases potential : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+            slot).interest.potential features declared with
+        | none => simp [potential, bind, Option.bind] at executed
+        | some value =>
+          simp only [potential, bind, Option.bind] at executed
+          split at executed
+          · obtain ⟨_, rfl⟩ := selected_eq executed
+            rw [TemporalControl.stepOption_meta] at drawn
+            contradiction
+          · split at executed
+            · exact (prepared.withPhase .idle).atBoundary_assigns learned models plan features
+                declared reward goal _ none next decision executed index
+            · generalize closedEq : (prepared.withPhase .idle).closeOption models features _ reward
+                _ = closed at executed
+              have kept (slot : Fin Acorn.FeatureConstants.skillCount) :=
+                closedEq ▸ (prepared.withPhase .idle).closeOption_interest models features _ reward
+                  _ slot
+              have assigned := closed.1.atBoundary_assigns learned models plan features declared
+                reward goal none _ next decision executed index
+              have held : closed.1.runtime.lifecycle.consumers.skills.map (·.interest.held) =
+                  prepared.runtime.lifecycle.consumers.skills.map (·.interest.held) := by
+                apply Vector.ext
+                intro position bound
+                simp only [Vector.getElem_map]
+                exact congrArg Interest.held (kept ⟨position, bound⟩).1
+              rw [(kept index).2, held] at assigned
+              exact assigned
+
+/-- Timing over the executed selection, coverage: a decision that draws a meta decision
+is taken with every candidate of the ranking installed in some slot. -/
+theorem TemporalControl.select_covers (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features declared reward goal =
+      some (next, decision))
+    (drawn : decision.metaDecision.isSome = true)
+    (candidate : Candidate config)
+    (member : candidate ∈ rankedCandidates dimension config
+      (DemonBank.rankingWeights (discounts := demonLayout.tail)
+        state.runtime.lifecycle.consumers.demons)) :
+    ∃ slot : Fin Acorn.FeatureConstants.skillCount,
+      next.runtime.lifecycle.consumers.skills[slot.val].interest.held.identity =
+        some candidate.unit := by
+  obtain ⟨slot, named⟩ := rankAssignments_covers dimension config _
+    (state.runtime.lifecycle.consumers.skills.map (·.interest.held)) candidate member
+  exact ⟨slot, by
+    rw [state.select_assigns learned models plan features declared reward goal next decision
+      executed drawn slot]
+    exact named⟩
+
+/-- Timing over the executed selection, the count: a decision that draws a meta decision
+is taken with as many slots holding a unit as the ranking has candidates, which is the
+number of positive score blocks up to the number of slots. -/
+theorem TemporalControl.select_occupancy (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features declared reward goal =
+      some (next, decision))
+    (drawn : decision.metaDecision.isSome = true) :
+    ((List.finRange Acorn.FeatureConstants.skillCount).filter fun slot =>
+      next.runtime.lifecycle.consumers.skills[slot.val].interest.held.identity.isSome).length =
+        (rankedCandidates dimension config
+          (DemonBank.rankingWeights (discounts := demonLayout.tail)
+            state.runtime.lifecycle.consumers.demons)).length := by
+  rw [← rankAssignments_count dimension config _
+    (state.runtime.lifecycle.consumers.skills.map (·.interest.held))]
+  congr 1
+  apply List.filter_congr
+  intro slot _
+  rw [state.select_assigns learned models plan features declared reward goal next decision
+    executed drawn slot]
+  rfl
+
+/-- Timing over the executed selection, the full table: a decision that draws a meta
+decision when the ranking has a candidate for every slot is taken with a unit in every
+slot. -/
+theorem TemporalControl.select_full (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features declared reward goal =
+      some (next, decision))
+    (drawn : decision.metaDecision.isSome = true)
+    (full : (rankedCandidates dimension config
+      (DemonBank.rankingWeights (discounts := demonLayout.tail)
+        state.runtime.lifecycle.consumers.demons)).length = Acorn.FeatureConstants.skillCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    ∃ unit bonus, next.runtime.lifecycle.consumers.skills[slot.val].interest =
+      .learned (.selected unit bonus) := by
+  obtain ⟨unit, bonus, target⟩ := rankAssignments_full dimension config _
+    (state.runtime.lifecycle.consumers.skills.map (·.interest.held)) full slot
+  exact ⟨unit, bonus, by
+    rw [state.select_assigns learned models plan features declared reward goal next decision
+      executed drawn slot, target]⟩
+
+/-- A hierarchical agent draws a meta decision at every decision that serves no
+exploration run and finds no option active, so the timing theorems apply there. -/
+theorem TemporalControl.select_drawn (state : TemporalControl profile config criterion dimension)
+    (hierarchy : profile.usesHierarchy = true)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features declared reward goal =
+      some (next, decision))
+    (unserved : (state.prepareSelection models features reward).serve features = none)
+    (free : ∀ slot activation,
+      (state.prepareSelection models features reward).runtime.references.phase ≠
+        .option slot activation) :
+    decision.metaDecision.isSome = true := by
+  unfold TemporalControl.selectWithOperations at executed
+  generalize state.prepareSelection models features reward = prepared at executed unserved free
+  dsimp only at executed
+  rw [unserved] at executed
+  simp only [hierarchy, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at executed
+  split at executed
+  · exact ((prepared.withPhase .idle).atBoundary_interest models plan features declared reward
+      goal none none next decision executed).1
+  · exact ((prepared.withPhase .idle).atBoundary_interest models plan features declared reward
+      goal none none next decision executed).1
+  · rename_i slot activation phase
+    exact absurd phase (free slot activation)
+
+/-- A primitive-only profile draws no meta decision: it has no option to pursue a subtask,
+reaches no free dispatch and assigns none. -/
+theorem TemporalControl.select_primitive (state : TemporalControl profile config criterion dimension)
+    (primitive : profile.usesHierarchy = false)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features declared reward goal =
+      some (next, decision)) :
+    decision.metaDecision = none := by
+  unfold TemporalControl.selectWithOperations at executed
+  generalize state.prepareSelection models features reward = prepared at executed
+  dsimp only at executed
+  revert executed
+  cases served : prepared.serve features with
+  | some result =>
+    intro executed
+    obtain ⟨_, rfl⟩ := selected_eq executed
+    exact prepared.serve_undrawn result.1 features result.2 served
+  | none =>
+    intro executed
+    simp only [primitive, Bool.not_false, ↓reduceIte] at executed
+    obtain ⟨_, rfl⟩ := selected_eq executed
+    rfl
 
 end Acorn.Handcrafted

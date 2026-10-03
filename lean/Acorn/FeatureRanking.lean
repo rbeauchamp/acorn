@@ -24,9 +24,10 @@ the unit alone, so refresh never discards the knowledge of a retained unit. A sl
 indicator can be activated by any hash alias; it is not unit activation.
 
 After a ranking the slots hold exactly the units of the ranked candidates
-(`rankAssignments_covers`, `rankAssignments_ranked`), and every slot holds a unit when
-there is a candidate for each (`rankAssignments_full`). Both follow from a count of
-kept slots against the ranked candidates some slot holds, for any number of slots.
+(`rankAssignments_covers`, `rankAssignments_ranked`), as many slots hold a unit as there
+are ranked candidates (`rankAssignments_count`), and every slot holds one when there is a
+candidate for each (`rankAssignments_full`). These follow from a count of kept slots
+against the ranked candidates some slot holds, for any number of slots.
 -/
 namespace Acorn.Features
 
@@ -1071,5 +1072,43 @@ theorem rankAssignments_full (dimension : Dimension) (config : Config)
       ((entrants held (rankedCandidates dimension config weights))[openBefore held
         (rankedCandidates dimension config weights) slot]'inside).score,
       by simp only [rankAssignments, Vector.getElem_ofFn, keeps, List.getElem?_eq_getElem inside]⟩
+
+/-- The slots holding a unit after the ranking are as many as the ranked candidates. -/
+theorem rankAssignments_count (dimension : Dimension) (config : Config)
+    (weights : WeightArray (.discounted .g99) dimension)
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
+    ((List.finRange Acorn.FeatureConstants.skillCount).filter fun slot =>
+      (rankAssignments dimension config weights held)[slot.val].identity.isSome).length =
+        (rankedCandidates dimension config weights).length := by
+  have upper : ((List.finRange Acorn.FeatureConstants.skillCount).filter fun slot =>
+      (rankAssignments dimension config weights held)[slot.val].identity.isSome).length ≤
+        ((rankedCandidates dimension config weights).map fun candidate =>
+          some candidate.unit).length := by
+    refine injective_length
+      (fun slot : Fin Acorn.FeatureConstants.skillCount =>
+        (rankAssignments dimension config weights held)[slot.val].identity) _ _ ?_ ?_
+    · refine ((List.nodup_finRange _).filter _).imp_of_mem ?_
+      intro left right leftHolds _ differs same
+      obtain ⟨unit, named⟩ := Option.isSome_iff_exists.mp (List.mem_filter.mp leftHolds).2
+      exact differs (rankAssignments_distinct dimension config weights held left right unit named
+        (same ▸ named))
+    · intro slot holds
+      obtain ⟨unit, named⟩ := Option.isSome_iff_exists.mp (List.mem_filter.mp holds).2
+      obtain ⟨candidate, member, source⟩ := List.mem_map.mp
+        (rankAssignments_ranked dimension config weights held slot unit named)
+      exact List.mem_map.mpr ⟨candidate, member, by rw [named, source]⟩
+  have lower : (rankedCandidates dimension config weights).length ≤
+      (((List.finRange Acorn.FeatureConstants.skillCount).filter fun slot =>
+        (rankAssignments dimension config weights held)[slot.val].identity.isSome).map fun slot =>
+          (rankAssignments dimension config weights held)[slot.val].identity).length := by
+    refine injective_length (fun candidate : Candidate config => some candidate.unit) _ _
+      ((rankedCandidates_units dimension config weights).imp fun differs same =>
+        differs (Option.some.inj same)) ?_
+    intro candidate member
+    obtain ⟨slot, named⟩ := rankAssignments_covers dimension config weights held candidate member
+    exact List.mem_map.mpr ⟨slot, List.mem_filter.mpr ⟨List.mem_finRange slot, by simp [named]⟩,
+      named⟩
+  simp only [List.length_map] at upper lower
+  omega
 
 end Acorn.Features

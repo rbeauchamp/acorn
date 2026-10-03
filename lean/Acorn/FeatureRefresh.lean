@@ -23,8 +23,12 @@ The assignment refresh runs at every free boundary and reads no host event (Sutt
 Bowling and Pilarski, *The Alberta Plan for AI Research*, arXiv:2208.11173v3 (2023),
 p. 2: the meta-algorithms for constructing subtasks "operate on every time step").
 After it the slots hold exactly the units of the ranked candidates
-(`refresh_covers`, `refresh_ranked`), so a slot holds a unit from the first free
-boundary at which the ranking has one for it (`refresh_full`).
+(`refresh_covers`, `refresh_ranked`): as many slots hold a unit as the ranking has
+candidates (`refresh_occupancy`), and all do once it has one for each (`refresh_full`).
+The refresh reads the Demon-0 weights as they stand when it runs. The full agent runs
+it during selection, before the reward delivered with that decision is learned, so a
+candidate that reward creates is installed at the next free dispatch
+(`TemporalControl.select_assigns`).
 
 The same ranking decides which feature slots every option's expectation model
 reads and predicts (Sutton, Bowling and Pilarski, *The Alberta Plan for AI Research*,
@@ -661,8 +665,7 @@ theorem FreeDispatch.refresh_ranked {shape : PatchShape} {config : Config}
 
 /-- Timing, the full table: after the assignment refresh at which the ranking has a
 candidate for every slot, every slot holds a unit. With fewer candidates than slots,
-`refresh_covers` and `refresh_distinct` give one slot to each candidate and
-`refresh_ranked` leaves the others neutral. -/
+`refresh_occupancy` gives one slot to each candidate and leaves the others neutral. -/
 theorem FreeDispatch.refresh_full {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
@@ -675,6 +678,24 @@ theorem FreeDispatch.refresh_full {shape : PatchShape} {config : Config}
     state.lifecycle.consumers.demons.rankingWeights
     (state.lifecycle.consumers.skills.map (·.interest.held)) full slot
   exact ⟨unit, bonus, by rw [state.refresh_targets slot, target]⟩
+
+/-- Timing, the count: after the assignment refresh as many slots hold a unit as the
+ranking has candidates, for every state and Demon-0 weight array. With one candidate one
+slot holds a unit, with two candidates two do, and with three all do. -/
+theorem FreeDispatch.refresh_occupancy {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
+    (state : FreeDispatch shape config criterion dimension discounts payload) :
+    ((List.finRange Acorn.FeatureConstants.skillCount).filter fun slot =>
+      state.refreshRanked.lifecycle.consumers.skills[slot.val].interest.held.identity.isSome).length =
+        (rankedCandidates dimension config
+          state.lifecycle.consumers.demons.rankingWeights).length := by
+  rw [← rankAssignments_count dimension config state.lifecycle.consumers.demons.rankingWeights
+    (state.lifecycle.consumers.skills.map (·.interest.held))]
+  congr 1
+  apply List.filter_congr
+  intro slot _
+  rw [state.refresh_targets slot]
+  rfl
 
 /-- The ranking's target for the first slot holding a still-ranked unit is that unit,
 with a bonus at least the held one, so installing it changes no unit identity. -/
