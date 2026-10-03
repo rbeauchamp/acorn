@@ -397,7 +397,7 @@ F-E left its feature-construction end inert until U3.
   before the reward delivered with a decision is learned, so a candidate that reward
   creates is installed at the next free dispatch, not at that decision. A
   primitive-only profile has no option to pursue a subtask and assigns none
-  (`TemporalControl.select_primitive`).
+  (`TemporalControl.primitive_undrawn`).
 - **The route to representation search.** Swift-Sarsa is presented as opening
   the door to learning representations "by searching over hundreds of millions of
   features in parallel" [[3]](#r3), leaning on step-size credit assignment over
