@@ -1867,9 +1867,10 @@ theorem step_guard {discount : Discount} (passage : Passage dimension)
 
 /-! ## Lifecycle -/
 
-/-- A transition is learned from exactly when the stored set is not empty, and the stored
-set after a frame is that frame's active set when its action was selected with the option's
-distribution and the empty set otherwise. -/
+/-- A transition is learned from exactly when the stored set is not empty and neither the
+stored set nor the current one exceeds `passageLimit`, and the stored set after a frame is
+that frame's active set when its action was selected with the option's distribution and the
+empty set otherwise. -/
 theorem advance_stores (preceding : Preceding dimension) (current : SwiftTd.ActiveSet dimension)
     (armed : Bool) :
     (preceding.advance current armed).2.features =

@@ -327,46 +327,77 @@ theorem completeBoundary_requires {size : Nat} {plan : CampaignPlan size}
     rfl
   | error error world => rw [actual] at returned; contradiction
 
-/-- Complete native campaign loop after domain and startup admission. -/
+/-- A campaign between attempts: the run state and the bookkeeping the loop carries. -/
+structure CampaignProgress (config : WorldConfig) (α : Type) {size : Nat}
+    (plan : CampaignPlan size) where
+  /-- Current stream state. -/
+  run : RunState config α
+  /-- What the campaign does next. -/
+  decision : BoundaryDecision plan
+  /-- Exact total steps across accepted outcomes. -/
+  totalSteps : UInt64
+  /-- Two-word summary of every completed outcome, in order. -/
+  outcomes : OutcomeFold
+  /-- Saturating completed-attempt total. -/
+  attempts : UInt32
+  /-- Observer and checkpoint IO failure counters. -/
+  resources : RunnerResources
+  /-- The writable checkpoint capability and its save action, when admitted. -/
+  checkpoint : Option (WritableCheckpoint × (α → System.FilePath → IO Unit))
+
+/-- One campaign boundary: the result at an ending, or the next attempt with its outcome
+bookkeeping and boundary checkpoint. The progress record is taken apart on entry and its
+run state is handed to the attempt, so nothing else refers to the agent while the attempt
+runs and the attempt's first writes can reuse the agent's storage. That reuse is a
+property of the compiled code, not of these values. -/
+def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
+    {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks α β)
+    (observer : StreamObserver β) (readStop : BaseIO Bool)
+    (progress : CampaignProgress config α plan) :
+    IO (CampaignProgress config α plan ⊕ Except RunnerError (CampaignResult config α)) := do
+  let ⟨run, decision, totalSteps, outcomes, attempts, resources, checkpoint⟩ := progress
+  match decision with
+  | .complete => return .inr (.ok ⟨run, totalSteps, outcomes, attempts, resources, .complete⟩)
+  | .stopped => return .inr (.ok ⟨run, totalSteps, outcomes, attempts, resources, .stopped⟩)
+  | .continue cursor =>
+    have hg : cursor.goal.val < curriculum.size := by
+      have := cursor.goal.isLt; have := plan.goals.isLt; omega
+    let (goal, tier) := curriculum[cursor.goal.val]'hg
+    let context := cursor.context tier
+    let started := Attempt.start run goal plan.stepCap
+    match ← runAttempt callbacks observer context started resources with
+    | .error error => return .inr (.error error)
+    | .ok (next, outcome, observed) =>
+      match addOutcomeSteps totalSteps outcome with
+      | .error error => return .inr (.error (.metric error))
+      | .ok total =>
+        let outcomes := outcomes.push outcome
+        let resources ← notifyObserver (observer.onOutcome outcome) observed
+        let attempts := saturatingIncrement32 attempts
+        let checkpoint := checkpoint.map fun (capability, save) => (capability.advance, save)
+        let stopping ← readStop
+        let boundary := atAttemptBoundary cursor outcome.achieved stopping
+        let (savedResources, nextDecision) ← completeBoundary boundary
+          (checkpointAction next.agent checkpoint boundary resources)
+        return .inl ⟨next, nextDecision, total, outcomes, attempts, savedResources, checkpoint⟩
+
+/-- Complete native campaign loop after domain and startup admission. The loop carries
+either the progress between attempts or the campaign's result, and each pass hands the
+progress to `campaignStep`: no return follows that call, so the loop keeps no second
+reference to the run state across an attempt. -/
 def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
     (plan : CampaignPlan curriculum.size) (callbacks : AgentCallbacks α β) (observer : StreamObserver β)
     (initial : RunState config α) (checkpoint : Option (WritableCheckpoint × (α → System.FilePath → IO Unit)))
     (readStop : BaseIO Bool) (admission : CheckpointAdmission := .missing) :
     IO (Except RunnerError (CampaignResult config α)) := do
-  let mut checkpoint := checkpoint
-  let mut run := initial
-  let mut decision := plan.initial
-  let mut totalSteps : UInt64 := 0
-  let mut outcomes : OutcomeFold := {}
-  let mut attempts : UInt32 := 0
-  let mut resources : RunnerResources := { checkpointStatus :=
+  let resources : RunnerResources := { checkpointStatus :=
     if checkpoint.isSome then .pending else if admission == .refused then .refused else .disabled }
+  let mut phase : CampaignProgress config α plan ⊕ Except RunnerError (CampaignResult config α) :=
+    .inl ⟨initial, plan.initial, 0, {}, 0, resources, checkpoint⟩
   repeat
-    match decision with
-    | .complete => return .ok ⟨run, totalSteps, outcomes, attempts, resources, .complete⟩
-    | .stopped => return .ok ⟨run, totalSteps, outcomes, attempts, resources, .stopped⟩
-    | .continue cursor =>
-      have hg : cursor.goal.val < curriculum.size := by have := cursor.goal.isLt; have := plan.goals.isLt; omega
-      let (goal, tier) := curriculum[cursor.goal.val]'hg
-      let context := cursor.context tier
-      let started := Attempt.start run goal plan.stepCap
-      match ← runAttempt callbacks observer context started resources with
-      | .error error => return .error error
-      | .ok (next, outcome, observed) =>
-        match addOutcomeSteps totalSteps outcome with
-        | .error error => return .error (.metric error)
-        | .ok total => totalSteps := total
-        run := next
-        outcomes := outcomes.push outcome
-        resources ← notifyObserver (observer.onOutcome outcome) observed
-        attempts := saturatingIncrement32 attempts
-        checkpoint := checkpoint.map fun (capability, save) => (capability.advance, save)
-        let stopping ← readStop
-        let boundary := atAttemptBoundary cursor outcome.achieved stopping
-        let (savedResources, nextDecision) ← completeBoundary boundary
-          (checkpointAction run.agent checkpoint boundary resources)
-        resources := savedResources
-        decision := nextDecision
+    match phase with
+    | .inr result => return result
+    | .inl progress => phase ← campaignStep curriculum callbacks observer readStop progress
 
 /-- Startup preserves refusal order and never constructs an agent before campaign admission.
 Unexpected loader errors retain the fresh agent and disable writes, like a refused image. -/
