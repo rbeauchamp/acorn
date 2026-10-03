@@ -11,7 +11,8 @@ is also read by the native provenance bootstrap; this leaf is the single owner.
 Changing a pin records an explicit dynamics decision, never a correctness proof.
 All three pins record the published generate-and-test tester (PAR-11, D7), the
 task-reading generator, off-policy option learning (PAR-17) and option expectation
-models with planning under the current values (PAR-13, PAR-14); the declared-rate
+models with planning under the current values (PAR-13, PAR-14), and the checksums fold
+every option's off-policy questions (PAR-18); the declared-rate
 and differential pins also record stable, sign-correct reward-respecting subtasks
 and the declared D6 exploration rate.
 -/
@@ -20,14 +21,14 @@ namespace Acorn.Host.AuditPins
 /-- Deployed ranked, declared-rate, discounted action digest. -/
 def declaredDigest : UInt64 := 0xb1f613d0b887e2ec
 /-- Knowledge checksum paired with the deployed digest. -/
-def declaredChecksum : UInt64 := 0x82e22258e9546064
+def declaredChecksum : UInt64 := 0x917e363ef00d48ed
 /-- Annealed incumbent action digest. -/
 def annealedDigest : UInt64 := 0x44b12a4ace91e72e
 /-- Knowledge checksum paired with the incumbent digest. -/
-def annealedChecksum : UInt64 := 0x566c46a5a2f8212e
+def annealedChecksum : UInt64 := 0x4a771ff9e3a83cf9
 /-- Differential research action digest. -/
 def differentialDigest : UInt64 := 0x6eeee57dda0ec1a0
 /-- Knowledge checksum paired with the differential digest. -/
-def differentialChecksum : UInt64 := 0x32ca6c444488d470
+def differentialChecksum : UInt64 := 0x551c641b87d1f591
 
 end Acorn.Host.AuditPins

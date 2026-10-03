@@ -71,22 +71,30 @@ def PredictionControl.encode (state : PredictionControl profile criterion dimens
     SwiftTd.ActiveSet dimension :=
   profile.encode dimension bank obs (feedbackPredictions state.predictions)
 
-/-- One already-selected primitive transition: credit policy, then demons, then
-host gain. Frozen mode retains learned state and only records predecessor presence. -/
-def PredictionControl.advance (state : PredictionControl profile criterion dimension)
-    (features : SwiftTd.ActiveSet dimension) (obs : Observation) (reward : Binary32)
-    (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool) (clock : UInt64 := 0) :
-    PredictionControl profile criterion dimension :=
+/-- One already-selected primitive transition with its signal values already
+evaluated: credit policy, then demons, then host gain. Frozen mode retains learned
+state and only records predecessor presence. -/
+def PredictionControl.advanceWith (state : PredictionControl profile criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants demonLayout)
+    (reward : Binary32) (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool)
+    (clock : UInt64 := 0) : PredictionControl profile criterion dimension :=
   if profile.mode == .frozen then
     { state with control := state.control.finish false reward }
   else
     let credited := state.control.creditStep features action own reward
-    let cumulants := evaluateCumulants cumulantOrder obs reward
     let outputs := state.demons.step features cumulants
     ⟨credited.finish true reward,
       (credit_kind_preserved state.control features action own reward).trans state.creditMatches,
       outputs.bank, outputs.predictions, outputs.errors,
       state.lifetime.recordDemons clock cumulants outputs.predictions⟩
+
+/-- One already-selected primitive transition: the signal values are evaluated once
+from the observation, then `advanceWith`. -/
+def PredictionControl.advance (state : PredictionControl profile criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (obs : Observation) (reward : Binary32)
+    (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool) (clock : UInt64 := 0) :
+    PredictionControl profile criterion dimension :=
+  state.advanceWith features (evaluateCumulants cumulantOrder obs reward) reward action own clock
 
 /-- Public action refusal precedes encoding and any state transition. -/
 def PredictionControl.advanceRaw (state : PredictionControl profile criterion dimension)
@@ -113,6 +121,6 @@ theorem PredictionControl.frozen_predictions (state : PredictionControl profile 
     (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool) (frozen : profile.mode = .frozen) :
     (state.advance features obs reward action own).demons = state.demons ∧
     (state.advance features obs reward action own).predictions = state.predictions := by
-  simp [PredictionControl.advance, frozen]
+  simp [PredictionControl.advance, PredictionControl.advanceWith, frozen]
 
 end Acorn.Handcrafted

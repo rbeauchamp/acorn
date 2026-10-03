@@ -24,7 +24,10 @@ In the `ranked` configuration, these mechanisms work together:
    combines authored input channels with a bank of generated projections.
 2. **Predictions** estimate future signals such as task reward. A **general value
    function (GVF)** specifies a signal to predict, a policy and a horizon; Acorn
-   uses a fixed collection of on-policy questions.
+   uses a fixed collection of questions about the policy it follows. Each option
+   also asks the same questions about its own policy and learns them off-policy,
+   from the steps on which the agent chose as that option would; nothing reads
+   those answers yet.
 3. **Subtasks** attach goals to candidate behaviors. Ranked learned feature
    weights supply the ranking used to choose them.
 4. **Options** are policies that can act over several steps. A higher-level
@@ -65,7 +68,7 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 |---|---|---|
 | 1 | Fixed-feature learning | Learning machinery with per-weight step-size adaptation. |
 | 2 | Representation search | Generated projection features over the kind patch and task words, replaced by a published generate-and-test tester at a declared rate; authored input channels remain. |
-| 3 | Predictive questions | On-policy specialization with fixed questions. |
+| 3 | Predictive questions | Fixed questions, on-policy about the agent's behaviour and off-policy about each option's policy. |
 | 4 | Choosing actions | Declared Sarsa substitution for the plan's actor-critic direction. |
 | 5 | Long-run prediction | General average-reward GVFs are absent. |
 | 6 | Continuing decisions | Differential-control research integration. |
@@ -249,6 +252,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-15](prior-art-review.md#par-15--differential-control): Differential control, [Acorn.Average](../lean/Acorn/Average.lean).
 - [PAR-16](prior-art-review.md#par-16--floatlib-rounding-theory): FloatLib rounding theory, a proof dependency, [AcornVerif.FloatLibBridge](../lean/AcornVerif/FloatLibBridge.lean).
 - [PAR-17](prior-art-review.md#par-17--off-policy-option-learning): Off-policy option learning, [Acorn.Temporal](../lean/Acorn/Temporal.lean).
+- [PAR-18](prior-art-review.md#par-18--off-policy-questions): Off-policy questions, [Acorn.OffPolicy](../lean/Acorn/OffPolicy.lean).
 
 ## Boundaries
 

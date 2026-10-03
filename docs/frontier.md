@@ -100,11 +100,11 @@ control remains **demoted** and ineligible for default use.
 |---|---|---|
 | State legality | Indexed value domains and checked construction/restoration | Hypotheses and machine domains belong to each theorem. |
 | Learned-only separation | Declared provenance plus source/compiled quarantine | Review checks the declared origin against the producing code. |
-| Persistence | Admitted format, dimensions, criterion and identity; refusing writes on invalid restore | Learner state resumes; world and transient process state restart. Filesystem guarantees depend on native IO and the OS. |
+| Persistence | Admitted format, dimensions, criterion and identity; refusing writes on invalid restore | Stored learner state resumes; option models and each option's off-policy questions start afresh; world and transient process state restart. Filesystem guarantees depend on native IO and the OS. |
 | Viewer | One-way telemetry and lifecycle-only stop | Designed for a single local operator on loopback. |
 | Resources | Source/IR-linked structural contracts and bounded stored updates | Physical latency and memory costs depend on the workload and platform. |
 | Learning quality | Explicit research selection and promotion rules | Prospective qualification remains open. |
-| C-AC5 | Declared-rate arm `b1f613d0b887e2ec`, checksum `82e22258e9546064`; annealed arm `44b12a4ace91e72e`, checksum `566c46a5a2f8212e`; differential arm `6eeee57dda0ec1a0`, checksum `32ca6c444488d470` | The fixed audit arms are compared through these paired values. All three pins record the generate-and-test tester and task-reading generator (PAR-11, D7), off-policy option learning (PAR-17) and option expectation models with planning under the current values (PAR-13, PAR-14); the declared-rate and differential pins also record the stable, sign-correct subtask (#8) and declared-rate (D6) dynamics decisions. |
+| C-AC5 | Declared-rate arm `b1f613d0b887e2ec`, checksum `917e363ef00d48ed`; annealed arm `44b12a4ace91e72e`, checksum `4a771ff9e3a83cf9`; differential arm `6eeee57dda0ec1a0`, checksum `551c641b87d1f591` | The fixed audit arms are compared through these paired values. All three pins record the generate-and-test tester and task-reading generator (PAR-11, D7), off-policy option learning (PAR-17), option expectation models with planning under the current values (PAR-13, PAR-14) and, in the checksums, every option's off-policy questions (PAR-18); the declared-rate and differential pins also record the stable, sign-correct subtask (#8) and declared-rate (D6) dynamics decisions. |
 
 See [verification](verification.md), [performance priorities](performance-engineering.md) and
 [prior-art admission/promotion](prior-art-review.md).

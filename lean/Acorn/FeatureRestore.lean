@@ -66,8 +66,8 @@ structure PrimaryImage (dimension : Dimension) (discounts : List Discount) where
   demons : DemonImages dimension discounts
 
 /-- Restore the complete receiving primary state, install saved target identities,
-reset every model under its criterion-specific storage shape, and link no skill
-to a frame from before the restore. -/
+reset every model under its criterion-specific storage shape, ask every option's
+questions afresh, and link no skill to a frame from before the restore. -/
 def Ensemble.restore {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
     (image : PrimaryImage dimension discounts)
@@ -76,7 +76,7 @@ def Ensemble.restore {config : Config} {criterion : Criterion} {dimension : Dime
   ⟨ensemble.control.restore image.control, ensemble.metaController.restore image.metaController,
     Vector.ofFn (fun i => ⟨.learned assignments[i.val],
       ensemble.skills[i.val].policy.restore image.skills[i.val], Model.initial dimension criterion,
-      none⟩),
+      none, OptionQuestions.initial dimension discounts⟩),
     ensemble.demons.restore image.demons⟩
 
 /-- Every restored slot starts with no stored off-policy trajectory. -/
@@ -86,6 +86,17 @@ theorem Ensemble.restore_unlinked {config : Config} {criterion : Criterion} {dim
     (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     (ensemble.restore image assignments).skills[slot.val].following = none := by
+  simp [Ensemble.restore]
+
+/-- Every restored slot asks its questions afresh: the checkpoint stores no question. -/
+theorem Ensemble.restore_questions {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount}
+    (ensemble : Ensemble config criterion dimension discounts)
+    (image : PrimaryImage dimension discounts)
+    (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    (ensemble.restore image assignments).skills[slot.val].questions =
+      OptionQuestions.initial dimension discounts := by
   simp [Ensemble.restore]
 
 /-- Feature metadata received from the file decoder, before any mutation. -/

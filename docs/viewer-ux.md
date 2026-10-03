@@ -37,7 +37,7 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
   (`./lean/.lake/build/bin/acorn-core audit --expect b1f613d0b887e2ec`),
-  checksum `82e22258e9546064` (C-AC5), and by the gate suite
+  checksum `917e363ef00d48ed` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
 - **INV-1b · The control channel carries lifecycle only.** The core's stdin

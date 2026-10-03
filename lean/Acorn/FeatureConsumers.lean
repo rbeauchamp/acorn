@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Acorn.FeatureConstants
 import Acorn.FeatureRanking
+import Acorn.OffPolicy
 import Acorn.RankedFeatures
 
 /-!
@@ -350,8 +351,10 @@ structure Following where
   /-- Potential observed at the preceding frame. -/
   previous : Bool
 
-/-- Complete storage belonging to one option assignment. -/
-structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension) where
+/-- Complete storage belonging to one option assignment. The questions it asks about its
+own policy follow the prediction channel layout. -/
+structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension)
+    (discounts : List Discount) where
   /-- Objective identity, retained by feature-slot retirement. -/
   interest : Interest config
   /-- Current option-policy consumers. -/
@@ -361,22 +364,30 @@ structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension
   /-- Off-policy trajectory of these learners while the option is not executing.
   Fresh and restored storage has none, so no frame is credited to a later objective. -/
   following : Option Following
+  /-- One off-policy question per prediction channel about this option's policy. They
+  read feature slots but are no reader of the tester's utility, so no decision reads
+  them. Fresh and restored storage asks them afresh. -/
+  questions : OptionQuestions dimension discounts
 
-/-- Fresh policy and model for the selected target, linked to no earlier frame. -/
+/-- Fresh policy, model and questions for the selected target, linked to no earlier
+frame. -/
 def Skill.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
-    (interest : Interest config) : Skill config criterion dimension :=
-  ⟨interest, Controller.initial _ _ _, Model.initial _ _, none⟩
+    {discounts : List Discount} (interest : Interest config) :
+    Skill config criterion dimension discounts :=
+  ⟨interest, Controller.initial _ _ _, Model.initial _ _, none, OptionQuestions.initial _ _⟩
 
 /-- Each policy reader followed by its three model reader positions. -/
 def Skill.readers {config : Config} {criterion : Criterion} {dimension : Dimension}
-    (skill : Skill config criterion dimension) : List (PackedLearner dimension) :=
+    {discounts : List Discount} (skill : Skill config criterion dimension discounts) :
+    List (PackedLearner dimension) :=
   skill.policy.readers ++ skill.model.readers
 
 /-- Reset knowledge in the complete skill while retaining its target identity. -/
 def Skill.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
-    (skill : Skill config criterion dimension) (feature : FeatIdx dimension) : Skill config criterion dimension :=
-  let ⟨interest, policy, model, following⟩ := skill
-  ⟨interest, policy.retire feature, model.retire feature, following⟩
+    {discounts : List Discount} (skill : Skill config criterion dimension discounts)
+    (feature : FeatIdx dimension) : Skill config criterion dimension discounts :=
+  let ⟨interest, policy, model, following, questions⟩ := skill
+  ⟨interest, policy.retire feature, model.retire feature, following, questions.retire feature⟩
 
 /-- All current learned consumers; dimensions, criteria and channel layout are nominal. -/
 structure Ensemble (config : Config) (criterion : Criterion) (dimension : Dimension)
@@ -386,7 +397,7 @@ structure Ensemble (config : Config) (criterion : Criterion) (dimension : Dimens
   /-- Meta controller, including the primitive delegation action. -/
   metaController : Controller (criterion.config .control) dimension Acorn.FeatureConstants.metaActionCount
   /-- Every current skill and its model. -/
-  skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount
+  skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount
   /-- Every configured prediction channel. -/
   demons : DemonBank dimension discounts
 
@@ -406,7 +417,8 @@ def Ensemble.retire {config : Config} {criterion : Criterion} {dimension : Dimen
 
 /-- Each policy learner followed by the physically stored model learners. -/
 def Skill.stored {config : Config} {criterion : Criterion} {dimension : Dimension}
-    (skill : Skill config criterion dimension) : List (PackedLearner dimension) :=
+    {discounts : List Discount} (skill : Skill config criterion dimension discounts) :
+    List (PackedLearner dimension) :=
   skill.policy.readers ++ skill.model.stored
 
 /-- Every physically stored learner once, in reader order. A discounted model's
@@ -465,7 +477,7 @@ theorem DemonBank.reader_count {dimension : Dimension} {discounts : List Discoun
 
 /-- Each skill's coverage is derived from its policy shape and model interface. -/
 theorem Skill.reader_count {config : Config} {criterion : Criterion} {dimension : Dimension}
-    (skill : Skill config criterion dimension) :
+    {discounts : List Discount} (skill : Skill config criterion dimension discounts) :
     skill.readers.length = Acorn.FeatureConstants.primitiveCount + 3 := by
   simp [Skill.readers, Controller.reader_count, Model.reader_count]
 
@@ -474,7 +486,7 @@ theorem Ensemble.reader_count {config : Config} {criterion : Criterion} {dimensi
     {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts) :
     ensemble.readers.length = Acorn.FeatureConstants.primitiveCount + Acorn.FeatureConstants.metaActionCount +
       Acorn.FeatureConstants.skillCount * (Acorn.FeatureConstants.primitiveCount + 3) + discounts.length := by
-  have skillCount (skills : List (Skill config criterion dimension)) :
+  have skillCount (skills : List (Skill config criterion dimension discounts)) :
       (skills.flatMap Skill.readers).length = skills.length * (Acorn.FeatureConstants.primitiveCount + 3) := by
     induction skills with
     | nil => simp
@@ -503,7 +515,8 @@ theorem DemonBank.retire_readers {dimension : Dimension} {discounts : List Disco
 
 /-- Skill scanning and reset include both policy and model state. -/
 theorem Skill.retire_readers {config : Config} {criterion : Criterion} {dimension : Dimension}
-    (skill : Skill config criterion dimension) (feature : FeatIdx dimension) :
+    {discounts : List Discount} (skill : Skill config criterion dimension discounts)
+    (feature : FeatIdx dimension) :
     (skill.retire feature).readers = skill.readers.map (PackedLearner.retire feature) := by
   simp [Skill.retire, Skill.readers, Controller.retire_readers, Model.retire_readers]
 

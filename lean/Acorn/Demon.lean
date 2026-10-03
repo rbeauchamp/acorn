@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.FeatureReferences
-import Acorn.Provenance
+import Acorn.SignalValues
 
 /-!
 # On-policy prediction and recursive feedback storage
@@ -58,14 +58,6 @@ def Demon.prediction {S Obs Res : Type} [Signal S Obs Res] {signal : S} {dimensi
     (demon : Demon (Obs := Obs) (Res := Res) signal dimension)
     (features : SwiftTd.ActiveSet dimension) : Prediction (Signal.discount (Obs := Obs) (Res := Res) signal) :=
   Prediction.project _ (demon.learner.state.linearPrediction features)
-
-/-- A bank input has exactly one raw cumulant per immutable discount slot. -/
-inductive Cumulants : List Discount → Type where
-  /-- Empty tail. -/
-  | nil : Cumulants []
-  /-- One raw signal value with its mandatory declared origin, in channel order. -/
-  | cons {discount : Discount} {rest : List Discount} (origin : Option Departure)
-      (value : Binary32) (tail : Cumulants rest) : Cumulants (discount :: rest)
 
 /-- One complete prediction update retains the same heterogeneous bank layout. -/
 structure DemonBankOutput (dimension : Dimension) (discounts : List Discount) where

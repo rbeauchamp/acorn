@@ -114,7 +114,7 @@ theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile 
     (executed : state.dispatchMeta models features declared reward goal decision ended =
       some (next, observed)) :
     next.lifetime = state.lifetime ∧ next.activeSlot = observed.started ∧ observed.ended = ended := by
-  unfold TemporalControl.dispatchMeta at executed
+  rw [TemporalControl.dispatchMeta_eq] at executed
   generalize prepared : state.learnMeta features decision = credited at executed
   have lifetime : credited.lifetime = state.lifetime := by
     rw [← prepared, TemporalControl.learnMeta_eq]
@@ -138,7 +138,7 @@ theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile 
 
 /-- Refresh alters feature knowledge and detached ownership, leaving episode observations intact. -/
 theorem TemporalControl.refresh_episode_slot (state : TemporalControl profile config criterion dimension)
-    (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))) :
+    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).2.map (·.slot) = closing.map (·.slot) := by
   exact (FreeDispatch.refreshModels_closing_slot
     (⟨state.runtime.lifecycle, state.runtime.refresh, state.runtime.references.modelPredictions, closing⟩ :
@@ -148,18 +148,18 @@ theorem TemporalControl.refresh_episode_slot (state : TemporalControl profile co
 /-- Terminal credit does not itself record an episode; the common finish boundary records it once. -/
 theorem TemporalControl.close_lifetime (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (closing : Closing config criterion dimension (EndingPayload (profile.mode != .frozen)))
+    (closing : Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))
     (reward terminal : Binary32) :
     (state.closeOption models features closing reward terminal).1.lifetime = state.lifetime := by
-  unfold TemporalControl.closeOption
+  rw [TemporalControl.closeOption_eq]
   split <;> rfl
 
 /-- Free dispatch preserves episode ownership through refresh, planning and sampled terminal credit. -/
 theorem TemporalControl.boundary_episodes (state next : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (closing : Option (Closing config criterion dimension (EndingPayload (profile.mode != .frozen))))
+    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
     (ended : Option EndEvent) (observed : TemporalDecision)
     (executed : state.atBoundary models plan features declared reward goal closing ended =
       some (next, observed)) :
@@ -232,7 +232,7 @@ theorem TemporalControl.serve_episodes (state next : TemporalControl profile con
 
 /-- Source-exclusive selection exposes the complete start/end transition for each activation. -/
 theorem TemporalControl.select_episodes (state next : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
     (observed : TemporalDecision)
     (primitive : profile.usesHierarchy = false → state.activeSlot = none)
@@ -316,7 +316,7 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
           | ending reason =>
             simp only [skill, free, metaPolicy] at choice
             simp only [choice] at executed
-            let closing : Closing config criterion dimension (EndingPayload (profile.mode != .frozen)) :=
+            let closing : Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)) :=
               ⟨slot, ⟨activation, value, reason⟩, none⟩
             cases criterion with
             | differential =>
@@ -367,7 +367,7 @@ theorem EpisodeTrace.record_valid
 
 /-- Primitive-only selection cannot leave an option active, regardless of prior raw occupancy. -/
 theorem TemporalControl.select_primitive (state next : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
     (observed : TemporalDecision) (primitive : profile.usesHierarchy = false)
     (executed : state.selectWithOperations models plan features declared reward goal = some (next, observed)) :
@@ -421,7 +421,7 @@ theorem TemporalControl.finish_options (state : TemporalControl profile config c
       Lifetime.recordOptions state.lifetime.options decision.episodeEnd decision.started := by
   by_cases frozen : profile.mode = .frozen <;>
     simp [TemporalControl.finish_eq, TemporalControl.recordEpisodes, TemporalControl.predictionView,
-      PredictionControl.advance, frozen]
+      PredictionControl.advanceWith, frozen]
   exact Lifetime.Stats.recordDemons_options _ _ _ _
 
 /-- Actual local steps preserve the episode invariant at every write boundary. -/
