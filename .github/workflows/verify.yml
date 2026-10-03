@@ -88,11 +88,15 @@ jobs:
             lean/.lake/packages/subverso
             lean/.lake/packages/MD4Lean
             lean/.lake/packages/illuminate
-          key: verso-deps-v1-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('site/lean-toolchain', 'site/lake-manifest.json') }}
+          key: verso-deps-v2-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('site/lean-toolchain', 'site/lake-manifest.json') }}
       - name: Provision pinned Verso
-        if: steps.verso.outputs.cache-hit != 'true'
         working-directory: site
-        run: lake build verso/VersoManual
+        # Verso precompiles its modules, so the documents load VersoManual's shared
+        # library, which the library's default target does not build. This step
+        # builds both and configures the site workspace over every locked
+        # dependency, so verification does neither inside its deadline. On an exact
+        # cache hit it has nothing to build.
+        run: lake build verso/VersoManual verso/VersoManual:shared
       - name: Save pinned Verso dependencies before project verification
         if: steps.verso.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
