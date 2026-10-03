@@ -115,9 +115,10 @@ Two consequences follow, and neither is conformance with the source.
   their model share is exactly ε (`explorationShare_single` in
   `AcornVerif.Exploration`). Once the meta-controller
   holds options the mechanism rarely runs: in two diagnostic traces of study
-  first-pass-vs-chance r1, 0.95% and 0.93% of steps were exploratory
+  first-pass-vs-chance r1 (seeds 16265277883658242538 and 8789851314873071931),
+  0.95% and 0.93% of steps were exploratory
   ([#58](https://github.com/rbeauchamp/acorn/issues/58)). The traces are
-  diagnostics of two seeds, not study evidence.
+  diagnostics of those two seeds, not study evidence.
 
 `TemporalControl.declared_rates` proves every consumer reads this word at every
 state; `TemporalSupport.declared_branch_card` counts the source words that

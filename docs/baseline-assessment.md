@@ -422,9 +422,9 @@ F-E left its feature-construction end inert until U3.
   reward (`TemporalControl.step`). A request consumed in the decision that
   follows the first achievement therefore finds every weight zero,
   installs nothing and is cleared, and the next request waits for the next
-  achievement. In a diagnostic trace of one seed of U6's run the three options
-  had no subtask for the first 31 000 of 34 000 steps; in a second, for the
-  first 422 of 10 563
+  achievement. In a diagnostic trace of seed 16265277883658242538 of U6's run
+  the three options had no subtask for the first 31 000 of 34 000 steps; in one
+  of seed 8789851314873071931, for the first 422 of 10 563
   ([#57](https://github.com/rbeauchamp/acorn/issues/57)). The traces are
   diagnostics of those two seeds, not study evidence. The option models are not
   affected: they take the feature ranking at every free boundary
