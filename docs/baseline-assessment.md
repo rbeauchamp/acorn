@@ -635,8 +635,9 @@ learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
   in every model; a slot that stays ranked keeps its position and its row's
   weights from every other retained slot, and a retired ranked slot vacates its
   position (`Transition.rerank`, `Transition.retire`). A slot is held at one
-  position only, by a field of the ranking's type. Installed only at a subtask
-  refresh, the ranking stayed empty through each audit campaign.
+  position only, by a field of the ranking's type.
+  [PAR-13](prior-art-review.md#par-13--option-expectation-models) records the
+  cadence this replaced.
 - **Selection name and pins.** `--planning expectation` replaces `scalar`. The
   transition part is process-local like the other model learners, so the
   checkpoint format is unchanged. All three audit pins changed, because the
