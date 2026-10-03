@@ -105,9 +105,9 @@ cannot be enumerated. It is estimated from a random sample of seeds.
 One process per seed runs the agent's pass and then the comparator's pass.
 
 **Why these values.** The side and the cap are the core's defaults
-([run controls](../../design.md#run-controls)); neither was chosen with an
-outcome in view, and no outcome exists. One attempt per goal and one cycle are
-forced by item 3: the comparator makes one attempt per goal in one pass.
+([core arguments](../../../lean/Acorn/Host/Cli.lean)); neither was chosen with
+an outcome in view, and no outcome exists. One attempt per goal and one cycle
+are forced by item 3: the comparator makes one attempt per goal in one pass.
 
 **Horizon: one pass, at most 34 000 steps.** This is the longest horizon on
 which the public core offers a matched comparator.
