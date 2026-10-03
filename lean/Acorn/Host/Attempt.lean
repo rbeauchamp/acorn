@@ -355,8 +355,27 @@ def Attempt.finish {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UI
   let run := { attempt.run with agent := agent }
   let frame := captureFrame callbacks run observation attempt.lastAction context
   let outcome : GoalOutcome :=
-    ⟨context.index, context.attempt, context.tier, steps, achieved, attempt.reward, callbacks.metrics agent⟩
+    ⟨context.index, context.attempt, context.tier, steps, achieved, attempt.reward, callbacks.metrics agent,
+      attempt.run.world.body.position.position⟩
   return (run, outcome, frame)
+
+/-- The stream that continues past an attempt boundary is the attempt's own run
+with the attempt recorded, for every callback: no outcome row is an input to it.
+The row's position is that stream's body position, the one the terminal frame shows. -/
+theorem Attempt.finish_position {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (context : GoalContext) (attempt : Attempt config α goal cap)
+    (run : RunState config α) (outcome : GoalOutcome) (frame : StepFrame β)
+    (h : attempt.finish callbacks context = .ok (run, outcome, frame)) :
+    run = { attempt.run with agent := (callbacks.recordAttempt attempt.run.agent goal.family
+        context.cycle attempt.steps.val.toUInt64 attempt.run.carried.events.done) } ∧
+      outcome.position = run.world.body.position.position ∧ frame.position = outcome.position := by
+  unfold Attempt.finish at h
+  cases sensed : attempt.run.world.observe with
+  | error refusal => simp [sensed, bind, Except.bind] at h
+  | ok observation =>
+    simp only [sensed, bind, Except.bind, pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    exact ⟨rfl, rfl, rfl⟩
 
 /-- A stopped attempt cannot execute another action through its public tick entry. -/
 theorem Attempt.tick_finished {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}

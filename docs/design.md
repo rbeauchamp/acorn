@@ -198,7 +198,8 @@ these boundaries do not restart its learned weights.
 | `--goals` | Number of curriculum entries to visit per cycle; the standard curriculum has 13 entries. |
 | `--cycles` | Number of curriculum cycles; `0` continues until stopped. |
 | `--checkpoint PATH` | Load/save compatible learner state; supported for `ranked`. Omission keeps the terminal run in memory. |
-| `--csv PATH` | Stream attempt outcomes to a new CSV file; cannot be combined with `--checkpoint`. |
+| `--csv PATH` | Stream attempt outcomes to a new [outcome CSV](#outcome-csv) file; cannot be combined with `--checkpoint`. |
+| `--baseline` | After the campaign, run the random-policy comparator and print both achieved counts; cannot be combined with `--control-stdin`. |
 
 These are core flags, not viewer flags. See
 [the CLI definition](../lean/Acorn/Host/Cli.lean) for the full accepted domain.
@@ -213,6 +214,55 @@ This runs one attempt at the first goal, which asks the agent to survive for
 200 steps. The 250-step cap permits that goal to finish. The terminal reports
 achievement or timeout, followed by a campaign summary and diagnostic checksum.
 Timeout means the attempt used its step budget before achieving the goal.
+
+### Outcome CSV
+
+`--csv PATH` writes one row for each attempt the agent completes, as the attempt
+ends. A line that starts with `#` is a comment; a reader of the rows skips it.
+
+```text
+index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
+# planning=expectation
+<one row per agent attempt>
+# baseline index=<goal> steps=<steps> achieved=<0 or 1> x=<x> y=<y>
+# seed=<seed> side=<side> weights=<count> total_steps=<steps> behavior=<hex> checksum=<hex> wall_ms=<ms> steps_per_sec=<rate> retire_count=<count> retire_last=<event> imprint_distinct_abs=<counts>
+```
+
+| Column | Meaning |
+|---|---|
+| index | Position of the goal in the curriculum, from 0. |
+| attempt | Attempt number at this goal, from 0. |
+| tier | Difficulty tier of the goal. |
+| steps | Actions executed in the attempt: the steps to achievement when the goal was achieved, otherwise the cap. |
+| achieved | 1 when the attempt achieved its goal, otherwise 0. |
+| reward | Sum of the attempt's rewards, in step order. |
+| demon_error, epsilon, mean_alpha | The learner's mean absolute prediction error, exploration rate and mean step size when the attempt ended. |
+| x, y | The body's position after the attempt's last step; x grows to the east and y to the south. |
+
+The comment after the header names the planning selection. The last line is a
+footer of `key=value` fields for the whole run, including the action
+fingerprint (`behavior`), the agent checksum and the observed wall time.
+
+The **comparator** is the random-policy diagnostic that `--baseline` selects. It
+draws each action from its own seeded stream, makes one attempt at each requested
+goal under the same step cap, and carries one second copy of the initial world
+from goal to goal. With `--csv`, each of its attempts is recorded in a comment
+line before the footer, in goal order, in the form shown above. Its fields mean
+what the columns of the same names mean. The comparator has no attempt number,
+tier or learner, so those fields are absent. These lines are written only when
+the comparator's pass completed.
+
+Recording does not change either arm. An outcome row is a value handed to the
+reporter, which returns nothing. `Attempt.finish_position` proves that the
+stream continuing past an attempt is the attempt's own state with the attempt
+recorded, and that the recorded position is that state's body position.
+`foldOutcome_position` and `addOutcomeSteps_position` prove that the audit
+digest and the step total do not read the position. The comparator's loop
+carries only its world and action stream to the next goal; its rows are
+appended and returned
+([attempt protocol](../lean/Acorn/Host/Attempt.lean),
+[metrics](../lean/Acorn/Host/Metrics.lean),
+[comparator](../lean/Acorn/Host/Baseline.lean)).
 
 ## Reading the viewer
 
