@@ -453,6 +453,7 @@ theorem gradientStep_bounds (total : Nat) (positive : 1 ≤ total) (small : tota
   have count := wideCount_exact total (by omega)
   have totalPositive : (1 : ℚ) ≤ total := by exact_mod_cast positive
   have totalSmall : (total : ℚ) ≤ 131072 := by exact_mod_cast small
+  have totalPos : (0 : ℚ) < total := lt_of_lt_of_le zero_lt_one totalPositive
   have etaWide := numerical_widen_exact gradientEta etaFinite
   have countValue : numerical64 (wideCount total) = total := by
     have := count.2.1
@@ -465,8 +466,8 @@ theorem gradientStep_bounds (total : Nat) (positive : 1 ≤ total) (small : tota
       65536 * (2 : ℚ) ^ 0 := by
     rw [etaWide, countValue, eta_value]
     rw [abs_of_nonneg (by positivity)]
-    rw [div_le_iff₀ (by linarith)]
-    nlinarith
+    rw [div_le_iff₀ totalPos]
+    linarith only [totalPositive]
   have budget := binary64_div_scaled (Conversion.widen gradientEta) (wideCount total) 0
     (by norm_num) (Conversion.widen_finite _ etaFinite) count.1 nonzero quotient
   rw [etaWide, countValue, eta_value] at budget
@@ -474,23 +475,23 @@ theorem gradientStep_bounds (total : Nat) (positive : 1 ≤ total) (small : tota
   norm_num at budgetValue
   have budgetLower : 13421773 / 134217728 / (total : ℚ) - 1 / 34359738368 ≤
       numerical64 ((Conversion.widen gradientEta).div (wideCount total)) := by
-    linarith [(abs_le.mp budgetValue).1]
+    linarith only [(abs_le.mp budgetValue).1]
   have budgetUpper : numerical64 ((Conversion.widen gradientEta).div (wideCount total)) ≤
       13421773 / 134217728 / (total : ℚ) + 1 / 34359738368 := by
-    linarith [(abs_le.mp budgetValue).2]
+    linarith only [(abs_le.mp budgetValue).2]
   have budgetPositive : 0 < numerical64 ((Conversion.widen gradientEta).div (wideCount total)) := by
     have least : (13421773 / 134217728 : ℚ) / 131072 ≤ 13421773 / 134217728 / (total : ℚ) :=
-      div_le_div_of_nonneg_left (by norm_num) (by linarith) totalSmall
+      div_le_div_of_nonneg_left (by norm_num) totalPos totalSmall
     norm_num at least
-    linarith
+    linarith only [least, budgetLower]
   have budgetScaled : numerical64 ((Conversion.widen gradientEta).div (wideCount total)) * total ≤
       1 / 9 := by
     have expand : (13421773 / 134217728 / (total : ℚ) + 1 / 34359738368) * total =
         13421773 / 134217728 + total / 34359738368 := by
       field_simp
-    have := mul_le_mul_of_nonneg_right budgetUpper (by linarith : (0 : ℚ) ≤ total)
+    have := mul_le_mul_of_nonneg_right budgetUpper totalPos.le
     rw [expand] at this
-    linarith
+    linarith only [this, totalSmall]
   have alpha := alpha_bounds
   have capWide := numerical_widen_exact gradientAlpha alpha.1
   unfold gradientStep
@@ -501,8 +502,8 @@ theorem gradientStep_bounds (total : Nat) (positive : 1 ≤ total) (small : tota
   · rename_i notBelow
     simp only [decide_eq_true_eq, not_lt] at notBelow
     refine ⟨Conversion.widen_finite _ alpha.1, by rw [capWide]; exact alpha.2.1, ?_⟩
-    have := mul_le_mul_of_nonneg_right notBelow (by linarith : (0 : ℚ) ≤ total)
-    linarith
+    have := mul_le_mul_of_nonneg_right notBelow totalPos.le
+    linarith only [this, budgetScaled]
 
 /-! ## The projection -/
 
@@ -517,11 +518,11 @@ theorem clampSym_toward (bound value reference : ℚ) (inside : |reference| ≤ 
   unfold clampSym
   by_cases above : bound ≤ value
   · rw [min_eq_right above, max_eq_left (by linarith)]
-    nlinarith [mul_nonneg (sub_nonneg.mpr above)
+    linarith [mul_nonneg (sub_nonneg.mpr above)
       (by linarith : (0 : ℚ) ≤ value + bound - 2 * reference)]
   · by_cases below : value ≤ -bound
     · rw [min_eq_left (by linarith), max_eq_right below]
-      nlinarith [mul_nonneg (by linarith : (0 : ℚ) ≤ -bound - value)
+      linarith [mul_nonneg (by linarith : (0 : ℚ) ≤ -bound - value)
         (by linarith : (0 : ℚ) ≤ 2 * reference + bound - value)]
     · rw [min_eq_left (by linarith), max_eq_left (by linarith)]
 
@@ -619,7 +620,7 @@ theorem fold_approx {rule : ValueRule} (weights : WeightArray rule dimension) :
     have next := Approx.add 7 (by norm_num) start term (by
       have nonneg : (0 : ℚ) ≤ count := Nat.cast_nonneg _
       norm_num
-      nlinarith)
+      linarith)
     have next' : Approx (total.add (Conversion.widen (weights.get head).value))
         (value + numerical32 (weights.get head).value) ((count + 1 : Nat) / 1073741824)
         ((count + 1 : Nat) * 101) :=
@@ -779,10 +780,12 @@ theorem chain_approx (earlier later expected signal gamma step tau onlySource bo
           h * (n₁ + G * G * n₂ + (1 - G) * (1 - G) * n₁₂) * P)
         ((n + m) / 8388608) (500 * (n + m)) := by
   intro one gap curvature
-  have hn : h * n ≤ 1 / 9 := by nlinarith [mul_nonneg hPos mNonneg]
-  have hm : h * m ≤ 1 / 9 := by nlinarith [mul_nonneg hPos (by linarith : (0 : ℚ) ≤ n)]
   have hnNonneg : 0 ≤ h * n := mul_nonneg hPos (by linarith)
   have hmNonneg : 0 ≤ h * m := mul_nonneg hPos mNonneg
+  -- the step-size bound without its division: each side condition below then clears only
+  -- its own denominators
+  have budget : 9 * (h * n + h * m) ≤ 1 := by linarith
+  clear scaled
   -- the TD error and the gap
   have product : Approx (gamma.mul later) (G * L) ((m + 1) / 1073741824) (m * 101) :=
     (Approx.mul 7 (by norm_num) hG hL (by norm_num; linarith)).mono
@@ -881,8 +884,9 @@ theorem scalars_approx {discount : Discount} (learner : GradientLearner discount
       (numerical64 passage.step * (passage.source.indices.length : ℚ)) (1 / 137438953472)
       (1 / 9) := by
     rw [passage.tau_eq]
-    exact (Approx.mul 0 (by norm_num) stepApprox countSource (by norm_num; nlinarith)).mono
-      (by norm_num) (by nlinarith)
+    have targetShare := mul_nonneg hNonneg mNonneg
+    exact (Approx.mul 0 (by norm_num) stepApprox countSource (by norm_num; linarith)).mono
+      (by norm_num) (by linarith)
   have onlySourceCount := wideCount_exact passage.onlySource.length (by omega)
   have bothCount := wideCount_exact passage.both.length (by omega)
   have onlyTargetCount := wideCount_exact passage.onlyTarget.length (by omega)
@@ -976,7 +980,7 @@ theorem narrow_relative (value : Binary64) (finite : value.Finite)
     exact_mod_cast unit
   have close : |narrowed - wide| ≤ wide / 16777216 + (2 : ℚ) ^ 924 := by
     rw [abs_le]
-    constructor <;> nlinarith
+    constructor <;> linarith
   have scale : (2 : ℚ) ^ 924 * (2 : ℚ) ^ (-1074 : Int) = 1 / 2 ^ 150 := by
     rw [← zpow_natCast, ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
     norm_num
@@ -1058,12 +1062,14 @@ theorem increments_close {discount : Discount} (learner : GradientLearner discou
   have complement := Approx.sub 0 (by norm_num) one_exact gamma (by norm_num)
   have complement' : Approx _ (1 - G) (1 / 137438953472) 1 :=
     (complement.within (by rw [abs_of_nonneg (by linarith)]; linarith)).mono (by norm_num) le_rfl
-  have correction := Approx.mul 0 (by norm_num) stepApprox scalars.2 (by norm_num; nlinarith)
-  have mainStep := Approx.mul 0 (by norm_num) stepApprox scalars.1 (by norm_num; nlinarith)
+  have correction := Approx.mul 0 (by norm_num) stepApprox scalars.2
+    (by norm_num; linarith only [hN, hNonneg, NOne])
+  have mainStep := Approx.mul 0 (by norm_num) stepApprox scalars.1
+    (by norm_num; linarith only [hN, hNonneg, NOne])
   have correction' : Approx _ correctionValue (1 / 67108864) 63 :=
-    correction.mono (by norm_num; nlinarith) (by nlinarith)
+    correction.mono (by norm_num; linarith only [hN, hNonneg, NOne]) (by linarith only [hN])
   have mainStep' : Approx _ midpointValue (1 / 134217728) 23 :=
-    mainStep.mono (by norm_num; nlinarith) (by nlinarith)
+    mainStep.mono (by norm_num; linarith only [hN, hNonneg, NOne]) (by linarith only [hN])
   have shared := Approx.mul 0 (by norm_num) complement' mainStep' (by norm_num)
   have target := Approx.mul 0 (by norm_num) gamma mainStep' (by norm_num)
   exact ⟨narrow_close correction',
@@ -1177,7 +1183,7 @@ theorem exact_counterparts (learner : GradientLearner discount dimension)
     have ψsq := indicator_sq passage.target.indices j
     simp only [a, direction]
     simp only [φ] at φsq ⊢
-    nlinarith [φsq, ψsq]
+    linear_combination φsq + G * G * ψsq
   have squareSum : ∑ j, a j ^ 2 = passage.source.indices.length - 2 * G * passage.both.length +
       G * G * passage.target.indices.length := by
     simp only [squares, Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.mul_sum]
@@ -1201,28 +1207,28 @@ theorem exact_counterparts (learner : GradientLearner discount dimension)
   · have mainSource := sum_exactSum learner.main passage.source.indices passage.source.nodup
     have mainTarget := sum_exactSum learner.main passage.target.indices passage.target.nodup
     have secondSource := sum_exactSum learner.second passage.source.indices passage.source.nodup
-    have term : ∀ j, v j * a j = weightValue learner.main[j.val] * φ j -
-        G * (weightValue learner.main[j.val] * indicator passage.target.indices j) -
+    have term : ∀ j, v j * a j = weightValue (learner.main[j.val]'j.isLt) * φ j -
+        G * (weightValue (learner.main[j.val]'j.isLt) * indicator passage.target.indices j) -
           direction discount passage j * reference j := by
       intro j
       simp only [v, a, direction, φ]
       ring
     have expand : ∑ j, v j * a j =
-        ∑ j : FeatIdx dimension, weightValue learner.main[j.val] * φ j -
+        ∑ j : FeatIdx dimension, weightValue (learner.main[j.val]'j.isLt) * φ j -
         G * ∑ j : FeatIdx dimension,
-          weightValue learner.main[j.val] * indicator passage.target.indices j -
+          weightValue (learner.main[j.val]'j.isLt) * indicator passage.target.indices j -
           ∑ j, direction discount passage j * reference j := by
       simp only [term, Finset.sum_sub_distrib, ← Finset.mul_sum]
     have secondSum : ∑ j, u j * φ j = exactSum learner.second passage.source.indices :=
       secondSource
-    have mainSum : ∑ j : FeatIdx dimension, weightValue learner.main[j.val] * φ j =
+    have mainSum : ∑ j : FeatIdx dimension, weightValue (learner.main[j.val]'j.isLt) * φ j =
         exactSum learner.main passage.source.indices := mainSource
     simp only [residual, exactGap]
     rw [expand, secondSum, mainSum, mainTarget]
     ring
   · rw [squareSum]
-    have gg : G * G ≤ 1 := by nlinarith
-    nlinarith [mul_nonneg (mul_nonneg (by norm_num : (0 : ℚ) ≤ 2) gLower) bothNonneg,
+    have gg : G * G ≤ 1 := (mul_le_mul gUpper gUpper gLower zero_le_one).trans_eq (mul_one 1)
+    linarith [mul_nonneg (mul_nonneg (by norm_num : (0 : ℚ) ≤ 2) gLower) bothNonneg,
       mul_le_mul_of_nonneg_right gg targetNonneg]
 
 end Energy
@@ -1326,6 +1332,8 @@ theorem second_slot (learner : GradientLearner discount dimension) (passage : Pa
         (|exact| + |weightValue learner.second[query.val]|) / 4194304 +
           indicator passage.source.indices query / 16777216 := by
   intro exact
+  -- every `…[query.val]` below takes its index bound from the context
+  have bound := query.isLt
   obtain ⟨_, _, _, _, nonneg, _⟩ := horizon_facts discount
   have increments := (increments_close learner passage cumulant finite bounded).1
   have old := weight_numerical_bound _ learner.second[query.val]
@@ -1360,7 +1368,7 @@ theorem second_slot (learner : GradientLearner discount dimension) (passage : Pa
         (weightValue learner.second[query.val] +
           numerical64 passage.step * exactCorrection learner passage cumulant) 1 (Or.inl rfl)
         (by ring) write.2.1 increments.2.1
-      linarith
+      linarith only [deviation]
   · simp only [inside, ↓reduceIte, mul_zero, add_zero]
     constructor
     · exact le_refl _
@@ -1384,6 +1392,8 @@ theorem main_slot (learner : GradientLearner discount dimension) (passage : Pass
           max (indicator passage.source.indices query) (indicator passage.target.indices query) /
             16777216 := by
   intro exact
+  -- every `…[query.val]` below takes its index bound from the context
+  have bound := query.isLt
   obtain ⟨_, sourceDelta, sharedDelta, targetDelta⟩ :=
     increments_close learner passage cumulant finite bounded
   have old := weight_numerical_bound _ learner.main[query.val]
@@ -1429,7 +1439,7 @@ theorem main_slot (learner : GradientLearner discount dimension) (passage : Pass
           weightValue learner.main[query.val] + (1 - G) * increment := by ring
       rw [same]
       norm_num at deviation ⊢
-      linarith
+      linarith only [deviation]
   · -- source only
     simp only [inSource, inTarget, not_false_eq_true, and_true, ↓reduceIte, mul_one, mul_zero,
       sub_zero]
@@ -1452,7 +1462,7 @@ theorem main_slot (learner : GradientLearner discount dimension) (passage : Pass
         increment (weightValue learner.main[query.val] + increment) 1 (Or.inl rfl) (by ring)
         write.2.1 sourceDelta.2.1
       norm_num at deviation ⊢
-      linarith
+      linarith only [deviation]
   · -- target only
     simp only [inSource, inTarget, not_false_eq_true, and_true, false_and, ↓reduceIte, mul_one,
       zero_sub, mul_neg]
@@ -1479,7 +1489,7 @@ theorem main_slot (learner : GradientLearner discount dimension) (passage : Pass
           weightValue learner.main[query.val] - G * increment := by ring
       rw [same]
       norm_num at deviation ⊢
-      linarith
+      linarith only [deviation]
   · -- neither
     simp only [inSource, inTarget, false_and, and_false, ↓reduceIte, mul_zero, sub_zero,
       add_zero]
@@ -1559,29 +1569,30 @@ theorem exact_energy (learner : GradientLearner discount dimension) (passage : P
       1 / 9 := by
     rw [tauEq]
     simp only [exactTau]
-    nlinarith
+    linarith only [hScaled, mul_nonneg hNonneg mNonneg]
   have curvatureBound : numerical64 passage.step * ∑ j, direction discount passage j ^ 2 ≤
       1 / 9 := by
     have := mul_le_mul_of_nonneg_left squareBound hNonneg
-    linarith
+    linarith only [this, hScaled]
   have tauNonneg : 0 ≤ numerical64 passage.step * ∑ j, indicator passage.source.indices j ^ 2 :=
     mul_nonneg hNonneg (Finset.sum_nonneg fun _ _ => sq_nonneg _)
   have curvatureNonneg : 0 ≤ numerical64 passage.step * ∑ j, direction discount passage j ^ 2 :=
     mul_nonneg hNonneg (Finset.sum_nonneg fun _ _ => sq_nonneg _)
   have guard : numerical64 passage.step * (∑ j, indicator passage.source.indices j ^ 2) *
       (numerical64 passage.step * (∑ j, indicator passage.source.indices j ^ 2) +
-        2 * (numerical64 passage.step * ∑ j, direction discount passage j ^ 2)) ≤ 1 := by
-    nlinarith
+        2 * (numerical64 passage.step * ∑ j, direction discount passage j ^ 2)) ≤ 1 :=
+    le_trans (mul_le_mul tauBound (by linarith only [tauBound, curvatureBound] : _ ≤ (1 / 3 : ℚ))
+      (by linarith only [tauNonneg, curvatureNonneg]) (by norm_num)) (by norm_num)
   have curvature : numerical64 passage.step * (∑ j, direction discount passage j ^ 2) ≤
       2 - numerical64 passage.step * (∑ j, indicator passage.source.indices j ^ 2) := by
-    linarith
+    linarith only [tauBound, curvatureBound]
   have pushed : numerical64 passage.step *
       (numerical64 passage.step * ∑ j, indicator passage.source.indices j ^ 2) ≤ s ^ 2 := by
     rw [tauEq]
     exact push
   have exact := AcornVerif.Extragradient.extragradient_energy
-    (fun j : FeatIdx dimension => weightValue learner.second[j.val])
-    (fun j : FeatIdx dimension => weightValue learner.main[j.val] - reference j)
+    (fun j : FeatIdx dimension => weightValue (learner.second[j.val]'j.isLt))
+    (fun j : FeatIdx dimension => weightValue (learner.main[j.val]'j.isLt) - reference j)
     (indicator passage.source.indices) (direction discount passage) (numerical64 passage.step)
     (residual discount passage cumulant reference) t s hNonneg guard curvature ht hs start pushed
   simp only at exact
@@ -1615,8 +1626,8 @@ theorem deviation_energy (learner : GradientLearner discount dimension)
     (mainDeviation learner passage cumulant)
     (fun j => |exactSecond learner passage cumulant j| / 4194304)
     (fun j => |exactMain learner passage cumulant j - reference j| / 4194304)
-    (fun j => |weightValue learner.second[j.val]| / 4194304)
-    (fun j => |weightValue learner.main[j.val] - reference j| / 4194304)
+    (fun j => |weightValue (learner.second[j.val]'j.isLt)| / 4194304)
+    (fun j => |weightValue (learner.main[j.val]'j.isLt) - reference j| / 4194304)
     (fun _ => 0) (fun j => |reference j| / 2097152)
     (fun j => indicator passage.source.indices j / 16777216)
     (fun j => max (indicator passage.source.indices j) (indicator passage.target.indices j) /
@@ -1632,7 +1643,8 @@ theorem deviation_energy (learner : GradientLearner discount dimension)
     have slot := (main_slot learner passage cumulant finite bounded reference inside j).2
     simp only at slot
     have newBound := abs_add_le (exactMain learner passage cumulant j - reference j) (reference j)
-    have oldBound := abs_add_le (weightValue learner.main[j.val] - reference j) (reference j)
+    have oldBound := abs_add_le (weightValue (learner.main[j.val]'j.isLt) - reference j)
+      (reference j)
     rw [sub_add_cancel] at newBound oldBound
     simp only [exactMain] at newBound ⊢
     linarith
@@ -1644,8 +1656,9 @@ theorem deviation_energy (learner : GradientLearner discount dimension)
       ring
     rw [scaled, div_pow]
     exact div_le_div_of_nonneg_right exact (by positivity)
-  · have scaled : ∑ j : FeatIdx dimension, (|weightValue learner.second[j.val]| / 4194304) ^ 2 +
-        ∑ j, (|weightValue learner.main[j.val] - reference j| / 4194304) ^ 2 =
+  · have scaled :
+        ∑ j : FeatIdx dimension, (|weightValue (learner.second[j.val]'j.isLt)| / 4194304) ^ 2 +
+          ∑ j, (|weightValue (learner.main[j.val]'j.isLt) - reference j| / 4194304) ^ 2 =
         distance learner reference / 4194304 ^ 2 := by
       simp only [distance, div_pow, sq_abs, ← Finset.sum_div]
       ring
@@ -1712,9 +1725,7 @@ theorem step_energy (learner : GradientLearner discount dimension)
     (secondDeviation learner passage cumulant) (mainDeviation learner passage cumulant)
     exactNonneg deviationNonneg exact deviations
   unfold distance
-  calc ∑ j : FeatIdx dimension, weightValue (learner.step passage cumulant).second[j.val] ^ 2 +
-        ∑ j : FeatIdx dimension,
-          (weightValue (learner.step passage cumulant).main[j.val] - reference j) ^ 2
+  calc _
       ≤ ∑ j, (exactSecond learner passage cumulant j +
             secondDeviation learner passage cumulant j) ^ 2 +
           ∑ j, (exactMain learner passage cumulant j - reference j +
@@ -1808,7 +1819,7 @@ theorem question_energy (question : Question discount dimension)
         (1 + 1 / 4194304) * |residual discount passage cumulant reference| * s +
         m / 2097152 + R := by
       have : 0 ≤ m / 2097152 := div_nonneg hm (by norm_num)
-      nlinarith
+      linarith
     exact start.trans (pow_le_pow_left₀ ht grown 2)
   · exact step_energy question.learner passage cumulant finite bounded reference inside
       ht hs hm hR start push size rounding
@@ -1842,28 +1853,32 @@ theorem step_guard {discount : Discount} (passage : Passage dimension)
         (1 - numerical32 discount.gamma) * (1 - numerical32 discount.gamma) * passage.both.length ≤
       (passage.source.indices.length : ℚ) + passage.target.indices.length := by
     rw [nSplit, mSplit]
-    have gg : numerical32 discount.gamma * numerical32 discount.gamma ≤ 1 := by nlinarith
-    have cc : (1 - numerical32 discount.gamma) * (1 - numerical32 discount.gamma) ≤ 1 := by
-      nlinarith
-    nlinarith [mul_le_mul_of_nonneg_right gg three, mul_le_mul_of_nonneg_right cc two]
+    have gg : numerical32 discount.gamma * numerical32 discount.gamma ≤ 1 :=
+      (mul_le_mul gUpper gUpper gLower zero_le_one).trans_eq (mul_one 1)
+    have cc : (1 - numerical32 discount.gamma) * (1 - numerical32 discount.gamma) ≤ 1 :=
+      (mul_le_mul (sub_le_self 1 gLower) (sub_le_self 1 gLower) (sub_nonneg.mpr gUpper)
+        zero_le_one).trans_eq (mul_one 1)
+    linarith only [mul_le_mul_of_nonneg_right gg three, mul_le_mul_of_nonneg_right cc two, two]
   have weightsNonneg : 0 ≤ passage.onlySource.length +
       numerical32 discount.gamma * numerical32 discount.gamma * passage.onlyTarget.length +
         (1 - numerical32 discount.gamma) * (1 - numerical32 discount.gamma) *
-          passage.both.length := by
-    have := mul_nonneg (mul_nonneg gLower gLower) three
-    have := mul_nonneg (mul_nonneg (sub_nonneg.mpr gUpper) (sub_nonneg.mpr gUpper)) two
-    linarith
+          passage.both.length :=
+    add_nonneg (add_nonneg one (mul_nonneg (mul_nonneg gLower gLower) three))
+      (mul_nonneg (mul_nonneg (sub_nonneg.mpr gUpper) (sub_nonneg.mpr gUpper)) two)
   have tauLe : exactTau passage ≤ 1 / 9 := by
     simp only [exactTau]
     have : (0 : ℚ) ≤ passage.target.indices.length := Nat.cast_nonneg _
-    nlinarith
+    linarith only [hScaled, mul_nonneg hNonneg this]
   have tauNonneg : 0 ≤ exactTau passage := mul_nonneg hNonneg (Nat.cast_nonneg _)
   have curvatureLe : exactCurvature discount passage ≤ 1 / 9 := by
     simp only [exactCurvature]
     have := mul_le_mul_of_nonneg_left weights hNonneg
-    linarith
+    linarith only [this, hScaled]
   have curvatureNonneg : 0 ≤ exactCurvature discount passage := mul_nonneg hNonneg weightsNonneg
-  refine ⟨tauNonneg, tauLe, curvatureNonneg, curvatureLe, by nlinarith, by linarith⟩
+  refine ⟨tauNonneg, tauLe, curvatureNonneg, curvatureLe, ?_,
+    by linarith only [tauLe, curvatureLe]⟩
+  exact le_trans (mul_le_mul tauLe (by linarith only [tauLe, curvatureLe] : _ ≤ (1 / 3 : ℚ))
+    (by linarith only [tauNonneg, curvatureNonneg]) (by norm_num)) (by norm_num)
 
 /-! ## Lifecycle -/
 

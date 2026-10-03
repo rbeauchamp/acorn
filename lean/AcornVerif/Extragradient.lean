@@ -83,13 +83,13 @@ theorem zero_residual_nonincreasing (p q τ κ : ℚ) (hτ : 0 ≤ τ) (hκ : 0 
   have third : κ * τ ^ 2 * e ^ 2 ≤ κ * τ * (τ * e ^ 2 + κ * p ^ 2) := by
     have nonneg : 0 ≤ κ * τ * (κ * p ^ 2) :=
       mul_nonneg (mul_nonneg hκ hτ) (mul_nonneg hκ (sq_nonneg _))
-    nlinarith [nonneg]
+    linarith
   have small : τ * (τ + 2 * κ) * (τ * e ^ 2 + κ * p ^ 2) ≤ τ * e ^ 2 + κ * p ^ 2 := by
     have := mul_le_mul_of_nonneg_right guard spread
     linarith
   have square : 0 ≤ (p + τ * e) ^ 2 := sq_nonneg _
   simp only [e, pm, em] at *
-  nlinarith [scaled, third, small, square]
+  linarith
 
 /-- The plain GTD2 step, with `δ − p` and `p` in place of the midpoint's two inner
 products, raises `N` by `τ·q²` per unit step when `p = 0`. -/
@@ -169,7 +169,7 @@ theorem pair_add (f₁ f₂ g₁ g₂ : ι → ℚ) {t s : ℚ} (ht : 0 ≤ t) (
       _ = (t * s) ^ 2 := by ring
   have bound := (abs_le_of_sq_le_sq' cross (mul_nonneg ht hs)).2
   rw [expand]
-  nlinarith [bound]
+  linarith
 
 /-- One extragradient step as vectors: the second weights `u`, the main weights' offset
 `v = w − w*` from the reference, the feature vector `φ` and `a = φ − γφ'`, the step `h`
@@ -260,7 +260,7 @@ theorem extragradient_energy (u v φ a : ι → ℚ) (h ε t s : ℚ) (hh : 0 �
       ring
     have shape : (1 - τ) ^ 2 + τ * κ ≤ 1 := by
       have room : 0 ≤ τ * (2 - τ - κ) := mul_nonneg hτ (by linarith [curvature])
-      nlinarith [room]
+      linarith
     have hτh : 0 ≤ h * τ := mul_nonneg hh hτ
     have total : h * τ * ((1 - τ) ^ 2 + τ * κ) ≤ s ^ 2 :=
       calc h * τ * ((1 - τ) ^ 2 + τ * κ) ≤ h * τ * 1 := mul_le_mul_of_nonneg_left shape hτh
