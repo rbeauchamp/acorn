@@ -1,0 +1,13 @@
+6ac4eec84c9a65204262d460dad6f2f419552ad9
+6ac4eec84c9a65204262d460dad6f2f419552ad9
+f90c7495729a4d33cce77061dd52155bdf0894756e90e9665c691a251f539903  lean/.lake/build/bin/acorn-core
+bf92dacc28967c36e2fa590f401710b98b038ea5f31d2f90b1317f780232c85f  docs/studies/first-pass-vs-chance/protocol.md
+2bb577cc5e7ad9813de9215cd4c7d160b77782540a6c2bcffe73d78257c976df  docs/studies/first-pass-vs-chance/seeds.txt
+leanprover/lean4:v4.34.0
+ProductName:		macOS
+ProductVersion:		27.0
+BuildVersion:		26A428
+Apple M4 Pro
+14
+25769803776
+2026-10-03T17:25:10Z

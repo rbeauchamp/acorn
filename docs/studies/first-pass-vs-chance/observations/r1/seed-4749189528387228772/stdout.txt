@@ -1,0 +1,24 @@
+campaign seed=4749189528387228772 world=1024x1024 planning=expectation weights=2^14 achieved 2/13 attempts over 34000 steps in 564239ms (60 steps/s)
+  recent attempt detail (last 13 retained):
+  goal 0 (tier 0, attempt 0): achieved in 200 steps
+  goal 1 (tier 0, attempt 0): timed out in 3000 steps (cap)
+  goal 2 (tier 1, attempt 0): timed out in 3000 steps (cap)
+  goal 3 (tier 1, attempt 0): timed out in 3000 steps (cap)
+  goal 4 (tier 1, attempt 0): timed out in 3000 steps (cap)
+  goal 5 (tier 2, attempt 0): timed out in 3000 steps (cap)
+  goal 6 (tier 2, attempt 0): timed out in 3000 steps (cap)
+  goal 7 (tier 3, attempt 0): timed out in 3000 steps (cap)
+  goal 8 (tier 3, attempt 0): timed out in 3000 steps (cap)
+  goal 9 (tier 4, attempt 0): timed out in 3000 steps (cap)
+  goal 10 (tier 4, attempt 0): timed out in 3000 steps (cap)
+  goal 11 (tier 5, attempt 0): achieved in 800 steps
+  goal 12 (tier 5, attempt 0): timed out in 3000 steps (cap)
+  audit checksum: 5c956c193079744b
+  retire_count: 1537
+  retire_last: 33992:93
+  imprint_distinct_abs: 477 477 1 1 380 446 464 465 1 1 1
+  ranked_slots: 63 63 63
+csv written successfully
+
+-- random-policy baseline (diagnostic) --
+distinct goals achieved — random policy: 7/13; agent: 2/13 (agent used 13 attempts)

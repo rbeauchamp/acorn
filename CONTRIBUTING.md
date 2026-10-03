@@ -53,7 +53,8 @@ Shared algorithms and proofs belong in maintained modules. A study owns its
 protocol, original observations, canonical results and necessary source
 identity. Preserve original bytes separately from semantic presentations. Never
 rewrite an original observation to improve a claim or replay archived experience
-into an agent. This source release includes no empirical study data.
+into an agent. This source release's study data is under
+[docs/studies](docs/studies).
 
 ### Protocol and evidence
 
