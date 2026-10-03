@@ -5,8 +5,10 @@ This is the protocol of study `first-pass-vs-chance`, the observation that
 assessment asks for ([#12](https://github.com/rbeauchamp/acorn/issues/12)).
 It fixes every choice below before any outcome exists.
 
-**Protocol revision 1. Status: written, not authorized, not run.** Writing this
-protocol does not authorize execution. The
+**Protocol revision 1. Status when written: not authorized, not run.** This
+file does not follow later status, because a registered revision is not edited
+([revisions](#revisions)); the baseline assessment's U6 row records the current
+status. Writing this protocol does not authorize execution. The
 [scientific evidence guidance](../../../CONTRIBUTING.md#scientific-evidence)
 requires the owner's explicit authorization before the first run.
 
