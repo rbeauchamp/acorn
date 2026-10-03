@@ -86,12 +86,40 @@ Every research profile except the annealed comparison explores with one
 declared rate, ε = 0.01, for the primitive controller, the meta-controller and
 every option. The stored word is `0x3c23d70a`, exactly 10737418·2⁻³⁰. Dabney,
 Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*, ICLR 2021
-([arXiv:2006.01782v1](https://arxiv.org/abs/2006.01782)), use ε = 0.01 for
-their linear Sarsa(λ) CartPole agent (Appendix A, PDF p. 14) and keep ε = 0.01
-after the initial decay of their Rainbow-based Atari agents' schedule
-(Appendix B.3, PDF p. 15). Their other domains use 0.05, 0.1 and 1/(N+1) (Appendix A, PDF p. 13).
+([arXiv:2006.01782v1](https://arxiv.org/abs/2006.01782v1)), use ε = 0.01 for
+their linear Sarsa(λ) CartPole agent (Appendix A, PDF p. 14). Their
+Rainbow-based Atari agents reach 0.01 only at the end of a schedule: ε "follows
+a linear decay schedule 1.0 to 0.01 over the course of the first 4M frames,
+remaining constant after that" (Appendix B.3, PDF p. 15; Table 2, PDF p. 16).
+Their other domains use 0.05, 0.1 and 1/(N+1) (Appendix A, PDF p. 13).
 A continuing agent has no clock for a schedule, so it keeps only the constant.
 One rate for all three consumers is Acorn's composition choice.
+
+Two consequences follow, and neither is conformance with the source.
+
+- **The decay is removed.** Counting one step as one frame, the Atari schedule
+  gives ε = 1 − 0.99 × 34 000 / 4 000 000 ≈ 0.99 after 34 000 steps, the most a
+  first pass of the standard curriculum takes. A whole first pass therefore
+  lies inside the phase this declaration removes. Of the agents whose ε the
+  source states as a number, only the CartPole agent uses 0.01 from its first
+  step.
+- **Persistent runs start only when primitive control acts.** The source's
+  Algorithm 1 (PDF p. 14) applies the persistent draw to the agent's one
+  behaviour policy: at every step with no run in progress, a run starts with
+  probability ε. Acorn's agent starts a run only in
+  `TemporalControl.choosePrimitive`, which is reached when the meta-controller
+  delegates to primitive control or the profile has no hierarchy. The
+  meta-controller and an executing option use the plain draw
+  (`PolicySnapshot.draw`), one exploratory step at a time. Under an assumed
+  uniform, independent draw, which the deterministic generator does not supply,
+  their model share is exactly ε (`explorationShare_single` in
+  `AcornVerif.Exploration`). Once the meta-controller
+  holds options the mechanism rarely runs: in two diagnostic traces of study
+  first-pass-vs-chance r1 (seeds 16265277883658242538 and 8789851314873071931),
+  0.95% and 0.93% of steps were exploratory
+  ([#58](https://github.com/rbeauchamp/acorn/issues/58)). The traces are
+  diagnostics of those two seeds, not study evidence.
+
 `TemporalControl.declared_rates` proves every consumer reads this word at every
 state; `TemporalSupport.declared_branch_card` counts the source words that
 explore. The annealed comparison's schedule and fixed option rate are also
