@@ -60,7 +60,7 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 ### D4 · Learner parameters — Step 1
 
-Domain-general learner coefficients and numerical rails are prescribed; per-feature step sizes adapt during learning. The off-policy questions of [PAR-18](prior-art-review.md#par-18--off-policy-questions) adapt none: their step size is the smaller of the demons' initial step size and their rate budget divided by the transition's active slots.
+Domain-general learner coefficients and numerical rails are prescribed; per-feature step sizes adapt during learning. The off-policy questions of [PAR-18](prior-art-review.md#par-18--off-policy-questions) adapt none: their step size is the smaller of the demons' initial step size and their rate budget divided by the transition's active slots. They learn from no transition in which either active set exceeds 2¹⁶ slots, the size their rounding analysis covers.
 
 Loci: `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
 

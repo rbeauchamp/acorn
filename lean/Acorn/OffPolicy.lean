@@ -117,9 +117,15 @@ def gradientStep (total : Nat) : Binary64 :=
   let cap := Conversion.widen gradientAlpha
   if budget.less cap then budget else cap
 
+/-- The largest active set a question learns from: `2^16` slots. The rounding analysis of
+the step (`AcornVerif.CurrentOffPolicy`) covers transitions between sets of at most this
+size, in feature spaces of every admitted capacity. -/
+def passageLimit : Nat := 65536
+
 /-- One classified transition: the two active sets, their difference and overlap, and
 the step size shared by every question that learns from it. Each derived field carries
-its definition, so every value of the type is classified right. -/
+its definition, so every value of the type is classified right, and neither set exceeds
+`passageLimit`, so every value of the type is one the step's bounds cover. -/
 structure Passage (dimension : Dimension) where
   /-- The earlier active set `x`. -/
   source : SwiftTd.ActiveSet dimension
@@ -143,6 +149,8 @@ structure Passage (dimension : Dimension) where
   onlyTargetCount : Binary64
   /-- The earlier set is not empty. -/
   nonempty : source.indices ≠ []
+  /-- Neither set exceeds `passageLimit`. -/
+  fits : source.indices.length ≤ passageLimit ∧ target.indices.length ≤ passageLimit
   /-- Definition of `onlySource`. -/
   onlySource_eq : onlySource = source.indices.filter fun index => decide (index ∉ target.indices)
   /-- Definition of `both`. -/
@@ -162,9 +170,10 @@ structure Passage (dimension : Dimension) where
 
 /-- Classify the transition from the stored set to the current one and store the
 current set when its action was selected with the option's distribution. A transition
-from the empty set is not classified: no question learns from it. The flags are read
-before any is written, then cleared over the stored set and set over the current one,
-so the work is proportional to the two sets. -/
+from the empty set, or between sets of which one exceeds `passageLimit`, is not
+classified: no question learns from it. The flags are read before any is written, then
+cleared over the stored set and set over the current one, so the work is proportional to
+the two sets. -/
 def Preceding.advance {dimension : Dimension} (preceding : Preceding dimension)
     (current : SwiftTd.ActiveSet dimension) (armed : Bool) :
     Option (Passage dimension) × Preceding dimension :=
@@ -198,25 +207,29 @@ def Preceding.advance {dimension : Dimension} (preceding : Preceding dimension)
         by_cases inSource : index ∈ source.indices <;> simp [inCurrent, inSource]
     let onlySource := source.indices.filter fun index => !marked[index.val]
     let step := gradientStep (source.indices.length + current.indices.length)
-    let passage : Passage dimension :=
-      { source, target := current, onlySource, both, onlyTarget, step
-        tau := step.mul (wideCount source.indices.length)
-        onlySourceCount := wideCount onlySource.length
-        bothCount := wideCount both.length
-        onlyTargetCount := wideCount onlyTarget.length
-        nonempty := by rw [sourceIndices]; exact List.cons_ne_nil _ _
-        onlySource_eq := List.filter_congr fun index _ => by simp [markedAgrees]
-        both_eq := List.filter_congr fun index _ => by simp [agrees]
-        onlyTarget_eq := List.filter_congr fun index _ => by simp [agrees]
-        step_eq := rfl
-        tau_eq := rfl
-        onlySourceCount_eq := rfl
-        bothCount_eq := rfl
-        onlyTargetCount_eq := rfl }
+    let passage : Option (Passage dimension) :=
+      if fits : source.indices.length ≤ passageLimit ∧
+          current.indices.length ≤ passageLimit then
+        some { source, target := current, onlySource, both, onlyTarget, step
+               tau := step.mul (wideCount source.indices.length)
+               onlySourceCount := wideCount onlySource.length
+               bothCount := wideCount both.length
+               onlyTargetCount := wideCount onlyTarget.length
+               nonempty := by rw [sourceIndices]; exact List.cons_ne_nil _ _
+               fits
+               onlySource_eq := List.filter_congr fun index _ => by simp [markedAgrees]
+               both_eq := List.filter_congr fun index _ => by simp [agrees]
+               onlyTarget_eq := List.filter_congr fun index _ => by simp [agrees]
+               step_eq := rfl
+               tau_eq := rfl
+               onlySourceCount_eq := rfl
+               bothCount_eq := rfl
+               onlyTargetCount_eq := rfl }
+      else none
     if armed then
-      (some passage, ⟨current, marked, markedAgrees⟩)
+      (passage, ⟨current, marked, markedAgrees⟩)
     else
-      (some passage, ⟨SwiftTd.ActiveSet.empty dimension, setFlags current.indices false marked, by
+      (passage, ⟨SwiftTd.ActiveSet.empty dimension, setFlags current.indices false marked, by
         intro index
         rw [setFlags_get, markedAgrees]
         by_cases inside : index ∈ current.indices <;> simp [inside, SwiftTd.ActiveSet.empty]⟩)
@@ -244,10 +257,14 @@ structure GradientLearner (discount : Discount) (dimension : Dimension) where
   /-- Second weights `u`. -/
   second : WeightArray (.discounted discount) dimension
 
-/-- Zero main and second weights. -/
+/-- Zero main and second weights, built as two vectors. Two equal `Vector.replicate`
+terms compile to one array referenced twice, and the first write to either would then
+copy every slot of the space; the second vector is therefore built slot by slot. The
+native route of this definition requires both constructions in the compiled code. That
+the two vectors are separate storage is a property of that code, not of these values. -/
 def GradientLearner.initial (discount : Discount) (dimension : Dimension) :
     GradientLearner discount dimension :=
-  ⟨Vector.replicate _ (Weight.project _ .zero), Vector.replicate _ (Weight.project _ .zero)⟩
+  ⟨Vector.replicate _ (Weight.project _ .zero), Vector.ofFn fun _ => Weight.project _ .zero⟩
 
 /-- The binary64 sum of the widened stored words at the listed slots, in list order,
 continued from `total`. -/

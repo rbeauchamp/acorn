@@ -16,9 +16,11 @@ Every statement concerns the executed definitions of `Acorn.OffPolicy`.
 
 **Energy.** `step_energy` is `AcornVerif.Extragradient.extragradient_energy` carried to
 the executed GTD2-MP step, for every learner state, every classified transition, every
-finite signal word in `[−1, 1]` and every reference `w*` inside the weight range, for
-feature spaces of at most `2^16` slots. With `N = |u|² + |w − w*|²`: if `N ≤ t²` before the
-step, `h·τ ≤ s²`, `|w*|² ≤ m²` and `(2|x| + |x'|)·2^(−48) ≤ R²`, then after it
+finite signal word in `[−1, 1]` and every reference `w*` inside the weight range, in
+feature spaces of every admitted capacity: the type of a classified transition bounds
+both active sets by `2^16` slots, and a larger transition is not classified. With
+`N = |u|² + |w − w*|²`: if `N ≤ t²` before the step, `h·τ ≤ s²`, `|w*|² ≤ m²` and
+`(2|x| + |x'|)·2^(−48) ≤ R²`, then after it
 `N ≤ ((1 + 2^(−21))·t + (1 + 2^(−22))·|ε|·s + 2^(−21)·m + R)²`. Here `h` is the executed
 step-size word, `τ = h|x|`, and `ε = c − ⟨x − γx', w*⟩` is the TD error the reference leaves.
 Against `w* = 0` the length of `(u, w)` grows per step by at most the factor `1 + 2^(−21)`,
@@ -672,7 +674,7 @@ theorem exactSum_classes {rule : ValueRule} (weights : WeightArray rule dimensio
 /-- The sum of the main weights over `x ∩ x'`, continued over one of the two remaining
 classes, is within `2^(-30)` per word of the exact sum over that active set. -/
 theorem classSums_approx {rule : ValueRule} (weights : WeightArray rule dimension)
-    (passage : Passage dimension) (small : dimension.capacity ≤ 65536) :
+    (passage : Passage dimension) :
     Approx (wideSum weights passage.onlySource (wideSum weights passage.both))
         (exactSum weights passage.source.indices)
         (passage.source.indices.length / 1073741824) (passage.source.indices.length * 101) ∧
@@ -681,8 +683,8 @@ theorem classSums_approx {rule : ValueRule} (weights : WeightArray rule dimensio
         (passage.target.indices.length / 1073741824) (passage.target.indices.length * 101) := by
   have counts := class_counts passage
   have classes := exactSum_classes weights passage
-  have source := le_trans (nodup_length _ passage.source.nodup) small
-  have target := le_trans (nodup_length _ passage.target.nodup) small
+  have source : passage.source.indices.length ≤ 65536 := passage.fits.1
+  have target : passage.target.indices.length ≤ 65536 := passage.fits.2
   have shared := wideSum_approx weights passage.both (by omega)
   have earlier := fold_approx weights passage.onlySource _ _ _ shared (by omega)
   have later := fold_approx weights passage.onlyTarget _ _ _ shared (by omega)
@@ -729,15 +731,16 @@ end Exact
 
 /-! ## The sizes of a transition -/
 
-/-- Sizes of a transition in a space of at most `2^16` slots, and the step-size facts. -/
-theorem passage_sizes (passage : Passage dimension) (small : dimension.capacity ≤ 65536) :
+/-- Sizes of a classified transition, whose type bounds both sets by `passageLimit`, and
+the step-size facts. -/
+theorem passage_sizes (passage : Passage dimension) :
     1 ≤ passage.source.indices.length ∧ passage.source.indices.length ≤ 65536 ∧
       passage.target.indices.length ≤ 65536 ∧
       (passage.step).Finite ∧ 0 < numerical64 passage.step ∧
       numerical64 passage.step *
         ((passage.source.indices.length : ℚ) + passage.target.indices.length) ≤ 1 / 9 := by
-  have source := le_trans (nodup_length _ passage.source.nodup) small
-  have target := le_trans (nodup_length _ passage.target.nodup) small
+  have source : passage.source.indices.length ≤ 65536 := passage.fits.1
+  have target : passage.target.indices.length ≤ 65536 := passage.fits.2
   have nonempty : 1 ≤ passage.source.indices.length :=
     List.length_pos_iff.mpr passage.nonempty
   have facts := gradientStep_bounds (passage.source.indices.length + passage.target.indices.length)
@@ -852,10 +855,10 @@ theorem chain_approx (earlier later expected signal gamma step tau onlySource bo
   exact ⟨midpoint, correction⟩
 
 /-- The executed midpoint and correction are within `N·2^(-24)` and `N·2^(-23)` of their
-exact counterparts, with `N = |x| + |x'|`, for every learner state, every transition in a
-space of at most `2^16` slots and every finite signal word in `[−1, 1]`. -/
+exact counterparts, with `N = |x| + |x'|`, for every learner state, every classified
+transition and every finite signal word in `[−1, 1]`. -/
 theorem scalars_approx {discount : Discount} (learner : GradientLearner discount dimension)
-    (passage : Passage dimension) (cumulant : Binary32) (small : dimension.capacity ≤ 65536)
+    (passage : Passage dimension) (cumulant : Binary32)
     (finite : cumulant.Finite) (bounded : |numerical32 cumulant| ≤ 1) :
     Approx (learner.scalars passage cumulant).1 (exactMidpoint learner passage cumulant)
         (((passage.source.indices.length : ℚ) + passage.target.indices.length) / 16777216)
@@ -863,7 +866,7 @@ theorem scalars_approx {discount : Discount} (learner : GradientLearner discount
       Approx (learner.scalars passage cumulant).2 (exactCorrection learner passage cumulant)
         (((passage.source.indices.length : ℚ) + passage.target.indices.length) / 8388608)
         (500 * ((passage.source.indices.length : ℚ) + passage.target.indices.length)) := by
-  obtain ⟨nPos, nSmall, mSmall, stepFinite, hPos, hScaled⟩ := passage_sizes passage small
+  obtain ⟨nPos, nSmall, mSmall, stepFinite, hPos, hScaled⟩ := passage_sizes passage
   obtain ⟨gFinite, gLower, gUpper⟩ := gamma_bounds discount
   have counts := class_counts passage
   have hNonneg : 0 ≤ numerical64 passage.step := le_of_lt hPos
@@ -887,8 +890,8 @@ theorem scalars_approx {discount : Discount} (learner : GradientLearner discount
   rw [← passage.bothCount_eq] at bothCount
   rw [← passage.onlyTargetCount_eq] at onlyTargetCount
   exact chain_approx _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-    (classSums_approx learner.main passage small).1
-    (classSums_approx learner.main passage small).2
+    (classSums_approx learner.main passage).1
+    (classSums_approx learner.main passage).2
     (wideSum_approx learner.second passage.source.indices nSmall)
     (Approx.widen finite bounded) (gamma_approx discount) stepApprox tau onlySourceCount bothCount
     onlyTargetCount gLower gUpper hNonneg hScaled nOne nLe mNonneg mLe
@@ -1023,7 +1026,7 @@ theorem narrow_close {word : Binary64} {value : ℚ} (near : Approx word value (
 `2^(-23)` relative plus `2^(-25)` of `h·(δ_m − p_m)`, `h·p_m`, `(1 − γ)·h·p_m` and
 `γ·h·p_m`. -/
 theorem increments_close {discount : Discount} (learner : GradientLearner discount dimension)
-    (passage : Passage dimension) (cumulant : Binary32) (small : dimension.capacity ≤ 65536)
+    (passage : Passage dimension) (cumulant : Binary32)
     (finite : cumulant.Finite) (bounded : |numerical32 cumulant| ≤ 1) :
     let h := numerical64 passage.step
     let G := numerical32 discount.gamma
@@ -1039,8 +1042,8 @@ theorem increments_close {discount : Discount} (learner : GradientLearner discou
       (deltas.2.2.2.Finite ∧ |numerical32 deltas.2.2.2 - G * midpoint| ≤
         |G * midpoint| / 8388608 + 1 / 33554432 ∧ |numerical32 deltas.2.2.2| ≤ 64) := by
   intro h G deltas correctionValue midpointValue
-  obtain ⟨nPos, nSmall, mSmall, stepFinite, hPos, hScaled⟩ := passage_sizes passage small
-  have scalars := scalars_approx learner passage cumulant small finite bounded
+  obtain ⟨nPos, nSmall, mSmall, stepFinite, hPos, hScaled⟩ := passage_sizes passage
+  have scalars := scalars_approx learner passage cumulant finite bounded
   set N : ℚ := (passage.source.indices.length : ℚ) + passage.target.indices.length with NDef
   have NOne : (1 : ℚ) ≤ N := by
     have : (1 : ℚ) ≤ passage.source.indices.length := by exact_mod_cast nPos
@@ -1312,7 +1315,7 @@ theorem write_rounded (old delta : Binary32) (oldFinite : old.Finite) (deltaFini
 its deviation, and the deviation is at most `2^(-22)` of the old and new exact magnitudes plus
 `2^(-24)` on `x`, and zero elsewhere. -/
 theorem second_slot (learner : GradientLearner discount dimension) (passage : Passage dimension)
-    (cumulant : Binary32) (small : dimension.capacity ≤ 65536) (finite : cumulant.Finite)
+    (cumulant : Binary32) (finite : cumulant.Finite)
     (bounded : |numerical32 cumulant| ≤ 1) (query : FeatIdx dimension) :
     let exact := weightValue learner.second[query.val] +
       numerical64 passage.step * exactCorrection learner passage cumulant *
@@ -1324,7 +1327,7 @@ theorem second_slot (learner : GradientLearner discount dimension) (passage : Pa
           indicator passage.source.indices query / 16777216 := by
   intro exact
   obtain ⟨_, _, _, _, nonneg, _⟩ := horizon_facts discount
-  have increments := (increments_close learner passage cumulant small finite bounded).1
+  have increments := (increments_close learner passage cumulant finite bounded).1
   have old := weight_numerical_bound _ learner.second[query.val]
   have write := write_rounded learner.second[query.val].value
     (learner.increments passage cumulant).1 old.1 increments.1 old.2 increments.2.2
@@ -1368,7 +1371,7 @@ theorem second_slot (learner : GradientLearner discount dimension) (passage : Pa
 step plus its deviation, and the deviation is at most `2^(-22)` of the old and new exact
 magnitudes plus `2^(-24)` on `x ∪ x'`, and zero elsewhere. -/
 theorem main_slot (learner : GradientLearner discount dimension) (passage : Passage dimension)
-    (cumulant : Binary32) (small : dimension.capacity ≤ 65536) (finite : cumulant.Finite)
+    (cumulant : Binary32) (finite : cumulant.Finite)
     (bounded : |numerical32 cumulant| ≤ 1) (reference : FeatIdx dimension → ℚ)
     (inside : ∀ j, |reference j| ≤ numerical32 discount.horizon) (query : FeatIdx dimension) :
     let exact := weightValue learner.main[query.val] +
@@ -1382,7 +1385,7 @@ theorem main_slot (learner : GradientLearner discount dimension) (passage : Pass
             16777216 := by
   intro exact
   obtain ⟨_, sourceDelta, sharedDelta, targetDelta⟩ :=
-    increments_close learner passage cumulant small finite bounded
+    increments_close learner passage cumulant finite bounded
   have old := weight_numerical_bound _ learner.main[query.val]
   have partition := classes_partition passage query
   have disjoint := classes_disjoint passage query
@@ -1536,17 +1539,16 @@ def exactMain (learner : GradientLearner discount dimension) (passage : Passage 
       direction discount passage query
 
 /-- The exact extragradient step from the stored words, with the executed step size, satisfies
-the energy inequality: its guard holds for every transition in a space of at most `2^16`
-slots. -/
+the energy inequality: its guard holds for every classified transition. -/
 theorem exact_energy (learner : GradientLearner discount dimension) (passage : Passage dimension)
-    (cumulant : Binary32) (small : dimension.capacity ≤ 65536)
+    (cumulant : Binary32)
     (reference : FeatIdx dimension → ℚ) {t s : ℚ} (ht : 0 ≤ t) (hs : 0 ≤ s)
     (start : distance learner reference ≤ t ^ 2)
     (push : numerical64 passage.step * exactTau passage ≤ s ^ 2) :
     ∑ j, exactSecond learner passage cumulant j ^ 2 +
         ∑ j, (exactMain learner passage cumulant j - reference j) ^ 2 ≤
       (t + |residual discount passage cumulant reference| * s) ^ 2 := by
-  obtain ⟨nPos, nSmall, mSmall, stepFinite, hPos, hScaled⟩ := passage_sizes passage small
+  obtain ⟨nPos, nSmall, mSmall, stepFinite, hPos, hScaled⟩ := passage_sizes passage
   obtain ⟨tauEq, curvatureEq, pEq, gapEq, squareBound⟩ :=
     exact_counterparts learner passage cumulant reference
   simp only at tauEq curvatureEq pEq gapEq squareBound
@@ -1593,7 +1595,7 @@ theorem exact_energy (learner : GradientLearner discount dimension) (passage : P
 exact step's distance and of the starting distance, plus `2^(-21)` of the reference's length
 and the absolute term `R`. -/
 theorem deviation_energy (learner : GradientLearner discount dimension)
-    (passage : Passage dimension) (cumulant : Binary32) (small : dimension.capacity ≤ 65536)
+    (passage : Passage dimension) (cumulant : Binary32)
     (finite : cumulant.Finite) (bounded : |numerical32 cumulant| ≤ 1)
     (reference : FeatIdx dimension → ℚ) (inside : ∀ j, |reference j| ≤ numerical32 discount.horizon)
     {t s m R : ℚ} (ht : 0 ≤ t) (hs : 0 ≤ s) (hm : 0 ≤ m) (hR : 0 ≤ R)
@@ -1606,7 +1608,7 @@ theorem deviation_energy (learner : GradientLearner discount dimension)
         ∑ j, mainDeviation learner passage cumulant j ^ 2 ≤
       ((t + |residual discount passage cumulant reference| * s) / 4194304 + t / 4194304 +
         m / 2097152 + R) ^ 2 := by
-  have exact := exact_energy learner passage cumulant small reference ht hs start push
+  have exact := exact_energy learner passage cumulant reference ht hs start push
   have exactNonneg : 0 ≤ t + |residual discount passage cumulant reference| * s :=
     add_nonneg ht (mul_nonneg (abs_nonneg _) hs)
   apply pair_four (secondDeviation learner passage cumulant)
@@ -1622,12 +1624,12 @@ theorem deviation_energy (learner : GradientLearner discount dimension)
     (div_nonneg exactNonneg (by norm_num)) (div_nonneg ht (by norm_num))
     (div_nonneg hm (by norm_num)) hR
   · intro j
-    have slot := (second_slot learner passage cumulant small finite bounded j).2
+    have slot := (second_slot learner passage cumulant finite bounded j).2
     simp only at slot
     simp only [exactSecond]
     linarith
   · intro j
-    have slot := (main_slot learner passage cumulant small finite bounded reference inside j).2
+    have slot := (main_slot learner passage cumulant finite bounded reference inside j).2
     simp only at slot
     have newBound := abs_add_le (exactMain learner passage cumulant j - reference j) (reference j)
     have oldBound := abs_add_le (weightValue learner.main[j.val] - reference j) (reference j)
@@ -1675,14 +1677,14 @@ theorem deviation_energy (learner : GradientLearner discount dimension)
     rw [sum_indicator_one _ passage.target.nodup] at second
     linarith
 
-/-- **Energy over the executed step.** For every learner state, every classified transition in
-a space of at most `2^16` slots, every finite signal word in `[−1, 1]` and every reference `w*`
-inside the weight range: if `N ≤ t²` before the step, `h·τ ≤ s²`, `|w*|² ≤ m²` and
+/-- **Energy over the executed step.** For every learner state, every classified transition,
+every finite signal word in `[−1, 1]` and every reference `w*` inside the weight range, in a
+feature space of any admitted capacity: if `N ≤ t²` before the step, `h·τ ≤ s²`, `|w*|² ≤ m²` and
 `(2|x| + |x'|)·2^(−48) ≤ R²`, then after the step
 `N ≤ ((1 + 2^(−21))·t + (1 + 2^(−22))·|ε|·s + 2^(−21)·m + R)²`. With `w* = 0`, `√N` grows per
 step by at most the factor `1 + 2^(−21)`, plus `(1 + 2^(−22))·|c|·s + R`. -/
 theorem step_energy (learner : GradientLearner discount dimension)
-    (passage : Passage dimension) (cumulant : Binary32) (small : dimension.capacity ≤ 65536)
+    (passage : Passage dimension) (cumulant : Binary32)
     (finite : cumulant.Finite) (bounded : |numerical32 cumulant| ≤ 1)
     (reference : FeatIdx dimension → ℚ) (inside : ∀ j, |reference j| ≤ numerical32 discount.horizon)
     {t s m R : ℚ} (ht : 0 ≤ t) (hs : 0 ≤ s) (hm : 0 ≤ m) (hR : 0 ≤ R)
@@ -1695,8 +1697,8 @@ theorem step_energy (learner : GradientLearner discount dimension)
       ((1 + 1 / 2097152) * t +
         (1 + 1 / 4194304) * |residual discount passage cumulant reference| * s +
         m / 2097152 + R) ^ 2 := by
-  have exact := exact_energy learner passage cumulant small reference ht hs start push
-  have deviations := deviation_energy learner passage cumulant small finite bounded reference
+  have exact := exact_energy learner passage cumulant reference ht hs start push
+  have deviations := deviation_energy learner passage cumulant finite bounded reference
     inside ht hs hm hR start push size rounding
   have exactNonneg : 0 ≤ t + |residual discount passage cumulant reference| * s :=
     add_nonneg ht (mul_nonneg (abs_nonneg _) hs)
@@ -1719,9 +1721,9 @@ theorem step_energy (learner : GradientLearner discount dimension)
             mainDeviation learner passage cumulant j) ^ 2 := by
         apply add_le_add
         · exact Finset.sum_le_sum fun j _ =>
-            (second_slot learner passage cumulant small finite bounded j).1
+            (second_slot learner passage cumulant finite bounded j).1
         · exact Finset.sum_le_sum fun j _ =>
-            (main_slot learner passage cumulant small finite bounded reference inside j).1
+            (main_slot learner passage cumulant finite bounded reference inside j).1
     _ ≤ (t + |residual discount passage cumulant reference| * s +
           ((t + |residual discount passage cumulant reference| * s) / 4194304 + t / 4194304 +
             m / 2097152 + R)) ^ 2 := total
@@ -1785,7 +1787,7 @@ theorem silent_fixed (question : Question discount dimension) (passage : Passage
 /-- **Energy over a question's step.** The bound of `step_energy` holds for the executed
 step of every question, silent or not: a step not taken leaves the distance unchanged. -/
 theorem question_energy (question : Question discount dimension)
-    (passage : Passage dimension) (cumulant : Binary32) (small : dimension.capacity ≤ 65536)
+    (passage : Passage dimension) (cumulant : Binary32)
     (finite : cumulant.Finite) (bounded : |numerical32 cumulant| ≤ 1)
     (reference : FeatIdx dimension → ℚ) (inside : ∀ j, |reference j| ≤ numerical32 discount.horizon)
     {t s m R : ℚ} (ht : 0 ≤ t) (hs : 0 ≤ s) (hm : 0 ≤ m) (hR : 0 ≤ R)
@@ -1808,23 +1810,23 @@ theorem question_energy (question : Question discount dimension)
       have : 0 ≤ m / 2097152 := div_nonneg hm (by norm_num)
       nlinarith
     exact start.trans (pow_le_pow_left₀ ht grown 2)
-  · exact step_energy question.learner passage cumulant small finite bounded reference inside
+  · exact step_energy question.learner passage cumulant finite bounded reference inside
       ht hs hm hR start push size rounding
 
 end EnergyTheorem
 
 /-! ## The step size keeps the guard -/
 
-/-- For every transition in a space of at most `2^16` slots, the executed step size makes
+/-- For every classified transition, the executed step size makes
 `τ = h|x|` and `κ = h|a|²` at most `1/9`, so `τ(τ + 2κ) ≤ 1` and `κ ≤ 2 − τ`, the two
 hypotheses of `AcornVerif.Extragradient.extragradient_energy`. -/
 theorem step_guard {discount : Discount} (passage : Passage dimension)
-    (small : dimension.capacity ≤ 65536) :
+    :
     0 ≤ exactTau passage ∧ exactTau passage ≤ 1 / 9 ∧
       0 ≤ exactCurvature discount passage ∧ exactCurvature discount passage ≤ 1 / 9 ∧
       exactTau passage * (exactTau passage + 2 * exactCurvature discount passage) ≤ 1 ∧
       exactCurvature discount passage ≤ 2 - exactTau passage := by
-  obtain ⟨_, _, _, _, hPos, hScaled⟩ := passage_sizes passage small
+  obtain ⟨_, _, _, _, hPos, hScaled⟩ := passage_sizes passage
   obtain ⟨_, gLower, gUpper⟩ := gamma_bounds discount
   have counts := class_counts passage
   have nSplit : (passage.source.indices.length : ℚ) =
@@ -1872,7 +1874,10 @@ theorem advance_stores (preceding : Preceding dimension) (current : SwiftTd.Acti
     (armed : Bool) :
     (preceding.advance current armed).2.features =
         (if armed then current else SwiftTd.ActiveSet.empty dimension) ∧
-      ((preceding.advance current armed).1.isSome = !preceding.features.indices.isEmpty) := by
+      ((preceding.advance current armed).1.isSome =
+        (!preceding.features.indices.isEmpty &&
+          decide (preceding.features.indices.length ≤ passageLimit ∧
+            current.indices.length ≤ passageLimit))) := by
   rcases preceding with ⟨source, flags, agrees⟩
   unfold Preceding.advance
   dsimp only
@@ -1881,8 +1886,11 @@ theorem advance_stores (preceding : Preceding dimension) (current : SwiftTd.Acti
     simp only [empty, List.isEmpty_nil, Bool.not_true]
     cases armed <;> simp
   · rename_i head tail nonempty
-    simp only [nonempty, List.isEmpty_cons, Bool.not_false]
-    cases armed <;> simp
+    have notEmpty : (!source.indices.isEmpty) = true := by rw [nonempty]; rfl
+    by_cases fits : source.indices.length ≤ passageLimit ∧
+        current.indices.length ≤ passageLimit
+    · cases armed <;> simp [fits, notEmpty]
+    · cases armed <;> simp [fits, notEmpty]
 
 /-- The passage of a transition joins the stored set to the current one. -/
 theorem advance_passage (preceding : Preceding dimension) (current : SwiftTd.ActiveSet dimension)
@@ -1894,8 +1902,13 @@ theorem advance_passage (preceding : Preceding dimension) (current : SwiftTd.Act
   dsimp only at learned
   split at learned
   · cases armed <;> simp at learned
-  · cases armed <;> simp only [Bool.false_eq_true, ↓reduceIte, Option.some.injEq] at learned <;>
-      (subst learned; exact ⟨rfl, rfl⟩)
+  · by_cases fits : source.indices.length ≤ passageLimit ∧
+        current.indices.length ≤ passageLimit
+    · cases armed <;>
+        simp only [fits, and_self, ↓reduceDIte, Bool.false_eq_true, ↓reduceIte,
+          Option.some.injEq] at learned <;>
+        (subst learned; exact ⟨rfl, rfl⟩)
+    · cases armed <;> simp [fits] at learned
 
 /-- Retirement resets both weights of a learner at the retired slot and keeps every other
 slot. -/
@@ -1970,14 +1983,19 @@ theorem questions_follow {discounts : List Discount}
 
 /-! ## Work and storage -/
 
-/-- The lists one step folds over. The sums and writes of `GradientLearner.scalars` and
-`GradientLearner.step` are folds over the three class lists, for the main weights, and over
-`x`, for the second weights. The class lists hold `|x ∪ x'| = |x| + |x'| − |x ∩ x'|` slots.
-That the folds write in place is the runtime's storage reuse, which is not proved. -/
+/-- The slots one learner step visits. `GradientLearner.scalars` folds once over each of
+the three class lists, for the main weights, and once over `x`, for the second weights;
+`GradientLearner.step` folds once more over each of the four lists to write. The visits
+are therefore `2·|x ∪ x'| + 2·|x|`, at most `4·|x| + 2·|x'|`. That each write is in place is
+a property of the compiled code, which builds a learner's two vectors separately and
+consumes the learner before writing; it is not a statement about these values. -/
 theorem passage_work (passage : Passage dimension) :
-    passage.onlySource.length + passage.both.length + passage.onlyTarget.length +
-        passage.both.length =
-      passage.source.indices.length + passage.target.indices.length := by
+    2 * (passage.both.length + passage.onlySource.length + passage.onlyTarget.length) +
+          2 * passage.source.indices.length + 2 * passage.both.length =
+        4 * passage.source.indices.length + 2 * passage.target.indices.length ∧
+      2 * (passage.both.length + passage.onlySource.length + passage.onlyTarget.length) +
+          2 * passage.source.indices.length ≤
+        4 * passage.source.indices.length + 2 * passage.target.indices.length := by
   have counts := class_counts passage
   omega
 

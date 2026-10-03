@@ -39,9 +39,9 @@ linear in the accumulated residual.
 `gtd2_change` shows the plain GTD2 step (Sutton, Maei, Precup, Bhatnagar, Silver,
 Szepesvári & Wiewiora, ICML 2009, eqs. (8)–(9)) lacks the property: with `p = 0` and
 `q ≠ 0` it raises `N`. `semigradient_family` is the off-policy growth of semi-gradient
-TD that the correction answers: the expected update of a family of binary-feature
-transitions whose successor is never updated scales the direction `w₀ = W` by
-`2Kγ − K − 1` per unit step size.
+TD that the correction answers: the expected update of a family of `K` equally weighted
+binary-feature transitions whose successor is never updated scales the direction
+`w₀ = W` by `2γ − 1 − 1/K` per unit step size, positive exactly when `γ > (K + 1)/(2K)`.
 -/
 namespace AcornVerif.Extragradient
 
@@ -103,14 +103,37 @@ theorem gtd2_change (q τ κ : ℚ) :
 
 /-- The semi-gradient family: `K` predecessor states share one feature with weight
 `w₀` and own one each, summing to `W`; each leads to one successor in which all `K + 1`
-features are active and which is never updated. The signal is zero. The expected
-semi-gradient update of both `w₀` and `W`, per unit step size and weighting the
-predecessors equally, is `K(γ − 1)w₀ + (Kγ − 1)W`, so the direction `w₀ = W` is scaled
-by `2Kγ − K − 1` and grows whenever `γ > (K + 1)/(2K)`. -/
-theorem semigradient_family (K γ w₀ W : ℚ) :
-    K * (γ * (w₀ + W)) - (K * w₀ + W) = K * (γ - 1) * w₀ + (K * γ - 1) * W ∧
-      K * (γ - 1) * w₀ + (K * γ - 1) * w₀ = (2 * K * γ - K - 1) * w₀ := by
-  constructor <;> ring
+features are active and which is never updated. The signal is zero. The TD errors of
+the `K` transitions sum to `Kγ(w₀ + W) − (Kw₀ + W)`. Weighting the predecessors equally,
+the expected semi-gradient update of both `w₀` and `W` per unit step size is that sum
+divided by `K`, which is `(γ − 1)w₀ + (γ − 1/K)W`, so the direction `w₀ = W` is scaled by
+`2γ − 1 − 1/K` and grows whenever `γ > (K + 1)/(2K)`. -/
+theorem semigradient_family (K γ w₀ W : ℚ) (positive : 0 < K) :
+    (K * (γ * (w₀ + W)) - (K * w₀ + W)) / K = (γ - 1) * w₀ + (γ - 1 / K) * W ∧
+      (γ - 1) * w₀ + (γ - 1 / K) * w₀ = (2 * γ - 1 - 1 / K) * w₀ ∧
+      (0 < 2 * γ - 1 - 1 / K ↔ (K + 1) / (2 * K) < γ) := by
+  have nonzero : K ≠ 0 := ne_of_gt positive
+  have inverse : 1 / K * K = 1 := one_div_mul_cancel nonzero
+  have expand : (2 * γ - 1 - 1 / K) * K = 2 * γ * K - K - 1 := by
+    rw [sub_mul, inverse]
+    ring
+  have mean : (K * (γ * (w₀ + W)) - (K * w₀ + W)) / K = (γ - 1) * w₀ + (γ - 1 / K) * W := by
+    have split : ((γ - 1) * w₀ + (γ - 1 / K) * W) * K =
+        (γ - 1) * w₀ * K + γ * W * K - W * (1 / K * K) := by ring
+    rw [div_eq_iff nonzero, split, inverse]
+    ring
+  refine ⟨mean, by ring, ?_⟩
+  rw [div_lt_iff₀ (by linarith)]
+  constructor
+  · intro grows
+    have product := mul_pos grows positive
+    rw [expand] at product
+    linarith
+  · intro threshold
+    have product : 0 < (2 * γ - 1 - 1 / K) * K := by
+      rw [expand]
+      linarith
+    exact (mul_pos_iff_of_pos_right positive).mp product
 
 /-- Cauchy–Schwarz for a pair of vectors read as one. -/
 theorem pair_inner (f₁ f₂ g₁ g₂ : ι → ℚ) :
