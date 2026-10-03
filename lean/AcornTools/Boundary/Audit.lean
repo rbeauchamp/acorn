@@ -298,7 +298,8 @@ def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := d
       unless dependencyOwner == owner || importAllowed owner dependencyOwner do
         reject owner s!"{name} references {dependency} owned by {dependencyOwner}"
 
-/-- Check compiled declarations and their real referenced owners after source admission.
+/-- Check compiled declarations and their real referenced owners. The gate admits the
+sources before the build, and `command` admits them again after this check.
 Pinned Lean's parametric attribute queries read imported module entries directly
 once declaration ownership is established. No project extension initialization
 is needed. Scoped imports release each environment after all its checks; only
