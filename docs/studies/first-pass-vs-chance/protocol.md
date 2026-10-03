@@ -76,7 +76,8 @@ assumed and UNKNOWN.
    boundaries.* The agent's step (`AgentCallbacks`), the world's step
    (`World.step`) and the comparator (`runRandomBaseline`) are pure functions,
    so they read no clock and no entropy. Observers receive values and return
-   nothing to the agent. Clock readings reach only telemetry and the CSV footer.
+   nothing to the agent. Clock readings reach only telemetry, the printed
+   campaign summary and the CSV footer.
 6. **Work.** *Argued from item 2.* Each arm takes at most
    11 × 3000 + 200 + 800 = 34 000 steps per seed.
 
@@ -165,34 +166,41 @@ large-sample argument.
 
 ## Uncertainty method
 
-Let W be the number of wins among the 20 seeds.
+Let V be the number of wins among the 20 seeds, W the number of seeds whose
+valid outcome is a win, and M the number of seeds with no valid outcome
+([failed runs](#stopping-rule-exclusions-and-failed-runs)). A valid outcome
+shows whether its seed is a win and a missing one does not, so W ≤ V ≤ W + M,
+and V = W when no seed is missing.
 
 **Sampling law.** By item 5, whether a seed is a win is a fixed property of the
 seed. The 20 seeds are independent uniform draws from the population (assumed of
-the operating system's entropy source), so W has the binomial distribution with
+the operating system's entropy source), so V has the binomial distribution with
 20 trials and probability q. This needs no assumption about the generator that
 turns a seed into a world, and no independence between worlds.
 
-**Interval.** The reported 95% interval for q is the set of values that neither
-one-sided exact binomial test rejects at 0.025: its lower end is the largest q
-with P(Bin(20, q) ≥ W) ≤ 0.025, or 0 when W = 0, and its upper end the smallest
-q with P(Bin(20, q) ≤ W) ≤ 0.025, or 1 when W = 20. Coverage is at least 95% for
-every q and holds at this sample size: P(Bin(20, q) ≥ w) increases with q, so
-the lower end exceeds the true q only when W reaches the smallest w whose upper
-tail under the true q is at most 0.025, an event of probability at most 0.025;
-the upper end is symmetric. This is the interval of Clopper and Pearson, "The Use of
-Confidence or Fiducial Limits Illustrated in the Case of the Binomial",
-*Biometrika* 26(4), 1934, pp. 404–413
-([doi:10.1093/biomet/26.4.404](https://doi.org/10.1093/biomet/26.4.404)). Its
-bibliographic record was checked on 2026-10-03; its text was not opened, and
-the argument above does not depend on it.
+**Interval.** For a count w, the exact binomial interval is the set of values
+of q that neither one-sided exact binomial test rejects at 0.025: its lower end
+is the largest q with P(Bin(20, q) ≥ w) ≤ 0.025, or 0 when w = 0, and its upper
+end the smallest q with P(Bin(20, q) ≤ w) ≤ 0.025, or 1 when w = 20. The
+reported 95% interval for q takes its lower end at W and its upper end at
+W + M. With no missing seed it is the exact binomial interval at W.
+
+Coverage is at least 95% for every q and holds at this sample size.
+P(Bin(20, q) ≥ w) increases with q, so the lower end at V exceeds the true q
+only when V reaches the smallest w whose upper tail under the true q is at most
+0.025, an event of probability at most 0.025; the upper end is symmetric.
+Neither end falls as the count rises, because P(Bin(20, q) ≥ w) falls and
+P(Bin(20, q) ≤ w) rises with w. So the lower end at W is at most the lower end
+at V, and the upper end at W + M is at least the upper end at V: the reported
+interval contains the exact binomial interval at V, whatever caused the missing
+outcomes.
 
 Reporting an interval and not a point estimate follows the uncertainty-aware
 evaluation cited by the
 [promotion standard](../../prior-art-review.md#default-promotion-and-demotion).
 That source's bootstrap is not used.
 
-| W | Interval for q | W | Interval for q | W | Interval for q |
+| Count | Interval for q | Count | Interval for q | Count | Interval for q |
 |---|---|---|---|---|---|
 | 0 | 0.000 to 0.169 | 7 | 0.153 to 0.593 | 14 | 0.457 to 0.882 |
 | 1 | 0.001 to 0.249 | 8 | 0.191 to 0.640 | 15 | 0.508 to 0.914 |
@@ -202,12 +210,12 @@ That source's bootstrap is not used.
 | 5 | 0.086 to 0.492 | 12 | 0.360 to 0.809 | 19 | 0.751 to 0.999 |
 | 6 | 0.118 to 0.543 | 13 | 0.407 to 0.847 | 20 | 0.831 to 1.000 |
 
-Lower ends are rounded down and upper ends up.
+Lower ends are rounded down and upper ends up. The reported interval takes its
+lower end from the row of W and its upper end from the row of W + M.
 
 ## Decision rule
 
-Let M be the number of seeds with no valid outcome
-([failed runs](#stopping-rule-exclusions-and-failed-runs)).
+W and M are the counts defined under [uncertainty method](#uncertainty-method).
 
 | Result | Condition | What is reported |
 |---|---|---|
@@ -254,22 +262,31 @@ describes.
 
 ## Stopping rule, exclusions and failed runs
 
-- **Fixed sample.** Twenty seeds, one run each. There is no interim analysis,
-  no extension and no replacement seed. A further study uses a new protocol
-  revision and new seeds, and its sample is not pooled with this one.
+- **Fixed sample.** Twenty seeds, one run each; the only further run is the
+  rerun allowed below. There is no interim analysis, no extension and no
+  replacement seed. A further study uses a new protocol revision and new seeds,
+  and its sample is not pooled with this one.
 - **No exclusions.** No seed is removed for its outcome.
-- **Missing.** A seed has no valid outcome when its process exits with a nonzero
-  status, including a kill at the per-run deadline. It counts in M.
+- **Missing.** A seed has a valid outcome when its last run exits with status 0
+  and reports a complete outcome CSV: the core prints `csv written successfully`
+  on standard output exactly when no CSV creation or write failed, and a CSV
+  failure does not change its exit status. Every other seed has no valid
+  outcome, including one killed at the per-run deadline, and counts in M.
 - **Reruns.** A run interrupted from outside the executed definitions (a machine
-  restart, an operator's kill, a full disk) is rerun once with the same command,
-  and both records are kept. By item 5 a rerun cannot select among outcomes. A
-  run killed by the per-run deadline is not rerun.
-- **Derived checks.** The record of a run that exits with status 0 must agree
-  with items 2 and 3: 13 outcome rows, one per goal in order; achievement of
-  goals 0 and 11 at 200 and 800 steps; a comparator count of at least 2; and the
-  same agent count in the CSV and in the printed comparison. A violation means
-  the executed binary is not the source this protocol analyses. The study
-  stops, the violation is reported as a deviation and no decision is issued.
+  restart, an operator's kill, a full disk) is rerun once with the same command.
+  A run that exits with status 0 without a complete outcome CSV was interrupted
+  in this sense: the operating system refused a file operation. The interrupted
+  record is first moved, unedited, to the directory named interrupted beside
+  the seed directories, so both records are kept and the seed's own directory
+  holds the rerun alone. By item 5 a rerun cannot select among outcomes. A run
+  killed by the per-run deadline is not rerun, and a rerun is not rerun: a seed
+  whose rerun gives no valid outcome is missing.
+- **Derived checks.** The record behind a valid outcome must agree with items 2
+  and 3: 13 outcome rows, one per goal in order; achievement of goals 0 and 11
+  at 200 and 800 steps; a comparator count of at least 2; and the same agent
+  count in the CSV and in the printed comparison. A violation means the
+  executed binary is not the source this protocol analyses. The study stops,
+  the violation is reported as a deviation and no decision is issued.
 
 ## Resource budget
 
@@ -278,11 +295,12 @@ performance, 4 efficiency) and 24 GB of memory, running macOS 27.0.
 
 | Quantity | Limit | Kind |
 |---|---|---|
-| Agent steps | At most 34 000 per seed, 680 000 in all | Derived (item 6) |
+| Agent steps | At most 34 000 per run: 680 000 with no rerun | Derived (item 6) |
 | Concurrent processes | 4; each run's loop is sequential and uses one core | Fixed |
 | Per-run deadline | 3600 s, enforced by SIGKILL | Hard limit |
-| CPU time | At most 20 core-hours | Hard limit: 20 runs of at most 3600 s |
-| Wall time | At most 5 hours | Hard limit: those 20 runs on 4 workers |
+| Runs | 20, and at most one rerun per seed: at most 40 | Fixed ([reruns](#stopping-rule-exclusions-and-failed-runs)) |
+| CPU time | At most 20 core-hours with no rerun, at most 40 in all | Hard limit: runs of at most 3600 s each |
+| Wall time | At most 5 hours with no rerun | Hard limit: 20 runs on 4 workers. A rerun runs for at most 3600 s |
 | Expected CPU time | About 3 to 7 core-hours | Estimate, not a bound |
 | Expected wall time | About 1 to 2 hours | Estimate, not a bound |
 | Memory per process | UNKNOWN | Recorded per run |
@@ -310,15 +328,17 @@ sources are those of the commit that registered the revision; the first block
 below refuses to continue otherwise. Running any other Lean sources needs a new
 revision first.
 
-The commands are for this host (macOS, GNU coreutils installed). They were
-written from the core's argument and output definitions and have not been
-executed against the core; the two extraction commands were checked against
-text assembled by hand from those definitions.
+The commands are for this host (macOS, GNU coreutils installed). Each block
+below is a complete bash script, run by bash from the root of the checkout. The
+run script exports a shell function, which zsh, this host's default shell, does
+not do. The scripts were written from the core's argument and output
+definitions and have not been executed against the core; the extraction
+commands were checked against text assembled by hand from those definitions.
 
 Build and record the run identity, from a clean checkout of the authorized
 commit:
 
-```sh
+```bash
 set -euo pipefail
 study=docs/studies/first-pass-vs-chance
 out="$study/observations/r1"
@@ -339,9 +359,13 @@ mkdir -p "$out"
 } > "$out/identity.txt"
 ```
 
-Run the 20 seeds, four at a time:
+Run the 20 seeds, four at a time. The script refuses a seed that already has a
+directory, so it never overwrites a record:
 
-```sh
+```bash
+set -euo pipefail
+study=docs/studies/first-pass-vs-chance
+out="$study/observations/r1"
 run_seed() {
   dir="$out/seed-$1"
   mkdir "$dir" || return 1
@@ -355,42 +379,69 @@ run_seed() {
 }
 export -f run_seed
 export out
-xargs -P 4 -n 1 bash -c 'run_seed "$1"' bash < "$study/seeds.txt"
+xargs -P 4 -n 1 "$BASH" -c 'run_seed "$1"' bash < "$study/seeds.txt"
 ```
 
-Extract one line per seed: the seed, the exit status, the derived check on the
-agent's rows, the agent's achieved count from the CSV, and the comparator's and
-the agent's counts as the core printed them:
+Rerun an interrupted seed, written N here, under the
+[reruns rule](#stopping-rule-exclusions-and-failed-runs), once the run script
+has ended. First move its record aside, unedited. This script refuses a seed
+that already has an interrupted record, so no seed is rerun twice:
 
-```sh
+```bash
+set -euo pipefail
+out=docs/studies/first-pass-vs-chance/observations/r1
+mkdir -p "$out/interrupted"
+test ! -e "$out/interrupted/seed-N"
+mv "$out/seed-N" "$out/interrupted/seed-N"
+```
+
+Then run the run script again. It refuses every seed that still has a
+directory, reports each refusal and exits with a nonzero status. It runs the
+seeds that have none: those moved aside, and any that an interruption left
+unstarted.
+
+Extract one line per seed: the seed, the exit status, whether the core reported
+a complete CSV, the derived check on the agent's rows, the agent's achieved
+count from the CSV, and the comparator's and the agent's counts as the core
+printed them:
+
+```bash
+set -euo pipefail
+study=docs/studies/first-pass-vs-chance
+out="$study/observations/r1"
 for dir in "$out"/seed-*; do
+  grep -Fqx 'csv written successfully' "$dir/stdout.txt" && csv=complete || csv=incomplete
   awk -F, 'NR > 1 && !/^#/ { rows++
       if ($1 != rows - 1 || $2 != 0) bad = 1
       if ($1 == 0 && !($4 == 200 && $5 == 1)) bad = 1
       if ($1 == 11 && !($4 == 800 && $5 == 1)) bad = 1 }
     END { exit !(rows == 13 && !bad) }' "$dir/outcomes.csv" && derived=ok || derived=violated
-  printf '%s %s %s %s %s\n' "${dir##*seed-}" "$(cat "$dir/exit-status.txt")" "$derived" \
+  printf '%s %s %s %s %s %s\n' "${dir##*seed-}" \
+    "$(cat "$dir/exit-status.txt" 2> /dev/null || echo absent)" "$csv" "$derived" \
     "$(awk -F, 'NR > 1 && !/^#/ && $5 == 1 { n++ } END { print n + 0 }' "$dir/outcomes.csv")" \
     "$(sed -n 's/^distinct goals achieved .* random policy: \([0-9]*\)\/13; agent: \([0-9]*\)\/13 (agent used 13 attempts)$/\1 \2/p' "$dir/stdout.txt")"
 done > "$study/results-r1.txt"
 ```
 
-A line with a nonzero status is a missing seed. A line with status 0 must read
-check ok, a fifth field of at least 2 and equal fourth and sixth fields;
-anything else is a derived-check violation. For a valid line, D is the fourth
-field minus the fifth. W counts valid lines with D ≥ 1, and M counts the seeds
-of the list without a valid line. The [decision rule](#decision-rule) and the
-interval table then give the result.
+A line whose status is not 0, or whose CSV is incomplete, is a missing seed.
+Every other line is valid and must read check ok, a sixth field of at least 2
+and equal fifth and seventh fields; anything else is a derived-check violation.
+For a valid line, D is the fifth field minus the sixth. W counts valid lines
+with D ≥ 1, and M counts the seeds of the list without a valid line. The
+[decision rule](#decision-rule) gives the result, and the interval table gives
+the interval's lower end at W and its upper end at W + M.
 
 ## Records
 
-- **Run identity.** Each run is `first-pass-vs-chance/r1/seed-N` for its seed N.
-  An empirical citation names the study, the revision, the run or runs and the
-  comparison.
+- **Run identity.** Each run is `first-pass-vs-chance/r1/seed-N` for its seed N,
+  and an interrupted run that was rerun is
+  `first-pass-vs-chance/r1/interrupted/seed-N`. An empirical citation names the
+  study, the revision, the run or runs and the comparison.
 - **Original observations.** Each seed's directory holds the outcome CSV, the
   standard output, the standard error with the resource report, and the exit
-  status, exactly as written. They are never edited. The extracted results file
-  and any written summary are presentations, kept apart from them.
+  status, exactly as written. An interrupted run's directory holds whatever
+  that run wrote. They are never edited. The extracted results file and any
+  written summary are presentations, kept apart from them.
 - **Source and environment.** The identity file records the commit run, the
   commit that registered the revision, the SHA-256 of the binary, of this
   protocol and of the seed list, the toolchain, the operating system, the
@@ -409,8 +460,10 @@ confirmatory test, so no multiplicity adjustment applies.
 
 **Exploratory.** Reported as description, with no decision and no claim:
 
-- the 20 values of D, their mean and range, and the counts of wins, losses and
-  ties, with the exact interval for the fraction of losses;
+- the value of D for each seed with a valid outcome, their mean and range, and
+  the counts of wins, losses and ties, with the exact binomial interval for the
+  fraction of losses, its lower end at the count of losses and its upper end at
+  that count plus M;
 - for each goal, the number of seeds on which the agent achieved it and its
   steps to achievement. The core prints only the comparator's count, so no
   per-goal comparison is available;
@@ -438,9 +491,10 @@ confirmatory test, so no multiplicity adjustment applies.
 
 ## Revisions
 
-A revision is this file and [seeds.txt](seeds.txt) as committed together.
-Before the run, any change to either makes a new revision with a new number and
-a new observations directory; its seeds are redrawn only if a run was made at
-the old ones. After the run, the only edits are corrections that follow a
-renamed declaration or a moved link. The identity file holds the hash of the
+A revision is this file and [seeds.txt](seeds.txt) as committed together. It is
+registered when it reaches the main branch. From then until the run, any change
+to either makes a new revision with a new number and a new observations
+directory; its seeds are redrawn only if a run was made at the old ones. After
+the run, the only edits are corrections that follow a renamed declaration or a
+moved link. The identity file holds the hash of the
 revision as run, and Git holds its text.
