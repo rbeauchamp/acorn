@@ -146,7 +146,8 @@ retired. How often that happens is UNKNOWN: it depends on the stream.
 **Status: addressed by U5 for the ranked share of an outcome's value**
 ([#11](https://github.com/rbeauchamp/acorn/issues/11)): the value at the ranked
 slots is read from the current weights, and the rest is still a learned value
-estimate, the residual. The
+estimate, the residual
+([#48](https://github.com/rbeauchamp/acorn/issues/48)). The
 [U5 section](#what-u5-changed) lists what changed and what is proved. The finding
 below describes the assessed commit. Argued.
 
