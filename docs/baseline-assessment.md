@@ -46,8 +46,11 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   (F-A) erased option learning until U1 repaired it, and a locally derived
   exploration rate made about 90% of early primitive steps random until U2
   replaced it (F-C). Options learned only while executing until U4 (F-F).
-- **Learning: UNKNOWN.** Whether the agent learns anything in its world has not
-  been observed.
+- **Learning: one observation, refuted at its horizon; otherwise UNKNOWN.** In
+  one pass of the curriculum from a fresh agent, the agent achieved more goals
+  than a uniform-random policy on 4 of 20 seeds
+  ([U6](#conformance-sequence)). Whether it learns over a longer horizon has
+  not been observed.
 
 The defects survived for an instructive reason. Acorn's proofs state safety and
 admission properties, such as "the stored state stays legal" or "this identity
@@ -413,7 +416,7 @@ derivation, not measurement.
 | U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
-| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Protocol written** ([protocol](studies/first-pass-vs-chance/protocol.md)); open ([#12](https://github.com/rbeauchamp/acorn/issues/12)); the run needs owner authorization |
+| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
@@ -422,10 +425,19 @@ started, and its branch and in-progress evidence are kept.
 
 U6's [protocol](studies/first-pass-vs-chance/protocol.md) compares the two over
 one pass of the curriculum, the longest horizon on which the core's
-random-policy diagnostic is a matched comparator. No run has been made. Whether
-the agent learns over repeated visits to a goal stays UNKNOWN under that
-protocol whatever its result, because a comparison over several cycles needs a
-comparator that follows the same campaign in one persistent world.
+random-policy diagnostic is a matched comparator. The owner authorized
+revision 1 on 2026-10-03, and it was run that day at commit 6ac4eec, the commit
+that registered it. The [result](studies/first-pass-vs-chance/results.md) is
+**refuted at this horizon**: in most worlds the agent does not achieve more
+goals than chance in its first pass. Of 20 seeds, all with a valid outcome, the
+agent achieved at least one more goal than the comparator on 4 (W), fewer on 9
+and the same number on 7, with none missing (M = 0); the exact 95% interval for
+the fraction of seeds that are wins is 0.057 to 0.437. The result does not show
+that the agent does worse than chance in most worlds: the interval for the
+fraction of losses, 0.230 to 0.685, contains 1/2. Whether the agent learns over
+repeated visits to a goal stays UNKNOWN under that protocol, because a
+comparison over several cycles needs a comparator that follows the same
+campaign in one persistent world.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
@@ -652,7 +664,8 @@ improves decisions.
     supply one.
   - Uniform hashing for the roughly 1,300 active features.
   - Faithful transcription of the paper equations recorded in earlier reviews.
-- **UNKNOWN.** Whether the agent learns in its world; how often refreshes occur
+- **UNKNOWN.** Whether the agent learns in its world beyond the one pass U6
+  observed; how often refreshes occur
   and units leave the ranking; option and model quality; the benefit of
   planning; the benefit of any of U1 to U5; how often a frame's behaviour has the
   distribution of an option that is not executing. Each depends on the

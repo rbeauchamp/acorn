@@ -1,0 +1,20 @@
+planning=expectation
+checkpoint final: saving disabled
+      547.93 real       545.69 user         1.19 sys
+           155189248  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               10020  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   1  signals received
+                   1  voluntary context switches
+               64413  involuntary context switches
+            17310048  instructions retired
+             8295789  cycles elapsed
+             1474944  peak memory footprint
