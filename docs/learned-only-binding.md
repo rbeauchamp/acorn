@@ -100,8 +100,9 @@ Two consequences follow, and neither is conformance with the source.
 - **The decay is removed.** Counting one step as one frame, the Atari schedule
   gives ε = 1 − 0.99 × 34 000 / 4 000 000 ≈ 0.99 after 34 000 steps, the most a
   first pass of the standard curriculum takes. A whole first pass therefore
-  lies inside the phase this declaration removes. Only the CartPole agent uses
-  0.01 from its first step.
+  lies inside the phase this declaration removes. Of the agents whose ε the
+  source states as a number, only the CartPole agent uses 0.01 from its first
+  step.
 - **Persistent runs start only when primitive control acts.** The source's
   Algorithm 1 (PDF p. 14) applies the persistent draw to the agent's one
   behaviour policy: at every step with no run in progress, a run starts with
@@ -109,8 +110,10 @@ Two consequences follow, and neither is conformance with the source.
   `TemporalControl.choosePrimitive`, which is reached when the meta-controller
   delegates to primitive control or the profile has no hierarchy. The
   meta-controller and an executing option use the plain draw
-  (`PolicySnapshot.draw`), one exploratory step at a time, with share exactly ε
-  (`explorationShare_single` in `AcornVerif.Exploration`). Once the meta-controller
+  (`PolicySnapshot.draw`), one exploratory step at a time. Under an assumed
+  uniform, independent draw, which the deterministic generator does not supply,
+  their model share is exactly ε (`explorationShare_single` in
+  `AcornVerif.Exploration`). Once the meta-controller
   holds options the mechanism rarely runs: in two diagnostic traces of study
   first-pass-vs-chance r1, 0.95% and 0.93% of steps were exploratory
   ([#58](https://github.com/rbeauchamp/acorn/issues/58)). The traces are
