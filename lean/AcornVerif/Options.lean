@@ -399,67 +399,16 @@ theorem planning_weight_convex_step_bounded
     have h3 : (1 - alpha) * H + alpha * H = H := by ring
     linarith
 
-/-! ## Coalesced refresh and identity boundaries
+/-! ## Refresh and identity boundaries
 
-These structural contracts model dispatch and replacement ordering. A closing
-owner is retained independently of its replacement slot, so the model's terminal
-update uses the original objective and next policy draw. Machine request
-transitions and unit identity with held bonuses have their execution contracts in
-`Acorn.FeatureRefresh`; these model contracts concern lifecycle semantics.
+These structural contracts model replacement ordering. A closing owner is retained
+independently of its replacement slot, so the model's terminal update uses the
+original objective and next policy draw. The assignment refresh, its timing and unit
+identity with held bonuses have their execution contracts in `Acorn.FeatureRefresh`;
+these model contracts concern lifecycle semantics.
 -/
 
 namespace Refresh
-
-/-- An idle boundary consumes all accumulated requests as one latest-state ranking. -/
-def drain (pending idle : Bool) : Bool × Bool :=
-  if idle then (false, pending) else (pending, false)
-
-/-- Busy occupancy cannot consume or erase a request. -/
-theorem busy_preserves (pending : Bool) : drain pending false = (pending, false) := rfl
-
-/-- At the first free boundary, pending work is completed and cleared together. -/
-theorem idle_completes (pending : Bool) : drain pending true = (false, pending) := rfl
-
-/-- Pending work is conserved between the outstanding and completed sides. -/
-theorem conservation (pending idle : Bool) :
-    ((drain pending idle).1 || (drain pending idle).2) = pending := by
-  cases idle <;> cases pending <;> rfl
-
-/-- One refresh obligation cannot be both outstanding and completed. -/
-theorem exclusive (pending idle : Bool) :
-    ((drain pending idle).1 && (drain pending idle).2) = false := by
-  cases idle <;> cases pending <;> rfl
-
-/-- Requests are idempotent accumulation of a need to inspect current weights. -/
-def request (pending event : Bool) : Bool := pending || event
-
-/-- Repeated requests coalesce without counters that can overflow. -/
-theorem coalesces (pending event : Bool) :
-    request (request pending event) event = request pending event := by
-  cases pending <;> cases event <;> rfl
-
-/-- Requests alone cannot clear existing work. -/
-theorem request_preserves (event : Bool) : request true event = true := rfl
-
-/-- Arbitrarily many busy steps, with arbitrary request arrivals. -/
-def busyStream (pending : Bool) : List Bool → Bool
-  | [] => pending
-  | event :: rest => busyStream (drain (request pending event) false).1 rest
-
-/-- Conservation across the whole busy prefix, not a chosen duration. -/
-theorem busy_stream_exact (events : List Bool) (pending : Bool) :
-    busyStream pending events = (pending || events.any id) := by
-  induction events generalizing pending with
-  | nil => cases pending <;> rfl
-  | cons event rest ih =>
-    rw [busyStream, busy_preserves, ih]
-    simp only [request, List.any_cons]
-    exact Bool.or_assoc pending event (rest.any id)
-
-/-- The first free boundary consumes every request from an arbitrary busy prefix. -/
-theorem first_idle_exact (events : List Bool) (pending : Bool) :
-    drain (busyStream pending events) true = (false, pending || events.any id) := by
-  rw [busy_stream_exact, idle_completes]
 
 /-- Slot replacement retains a separate old owner until its closing update. -/
 def replaceOwner {A : Type*} (old replacement : A) : A × A := (replacement, old)

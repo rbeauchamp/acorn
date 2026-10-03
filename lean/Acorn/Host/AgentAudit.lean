@@ -9,7 +9,7 @@ import Acorn.Host.AgentAdmission
 # Current agent mutation checksum
 
 The checksum reads learner knowledge, including every option's off-policy question
-weights, pending ranking, gain for differential control, planning count, seed, clock,
+weights, gain for differential control, planning count, seed, clock,
 bank, generator and every unit's tester state.
 Transient credit, predictions, exploration state and observational lifetime
 records are outside this checksum. A changed hash identifies a change in the selected fields.
@@ -99,8 +99,7 @@ def agentChecksum {profile : FeatureProfile} {config : Features.Config} {criteri
   let runtime := agent.control.runtime
   let ensemble := runtime.lifecycle.consumers
   let representation := runtime.lifecycle.representation
-  let mut hash := controllerChecksum ensemble.control ^^^
-    Rng.rotateLeft (if runtime.refresh.pending then 1 else 0) 43
+  let mut hash := controllerChecksum ensemble.control
   match criterion with
   | .discounted => pure ()
   | .differential => hash := hash ^^^ Rng.rotateLeft agent.control.average.rate.value.bits.toUInt64 37

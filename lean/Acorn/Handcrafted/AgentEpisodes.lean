@@ -54,28 +54,28 @@ theorem _root_.Acorn.Features.FreeDispatch.refresh_closing_slot
     {shape : PatchShape} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload) :
     state.refreshRanked.closing.map (·.slot) = state.closing.map (·.slot) := by
-  unfold FreeDispatch.refreshRanked
-  dsimp only [Refresh.take]
-  split
-  · generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
-      (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
-    have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
-        (current : FreeDispatch shape config criterion dimension discounts payload) :
-        (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).closing.map (·.slot) =
-          current.closing.map (·.slot) := by
-      induction slots generalizing current with
-      | nil => rfl
-      | cons slot tail ih =>
-        exact (ih (current.install slot targets[slot.val])).trans (current.install_closing_slot slot _)
-    exact fold _ _
-  · rfl
+  simp only [FreeDispatch.refreshRanked]
+  generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+    (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
+  have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
+      (current : FreeDispatch shape config criterion dimension discounts payload) :
+      (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).closing.map (·.slot) =
+        current.closing.map (·.slot) := by
+    induction slots generalizing current with
+    | nil => rfl
+    | cons slot tail ih =>
+      exact (ih (current.install slot targets[slot.val])).trans (current.install_closing_slot slot _)
+  exact fold _ _
 
-/-- The complete refresh, which also reranks every model, preserves the closing slot. -/
+/-- The complete refresh, which also reranks every model, preserves the closing slot,
+assigning or not. -/
 theorem _root_.Acorn.Features.FreeDispatch.refreshModels_closing_slot
     {shape : PatchShape} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload) :
-    state.refreshModels.closing.map (·.slot) = state.closing.map (·.slot) := by
-  exact state.refresh_closing_slot
+    (state : FreeDispatch shape config criterion dimension discounts payload) (assign : Bool) :
+    (state.refreshModels assign).closing.map (·.slot) = state.closing.map (·.slot) := by
+  cases assign with
+  | false => rfl
+  | true => exact state.refresh_closing_slot
 
 /-- Primitive selection creates no active option and preserves the supplied closing event. -/
 theorem TemporalControl.primitive_episodes (state : TemporalControl profile config criterion dimension)
@@ -141,9 +141,9 @@ theorem TemporalControl.refresh_episode_slot (state : TemporalControl profile co
     (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).2.map (·.slot) = closing.map (·.slot) := by
   exact (FreeDispatch.refreshModels_closing_slot
-    (⟨state.runtime.lifecycle, state.runtime.refresh, state.runtime.references.modelPredictions, closing⟩ :
+    (⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
       FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
-        (EndingPayload (profile.mode != .frozen))))
+        (EndingPayload (profile.mode != .frozen))) profile.ranksSubtasks)
 
 /-- Terminal credit does not itself record an episode; the common finish boundary records it once. -/
 theorem TemporalControl.close_lifetime (state : TemporalControl profile config criterion dimension)

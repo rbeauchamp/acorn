@@ -95,29 +95,31 @@ theorem _root_.Acorn.Features.FreeDispatch.install_aligned (state : FreeDispatch
 theorem _root_.Acorn.Features.FreeDispatch.refresh_aligned (state : FreeDispatch shape config criterion dimension discounts payload)
     (aligned : state.lifecycle.consumers.Aligned) :
     state.refreshRanked.lifecycle.consumers.Aligned := by
-  unfold FreeDispatch.refreshRanked
-  dsimp only [Refresh.take]
-  split
-  · generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
-      (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
-    have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
-        (current : FreeDispatch shape config criterion dimension discounts payload)
-        (valid : current.lifecycle.consumers.Aligned) :
-        (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).lifecycle.consumers.Aligned := by
-      induction slots generalizing current with
-      | nil => exact valid
-      | cons slot tail ih => exact ih _ (current.install_aligned valid slot _)
-    exact fold _ _ aligned
-  · exact aligned
+  simp only [FreeDispatch.refreshRanked]
+  generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
+    (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
+  have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
+      (current : FreeDispatch shape config criterion dimension discounts payload)
+      (valid : current.lifecycle.consumers.Aligned) :
+      (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).lifecycle.consumers.Aligned := by
+    induction slots generalizing current with
+    | nil => exact valid
+    | cons slot tail ih => exact ih _ (current.install_aligned valid slot _)
+  exact fold _ _ aligned
 
-/-- The complete refresh, which also reranks every model, preserves source alignment. -/
+/-- The complete refresh, which also reranks every model, preserves source alignment,
+assigning or not. -/
 theorem _root_.Acorn.Features.FreeDispatch.refreshModels_aligned (state : FreeDispatch shape config criterion dimension discounts payload)
-    (aligned : state.lifecycle.consumers.Aligned) :
-    state.refreshModels.lifecycle.consumers.Aligned := by
-  unfold FreeDispatch.refreshModels
+    (assign : Bool) (aligned : state.lifecycle.consumers.Aligned) :
+    (state.refreshModels assign).lifecycle.consumers.Aligned := by
   intro slot
-  rw [FreeDispatch.rerankModels_skill]
-  exact FreeDispatch.refresh_aligned state aligned slot
+  cases assign with
+  | false =>
+    rw [FreeDispatch.refreshModels_keep, FreeDispatch.rerankModels_skill]
+    exact aligned slot
+  | true =>
+    rw [FreeDispatch.refreshModels_assign, FreeDispatch.rerankModels_skill]
+    exact FreeDispatch.refresh_aligned state aligned slot
 
 /-- The policy/model operations never replace the skill's interest. -/
 theorem _root_.Acorn.Features.Skill.beginTemporal_interest (skill : Skill config criterion dimension discounts)
@@ -241,7 +243,7 @@ theorem TemporalControl.refreshFree_aligned (state : TemporalControl profile con
     (aligned : state.Aligned)
     (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).1.Aligned :=
-  ⟨FreeDispatch.refreshModels_aligned _ aligned.1, FreeDispatch.refreshModels_distinct _ aligned.2⟩
+  ⟨FreeDispatch.refreshModels_aligned _ _ aligned.1, FreeDispatch.refreshModels_distinct _ _ aligned.2⟩
 
 /-- Repaying meta credit cannot replace an option's source declaration. -/
 theorem TemporalControl.learnMeta_aligned (state : TemporalControl profile config criterion dimension)

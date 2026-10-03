@@ -101,8 +101,7 @@ def EdgeContract (before : Agent profile config criterion dimension planning)
   | .environment _ _ => after.control.runtime = before.control.runtime ∧
       after.control.credit = before.control.credit ∧ after.control.average =
         before.control.average
-  | .attempt _ _ _ _ => after.control.runtime.references = before.control.runtime.references ∧
-      after.control.runtime.lifecycle = before.control.runtime.lifecycle ∧
+  | .attempt _ _ _ _ => after.control.runtime = before.control.runtime ∧
       after.control.credit = before.control.credit ∧ after.control.average =
         before.control.average
   | .clear => after = Agent.initial profile config criterion dimension planning

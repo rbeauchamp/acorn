@@ -333,7 +333,8 @@ off-policy option learning (PAR-17), option expectation models with planning und
 the current values (PAR-13, PAR-14) and, in the checksums, every option's off-policy
 questions (PAR-18);
 the declared-rate and differential pins also record the stable, sign-correct
-reward-respecting subtask and declared-rate dynamics decisions. The fixed audit arms
+reward-respecting subtasks, assigned at every free decision boundary, and the
+declared-rate dynamics decision. The fixed audit arms
 are compared through these paired digests. Run these optional diagnostics
 when investigating a dynamics change.
 
@@ -342,8 +343,8 @@ when investigating a dynamics change.
 tag := "checkpoint-admission"
 %%%
 
-Format {splice}`toString Acorn.Checkpoint.formatVersion` preserves admitted learner state, generator and tester state,
-assignments and pending ranking requests for supported ranked profiles. Earlier
+Format {splice}`toString Acorn.Checkpoint.formatVersion` preserves admitted learner state, generator and tester state and
+assignments for supported ranked profiles. Earlier
 formats are refused. Restore checks dimensions, identifiers,
 criterion and value domains before admitting state. An incompatible image is
 refused and writes to that file are disabled. Stored learner state resumes; option

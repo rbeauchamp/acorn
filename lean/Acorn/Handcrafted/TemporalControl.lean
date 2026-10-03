@@ -63,7 +63,7 @@ structure TemporalControl (profile : FeatureProfile) (config : Features.Config)
 def TemporalControl.initial (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) : TemporalControl profile config criterion dimension :=
   ⟨⟨⟨Representation.initial _ _, Ensemble.initial config criterion dimension demonLayout (profile.interests config)⟩,
-      Refresh.cold false, TemporalReferences.cold config demonLayout none⟩,
+      TemporalReferences.cold config demonLayout none⟩,
     profile.credit.initial, by cases profile.credit <;> rfl, .initial, RateState.initial profile.rate, Lifetime.Stats.initial _⟩
 
 variable {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
@@ -120,7 +120,7 @@ full-agent owner's next operation, after every learner has consumed this frame. 
 def TemporalControl.finish (state : TemporalControl profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
     (decision : TemporalDecision) : TemporalControl profile config criterion dimension :=
-  let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+  let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
     credit, creditMatches, average, rate, lifetime⟩ := state
   let cumulants := evaluateCumulants cumulantOrder obs reward
   let lifetime := { lifetime with
@@ -133,7 +133,7 @@ def TemporalControl.finish (state : TemporalControl profile config criterion dim
   let skills := if profile.usesHierarchy && profile.mode != .frozen then
     askQuestions skills features cumulants decision else skills
   ⟨⟨⟨representation, ⟨predicted.control.controller, metaController, skills, predicted.demons⟩⟩,
-      refresh, { references with
+      { references with
         demonPredictions := predicted.predictions, demonErrors := predicted.errors,
         pendingAction := predicted.control.pending, lastDecision := some decision,
         recent := references.recent.record features }⟩,
@@ -169,7 +169,7 @@ theorem TemporalControl.finish_eq (state : TemporalControl profile config criter
   cases state with
   | mk runtime credit creditMatches average rate lifetime =>
     cases runtime with
-    | mk lifecycle refresh references =>
+    | mk lifecycle references =>
       cases lifecycle with
       | mk representation consumers =>
         cases consumers
@@ -318,12 +318,12 @@ def TemporalControl.stepOption (state : TemporalControl profile config criterion
     (reward : Binary32) (metaValues : Vector Binary32 metaCount.word.toNat)
     (metaDecision : Option (PolicyDecision metaCount)) (started : Bool) (ended : Option EndEvent) :
     TemporalControl profile config criterion dimension × TemporalDecision :=
-  let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+  let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
     credit, creditMatches, average, rate, lifetime⟩ := state
   let stepped := detachedUpdate skills slot fun skill =>
     skill.stepTemporal models activation next reward average.rate references.rng
   let decision := stepped.2.2.1
-  (⟨⟨⟨representation, ⟨control, metaController, stepped.1, demons⟩⟩, refresh,
+  (⟨⟨⟨representation, ⟨control, metaController, stepped.1, demons⟩⟩,
       { references with phase := .option slot stepped.2.1, rng := stepped.2.2.2 }⟩,
       credit, creditMatches, average, rate, lifetime⟩,
     ⟨.option slot, decision.action, decision.snapshot.values, decision.probabilities,
@@ -350,7 +350,7 @@ theorem TemporalControl.stepOption_eq (state : TemporalControl profile config cr
   cases state with
   | mk runtime credit creditMatches average rate lifetime =>
     cases runtime with
-    | mk lifecycle refresh references =>
+    | mk lifecycle references =>
       cases lifecycle with
       | mk representation consumers =>
         cases consumers
@@ -374,12 +374,12 @@ def TemporalControl.closeOption (state : TemporalControl profile config criterio
     | some _ => state
     | none =>
       let value := state.valueFunction
-      let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+      let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
         credit, creditMatches, average, rate, lifetime⟩ := state
       let ended := detachedUpdate skills closing.slot fun skill =>
         (skill.endTemporal models value features closing.activation reward terminal average.rate,
           ())
-      ⟨⟨⟨representation, ⟨control, metaController, ended.1, demons⟩⟩, refresh, references⟩,
+      ⟨⟨⟨representation, ⟨control, metaController, ended.1, demons⟩⟩, references⟩,
         credit, creditMatches, average, rate, lifetime⟩
   (state, ⟨closing.slot, closing.activation.activation.age, closing.activation.reason⟩)
 
@@ -401,7 +401,7 @@ theorem TemporalControl.closeOption_eq (state : TemporalControl profile config c
   cases state with
   | mk runtime credit creditMatches average rate lifetime =>
     cases runtime with
-    | mk lifecycle refresh references =>
+    | mk lifecycle references =>
       cases lifecycle with
       | mk representation consumers =>
         cases consumers
@@ -412,17 +412,66 @@ theorem TemporalControl.closeOption_eq (state : TemporalControl profile config c
           simp only [detachedUpdate_eq]
           rfl
 
-/-- Acknowledge ranking at a free boundary, retaining a possible original owner. -/
+/-- Refresh the ranked assignments of learned subtasks and every model's ranking at a
+free boundary, retaining a possible original owner. -/
 def TemporalControl.refreshFree (state : TemporalControl profile config criterion dimension)
     (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
     TemporalControl profile config criterion dimension × Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))) :=
   let free : FreeDispatch Host.patchShape config criterion dimension demonLayout.tail (EndingPayload (profile.mode != .frozen)) :=
-    ⟨state.runtime.lifecycle, state.runtime.refresh, state.runtime.references.modelPredictions, closing⟩
-  let free := free.refreshModels
+    ⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩
+  let free := free.refreshModels profile.ranksSubtasks
   ({ state with runtime := { state.runtime with
     lifecycle := free.lifecycle
-    refresh := free.refresh
     references := { state.runtime.references with modelPredictions := free.predictions } } }, free.closing)
+
+/-- With learned subtasks, the learner state after a free-boundary refresh is the
+assigning refresh's. -/
+theorem TemporalControl.refreshFree_assigns (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
+    (state.refreshFree closing).1.runtime.lifecycle =
+      ((⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
+        FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
+          (EndingPayload (profile.mode != .frozen))).refreshModels true).lifecycle := by
+  simp only [TemporalControl.refreshFree, learned]
+  rfl
+
+/-- Timing in the agent: with learned subtasks, after every free-boundary refresh
+each candidate of the ranking of the incoming Demon-0 weights is some slot's unit. No
+attempt or curriculum event is read. -/
+theorem TemporalControl.refreshFree_covers (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
+    (candidate : Candidate config)
+    (member : candidate ∈ rankedCandidates dimension config
+      (DemonBank.rankingWeights (discounts := demonLayout.tail)
+        state.runtime.lifecycle.consumers.demons)) :
+    ∃ slot : Fin Acorn.FeatureConstants.skillCount,
+      (state.refreshFree closing).1.runtime.lifecycle.consumers.skills[slot.val].interest.held.identity =
+        some candidate.unit := by
+  obtain ⟨slot, named⟩ := FreeDispatch.refreshModels_covers
+    (⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
+      FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
+        (EndingPayload (profile.mode != .frozen))) candidate member
+  exact ⟨slot, by rw [state.refreshFree_assigns learned closing]; exact named⟩
+
+/-- Timing in the agent: with learned subtasks, after a free-boundary refresh at
+which the ranking has a candidate for every slot, every slot holds a unit. -/
+theorem TemporalControl.refreshFree_full (state : TemporalControl profile config criterion dimension)
+    (learned : profile.ranksSubtasks = true)
+    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
+    (full : (rankedCandidates dimension config
+      (DemonBank.rankingWeights (discounts := demonLayout.tail)
+        state.runtime.lifecycle.consumers.demons)).length = Acorn.FeatureConstants.skillCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    ∃ unit bonus,
+      (state.refreshFree closing).1.runtime.lifecycle.consumers.skills[slot.val].interest =
+        .learned (.selected unit bonus) := by
+  obtain ⟨unit, bonus, target⟩ := FreeDispatch.refreshModels_full
+    (⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
+      FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
+        (EndingPayload (profile.mode != .frozen))) full slot
+  exact ⟨unit, bonus, by rw [state.refreshFree_assigns learned closing]; exact target⟩
 
 /-- Plan only at a free learning boundary, using the unchanged old host gain and
 the meta-controller's current rate. Search control reads and advances the stored
@@ -461,11 +510,11 @@ def TemporalControl.learnMeta (state : TemporalControl profile config criterion 
     TemporalControl profile config criterion dimension :=
   if profile.mode == .frozen then state else
     let owed := state.gap.close
-    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
       credit, creditMatches, average, rate, lifetime⟩ := state
     let controller := metaController.policyStep features decision
       (criterion.center owed.1 owed.2 average.rate) owed.2
-    ⟨⟨⟨representation, ⟨control, controller, skills, demons⟩⟩, refresh,
+    ⟨⟨⟨representation, ⟨control, controller, skills, demons⟩⟩,
         { references with gapSteps := CreditGap.closed.steps, gapReward := CreditGap.closed.reward }⟩,
       credit, creditMatches, average, rate, lifetime⟩
 
@@ -485,7 +534,7 @@ theorem TemporalControl.learnMeta_eq (state : TemporalControl profile config cri
   cases state with
   | mk runtime credit creditMatches average rate lifetime =>
     cases runtime with
-    | mk lifecycle refresh references =>
+    | mk lifecycle references =>
       cases lifecycle with
       | mk representation consumers =>
         cases consumers
@@ -518,7 +567,7 @@ def TemporalControl.dispatchMeta (state : TemporalControl profile config criteri
       features declared
     let value := state.valueFunction
     let skillRate := state.skillRate
-    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
       credit, creditMatches, average, rate, lifetime⟩ := state
     let begun := detachedUpdate skills slot fun skill =>
       (skill.settleTemporal models value features potential goal
@@ -526,7 +575,7 @@ def TemporalControl.dispatchMeta (state : TemporalControl profile config criteri
         (profile.mode != .frozen)).beginTemporal models features potential
           (profile.mode != .frozen) skillRate
     let state : TemporalControl profile config criterion dimension :=
-      ⟨⟨⟨representation, ⟨control, metaController, begun.1, demons⟩⟩, refresh, references⟩,
+      ⟨⟨⟨representation, ⟨control, metaController, begun.1, demons⟩⟩, references⟩,
         credit, creditMatches, average, rate, lifetime⟩
     pure (state.stepOption models slot begun.2.1 begun.2.2 reward
       decision.snapshot.values (some decision) true ended)
@@ -556,7 +605,7 @@ theorem TemporalControl.dispatchMeta_eq (state : TemporalControl profile config 
   cases learned with
   | mk runtime credit creditMatches average rate lifetime =>
     cases runtime with
-    | mk lifecycle refresh references =>
+    | mk lifecycle references =>
       cases lifecycle with
       | mk representation consumers =>
         cases consumers
@@ -566,8 +615,8 @@ theorem TemporalControl.dispatchMeta_eq (state : TemporalControl profile config 
         · simp only [detachedUpdate_eq]
           rfl
 
-/-- Free dispatch acknowledges ranking, plans, draws meta, closes differential
-terminal credit, then learns meta. It starts the newly selected option immediately. -/
+/-- Free dispatch refreshes the ranked assignments and models, plans, draws meta, closes
+differential terminal credit, then learns meta. It starts the newly selected option immediately. -/
 def TemporalControl.atBoundary (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -682,12 +731,12 @@ def TemporalControl.followOptions (state : TemporalControl profile config criter
     let rate := state.skillRate
     let executing := state.activeSlot
     let value := state.valueFunction
-    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, refresh, references⟩,
+    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
       credit, creditMatches, average, schedule, lifetime⟩ := state
     let followed := skills.mapFinIdx fun index skill bound =>
       followSlot models value features declared goal estimate rate decision.action
         decision.probabilities reward average.rate (executing == some ⟨index, bound⟩) skill
-    ⟨⟨⟨representation, ⟨control, metaController, followed, demons⟩⟩, refresh, references⟩,
+    ⟨⟨⟨representation, ⟨control, metaController, followed, demons⟩⟩, references⟩,
       credit, creditMatches, average, schedule, lifetime⟩
   else state
 
@@ -709,7 +758,7 @@ theorem TemporalControl.followOptions_eq (state : TemporalControl profile config
   cases state with
   | mk runtime credit creditMatches average rate lifetime =>
     cases runtime with
-    | mk lifecycle refresh references =>
+    | mk lifecycle references =>
       cases lifecycle with
       | mk representation consumers =>
         cases consumers
@@ -734,17 +783,6 @@ def TemporalControl.step (state : TemporalControl profile config criterion dimen
   let followed := selected.followOptions (modelOperations criterion dimension) features
     (spatialPotentials obs) reward goal decision
   pure (followed.finish features obs reward decision, decision)
-
-/-- Attempt/curriculum events request future ranking without modifying an active
-option, serving a run, clearing trajectories or changing random state. -/
-def TemporalControl.request (state : TemporalControl profile config criterion dimension)
-    (cycle : UInt64) (achieved : Bool) : TemporalControl profile config criterion dimension :=
-  { state with runtime := { state.runtime with refresh := profile.request state.runtime.refresh cycle achieved } }
-
-/-- Timeout/attempt handling retains the entire process-local dispatch state. -/
-theorem TemporalControl.request_references (state : TemporalControl profile config criterion dimension)
-    (cycle : UInt64) (achieved : Bool) :
-    (state.request cycle achieved).runtime.references = state.runtime.references := rfl
 
 /-- Selection updates finish through the same prediction/credit definition and
 cannot use a different executed action for primitive credit. -/
