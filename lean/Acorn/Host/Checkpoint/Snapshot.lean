@@ -9,8 +9,7 @@ import Acorn.Host.Checkpoint.Admission
 # Durable projection of the executing full agent
 
 Only primary weights and log step sizes, shared gain, exact assignment identities,
-generator and tester state, pending ranking and durable lifetime observations are
-written.
+generator and tester state and durable lifetime observations are written.
 No world, pending future, policy RNG, trace, model or planner state is encoded.
 -/
 namespace Acorn.Checkpoint
@@ -76,7 +75,7 @@ def snapshotImage (construction : AgentConstruction) (state : construction.State
         (fun skill : Skill construction.config construction.criterion construction.dimension
           demonLayout =>
           skill.interest.held), state.aligned.2,
-      primaryImage runtime.lifecycle.consumers, runtime.refresh.pending⟩,
+      primaryImage runtime.lifecycle.consumers⟩,
     state.control.average.rate, state.control.lifetime.durable, by
       intro slot
       have valid := state.episodes.1 slot
@@ -88,14 +87,14 @@ def testerWords {config : Features.Config} (progress : Progress config) : Tester
     ⟨progress.words.units, by
       simpa [Progress.words] using config.units.bounded⟩⟩
 
-/-- A typed image has one exact format-16 word projection under its receiver. -/
+/-- A typed image has one exact format-17 word projection under its receiver. -/
 def imagePayload (construction : AgentConstruction)
     (image : AgentImage construction.config construction.criterion construction.dimension) :
     Payload construction.dimension :=
   ⟨⟨formatVersion, construction.dimension.capacity.toUInt32, primaryCount.toUInt32,
       construction.config.seed, image.features.progress.clock, construction.criterion.tag.toUInt32,
       image.gain.value, construction.config.tilings, construction.config.units.count.toUInt32,
-      if construction.profile.checkpointSupported then 1 else 0, if image.features.pending then 1 else 0⟩,
+      if construction.profile.checkpointSupported then 1 else 0⟩,
     image.features.assignments.map (Assignment.words construction.dimension), image.features.primary,
     lifetimeWords image.lifetime, testerWords image.features.progress⟩
 

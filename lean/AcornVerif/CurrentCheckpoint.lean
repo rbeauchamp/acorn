@@ -10,7 +10,7 @@ import AcornVerif.CurrentLearner
 /-!
 # Current checkpoint admission and installation laws
 
-These statements concern the actual format-16 parser, writer, legal-state
+These statements concern the actual format-17 parser, writer, legal-state
 constructors and full-agent restoration. The laws describe parsing, serialization
 and pure restoration. Native persistence relies on the filesystem and OS.
 -/
@@ -92,7 +92,7 @@ theorem feature_roundtrip (construction : AgentConstruction)
        construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
        image.features.progress.clock, (testerWords image.features.progress).progress,
        image.features.assignments.map (Assignment.words construction.dimension),
-       image.features.primary, image.features.pending⟩ = some image.features := by
+       image.features.primary⟩ = some image.features := by
   have units : construction.config.units.count.toUInt32.toUInt16.toNat =
     construction.config.units.count := by
     have := construction.config.units.bounded
@@ -120,14 +120,10 @@ theorem image_roundtrip (construction : AgentConstruction)
   rw [header_roundtrip construction image supported]
   simp only [bind, Except.bind]
   have lifetime := lifetime_roundtrip image.lifetime image.episodes
-  cases pending : image.features.pending <;>
-    simp only [imagePayload, pending, Bool.false_eq_true, ↓reduceIte]
-  all_goals
-    simp only [pure, Except.pure]
-    have feature := feature_roundtrip construction image
-    simp only [pending] at feature
-    rw [feature, lifetime]
-    simp [image.episodes]
+  simp only [imagePayload, pure, Except.pure]
+  have feature := feature_roundtrip construction image
+  rw [feature, lifetime]
+  simp [image.episodes]
 
 /-- Every raw primary weight passes through the receiving rule at its exact index. -/
 theorem restored_weight {config : Acorn.Config} {dimension : Dimension}
@@ -192,7 +188,7 @@ theorem encoded_header (dimension : Dimension) (payload : Payload dimension) :
 
 /-- All encoded payloads contain the minimum magic, header and checksum framing. -/
 theorem encoded_minimum (dimension : Dimension) (payload : Payload dimension) :
-    72 ≤ (encode dimension payload).length := by
+    68 ≤ (encode dimension payload).length := by
   rw [encoded_size]
   simp only [payloadBytes]
   omega
@@ -209,7 +205,7 @@ theorem candidate_roundtrip (construction : AgentConstruction)
     magic.length = magic := by
     simp [Checkpoint.encode, List.append_assoc]
   unfold loadCandidate
-  simp only [show ¬(encode construction.dimension (imagePayload construction image)).length < 72
+  simp only [show ¬(encode construction.dimension (imagePayload construction image)).length < 68
     by omega,
     decide_false, magicOk, bne_self_eq_false, Bool.false_or, Bool.false_eq_true, ↓reduceIte, header]
   rw [header_roundtrip construction image supported]

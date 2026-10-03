@@ -34,12 +34,12 @@ The generic call prevents the initial consumer arrays becoming shared globals. -
     ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
   let initial : FeatureRuntime Host.patchShape config criterion dimension [.g99] Unit Unit Unit :=
     ⟨⟨Representation.initial _ _, Ensemble.initial config criterion dimension [.g99] (profile.interests config)⟩,
-      Refresh.cold true, TemporalReferences.cold config [.g99] ()⟩
+      TemporalReferences.cold config [.g99] ()⟩
   let bank := initial.lifecycle.representation.bank
   let input := profile.encode dimension bank (observation word) ⟨[], by decide⟩
   let retired := initial.retire
     (bank.activations (Handcrafted.observationPatch (observation word) profile.taskMode))
-  let refreshed := retired.refreshAtFree
+  let refreshed := retired.refreshAtFree profile.ranksSubtasks
   (input.indices.length, refreshed.lifecycle.representation.bank.checksum,
     refreshed.lifecycle.representation.progress.replaced.toNat)
 

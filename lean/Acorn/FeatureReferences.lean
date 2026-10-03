@@ -13,8 +13,8 @@ The tester retains temporal predictions, active-option potential, occupancy,
 planner state and the pending meta gap in the current schedule. These are not
 claimed to be fresh encodings of the replacement bank. A unit held as an option
 objective is replaced only at a free boundary, where every slot holding it is
-released and a refresh becomes pending; a live option therefore never loses its
-objective.
+released and the next free boundary's assignment refresh installs an entrant; a live
+option therefore never loses its objective.
 New encoding frames are constructed against the current bank. Cold restore instead
 clears process state.
 Activation, exploration and decision payloads are parametric because this slice
@@ -218,8 +218,6 @@ structure FeatureRuntime (shape : PatchShape) (config : Config) (criterion : Cri
     (dimension : Dimension) (discounts : List Discount) (activation exploration decision : Type) where
   /-- Complete representation and learner storage. -/
   lifecycle : Lifecycle shape config criterion dimension discounts
-  /-- Pending assignment-refresh work. -/
-  refresh : Refresh
   /-- Current process-local references. -/
   references : TemporalReferences dimension discounts activation exploration decision
 
@@ -316,8 +314,9 @@ theorem RecentFeatures.retireAll_absent {config : Config} {dimension : Dimension
     · exact ih _ unit later position
 
 /-- The tester step at the end of a frame. A held unit is eligible only at a free
-boundary, where every slot holding a replaced unit is released and a refresh
-becomes pending. Each replaced unit's slot is erased from the stored recent frames. -/
+boundary, where every slot holding a replaced unit is released; the next free
+boundary's assignment refresh installs an entrant when the ranking has one. Each
+replaced unit's slot is erased from the stored recent frames. -/
 def FeatureRuntime.retire {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
@@ -326,22 +325,19 @@ def FeatureRuntime.retire {shape : PatchShape} {config : Config} {criterion : Cr
   let tested := state.lifecycle.test state.references.phase.free active
   { state with
     lifecycle := { tested.1 with consumers := tested.1.consumers.releaseAll tested.2 }
-    refresh := { state.refresh with
-      pending := state.refresh.pending || tested.2.any tested.1.consumers.holds }
     references := { state.references with recent := state.references.recent.retireAll tested.2 } }
 
 /-- Every temporal reference other than the stored recent frames, including live
-activation potential, and the refresh cycle key are retained exactly; the stored
-frames lose exactly the replaced units' slots. This is a schedule-preservation
-claim, not a claim that all cached numbers were recomputed. -/
+activation potential, is retained exactly; the stored frames lose exactly the replaced
+units' slots. This is a schedule-preservation claim, not a claim that all cached
+numbers were recomputed. -/
 theorem FeatureRuntime.retire_references {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
     (active : Vector Bool config.units.count) :
     (state.retire active).references =
         { state.references with recent := (state.references.recent.retireAll
-          (state.lifecycle.test state.references.phase.free active).2) } ∧
-      (state.retire active).refresh.cycle = state.refresh.cycle := ⟨rfl, rfl⟩
+          (state.lifecycle.test state.references.phase.free active).2) } := rfl
 
 /-- After a test no stored recent frame lists the slot of a replaced unit, so no
 planning backup at a stored frame writes a replacement unit's weight. -/
@@ -355,25 +351,21 @@ theorem FeatureRuntime.retire_recent {shape : PatchShape} {config : Config} {cri
       ((state.retire active).references.recent.frames[position.val]).indices :=
   RecentFeatures.retireAll_absent _ _ unit replaced position
 
-/-- After a test no held assignment names a replaced unit, and releasing a slot
-leaves a refresh pending. -/
+/-- After a test no held assignment names a replaced unit. -/
 theorem FeatureRuntime.retire_releases {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
     (active : Vector Bool config.units.count) :
-    let tested := state.lifecycle.test state.references.phase.free active
-    (∀ unit ∈ tested.2, ∀ slot : Fin Acorn.FeatureConstants.skillCount,
-      (state.retire active).lifecycle.consumers.skills[slot.val].interest.held.holds unit = false) ∧
-      ((tested.2.any tested.1.consumers.holds) = true →
-        (state.retire active).refresh.pending = true) :=
-  ⟨fun unit member slot => Ensemble.releaseAll_holds
-      (state.lifecycle.test state.references.phase.free active).2
-      (state.lifecycle.test state.references.phase.free active).1.consumers unit member slot,
-    fun released => by simp [FeatureRuntime.retire, released]⟩
+    ∀ unit ∈ (state.lifecycle.test state.references.phase.free active).2,
+      ∀ slot : Fin Acorn.FeatureConstants.skillCount,
+        (state.retire active).lifecycle.consumers.skills[slot.val].interest.held.holds unit = false :=
+  fun unit member slot => Ensemble.releaseAll_holds
+    (state.lifecycle.test state.references.phase.free active).2
+    (state.lifecycle.test state.references.phase.free active).1.consumers unit member slot
 
 /-- Release happens only at a free boundary: with a live option or committed
-exploration, the test replaces only units no slot holds, and no objective, learner,
-meta-controller row or refresh request is released. -/
+exploration, the test replaces only units no slot holds, and no objective, learner or
+meta-controller row is released. -/
 theorem FeatureRuntime.retire_occupied {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
@@ -389,12 +381,8 @@ theorem FeatureRuntime.retire_occupied {shape : PatchShape} {config : Config} {c
     intro unit member
     rw [holds]
     exact unheld unit member
-  have none : ((state.lifecycle.test false active).2.any
-      (state.lifecycle.test false active).1.consumers.holds) = false := by
-    simpa using kept
   unfold FeatureRuntime.retire
-  simp only [occupied, none, Bool.or_false,
-    Ensemble.releaseAll_unheld _ _ kept] <;> rfl
+  simp only [occupied, Ensemble.releaseAll_unheld _ _ kept] <;> rfl
 
 /-- Cold installation resets every current process-local reference family. -/
 def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : Criterion}
@@ -404,7 +392,7 @@ def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : C
     FeatureRuntime shape config criterion dimension discounts activation exploration decision :=
   ⟨⟨Representation.restore shape image.progress,
       state.lifecycle.consumers.restore image.primary image.assignments⟩,
-    Refresh.cold image.pending, TemporalReferences.cold config discounts emptyDecision⟩
+    TemporalReferences.cold config discounts emptyDecision⟩
 
 /-- A materialized input is indexed by this receiver's current bank and observation. -/
 def FeatureRuntime.encodeCurrent {shape : PatchShape} {config : Config} {criterion : Criterion}
@@ -414,30 +402,31 @@ def FeatureRuntime.encodeCurrent {shape : PatchShape} {config : Config} {criteri
     EncodingFrame dimension state.lifecycle.representation.bank words patch :=
   EncodingFrame.compute dimension state.lifecycle.representation.bank words patch
 
-/-- Pending ranking work executes only at a free boundary. Active options and
-committed exploration retain the request. There is no detached closing owner at
-this end-of-step boundary; the separate free-dispatch interface carries that owner
-while terminal credit is still outstanding. -/
+/-- The ranking is installed only at a free boundary. Active options and committed
+exploration keep every objective. There is no detached closing owner at this
+end-of-step boundary; the separate free-dispatch interface carries that owner while
+terminal credit is still outstanding. -/
 def FeatureRuntime.refreshAtFree {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension (.g99 :: discounts) activation exploration decision) :
+    (state : FeatureRuntime shape config criterion dimension (.g99 :: discounts) activation exploration decision)
+    (assign : Bool) :
     FeatureRuntime shape config criterion dimension (.g99 :: discounts) activation exploration decision :=
   match state.references.phase with
   | .idle =>
     let free : FreeDispatch shape config criterion dimension discounts Unit :=
-      ⟨state.lifecycle, state.refresh, state.references.modelPredictions, none⟩
-    let refreshed := free.refreshModels
+      ⟨state.lifecycle, state.references.modelPredictions, none⟩
+    let refreshed := free.refreshModels assign
     { state with
       lifecycle := refreshed.lifecycle
-      refresh := refreshed.refresh
       references := { state.references with modelPredictions := refreshed.predictions } }
   | .option _ _ | .exploring _ => state
 
-/-- Occupancy prevents both refresh mutation and request acknowledgement. -/
+/-- Occupancy prevents every refresh mutation. -/
 theorem FeatureRuntime.occupied_preserves {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape config criterion dimension (.g99 :: discounts) activation exploration decision)
-    (occupied : state.references.phase ≠ .idle) : state.refreshAtFree = state := by
+    (assign : Bool) (occupied : state.references.phase ≠ .idle) :
+    state.refreshAtFree assign = state := by
   unfold FeatureRuntime.refreshAtFree
   split
   · contradiction
