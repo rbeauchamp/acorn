@@ -59,9 +59,9 @@ def nativeDigest (path : System.FilePath) : IO String := do
 package acorn where
   version := v!"0.1.0"
   -- Lake runs one compiler process per processor, and by default each process starts one
-  -- thread per processor as well. Two threads per process keep the processes from
-  -- competing for the same processors. The argument is weak: it is no part of a build
-  -- trace and does not change what any module elaborates to.
+  -- thread per processor as well. Two threads per process bound the build at two compiler
+  -- threads per processor. The argument is weak: it is no part of a build trace and does
+  -- not change what any module elaborates to.
   weakLeanArgs := #["-j2"]
   leanOptions := #[
     ⟨`autoImplicit, false⟩,

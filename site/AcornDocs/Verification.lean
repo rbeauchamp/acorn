@@ -196,13 +196,14 @@ available for focused diagnostics.
 Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
 native, browser-kernel, ownership and site admission after it. Each of these
-prints its output whole when it ends, and all of them are reaped before a failure
-is reported. The build requests modules first and executables after them. An
-executable whose Lake configuration names another target it needs is held back
-with its root module: both are requested after every other module and executable,
-because Lake waits for that target before it reads the next request, so every
-other job is scheduled first. Each compiler process of the build uses at most two
-threads, so that the processes Lake runs at once do not compete for the same
+prints the output of a step whole when the step ends, and all of them are reaped
+before a failure is reported. The build requests modules first and executables
+after them. An executable whose Lake configuration names another target it needs
+is held back with its root module: both are requested after every other module
+and executable, because Lake waits for that target before it reads the next
+request, so every other job is scheduled first. Each compiler process of the
+build uses at most two threads, where the default is one for each processor;
+this limits how far the processes Lake runs at once compete for the same
 processors.
 
 # Regula audit
