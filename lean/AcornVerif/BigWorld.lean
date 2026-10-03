@@ -26,7 +26,9 @@ namespace AcornVerif
 open AcornVerif.ModelConstants
 
 /-- Declared learned-parameter budget: two arrays per learner and one reserved gain slot.
-The array count is a model input, not a generated fact about checkpoint storage. -/
+The array count is a model input, not a generated fact about checkpoint storage.
+The budget counts the `runtimeLearnerCount` learners only; the weights of the off-policy
+questions (`Acorn.OffPolicy`) are outside it. -/
 def agentParameters : ℕ :=
   ModelConstants.runtimeLearnerCount * ModelConstants.weightSpace *
     ModelConstants.knowledgeArraysPerLearner +

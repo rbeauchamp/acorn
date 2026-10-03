@@ -27,12 +27,15 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 
 **Partly.**
 
-- **Learners: met.** Every one of Acorn's 57 full-width learners, and every row
+- **Learners: met, with one declared exception.** Apart from the off-policy
+  questions, every one of Acorn's full-width learners (57), and every row
   of the option models' transition parts, is SwiftTD or Swift-Sarsa,
   transcribed with declared corrections
   ([PAR-1](prior-art-review.md#par-1--swifttd),
   [PAR-2](prior-art-review.md#par-2--swift-sarsa)). This matches OaK's
   requirement that each learned weight has its own meta-learned step size.
+  The off-policy questions, which no decision reads, adapt no step size
+  ([PAR-18](prior-art-review.md#par-18--off-policy-questions)).
   GVF predictions are fed back as features, and nothing is replayed.
 - **Architecture: wired, with declared adaptations.** The FC-STOMP chain (feature
   construction, subtasks, options, models, planning) is wired. Two links ran on
@@ -104,8 +107,9 @@ and composition, which the proofs did not state and so could not catch.
 
 Two links genuinely support the rest of the system:
 
-- **SwiftTD under every learner.** Per-weight credit assignment protects each
-  learner from the roughly 1,300 active features, most of them irrelevant to it.
+- **SwiftTD under every learner except the off-policy questions.** Per-weight
+  credit assignment protects each such learner from the roughly 1,300 active
+  features, most of them irrelevant to it.
 - **Horde feedback and primitive credit on option steps.** Predictions become
   features, and executed option steps train the primitive controller (PAR-9).
 
@@ -346,12 +350,15 @@ F-E left its feature-construction end inert until U3.
 - **Matches.**
   - OaK asks that "all of its components learn continually" and that "each
     learned weight has a dedicated step-size parameter that is meta-learned
-    using online cross-validation" [[17]](#r17). Acorn matches both.
+    using online cross-validation" [[17]](#r17). Acorn matches both, except
+    that the off-policy questions adapt no step size
+    ([PAR-18](prior-art-review.md#par-18--off-policy-questions)).
   - Oak Lab's algorithms "learn in real-time without storing or replaying data"
     [[18]](#r18). Acorn matches this: batch size one, no replay, IDBD-family credit
     assignment.
-  - A small agent in a big world [[19]](#r19): about a million weights against a
-    1024 × 1024 world seen through an 11 × 11 window.
+  - A small agent in a big world [[19]](#r19): about two million weights, more
+    than half of them the off-policy questions', against a 1024 × 1024 world
+    seen through an 11 × 11 window.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
   way", and imagined outcomes "are then evaluated by the value functions"
@@ -386,7 +393,8 @@ F-E left its feature-construction end inert until U3.
 Going by the published designs, the agent they describe differs from Acorn at the
 model and planning links; U3 and U4 brought the feature-testing and
 option-learning links to adapted forms of the published mechanisms. The foundation is
-theirs: SwiftTD everywhere, reward-respecting feature-attainment subtasks, GVF
+theirs: SwiftTD under every learner except the off-policy questions,
+reward-respecting feature-attainment subtasks, GVF
 predictions as features, and continual operation without replay. Acorn's
 machine-checked state legality and admission have no counterpart in that work.
 

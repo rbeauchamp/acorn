@@ -704,7 +704,7 @@ What each panel must show. How it draws it is the code's.
   their caption names the actual count and interval. Legend values separately
   name their frame window in fast mode or the selected frame when paused/slow.
   Expandable rows expose the active step size and eligible-feature count for
-  every learner, including each option/action pair: a family mean never
+  every learner that adapts one, including each option/action pair: a family mean never
   substitutes for the selective-credit state it summarises. The panel is that
   α, with its source attribution in §10. Model arrays reserve
   reward, continuation and duration slots per option; discounted control marks
