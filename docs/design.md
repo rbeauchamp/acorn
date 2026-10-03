@@ -222,7 +222,7 @@ ends. A line that starts with `#` is a comment; a reader of the rows skips it.
 
 ```text
 index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
-# planning=expectation
+# planning=<expectation or none>
 <one row per agent attempt>
 # baseline index=<goal> steps=<steps> achieved=<0 or 1> x=<x> y=<y>
 # seed=<seed> side=<side> weights=<count> total_steps=<steps> behavior=<hex> checksum=<hex> wall_ms=<ms> steps_per_sec=<rate> retire_count=<count> retire_last=<event> imprint_distinct_abs=<counts>
