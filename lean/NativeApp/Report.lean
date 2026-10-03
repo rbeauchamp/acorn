@@ -12,6 +12,7 @@ import Acorn.Host.Viewer.NativeCore
 The report observes completed outcomes and the returned agent. Numeric fields
 use the exact dyadic spelling shared with telemetry. A bounded recent suffix and fixed-size goal bitmap belong to this report
 consumer; explicitly requested CSV rows stream to an exclusively created file.
+A requested comparator's rows enter that file as comment lines before the footer.
 Wall time is an observed native clock interval, not a performance guarantee.
 -/
 namespace NativeApp
@@ -33,9 +34,16 @@ def numberText (value : Binary32) : String :=
 def planningProvenance (construction : AgentConstruction) : String :=
   s!"planning={construction.planning.name}"
 
-/-- One outcome retains every existing CSV field in its existing order. -/
+/-- One agent outcome: the first nine fields keep their order, and the body
+position at the end of the attempt follows them. -/
 def outcomeCsv (outcome : GoalOutcome) : String :=
-  s!"{outcome.index},{outcome.attempt},{outcome.tier},{outcome.steps},{if outcome.achieved then 1 else 0},{numberText outcome.reward},{numberText outcome.learner.demonError},{numberText outcome.learner.epsilon},{numberText outcome.learner.meanAlpha}\n"
+  s!"{outcome.index},{outcome.attempt},{outcome.tier},{outcome.steps},{if outcome.achieved then 1 else 0},{numberText outcome.reward},{numberText outcome.learner.demonError},{numberText outcome.learner.epsilon},{numberText outcome.learner.meanAlpha},{outcome.position.x.val},{outcome.position.y.val}\n"
+
+/-- One comparator outcome, as a comment line so that a reader of the agent's
+rows skips it. It names the fields the comparator has; its row carries no
+attempt number, tier or learner observation. -/
+def baselineCsv (outcome : GoalOutcome) : String :=
+  s!"# baseline index={outcome.index} steps={outcome.steps} achieved={if outcome.achieved then 1 else 0} x={outcome.position.x.val} y={outcome.position.y.val}\n"
 
 /-- Human-readable attempt outcome; it reads only the completed row. -/
 def outcomeText (outcome : GoalOutcome) : String :=
@@ -82,7 +90,7 @@ def OutcomeReport.distinct {goals : Nat} (report : OutcomeReport goals) : Nat :=
   report.goalsAchieved.toList.count true
 
 /-- Streaming CSV schema, emitted before the first outcome without retaining rows. -/
-def csvHeader : String := "index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha\n"
+def csvHeader : String := "index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y\n"
 
 private def destinationIdentity (path : System.FilePath) : IO System.FilePath := do
   let some name := path.fileName | throw (IO.userError "report destination has no file name")

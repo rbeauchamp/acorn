@@ -11,6 +11,8 @@ import Acorn.Host.Runner
 This is the current explicitly requested demo comparison, not an agent callback
 or substitute for the learned composition. It consumes its separate seeded RNG
 and resets the result at every goal. Its caller owns the finite supplied goal array.
+Each row reports the body position at the end of its attempt. The loop carries
+only the world and the action stream to the next goal; rows are appended and returned.
 -/
 namespace Acorn.Host
 
@@ -54,7 +56,7 @@ def runRandomBaseline (seed : UInt64) (config : WorldConfig) (goals : Array Goal
     world := state.world
     rng := state.rng
     outcomes := outcomes.push ⟨index.val.toUInt64, 0, 0, state.steps.val.toUInt64,
-      state.result.done, state.reward, ⟨⟨0⟩, ⟨0x3f800000⟩, ⟨0⟩⟩⟩
+      state.result.done, state.reward, ⟨⟨0⟩, ⟨0x3f800000⟩, ⟨0⟩⟩, state.world.body.position.position⟩
   return outcomes
 
 end Acorn.Host

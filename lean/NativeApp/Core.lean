@@ -142,25 +142,32 @@ def runCore (arguments : List String) : IO UInt32 := do
       if options.telemetry then IO.eprint summary else IO.print summary
       if result.ending == .stopped then
         IO.eprintln s!"control: stopped on request after {result.totalSteps} steps"
+      let curriculum := standardCurriculum options.common.world options.common.world.raw.seed
+      let count := min options.common.goals.toNat curriculum.size
+      let goals := (List.finRange count).toArray.map fun (index : Fin count) =>
+        have bound : index.val < curriculum.size := by
+          have := index.isLt
+          have := Nat.min_le_right options.common.goals.toNat curriculum.size
+          omega
+        (curriculum[index.val]'bound).1
+      -- The comparator is a function of the command alone and takes its own copy of
+      -- the initial world, so evaluating it here lets its rows precede the footer.
+      let comparator := if options.baseline then
+        some (runRandomBaseline options.common.world.raw.seed options.common.world goals options.common.steps)
+      else none
       if let some handle ← ensureCsv then
         try
+          if let some (.ok baseline) := comparator then
+            for outcome in baseline do handle.putStr (baselineCsv outcome)
           handle.putStr footer
           handle.flush
         catch error => refuseCsv error
       if options.csv.isSome then
         if ← csvFailed.get then IO.eprintln "csv: creation or write failed; report is incomplete"
         else IO.println "csv written successfully"
-      if options.baseline then
+      if let some comparator := comparator then
         IO.println "\n-- random-policy baseline (diagnostic) --"
-        let curriculum := standardCurriculum options.common.world options.common.world.raw.seed
-        let count := min options.common.goals.toNat curriculum.size
-        let goals := (List.finRange count).toArray.map fun (index : Fin count) =>
-          have bound : index.val < curriculum.size := by
-            have := index.isLt
-            have := Nat.min_le_right options.common.goals.toNat curriculum.size
-            omega
-          (curriculum[index.val]'bound).1
-        match runRandomBaseline options.common.world.raw.seed options.common.world goals options.common.steps with
+        match comparator with
         | .error _ => throw (IO.userError "random baseline world transition refused")
         | .ok baseline =>
           IO.println s!"distinct goals achieved — random policy: {(baseline.filter (·.achieved)).size}/{baseline.size}; agent: {rows.distinct}/{goals.size} (agent used {rows.attempts} attempts)"

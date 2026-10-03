@@ -39,6 +39,8 @@ structure GoalOutcome where
   reward : Binary32
   /-- Last learner observations. -/
   learner : LearnerMetrics
+  /-- Body position after the attempt's last world step. -/
+  position : Position
 
 /-- Exact current action-fingerprint recurrence, with wrapping word arithmetic. -/
 def foldAction (fold : UInt64) (action : Action) : UInt64 :=
@@ -78,6 +80,11 @@ def auditDigest (behavior totalSteps : UInt64) (outcomes : Array GoalOutcome)
   let outcomeFold := outcomes.foldl foldOutcome start
   retirements.foldl foldRetirement (outcomeFold ^^^ Rng.rotateLeft totalSteps 29)
 
+/-- The audit recurrence reads a row's steps, achievement and tier only: the
+reported position cannot move the digest, for every row and position. -/
+theorem foldOutcome_position (fold : UInt64) (outcome : GoalOutcome) (position : Position) :
+    foldOutcome fold { outcome with position := position } = foldOutcome fold outcome := rfl
+
 /-- Resource refusal for aggregate totals that have no unsigned machine representation. -/
 inductive MetricError where
   /-- The complete retained step total would overflow. -/
@@ -89,6 +96,11 @@ def addOutcomeSteps (total : UInt64) (outcome : GoalOutcome) : Except MetricErro
   match Word.advanceClock total outcome.steps with
   | some next => .ok next
   | none => .error .totalStepsOverflow
+
+/-- The checked step total reads a row's steps only, so the reported position
+cannot change an admission or a refusal. -/
+theorem addOutcomeSteps_position (total : UInt64) (outcome : GoalOutcome) (position : Position) :
+    addOutcomeSteps total { outcome with position := position } = addOutcomeSteps total outcome := rfl
 
 /-- Accepted totals equal the exact sum of their admitted words. -/
 theorem addOutcomeSteps_exact (total next : UInt64) (outcome : GoalOutcome)
