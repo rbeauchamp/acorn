@@ -338,8 +338,10 @@ sources are those of the commit that registered the revision; the first block
 below refuses to continue otherwise. It takes the registering commit to be the
 one that first added this file, which is so because pull requests are
 squash-merged and revision 1 reaches the main branch in one commit. It compares
-this file, the seed list and the Lean sources with that commit. Running any
-other Lean sources needs a new revision first.
+this file, the seed list and the Lean sources with that commit. The checkout
+must have full history: a shallow checkout ends at a commit that then appears
+to have added every file, so the block refuses one. Running any other Lean
+sources needs a new revision first.
 
 The commands are for this host (macOS, GNU coreutils installed). Each block
 below is a complete bash script, run by bash from the root of the checkout. The
@@ -348,14 +350,15 @@ not do. The scripts were written from the core's argument and output
 definitions and have not been executed against the core; the extraction
 commands were checked against text assembled by hand from those definitions.
 
-Build and record the run identity, from a clean checkout of the authorized
-commit:
+Build and record the run identity, from a clean, full-history checkout of the
+authorized commit:
 
 ```bash
 set -euo pipefail
 study=docs/studies/first-pass-vs-chance
 out="$study/observations/r1"
 test -z "$(git status --porcelain)"
+test "$(git rev-parse --is-shallow-repository)" = false
 registered=$(git log --diff-filter=A --format=%H -- "$study/protocol.md" | tail -n 1)
 git diff --quiet "$registered" HEAD -- lean "$study/protocol.md" "$study/seeds.txt"
 ./scripts/verify.sh
