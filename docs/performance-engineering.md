@@ -127,8 +127,9 @@ Project outputs still build cold under the fixed deadline. Reuse Lake's
 source/toolchain-validated configuration trace and batch independent source
 hashes while checking every result's filename and digest. Neither mechanism
 reuses a previous verification result or substitutes a digest for correctness.
-Import only the mathematics and tooling a module uses. Request native targets
-early enough that their compilation can overlap independent proof builds;
+Import only the mathematics and tooling a module uses. Order build requests so
+that none delays the scheduling of independent work, as the gate's
+[build request order](verification.md#build-and-source-inventory) does;
 request order must retain the complete discovered module and target inventory.
 Within one verification process, reuse imported compiler data across consumers
 and isolated entry environments. Retain compiler ownership, duplicate-declaration

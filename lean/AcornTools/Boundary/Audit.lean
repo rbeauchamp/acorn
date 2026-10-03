@@ -298,7 +298,8 @@ def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := d
       unless dependencyOwner == owner || importAllowed owner dependencyOwner do
         reject owner s!"{name} references {dependency} owned by {dependencyOwner}"
 
-/-- Check compiled declarations and their real referenced owners after source admission.
+/-- Check compiled declarations and their real referenced owners. The gate admits the
+sources before the build, and `command` admits them again after this check.
 Pinned Lean's parametric attribute queries read imported module entries directly
 once declaration ownership is established. No project extension initialization
 is needed. Scoped imports release each environment after all its checks; only
@@ -312,8 +313,10 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
         reject owner "compiled module did not enter the environment"
       checkImports imports owner
     inspectDeclarations env selected
-  let included ← withImportModules #[{ module := `Acorn },
-      { module := `NativeApp }] {} fun common => do
+  -- Executable roots each own `main` and are loaded alone. Every other owner is loaded
+  -- once, in one environment: a declaration's checks read only its owner's import closure.
+  let shared := owners.filter fun owner => !AcornOwnership.executables.any (·.2 == owner)
+  let included ← withImportModules (shared.map fun owner => { module := owner }) {} fun common => do
     let included := owners.filter fun owner => (common.getModuleIdx? owner).isSome
     inspect common included
     AcornDepartureAudit.check common
@@ -330,12 +333,16 @@ unsafe def command (args : List String) : IO UInt32 := do
     IO.eprintln "usage: lean-boundary-audit (source|compiled|proof-source)"
     return 1
   Lean.initSearchPath (← Lean.findSysroot)
-  Lean.enableInitializersExecution
   let proofs := args == ["proof-source"]
   let owners := (← AcornModuleInventory.projectModules).filter
     (if proofs then proofOwner else governed)
-  AcornBoundaryAudit.sources owners proofs
+  -- Compiled admission goes first. Source admission keeps its parser environment mapped
+  -- until exit, and a module that is already mapped cannot be mapped again: it is read
+  -- and relocated in full by every later environment that imports it.
   if args == ["compiled"] then AcornBoundaryAudit.compiled owners
+  -- Every import turns initializer execution off again, so it is enabled for the parser alone.
+  Lean.enableInitializersExecution
+  AcornBoundaryAudit.sources owners proofs
   IO.println s!"lean-boundary-audit: {owners.size} modules admitted ({args.headD ""})"
   return 0
 
