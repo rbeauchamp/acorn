@@ -9,41 +9,34 @@ import AcornVerif.Options
 import AcornVerif.CurrentModelArithmetic
 
 /-!
-# Executing scalar model and planning contracts
+# Executing option-model and planning contracts
 
-These statements refer to the current managed learners, not an independent
-vector model. Sutton, Machado et al., Artificial Intelligence 324 (2023)
-104001, arXiv:2202.03466v4, equations (15)–(19); Wan, Naik & Sutton,
-*Average-Reward Learning and Planning with Options*, NeurIPS 34 (2021),
-section 5, equations (18)–(23). The retained fixed-linear identities require
-fixed weights and their stated expectation hypotheses; a terminal maximum and
-moving scalar approximation do not inherit those identities or contraction.
+These statements refer to the current managed learners. Sutton, Machado et al.,
+Artificial Intelligence 324 (2023) 104001, arXiv:2202.03466v4, equations
+(15)–(19); Wan, Naik & Sutton, *Average-Reward Learning and Planning with
+Options*, NeurIPS 34 (2021), section 5, equations (18)–(23). They state what
+planning writes and leaves alone, the work it counts and the storage of the
+full-width model learners. The backed-up value's identity, its rounding bound and
+the transition part's storage are in `AcornVerif.CurrentPlanning`.
 -/
 namespace AcornVerif.CurrentModels
 open Acorn Acorn.Features CurrentLearner CurrentFeatureConsumers
 
 variable {criterion : Criterion} {dimension : Dimension} {config : Features.Config}
 
-/-- Differential continuation is the actual bounded ordered aggregate, with
-no coefficient-sized output projection or finite-input assumption. -/
-theorem differential_continuation_bound
-    (reward continuation duration : Managed (Criterion.config .differential .demon) dimension)
-    (features : SwiftTd.ActiveSet dimension) (age : ModelAge) :
-    let prediction := (Model.differential reward continuation duration).predict features age
-    prediction.continuation.Finite ∧
-      |CurrentArithmetic.numerical32 prediction.continuation| ≤
-        CurrentPrediction.predictionRadius (modelInput .differential features age).indices.length :=
-  prediction_bound continuation.state _
-
 /-- Discounted continuation and its backed-up target obey the actual horizon. -/
 theorem discounted_target_bound (model : Model dimension .discounted)
+    (value : ValueFunction .discounted dimension)
     (features : SwiftTd.ActiveSet dimension) (age : ModelAge) (gain : RewardRate) :
-    Discount.g99.predictionRange.Contains ((model.predict features age).target gain) :=
+    Discount.g99.predictionRange.Contains ((model.predict value features age).target gain) :=
   (Prediction.project .g99 _).legal
 
-/-- Terminal credit clears each physically stored learner, over both criteria. -/
-theorem terminal_clears (model : Model dimension criterion) (reward terminal : Binary32)
-    (reader : PackedLearner dimension) (member : reader ∈ (model.terminal reward terminal).stored) :
+/-- Terminal credit clears each physically stored full-width learner, over both
+criteria, every value function and every terminal frame. -/
+theorem terminal_clears (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (reader : PackedLearner dimension)
+    (member : reader ∈ (model.terminal value features reward).stored) :
     reader.2.state.transient = TransientState.zero dimension := by
   cases model <;>
     simp only [Model.terminal, Model.stored, List.mem_cons, List.not_mem_nil, or_false] at member
@@ -65,7 +58,20 @@ theorem restart_trajectory_first {learnerConfig : Acorn.Config}
       (learner.apply .release trivial).state :=
   release_idle learner.state delta vDelta decay
 
-/-- All model state after every update retains the existing schedule and capacity. -/
+/-- Terminal credit clears the row of every occupied position of the transition part. -/
+theorem terminal_clears_rows (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (position : RankIdx dimension) (feature : FeatIdx dimension)
+    (occupied : model.transition.ranked.slots[position.val] = some feature) :
+    ((model.terminal value features reward).transition.rows[position.val]).state.transient =
+      TransientState.zero (rankDimension dimension) := by
+  cases model <;>
+    simp [Model.terminal, Model.transition, Transition.terminal,
+      Transition.updateRows] at occupied ⊢ <;>
+    simp [occupied] <;> rfl
+
+/-- Every full-width model learner after every update retains the existing schedule
+and capacity. The transition rows are `CurrentPlanning.row_work`'s. -/
 theorem model_schedule (model : Model dimension criterion)
     (reader : PackedLearner dimension) (_member : reader ∈ model.stored) :
     ScheduleInv reader.2.state reader.2.phase ∧ reader.2.state.eligibleCount ≤ dimension.capacity :=
@@ -75,8 +81,9 @@ theorem model_schedule (model : Model dimension criterion)
 def modelSlots (model : Model dimension criterion) : Nat :=
   (model.stored.map (fun reader => retainedSlots reader.2.state)).sum
 
-/-- Each model's logical retained storage is linear in its receiving dimension,
-independently of stream length. Native object headers and allocator reuse are separate. -/
+/-- The logical retained storage of each model's full-width learners is linear in its
+receiving dimension, independently of stream length; the transition part is
+`CurrentPlanning.transition_storage`'s. Native object headers and allocator reuse are separate. -/
 theorem model_storage (model : Model dimension criterion) :
     modelSlots model ≤ model.stored.length * (13 * dimension.capacity + 2) := by
   have bound (readers : List (PackedLearner dimension)) :
@@ -123,89 +130,161 @@ theorem plan_lags {cfg : Acorn.Config} {actions : Nat}
     (controller.plan action features target).1.restartPending = controller.restartPending :=
   ⟨rfl, rfl, rfl⟩
 
-/-- One scalar backup cannot touch the primitive delegation row. -/
-theorem backup_primitive (state : PlanningResult criterion dimension)
+/-- One look-ahead cannot touch the primitive delegation row. -/
+theorem lookAhead_primitive (state : PlanningResult criterion dimension)
     (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
-    ((state.backup skills features gain slot).controller.learners.get ⟨0, by decide⟩) =
+    ((state.lookAhead skills features gain rate slot).1.controller.learners.get ⟨0, by decide⟩) =
       state.controller.learners.get ⟨0, by decide⟩ := by
   apply plan_other
   intro same
   have := congrArg Fin.val same
   simp [metaOfSkill] at this
 
-/-- Every scalar backup preserves every trajectory row. -/
-theorem backup_traces (state : PlanningResult criterion dimension)
+/-- Every look-ahead preserves every trajectory row. -/
+theorem lookAhead_traces (state : PlanningResult criterion dimension)
     (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) (row : Action metaCount.word.toNat) :
-    ((state.backup skills features gain slot).controller.learners.get row).state.transient =
+    ((state.lookAhead skills features gain rate slot).1.controller.learners.get
+        row).state.transient =
       (state.controller.learners.get row).state.transient := plan_traces _ _ _ _ _
+
+/-- A look-ahead writes the controller only: the stored recent frames, the work
+count and both observers are those it received. -/
+theorem lookAhead_frame (state : PlanningResult criterion dimension)
+    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    (state.lookAhead skills features gain rate slot).1.recent = state.recent ∧
+      (state.lookAhead skills features gain rate slot).1.steps = state.steps ∧
+      (state.lookAhead skills features gain rate slot).1.predictions = state.predictions ∧
+      (state.lookAhead skills features gain rate slot).1.errors = state.errors :=
+  ⟨rfl, rfl, rfl, rfl⟩
 
 /-- Saturating work accumulation has exact mathematical count semantics. -/
 theorem planning_clock_exact (clock : UInt64) :
-    (planningClock clock).toNat = min (clock.toNat + planningSlots.length) (2^64 - 1) := by
+    (planningClock clock).toNat =
+      min (clock.toNat + planningFrames * planningSlots.length) (2^64 - 1) := by
   apply Nat.mod_eq_of_lt
-  have := Nat.min_le_right (clock.toNat + planningSlots.length) (2^64 - 1)
+  have := Nat.min_le_right (clock.toNat + planningFrames * planningSlots.length) (2^64 - 1)
   omega
 
-/-- Work never wraps and adds at most the number of actually configured backups. -/
+/-- Work never wraps and adds at most the number of actually configured backups:
+every option at each of the two feature vectors of a boundary. -/
 theorem planning_clock_bounds (clock : UInt64) :
     clock.toNat ≤ (planningClock clock).toNat ∧
-    (planningClock clock).toNat ≤ clock.toNat + planningSlots.length := by
+    (planningClock clock).toNat ≤ clock.toNat + planningFrames * planningSlots.length := by
   rw [planning_clock_exact]
   have := clock.toNat_lt
   omega
 
-/-- The full executed fold preserves the primitive row, regardless of model values. -/
+/-- A round of look-aheads at one feature vector keeps a property of the controller
+that each look-ahead keeps, for both the observed and the stored frame. -/
+theorem fold_controller (keeps : Controller (criterion.config .control) dimension
+      metaCount.word.toNat → Prop)
+    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
+    (step : ∀ (state : PlanningResult criterion dimension)
+      (slot : Fin Acorn.FeatureConstants.skillCount), keeps state.controller →
+        keeps (state.lookAhead skills features gain rate slot).1.controller)
+    (slots : List (Fin Acorn.FeatureConstants.skillCount))
+    (state : PlanningResult criterion dimension) (holds : keeps state.controller) :
+    keeps (slots.foldl (fun s slot => s.backup skills features gain rate slot)
+        state).controller ∧
+      keeps (slots.foldl (fun s slot => s.sweep skills features gain rate slot)
+        state).controller := by
+  induction slots generalizing state with
+  | nil => exact ⟨holds, holds⟩
+  | cons slot rest ih =>
+    exact ⟨(ih (state.backup skills features gain rate slot) (step state slot holds)).1,
+      (ih (state.sweep skills features gain rate slot) (step state slot holds)).2⟩
+
+/-- The controller field of a constructed planning result. -/
+theorem result_controller
+    (controller : Controller (criterion.config .control) dimension metaCount.word.toNat)
+    (predictions : Vector ModelCache Acorn.FeatureConstants.skillCount) (steps : UInt64)
+    (errors : Vector Binary32 Acorn.FeatureConstants.skillCount)
+    (recent : RecentFeatures dimension) :
+    (PlanningResult.mk controller predictions steps errors recent).controller = controller := rfl
+
+/-- The controller after an expectation boundary is the controller after both rounds
+of backups: at the observed frame, then at the stored frame search control selects. -/
+theorem boundary_controller (state : PlanningResult criterion dimension)
+    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
+    (planningBoundary .expectation state skills features gain rate).controller =
+      ((state.backupAll skills features gain rate).sweepAll skills
+        (state.backupAll skills features gain rate).recent.selected gain rate).controller :=
+  (congrArg PlanningResult.controller
+    (planning_expectation state skills features gain rate)).trans (result_controller _ _ _ _ _)
+
+/-- The complete boundary keeps a property of the controller that every look-ahead
+keeps at every feature vector: both rounds, at the current and the stored frame. -/
+theorem planning_controller (keeps : Controller (criterion.config .control) dimension
+      metaCount.word.toNat → Prop)
+    (selection : PlanningSelection) (state : PlanningResult criterion dimension)
+    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
+    (step : ∀ (frame : SwiftTd.ActiveSet dimension) (state : PlanningResult criterion dimension)
+      (slot : Fin Acorn.FeatureConstants.skillCount), keeps state.controller →
+        keeps (state.lookAhead skills frame gain rate slot).1.controller)
+    (holds : keeps state.controller) :
+    keeps (planningBoundary selection state skills features gain rate).controller := by
+  cases selection with
+  | none => exact holds
+  | expectation =>
+    rw [boundary_controller]
+    have current := (fold_controller keeps skills features gain rate (step features)
+      planningSlots state holds).1
+    exact (fold_controller keeps skills
+      (state.backupAll skills features gain rate).recent.selected gain rate (step _)
+      planningSlots (state.backupAll skills features gain rate) current).2
+
+/-- The full executed boundary preserves the primitive row, regardless of model values. -/
 theorem planning_primitive (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
     (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) :
-    ((planningBoundary selection state skills features gain).controller.learners.get
-      ⟨0, by decide⟩) = state.controller.learners.get ⟨0, by decide⟩ := by
-  cases selection with
-  | none => rfl
-  | scalar =>
-    change ((planningSlots.foldl (fun s slot => s.backup skills features gain slot)
-      state).controller.learners.get ⟨0, by decide⟩) = _
-    have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
-        (state : PlanningResult criterion dimension) :
-        ((slots.foldl (fun s slot => s.backup skills features gain slot)
-          state).controller.learners.get ⟨0, by decide⟩) =
-          state.controller.learners.get ⟨0, by decide⟩ := by
-      induction slots generalizing state with
-      | nil => rfl
-      | cons slot rest ih =>
-        exact (ih (state.backup skills features gain slot)).trans
-          (backup_primitive state skills features gain slot)
-    exact fold _ _
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
+    ((planningBoundary selection state skills features gain rate).controller.learners.get
+      ⟨0, by decide⟩) = state.controller.learners.get ⟨0, by decide⟩ :=
+  planning_controller
+    (fun controller => controller.learners.get ⟨0, by decide⟩ =
+      state.controller.learners.get ⟨0, by decide⟩)
+    selection state skills features gain rate
+    (fun frame current slot kept =>
+      (lookAhead_primitive current skills frame gain rate slot).trans kept) rfl
 
 /-- Every planning write preserves all eligibility and adaptation transients. -/
 theorem planning_traces (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
     (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (row : Action metaCount.word.toNat) :
-    ((planningBoundary selection state skills features gain).controller.learners.get
-      row).state.transient = (state.controller.learners.get row).state.transient := by
-  cases selection with
-  | none => rfl
-  | scalar =>
-    change ((planningSlots.foldl (fun s slot => s.backup skills features gain slot)
-      state).controller.learners.get row).state.transient = _
-    have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
-        (state : PlanningResult criterion dimension) :
-        ((slots.foldl (fun s slot => s.backup skills features gain slot)
-          state).controller.learners.get row).state.transient =
-          (state.controller.learners.get row).state.transient := by
-      induction slots generalizing state with
-      | nil => rfl
-      | cons slot rest ih =>
-        exact (ih (state.backup skills features gain slot)).trans
-          (backup_traces state skills features gain slot row)
-    exact fold _ _
+    ((planningBoundary selection state skills features gain rate).controller.learners.get
+      row).state.transient = (state.controller.learners.get row).state.transient :=
+  planning_controller
+    (fun controller => (controller.learners.get row).state.transient =
+      (state.controller.learners.get row).state.transient)
+    selection state skills features gain rate
+    (fun frame current slot kept =>
+      (lookAhead_traces current skills frame gain rate slot row).trans kept) rfl
+
+/-- Planning keeps the controller's lags and deferred restart flag, at both frames. -/
+theorem planning_lags (selection : PlanningSelection)
+    (state : PlanningResult criterion dimension)
+    (skills : Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
+    (planningBoundary selection state skills features gain rate).controller.vOld =
+        state.controller.vOld ∧
+      (planningBoundary selection state skills features gain rate).controller.vDelta =
+        state.controller.vDelta :=
+  planning_controller
+    (fun controller => controller.vOld = state.controller.vOld ∧
+      controller.vDelta = state.controller.vDelta)
+    selection state skills features gain rate
+    (fun _ _ _ kept => kept) ⟨rfl, rfl⟩
 
 /-- The executing work list contains each receiving option exactly once. -/
 theorem planning_complete : planningSlots.Nodup ∧
@@ -218,101 +297,6 @@ theorem interval_numeric (range : Interval32) (value : Bounded32 range) :
     CurrentArithmetic.numerical32 value.value ≤ CurrentArithmetic.numerical32 range.upper :=
   ⟨(CurrentOrder.numerical32_order _ _ range.lowerFinite value.legal.1).mpr value.legal.2.1,
     (CurrentOrder.numerical32_order _ _ value.legal.1 range.upperFinite).mpr value.legal.2.2⟩
-
-open CurrentArithmetic CurrentPrediction CurrentModelArithmetic
-
-/-- The actual raw differential backup is finite under the actual producer ranges.
-The rational envelope includes conservative machine-rounding slack; it is not a clip. -/
-theorem differential_target_bound
-    (r c d : Managed (Criterion.config .differential .demon) dimension)
-    (features : SwiftTd.ActiveSet dimension) (age : ModelAge) (gain : RewardRate) :
-    let prediction := (Model.differential r c d).predict features age
-    (prediction.target gain).Finite ∧
-      |numerical32 (prediction.target gain)| ≤
-        predictionRadius (modelInput .differential features age).indices.length + 514 := by
-  let prediction := (Model.differential r c d).predict features age
-  have rb := interval_numeric _ prediction.reward
-  have db := interval_numeric _ prediction.duration
-  have gb := interval_numeric _ gain
-  have endpoint0 : numerical32 Binary32.zero = 0 := by decide
-  have endpoint1 : numerical32 (Binary32.mk 0x3f800000) = 1 := by
-    change (1 : ℚ) * 8388608 * (2 : ℚ)^(-23 : Int) = 1
-    norm_num
-  have endpoint128 : numerical32
-      (Binary32.ofUInt64 Acorn.FeatureConstants.optionMaxDuration.toUInt64) = 128 := by
-    rw [show Binary32.ofUInt64 Acorn.FeatureConstants.optionMaxDuration.toUInt64 =
-      Binary32.mk 0x43000000 by decide]
-    change (1 : ℚ) * 8388608 * (2 : ℚ)^(-16 : Int) = 128
-    norm_num
-  simp only [Criterion.modelRewardRange, endpoint0, endpoint128] at rb
-  simp only [modelDurationRange, Binary32.one, endpoint1, endpoint128] at db
-  simp only [rewardRange, endpoint0, endpoint1] at gb
-  have productBound : |numerical32 gain.value * numerical32 prediction.duration.value| ≤ 128 := by
-    rw [abs_of_nonneg (mul_nonneg gb.1 (by linarith [db.1]))]
-    nlinarith [gb.2, db.2]
-  have product := small_mul gain.value prediction.duration.value gain.legal.1
-    prediction.duration.legal.1 (by linarith)
-  have productMag : |numerical32 (gain.value.mul prediction.duration.value)| ≤ 129 := by
-    have triangle := abs_add_le
-      (numerical32 (gain.value.mul prediction.duration.value) -
-        numerical32 gain.value * numerical32 prediction.duration.value)
-      (numerical32 gain.value * numerical32 prediction.duration.value)
-    rw [sub_add_cancel] at triangle
-    linarith [product.2]
-  have differenceBound :
-      |numerical32 prediction.reward.value -
-        numerical32 (gain.value.mul prediction.duration.value)| ≤ 257 := by
-    have triangle := abs_add_le (numerical32 prediction.reward.value)
-      (-numerical32 (gain.value.mul prediction.duration.value))
-    rw [← sub_eq_add_neg, abs_neg, abs_of_nonneg rb.1] at triangle
-    linarith [rb.2]
-  have difference := small_sub prediction.reward.value
-    (gain.value.mul prediction.duration.value) prediction.reward.legal.1 product.1 (by linarith)
-  have differenceMag :
-      |numerical32 (prediction.reward.value.sub
-        (gain.value.mul prediction.duration.value))| ≤ 258 := by
-    have triangle := abs_add_le
-      (numerical32 (prediction.reward.value.sub (gain.value.mul prediction.duration.value)) -
-        (numerical32 prediction.reward.value -
-          numerical32 (gain.value.mul prediction.duration.value)))
-      (numerical32 prediction.reward.value -
-        numerical32 (gain.value.mul prediction.duration.value))
-    rw [sub_add_cancel] at triangle
-    linarith [difference.2]
-  have continuation := differential_continuation_bound r c d features age
-  change prediction.continuation.Finite ∧ |numerical32 prediction.continuation| ≤
-    predictionRadius (modelInput .differential features age).indices.length at continuation
-  have radiusCap : predictionRadius
-      (modelInput .differential features age).indices.length ≤ 4294967296 := by
-    unfold predictionRadius
-    have := Nat.min_le_right (modelInput .differential features age).indices.length (2^24)
-    exact_mod_cast Nat.mul_le_mul_right 256 this
-  have sumBound : |numerical32 (prediction.reward.value.sub
-      (gain.value.mul prediction.duration.value)) + numerical32 prediction.continuation| <
-      (2 : ℚ) ^ (33 : Int) := by
-    have triangle := abs_add_le (numerical32 (prediction.reward.value.sub
-      (gain.value.mul prediction.duration.value))) (numerical32 prediction.continuation)
-    norm_num
-    linarith [continuation.2]
-  have sum := binary32_add_finite_strict_error
-    (prediction.reward.value.sub (gain.value.mul prediction.duration.value))
-    prediction.continuation difference.1 continuation.1 33 (by decide) sumBound
-  have slack : |numerical32 (prediction.target gain) -
-      (numerical32 (prediction.reward.value.sub (gain.value.mul prediction.duration.value)) +
-        numerical32 prediction.continuation)| ≤ 256 := by
-    have radius : (2 : ℚ)^(max ((33 : Int)-24) (-149))/2 = 256 := by norm_num
-    simpa only [ModelPrediction.target, radius] using sum.2
-  refine ⟨sum.1, ?_⟩
-  have triangle := abs_add_le
-    (numerical32 (prediction.target gain) -
-      (numerical32 (prediction.reward.value.sub (gain.value.mul prediction.duration.value)) +
-        numerical32 prediction.continuation))
-    (numerical32 (prediction.reward.value.sub (gain.value.mul prediction.duration.value)) +
-      numerical32 prediction.continuation)
-  rw [sub_add_cancel] at triangle
-  have inner := abs_add_le (numerical32 (prediction.reward.value.sub
-    (gain.value.mul prediction.duration.value))) (numerical32 prediction.continuation)
-  linarith [continuation.2]
 
 /-- The first returned option action performs no model credit in either mode. -/
 theorem first_model_omitted {mode : Bool} (skill : Skill config criterion dimension)

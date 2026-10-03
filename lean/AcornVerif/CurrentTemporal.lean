@@ -88,9 +88,11 @@ theorem option_step_clock (skill : Skill config criterion dimension) (models : O
 /-- Terminal learning clears all actual policy trajectory registers in all rows. -/
 theorem terminal_clears (skill : Skill config criterion dimension) (models : OptionModelOps
     criterion dimension)
-    (ending : EndingPayload mode) (reward terminal : Binary32) (gain : RewardRate)
+    (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (ending : EndingPayload mode)
+    (reward terminal : Binary32) (gain : RewardRate)
     (learning : ending.activation.learning = true) (action : Action primitiveCount.word.toNat) :
-    (((skill.endTemporal models ending reward terminal gain).policy.learners.get
+    (((skill.endTemporal models value features ending reward terminal gain).policy.learners.get
       action).state.transient) =
       TransientState.zero dimension := by
   simp only [Skill.endTemporal, Skill.terminateOption, learning, ↓reduceIte]
@@ -105,9 +107,11 @@ theorem frozen_begin (skill : Skill config criterion dimension) (models : Option
 /-- Frozen terminal consumption performs no policy or model write. -/
 theorem frozen_terminal (skill : Skill config criterion dimension) (models : OptionModelOps
     criterion dimension)
-    (ending : EndingPayload mode) (reward terminal : Binary32) (gain : RewardRate)
+    (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (ending : EndingPayload mode)
+    (reward terminal : Binary32) (gain : RewardRate)
     (frozen : ending.activation.learning = false) :
-    skill.endTemporal models ending reward terminal gain = skill := by
+    skill.endTemporal models value features ending reward terminal gain = skill := by
   simp [Skill.endTemporal, Skill.terminateOption, frozen]
 
 /-- All returned option policies retain the same managed admission and legal
@@ -169,11 +173,12 @@ theorem finish_gain (state : TemporalControl profile config criterion dimension)
 terminal arithmetic on a discarded owner has no retained effect; native dead-code
 elimination of that unused result preserves this exact state relation. -/
 theorem detached_terminal (state : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (closing : Closing config criterion dimension
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing config criterion dimension
       (EndingPayload (profile.mode != .frozen)))
     (owner : Skill config criterion dimension) (detached : closing.oldOwner = some owner)
-    (reward terminal : Binary32) : (state.closeOption models closing reward terminal).1 = state :=
-      by
+    (reward terminal : Binary32) :
+    (state.closeOption models features closing reward terminal).1 = state := by
   simp [TemporalControl.closeOption, detached]
 
 /-- Every returned observation action is legal under either explicit planning selection. -/
@@ -748,13 +753,14 @@ theorem follow_legal (state : TemporalControl profile config criterion dimension
 /-- A slot is refused, and unlinked, exactly when its declared potential source
 is not the one supplied; a learned interest is never refused. -/
 theorem follow_refused (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat)
     (reward : Binary32) (gain : RewardRate) (skill : Skill config criterion dimension)
     (refused : skill.interest.potential features declared = none) :
-    followSlot models features declared goal estimate rate action behaviour reward gain false
-      skill = { skill with following := none } := by
+    followSlot models value features declared goal estimate rate action behaviour reward gain
+      false skill = { skill with following := none } := by
   simp [followSlot, refused]
 
 /-- When a meta decision was drawn at the frame, the stopping estimate reads that
@@ -770,7 +776,8 @@ theorem stopping_estimate_frozen (state : TemporalControl profile config criteri
 saturating and whatever the action taken, so the stored age is the number of
 actions followed since the trajectory began. -/
 theorem follow_age (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32)
@@ -779,7 +786,7 @@ theorem follow_age (skill : Skill config criterion dimension)
     (next : OptionContinuation dimension following.activation)
     (continuing : skill.decideOption following.activation features potential goal estimate rate =
       .continuing next) :
-    (skill.followTemporal models features potential goal estimate rate action behaviour reward
+    (skill.followTemporal models value features potential goal estimate rate action behaviour reward
       gain).following.map (·.age.val) = some (following.age.val + 1) := by
   have room : following.age.val < Acorn.FeatureConstants.optionMaxDuration := next.room
   cases skill with
@@ -803,7 +810,8 @@ theorem follow_cap (skill : Skill config criterion dimension) (following : Follo
 /-- With no live model trajectory, a frame whose behaviour masses differ from the
 option's own neither credits nor restarts its model. -/
 theorem follow_idle_model (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32)
@@ -813,7 +821,7 @@ theorem follow_idle_model (skill : Skill config criterion dimension)
     (continuing : skill.decideOption following.activation features potential goal estimate rate =
       .continuing next)
     (idle : following.live = false) (inconsistent : next.policy.consistent behaviour = false) :
-    (skill.followTemporal models features potential goal estimate rate action behaviour reward
+    (skill.followTemporal models value features potential goal estimate rate action behaviour reward
       gain).model = skill.model := by
   cases skill with
   | mk interest policy model stored =>
@@ -825,7 +833,7 @@ credit, at the trajectory's age and the raw reward, whatever the action taken:
 Sutton, Machado et al. (2023), §4, equation (17), where the preceding frame's
 importance ratio is one. -/
 theorem follow_live_model (skill : Skill config criterion dimension)
-    (features : SwiftTd.ActiveSet dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32)
@@ -835,8 +843,8 @@ theorem follow_live_model (skill : Skill config criterion dimension)
     (continuing : skill.decideOption following.activation features potential goal estimate rate =
       .continuing next)
     (live : following.live = true) :
-    (skill.followTemporal (modelOperations criterion dimension) features potential goal estimate
-      rate action behaviour reward gain).model =
+    (skill.followTemporal (modelOperations criterion dimension) value features potential goal
+      estimate rate action behaviour reward gain).model =
       skill.model.step features following.age reward := by
   cases skill with
   | mk interest policy model stored =>
@@ -846,7 +854,8 @@ theorem follow_live_model (skill : Skill config criterion dimension)
 /-- The model trajectory is live after a continuing frame exactly when that
 frame's behaviour masses equal the option's own. -/
 theorem follow_live (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32)
@@ -855,7 +864,7 @@ theorem follow_live (skill : Skill config criterion dimension)
     (next : OptionContinuation dimension following.activation)
     (continuing : skill.decideOption following.activation features potential goal estimate rate =
       .continuing next) :
-    (skill.followTemporal models features potential goal estimate rate action behaviour reward
+    (skill.followTemporal models value features potential goal estimate rate action behaviour reward
       gain).following.map (·.live) = some (next.policy.consistent behaviour) := by
   cases skill with
   | mk interest policy model stored =>
@@ -866,7 +875,8 @@ theorem follow_live (skill : Skill config criterion dimension)
 /-- On every continuing frame the policy takes tree-backup credit for the action
 actually taken, with the shaped cumulant the executing option would have read. -/
 theorem follow_policy (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32)
@@ -875,7 +885,7 @@ theorem follow_policy (skill : Skill config criterion dimension)
     (next : OptionContinuation dimension following.activation)
     (continuing : skill.decideOption following.activation features potential goal estimate rate =
       .continuing next) :
-    (skill.followTemporal models features potential goal estimate rate action behaviour reward
+    (skill.followTemporal models value features potential goal estimate rate action behaviour reward
       gain).policy =
       skill.policy.backupStep (count := primitiveCount) features next.policy action
         (Features.shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
@@ -890,14 +900,16 @@ theorem follow_policy (skill : Skill config criterion dimension)
 with the tree-backup error a followed frame would have used and the model's step
 along a live run; nothing of the stored trajectory is discarded uncredited. -/
 theorem settle_continuing (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (reward : Binary32) (gain : RewardRate)
     (following : Following) (linked : skill.following = some following)
     (next : OptionContinuation dimension following.activation)
     (continuing : skill.decideOption following.activation features potential goal estimate rate =
       .continuing next) :
-    let settled := skill.settleFollowing models features potential goal estimate rate reward gain
+    let settled := skill.settleFollowing models value features potential goal estimate rate
+      reward gain
     settled.policy = skill.policy.stopStep
         (skill.policy.backupError (count := primitiveCount) next.policy
           (Features.shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
@@ -913,14 +925,15 @@ theorem settle_continuing (skill : Skill config criterion dimension)
 /-- Where the stopping decision fires at an invocation start, the settled skill is
 exactly the stopped one a followed frame would have produced. -/
 theorem settle_ending (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (reward : Binary32) (gain : RewardRate)
     (following : Following) (linked : skill.following = some following) (reason : OptionEnd)
     (ending : skill.decideOption following.activation features potential goal estimate rate =
       .ending reason) :
-    skill.settleFollowing models features potential goal estimate rate reward gain =
-      skill.stopFollowing models following potential estimate reward gain := by
+    skill.settleFollowing models value features potential goal estimate rate reward gain =
+      skill.stopFollowing models value features following potential estimate reward gain := by
   cases skill with
   | mk interest policy model stored =>
     obtain rfl : stored = some following := linked

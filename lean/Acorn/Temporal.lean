@@ -20,8 +20,29 @@ its policy and model learn off-policy from the action actually taken, under the
 executing option's stopping decision applied to the stored trajectory. When the
 option starts executing, `Skill.settleFollowing` credits the transition it was
 following before the invocation start clears its trajectory state.
+
+A model reads the current value function at two places: its terminal targets and
+its predictions. Sutton, Machado et al., *Reward-respecting subtasks for model-based
+reinforcement learning*, Artificial Intelligence 324 (2023), 104001,
+arXiv:2202.03466v4, §5, equation (19), p. 16, backs up `r̂(x, o) + v̂(n̂(x, o), w)` with
+the current weights `w`; here `w` is the meta-controller's action-value weights, read
+where they are stored and never copied.
 -/
 namespace Acorn.Features
+
+/-- The current value function: the meta-controller's action values with the
+exploration rate of its nominal policy. -/
+structure ValueFunction (criterion : Criterion) (dimension : Dimension) where
+  /-- The meta-controller whose weights are the value weights. -/
+  controller : Controller (criterion.config .control) dimension metaCount.word.toNat
+  /-- Rate of the nominal policy whose mean differential control compares. -/
+  epsilon : SwiftTd.ExploreRate
+
+/-- Nominal value of an observed frame: the ordered maximum of the action values
+under discounted control and their nominal policy mean under differential control. -/
+def ValueFunction.nominal {criterion : Criterion} {dimension : Dimension}
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) : Binary32 :=
+  comparisonValue criterion (value.controller.snapshot (count := metaCount) features value.epsilon)
 
 /-- Final reason and elapsed actions are an observation of the removed activation. -/
 structure EndEvent where
@@ -76,14 +97,18 @@ structure OptionModelOps (criterion : Criterion) (dimension : Dimension) where
   begin : Model dimension criterion → SwiftTd.ActiveSet dimension → Model dimension criterion
   /-- Credit a completed non-first transition at its pre-increment age. -/
   step : Model dimension criterion → SwiftTd.ActiveSet dimension → ModelAge → Binary32 → Model dimension criterion
-  /-- Terminal model update uses the same sampled or maximum continuation as policy credit. -/
-  terminal : Model dimension criterion → Binary32 → Binary32 → Model dimension criterion
-  /-- Pre-dispatch observation at age zero. -/
-  predict : Model dimension criterion → SwiftTd.ActiveSet dimension → ModelCache
+  /-- Terminal model update at the terminal frame, with the raw reward. The model reads
+  the current value function there; it takes no continuation word from policy credit. -/
+  terminal : Model dimension criterion → ValueFunction criterion dimension →
+    SwiftTd.ActiveSet dimension → Binary32 → Model dimension criterion
+  /-- Pre-dispatch observation at age zero, under the current value function. -/
+  predict : Model dimension criterion → ValueFunction criterion dimension →
+    SwiftTd.ActiveSet dimension → ModelCache
   /-- Start a trajectory at an age for an option that is not executing, on existing storage. -/
   restart : Model dimension criterion → SwiftTd.ActiveSet dimension → ModelAge → Model dimension criterion
-  /-- Close such a trajectory with the terminal entry's reward and continuation. -/
-  stop : Model dimension criterion → Binary32 → Binary32 → Model dimension criterion
+  /-- Close such a trajectory toward the terminal entry's targets at the stopping frame. -/
+  stop : Model dimension criterion → ValueFunction criterion dimension →
+    SwiftTd.ActiveSet dimension → Binary32 → Model dimension criterion
 
 /-- Planning may update only the meta policy and its observer fields. -/
 structure PlanningResult (criterion : Criterion) (dimension : Dimension) where
@@ -95,11 +120,15 @@ structure PlanningResult (criterion : Criterion) (dimension : Dimension) where
   steps : UInt64
   /-- Last planning errors. -/
   errors : Vector Binary32 Acorn.FeatureConstants.skillCount
+  /-- Recently seen feature vectors and the search-control position among them. -/
+  recent : RecentFeatures dimension
 
-/-- Required planning interface at a free boundary, before the meta snapshot. -/
+/-- Required planning interface at a free boundary, before the meta snapshot. The
+last argument is the meta-controller's exploration rate, the rate of the nominal
+policy the backed-up value reads. -/
 abbrev PlanBoundary (config : Config) (criterion : Criterion) (dimension : Dimension) :=
   PlanningResult criterion dimension → Vector (Skill config criterion dimension) Acorn.FeatureConstants.skillCount →
-    SwiftTd.ActiveSet dimension → RewardRate → PlanningResult criterion dimension
+    SwiftTd.ActiveSet dimension → RewardRate → SwiftTd.ExploreRate → PlanningResult criterion dimension
 
 /-- Ending state carries the original activation and the current coordinate. -/
 structure EndingPayload (mode : Bool) where
@@ -151,13 +180,16 @@ theorem Skill.stepTemporal_eq {config : Config} {criterion : Criterion} {dimensi
         else result.1
       (skill, result.2) := rfl
 
-/-- The same terminal value reaches policy and model; only policy adds the
-objective's attained bonus and inverse potential coordinate. -/
+/-- The policy is credited the terminal value with the objective's attained bonus and
+inverse potential coordinate. The model is closed at the terminal frame toward the
+features observed there and the current value function's nominal value of it. -/
 def Skill.endTemporal {config : Config} {criterion : Criterion} {dimension : Dimension}
     (skill : Skill config criterion dimension) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (ending : EndingPayload mode) (reward terminal : Binary32) (gain : RewardRate) : Skill config criterion dimension :=
   let result := skill.terminateOption ending.activation ending.potential reward terminal gain
-  if ending.activation.learning then { result with model := models.terminal result.model reward terminal } else result
+  if ending.activation.learning then
+    { result with model := models.terminal result.model value features reward } else result
 
 /-- Link an option that is not executing to the current frame. Every earlier trace
 is released before the taken action's traces are laid, so no earlier transition is
@@ -184,13 +216,14 @@ trajectory is closed toward the terminal targets. Nothing stays eligible and the
 skill is linked to no frame. -/
 def Skill.stopFollowing {config : Config} {criterion : Criterion} {dimension : Dimension}
     (skill : Skill config criterion dimension) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (following : Following) (potential : Potential) (estimate reward : Binary32)
     (gain : RewardRate) : Skill config criterion dimension :=
   let stopping := (terminalCumulant (criterion.center reward 1 gain)
     (skill.interest.stoppingValue estimate potential) following.previous).sub skill.policy.vOld
   let ⟨interest, policy, model, _⟩ := skill
   ⟨interest, policy.stopStep stopping,
-    if following.live then models.stop model reward estimate else model, none⟩
+    if following.live then models.stop model value features reward else model, none⟩
 
 /-- One frame of an option that is not executing, learned from the action actually
 taken. Sutton, Machado et al., *Reward-respecting subtasks for model-based
@@ -211,9 +244,11 @@ the stored trajectory, whose age advances on every followed frame, and then:
   from the current frame, as equation (10) continues after `β = 1`.
 
 The stopping estimate is the caller's nominal meta value in both criteria; no
-meta action is drawn for an option that is not executing. -/
+meta action is drawn for an option that is not executing. A closing model reads the
+supplied current value function at this frame. -/
 def Skill.followTemporal {config : Config} {criterion : Criterion} {dimension : Dimension}
     (skill : Skill config criterion dimension) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat)
@@ -235,8 +270,8 @@ def Skill.followTemporal {config : Config} {criterion : Criterion} {dimension : 
           else credited,
         some ⟨ModelAge.advance following.age, consistent, potential⟩⟩
     | .ending _ =>
-      (skill.stopFollowing models following potential estimate reward gain).startFollowing
-        models features potential rate action behaviour
+      (skill.stopFollowing models value features following potential estimate reward
+        gain).startFollowing models features potential rate action behaviour
 
 /-- Close the stored trajectory at the frame where the option starts executing.
 The completed transition is credited exactly as on a followed frame: the stopping
@@ -245,6 +280,7 @@ model's step along a live run. No new trace is laid and nothing stays eligible,
 because the invocation start begins a fresh trajectory. -/
 def Skill.settleFollowing {config : Config} {criterion : Criterion} {dimension : Dimension}
     (skill : Skill config criterion dimension) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate) :
     Skill config criterion dimension :=
@@ -260,16 +296,19 @@ def Skill.settleFollowing {config : Config} {criterion : Criterion} {dimension :
             following.previous)),
         if following.live then models.step model features following.age reward else model,
         none⟩
-    | .ending _ => skill.stopFollowing models following potential estimate reward gain
+    | .ending _ =>
+      skill.stopFollowing models value features following potential estimate reward gain
 
 /-- A frozen invocation start settles nothing; a learning one settles the stored
 trajectory first. -/
 def Skill.settleTemporal {config : Config} {criterion : Criterion} {dimension : Dimension}
     (skill : Skill config criterion dimension) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate)
     (learning : Bool) : Skill config criterion dimension :=
-  if learning then skill.settleFollowing models features potential goal estimate rate reward gain
+  if learning then
+    skill.settleFollowing models value features potential goal estimate rate reward gain
   else skill
 
 /-- Model callbacks cannot rewrite the policy update or alter the returned action. -/
@@ -296,23 +335,26 @@ theorem Skill.startFollowing_interest {config : Config} {criterion : Criterion}
 /-- A stop retains the objective and leaves the skill linked to no frame. -/
 theorem Skill.stopFollowing_owner {config : Config} {criterion : Criterion}
     {dimension : Dimension} (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (following : Following) (potential : Potential)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (following : Following) (potential : Potential)
     (estimate reward : Binary32) (gain : RewardRate) :
-    (skill.stopFollowing models following potential estimate reward gain).interest =
-        skill.interest ∧
-      (skill.stopFollowing models following potential estimate reward gain).following = none :=
+    (skill.stopFollowing models value features following potential estimate reward
+        gain).interest = skill.interest ∧
+      (skill.stopFollowing models value features following potential estimate reward
+        gain).following = none :=
   ⟨rfl, rfl⟩
 
 /-- Every followed frame retains the option's objective, on each stopping branch. -/
 theorem Skill.followTemporal_interest {config : Config} {criterion : Criterion}
     {dimension : Dimension} (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32)
     (gain : RewardRate) :
-    (skill.followTemporal models features potential goal estimate rate action behaviour reward
-      gain).interest = skill.interest := by
+    (skill.followTemporal models value features potential goal estimate rate action behaviour
+      reward gain).interest = skill.interest := by
   unfold Skill.followTemporal
   cases skill.following with
   | none => rfl
@@ -323,13 +365,14 @@ theorem Skill.followTemporal_interest {config : Config} {criterion : Criterion}
 /-- A followed frame always leaves the skill linked to the current frame's potential. -/
 theorem Skill.followTemporal_linked {config : Config} {criterion : Criterion}
     {dimension : Dimension} (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (action : Action primitiveCount.word.toNat)
     (behaviour : Vector Binary32 primitiveCount.word.toNat) (reward : Binary32)
     (gain : RewardRate) :
-    ((skill.followTemporal models features potential goal estimate rate action behaviour reward
-      gain).following.map (·.previous)) = some potential := by
+    ((skill.followTemporal models value features potential goal estimate rate action behaviour
+      reward gain).following.map (·.previous)) = some potential := by
   unfold Skill.followTemporal
   cases skill.following with
   | none => rfl
@@ -341,13 +384,14 @@ theorem Skill.followTemporal_linked {config : Config} {criterion : Criterion}
 every branch. -/
 theorem Skill.settleFollowing_owner {config : Config} {criterion : Criterion}
     {dimension : Dimension} (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (reward : Binary32) (gain : RewardRate) :
-    (skill.settleFollowing models features potential goal estimate rate reward gain).interest =
-        skill.interest ∧
-      (skill.settleFollowing models features potential goal estimate rate reward gain).following =
-        none := by
+    (skill.settleFollowing models value features potential goal estimate rate reward
+        gain).interest = skill.interest ∧
+      (skill.settleFollowing models value features potential goal estimate rate reward
+        gain).following = none := by
   unfold Skill.settleFollowing
   cases linked : skill.following with
   | none => exact ⟨rfl, linked⟩
@@ -360,24 +404,28 @@ itself, so the start of an option that was executing, fresh or restored is the
 existing on-policy start. -/
 theorem Skill.settleFollowing_unlinked {config : Config} {criterion : Criterion}
     {dimension : Dimension} (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (reward : Binary32) (gain : RewardRate) (unlinked : skill.following = none) :
-    skill.settleFollowing models features potential goal estimate rate reward gain = skill := by
+    skill.settleFollowing models value features potential goal estimate rate reward gain =
+      skill := by
   unfold Skill.settleFollowing
   rw [unlinked]
 
 /-- The learning flag cannot change the settled objective. -/
 theorem Skill.settleTemporal_interest {config : Config} {criterion : Criterion}
     {dimension : Dimension} (skill : Skill config criterion dimension)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
     (reward : Binary32) (gain : RewardRate) (learning : Bool) :
-    (skill.settleTemporal models features potential goal estimate rate reward gain
+    (skill.settleTemporal models value features potential goal estimate rate reward gain
       learning).interest = skill.interest := by
   unfold Skill.settleTemporal
   split
-  · exact (skill.settleFollowing_owner models features potential goal estimate rate reward gain).1
+  · exact (skill.settleFollowing_owner models value features potential goal estimate rate reward
+      gain).1
   · rfl
 
 end Acorn.Features

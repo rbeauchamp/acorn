@@ -32,8 +32,12 @@ In the `ranked` configuration, these mechanisms work together:
    an option using learned value estimates. An option that is not executing
    still learns its policy from each action the agent takes, and its model from
    the steps on which the agent chose as that option would.
-5. **Models and planning** estimate option outcomes and use those estimates to
-   update the higher-level action values without replaying stored experience.
+5. **Models and planning.** Each option's model predicts the reward the option
+   collects and which of a small ranked set of features will be active when it
+   stops. Planning applies the current higher-level action values to those
+   predicted features and moves the option's value toward the result, at the
+   current feature vector and at recently seen ones, without replaying stored
+   experience.
 
 Exact update order belongs to
 [the agent driver](../lean/Acorn/Handcrafted/Agent.lean). The complete OaK
@@ -66,9 +70,9 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 | 5 | Long-run prediction | General average-reward GVFs are absent. |
 | 6 | Continuing decisions | Differential-control research integration. |
 | 7 | Planning with differential values | Approximate option planning. |
-| 8 | Integrated model-based prototype | Models and planning components are present. |
-| 9 | Exploration and search choices | Declared εz-greedy rate and duration; search control is absent. |
-| 10 | Abstraction through STOMP | Ranked subtasks, options that learn off-policy on every step, models and planning. |
+| 8 | Integrated model-based prototype | Option expectation models over a ranked feature subset, planned with the current values. |
+| 9 | Exploration and search choices | Declared εz-greedy rate and duration; planning sweeps a bounded store of recent feature vectors. |
+| 10 | Abstraction through STOMP | Ranked subtasks, options that learn off-policy on every step, option expectation models and planning. |
 | 11 | Complete OaK | Absent; the full utility-feedback loop is not implemented. |
 | 12 | Assisting other intelligences | Out of scope. |
 
@@ -139,15 +143,17 @@ before restore. Changing the criterion does not convert an existing checkpoint.
 
 ### Planning selection
 
-The core accepts `--planning scalar` (the default) or `--planning none`
-independently of the research profile and criterion. Both streaming and ANSI
+The core accepts `--planning expectation` (the default) or `--planning none`
+independently of the research profile and criterion. `expectation` backs up every
+option's value from its expectation model, at the current feature vector and at
+one stored recent feature vector per decision boundary. Both streaming and ANSI
 runs carry this selection into the full agent. `none` suppresses model-based
 meta-controller planning updates while retaining model learning, ordinary
 control learning, the hierarchy and the selected exploration rules. Profiles
 without the hierarchy do not perform these planning updates under either choice.
 
 Startup diagnostics, the streaming campaign summary and the persistent ANSI
-header line report the effective `planning=none` or `planning=scalar` selection.
+header line report the effective `planning=none` or `planning=expectation` selection.
 CSV output includes the same constructor-derived value in a comment after the
 column header. The selection belongs to the current run; it does not change
 checkpoint admission or convert stored learner state. Comparisons should
@@ -162,7 +168,7 @@ execution still requires the separately authorized prospective protocol in
 ### Viewer support
 
 The viewer's built-in launch accepts only `--research-profile ranked` and uses
-the discounted criterion with scalar planning. It does not accept the core's
+the discounted criterion with expectation planning. It does not accept the core's
 `--criterion` or `--planning` flags or the other four profiles. Use the terminal
 command above to explore core configuration choices. The viewer's advanced
 `--cmd` option runs an operator-supplied command; it has different checkpoint
@@ -182,7 +188,7 @@ these boundaries do not restart its learned weights.
 | Core flag | Meaning |
 |---|---|
 | `--seed` | Seed for the generated world; default 42. |
-| `--planning` | `scalar` (default) or `none`; selects model-based planning updates. |
+| `--planning` | `expectation` (default) or `none`; selects model-based planning updates. |
 | `--side` | Side length of the square world. |
 | `--steps` | Maximum environment steps per attempt. |
 | `--attempts` | Maximum attempts per goal. |
@@ -238,7 +244,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-10](prior-art-review.md#par-10--derived-exploration-rate): Derived exploration rate, [Acorn.Policy](../lean/Acorn/Policy.lean).
 - [PAR-11](prior-art-review.md#par-11--generate-and-test-tester): Generate-and-test tester, [Acorn.FeatureLifecycle](../lean/Acorn/FeatureLifecycle.lean).
 - [PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks): Ranked learned subtasks, [Acorn.FeatureRanking](../lean/Acorn/FeatureRanking.lean).
-- [PAR-13](prior-art-review.md#par-13--option-models): Option models, [Acorn.Models](../lean/Acorn/Models.lean).
+- [PAR-13](prior-art-review.md#par-13--option-expectation-models): Option expectation models, [Acorn.Models](../lean/Acorn/Models.lean) over [Acorn.RankedFeatures](../lean/Acorn/RankedFeatures.lean).
 - [PAR-14](prior-art-review.md#par-14--background-planning): Background planning, [Acorn.Planning](../lean/Acorn/Planning.lean).
 - [PAR-15](prior-art-review.md#par-15--differential-control): Differential control, [Acorn.Average](../lean/Acorn/Average.lean).
 - [PAR-16](prior-art-review.md#par-16--floatlib-rounding-theory): FloatLib rounding theory, a proof dependency, [AcornVerif.FloatLibBridge](../lean/AcornVerif/FloatLibBridge.lean).

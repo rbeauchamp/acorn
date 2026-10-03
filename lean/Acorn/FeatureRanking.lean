@@ -335,7 +335,7 @@ def withoutBlock {config : Config} (items : List (Candidate config)) (chosen : C
     List (Candidate config) := items.filter (fun candidate => candidate.key != chosen.key)
 
 /-- At most `count` complete score blocks, ordered by repeated maximum selection.
-There are at most the fixed skill-count scans, rather than sorting the entire bank. -/
+There are at most `count` scans, rather than sorting the entire bank. -/
 def ranked {config : Config} : Nat → List (Candidate config) → List (Candidate config)
   | 0, _ => []
   | count + 1, items => match best items with

@@ -176,16 +176,16 @@ def planningValue (text : String) : Except Error Features.PlanningSelection :=
   | some selection => .ok selection
   | Option.none => .error (.invalid "--planning" text)
 
-/-- Omission retains scalar planning; explicit values use the same checked admission. -/
+/-- Omission selects expectation-model planning; explicit values use the same checked admission. -/
 def planningSelection (arguments : List String) : Except Error Features.PlanningSelection := do
   match ← value arguments "--planning" with
-  | none => return .scalar
+  | none => return .expectation
   | some text => planningValue text
 
-/-- Every omitted planning value retains scalar planning, independently of other arguments. -/
+/-- Every omitted planning value selects expectation-model planning, independently of other arguments. -/
 theorem planningSelection_absent (arguments : List String)
     (absent : value arguments "--planning" = .ok none) :
-    planningSelection arguments = .ok .scalar := by
+    planningSelection arguments = .ok .expectation := by
   simp [planningSelection, absent]
   rfl
 

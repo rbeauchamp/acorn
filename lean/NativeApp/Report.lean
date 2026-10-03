@@ -117,12 +117,14 @@ def reportText (options : Cli.Streaming) {profile : FeatureProfile}
     | some event => s!"{event.step}:{event.unit.val}"
   let census := (imprintCensus (config := (nativeConstruction options).config)
     agent.control.runtime.lifecycle.consumers.demons).toList.map toString
+  let ranked := agent.control.runtime.lifecycle.consumers.skills.toList.map fun skill =>
+    toString skill.model.transition.ranked.occupied.length
   let common := options.common
   let rate := if elapsedMs == 0 then 0 else result.totalSteps.toNat * 1000 / elapsedMs
   let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance (nativeConstruction options)} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
   summary := summary ++ s!"  recent attempt detail (last {outcomes.recent.values.length} retained):\n"
   for outcome in outcomes.recent.values do summary := summary ++ outcomeText outcome
-  summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {progress.replaced}\n  retire_last: {last}\n  imprint_distinct_abs: {String.intercalate " " census}\n"
+  summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {progress.replaced}\n  retire_last: {last}\n  imprint_distinct_abs: {String.intercalate " " census}\n  ranked_slots: {String.intercalate " " ranked}\n"
   let csv := s!"# seed={common.world.raw.seed} side={common.world.raw.side.val} weights={(nativeConstruction options).dimension.capacity} total_steps={result.totalSteps} behavior={hexWord result.run.behavior} checksum={checksum} wall_ms={elapsedMs} steps_per_sec={rate} retire_count={progress.replaced} retire_last={last} imprint_distinct_abs={String.intercalate ";" census}\n"
   return (summary, csv)
 

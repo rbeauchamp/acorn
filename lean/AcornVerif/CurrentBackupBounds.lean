@@ -8,7 +8,7 @@ import AcornVerif.CurrentRetirementRounding
 import Mathlib.Tactic.FieldSimp
 
 /-!
-# Machine rounding bounds for scalar backups
+# Machine rounding bounds for model backups
 
 The pinned Lean 4.34.0 standard model's `Unpacked/Round.lean` and
 `Unpacked/Operations/{Add,Mul,Sub}.lean` own these machine operations.
@@ -19,7 +19,7 @@ is used to compare their outputs. Packing fits and finite-word correspondence
 are discharged at each binary32 wrapper; native compiler/runtime correspondence
 remains trusted. No real-arithmetic reassociation replaces a rounded operation.
 
-The final contracts retain the actual rounded endpoints of scalar model backups.
+The final contracts retain the actual rounded endpoints of model backups.
 The TD-error input intervals are explicit admission contracts, not an assertion
 that arbitrary raw learner transients already inhabit those intervals.
 -/
@@ -515,7 +515,7 @@ theorem binary32_rounded_exact (value : Binary32) (finite : value.Finite) :
     ((model_decoded32_finite value).mpr finite)).1
 
 /-- Actual binary32 addition is finite and follows signed nearest rounding
-throughout the complete scalar-backup magnitude domain. -/
+throughout the complete backup magnitude domain. -/
 theorem binary32_rounded_add (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left + numerical32 right| ≤ 8589934592) :
     (left.add right).Finite ∧
@@ -808,7 +808,9 @@ machine bounds over every supported discount and every admitted word.
 Sutton, Machado et al., *Reward-Respecting Subtasks for Model-Based Reinforcement
 Learning*, Artificial Intelligence 324 (2023), 104001, section 4 equations (15)–(17).
 These are arithmetic input contracts; raw learner transients do not inherit
-prediction admission merely because this conditional formula has a bound. -/
+prediction admission merely because this conditional formula has a bound. The
+continuation formula takes a projected, non-negative terminal estimate; the terminal
+target `Acorn.Models` executes is a signed residual, which this theorem does not cover. -/
 theorem option_td_error_termination_conditional (discount : Discount) (terminal : Bool)
     (reward : RewardRate) (oldR oldC nextR nextC : Prediction discount) (estimate : Binary32) :
     let deltaR := if terminal then reward.value.sub oldR.value

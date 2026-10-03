@@ -90,9 +90,31 @@ def Weight.value {rule : ValueRule} (weight : Weight rule) : Binary32 := weight.
 theorem weight_legal {rule : ValueRule} (weight : Weight rule) :
     rule.domain.range.Contains weight.value := weight.bounded.legal
 
-/-- All live weight writes pass through the closed criterion's projection. -/
-def Weight.project (rule : ValueRule) (raw : Binary32) : Weight rule :=
-  ⟨Bounded32.projectSymmetric rule.domain raw⟩
+/-- Weight domain of the short discounted rule, evaluated once. -/
+def ValueRule.domain90 : Symmetric32 := (ValueRule.discounted .g90).domain
+/-- Weight domain of the medium discounted rule, evaluated once. -/
+def ValueRule.domain95 : Symmetric32 := (ValueRule.discounted .g95).domain
+/-- Weight domain of the long discounted rule, evaluated once. -/
+def ValueRule.domain99 : Symmetric32 := (ValueRule.discounted .g99).domain
+/-- Weight domain of the differential rule, evaluated once. -/
+def ValueRule.domainDifferential : Symmetric32 := ValueRule.differential.domain
+
+/-- All live weight writes pass through the closed criterion's projection. Each rule
+reads its domain from a constant evaluated once, so a write evaluates no horizon and
+builds no interval; `Weight.project_eq` equates this with the projection through
+`rule.domain`. -/
+def Weight.project : (rule : ValueRule) → Binary32 → Weight rule
+  | .discounted .g90, raw => ⟨Bounded32.projectSymmetric ValueRule.domain90 raw⟩
+  | .discounted .g95, raw => ⟨Bounded32.projectSymmetric ValueRule.domain95 raw⟩
+  | .discounted .g99, raw => ⟨Bounded32.projectSymmetric ValueRule.domain99 raw⟩
+  | .differential, raw => ⟨Bounded32.projectSymmetric ValueRule.domainDifferential raw⟩
+
+/-- The projection of every rule and word is the projection through the rule's domain. -/
+theorem Weight.project_eq (rule : ValueRule) (raw : Binary32) :
+    Weight.project rule raw = ⟨Bounded32.projectSymmetric rule.domain raw⟩ := by
+  cases rule with
+  | discounted discount => cases discount <;> rfl
+  | differential => rfl
 
 /-- Durable weights retain their original bits or are refused. -/
 def Weight.admit (rule : ValueRule) (raw : Binary32) : Option (Weight rule) :=

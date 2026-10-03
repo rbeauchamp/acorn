@@ -1422,7 +1422,7 @@ theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx 
     NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,
     NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
     NumericState.writeLastAlpha, NumericState.writeWeight, NumericState.writeBetaValue,
-    vector_get, Weight.project, Bounded32.projectSymmetric, zero, Weight.value,
+    vector_get, Weight.project_eq, Bounded32.projectSymmetric, zero, Weight.value,
     show Array.replicate 9 Binary32.zero =
       #[Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero,
         Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero] from rfl]

@@ -35,9 +35,9 @@ The reset-reader traversal has different aliasing semantics and is not used here
 def modelDiagnostics {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : Vector LearnerDiagnostic 3 :=
   match model with
-  | .discounted reward continuation =>
+  | .discounted reward continuation _ =>
     #v[learnerDiagnostic reward, learnerDiagnostic continuation, .absent]
-  | .differential reward continuation duration =>
+  | .differential reward continuation duration _ =>
     #v[learnerDiagnostic reward, learnerDiagnostic continuation, learnerDiagnostic duration]
 
 /-- Discounted models have no duration learner, for every admitted model state. -/

@@ -825,6 +825,106 @@ theorem binary64_div_half_unit_error (left right : Binary64) (leftFinite : left.
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
+/-- Nearest-even rounding to binary32 moves a real of magnitude at most `2^7` by at most half
+the grid spacing at that magnitude, `2^(-17)`. -/
+theorem roundAt32_error_unit (x : ℝ) (bound : |x| ≤ 128) :
+    |roundAt FloatFormat.binary32 x - x| ≤ 1 / 131072 := by
+  by_cases zero : x = 0
+  · rw [zero, roundAt_zero]
+    norm_num
+  have monotone : MonotoneExp (fexpOf FloatFormat.binary32) :=
+    ⟨fun _ _ order => max_le_max (sub_le_sub_right order _) le_rfl⟩
+  have half := error_bound_ulp (β := FloatLib.Numerics.binaryRadix)
+    (fexp := fexpOf FloatFormat.binary32) nearestEven x
+  have power : Flocq.bpow FloatLib.Numerics.binaryRadix 7 = 128 := by
+    norm_num [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
+  have exponent : fexpOf FloatFormat.binary32 (7 + 1) = -16 := by decide
+  have spacing : ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x ≤
+      1 / 65536 := by
+    rw [← ulp_abs]
+    calc
+      ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) |x| ≤
+          ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32)
+            (Flocq.bpow FloatLib.Numerics.binaryRadix 7) :=
+        ulp_mono_pos (abs_pos.mpr zero) (by rw [power]; exact bound)
+      _ = Flocq.bpow FloatLib.Numerics.binaryRadix (-16) := by rw [ulp_bpow, exponent]
+      _ = 1 / 65536 := by
+        norm_num [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
+  calc
+    |roundAt FloatFormat.binary32 x - x| ≤
+        ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
+    _ ≤ 1 / 131072 := by linarith
+
+/-- Nearest-even rounding to binary32 moves a real of magnitude at most `2^13` by at most half
+the grid spacing at that magnitude, `2^(-11)`. -/
+theorem roundAt32_error_sum (x : ℝ) (bound : |x| ≤ 8192) :
+    |roundAt FloatFormat.binary32 x - x| ≤ 1 / 2048 := by
+  by_cases zero : x = 0
+  · rw [zero, roundAt_zero]
+    norm_num
+  have monotone : MonotoneExp (fexpOf FloatFormat.binary32) :=
+    ⟨fun _ _ order => max_le_max (sub_le_sub_right order _) le_rfl⟩
+  have half := error_bound_ulp (β := FloatLib.Numerics.binaryRadix)
+    (fexp := fexpOf FloatFormat.binary32) nearestEven x
+  have power : Flocq.bpow FloatLib.Numerics.binaryRadix 13 = 8192 := by
+    norm_num [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
+  have exponent : fexpOf FloatFormat.binary32 (13 + 1) = -10 := by decide
+  have spacing : ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x ≤
+      1 / 1024 := by
+    rw [← ulp_abs]
+    calc
+      ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) |x| ≤
+          ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32)
+            (Flocq.bpow FloatLib.Numerics.binaryRadix 13) :=
+        ulp_mono_pos (abs_pos.mpr zero) (by rw [power]; exact bound)
+      _ = Flocq.bpow FloatLib.Numerics.binaryRadix (-10) := by rw [ulp_bpow, exponent]
+      _ = 1 / 1024 := by
+        norm_num [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
+  calc
+    |roundAt FloatFormat.binary32 x - x| ≤
+        ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
+    _ ≤ 1 / 2048 := by linarith
+
+/-- The executing binary32 multiplication with a finite result is within `2^(-17)` of the
+exact product whenever that product has magnitude at most `2^7`: it is the product rounded
+once (`binary32_mul_roundAt`). -/
+theorem binary32_mul_unit_error (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (finite : (left.mul right).Finite)
+    (bound : |numerical32 left * numerical32 right| ≤ 128) :
+    |numerical32 (left.mul right) - numerical32 left * numerical32 right| ≤ 1 / 131072 := by
+  have rounded := binary32_mul_roundAt left right leftFinite rightFinite finite
+  have realBound : |(numerical32 left : ℝ) * (numerical32 right : ℝ)| ≤ 128 := by
+    exact_mod_cast bound
+  have error := roundAt32_error_unit _ realBound
+  rw [← rounded] at error
+  exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
+
+/-- The executing binary32 addition with a finite result is within `2^(-17)` of the exact
+sum whenever that sum has magnitude at most `2^7` (`binary32_add_roundAt`). -/
+theorem binary32_add_unit_error (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (finite : (left.add right).Finite)
+    (bound : |numerical32 left + numerical32 right| ≤ 128) :
+    |numerical32 (left.add right) - (numerical32 left + numerical32 right)| ≤ 1 / 131072 := by
+  have rounded := binary32_add_roundAt left right leftFinite rightFinite finite
+  have realBound : |(numerical32 left : ℝ) + (numerical32 right : ℝ)| ≤ 128 := by
+    exact_mod_cast bound
+  have error := roundAt32_error_unit _ realBound
+  rw [← rounded] at error
+  exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
+
+/-- The executing binary32 addition with a finite result is within `2^(-11)` of the exact
+sum whenever that sum has magnitude at most `2^13` (`binary32_add_roundAt`). -/
+theorem binary32_add_sum_error (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (finite : (left.add right).Finite)
+    (bound : |numerical32 left + numerical32 right| ≤ 8192) :
+    |numerical32 (left.add right) - (numerical32 left + numerical32 right)| ≤ 1 / 2048 := by
+  have rounded := binary32_add_roundAt left right leftFinite rightFinite finite
+  have realBound : |(numerical32 left : ℝ) + (numerical32 right : ℝ)| ≤ 8192 := by
+    exact_mod_cast bound
+  have error := roundAt32_error_sum _ realBound
+  rw [← rounded] at error
+  exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
+
 /-- Acorn's integer nearest-even quotient and FloatLib's are the same function,
 so FloatLib's quotient-rounding theorems apply to the executing word paths. -/
 theorem nearestEven_eq_roundQuotientEven (numerator denominator : Nat) :

@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Acorn.FeatureConstants
 import Acorn.FeatureRanking
+import Acorn.RankedFeatures
 
 /-!
 # Complete feature-consumer storage and resets
@@ -13,6 +14,14 @@ This slice executes current SwiftTD resets in the current control, meta,
 skill-policy, model and demon shapes. Later controller/option modules supply
 updates through the same phase-indexed learner interface. The unrestricted
 standalone SwiftTD input domain remains unchanged.
+
+An option model also stores the transition part of an expectation model (Sutton,
+Machado et al., *Reward-respecting subtasks for model-based reinforcement
+learning*, Artificial Intelligence 324 (2023), 104001, arXiv:2202.03466v4, §4,
+equations (15)–(16), p. 14): one learner per ranked feature slot, each over the
+ranked slots as its input. Its weights live at ranked positions, not at feature
+slots, so they are no reader of a feature slot; retiring a ranked slot resets its
+row and its input column instead.
 -/
 namespace Acorn.Features
 
@@ -157,42 +166,135 @@ def Criterion.rule : Criterion → ValueRule
 def Criterion.config (criterion : Criterion) (role : Role) : Acorn.Config :=
   ⟨role, criterion.rule⟩
 
-/-- Optional duration storage follows the criterion by construction. -/
+/-- Transition part of one option's expectation model: for each ranked feature slot,
+a learner predicting whether that slot is active when the option stops, discounted by
+the time until then, from the ranked slots active now. Row `j` holds the `j`-th row
+of the matrix `W_o` of Sutton, Machado et al. (2023), §4, equation (16), restricted
+to the ranked slots. One further learner per meta action, over the same input,
+predicts how far that action's value at the outcome's unranked slots lies from the
+shared residual. The part stores the ranked width times the ranked width plus the
+meta action count in weights. -/
+structure Transition (dimension : Dimension) (criterion : Criterion) where
+  /-- The slots modeled, in position order. -/
+  ranked : RankedFeatures dimension
+  /-- One learner per position, over the ranked positions as its feature space. -/
+  rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
+    (rankDimension dimension).capacity
+  /-- One learner per meta action, over the ranked positions: the deviation of that
+  action's unranked share of an outcome's value from the shared residual. -/
+  deviations : Vector (Managed (criterion.config .demon) (rankDimension dimension))
+    Acorn.FeatureConstants.metaActionCount
+
+/-- A fresh transition part models no slot and has learned nothing. -/
+def Transition.initial (dimension : Dimension) (criterion : Criterion) :
+    Transition dimension criterion :=
+  ⟨.empty dimension, Vector.replicate _ (Managed.initial _ _),
+    Vector.replicate _ (Managed.initial _ _)⟩
+
+/-- Reset what was learned about the given positions: each such row starts fresh,
+and every other row forgets its weight from each such position as an input, through
+the learner's own retirement entry. Rows at other positions keep everything else. -/
+def Transition.forget {dimension : Dimension} {criterion : Criterion}
+    (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
+      (rankDimension dimension).capacity) (positions : List (RankIdx dimension)) :
+    Vector (Managed (criterion.config .demon) (rankDimension dimension))
+      (rankDimension dimension).capacity :=
+  rows.mapFinIdx fun index row bound =>
+    if positions.contains ⟨index, bound⟩ then Managed.initial _ _
+    else positions.foldl (fun learner position => learner.retire position) row
+
+/-- Every learner forgets its weight from each given position as an input, through its
+own retirement entry. The deviation learners read the ranked positions and model none
+of them, so a changed position costs them one input column each. -/
+def Transition.forgetColumns {dimension : Dimension} {criterion : Criterion} {count : Nat}
+    (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) count)
+    (positions : List (RankIdx dimension)) :
+    Vector (Managed (criterion.config .demon) (rankDimension dimension)) count :=
+  learners.map fun learner =>
+    positions.foldl (fun current position => current.retire position) learner
+
+/-- Install a ranking of distinct slots. A slot that stays ranked keeps its position,
+its row and its weights from every other retained slot; every changed position is
+forgotten. -/
+def Transition.rerank {dimension : Dimension} {criterion : Criterion}
+    (transition : Transition dimension criterion) (order : List (FeatIdx dimension))
+    (fresh : order.Nodup) : Transition dimension criterion :=
+  let ranked := transition.ranked.rerank order fresh
+  let changed := transition.ranked.changed ranked
+  ⟨ranked, Transition.forget transition.rows changed,
+    Transition.forgetColumns transition.deviations changed⟩
+
+/-- Retire a feature slot. A slot that is not ranked leaves the part unchanged; a
+ranked one vacates every position that holds it, whose rows and input columns are
+forgotten, so a replacement unit at that slot inherits nothing. -/
+def Transition.retire {dimension : Dimension} {criterion : Criterion}
+    (transition : Transition dimension criterion) (feature : FeatIdx dimension) :
+    Transition dimension criterion :=
+  match transition.ranked.holding feature with
+  | [] => transition
+  | position :: more =>
+    ⟨transition.ranked.vacate (position :: more),
+      Transition.forget transition.rows (position :: more),
+      Transition.forgetColumns transition.deviations (position :: more)⟩
+
+/-- Optional duration storage follows the criterion by construction. Every model
+also stores the transition part of its expectation model. -/
 inductive Model (dimension : Dimension) : Criterion → Type where
-  /-- Discounted models store reward and continuation only. -/
-  | discounted (reward continuation : Managed (Criterion.config .discounted .demon) dimension) :
-      Model dimension .discounted
+  /-- Discounted models store reward and continuation learners. -/
+  | discounted (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
+      (transition : Transition dimension .discounted) : Model dimension .discounted
   /-- Differential models additionally store duration. -/
-  | differential (reward continuation duration : Managed (Criterion.config .differential .demon) dimension) :
-      Model dimension .differential
+  | differential (reward continuation duration : Managed (Criterion.config .differential .demon) dimension)
+      (transition : Transition dimension .differential) : Model dimension .differential
 
 /-- Fresh complete model storage. -/
 def Model.initial (dimension : Dimension) : (criterion : Criterion) → Model dimension criterion
-  | .discounted => .discounted (Managed.initial _ _) (Managed.initial _ _)
-  | .differential => .differential (Managed.initial _ _) (Managed.initial _ _) (Managed.initial _ _)
+  | .discounted => .discounted (Managed.initial _ _) (Managed.initial _ _) (.initial _ _)
+  | .differential =>
+    .differential (Managed.initial _ _) (Managed.initial _ _) (Managed.initial _ _) (.initial _ _)
 
-/-- All three reader positions; discounted duration deliberately aliases reward. -/
+/-- The transition part of either criterion's model. -/
+def Model.transition {dimension : Dimension} {criterion : Criterion}
+    (model : Model dimension criterion) : Transition dimension criterion :=
+  match model with
+  | .discounted _ _ transition => transition
+  | .differential _ _ _ transition => transition
+
+/-- Install a new ranking in the transition part, keeping every full-width learner. -/
+def Model.rerank {dimension : Dimension} {criterion : Criterion}
+    (model : Model dimension criterion) (order : List (FeatIdx dimension))
+    (fresh : order.Nodup) : Model dimension criterion :=
+  match model with
+  | .discounted reward continuation transition =>
+    .discounted reward continuation (transition.rerank order fresh)
+  | .differential reward continuation duration transition =>
+    .differential reward continuation duration (transition.rerank order fresh)
+
+/-- All three reader positions; discounted duration deliberately aliases reward.
+Transition rows hold weights at ranked positions and read no feature slot. -/
 def Model.readers {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : List (PackedLearner dimension) :=
   match model with
-  | .discounted reward continuation => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, reward⟩]
-  | .differential reward continuation duration => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, duration⟩]
+  | .discounted reward continuation _ => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, reward⟩]
+  | .differential reward continuation duration _ => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, duration⟩]
 
-/-- Each physically stored learner once, without reader aliases. -/
+/-- Each physically stored full-width learner once, without reader aliases. -/
 def Model.stored {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : List (PackedLearner dimension) :=
   match model with
-  | .discounted reward continuation => [⟨_, reward⟩, ⟨_, continuation⟩]
-  | .differential reward continuation duration => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, duration⟩]
+  | .discounted reward continuation _ => [⟨_, reward⟩, ⟨_, continuation⟩]
+  | .differential reward continuation duration _ => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, duration⟩]
 
-/-- Exhaustive model reset, including the optional duration state. -/
+/-- Exhaustive model reset, including the optional duration state and the
+transition part's row and input column for a ranked slot. -/
 def Model.retire {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) (feature : FeatIdx dimension) : Model dimension criterion :=
   match model with
-  | .discounted reward continuation =>
-    .discounted (reward.retire feature) (continuation.retire feature)
-  | .differential reward continuation duration =>
+  | .discounted reward continuation transition =>
+    .discounted (reward.retire feature) (continuation.retire feature) (transition.retire feature)
+  | .differential reward continuation duration transition =>
     .differential (reward.retire feature) (continuation.retire feature) (duration.retire feature)
+      (transition.retire feature)
 
 /-- Heterogeneous prediction storage follows the supplied closed horizon layout.
 The layout is immutable and supplied by the declared composition boundary. -/
@@ -349,10 +451,10 @@ theorem Model.stored_covered {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) (learner : PackedLearner dimension)
     (member : learner ∈ model.stored) : learner ∈ model.readers := by
   cases model with
-  | discounted reward continuation =>
+  | discounted reward continuation transition =>
     simp only [Model.stored, Model.readers, List.mem_cons, List.not_mem_nil, or_false] at *
     exact member.elim Or.inl (fun h => Or.inr (Or.inl h))
-  | differential reward continuation duration => exact member
+  | differential reward continuation duration transition => exact member
 
 /-- Heterogeneous storage and traversal have exactly the supplied channel count. -/
 theorem DemonBank.reader_count {dimension : Dimension} {discounts : List Discount}
