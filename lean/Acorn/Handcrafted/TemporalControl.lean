@@ -425,7 +425,8 @@ def TemporalControl.refreshFree (state : TemporalControl profile config criterio
     references := { state.runtime.references with modelPredictions := free.predictions } } }, free.closing)
 
 /-- With learned subtasks, the learner state after a free-boundary refresh is the
-assigning refresh's. -/
+assigning refresh's. `TemporalControl.select_assigns` carries it to the state each
+free dispatch returns. -/
 theorem TemporalControl.refreshFree_assigns (state : TemporalControl profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
     (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
@@ -435,43 +436,6 @@ theorem TemporalControl.refreshFree_assigns (state : TemporalControl profile con
           (EndingPayload (profile.mode != .frozen))).refreshModels true).lifecycle := by
   simp only [TemporalControl.refreshFree, learned]
   rfl
-
-/-- Timing in the agent: with learned subtasks, after every free-boundary refresh
-each candidate of the ranking of the incoming Demon-0 weights is some slot's unit. No
-attempt or curriculum event is read. -/
-theorem TemporalControl.refreshFree_covers (state : TemporalControl profile config criterion dimension)
-    (learned : profile.ranksSubtasks = true)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
-    (candidate : Candidate config)
-    (member : candidate ∈ rankedCandidates dimension config
-      (DemonBank.rankingWeights (discounts := demonLayout.tail)
-        state.runtime.lifecycle.consumers.demons)) :
-    ∃ slot : Fin Acorn.FeatureConstants.skillCount,
-      (state.refreshFree closing).1.runtime.lifecycle.consumers.skills[slot.val].interest.held.identity =
-        some candidate.unit := by
-  obtain ⟨slot, named⟩ := FreeDispatch.refreshModels_covers
-    (⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
-      FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
-        (EndingPayload (profile.mode != .frozen))) candidate member
-  exact ⟨slot, by rw [state.refreshFree_assigns learned closing]; exact named⟩
-
-/-- Timing in the agent: with learned subtasks, after a free-boundary refresh at
-which the ranking has a candidate for every slot, every slot holds a unit. -/
-theorem TemporalControl.refreshFree_full (state : TemporalControl profile config criterion dimension)
-    (learned : profile.ranksSubtasks = true)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
-    (full : (rankedCandidates dimension config
-      (DemonBank.rankingWeights (discounts := demonLayout.tail)
-        state.runtime.lifecycle.consumers.demons)).length = Acorn.FeatureConstants.skillCount)
-    (slot : Fin Acorn.FeatureConstants.skillCount) :
-    ∃ unit bonus,
-      (state.refreshFree closing).1.runtime.lifecycle.consumers.skills[slot.val].interest =
-        .learned (.selected unit bonus) := by
-  obtain ⟨unit, bonus, target⟩ := FreeDispatch.refreshModels_full
-    (⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
-      FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
-        (EndingPayload (profile.mode != .frozen))) full slot
-  exact ⟨unit, bonus, by rw [state.refreshFree_assigns learned closing]; exact target⟩
 
 /-- Plan only at a free learning boundary, using the unchanged old host gain and
 the meta-controller's current rate. Search control reads and advances the stored
@@ -774,7 +738,10 @@ def TemporalControl.select (state : TemporalControl profile config criterion dim
 
 /-- One local temporal transition: selection, off-policy learning of every option
 that is not executing, then credit and feedback on every selected path.
-The input active set belongs to the caller's current encoding frame. -/
+The input active set belongs to the caller's current encoding frame. Selection, with
+its assignment refresh, reads the Demon-0 weights as the previous step left them: the
+reward delivered here is learned by `finish`, after selection, so a subtask candidate
+that reward creates is installed at the next free dispatch, not at this decision. -/
 def TemporalControl.step (state : TemporalControl profile config criterion dimension)
     (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32) (goal : Bool) :

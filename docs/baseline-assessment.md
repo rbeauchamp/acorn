@@ -145,8 +145,8 @@ cached prediction and meta-controller row, and that its held bonus never
 decreases. A slot is now reinstalled only when its unit leaves the ranking or is
 retired. How often that happens is UNKNOWN: it depends on the stream. Since
 [#57](https://github.com/rbeauchamp/acorn/issues/57) the refresh runs at every free
-decision boundary, so a unit that leaves the three ranked score blocks is replaced
-at the next free boundary rather than after the next achieved attempt.
+dispatch, so a unit that leaves the three ranked score blocks is replaced at the next
+free dispatch rather than after the next achieved attempt.
 
 ### F-B · The option model is a value estimator, so planning cannot plan
 
@@ -386,12 +386,18 @@ F-E left its feature-construction end inert until U3.
   undeclared departure that was not mild in a first pass: the first request was
   consumed before the first reward was learned, so the options could run most of a
   pass with no subtask ([#57](https://github.com/rbeauchamp/acorn/issues/57)). The
-  subtask ranking now runs at every free decision boundary and reads no host event;
-  after it the slots hold exactly the ranked candidates' units
-  (`FreeDispatch.refresh_covers`, `FreeDispatch.refresh_ranked`,
-  `FreeDispatch.refresh_full`). A free decision boundary is a step on which no option
-  continues and no committed exploration run is served, so the ranking still does not
-  run on the other steps.
+  subtask ranking now runs at every free dispatch and reads no host event. A free
+  dispatch is a decision that draws a meta decision: in a hierarchical profile, every
+  decision that serves no committed exploration run and continues no option
+  (`TemporalControl.select_drawn`). The decision is then taken with the slots holding
+  exactly the ranked candidates' units, one slot per candidate, for the Demon-0 weights
+  the decision started from (`TemporalControl.select_assigns`,
+  `TemporalControl.select_occupancy`). Three limits remain. The ranking does not run
+  on a step that continues an option or serves an exploration run. Selection runs
+  before the reward delivered with a decision is learned, so a candidate that reward
+  creates is installed at the next free dispatch, not at that decision. A
+  primitive-only profile has no option to pursue a subtask and assigns none
+  (`TemporalControl.select_primitive`).
 - **The route to representation search.** Swift-Sarsa is presented as opening
   the door to learning representations "by searching over hundreds of millions of
   features in parallel" [[3]](#r3), leaning on step-size credit assignment over
