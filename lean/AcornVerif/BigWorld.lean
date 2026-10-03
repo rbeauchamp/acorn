@@ -25,13 +25,14 @@ namespace AcornVerif
 
 open AcornVerif.ModelConstants
 
-/-- Declared learned-parameter budget: two arrays per learner and one reserved gain slot.
-The array count is a model input, not a generated fact about checkpoint storage.
-The budget counts the `runtimeLearnerCount` learners only; the weights of the off-policy
-questions (`Acorn.OffPolicy`) are outside it. -/
+/-- Declared learned-parameter budget: two arrays per learner, two weight arrays per
+off-policy question (`Acorn.OffPolicy`) and one reserved gain slot.
+The array counts are model inputs, not generated facts about checkpoint storage. -/
 def agentParameters : ℕ :=
   ModelConstants.runtimeLearnerCount * ModelConstants.weightSpace *
     ModelConstants.knowledgeArraysPerLearner +
+    ModelConstants.questionCount * ModelConstants.weightSpace *
+      ModelConstants.weightArraysPerQuestion +
     ModelConstants.gainParameterCount
 
 /-- Size of the declared Cartesian product of state components.
@@ -44,14 +45,19 @@ def reachableStates : ℕ :=
     * 2
     * 2
 
-/-- Declared ratio used in the state-product comparison. -/
-def minStateMargin : ℕ := 100000
+/-- Declared ratio used in the state-product comparison: the largest multiple of ten thousand
+that `big_world_margin_holds` proves. It was 100000 while the budget counted the
+`runtimeLearnerCount` learners alone. The off-policy question weights raise the budget from
+1867777 to 2949121 parameters, which lowers the quotient of the state product by the budget
+from 143791 to 91067, so 100000 no longer holds. -/
+def minStateMargin : ℕ := 90000
 
 /-- The declared state product exceeds the modeled parameter count by the stated margin. -/
 theorem big_world_margin_holds :
     agentParameters * minStateMargin ≤ reachableStates := by
   norm_num [agentParameters, reachableStates, minStateMargin, ModelConstants.runtimeLearnerCount,
-    ModelConstants.gainParameterCount,
+    ModelConstants.gainParameterCount, ModelConstants.questionCount,
+    ModelConstants.weightArraysPerQuestion,
     ModelConstants.weightSpace, ModelConstants.knowledgeArraysPerLearner, ModelConstants.worldSide,
     ModelConstants.facings, ModelConstants.energyMax, ModelConstants.dayPhases]
 
@@ -69,6 +75,7 @@ theorem agent_exceeds_terrain_description :
     worldTerrainBits * minTerrainRatio ≤ agentBits := by
   norm_num [worldTerrainBits, agentBits, agentParameters, minTerrainRatio,
     ModelConstants.runtimeLearnerCount, ModelConstants.gainParameterCount,
+    ModelConstants.questionCount, ModelConstants.weightArraysPerQuestion,
     ModelConstants.weightSpace, ModelConstants.knowledgeArraysPerLearner,
     ModelConstants.worldSide]
 

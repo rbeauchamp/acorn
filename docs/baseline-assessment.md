@@ -356,9 +356,11 @@ F-E left its feature-construction end inert until U3.
   - Oak Lab's algorithms "learn in real-time without storing or replaying data"
     [[18]](#r18). Acorn matches this: batch size one, no replay, IDBD-family credit
     assignment.
-  - A small agent in a big world [[19]](#r19): about two million weights, more
-    than half of them the off-policy questions', against a 1024 × 1024 world
-    seen through an 11 × 11 window.
+  - A small agent in a big world [[19]](#r19): about three million learned
+    parameters, more than a third of them the off-policy questions' weights,
+    against a 1024 × 1024 world seen through an 11 × 11 window. The
+    [BigWorld proofs](../lean/AcornVerif/BigWorld.lean) own the count and its
+    margin under the declared state product.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
   way", and imagined outcomes "are then evaluated by the value functions"
