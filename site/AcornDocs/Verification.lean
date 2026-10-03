@@ -197,10 +197,11 @@ Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
 native, browser-kernel, ownership and site admission after it. Each of these
 prints its output whole when it ends, and all of them are reaped before a failure
-is reported. The build requests every module before the executables, and requests
-last an executable whose Lake configuration names another target it needs: Lake
-waits for that target before it reads the next request, so every other job is
-scheduled first.
+is reported. The build requests modules first and executables after them. An
+executable whose Lake configuration names another target it needs is held back
+with its root module: both are requested after every other module and executable,
+because Lake waits for that target before it reads the next request, so every
+other job is scheduled first.
 
 # Regula audit
 %%%
