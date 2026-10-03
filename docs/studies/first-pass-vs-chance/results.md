@@ -203,9 +203,9 @@ comparator, whose steps the core does not print.
 **Learner columns of the outcome CSV.** Each row carries three values read at
 the end of its attempt. The exploration rate is the binary32 value nearest
 0.01 in all 260 rows. The mean step size of the primitive controller lies
-between 4.9915 × 10⁻⁵ and 5.0009 × 10⁻⁵ in every row. The mean absolute
-temporal-difference error of the prediction demons ranges from 2.6 × 10⁻⁷ to
-0.81 over the rows, and from 5.4 × 10⁻⁷ to 0.37 over the 20 final rows.
+between 4.9914 × 10⁻⁵ and 5.0010 × 10⁻⁵ in every row. The mean absolute
+temporal-difference error of the prediction demons lies between 2.6 × 10⁻⁷ and
+0.82 in every row, and between 5.4 × 10⁻⁷ and 0.38 in the 20 final rows.
 
 **Replacement and ranking counts of the campaign summary.** The feature tester
 replaced between 419 and 1537 units per seed: 1537 on each of the eight seeds
@@ -219,9 +219,9 @@ positions on 19 seeds and 62 on one.
 |---|---|---|
 | Agent steps | 520 662 in all; 10 008 to 34 000 per seed | At most 680 000; at most 34 000 per run |
 | Steps per second, the core's figure for the agent's pass | 47 to 62 per seed; 58.0 over all seeds, about 17 ms per step | Estimate of 16 to 17 ms per step or more |
-| Real time per run, agent and comparator | 199.1 to 604.2 s | Deadline 3600 s |
+| Real time per run, agent and comparator | Between 199.1 and 604.3 s | Deadline 3600 s |
 | CPU time, user plus system | 9064 s in all, 2.52 core-hours | Limit 20 core-hours; estimate 3 to 7 |
-| Peak memory per process, maximum resident set size | 133.7 to 156.4 MiB | UNKNOWN before the run |
+| Peak memory per process, maximum resident set size | Between 133.6 and 156.5 MiB | UNKNOWN before the run |
 | Concurrent processes | 4 | 4 |
 | Runs | 20, no rerun | 20, at most 40 |
 
@@ -230,7 +230,7 @@ an estimate of one to two hours and a limit of five. Those two times were read
 from the local clock when the block was started and when it returned; they are
 not part of the retained record, and nothing attests the local clock. The 20
 real times in the record sum to 9089 s, which four workers cannot finish in
-less than 37.9 minutes.
+less than 37.8 minutes.
 
 ## Calculations
 
