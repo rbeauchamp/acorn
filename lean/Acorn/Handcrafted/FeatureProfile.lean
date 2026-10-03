@@ -115,8 +115,9 @@ def FeatureProfile.interests (profile : FeatureProfile) (config : Features.Confi
     | .spatial => .declared .spatialPotentials slot
 
 /-- The ranking assigns the subtasks exactly when they are learned; declared subtasks
-keep their declaration. Assignment happens at a free dispatch. Primitive-only mode has
-no option to pursue a subtask and reaches no free dispatch, so it never assigns
+keep their declaration. Assignment happens at a free dispatch, which
+`TemporalControl.selectWithOperations` reaches only after its primitive-only branch has
+returned. A primitive-only profile draws no meta decision
 (`TemporalControl.primitive_undrawn`). -/
 def FeatureProfile.ranksSubtasks (profile : FeatureProfile) : Bool := profile.subtasks == .learned
 

@@ -433,17 +433,21 @@ F-E left its feature-construction end inert until U3.
   affected: they take the feature ranking at every free boundary
   (`rerankModels`). The
   subtask ranking now runs at every free dispatch and reads no host event. A free
-  dispatch is a decision that draws a meta decision: in a hierarchical profile, every
-  decision that serves no committed exploration run and continues no option
-  (`TemporalControl.select_drawn`). The decision is then taken with the slots holding
+  dispatch is a decision that draws a meta decision. A hierarchical agent draws one
+  whenever it serves no committed exploration run and no option is active
+  (`TemporalControl.select_drawn`). The decision at which an active option ends is also
+  a free dispatch, by the definition of `TemporalControl.selectWithOperations`, and
+  every free dispatch records its meta decision (`TemporalControl.atBoundary_interest`).
+  The decision is then taken with the slots holding
   exactly the ranked candidates' units, one slot per candidate, for the Demon-0 weights
   the decision started from (`TemporalControl.select_assigns`,
   `TemporalControl.select_occupancy`). Three limits remain. The ranking does not run
   on a step that continues an option or serves an exploration run. Selection runs
   before the reward delivered with a decision is learned, so a candidate that reward
   creates is installed at the next free dispatch, not at that decision. A
-  primitive-only profile has no option to pursue a subtask and assigns none
-  (`TemporalControl.primitive_undrawn`).
+  primitive-only profile draws no meta decision (`TemporalControl.primitive_undrawn`).
+  Its selection returns before the refresh, so it assigns no subtask; that is read from
+  the definition of `TemporalControl.selectWithOperations` and is not a stated theorem.
 - **The route to representation search.** Swift-Sarsa is presented as opening
   the door to learning representations "by searching over hundreds of millions of
   features in parallel" [[3]](#r3), leaning on step-size credit assignment over

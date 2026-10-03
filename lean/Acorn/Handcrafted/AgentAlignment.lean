@@ -816,8 +816,7 @@ theorem TemporalControl.select_drawn (state : TemporalControl profile config cri
   · rename_i slot activation phase
     exact absurd phase (free slot activation)
 
-/-- A primitive-only profile draws no meta decision: it has no option to pursue a subtask,
-reaches no free dispatch and assigns none. -/
+/-- A primitive-only profile draws no meta decision. -/
 theorem TemporalControl.primitive_undrawn (state : TemporalControl profile config criterion dimension)
     (primitive : profile.usesHierarchy = false)
     (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)

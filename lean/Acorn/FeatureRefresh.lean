@@ -806,33 +806,6 @@ theorem FreeDispatch.refreshModels_interest {shape : PatchShape} {config : Confi
       state.refreshRanked.lifecycle.consumers.skills[slot.val].interest := by
   simp only [FreeDispatch.refreshModels_assign, FreeDispatch.rerankModels_skill]
 
-/-- Timing for the complete refresh: after any assigning free-boundary refresh every
-candidate of the ranking is some slot's unit. -/
-theorem FreeDispatch.refreshModels_covers {shape : PatchShape} {config : Config}
-    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload)
-    (candidate : Candidate config)
-    (member : candidate ∈ rankedCandidates dimension config
-      state.lifecycle.consumers.demons.rankingWeights) :
-    ∃ slot : Fin Acorn.FeatureConstants.skillCount,
-      (state.refreshModels true).lifecycle.consumers.skills[slot.val].interest.held.identity =
-        some candidate.unit := by
-  obtain ⟨slot, named⟩ := state.refresh_covers candidate member
-  exact ⟨slot, by rw [state.refreshModels_interest slot]; exact named⟩
-
-/-- Timing for the complete refresh: after any assigning free-boundary refresh at
-which the ranking has a candidate for every slot, every slot holds a unit. -/
-theorem FreeDispatch.refreshModels_full {shape : PatchShape} {config : Config}
-    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload)
-    (full : (rankedCandidates dimension config
-      state.lifecycle.consumers.demons.rankingWeights).length = Acorn.FeatureConstants.skillCount)
-    (slot : Fin Acorn.FeatureConstants.skillCount) :
-    ∃ unit bonus, (state.refreshModels true).lifecycle.consumers.skills[slot.val].interest =
-      .learned (.selected unit bonus) := by
-  obtain ⟨unit, bonus, target⟩ := state.refresh_full full slot
-  exact ⟨unit, bonus, by rw [state.refreshModels_interest slot, target]⟩
-
 /-- T1 for the complete refresh: for every state and Demon-0 weight array, the first
 slot holding a still-ranked unit keeps its policy, cached prediction and
 meta-controller row bit-identical, and keeps that unit with a held bonus that never
