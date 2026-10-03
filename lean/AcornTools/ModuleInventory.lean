@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Lean
+import Lean.Data.Name
 
 /-! # Shared fail-closed maintained-module inventory -/
 namespace AcornModuleInventory

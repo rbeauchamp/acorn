@@ -164,6 +164,15 @@ acceptance result is cached. Source, boundary, native-route and browser checks
 remain required. Standalone ownership, theorem and corpus commands remain
 available for focused diagnostics.
 
+Checks that do not depend on one another run at once: the two source admissions
+with Lake's target inventory before the project build, and compiled boundary,
+native, browser-kernel, ownership and site admission after it. Each of these
+prints its output whole when it ends, and all of them are reaped before a failure
+is reported. The build requests every module before the executables, and requests
+last an executable whose Lake configuration names another target it needs: Lake
+waits for that target before it reads the next request, so every other job is
+scheduled first.
+
 ## Regula audit
 
 [Regula](https://github.com/rbeauchamp/regula) is a strict linter for Lean with a
@@ -241,8 +250,9 @@ build. The other documents under docs are Markdown and are not built this way.
 ./scripts/verify.sh site
 ```
 
-The site check is the last step of `./scripts/verify.sh`, inside its deadline; the
-command above runs that step alone. It builds the documents, renders the pages
+The site check runs after the project build, beside the other admissions of the
+finished build and inside the deadline of `./scripts/verify.sh`; the command above
+runs it alone. It builds the documents, renders the pages
 and requires `docs/verification.md` to equal the Markdown rendering of this
 document; `./scripts/verify.sh site write` writes that file. The Markdown file is
 kept so that existing links and readers on GitHub are served, and so that the

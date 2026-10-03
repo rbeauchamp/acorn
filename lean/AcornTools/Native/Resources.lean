@@ -336,14 +336,19 @@ def readOnceSymbols : Nat → System.FilePath → IO (List String)
       if kind == .dir then result := result ++ (← readOnceSymbols fuel entry.path)
       else if entry.path.extension == some "c" then
         unless kind == .file do throw (IO.userError s!"non-regular compiler source: {entry.path}")
-        let source ← IO.FS.readFile entry.path
-        for line in source.splitOn "\n" do
+        let lines := (← IO.FS.readFile entry.path).splitOn "\n"
+        -- A declaration `static {ty} {symbol};` holds no line break, so the source holds it
+        -- exactly when one of the lines that hold `static {ty} ` does. Each symbol is then
+        -- sought in those lines alone, not in the whole source once per type.
+        let declarations := ["uint8_t", "uint32_t", "uint64_t", "float", "double", "lean_object*"].map
+          fun ty => (ty, lines.filter (·.contains s!"static {ty} "))
+        for line in lines do
           let declarationStart := "static lean_once_cell_t "
           let suffix := "_once = LEAN_ONCE_CELL_INITIALIZER;"
           if line.startsWith declarationStart && line.endsWith suffix then
             let symbol := ((line.drop declarationStart.length).toString.dropEnd suffix.length).toString
-            unless ["uint8_t", "uint32_t", "uint64_t", "float", "double", "lean_object*"].any
-                (fun ty => (source.splitOn s!"static {ty} {symbol};").length > 1) do
+            unless declarations.any (fun (ty, held) =>
+                held.any (·.contains s!"static {ty} {symbol};")) do
               continue
             result := symbol :: result
     return result

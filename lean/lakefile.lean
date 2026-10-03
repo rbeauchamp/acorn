@@ -274,7 +274,10 @@ def configuredKeys (config : LeanConfig) (needs : Array PartialBuildKey) :
 
 /-- Emit the evaluated Lake executable inventory for ownership admission.
 The gate compares this with compiled `main` owners before accepting a build.
-A key outside `singleJobKey` in this package's configuration refuses the inventory. -/
+A key outside `singleJobKey` in this package's configuration refuses the inventory.
+The `needs` field marks an executable whose configuration names another target in
+`needs`: Lake waits for that target before it reads any later build request, so the gate
+requests such an entry last. -/
 script acornTargets do
   let pkg ← getRootPackage
   let keys := configuredKeys pkg.config.toLeanConfig #[] ++
@@ -285,7 +288,8 @@ script acornTargets do
     return 1
   let entries := pkg.leanExes.map fun exe => Lean.Json.mkObj [
     ("target", Lean.toJson (exe.name.toString false)),
-    ("module", Lean.toJson exe.config.root.toString)]
+    ("module", Lean.toJson exe.config.root.toString),
+    ("needs", Lean.toJson !exe.config.needs.isEmpty)]
   IO.println (Lean.toJson entries).compress
   return 0
 

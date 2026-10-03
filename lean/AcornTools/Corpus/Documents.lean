@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Lean
 import AcornTools.Ownership
 import Acorn.Host.Viewer.BrowserSchema
 import AcornTools.Corpus.Browser
