@@ -49,8 +49,8 @@ proof obligation. Scientific execution requires explicitly authorized scope.
 
 ### Deliverable placement
 
-Shared algorithms and proofs belong in maintained modules. A future study owns
-its protocol, original observations, canonical results and necessary source
+Shared algorithms and proofs belong in maintained modules. A study owns its
+protocol, original observations, canonical results and necessary source
 identity. Preserve original bytes separately from semantic presentations. Never
 rewrite an original observation to improve a claim or replay archived experience
 into an agent. This source release includes no empirical study data.

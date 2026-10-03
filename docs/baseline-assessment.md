@@ -413,12 +413,19 @@ derivation, not measurement.
 | U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
-| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it learns at all | Open ([#12](https://github.com/rbeauchamp/acorn/issues/12)); needs owner authorization |
+| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Protocol written** ([protocol](studies/first-pass-vs-chance/protocol.md)); open ([#12](https://github.com/rbeauchamp/acorn/issues/12)); the run needs owner authorization |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
 question rather than answering it. Issue 3 was closed as superseded when U3
 started, and its branch and in-progress evidence are kept.
+
+U6's [protocol](studies/first-pass-vs-chance/protocol.md) compares the two over
+one pass of the curriculum, the longest horizon on which the core's
+random-policy diagnostic is a matched comparator. No run has been made. Whether
+the agent learns over repeated visits to a goal stays UNKNOWN under that
+protocol whatever its result, because a comparison over several cycles needs a
+comparator that follows the same campaign in one persistent world.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
