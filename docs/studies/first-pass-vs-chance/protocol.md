@@ -281,6 +281,16 @@ describes.
   holds the rerun alone. By item 5 a rerun cannot select among outcomes. A run
   killed by the per-run deadline is not rerun, and a rerun is not rerun: a seed
   whose rerun gives no valid outcome is missing.
+- **Deadline kills.** The record decides whether the deadline ended a run. A
+  run counts as killed by the deadline when its standard error holds the line
+  "time: command terminated abnormally" and the resource report's real time is
+  at least 3600 s. The same line with a shorter real time, or a record with no
+  exit status, is an interruption from outside. The exit status does not
+  separate the two: on 2026-10-03, with a stand-in for the core and a 2 s
+  deadline, this host recorded status 1 and that line both for the deadline's
+  kill (2.15 s real) and for a kill from outside (1.19 s real). A deadline kill
+  cannot show less than 3600 s, because the report's clock starts before the
+  deadline's and stops after it.
 - **Derived checks.** The record behind a valid outcome must agree with items 2
   and 3: 13 outcome rows, one per goal in order; achievement of goals 0 and 11
   at 200 and 800 steps; a comparator count of at least 2; and the same agent
@@ -325,8 +335,11 @@ performance cores to other work. Other load changes wall time and no outcome.
 Preconditions: the owner's authorization names this protocol revision and the
 commit to run. That commit contains this revision unchanged, and its Lean
 sources are those of the commit that registered the revision; the first block
-below refuses to continue otherwise. Running any other Lean sources needs a new
-revision first.
+below refuses to continue otherwise. It takes the registering commit to be the
+one that first added this file, which is so because pull requests are
+squash-merged and revision 1 reaches the main branch in one commit. It compares
+this file, the seed list and the Lean sources with that commit. Running any
+other Lean sources needs a new revision first.
 
 The commands are for this host (macOS, GNU coreutils installed). Each block
 below is a complete bash script, run by bash from the root of the checkout. The
@@ -343,8 +356,8 @@ set -euo pipefail
 study=docs/studies/first-pass-vs-chance
 out="$study/observations/r1"
 test -z "$(git status --porcelain)"
-registered=$(git log -1 --format=%H -- "$study/protocol.md" "$study/seeds.txt")
-git diff --quiet "$registered" HEAD -- lean
+registered=$(git log --diff-filter=A --format=%H -- "$study/protocol.md" | tail -n 1)
+git diff --quiet "$registered" HEAD -- lean "$study/protocol.md" "$study/seeds.txt"
 ./scripts/verify.sh
 ./scripts/lean.sh build acorn-viewer
 mkdir -p "$out"
@@ -470,7 +483,12 @@ confirmatory test, so no multiplicity adjustment applies.
 - the learner columns of the outcome CSV and the campaign summary's replacement
   and ranking counts;
 - observed steps per second, wall time and peak memory, as observations of this
-  host and not as performance claims.
+  host and not as performance claims. Peak memory is read from the resource
+  report's "maximum resident set size" line, for a run that ended on its own.
+  On 2026-10-03, with a stand-in for the core that held 200 MiB, this host
+  reported 214 MiB on that line and 1.4 MiB on the "peak memory footprint"
+  line, which describes the timeout wrapper alone. After a deadline kill both
+  lines described the wrapper alone, so a killed run has no memory observation.
 
 ## What a result will and will not establish
 
