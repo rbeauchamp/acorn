@@ -12,12 +12,14 @@ import AcornVerif.ModelConstants
 
 Every installed goal carries the error relation that determines completion.
 This file states the four goal-family relations over exact integers/naturals
-and proves universally that zero remaining error is equivalent to the host
-completion predicate. `reachRadius` is generated from `Goal::REACH_RADIUS`;
-the other relations contain their required quantity directly.
+and proves universally that zero remaining error is equivalent to this file's
+completion predicates, which model the host's. `reachRadius` is generated from
+`Goal::REACH_RADIUS`; the other relations contain their required quantity directly.
 
-The theorems establish observation/completion agreement. They do not establish
-that the shipped learner selects actions that reduce the error.
+The theorems establish observation/completion agreement within this model. They
+do not concern the executed `Goal.observe`, whose completion predicate
+`AcornVerif.CurrentGoals` characterizes, and they do not establish that the
+shipped learner selects actions that reduce the error.
 -/
 
 namespace AcornVerif

@@ -53,6 +53,10 @@ import AcornVerif.TemporalSupport
 import AcornVerif.CurrentFloor
 import AcornVerif.CurrentWorld
 import AcornVerif.CurrentRunner
+import AcornVerif.CurrentStep
+import AcornVerif.CurrentGoals
+import AcornVerif.CurrentCurriculum
+import AcornVerif.CurrentSpawn
 import AcornVerif.Endurance
 
 /-!
@@ -3335,5 +3339,59 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.Resource.HalvingExec.cost_bound' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.Resource.HalvingExec.cost_bound
+
+/--
+info: 'AcornVerif.CurrentStep.step_retains' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentStep.step_retains
+
+/--
+info: 'AcornVerif.CurrentStep.trace_moves' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentStep.trace_moves
+
+/--
+info: 'AcornVerif.CurrentStep.enterable_static' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentStep.enterable_static
+
+/--
+info: 'AcornVerif.CurrentGoals.absorbing_revisit' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGoals.absorbing_revisit
+
+/--
+info: 'AcornVerif.CurrentGoals.survive_tick' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGoals.survive_tick
+
+/--
+info: 'AcornVerif.CurrentGoals.reach_satisfied_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGoals.reach_satisfied_iff
+
+/--
+info: 'AcornVerif.CurrentCurriculum.reach_targets' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCurriculum.reach_targets
+
+/--
+info: 'AcornVerif.CurrentCurriculum.coordinate_seed_count' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCurriculum.coordinate_seed_count
+
+/--
+info: 'AcornVerif.CurrentSpawn.selectSpawn_post' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentSpawn.selectSpawn_post
 
 end AcornVerif

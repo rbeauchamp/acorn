@@ -30,6 +30,10 @@ import AcornVerif.CurrentLearner
 import AcornVerif.CurrentFloor
 import AcornVerif.CurrentWorld
 import AcornVerif.CurrentRunner
+import AcornVerif.CurrentStep
+import AcornVerif.CurrentGoals
+import AcornVerif.CurrentCurriculum
+import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentAgent

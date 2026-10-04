@@ -21,6 +21,10 @@ world constants. This module does not construct a ledger from executed world
 transitions or discharge conservation, saturation or cost hypotheses for a run.
 The no-eating specialization removes the eating term; it does not establish
 that a policy learns to eat or that an observed run meets the hypotheses.
+
+`AcornVerif.CurrentStep.trace_exhausted` proves the inequality of
+`exhaustion_rate_at_build` for every run of the executed world step, with no
+premise on eating, conservation or costs.
 -/
 
 namespace AcornVerif
