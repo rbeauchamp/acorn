@@ -90,40 +90,13 @@ theorem Agent.words_disjoint (state : Agent interface profile config criterion d
   rw [same, feedbackWords_reserved _ feedback produced] at clear
   cases clear
 
-/-- Encode one frame with this exact receiver's old cache and current bank. With a
-symbol array, the generated units read it. Without one, every generated unit's output
-is false and the coder reads the words alone. -/
+/-- Encode one frame with this exact receiver's old cache and current bank: the coder
+reads the frame's words and the feedback, and the generated units read its symbols. -/
 def Agent.frame (state : Agent interface profile config criterion dimension planning)
-    (observation : Frame interface) : Encoding config dimension :=
-  match observation.symbols with
-  | some patch =>
-    let encoded := state.control.runtime.encodeCurrent (state.words observation) patch
-    ⟨encoded.active, encoded.units⟩
-  | none =>
-    let units : Vector Bool config.units.count := Vector.replicate _ false
-    ⟨encodeWith dimension config (state.words observation) units, units⟩
-
-/-- With a symbol array, the encoding is the current bank's on the coder's words and
-those symbols, and the units are the bank's outputs on them. -/
-theorem Agent.frame_present (state : Agent interface profile config criterion dimension planning)
-    (observation : Frame interface) (patch : Patch interface.shape)
-    (present : observation.symbols = some patch) :
-    (state.frame observation).active =
-        encode dimension state.control.runtime.lifecycle.representation.bank
-          (state.words observation) patch ∧
-      (state.frame observation).units =
-        state.control.runtime.lifecycle.representation.bank.activations patch := by
-  constructor <;> simp only [Agent.frame, present] <;> rfl
-
-/-- Without a symbol array every generated unit's output is false: the encoding reads
-the words alone, and the tester sees every unit off. A word can still hash to a unit's
-feature slot, so that slot can be active. -/
-theorem Agent.frame_absent (state : Agent interface profile config criterion dimension planning)
-    (observation : Frame interface) (absent : observation.symbols = none) :
-    (state.frame observation).units = Vector.replicate _ false ∧
-      (state.frame observation).active =
-        encodeWith dimension config (state.words observation) (Vector.replicate _ false) := by
-  constructor <;> simp only [Agent.frame, absent]
+    (observation : Frame interface) :
+    EncodingFrame dimension state.control.runtime.lifecycle.representation.bank
+      (state.words observation) observation.symbols :=
+  state.control.runtime.encodeCurrent (state.words observation) observation.symbols
 
 /-- In every world the coder reads at most the interface's word count plus one
 feedback word per prediction question. -/
@@ -137,21 +110,15 @@ theorem Agent.words_length (state : Agent interface profile config criterion dim
   omega
 
 /-- In every world the active features of one frame are bounded by a function of the
-interface and the feature configuration alone, with or without a symbol array. -/
+interface and the feature configuration alone. -/
 theorem Agent.frame_length (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) :
     (state.frame observation).active.indices.length ≤
       config.tilings.toNat * (interface.words + interface.layout.length) + config.units.count := by
   have words := Nat.mul_le_mul_left config.tilings.toNat (state.words_length observation)
-  have bound : ∀ units : Vector Bool config.units.count,
-      (encodeWith dimension config (state.words observation) units).indices.length ≤
-        config.tilings.toNat * (interface.words + interface.layout.length) +
-          config.units.count := fun units =>
-    Nat.le_trans (encodeWith_length dimension config (state.words observation) units)
-      (Nat.add_le_add_right words _)
-  cases held : observation.symbols with
-  | none => rw [(state.frame_absent observation held).2]; exact bound _
-  | some patch => rw [(state.frame_present observation patch held).1]; exact bound _
+  rw [(state.frame observation).fresh]
+  exact Nat.le_trans (encode_length dimension _ (state.words observation) observation.symbols)
+    (Nat.add_le_add_right words _)
 
 /-- Releasing any list of units preserves the admitted interest family and distinct units. -/
 theorem Ensemble.releaseAll_admitted (units : List (Fin config.units.count)) :

@@ -139,7 +139,7 @@ theorem Acorn.Handcrafted.Agent.grid_inputs {profile : Acorn.Handcrafted.Feature
           (Acorn.Handcrafted.feedbackPredictions state.control.runtime.references.demonPredictions)
           profile.taskMode ∧
       (Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved).symbols =
-          some (Acorn.Handcrafted.observationPatch obs profile.taskMode) ∧
+          Acorn.Handcrafted.observationPatch obs profile.taskMode ∧
         Acorn.Handcrafted.signalValues (Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved)
               reward =
             Acorn.Handcrafted.evaluateCumulants Acorn.Handcrafted.cumulantOrder obs reward ∧

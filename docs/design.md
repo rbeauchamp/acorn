@@ -52,10 +52,9 @@ outside this implementation; see [the frontier](frontier.md).
 
 The agent is written against an **interface**, not against one world. An interface
 is what a world fixes ([`Interface`](../lean/Acorn/Interface.lean)): the shape of the
-symbol array the feature generator samples, if the world supplies one; which
-prediction signals the world supplies and at which horizons; how many primitive
-actions it accepts; and how many words one observation carries at most. Everything
-the agent stores is sized by these.
+symbol array the feature generator samples; which prediction signals the world
+supplies and at which horizons; how many primitive actions it accepts; and how many
+words one observation carries at most. Everything the agent stores is sized by these.
 
 Each step the world delivers one **percept**: a **frame** and the reward of the
 preceding transition. A frame has three parts, one for each kind of learner input:
@@ -63,9 +62,12 @@ preceding transition. A frame has three parts, one for each kind of learner inpu
 - **words**, opaque pairs of a channel and a 64-bit value, which the coder hashes
   into features;
 - **symbols**, an array of 64-bit codes that the generated projection features
-  sample. A world without a symbol array supplies none, and every generated unit's
-  output is then false (`Agent.frame_absent`). A unit's feature slot can still be
-  active, because a word can hash to the same slot, as with any hashed features;
+  sample. Every interface declares its shape and every frame fills it. Requirement
+  R1 of the interface work ([issue #70](https://github.com/rbeauchamp/acorn/issues/70))
+  asks for the symbol array to be optional; that is deferred until an instance
+  needs it and its feature-construction semantics is decided. A world with only
+  words can lay those words' codes over symbol positions, as the grid world does
+  with its task context;
 - **signals**, one number per prediction question the world declares.
 
 A frame also carries the world's declared subtask potentials, which only the

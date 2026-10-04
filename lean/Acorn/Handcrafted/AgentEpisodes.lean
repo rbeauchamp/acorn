@@ -138,7 +138,7 @@ theorem TemporalControl.refresh_episode_slot (state : TemporalControl interface 
     (state.refreshFree closing).2.map (·.slot) = closing.map (·.slot) := by
   exact (FreeDispatch.refreshModels_closing_slot
     (⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
-      FreeDispatch interface.shape interface.actions config criterion dimension interface.signals
+      FreeDispatch interface.symbols interface.actions config criterion dimension interface.signals
         (EndingPayload (profile.mode != .frozen))) profile.ranksSubtasks)
 
 /-- Terminal credit does not itself record an episode; the common finish boundary records it once. -/

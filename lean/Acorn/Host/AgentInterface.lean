@@ -159,7 +159,7 @@ theorem Agent.grid_inputs (state : Agent Grid.interface profile config criterion
       state.words (Grid.frame profile.taskMode obs achieved) = observationWords obs
         (feedbackPredictions state.control.runtime.references.demonPredictions) profile.taskMode ∧
       (Grid.frame profile.taskMode obs achieved).symbols =
-        some (observationPatch obs profile.taskMode) ∧
+        observationPatch obs profile.taskMode ∧
       signalValues (Grid.frame profile.taskMode obs achieved) reward =
         evaluateCumulants cumulantOrder obs reward ∧
       (Grid.frame profile.taskMode obs achieved).declared = spatialPotentials obs ∧

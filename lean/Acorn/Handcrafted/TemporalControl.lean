@@ -64,7 +64,7 @@ open Features
 structure TemporalControl (interface : Interface) (profile : FeatureProfile)
     (config : Features.Config) (criterion : Criterion) (dimension : Dimension) where
   /-- One common lifecycle storage owner and exclusive phase. -/
-  runtime : FeatureRuntime interface.shape interface.actions config criterion dimension interface.layout
+  runtime : FeatureRuntime interface.symbols interface.actions config criterion dimension interface.layout
     (OptionActivation (profile.mode != .frozen)) (CommittedRun interface.actions (profile.mode != .frozen))
     (Option (TemporalDecision interface.actions))
   /-- Profile-fixed primitive credit and its optional deferred span. -/
@@ -515,7 +515,7 @@ free boundary, retaining a possible original owner. -/
 def TemporalControl.refreshFree (state : TemporalControl interface profile config criterion dimension)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))) :
     TemporalControl interface profile config criterion dimension × Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))) :=
-  let free : FreeDispatch interface.shape interface.actions config criterion dimension interface.signals (EndingPayload (profile.mode != .frozen)) :=
+  let free : FreeDispatch interface.symbols interface.actions config criterion dimension interface.signals (EndingPayload (profile.mode != .frozen)) :=
     ⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩
   let free := free.refreshModels profile.ranksSubtasks
   ({ state with runtime := { state.runtime with
@@ -530,7 +530,7 @@ theorem TemporalControl.refreshFree_assigns (state : TemporalControl interface p
     (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).1.runtime.lifecycle =
       ((⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
-        FreeDispatch interface.shape interface.actions config criterion dimension interface.signals
+        FreeDispatch interface.symbols interface.actions config criterion dimension interface.signals
           (EndingPayload (profile.mode != .frozen))).refreshModels true).lifecycle := by
   simp only [TemporalControl.refreshFree, learned]
 

@@ -250,8 +250,7 @@ theorem frame_active (state : Agent Grid.interface profile config criterion dime
     (obs : Host.Observation) (achieved : Bool) :
     (Direct.frame state obs).active =
       (state.frame (Grid.frame profile.taskMode obs achieved)).active := by
-  rw [(state.frame_present (Grid.frame profile.taskMode obs achieved)
-    (observationPatch obs profile.taskMode) rfl).1, state.grid_words]
+  rw [(state.frame (Grid.frame profile.taskMode obs achieved)).fresh, state.grid_words]
   rfl
 
 /-- The direct decision is obtained from the direct local transition on its own

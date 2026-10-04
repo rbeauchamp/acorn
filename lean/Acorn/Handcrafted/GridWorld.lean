@@ -76,7 +76,7 @@ def wordBound : Nat := patchSide * patchSide * 3 + 2 + Acorn.FeatureConstants.ta
 
 /-- The grid world's interface: the window and task context as the symbol array, the
 ten host signals after the agent's reward question, nine actions and the word bound. -/
-abbrev interface : Interface := ⟨some patchShape, signalLayout, actions, wordBound⟩
+abbrev interface : Interface := ⟨patchShape, signalLayout, actions, wordBound⟩
 
 /-- The agent's layout at the grid instance is the canonical eleven horizons. -/
 theorem interface_layout : interface.layout = demonLayout := rfl
@@ -146,8 +146,7 @@ def frame (mode : TaskFeatureMode) (obs : Observation) (achieved : Bool) : Frame
   words := sensorWords obs mode
   bounded := sensorWords_length obs mode
   clear := sensorWords_clear obs mode
-  symbols := some (observationPatch obs mode)
-  present := rfl
+  symbols := observationPatch obs mode
   signals := signals obs
   potentials := (spatialPotentials obs).values
   achieved := achieved

@@ -411,9 +411,9 @@ F-E left its feature-construction end inert until U3.
 - **The agent and its world.** The composed agent is written against an
   interface, not against the grid world
   ([design](design.md#the-interface-between-the-agent-and-a-world)). A world fixes
-  the shape of its symbol array, if it has one, the horizons of its prediction
-  signals, an action count and a word bound, and delivers one percept per step: a
-  frame and the reward of the preceding transition. The grid world is one instance
+  the shape of its symbol array, the horizons of its prediction signals, an action
+  count and a word bound, and delivers one percept per step: a frame and the reward
+  of the preceding transition. The grid world is one instance
   (`Grid.interface`), and `Agent.grid_inputs` states what that instance feeds each
   learner in terms of the host's own channel, signal and potential definitions. The
   [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
