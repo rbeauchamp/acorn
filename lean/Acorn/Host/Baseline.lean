@@ -15,7 +15,11 @@ and attempt-boundary function, in a second copy of the initial world that it
 carries from attempt to attempt. Its actions come from its own seeded stream and
 from nothing else. Each row reports where in the campaign its attempt was made,
 its steps, its completion flag and the body position at its end. An unbounded
-campaign has no completing boundary and so no complete record; it is refused.
+campaign has no completing boundary and so no complete record. Command
+admission, `Cli.demo`, refuses `--baseline` with `--cycles 0` before the agent
+runs. Any other caller of `runRandomBaseline` gets a refusal for an unbounded
+campaign, never a record: `BaselineError.unfinished` once the plan and the
+initial world are admitted.
 -/
 namespace Acorn.Host
 

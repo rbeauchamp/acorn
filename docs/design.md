@@ -199,7 +199,7 @@ these boundaries do not restart its learned weights.
 | `--cycles` | Number of curriculum cycles; `0` continues until stopped. |
 | `--checkpoint PATH` | Load/save compatible learner state; supported for `ranked`. Omission keeps the terminal run in memory. |
 | `--csv PATH` | Stream attempt outcomes to a new [outcome CSV](#outcome-csv) file; cannot be combined with `--checkpoint`. |
-| `--baseline` | After the campaign, run the random-policy comparator over the same campaign and print both achieved counts; cannot be combined with `--control-stdin`, and needs a bounded `--cycles`. |
+| `--baseline` | After the campaign, run the random-policy comparator over the same campaign and print both achieved counts; cannot be combined with `--control-stdin` or with `--cycles 0`: command admission refuses either before the agent runs. |
 
 These are core flags, not viewer flags. See
 [the CLI definition](../lean/Acorn/Host/Cli.lean) for the full accepted domain.
@@ -254,18 +254,24 @@ same names mean. The comparator has no learner, so those fields are absent. An
 agent row holds no cycle: rows are written in campaign order, so with one
 attempt per goal the row numbered r from 0 belongs to cycle ⌊r / goals⌋. These
 lines are written only when the comparator's campaign completed. A campaign
-with `--cycles 0` never completes, so it has no comparator record.
+with `--cycles 0` never completes, so it has no comparator record: command
+admission (`Cli.demo` in [the CLI definition](../lean/Acorn/Host/Cli.lean))
+refuses `--baseline` with `--cycles 0` before the agent runs.
 
 The two arms follow one campaign. The comparator admits its plan from the same
 arguments with the agent's own admission and asks the agent's own boundary
 function what follows each attempt. `boundary_single_attempt` proves that with
 one attempt per goal the next attempt does not depend on the outcome, so both
 arms make the same attempts in the same order. `start_corresponds`,
-`tick_corresponds`, `idle_corresponds` and `outcome_corresponds` prove that an
-attempt is the same function of the world and the action sequence in both arms:
-it stops at the first step that satisfies the goal or at the cap, and reports
-the same steps, completion flag and position. `baseline_finishes` proves that
-the record of a bounded campaign is never cut short. `baseline_action_code`,
+`tick_corresponds`, `idle_corresponds` and `outcome_corresponds` prove that the
+arms' attempts correspond at goal installation, at each step and at the outcome
+row. That whole attempts therefore agree is argued, not machine-checked: no
+theorem composes these steps over the comparator's attempt loop or the agent's
+native loop. On that argument an attempt is the same function of the world and
+the action sequence in both arms: it stops at the first step that satisfies the
+goal or at the cap, and reports the same steps, completion flag and position.
+`baseline_finishes` proves that the record of a bounded campaign is never cut
+short. `baseline_action_code`,
 `action_word_interval` and `action_word_count` give the comparator's action
 law: each action is selected by 2 049 638 230 412 172 401 or one more of the
 2⁶⁴ stream outputs
