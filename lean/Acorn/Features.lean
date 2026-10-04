@@ -14,10 +14,10 @@ Host channel choices belong to the explicitly declared composition boundary.
 Mahmood and Sutton, *Representation Search through Generate and Test*,
 AAAI 2013 workshop, PDF page 3 (linear threshold units and feature replacement),
 https://armahmood.github.io/files/MS-RepSearch-AAAI-WS-2013.pdf.
-The current adaptation samples 32 inputs with replacement from the patch cells
-and the context words, hash-binarizes them, and uses threshold zero. It does not
-implement the paper's imprinting threshold. A unit's projection is determined by
-its recorded generator origin, so the bank is reconstructed from origins alone.
+The current adaptation samples 32 inputs with replacement from the symbol
+positions, hash-binarizes them, and uses threshold zero. It does not implement
+the paper's imprinting threshold. A unit's projection is determined by its
+recorded generator origin, so the bank is reconstructed from origins alone.
 -/
 namespace Acorn.Features
 
@@ -330,7 +330,7 @@ def Bank.checksum {shape : PatchShape} {config : Config} (bank : Bank shape conf
       Rng.fnvStep (Rng.fnvStep (Rng.fnvStep hash sample.input.val.toUInt8)
         (sample.input.val / 256).toUInt8) (if sample.positive then 1 else 0)) hash) Rng.fnvOffset
 
-/-- Opaque generator input: row-major patch cells, then the context words. -/
+/-- Opaque generator input: one 64-bit code per symbol position of the shape. -/
 abbrev Patch (shape : PatchShape) := Vector UInt64 shape.inputs
 
 /-- One sample contributes only minus one, zero, or plus one. -/
