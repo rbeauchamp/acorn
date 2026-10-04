@@ -197,7 +197,10 @@ What these do not establish:
 - A blocked certificate that counts water says nothing about a body that builds
   a boat.
 - A stance certificate does not show that the stance can be reached from the
-  spawn. A replay certificate for collecting one item does.
+  spawn. A replay certificate for collecting one item, checked from the spawn,
+  shows that a run from the spawn within the cap ends holding the item
+  (`collect_path`). It names no stance and does not show that a certified stance
+  was reached.
 
 **The certificate tool.** `world-certificates` generates the standard world of
 each listed seed, proposes certificates and prints what the checkers accepted:
@@ -223,10 +226,10 @@ replay that builds a boat, although the replay checker would accept such a list.
 When no replay is accepted for a reach goal, the tool proposes a blocked region:
 the goal box, every tile connected to it through tiles that are not impassable,
 and their impassable neighbors, first with mountains alone impassable and then
-with mountains and water. A proposal holds at most 4096 tiles (`regionBudget` in
-[the tool](../lean/Acorn/Host/CertificateDriver.lean)), because the checker's
-work is quadratic in the region size. The line reads blocked only when the
-checker accepts a proposed region. Otherwise it reads uncertified, which
+with mountains and water. A proposal holds at most 4096 tiles, the region budget
+set in [the tool](../lean/Acorn/Host/CertificateDriver.lean), because the
+checker's work is quadratic in the region size. The line reads blocked only when
+the checker accepts a proposed region. Otherwise it reads uncertified, which
 establishes nothing: a goal box that the search cannot walk to from the spawn is
 reported blocked for a body without a boat only when the region around it fits
 that budget.
