@@ -401,14 +401,19 @@
     <div class="panel">
       <h2>Temporal abstraction — which option is running, and for how long</h2>
       <div class="lede">Each band is one option the meta-controller committed to over the last 3,000 buffered frames.
-        Wide bands are extended behaviour; the flicker is options being interrupted and re-chosen at
-        decision boundaries (end reasons are counted below). Ticks in the margin mark option starts
+        Wide bands are extended behaviour; the flicker is options being interrupted, by a better
+        stopping estimate or by an exploratory run, and re-chosen at decision boundaries (end reasons
+        are counted below). Ticks in the margin mark option starts
         (from the top) and ends (from the bottom); violet lines are goal changes.</div>
       <details class="cite"><summary>sources</summary><div class="body">Initiation is the
         trivial all-states set, so no eligibility chart is implied. Interruption counts are end
         <i>reasons</i> (Sutton, Precup &amp; Singh, AIJ 112 (1999) PDF p. 17: “compare the value of
         continuing with o, which is Q<sup>μ</sup>(s<sub>t</sub>, o), to the value of interrupting o …
-        V<sup>μ</sup>(s)”). The terminal bootstrap <code>c + z</code> (RRS PDF p. 5 eq. (5) at β = 1)
+        V<sup>μ</sup>(s)”). An option is also interrupted when its own exploration draw begins a
+        persistent run (Dabney, Ostrovski &amp; Barreto, arXiv:2006.01782v1, PDF p. 5 §4.2, the option
+        “which takes action a for n steps and then terminates”, and PDF p. 14 Algorithm 1): the
+        run's first served step ends its execution, the run gives it no terminal credit, and the
+        end is counted as an interruption. The terminal bootstrap <code>c + z</code> (RRS PDF p. 5 eq. (5) at β = 1)
         is out of viewer scope.</div></details>
       <canvas id="ribbon" class="block" width="1120" height="54"></canvas>
       <div style="display:flex; gap:18px; margin-top:7px; flex-wrap:wrap;">
@@ -1883,7 +1888,7 @@ function drawReadouts(f, st, fast) {
     `${ObserverMath.ratio(f.lifeErrorSum,f.lifeErrorCount).toExponential(3)} · ${fmt(f.lifeErrorCount)} settled` : "waiting for settled returns";
 
   // Behaviour: the decision chain as a share when fast, as the exact record when not.
-  const srcNames = ["primitive","exploration start","exploration continuation","option"];
+  const srcNames = ["primitive","primitive exploration start","exploration continuation","option"];
   if (fast) {
     $("p_source_k").textContent = "decision chain · shares";
     $("p_source").textContent = [3,0,1,2].map(k => `${srcNames[k]} ${pct(st.src[k], 0)}`).join(" · ");
@@ -1901,8 +1906,11 @@ function drawReadouts(f, st, fast) {
     $("p_prob_k").textContent = "selected action probability";
     $("p_prob").textContent = Number.isFinite(prob) ? prob.toFixed(3) : "⚠ non-finite";
     $("p_option_k").textContent = "option boundary";
+    // A served exploration step ends the option whose draw began the run; the run is not a β = 1 stop.
     $("p_option").textContent = f.optionEnd!==UNSEEN ?
-      `ended (β = 1) · ${skillName(f.optionEnd)} after ${countText(f.optionEndDuration,"step")} · ${["goal","duration cap","interruption"][f.optionEndReason]||"unknown"}${f.optionStart!==UNSEEN?` · start ${skillName(f.optionStart)}`:""}` :
+      (f.decisionSource==="exploration_continuation" ?
+        `interrupted by an exploratory run · ${skillName(f.optionEnd)} after ${countText(f.optionEndDuration,"step")}` :
+        `ended (β = 1) · ${skillName(f.optionEnd)} after ${countText(f.optionEndDuration,"step")} · ${["goal","duration cap","interruption"][f.optionEndReason]||"unknown"}${f.optionStart!==UNSEEN?` · start ${skillName(f.optionStart)}`:""}`) :
       f.optionStart!==UNSEEN ? `start ${skillName(f.optionStart)}` :
       f.skill!==UNSEEN ? `${skillName(f.skill)} continuing (β = 0) · ${countText(f.optionElapsed,"step")} elapsed` : "none";
     const pErrors = Array.from(S.planningErrors.subarray(f.i * N_SKILL, f.i * N_SKILL + N_SKILL));

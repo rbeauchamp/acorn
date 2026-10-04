@@ -84,15 +84,11 @@ theorem TemporalControl.primitive_episodes (state : TemporalControl profile conf
     let result := state.choosePrimitive features values metaDecision ended
     result.1.lifetime = state.lifetime ∧ result.1.activeSlot = none ∧
       result.2.started = none ∧ result.2.ended = ended := by
-  refine ⟨rfl, ?_, rfl, rfl⟩
-  cases hr : ((state.runtime.lifecycle.consumers.control.snapshot (count := primitiveCount)
-      features state.controlRate).drawPersistent state.runtime.references.rng).1.run with
-  | none => simp [TemporalControl.choosePrimitive, TemporalControl.activeSlot, TemporalControl.withPhase, hr]
-  | some run =>
-    by_cases remaining : 0 < run.remaining.val <;>
-      simp [TemporalControl.choosePrimitive, TemporalControl.activeSlot, TemporalControl.withPhase, hr, remaining]
+  exact ⟨rfl, Occupancy.afterPrimitive_executing _, rfl, rfl⟩
 
-/-- Option stepping retains exactly its slot and the caller's actual lifecycle events. -/
+/-- Option stepping retains exactly its slot and the caller's actual lifecycle events:
+the option is the executing invocation of the frame it drew, even when its draw began a
+run that will take control at the next frame. -/
 theorem TemporalControl.option_episodes (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : OptionActivation (profile.mode != .frozen))
@@ -103,7 +99,7 @@ theorem TemporalControl.option_episodes (state : TemporalControl profile config 
     result.1.lifetime = state.lifetime ∧ result.1.activeSlot = some slot ∧
       result.2.started = (if started then some slot else none) ∧ result.2.ended = ended := by
   rw [TemporalControl.stepOption_eq]
-  exact ⟨rfl, rfl, rfl, rfl⟩
+  exact ⟨rfl, Occupancy.afterOption_executing _ _ _, rfl, rfl⟩
 
 /-- Boundary metaDecision dispatch has a new active slot exactly when its observation records a start. -/
 theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile config criterion dimension)
@@ -134,7 +130,7 @@ theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile 
       simp only [potential, bind, Option.bind, pure, Option.some.injEq] at executed
       rw [TemporalControl.stepOption_eq] at executed
       cases executed
-      exact ⟨lifetime, rfl, rfl⟩
+      exact ⟨lifetime, Occupancy.afterOption_executing _ _ _, rfl⟩
 
 /-- Refresh alters feature knowledge and detached ownership, leaving episode observations intact. -/
 theorem TemporalControl.refresh_episode_slot (state : TemporalControl profile config criterion dimension)
@@ -207,28 +203,53 @@ theorem TemporalControl.skip_episodes (state : TemporalControl profile config cr
   unfold TemporalControl.skipMeta
   split <;> exact ⟨rfl, rfl⟩
 
-/-- Serving persistent exploration is always an episode-free continuation. -/
+/-- Serving persistent exploration starts nothing, leaves no option executing and ends
+exactly the option the run held, which only its first served step can. -/
 theorem TemporalControl.serve_episodes (state next : TemporalControl profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (observed : TemporalDecision)
     (executed : state.serve features = some (next, observed)) :
-    next.lifetime = state.lifetime ∧ state.activeSlot = none ∧ next.activeSlot = none ∧
-      observed.started = none ∧ observed.ended = none := by
+    next.lifetime = state.lifetime ∧ next.activeSlot = none ∧
+      observed.started = none ∧ observed.ended.map (·.slot) = state.activeSlot := by
   unfold TemporalControl.serve at executed
   cases phase : state.runtime.references.phase with
   | idle => simp [phase] at executed
   | option slot activation => simp [phase] at executed
-  | exploring run =>
+  | exploring committed =>
     simp only [phase] at executed
-    cases served : run.serve with
+    cases served : committed.run.serve with
     | none => simp [served] at executed
     | some result =>
       simp only [served, bind, Option.bind, pure, Option.some.injEq] at executed
       cases executed
-      have noActive : state.activeSlot = none := by simp [TemporalControl.activeSlot, phase]
-      refine ⟨?_, noActive, ?_, rfl, rfl⟩
-      all_goals
-        split
-        all_goals unfold TemporalControl.skipMeta; split <;> rfl
+      have interrupted := state.interrupt_frame committed.origin
+      have active : state.activeSlot = committed.origin.map (·.1) := by
+        simp [TemporalControl.activeSlot, phase, Occupancy.executing]
+      refine ⟨?_, ?_, rfl, ?_⟩
+      · unfold TemporalControl.skipMeta
+        repeat' split
+        all_goals exact interrupted.1
+      · unfold TemporalControl.skipMeta
+        repeat' split
+        all_goals rfl
+      · rw [active]
+        exact interrupted.2.2
+
+/-- A committed run that serves nothing holds no option: a held option always has a
+served step ahead. -/
+theorem TemporalControl.unserved_free (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (committed : CommittedRun (profile.mode != .frozen))
+    (phase : state.runtime.references.phase = .exploring committed)
+    (unserved : state.serve features = none) : state.activeSlot = none := by
+  have spent : committed.run.serve = none := by
+    cases served : committed.run.serve with
+    | none => rfl
+    | some result => simp [TemporalControl.serve, phase, served] at unserved
+  have zero := committed.run.spent.mp spent
+  cases held : committed.origin with
+  | none => simp [TemporalControl.activeSlot, phase, Occupancy.executing, held]
+  | some origin =>
+    have positive := committed.pending (by simp [held])
+    exact absurd positive (by omega)
 
 /-- Source-exclusive selection exposes the complete start/end transition for each activation. -/
 theorem TemporalControl.select_episodes (state next : TemporalControl profile config criterion dimension)
@@ -252,8 +273,10 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
     cases executed
     have proof := prepared.serve_episodes next features observed served
     refine ⟨proof.1.trans preparedLifetime, ?_⟩
-    rw [← preparedActive, proof.2.1, proof.2.2.1, proof.2.2.2.1, proof.2.2.2.2]
-    exact .continuing none
+    rw [proof.2.1, proof.2.2.1, proof.2.2.2, preparedActive]
+    cases state.activeSlot with
+    | none => exact .continuing none
+    | some old => exact .ending old none
   | none =>
     simp only [served] at executed
     split at executed
@@ -273,16 +296,16 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
           goal none none observed executed
         refine ⟨proof.1.trans preparedLifetime, ?_⟩
         have empty : state.activeSlot = none := by
-          rw [← preparedActive]; simp [TemporalControl.activeSlot, phase]
+          rw [← preparedActive]; simp [TemporalControl.activeSlot, phase, Occupancy.executing]
         rw [empty, proof.2.1, proof.2.2]
         exact .free observed.started
-      | exploring run =>
+      | exploring committed =>
         simp only [phase] at executed
         have proof := (prepared.withPhase .idle).boundary_episodes next models plan features declared reward
           goal none none observed executed
         refine ⟨proof.1.trans preparedLifetime, ?_⟩
         have empty : state.activeSlot = none := by
-          rw [← preparedActive]; simp [TemporalControl.activeSlot, phase]
+          rw [← preparedActive]; exact prepared.unserved_free features committed phase served
         rw [empty, proof.2.1, proof.2.2]
         exact .free observed.started
       | option slot activation =>
@@ -292,7 +315,7 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
         let metaPolicy := free.runtime.lifecycle.consumers.metaController.snapshot (count := metaCount)
           features free.metaRate
         have active : state.activeSlot = some slot := by
-          rw [← preparedActive]; simp [TemporalControl.activeSlot, phase]
+          rw [← preparedActive]; simp [TemporalControl.activeSlot, phase, Occupancy.executing]
         cases potential : skill.interest.potential features declared with
         | none =>
           simp only [skill, free] at potential
@@ -379,7 +402,7 @@ theorem TemporalControl.select_primitive (state next : TemporalControl profile c
   | some result =>
     simp only [served] at executed
     cases executed
-    exact (prepared.serve_episodes next features observed served).2.2.1
+    exact (prepared.serve_episodes next features observed served).2.1
   | none =>
     simp only [served, primitive, Bool.not_false, ↓reduceIte] at executed
     have same : (prepared.withPhase .idle).choosePrimitive features (Vector.replicate _ .zero) none none =
@@ -398,6 +421,17 @@ theorem TemporalControl.follow_episodes (state : TemporalControl profile config 
   rw [TemporalControl.followOptions_eq]
   split <;> exact ⟨rfl, rfl⟩
 
+/-- Closing an interrupted option's meta span records no episode and moves no activation. -/
+theorem TemporalControl.closeSpan_episodes (state : TemporalControl profile config criterion dimension)
+    (continuation : Option Binary32) :
+    (state.closeSpan continuation).lifetime = state.lifetime ∧
+      (state.closeSpan continuation).activeSlot = state.activeSlot := by
+  cases continuation with
+  | none => exact ⟨rfl, rfl⟩
+  | some value =>
+    rw [TemporalControl.closeSpan_eq]
+    exact ⟨rfl, rfl⟩
+
 /-- Stored episode counts agree with the outstanding invocation and immutable hierarchy mode. -/
 def TemporalControl.Episodes (state : TemporalControl profile config criterion dimension) : Prop :=
   Lifetime.OptionsValid state.lifetime.options state.activeSlot ∧
@@ -410,7 +444,7 @@ theorem TemporalControl.initial_episodes (profile : FeatureProfile) (config : Fe
   constructor
   · intro slot
     simpa [TemporalControl.initial, TemporalControl.activeSlot, TemporalReferences.cold,
-      Lifetime.Stats.initial] using Lifetime.OptionEpisodes.initial_valid
+      Lifetime.Stats.initial, Occupancy.executing] using Lifetime.OptionEpisodes.initial_valid
   · intro _; rfl
 
 /-- The common finish changes options only through its actual event record. -/
@@ -442,15 +476,20 @@ theorem TemporalControl.step_episodes (state next : TemporalControl profile conf
       (spatialPotentials observation) reward goal result.2
     generalize result.1.followOptions (modelOperations criterion dimension) features
       (spatialPotentials observation) reward goal result.2 = followed at follow ⊢
+    have closed := followed.closeSpan_episodes
+      (result.1.takeoverValue features (spatialPotentials observation) goal result.2)
+    generalize followed.closeSpan
+      (result.1.takeoverValue features (spatialPotentials observation) goal result.2) =
+        spanned at closed ⊢
     constructor
     · change Lifetime.OptionsValid
-        (followed.finish features observation reward result.2).lifetime.options followed.activeSlot
-      rw [TemporalControl.finish_options, follow.1, follow.2, trace.1]
+        (spanned.finish features observation reward result.2).lifetime.options spanned.activeSlot
+      rw [TemporalControl.finish_options, closed.1, closed.2, follow.1, follow.2, trace.1]
       apply trace.2.record_valid _ result.2.episodeEnd _ valid.1
       simp [TemporalDecision.episodeEnd, Option.map_map, Function.comp_def]
     · intro primitive
-      change followed.activeSlot = none
-      rw [follow.2]
+      change spanned.activeSlot = none
+      rw [closed.2, follow.2]
       exact state.select_primitive result.1 (modelOperations criterion dimension) (planningBoundary planning)
         features (spatialPotentials observation) reward goal result.2 primitive selected
 

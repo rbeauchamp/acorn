@@ -96,7 +96,8 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
     state.control.runtime.references.planningErrors,
     match state.control.runtime.references.phase with
     | .option _ activation => activation.age
-    | .idle | .exploring _ => 0,
+    | .exploring committed => (committed.origin.map (·.2.age)).getD 0
+    | .idle => 0,
     criterion, profile⟩
 
 /-- Full-agent callbacks bind every existing host protocol operation to its actual owner. -/

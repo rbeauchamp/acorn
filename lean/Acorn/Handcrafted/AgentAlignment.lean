@@ -197,19 +197,40 @@ theorem TemporalControl.primitive_aligned (state : TemporalControl profile confi
     (ended : Option EndEvent) : (state.choosePrimitive features values decision ended).1.Aligned :=
   aligned
 
-/-- A served run changes occupancy and diagnostics, retaining admitted interests. -/
+/-- Interrupting a held option writes its trajectory link and keeps its interest. -/
+theorem TemporalControl.interrupt_aligned (state : TemporalControl profile config criterion dimension)
+    (aligned : state.Aligned)
+    (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
+      OptionActivation (profile.mode != .frozen))) : (state.interrupt origin).1.Aligned := by
+  cases origin with
+  | none => exact aligned
+  | some held =>
+    obtain ⟨slot, activation⟩ := held
+    unfold TemporalControl.interrupt
+    dsimp only
+    split
+    · exact state.withSkill_aligned aligned slot _ rfl
+    · exact aligned
+
+/-- A served run changes occupancy, diagnostics and an interrupted option's trajectory link,
+retaining admitted interests. -/
 theorem TemporalControl.serve_aligned (state next : TemporalControl profile config criterion dimension)
     (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
     (served : state.serve features = some (next, decision)) : next.Aligned := by
   unfold TemporalControl.serve at served
   split at served
-  · rename_i run phase
-    cases hs : run.serve with
+  · rename_i committed phase
+    cases hs : committed.run.serve with
     | none => simp [hs, bind, Option.bind] at served
     | some pair =>
       simp only [hs, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at served
       rw [← served.1]
-      split <;> exact (state.withPhase (.exploring pair.2)).skipMeta_aligned aligned
+      have base := state.interrupt_aligned aligned committed.origin
+      repeat' split
+      all_goals first
+        | exact base
+        | exact TemporalControl.skipMeta_aligned ((state.interrupt committed.origin).1.withPhase
+            (.exploring (.bare pair.2))) base
   · contradiction
   · contradiction
 
@@ -256,6 +277,16 @@ theorem TemporalControl.learnMeta_aligned (state : TemporalControl profile confi
     (state.learnMeta features decision).Aligned := by
   rw [TemporalControl.learnMeta_eq]
   split <;> exact aligned
+
+/-- Closing an interrupted option's meta span writes the meta-controller and the span. -/
+theorem TemporalControl.closeSpan_aligned (state : TemporalControl profile config criterion dimension)
+    (aligned : state.Aligned) (continuation : Option Binary32) :
+    (state.closeSpan continuation).Aligned := by
+  cases continuation with
+  | none => exact aligned
+  | some value =>
+    rw [TemporalControl.closeSpan_eq]
+    exact aligned
 
 /-- A followed slot keeps its interest whether it is executing, linked or refused. -/
 theorem followSlot_interest (models : OptionModelOps criterion dimension)
@@ -424,12 +455,14 @@ theorem TemporalControl.step_total (state : TemporalControl profile config crite
     ∃ next decision, state.step planning features observation reward goal = some (next, decision) ∧ next.Aligned := by
   obtain ⟨selected, decision, selectedEq, selectedAligned⟩ := state.select_total aligned
     (modelOperations criterion dimension) (planningBoundary planning) features observation reward goal
-  refine ⟨(selected.followOptions (modelOperations criterion dimension) features
-      (spatialPotentials observation) reward goal decision).finish features observation reward
-      decision, decision, ?_,
-    TemporalControl.finish_aligned _ (selected.followOptions_aligned selectedAligned
-      (modelOperations criterion dimension) features (spatialPotentials observation) reward goal
-      decision) features observation reward decision⟩
+  refine ⟨((selected.followOptions (modelOperations criterion dimension) features
+      (spatialPotentials observation) reward goal decision).closeSpan
+        (selected.takeoverValue features (spatialPotentials observation) goal decision)).finish
+      features observation reward decision, decision, ?_,
+    TemporalControl.finish_aligned _ (TemporalControl.closeSpan_aligned _
+      (selected.followOptions_aligned selectedAligned
+        (modelOperations criterion dimension) features (spatialPotentials observation) reward goal
+        decision) _) features observation reward decision⟩
   simp [TemporalControl.step, TemporalControl.select, selectedEq]
 
 /-! ## Objectives at a free dispatch
@@ -608,8 +641,8 @@ theorem TemporalControl.serve_undrawn (state next : TemporalControl profile conf
     (served : state.serve features = some (next, decision)) : decision.metaDecision = none := by
   unfold TemporalControl.serve at served
   split at served
-  · rename_i run phase
-    cases hs : run.serve with
+  · rename_i committed phase
+    cases hs : committed.run.serve with
     | none => simp [hs, bind, Option.bind] at served
     | some pair =>
       simp only [hs, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at served

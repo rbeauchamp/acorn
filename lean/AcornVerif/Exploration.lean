@@ -46,15 +46,21 @@ duration even at `cap = 1`, so its generator advanced differently from ordinary
 
 **Exploratory share (D6).** Under a uniform `u` on `(0, 1]` the capped duration
 has mean `H_cap`, the harmonic number (`ez_duration_mean`, a Lebesgue integral).
-A primitive-boundary cycle explores for a run with probability `ε`, otherwise
+A cycle of the behaviour explores for a run with probability `ε`, otherwise
 takes one greedy step; `explorationShare` is its expected exploratory steps over
-its expected length. At D6's rate and the checked cap this share is below 6%
-(`declared_share_lt`); a single-step consumer (option or meta-controller) has
-share exactly `ε` (`explorationShare_single`). The rational rate and cap are
-checked against the executed words by `CurrentConstants`; the exact branch mass
-of the executed draw is `TemporalSupport.declared_branch_card`. The model
-assumes independent uniform draws, which the deterministic generator does not
-supply, and it does not model binary64 rounding of the executed reciprocal.
+its expected length. The cycle is the behaviour's as a whole: over the executed
+selection every decision is a served step of a run or one persistent draw, by
+primitive control or by the executing option (`CurrentTemporal.select_persistent`),
+at D6's rate under the declared policy (`TemporalSupport.select_declared`). At
+D6's rate and the checked cap the share is between 4.6% and 6%
+(`declared_share_gt`, `declared_share_lt`). A single-step draw has share exactly
+`ε` (`explorationShare_single`): that is the meta-controller's draw over meta
+actions, and the behaviour's own share at `cap = 1`; persistence never lowers the
+share below it (`explorationShare_ge`). The rational rate and cap are checked
+against the executed words by `CurrentConstants`; the exact branch mass of the
+executed draw is `TemporalSupport.declared_branch_card`. The model assumes
+independent uniform draws, which the deterministic generator does not supply, and
+it does not model binary64 rounding of the executed reciprocal.
 -/
 
 namespace AcornVerif
@@ -192,7 +198,7 @@ theorem ez_duration_mean (cap : ℕ) (hc : 1 ≤ cap) :
   push_cast
   simp only [one_div]
 
-/-- Expected exploratory share of one primitive-boundary cycle: with branch mass
+/-- Expected exploratory share of one cycle of the behaviour: with branch mass
 `ε` a run of mean length `h` is exploratory, otherwise one greedy step is taken.
 It is the ratio of expected exploratory steps to expected cycle length. -/
 noncomputable def explorationShare (ε h : ℝ) : ℝ := ε * h / (ε * h + (1 - ε))
@@ -206,15 +212,15 @@ theorem explorationShare_le {ε h : ℝ} (h0 : 0 ≤ ε) (hh : 1 ≤ h) :
   rw [div_le_iff₀ (by linarith)]
   nlinarith [mul_nonneg runs (by linarith : (0 : ℝ) ≤ ε * h + (1 - ε) - 1)]
 
-/-- A single-step consumer, an option or the meta-controller, explores on
-exactly an `ε` share of its draws. -/
+/-- A single-step draw explores on exactly an `ε` share of its draws: the
+meta-controller's draw over meta actions, and the behaviour at a unit cap. -/
 theorem explorationShare_single (ε : ℝ) : explorationShare ε 1 = ε := by
   unfold explorationShare
   rw [show ε * 1 + (1 - ε) = 1 by ring]
   simp
 
 /-- At D6's rate and the executed cap's mean duration `H_128`, the expected
-exploratory share of primitive-boundary cycles is below 6%. The bound uses
+exploratory share of the behaviour's cycles is below 6%. The bound uses
 `H_n ≤ 1 + ln n` and `ln 2 < 0.6931471808`. -/
 theorem declared_share_lt :
     explorationShare (ModelConstants.exploreRate : ℝ) (harmonic ModelConstants.ezMaxDuration) <
@@ -242,6 +248,36 @@ theorem declared_share_lt :
     _ ≤ (ModelConstants.exploreRate : ℝ) * (1 + 7 * 0.6931471808) :=
         mul_le_mul_of_nonneg_left (by linarith) (by rw [rate]; norm_num)
     _ < 6 / 100 := by rw [rate]; norm_num
+
+/-- Persistence never lowers the share below the single-step share: for a rate in
+`[0, 1]` and a mean run length of at least one step, `ε ≤ explorationShare ε h`. -/
+theorem explorationShare_ge {ε h : ℝ} (h0 : 0 ≤ ε) (h1 : ε ≤ 1) (hh : 1 ≤ h) :
+    ε ≤ explorationShare ε h := by
+  unfold explorationShare
+  have cycle : 0 < ε * h + (1 - ε) := by
+    nlinarith [mul_nonneg h0 (sub_nonneg.mpr hh)]
+  rw [le_div_iff₀ cycle]
+  nlinarith [mul_nonneg (mul_nonneg h0 (sub_nonneg.mpr h1)) (sub_nonneg.mpr hh)]
+
+/-- At D6's rate and the executed cap's mean duration `H_128`, the expected
+exploratory share of the behaviour's cycles is above 4.6%, more than four times
+the single-step share. The bound uses `ln (n + 1) ≤ H_n` and `0.6931471803 < ln 2`. -/
+theorem declared_share_gt :
+    46 / 1000 < explorationShare (ModelConstants.exploreRate : ℝ)
+      (harmonic ModelConstants.ezMaxDuration) := by
+  have rate : (ModelConstants.exploreRate : ℝ) = 10737418 / 1073741824 := by
+    norm_num [ModelConstants.exploreRate]
+  have logarithm : 7 * 0.6931471803 < Real.log 128 := by
+    rw [show (128 : ℝ) = 2 ^ 7 by norm_num, Real.log_pow]
+    push_cast
+    linarith [Real.log_two_gt_d9]
+  have mean : Real.log 128 ≤ (harmonic ModelConstants.ezMaxDuration : ℝ) := by
+    refine le_trans (Real.log_le_log (by norm_num) ?_)
+      (log_add_one_le_harmonic ModelConstants.ezMaxDuration)
+    norm_num [ModelConstants.ezMaxDuration]
+  unfold explorationShare
+  rw [rate, lt_div_iff₀ (by linarith)]
+  linarith
 
 end
 

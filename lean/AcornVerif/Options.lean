@@ -220,6 +220,25 @@ theorem gap_close_is_smdp_backup (γ : ℝ) (r : ℕ → ℝ) (k : ℕ) :
       simp only [gapAcc, ih, Finset.sum_range_succ, mul_comm]
   simp only [gapRun, acc, Finset.sum_range_succ, mul_comm]
 
+/-- **Censored span.** A span closed after `j` of an option's actions toward the return of
+its remaining `n` actions is the span run to its own stop:
+`∑_{i<j} γ^i r_i + γ^j (∑_{i<n} γ^i r_{j+i} + γ^n z) = ∑_{i<j+n} γ^i r_i + γ^{j+n} z`.
+
+This is the identity behind crediting an option that an exploratory run interrupts
+toward its own continuing value (PAR-8): with the exact continuing return as bootstrap,
+the interrupted span's target is the uninterrupted option's return, which is the
+quantity its model predicts, for every interruption point `j`. It is over exact `ℝ`.
+The executed credit bootstraps from a learned estimate of the inner return, in
+machine words; that estimate's accuracy is not claimed. -/
+theorem interrupted_span_return (γ : ℝ) (r : ℕ → ℝ) (z : ℝ) (j n : ℕ) :
+    (∑ i ∈ Finset.range j, γ ^ i * r i) +
+        γ ^ j * ((∑ i ∈ Finset.range n, γ ^ i * r (j + i)) + γ ^ n * z) =
+      (∑ i ∈ Finset.range (j + n), γ ^ i * r i) + γ ^ (j + n) * z := by
+  rw [Finset.sum_range_add, mul_add, Finset.mul_sum, pow_add, add_assoc]
+  congr 2
+  · exact Finset.sum_congr rfl fun i _ => by rw [pow_add, mul_assoc]
+  · rw [mul_assoc]
+
 /-- The stopping value with STOMP attainment bonus: `z(s) = \hat{V}(s) + g * Φ(s)`
 (adapted from Sutton et al., AIJ 324:104001, eq. (4), where the feature attainment bonus
 `(w̄_i - w_i) x_i(s)` is instantiated as `g * Φ(s)` added to the meta value estimate

@@ -96,6 +96,22 @@ theorem stop_step_empty (controller : Controller config dimension actions) (delt
   simp only [Controller.stopStep_eq, vector_get, Vector.getElem_map]
   rfl
 
+/-- A closed span leaves every action learner nothing eligible, and the first loop of
+whatever credit comes next is the identity on it, for every error, accumulator and decay
+word: no reward delivered after the close reaches an action credited before it. -/
+theorem close_step_idle (controller : Controller config dimension actions)
+    (reward continuation : Binary32) (duration : UInt32) (action : Action actions)
+    (delta vDelta decay : Binary32) :
+    ((controller.closeStep reward continuation duration).learners.get action).state.eligibleCount
+        = 0 ∧
+      ((controller.closeStep reward continuation duration).learners.get
+        action).state.learnFirstLoop config delta vDelta decay =
+        ((controller.closeStep reward continuation duration).learners.get action).state := by
+  unfold Controller.closeStep
+  refine ⟨stop_step_empty _ _ action, ?_⟩
+  simp only [Controller.stopStep_eq, vector_get, Vector.getElem_map]
+  exact release_idle _ delta vDelta decay
+
 /-- A release leaves every action learner nothing eligible and with its weights,
 so the first loops of the start that follows read no trace and credit no earlier
 transition (`release_idle`). -/

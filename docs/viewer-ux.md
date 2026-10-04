@@ -36,8 +36,8 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   request to wind up at the next attempt boundary, which changes *when a run
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
-  (`./lean/.lake/build/bin/acorn-core audit --expect d0180a692fc4f372`),
-  checksum `28f3580605602a90` (C-AC5), and by the gate suite
+  (`./lean/.lake/build/bin/acorn-core audit --expect 29dde0eb2b6f1ba7`),
+  checksum `53f0f2909b71c8ce` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
 - **INV-1b · The control channel carries lifecycle only.** The core's stdin
@@ -266,7 +266,11 @@ Rules that apply to every number, label and colour on the page.
     means and shares over the last `WIN` (1,000) buffered frames ending at the
     cursor, and each says so: the Behaviour mode line reads `live · means over
     the last N frames` (or `fast replay · …`), the decision chain becomes shares
-    by selecting layer, the selected-action probability becomes the mean
+    by selecting layer (the `exploration_start` share is labelled `primitive
+    exploration start`, because that tag counts only the runs primitive control
+    drew: the first step of a run an option's draw begins is counted under
+    `option`, and every served step under `exploration continuation`, UX-14),
+    the selected-action probability becomes the mean
     probability of the actions taken, the option boundary line counts starts
     and ends by reason, the option-model and planning lines show per-slot
     means, the policy mass is the mean mass, the value bars are mean values,
@@ -322,7 +326,8 @@ Rules that apply to every number, label and colour on the page.
   (`1k–1k`) is printed exactly; a symbol and its number never split across a
   line. Wire identifiers appear as words (`craft axe`, `exploration start`,
   `restart scheduled`): the words are the core's, only the underscore is the
-  page's. Hover texts quote field names in plain quotation marks, since a title
+  page's, except the fast-mode share label UX-8 qualifies. Hover texts quote
+  field names in plain quotation marks, since a title
   attribute renders backticks literally.
 - **UX-12 · Comparisons wait for evidence.** No reward trend arrow is drawn while the
   newest reward bin holds fewer than an eighth of the steps of the bin before
@@ -339,7 +344,8 @@ Rules that apply to every number, label and colour on the page.
   product, and its parameter bits with a packed terrain description.
 - **UX-14 · Describe the observed quantity.** Captions name the reported
   mechanism, value and window. The ribbon's end counter reports option
-  interruptions and reselections at decision boundaries; non-finite values are
+  interruptions, by a better stopping estimate or by an exploratory run, and
+  reselections at decision boundaries; non-finite values are
   identified by field. Use precise definitions instead of broad learning claims
   or disclaimers. The [promotion standard](prior-art-review.md#default-promotion-and-demotion)
   owns claims about comparative benefit.
@@ -732,7 +738,8 @@ What each panel must show. How it draws it is the code's.
   the skills. The decision chain states the selecting layer, exact primitive
   and meta probabilities, selected-action probability, exploration branch,
   option boundary (β = 1 at an end, β = 0 while continuing, with the elapsed
-  steps and the end reason), reward, prediction error and credit state at the
+  steps and the end reason; an end by an exploratory run is named as that
+  interruption, without β = 1, UX-38), reward, prediction error and credit state at the
   cursor, or their window means in fast mode (UX-8). It never calls a value
   difference an advantage, because this implementation has no
   option-advantage quantity, and initiation is explicitly the trivial
@@ -766,9 +773,14 @@ What each panel must show. How it draws it is the code's.
   of the band — in one neutral ink: an end by cap or goal is not a fault, so
   it is not red, and a tick the colour of a band would vanish on it. Immediate
   re-selection of the same skill is an end and a start at one decision, never
-  one merged band. The lede says the flicker is options being interrupted and
-  re-chosen at decision boundaries, which the end counter below it shows
-  (UX-14). The cursor's record (action, selecting layer, reward) is drawn
+  one merged band. The lede says the flicker is options being interrupted, by a
+  better stopping estimate or by an exploratory run, and re-chosen at decision
+  boundaries, which the end counter below it shows (UX-14). An option whose own
+  exploration draw begins a persistent run ends at the run's first served step.
+  The run gives it no terminal credit and takes control before that step's goal
+  and duration checks, so the end is counted as an interruption, and the
+  Behaviour panel's option boundary line names the run instead of β = 1
+  (UX-36). The cursor's record (action, selecting layer, reward) is drawn
   centred under the band at the reading cadence, never over the window's end
   labels. The legend names each slot by UX-16's rule and what it pursues, and
   the checkpoint-persistent totals report lifetime option starts (never
@@ -1109,7 +1121,7 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Primitive / meta action values | behaviour panel | Swift-Sarsa arXiv:2507.19539v1 **PDF p. 2 eq. (4)** `δ'_t = r_t + γ v_{t−1,t}[a_t] − v_{t−2,t−1}[a_{t−1}]`, quoted on the page in Algorithm 1's notation (`δ' = r + γ v[a_t] − v_old`) and said to be; **PDF p. 5 Algorithm 1** `δw^j[i] ← δ' z^j[i] − zδ^j[i] vδ`. Zero bars: that update’s fixed point at `r = 0`. |
 | Differential control and gain | big-world card and behaviour sources | Sutton & Barto, *Reinforcement Learning: An Introduction*, 2nd ed., MIT Press (2018), §10.3 pp. 251–252 and Exercise 10.8; verified in PAR-15. Differential target `r − reward-rate + next value`, with the Exercise 10.8 reward-residual gain variant. Discounted control uses no gain; no whole-agent convergence is inferred. |
 | Intra-option credit on those bars | labelled in the lede | SPS99 **PDF p. 24 eqs. (20)–(21)** (intra-option Q-learning with `U = (1−β)Q + β max Q`); **PDF p. 25** Theorem 3 and *“Intra-option versions of … Sarsa … should be straightforward, although there has been no experience with them.”* This build is the declared executed-stream Sarsa (PAR-9), not eq. (21). |
-| Option end reasons | ribbon + `#p_option` | SPS99 **PDF p. 17**: *“compare the value of continuing with o, which is Q^μ(s_t, o), to the value of interrupting o and selecting a new option according to μ, which is V^μ(s).”* |
+| Option end reasons | ribbon + `#p_option` | SPS99 **PDF p. 17**: *“compare the value of continuing with o, which is Q^μ(s_t, o), to the value of interrupting o and selecting a new option according to μ, which is V^μ(s).”* An interruption is also counted when the option's own exploration draw begins a persistent run: Dabney, Ostrovski & Barreto, arXiv:2006.01782v1 **PDF p. 5** §4.2, the option *“which takes action a for n steps and then terminates”*, and **PDF p. 14** Algorithm 1; the run's first served step ends the option's execution, and the run gives it no β = 1 terminal credit (`learned-only-binding.md` D3). |
 | Option model predictions (`r̂`, `ĉ_v`) | behaviour panel | PAR-13 Option Models: Sutton, Precup & Singh, AIJ 112 (1999) §2.3 / §3 p. 190 and STOMP eq. (12) expected cumulative host reward `r̂(s, o)`; Wan, Abbas, White, White & Sutton, IJCAI 2019 §4 eqs. (1)–(2) / arXiv:1904.01191 (11 pp.) and Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 with PAR-13 continuation value `ĉ_v(s, o)`: the current value function at the predicted ranked feature slots plus a learned shared residual and per-action deviation, combined per meta action before the nominal value: an estimate of `E[γ^K v̂(S_K) | s, o]`. Differential predictions query a fresh activation at age zero, including while an option is running; displayed start duration is not remaining duration. Emitted as `option_model_rewards[3]`, `option_model_durations[3]`, `option_model_continuations[3]`. |
 | Background planning (Dyna) | behaviour panel | PAR-14 Background Planning: Dyna planning backups over learned option models into meta-controller `q̂_meta`. Sutton 1990/1991; Sutton, Machado et al., AIJ 324 (2023) 104001, §5 eq. (19) (arXiv:2202.03466v4 PDF p. 16 eq. (19)); Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 & §3. Emitted as `planning_steps` backups (since process start / latest restore) and `planning_errors[3]` per skill. |
 | G31 terminal target `c + z` | **out of viewer scope** | RRS **PDF p. 5 eq. (5)** `δ(c, z, v, v′, β) .= c + β z + γ(1−β) v′ − v`; at `β = 1` this is `c + z − v`. GVF return **PDF p. 3 eq. (2)**. SPS99 **§3, PDF p. 10 / journal p. 190 eqs. (8)–(9)** gives the option Bellman decomposition. Its eq. (14) is an improvement inequality, not the terminal target. |

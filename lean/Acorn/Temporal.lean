@@ -21,6 +21,11 @@ executing option's stopping decision applied to the stored trajectory. When the
 option starts executing, `Skill.settleFollowing` credits the transition it was
 following before the invocation start clears its trajectory state.
 
+An executing option's draw is the behaviour's persistent draw (PAR-8). When it begins
+a run with a step left to serve, the run takes dispatch occupancy and holds the option
+until that step (`CommittedRun`), where the option stops executing and continues as
+the off-policy trajectory `OptionActivation.following` names.
+
 A model reads the current value function at two places: its terminal targets and
 its predictions. Sutton, Machado et al., *Reward-respecting subtasks for model-based
 reinforcement learning*, Artificial Intelligence 324 (2023), 104001,
@@ -57,11 +62,11 @@ structure EndEvent where
 inductive TemporalSource where
   /-- Fresh primitive greedy action. -/
   | primitive
-  /-- First action of a drawn persistent run. -/
+  /-- First action of a persistent run primitive control drew. -/
   | explorationStart
   /-- A committed remaining action, without a random draw. -/
   | explorationContinuation
-  /-- Action sampled by one option's own policy. -/
+  /-- Action one option's own draw selected, the first action of a run it began included. -/
   | option (slot : Fin Acorn.FeatureConstants.skillCount)
   deriving DecidableEq
 
@@ -85,6 +90,76 @@ structure TemporalDecision where
   started : Option (Fin Acorn.FeatureConstants.skillCount)
   /-- Closing event, possibly followed by a new invocation in this decision. -/
   ended : Option EndEvent
+
+/-- A committed exploratory run in dispatch occupancy. Until its first served step it
+also holds the option whose draw began it: that option is the executing invocation of
+the frame it drew, and the first served step ends its execution. A held option always
+has that step ahead. -/
+structure CommittedRun (mode : Bool) where
+  /-- The committed action and its remaining clock. -/
+  run : ExploratoryRun primitiveCount
+  /-- The option whose draw began the run, until the first served step. -/
+  origin : Option (Fin Acorn.FeatureConstants.skillCount × OptionActivation mode)
+  /-- A held option has a served step ahead, at which it is interrupted. -/
+  pending : origin.isSome → 0 < run.remaining.val
+
+/-- A run that holds no option: one primitive control drew, or one already being served. -/
+def CommittedRun.bare {mode : Bool} (run : ExploratoryRun primitiveCount) : CommittedRun mode :=
+  ⟨run, none, by simp⟩
+
+/-- Occupancy after an option's draw. A drawn run with a step left to serve takes
+occupancy and holds the option until that step. A run with nothing left is one
+exploratory step of the option, which keeps occupancy, as it does after a greedy draw. -/
+def Occupancy.afterOption {mode : Bool} (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation mode) (run : Option (ExploratoryRun primitiveCount)) :
+    Occupancy (OptionActivation mode) (CommittedRun mode) :=
+  match run with
+  | some run =>
+    if left : 0 < run.remaining.val then .exploring ⟨run, some (slot, activation), fun _ => left⟩
+    else .option slot activation
+  | none => .option slot activation
+
+/-- Occupancy after primitive control's draw: a drawn run with a step left to serve
+takes occupancy and holds no option; otherwise dispatch is free. -/
+def Occupancy.afterPrimitive {mode : Bool} (run : Option (ExploratoryRun primitiveCount)) :
+    Occupancy (OptionActivation mode) (CommittedRun mode) :=
+  match run with
+  | some run => if 0 < run.remaining.val then .exploring (.bare run) else .idle
+  | none => .idle
+
+/-- The executing invocation of a dispatch occupancy: a live option, or the option a
+committed run holds until its first served step. -/
+def Occupancy.executing {mode : Bool} :
+    Occupancy (OptionActivation mode) (CommittedRun mode) →
+      Option (Fin Acorn.FeatureConstants.skillCount)
+  | .option slot _ => some slot
+  | .exploring committed => committed.origin.map (·.1)
+  | .idle => none
+
+/-- Whatever its draw, the drawing option is the executing invocation of its frame. -/
+theorem Occupancy.afterOption_executing {mode : Bool} (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation mode) (run : Option (ExploratoryRun primitiveCount)) :
+    (Occupancy.afterOption slot activation run).executing = some slot := by
+  cases run with
+  | none => rfl
+  | some run =>
+    by_cases left : 0 < run.remaining.val <;>
+      simp [Occupancy.afterOption, Occupancy.executing, left]
+
+/-- A run that holds no option has no executing invocation. -/
+theorem CommittedRun.bare_executing {mode : Bool} (run : ExploratoryRun primitiveCount) :
+    (Occupancy.exploring (CommittedRun.bare (mode := mode) run) :
+      Occupancy (OptionActivation mode) (CommittedRun mode)).executing = none := rfl
+
+/-- Primitive control's draw leaves no option executing. -/
+theorem Occupancy.afterPrimitive_executing {mode : Bool}
+    (run : Option (ExploratoryRun primitiveCount)) :
+    (Occupancy.afterPrimitive (mode := mode) run).executing = none := by
+  cases run with
+  | none => rfl
+  | some run =>
+    by_cases left : 0 < run.remaining.val <;>
+      simp [Occupancy.afterPrimitive, Occupancy.executing, CommittedRun.bare, left]
 
 /-- An option-selected action is the only path that uses option primitive credit. -/
 def TemporalDecision.own (decision : TemporalDecision) : Bool :=
@@ -152,6 +227,20 @@ def Skill.beginTemporal {config : Config} {criterion : Criterion} {dimension : D
   let skill := if learning then { begun.1 with model := models.begin begun.1.model features } else begun.1
   (skill, begun.2)
 
+/-- A start writes the model only after the policy is frozen: the continuation holds the
+started option's own policy, its learner's values at the start frame and the rate its
+source resolves to. -/
+theorem Skill.beginTemporal_policy {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
+    (skill.beginTemporal models features potential learning rate).2.2.policy =
+      (skill.beginTemporal models features potential learning rate).1.policy.snapshot
+        (count := primitiveCount) features
+        (rate.resolve fun _ => (skill.beginTemporal models features potential learning
+          rate).1.policy.exploreRate (count := primitiveCount)) := by
+  cases learning <;> exact skill.begin_policy features potential _ rate
+
 /-- A first returned action has no completed model transition to credit. The
 policy step's result is taken apart before the model is credited, and
 `Skill.stepTemporal_eq` proves the result equal to the listed composition. The
@@ -163,7 +252,7 @@ def Skill.stepTemporal {config : Config} {criterion : Criterion} {dimension : Di
     (skill : Skill config criterion dimension discounts) (models : OptionModelOps criterion dimension)
     (activation : OptionActivation mode) (next : OptionContinuation dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
-    Skill config criterion dimension discounts × OptionActivation mode × PolicyDecision primitiveCount × Rng.Xoshiro256 :=
+    Skill config criterion dimension discounts × OptionActivation mode × PersistentDecision primitiveCount × Rng.Xoshiro256 :=
   let (stepped, rest) := skill.optionStep activation next reward gain rng
   let skill := if activation.learning && activation.age.val > 0 then
     { stepped with model := models.step stepped.model next.features activation.age reward }
