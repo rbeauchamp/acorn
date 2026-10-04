@@ -334,8 +334,9 @@ Rules that apply to every number, label and colour on the page.
   The viewer retains this map from telemetry. The agent receives egocentric
   features: the 11×11 window, proprioception, task relation, inventory and demon
   predictions (`Acorn.Handcrafted.Observation`). The panel explains that scope
-  directly. The [BigWorld proofs](../lean/AcornVerif/BigWorld.lean) separately
-  compare explicit state counts and representation sizes.
+  directly. The [parameter-budget proofs](../lean/AcornVerif/ParameterBudget.lean)
+  separately compare the agent's declared parameter count with a declared state
+  product, and its parameter bits with a packed terrain description.
 - **UX-14 · Describe the observed quantity.** Captions name the reported
   mechanism, value and window. The ribbon's end counter reports option
   interruptions and reselections at decision boundaries; non-finite values are

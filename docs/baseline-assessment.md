@@ -394,11 +394,18 @@ F-E left its feature-construction end inert until U3.
   - Oak Lab's algorithms "learn in real-time without storing or replaying data"
     [[18]](#r18). Acorn matches this: batch size one, no replay, IDBD-family credit
     assignment.
-  - A small agent in a big world [[19]](#r19): about three million learned
-    parameters, more than a third of them the off-policy questions' weights,
-    against a 1024 × 1024 world seen through an 11 × 11 window. The
-    [BigWorld proofs](../lean/AcornVerif/BigWorld.lean) own the count and its
-    margin under the declared state product.
+- **Agent and world size.** "The big world hypothesis says that in many
+  decision-making problems the agent is orders of magnitude smaller than the
+  environment" [[19]](#r19). Acorn's standard setting does not have that
+  relation in bits: about three million learned parameters, more than a third
+  of them the off-policy questions' weights, hold 94.4 million bits, and the
+  whole state of a 1024 × 1024 world fits in fewer than 67.7 million (argued).
+  What is machine-checked, over declared model inputs, is a counting statement:
+  a table with one entry per element of the declared product of position,
+  facing, energy, day phase and craft flags would need at least 90,000 times
+  the agent's parameters. The agent senses the world through an 11 × 11 window.
+  The [parameter-budget proofs](../lean/AcornVerif/ParameterBudget.lean) own
+  the parameter count, that margin and the derivation of the bit bound.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
   way", and imagined outcomes "are then evaluated by the value functions"

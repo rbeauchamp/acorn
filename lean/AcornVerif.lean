@@ -50,7 +50,7 @@ import AcornVerif.Extragradient
 import AcornVerif.Exploration
 import AcornVerif.Traces
 import AcornVerif.Retirement
-import AcornVerif.BigWorld
+import AcornVerif.ParameterBudget
 import AcornVerif.Rng
 import AcornVerif.WorldGoals
 
