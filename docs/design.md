@@ -62,12 +62,12 @@ preceding transition. A frame has three parts, one for each kind of learner inpu
 - **words**, opaque pairs of a channel and a 64-bit value, which the coder hashes
   into features;
 - **symbols**, an array of 64-bit codes that the generated projection features
-  sample. Every interface declares its shape and every frame fills it. Requirement
-  R1 of the interface work ([issue #70](https://github.com/rbeauchamp/acorn/issues/70))
-  asks for the symbol array to be optional; that is deferred until an instance
-  needs it and its feature-construction semantics is decided. A world with only
-  words can lay those words' codes over symbol positions, as the grid world does
-  with its task context;
+  sample. Every interface declares its shape and every frame fills it. The
+  interface design's requirement R1, that a world may supply no symbol array, is
+  deferred until an instance needs it and its feature-construction semantics is
+  decided; [issue #70](https://github.com/rbeauchamp/acorn/issues/70) tracks the
+  interface work. A world with only words can lay those words' codes over symbol
+  positions, as the grid world does with its task context;
 - **signals**, one number per prediction question the world declares.
 
 A frame also carries the world's declared subtask potentials, which only the

@@ -11,7 +11,7 @@ import Acorn.Host.Terrain
 /-!
 # The grid world as one instance of the interface
 
-The composed agent of `Acorn.Handcrafted.Agent` names no world. This module binds
+The composed agent of `Acorn.Handcrafted.Agent` imports no world. This module binds
 the grid world to its interface: the interface value, and the adapter that turns a
 host observation and the preceding result into a percept. The adapter is built from
 the executed host and channel definitions: D1's `sensorWords` and `observationPatch`,

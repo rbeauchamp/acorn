@@ -418,13 +418,19 @@ F-E left its feature-construction end inert until U3.
   learner in terms of the host's own channel, signal and potential definitions. The
   [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
   host's step, construction and restoration equal to a frozen composition over host
-  observations (`act_eq`, `callback_eq`, `initial_eq`, `restore_eq`). Three bindings
-  to the grid world's way of running remain outside the interface: the world waits
-  for the agent, a saved image is not an exact image of the agent (the option models
-  and the off-policy questions start afresh), and the host's achievement flag still
-  ends an executing option, now as a field of the frame that the coder does not
-  read. No second world instantiates the interface yet, so that another world fits
-  it is a design claim, not an observation.
+  observations (`act_eq`, `callback_eq`, `initial_eq`, `restore_eq`). Five bindings
+  to the grid world remain. Three are to its way of running, outside the interface:
+  the world waits for the agent, a saved image is not an exact image of the agent
+  (the option models and the off-policy questions start afresh), and the host's
+  achievement flag still ends an executing option, now as a field of the frame that
+  the coder does not read. Two are inside the agent's own modules, which import no
+  world: the lifetime accounting records reward and attempts under the grid
+  curriculum's four task families and attempt cycles (`Agent.recordEnvironment`,
+  `Agent.recordAttempt`), as observations no learner reads, and the evaluation mode
+  `withoutReachRelation` is named for the grid world's reach relation, which only
+  the grid adapter omits from its frame words. No second world instantiates the
+  interface yet, so that another world fits it is a design claim, not an
+  observation.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
   way", and imagined outcomes "are then evaluated by the value functions"

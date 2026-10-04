@@ -146,7 +146,7 @@ imports, capability owners, artifact origins and native routes. Every project th
 dependencies; only {splice}`proseList (AcornTheoremCount.admittedAxioms.toList.map toString)` are admitted. The theorem inventory reports the
 checked declarations. Every proof passes through the kernel.
 
-The modules that compose the agent name no world. Source and compiled admission
+The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
 owned by one, unless it is one of the grid world's own declared modules:
 {splice}`proseList (AcornBoundaryAudit.gridOwners.toList.map toString)`. The last of

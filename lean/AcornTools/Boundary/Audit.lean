@@ -46,7 +46,7 @@ interface instance. -/
 def gridOwners : Array Name := #[`Acorn.Handcrafted.Observation, `Acorn.Handcrafted.Cumulants,
   `Acorn.Handcrafted.GridWorld]
 
-/-- Every other declared module names no world: the composed agent, its profiles and its
+/-- Every other declared module imports no world: the composed agent, its profiles and its
 world-independent declarations. A newly added declared module is world-independent until
 it is listed as a grid owner. -/
 def worldIndependent (name : Name) : Bool :=
