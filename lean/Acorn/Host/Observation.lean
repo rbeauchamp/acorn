@@ -111,15 +111,18 @@ structure Inventory where
   /-- Boat possession. -/
   boat : Bool
 
-/-- Current generated host patch shape and the generator's context width. -/
+/-- Side of the sensory window around the body. -/
+def patchSide : Nat := Acorn.FeatureConstants.patchSide
+
+/-- The generator's input shape: every window cell in row-major order, then the
+task context words. -/
 def patchShape : Features.PatchShape :=
-  ⟨Acorn.FeatureConstants.patchSide, by decide, by decide,
-    Acorn.FeatureConstants.taskContextWords, by decide⟩
+  ⟨patchSide * patchSide + Acorn.FeatureConstants.taskContextWords, by decide, by decide⟩
 
 /-- Complete current observation, including all raw public sensory bytes. -/
 structure Observation where
   /-- Row-major sensory window. -/
-  tiles : Vector (Vector TileObservation patchShape.side) patchShape.side
+  tiles : Vector (Vector TileObservation patchSide) patchSide
   /-- Energy bucket byte. -/
   energy : UInt8
   /-- Day-phase byte. -/

@@ -104,21 +104,21 @@ def OptionActivation.following (activation : OptionActivation mode) : Following 
 
 /-- A continuation binds its potential, features and policy snapshot to one
 termination decision. Its bound excludes an action after the cap. -/
-structure OptionContinuation (dimension : Dimension) (activation : OptionActivation mode) where
+structure OptionContinuation (actions : Word.Count) (dimension : Dimension) (activation : OptionActivation mode) where
   private mk ::
   /-- Exact active set used to freeze the policy. -/
   features : SwiftTd.ActiveSet dimension
   /-- Exact coordinate used by the stopping comparison. -/
   potential : Potential
   /-- Values and epsilon before learner mutation. -/
-  policy : PolicySnapshot primitiveCount
+  policy : PolicySnapshot actions
   /-- Another action fits within the fixed duration. -/
   room : activation.age.val < Acorn.FeatureConstants.optionMaxDuration
 
 /-- Complete termination decision; no duration-bypassing continuation exists. -/
-inductive OptionDecision (dimension : Dimension) (activation : OptionActivation mode) where
+inductive OptionDecision (actions : Word.Count) (dimension : Dimension) (activation : OptionActivation mode) where
   /-- An admitted continuing step. -/
-  | continuing (next : OptionContinuation dimension activation)
+  | continuing (next : OptionContinuation actions dimension activation)
   /-- A closing transition, with its reason. -/
   | ending (reason : OptionEnd)
 
@@ -133,19 +133,20 @@ inductive ConsumerRate where
 def ConsumerRate.resolve (source : ConsumerRate) (own : Unit → SwiftTd.ExploreRate) : SwiftTd.ExploreRate :=
   match source with | .own => own () | .fixed rate => rate
 
-variable {config : Config} {criterion : Criterion} {dimension : Dimension} {discounts : List Discount}
+variable {actions : Word.Count} {config : Config} {criterion : Criterion} {dimension : Dimension}
+  {discounts : List Discount}
 
 /-- Frozen start retains all learned registers; learning start clears trajectory
 state before any snapshot. Model start is handled by its boundary consumer. -/
-def Skill.beginOption (skill : Skill config criterion dimension discounts)
+def Skill.beginOption (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential)
     (learning : Bool) (rate : ConsumerRate) :
-    Skill config criterion dimension discounts ×
-      (activation : OptionActivation learning) × OptionContinuation dimension activation :=
+    Skill actions config criterion dimension discounts ×
+      (activation : OptionActivation learning) × OptionContinuation actions dimension activation :=
   let skill := if learning then { skill with policy := skill.policy.clear } else skill
   let activation : OptionActivation learning := ⟨ ⟨0, by decide⟩, potential⟩
-  let policy := skill.policy.snapshot (count := primitiveCount) features
-    (rate.resolve fun _ => skill.policy.exploreRate (count := primitiveCount))
+  let policy := skill.policy.snapshot (count := actions) features
+    (rate.resolve fun _ => skill.policy.exploreRate (count := actions))
   (skill, ⟨activation, ⟨features, potential, policy, by change 0 < Acorn.FeatureConstants.optionMaxDuration; decide⟩⟩)
 
 /-- Comparison uses the nominal policy mean for differential control and the
@@ -154,13 +155,13 @@ def comparisonValue (criterion : Criterion) {count : Word.Count} (policy : Polic
   match criterion with | .differential => policy.expected | .discounted => policy.best
 
 /-- Goal precedes duration, which precedes the strict estimate comparison. -/
-def Skill.decideOption (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
+def Skill.decideOption (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
-    (estimate : Binary32) (rate : ConsumerRate) : OptionDecision dimension activation :=
+    (estimate : Binary32) (rate : ConsumerRate) : OptionDecision actions dimension activation :=
   if goal then .ending .goal
   else if h : activation.age.val < Acorn.FeatureConstants.optionMaxDuration then
-    let policy := skill.policy.snapshot (count := primitiveCount) features
-      (rate.resolve fun _ => skill.policy.exploreRate (count := primitiveCount))
+    let policy := skill.policy.snapshot (count := actions) features
+      (rate.resolve fun _ => skill.policy.exploreRate (count := actions))
     let continuing := (comparisonValue criterion policy).add potential.value
     if continuing.less (skill.interest.stoppingValue estimate potential) then .ending .interrupted
     else .continuing ⟨features, potential, policy, h⟩
@@ -171,10 +172,10 @@ complete Sarsa update. The draw is the behaviour's persistent draw (PAR-8): its
 exploring branch commits a run whose first action is this step's action, a sample of
 the option's own nominal distribution, so the update is the on-policy one either way.
 Age counts the returned action, including the first one. -/
-def Skill.optionStep (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
-    (next : OptionContinuation dimension activation) (reward : Binary32) (gain : RewardRate)
+def Skill.optionStep (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (reward : Binary32) (gain : RewardRate)
     (rng : Rng.Xoshiro256) :
-    Skill config criterion dimension discounts × OptionActivation mode × PersistentDecision primitiveCount × Rng.Xoshiro256 :=
+    Skill actions config criterion dimension discounts × OptionActivation mode × PersistentDecision actions × Rng.Xoshiro256 :=
   let drawn := next.policy.drawPersistent rng
   let skill := if activation.learning then
     { skill with policy := (skill.policy.persistentStep next.features next.policy drawn.1
@@ -184,9 +185,9 @@ def Skill.optionStep (skill : Skill config criterion dimension discounts) (activ
 
 /-- Close existing traces with the selected terminal continuation. No new action
 trace is inserted, and the model state is left to the model boundary owner. -/
-def Skill.terminateOption (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
+def Skill.terminateOption (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (potential : Potential) (reward terminal : Binary32) (gain : RewardRate) :
-    Skill config criterion dimension discounts :=
+    Skill actions config criterion dimension discounts :=
   if activation.learning then
     { skill with policy := (skill.policy.terminal
       (terminalCumulant (criterion.center reward 1 gain)
@@ -195,26 +196,26 @@ def Skill.terminateOption (skill : Skill config criterion dimension discounts) (
 
 /-- Start's predecessor coordinate is exactly the current potential, avoiding
 an invented zero-potential transition. -/
-theorem Skill.begin_coordinate (skill : Skill config criterion dimension discounts)
+theorem Skill.begin_coordinate (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
     (skill.beginOption features potential learning rate).2.1.previous = potential ∧
     (skill.beginOption features potential learning rate).2.1.age.val = 0 := ⟨rfl, rfl⟩
 
 /-- Goal feedback always wins, including at the duration boundary. -/
-theorem Skill.goal_ends (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
+theorem Skill.goal_ends (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (estimate : Binary32) (rate : ConsumerRate) :
     skill.decideOption activation features potential true estimate rate = .ending .goal := rfl
 
 /-- At the duration cap a nonterminal activation cannot return another action. -/
-theorem Skill.cap_ends (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
+theorem Skill.cap_ends (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (estimate : Binary32) (rate : ConsumerRate)
     (full : activation.age.val = Acorn.FeatureConstants.optionMaxDuration) :
     skill.decideOption activation features potential false estimate rate = .ending .duration := by
   simp [Skill.decideOption, full]
 
 /-- Every admitted action advances by exactly one, not a saturating no-op at the cap. -/
-theorem Skill.step_age (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
-    (next : OptionContinuation dimension activation) (reward : Binary32) (gain : RewardRate)
+theorem Skill.step_age (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (reward : Binary32) (gain : RewardRate)
     (rng : Rng.Xoshiro256) :
     (skill.optionStep activation next reward gain rng).2.1.age.val = activation.age.val + 1 := by
   have := next.room
@@ -222,20 +223,20 @@ theorem Skill.step_age (skill : Skill config criterion dimension discounts) (act
   omega
 
 /-- Frozen activation mutation cannot be enabled by a later caller's mode. -/
-theorem Skill.step_frozen (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
-    (next : OptionContinuation dimension activation) (reward : Binary32) (gain : RewardRate)
+theorem Skill.step_frozen (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (reward : Binary32) (gain : RewardRate)
     (rng : Rng.Xoshiro256) (frozen : activation.learning = false) :
     (skill.optionStep activation next reward gain rng).1 = skill := by
   simp [Skill.optionStep, frozen]
 
 /-- A continuing decision freezes the option's own policy at the decision's frame: its
 learner's values there and the rate its source resolves to. -/
-theorem Skill.decide_policy (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
+theorem Skill.decide_policy (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
-    (estimate : Binary32) (rate : ConsumerRate) (next : OptionContinuation dimension activation)
+    (estimate : Binary32) (rate : ConsumerRate) (next : OptionContinuation actions dimension activation)
     (continuing : skill.decideOption activation features potential goal estimate rate = .continuing next) :
-    next.policy = skill.policy.snapshot (count := primitiveCount) features
-      (rate.resolve fun _ => skill.policy.exploreRate (count := primitiveCount)) := by
+    next.policy = skill.policy.snapshot (count := actions) features
+      (rate.resolve fun _ => skill.policy.exploreRate (count := actions)) := by
   simp only [Skill.decideOption] at continuing
   repeat' split at continuing
   all_goals first
@@ -243,9 +244,9 @@ theorem Skill.decide_policy (skill : Skill config criterion dimension discounts)
     | cases continuing
 
 /-- A continuing decision binds the frame it was taken at: its features and potential. -/
-theorem Skill.decide_frame (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
+theorem Skill.decide_frame (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
-    (estimate : Binary32) (rate : ConsumerRate) (next : OptionContinuation dimension activation)
+    (estimate : Binary32) (rate : ConsumerRate) (next : OptionContinuation actions dimension activation)
     (continuing : skill.decideOption activation features potential goal estimate rate = .continuing next) :
     next.features = features ∧ next.potential = potential := by
   simp only [Skill.decideOption] at continuing
@@ -256,20 +257,20 @@ theorem Skill.decide_frame (skill : Skill config criterion dimension discounts) 
 
 /-- The step's action, branch and run are those of the persistent draw from the
 continuation's frozen policy, at the supplied generator state. -/
-theorem Skill.step_drawn (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
-    (next : OptionContinuation dimension activation) (reward : Binary32) (gain : RewardRate)
+theorem Skill.step_drawn (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (reward : Binary32) (gain : RewardRate)
     (rng : Rng.Xoshiro256) :
     (skill.optionStep activation next reward gain rng).2.2 = next.policy.drawPersistent rng := rfl
 
 /-- An invocation start freezes the started option's own policy at the start frame: its
 learner's values there and the rate its source resolves to. -/
-theorem Skill.begin_policy (skill : Skill config criterion dimension discounts)
+theorem Skill.begin_policy (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
     (skill.beginOption features potential learning rate).2.2.policy =
       (skill.beginOption features potential learning rate).1.policy.snapshot
-        (count := primitiveCount) features
+        (count := actions) features
         (rate.resolve fun _ => (skill.beginOption features potential learning
-          rate).1.policy.exploreRate (count := primitiveCount)) := by
+          rate).1.policy.exploreRate (count := actions)) := by
   simp only [Skill.beginOption]
 
 /-- The trajectory a learning activation continues as resumes to that activation, so the
@@ -278,7 +279,7 @@ theorem OptionActivation.following_activation (activation : OptionActivation tru
     activation.following.activation = activation := rfl
 
 /-- Termination retains the complete objective identity and untouched model owner. -/
-theorem Skill.terminal_owners (skill : Skill config criterion dimension discounts) (activation : OptionActivation mode)
+theorem Skill.terminal_owners (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (potential : Potential) (reward terminal : Binary32) (gain : RewardRate) :
     (skill.terminateOption activation potential reward terminal gain).interest = skill.interest ∧
     (skill.terminateOption activation potential reward terminal gain).model = skill.model := by

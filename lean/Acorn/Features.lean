@@ -14,10 +14,10 @@ Host channel choices belong to the explicitly declared composition boundary.
 Mahmood and Sutton, *Representation Search through Generate and Test*,
 AAAI 2013 workshop, PDF page 3 (linear threshold units and feature replacement),
 https://armahmood.github.io/files/MS-RepSearch-AAAI-WS-2013.pdf.
-The current adaptation samples 32 inputs with replacement from the patch cells
-and the context words, hash-binarizes them, and uses threshold zero. It does not
-implement the paper's imprinting threshold. A unit's projection is determined by
-its recorded generator origin, so the bank is reconstructed from origins alone.
+The current adaptation samples 32 inputs with replacement from the symbol
+positions, hash-binarizes them, and uses threshold zero. It does not implement
+the paper's imprinting threshold. A unit's projection is determined by its
+recorded generator origin, so the bank is reconstructed from origins alone.
 -/
 namespace Acorn.Features
 
@@ -155,44 +155,27 @@ theorem mem_unique {dimension : Dimension} (indices : List (FeatIdx dimension))
 theorem unique_nodup {dimension : Dimension} (indices : List (FeatIdx dimension)) :
     (unique indices).indices.Nodup := (unique indices).nodup
 
-/-- Legal generator input shape: an odd byte-representable patch side, followed
-by a fixed number of opaque context words. -/
+/-- Legal generator input shape: a positive number of opaque symbol positions. A
+world lays its own structure over them, such as a square patch followed by context
+words, or a whole grid. -/
 structure PatchShape where
-  /-- Side length. -/
-  side : Nat
-  /-- A centre exists. -/
-  odd : side % 2 = 1
-  /-- Coordinates fit the byte interface. -/
-  bounded : side ≤ 255
-  /-- Context words read after the row-major patch cells. -/
-  context : Nat
+  /-- Generator input positions. -/
+  inputs : Nat
+  /-- There is a position to sample. -/
+  positive : 0 < inputs
   /-- Every input position fits a two-byte checksum word. -/
-  contextBounded : context ≤ 255
-
-/-- Odd natural sides are nonempty. -/
-theorem PatchShape.positive (shape : PatchShape) : 0 < shape.side := by
-  have := shape.odd
-  omega
-
-/-- Generator input positions: every patch cell, then every context word. -/
-def PatchShape.inputs (shape : PatchShape) : Nat := shape.side * shape.side + shape.context
-
-/-- Every shape has an input position to sample. -/
-theorem PatchShape.inputs_positive (shape : PatchShape) : 0 < shape.inputs := by
-  have := Nat.mul_pos shape.positive shape.positive
-  unfold PatchShape.inputs
-  omega
+  bounded : inputs ≤ 65536
 
 /-- Sampled input position and sign, legal at storage. -/
 structure Sample (shape : PatchShape) where
-  /-- Row-major patch cell or context word. -/
+  /-- Sampled symbol position of the shape. -/
   input : Fin shape.inputs
   /-- True denotes positive one. -/
   positive : Bool
 
 /-- The position reads the high word and the sign the low bit, so they use disjoint bits. -/
 def Sample.ofWord (shape : PatchShape) (word : UInt64) : Sample shape where
-  input := ⟨(word >>> 32).toNat % shape.inputs, Nat.mod_lt _ shape.inputs_positive⟩
+  input := ⟨(word >>> 32).toNat % shape.inputs, Nat.mod_lt _ shape.positive⟩
   positive := (word &&& 1) != 0
 
 /-- Exactly 32 signed samples. Slots are derived separately from seed and unit. -/
@@ -214,7 +197,7 @@ theorem drawSamples_succ (shape : PatchShape) (count : Nat) (stream : Rng.SplitM
         (drawSamples shape count stream).2.next.2) := by
   simp only [drawSamples, Nat.dfold_succ]
 
-/-- The generator consumes precisely one wrapping increment per sampled cell. -/
+/-- The generator consumes precisely one wrapping increment per sampled symbol position. -/
 theorem drawSamples_stream (shape : PatchShape) (count : Nat) (stream : Rng.SplitMix64) :
     (drawSamples shape count stream).2.state = stream.state + Rng.increment * count.toUInt64 := by
   induction count with
@@ -347,7 +330,7 @@ def Bank.checksum {shape : PatchShape} {config : Config} (bank : Bank shape conf
       Rng.fnvStep (Rng.fnvStep (Rng.fnvStep hash sample.input.val.toUInt8)
         (sample.input.val / 256).toUInt8) (if sample.positive then 1 else 0)) hash) Rng.fnvOffset
 
-/-- Opaque generator input: row-major patch cells, then the context words. -/
+/-- Opaque generator input: one 64-bit code per symbol position of the shape. -/
 abbrev Patch (shape : PatchShape) := Vector UInt64 shape.inputs
 
 /-- One sample contributes only minus one, zero, or plus one. -/
@@ -472,15 +455,23 @@ theorem encode_membership (dimension : Dimension) {shape : PatchShape} {config :
     index ∈ (encode dimension bank words patch).indices ↔
       index ∈ rawEncode dimension bank words patch := mem_unique _ _
 
+/-- The unique encoding from any unit outputs satisfies the raw-input resource bound. -/
+theorem encodeWith_length (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) :
+    (encodeWith dimension config words active).indices.length ≤
+      config.tilings.toNat * words.length + config.units.count := by
+  have filtered := fold_length (rawEncodeWith dimension config words active)
+    (SwiftTd.ActiveSet.empty dimension)
+  have rawBound := rawEncodeWith_length dimension config words active
+  rw [← unique_order] at filtered
+  simp only [SwiftTd.ActiveSet.empty, List.length_nil, Nat.zero_add] at filtered
+  simpa [encodeWith] using Nat.le_trans filtered rawBound
+
 /-- The actual unique encoding satisfies the same raw-input resource bound. -/
 theorem encode_length (dimension : Dimension) {shape : PatchShape} {config : Config}
     (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
     (encode dimension bank words patch).indices.length ≤
-      config.tilings.toNat * words.length + config.units.count := by
-  have filtered := fold_length (rawEncode dimension bank words patch) (SwiftTd.ActiveSet.empty dimension)
-  have rawBound := rawEncode_length dimension bank words patch
-  rw [← unique_order] at filtered
-  simp only [SwiftTd.ActiveSet.empty, List.length_nil, Nat.zero_add] at filtered
-  simpa [encode, encodeWith, rawEncode] using Nat.le_trans filtered rawBound
+      config.tilings.toNat * words.length + config.units.count :=
+  encodeWith_length dimension config words (bank.activations patch)
 
 end Acorn.Features

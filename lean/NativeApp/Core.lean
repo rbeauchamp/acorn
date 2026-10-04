@@ -48,8 +48,8 @@ private def renderAnsi (provenance : String) {config : WorldConfig}
     (frame : AnsiFrame config) : IO Unit := do
   IO.print "\x1b[H\x1b[2K"
   IO.println provenance
-  for row in List.finRange patchShape.side do
-    let line := (List.finRange patchShape.side).foldl (fun text col =>
+  for row in List.finRange patchSide do
+    let line := (List.finRange patchSide).foldl (fun text col =>
       text ++ String.singleton (if row.val == 5 && col.val == 5 then '@'
         else tileText ((frame.observation.tiles.get row).get col)) ++ " ") ""
     IO.println line

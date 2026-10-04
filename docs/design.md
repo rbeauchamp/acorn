@@ -13,10 +13,10 @@ OaK's architecture is introduced in Richard Sutton's
 describes the FC-STOMP progression: feature construction, subtasks, options,
 models and planning. Acorn implements the components described below.
 
-The host environment supplies an observation and task reward. The agent turns
-the observation into features, updates its predictions and action values, and
-chooses an action. That action changes the world and supplies the next experience.
-Learning continues across task attempts without replaying past observations.
+A world supplies an observation and a reward. The agent turns the observation
+into features, updates its predictions and action values, and chooses an action.
+That action changes the world and supplies the next experience. Learning continues
+across task attempts without replaying past observations.
 
 In the `ranked` configuration, these mechanisms work together:
 
@@ -48,7 +48,78 @@ Exact update order belongs to
 feedback loop, general learned state and learned prediction questions remain
 outside this implementation; see [the frontier](frontier.md).
 
+### The interface between the agent and a world
+
+The agent is written against an **interface**, not against one world. An interface
+is what a world fixes ([`Interface`](../lean/Acorn/Interface.lean)): the shape of the
+symbol array the feature generator samples; which prediction signals the world
+supplies and at which horizons; how many primitive actions it accepts; and how many
+words one observation carries at most. Everything the agent stores is sized by these.
+The interface also declares the first channel of the agent's prediction feedback
+words.
+
+Each step the world delivers one **percept**: a **frame** and the reward of the
+preceding transition. A frame has three parts, one for each kind of learner input:
+
+- **words**, opaque pairs of a channel and a 64-bit value, which the coder hashes
+  into features;
+- **symbols**, an array of 64-bit codes that the generated projection features
+  sample. Every interface declares its shape and every frame fills it. The
+  interface design's requirement R1, that a world may supply no symbol array, is
+  deferred until an instance needs it and its feature-construction semantics is
+  decided; [issue #70](https://github.com/rbeauchamp/acorn/issues/70) tracks the
+  interface work. A world with only words can lay those words' codes over symbol
+  positions, as the grid world does with its task context;
+- **signals**, one number per prediction question the world declares.
+
+A frame also carries the world's declared subtask potentials, which only the
+`spatial` comparison reads, and whether the preceding transition achieved the
+installed goal, which ends an executing option. Nothing else reaches a learner.
+The agent answers with one action, a number below the interface's action count
+([`Agent.act`](../lean/Acorn/Handcrafted/Agent.lean)).
+
+The modules that compose the agent import no world: the boundary audit refuses a
+world-independent agent module that imports a host module. In every world one
+frame activates at most a number of features fixed by the interface and the
+feature configuration (`Agent.frame_length`). The timing of a step, the split of
+acting from learning, and an exact saved image are not part of the interface yet;
+the grid world waits for the agent.
+
+The agent adds its own prediction feedback words, one per prediction question, on
+consecutive channels from the one the interface declares. A frame cannot carry a
+word on one of those channels: the frame type holds a proof that none of its words
+does, so each world's adapter proves it where it builds a frame. No word of a world
+then shares a channel with a feedback word (`Agent.words_disjoint`). This separates
+channels, not features: two words on different channels can still hash to one
+feature slot, as any two hashed words can.
+
 ### The demonstration world
+
+The grid world is one instance of the interface
+([`Grid.interface`](../lean/Acorn/Handcrafted/GridWorld.lean)): a symbol array of
+131 positions, ten signals after the agent's own reward question, nine actions, at
+most 381 words and feedback channels from `0x50`. Its adapter builds each percept
+from the host's observation and the preceding result. `Agent.grid_inputs` in
+[the host binding](../lean/Acorn/Host/AgentInterface.lean) states, for every
+agent state, observation and reward word, that the coder's words and symbols, the
+prediction signals and the declared potentials the agent receives are exactly the
+values of the host's channel, signal and potential definitions, and
+`Agent.callbacks_act` that the host's step is the interface agent's step on that
+percept. `Grid.sensorWords_clear` discharges the feedback-channel condition for
+every grid frame.
+
+[The correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) compare the
+grid instance with the agent as it was composed directly over the host observation.
+They keep that composition as a frozen reference that no executing module imports:
+the definitions of commit `d3bc6e0` for construction, the encoding frame, the local
+transition, the full decision, the host's step and restoration. `act_eq` and
+`callback_eq` state that, for every agent state, observation, reward word and
+achievement flag, the host's step returns the same action, decision and next state
+as the reference; `initial_eq` and `restore_eq` state the same for construction and
+restoration. The reference does not freeze the storage beneath the composition. The
+core types take the action count as a parameter that the grid sets to nine, where
+they held the constant nine before, and the reference calls the executed selection,
+option, model and planning definitions.
 
 The world supplies a local 11 × 11 sensory patch, energy, inventory and a task
 description. Its nine actions are four directions, wait, harvest, craft axe,

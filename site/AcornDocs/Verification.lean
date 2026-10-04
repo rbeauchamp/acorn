@@ -8,6 +8,7 @@ import AcornSite
 import Acorn.Constants
 import Acorn.Host.Checkpoint.Admission
 import AcornVerif.CurrentConstants
+import AcornVerif.GridCorrespondence
 
 open Verso.Genre Manual
 open AcornSite
@@ -144,6 +145,31 @@ as a deprecated import, fails the build. Source/compiled admission checks
 imports, capability owners, artifact origins and native routes. Every project theorem is checked for axiom
 dependencies; only {splice}`proseList (AcornTheoremCount.admittedAxioms.toList.map toString)` are admitted. The theorem inventory reports the
 checked declarations. Every proof passes through the kernel.
+
+The modules that compose the agent import no world. Source and compiled admission
+refuse a declared module that imports a host module, or references a declaration
+owned by one, unless it is one of the grid world's own declared modules:
+{splice}`proseList (AcornBoundaryAudit.gridOwners.toList.map toString)`. The last of
+them binds the grid world to the agent's interface.
+{decl}`Acorn.Handcrafted.Agent.grid_inputs` states what that binding feeds each
+learner, in terms of the host's own channel, signal and potential definitions, for
+every agent state, observation and reward word:
+
+{statement Acorn.Handcrafted.Agent.grid_inputs}
+
+{leanModule}`AcornVerif.GridCorrespondence` keeps the agent's composition over host
+observations, as it was before the interface, as a frozen reference that no executing
+module imports. {decl}`AcornVerif.GridCorrespondence.act_eq` states that the
+interface agent's decision on the grid percept returns the same next state and
+decision as that reference:
+
+{statement AcornVerif.GridCorrespondence.act_eq}
+
+{decl}`AcornVerif.GridCorrespondence.callback_eq`,
+{decl}`AcornVerif.GridCorrespondence.initial_eq` and
+{decl}`AcornVerif.GridCorrespondence.restore_eq` state the same for the host's step,
+construction and restoration. The reference covers the composition; the storage types
+beneath it are the executed ones at the grid's action count.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting

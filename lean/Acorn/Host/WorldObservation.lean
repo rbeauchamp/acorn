@@ -35,8 +35,8 @@ def World.occupancy {config : WorldConfig} (world : World config) : Occupancy :=
 
 /-- The actual row-major tile observation with checked signed coordinate offsets. -/
 def World.observeTile {config : WorldConfig} (world : World config) (occupied : Occupancy)
-    (row column : Fin patchShape.side) : Except WorldError TileObservation := do
-  let radius := patchShape.side / 2
+    (row column : Fin patchSide) : Except WorldError TileObservation := do
+  let radius := patchSide / 2
   let some position := world.body.position.position.translate
     ((column.val : Int) - radius) ((row.val : Int) - radius) | .error .coordinateOverflow
   let kind ← world.tileKind position

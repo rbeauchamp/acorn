@@ -34,6 +34,8 @@ was active in.
 -/
 namespace Acorn.Features
 
+variable {actions : Word.Count}
+
 /-- Remove one feature slot from a frame; a frame without it is returned as is. -/
 def eraseFeature {dimension : Dimension} (features : SwiftTd.ActiveSet dimension)
     (feature : FeatIdx dimension) : SwiftTd.ActiveSet dimension :=
@@ -214,22 +216,22 @@ def TemporalReferences.cold {dimension : Dimension} (config : Config) (discounts
     .cold dimension⟩
 
 /-- End-of-step receiver, after any detached closing owner has received terminal credit. -/
-structure FeatureRuntime (shape : PatchShape) (config : Config) (criterion : Criterion)
+structure FeatureRuntime (shape : PatchShape) (actions : Word.Count) (config : Config) (criterion : Criterion)
     (dimension : Dimension) (discounts : List Discount) (activation exploration decision : Type) where
   /-- Complete representation and learner storage. -/
-  lifecycle : Lifecycle shape config criterion dimension discounts
+  lifecycle : Lifecycle shape actions config criterion dimension discounts
   /-- Current process-local references. -/
   references : TemporalReferences dimension discounts activation exploration decision
 
 /-- Release every slot holding any of the given units. -/
 def Ensemble.releaseAll {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
-    (units : List (Fin config.units.count)) : Ensemble config criterion dimension discounts :=
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
+    (units : List (Fin config.units.count)) : Ensemble actions config criterion dimension discounts :=
   units.foldl Ensemble.release ensemble
 
 /-- A slot that does not hold a unit still does not after any release. -/
 theorem Ensemble.release_keeps {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (released unit : Fin config.units.count) (slot : Fin Acorn.FeatureConstants.skillCount)
     (absent : ensemble.skills[slot.val].interest.held.holds unit = false) :
     (ensemble.release released).skills[slot.val].interest.held.holds unit = false := by
@@ -241,7 +243,7 @@ theorem Ensemble.release_keeps {config : Config} {criterion : Criterion} {dimens
 /-- After releasing a list, no slot holds any listed unit. -/
 theorem Ensemble.releaseAll_holds {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (units : List (Fin config.units.count)) :
-    ∀ (ensemble : Ensemble config criterion dimension discounts) (unit : Fin config.units.count),
+    ∀ (ensemble : Ensemble actions config criterion dimension discounts) (unit : Fin config.units.count),
       unit ∈ units → ∀ slot : Fin Acorn.FeatureConstants.skillCount,
         (ensemble.releaseAll units).skills[slot.val].interest.held.holds unit = false := by
   induction units with
@@ -253,7 +255,7 @@ theorem Ensemble.releaseAll_holds {config : Config} {criterion : Criterion} {dim
     · subst same
       have gone := Ensemble.release_holds ensemble unit slot
       have keep (units : List (Fin config.units.count)) :
-          ∀ (current : Ensemble config criterion dimension discounts),
+          ∀ (current : Ensemble actions config criterion dimension discounts),
             current.skills[slot.val].interest.held.holds unit = false →
             (units.foldl Ensemble.release current).skills[slot.val].interest.held.holds unit = false := by
         induction units with
@@ -267,7 +269,7 @@ theorem Ensemble.releaseAll_holds {config : Config} {criterion : Criterion} {dim
 /-- Releasing only unheld units changes nothing. -/
 theorem Ensemble.releaseAll_unheld {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (units : List (Fin config.units.count)) :
-    ∀ (ensemble : Ensemble config criterion dimension discounts),
+    ∀ (ensemble : Ensemble actions config criterion dimension discounts),
       (∀ unit ∈ units, ensemble.holds unit = false) → ensemble.releaseAll units = ensemble := by
   induction units with
   | nil => intro _ _; rfl
@@ -319,9 +321,9 @@ boundary's assignment refresh installs an entrant when the ranking has one. Each
 replaced unit's slot is erased from the stored recent frames. -/
 def FeatureRuntime.retire {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (active : Vector Bool config.units.count) :
-    FeatureRuntime shape config criterion dimension discounts activation exploration decision :=
+    FeatureRuntime shape actions config criterion dimension discounts activation exploration decision :=
   let tested := state.lifecycle.test state.references.phase.free active
   { state with
     lifecycle := { tested.1 with consumers := tested.1.consumers.releaseAll tested.2 }
@@ -333,7 +335,7 @@ units' slots. This is a schedule-preservation claim, not a claim that all cached
 numbers were recomputed. -/
 theorem FeatureRuntime.retire_references {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (active : Vector Bool config.units.count) :
     (state.retire active).references =
         { state.references with recent := (state.references.recent.retireAll
@@ -343,7 +345,7 @@ theorem FeatureRuntime.retire_references {shape : PatchShape} {config : Config} 
 planning backup at a stored frame writes a replacement unit's weight. -/
 theorem FeatureRuntime.retire_recent {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (active : Vector Bool config.units.count) (unit : Fin config.units.count)
     (replaced : unit ∈ (state.lifecycle.test state.references.phase.free active).2)
     (position : Fin Acorn.FeatureConstants.optionMaxDuration) :
@@ -354,7 +356,7 @@ theorem FeatureRuntime.retire_recent {shape : PatchShape} {config : Config} {cri
 /-- After a test no held assignment names a replaced unit. -/
 theorem FeatureRuntime.retire_releases {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (active : Vector Bool config.units.count) :
     ∀ unit ∈ (state.lifecycle.test state.references.phase.free active).2,
       ∀ slot : Fin Acorn.FeatureConstants.skillCount,
@@ -368,7 +370,7 @@ exploration, the test replaces only units no slot holds, and no objective, learn
 meta-controller row is released. -/
 theorem FeatureRuntime.retire_occupied {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (active : Vector Bool config.units.count) (occupied : state.references.phase.free = false) :
     state.retire active = { state with
       lifecycle := (state.lifecycle.test false active).1
@@ -387,9 +389,9 @@ theorem FeatureRuntime.retire_occupied {shape : PatchShape} {config : Config} {c
 /-- Cold installation resets every current process-local reference family. -/
 def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
-    (image : FeatureImage config criterion dimension discounts) (emptyDecision : decision) :
-    FeatureRuntime shape config criterion dimension discounts activation exploration decision :=
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
+    (image : FeatureImage actions config criterion dimension discounts) (emptyDecision : decision) :
+    FeatureRuntime shape actions config criterion dimension discounts activation exploration decision :=
   ⟨⟨Representation.restore shape image.progress,
       state.lifecycle.consumers.restore image.primary image.assignments⟩,
     TemporalReferences.cold config discounts emptyDecision⟩
@@ -397,7 +399,7 @@ def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : C
 /-- A materialized input is indexed by this receiver's current bank and observation. -/
 def FeatureRuntime.encodeCurrent {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (words : List SensorWord) (patch : Patch shape) :
     EncodingFrame dimension state.lifecycle.representation.bank words patch :=
   EncodingFrame.compute dimension state.lifecycle.representation.bank words patch
@@ -408,12 +410,12 @@ end-of-step boundary; the separate free-dispatch interface carries that owner wh
 terminal credit is still outstanding. -/
 def FeatureRuntime.refreshAtFree {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension (.g99 :: discounts) activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension (.g99 :: discounts) activation exploration decision)
     (assign : Bool) :
-    FeatureRuntime shape config criterion dimension (.g99 :: discounts) activation exploration decision :=
+    FeatureRuntime shape actions config criterion dimension (.g99 :: discounts) activation exploration decision :=
   match state.references.phase with
   | .idle =>
-    let free : FreeDispatch shape config criterion dimension discounts Unit :=
+    let free : FreeDispatch shape actions config criterion dimension discounts Unit :=
       ⟨state.lifecycle, state.references.modelPredictions, none⟩
     let refreshed := free.refreshModels assign
     { state with
@@ -424,7 +426,7 @@ def FeatureRuntime.refreshAtFree {shape : PatchShape} {config : Config} {criteri
 /-- Occupancy prevents every refresh mutation. -/
 theorem FeatureRuntime.occupied_preserves {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension (.g99 :: discounts) activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension (.g99 :: discounts) activation exploration decision)
     (assign : Bool) (occupied : state.references.phase ≠ .idle) :
     state.refreshAtFree assign = state := by
   unfold FeatureRuntime.refreshAtFree
@@ -436,7 +438,7 @@ theorem FeatureRuntime.occupied_preserves {shape : PatchShape} {config : Config}
 /-- Current-bank correspondence is attached to the actual materialized encoder result. -/
 theorem FeatureRuntime.encodeCurrent_fresh {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape config criterion dimension discounts activation exploration decision)
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (words : List SensorWord) (patch : Patch shape) :
     (state.encodeCurrent words patch).active = encode dimension state.lifecycle.representation.bank words patch := rfl
 

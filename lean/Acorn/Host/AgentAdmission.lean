@@ -70,11 +70,12 @@ def AgentConstruction.standard (seed : UInt64) (selection : Host.AgentSelection)
 
 /-- The instantiated agent type carries all immutable construction choices. -/
 abbrev AgentConstruction.State (construction : AgentConstruction) :=
-  Agent construction.profile construction.config construction.criterion construction.dimension construction.planning
+  Agent Grid.interface construction.profile construction.config construction.criterion
+    construction.dimension construction.planning
 
 /-- Every native constructor calls the full current cold initialization. -/
 def AgentConstruction.initial (construction : AgentConstruction) : construction.State :=
-  Agent.initial _ _ _ _ _
+  Agent.initial _ _ _ _ _ _
 
 /-- The same compiled finite-prefix fold is available for every admitted construction. -/
 @[noinline] def AgentConstruction.execute (construction : AgentConstruction)

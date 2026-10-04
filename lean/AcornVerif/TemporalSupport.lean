@@ -37,7 +37,7 @@ run or one persistent draw at D6's rate, whichever layer selected the action
 namespace AcornVerif.TemporalSupport
 open Acorn Acorn.Features Acorn.Handcrafted
 
-variable {Ω : Type} [Fintype Ω]
+variable {Ω : Type} [Fintype Ω] {interface : Interface} {actions : Word.Count}
 
 /-- A probability law on incoming generator states, stated rather than inferred
 from a pseudorandom implementation. The index may represent any finite support. -/
@@ -80,24 +80,26 @@ theorem mass_mono (law : IncomingLaw Ω) (small large : Ω → Prop)
     · exact le_rfl
 
 /-- A singleton output predicate never invents an action for a refused transition. -/
-def acts (result : Option TemporalDecision) (action : Action primitiveCount.word.toNat) : Prop :=
+def acts (result : Option (TemporalDecision actions)) (action : Action actions.word.toNat) : Prop :=
   ∃ decision, result = some decision ∧ decision.action = action
 
 /-- Inspect a branch only for an actual returned decision. -/
-def follows (result : Option TemporalDecision) (event : TemporalDecision → Prop) : Prop :=
+def follows (result : Option (TemporalDecision actions)) (event : TemporalDecision actions → Prop) :
+    Prop :=
   ∃ decision, result = some decision ∧ event decision
 
 /-- Current policy selection under the supplied law, with every other state and
 input held fixed. The full RNG state feeds all conditional subsequent draws. -/
 def outcomes {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} (law : IncomingLaw Ω)
-    (state : TemporalControl profile config criterion dimension)
+    (state : TemporalControl interface profile config criterion dimension)
     (planning : PlanningSelection)
-    (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation)
-    (reward : Binary32) (goal : Bool) : Ω → Option TemporalDecision := fun sample =>
+    (features : SwiftTd.ActiveSet dimension) (obs : Frame interface)
+    (reward : Binary32) (goal : Bool) : Ω → Option (TemporalDecision interface.actions) := fun
+    sample =>
   let state := { state with runtime := { state.runtime with
     references := { state.runtime.references with rng := law.state sample } } }
-  (state.select planning features (spatialPotentials obs) reward goal).map Prod.snd
+  (state.select planning features obs.declared reward goal).map Prod.snd
 
 /-- Classify option actions without interpreting the slot as host vocabulary. -/
 def optionSource : TemporalSource → Prop
@@ -108,8 +110,8 @@ def optionSource : TemporalSource → Prop
 fresh primitive contributions. It applies in particular to `outcomes`, whose
 option contribution includes any interruption by a stopping estimate and
 re-selection; an interruption by a run falls in the served contribution. -/
-theorem action_composition (law : IncomingLaw Ω) (run : Ω → Option TemporalDecision)
-    (action : Action primitiveCount.word.toNat) :
+theorem action_composition (law : IncomingLaw Ω) (run : Ω → Option (TemporalDecision actions))
+    (action : Action actions.word.toNat) :
     mass law (fun sample => acts (run sample) action) =
       mass law (fun sample => acts (run sample) action ∧
         follows (run sample) (fun d => d.source = .explorationContinuation)) +
@@ -127,12 +129,12 @@ theorem action_composition (law : IncomingLaw Ω) (run : Ω → Option TemporalD
 
 /-- Interruption is an observable conditioning event on the actual transition,
 not an independent probability multiplied into an unrelated policy model. -/
-def interrupted (decision : TemporalDecision) : Prop :=
+def interrupted (decision : TemporalDecision actions) : Prop :=
   ∃ ending, decision.ended = some ending ∧ ending.reason = .interrupted
 
 /-- Conditional terminal and continuing paths partition the same actual action law. -/
-theorem interruption_composition (law : IncomingLaw Ω) (run : Ω → Option TemporalDecision)
-    (action : Action primitiveCount.word.toNat) :
+theorem interruption_composition (law : IncomingLaw Ω) (run : Ω → Option (TemporalDecision actions))
+    (action : Action actions.word.toNat) :
     mass law (fun sample => acts (run sample) action) =
       mass law (fun sample => acts (run sample) action ∧ follows (run sample) interrupted) +
       mass law (fun sample => acts (run sample) action ∧ ¬ follows (run sample) interrupted) :=
@@ -140,8 +142,8 @@ theorem interruption_composition (law : IncomingLaw Ω) (run : Ω → Option Tem
 
 /-- A boundary floor is conditional on positive mass reaching that boundary
 and drawing this action. It gives no support theorem for served steps. -/
-theorem boundary_support (law : IncomingLaw Ω) (run : Ω → Option TemporalDecision)
-    (action : Action primitiveCount.word.toNat)
+theorem boundary_support (law : IncomingLaw Ω) (run : Ω → Option (TemporalDecision actions))
+    (action : Action actions.word.toNat)
     (positive : 0 < mass law (fun sample => acts (run sample) action ∧
       follows (run sample) (fun d => d.source = .explorationStart))) :
     0 < mass law (fun sample => acts (run sample) action) :=
@@ -151,12 +153,13 @@ theorem boundary_support (law : IncomingLaw Ω) (run : Ω → Option TemporalDec
 incoming RNG law, even with arbitrary goal feedback and planning selections. -/
 theorem served_other_mass_zero {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension} (law : IncomingLaw Ω)
-    (state : TemporalControl profile config criterion dimension)
+    (state : TemporalControl interface profile config criterion dimension)
     (planning : PlanningSelection)
-    (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation)
-    (reward : Binary32) (goal : Bool) (committed : CommittedRun (profile.mode != .frozen))
+    (features : SwiftTd.ActiveSet dimension) (obs : Frame interface)
+    (reward : Binary32) (goal : Bool)
+    (committed : CommittedRun interface.actions (profile.mode != .frozen))
     (phase : state.runtime.references.phase = .exploring committed)
-    (remaining : 0 < committed.run.remaining.val) (action : Action primitiveCount.word.toNat)
+    (remaining : 0 < committed.run.remaining.val) (action : Action interface.actions.word.toNat)
     (other : action ≠ committed.run.action) :
     mass law (fun sample => acts (outcomes law state planning features obs reward goal sample)
       action) = 0 := by
@@ -168,14 +171,14 @@ theorem served_other_mass_zero {profile : FeatureProfile} {config : Features.Con
     unfold outcomes at returned
     cases selected : ({ state with runtime := { state.runtime with
         references := { state.runtime.references with rng := law.state sample } } }).select
-        planning features (spatialPotentials obs) reward goal with
+        planning features obs.declared reward goal with
     | none => simp [selected] at returned
     | some result =>
       have exactAction := CurrentTemporal.served_preempts
         ({ state with runtime := { state.runtime with
           references := { state.runtime.references with rng := law.state sample } } })
         (modelOperations criterion dimension) (planningBoundary planning) features
-        (spatialPotentials obs) reward goal committed phase remaining result selected
+        obs.declared reward goal committed phase remaining result selected
       simp only [selected, Option.map_some, Option.some.injEq] at returned
       subst decision
       exact other (chosen.symm.trans exactAction.1)
@@ -288,16 +291,16 @@ uniform first-word hypothesis on that generator state, which the deterministic
 generator does not supply. -/
 theorem select_declared {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension}
-    (state next : TemporalControl profile config criterion dimension)
+    (state next : TemporalControl interface profile config criterion dimension)
     (declared : profile.rate = .declared)
     (models : OptionModelOps criterion dimension)
-    (plan : PlanBoundary config criterion dimension demonLayout)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (potentials : DeclaredPotentials)
-    (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
+    (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features potentials reward goal =
       some (next, decision)) :
     CurrentTemporal.Served state next decision ∨
-      ∃ (snapshot : PolicySnapshot primitiveCount) (rng : Rng.Xoshiro256),
+      ∃ (snapshot : PolicySnapshot interface.actions) (rng : Rng.Xoshiro256),
         CurrentTemporal.Handed state decision rng ∧
           CurrentTemporal.Drawn next decision snapshot rng ∧
           snapshot.epsilon = Handcrafted.declaredRate ∧
@@ -311,7 +314,7 @@ theorem select_declared {profile : FeatureProfile} {config : Features.Config}
   · have epsilon : (CurrentTemporal.optionSnapshot origin slot features).epsilon =
         Handcrafted.declaredRate := (origin.declared_rates declared).2.2 fun _ =>
       (origin.runtime.lifecycle.consumers.skills.get slot).policy.exploreRate
-        (count := primitiveCount)
+        (count := interface.actions)
     exact Or.inr ⟨_, _, handed, drawn, epsilon,
       drawn.2.1.trans (declared_persistent_explored _ epsilon _)⟩
 
@@ -324,12 +327,12 @@ exact mass (`declared_branch_card`, `declared_branch_mass`). A decision that rec
 meta decision reads the first word after that meta draw instead. -/
 theorem declared_direct {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension}
-    (state next : TemporalControl profile config criterion dimension)
+    (state next : TemporalControl interface profile config criterion dimension)
     (declared : profile.rate = .declared)
     (models : OptionModelOps criterion dimension)
-    (plan : PlanBoundary config criterion dimension demonLayout)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (potentials : DeclaredPotentials)
-    (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
+    (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features potentials reward goal =
       some (next, decision))
     (unserved : decision.source ≠ .explorationContinuation)

@@ -4,13 +4,16 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Handcrafted.Agent
+import Acorn.Handcrafted.GridWorld
 import Acorn.Host.Runner
 import Acorn.Host.AgentDiagnostics
 
 /-!
 # Current agent input and observation boundary
 
-The runner callbacks call the actual composed transition and lifetime owners.
+The runner callbacks call the actual composed transition and lifetime owners at the
+grid world's interface instance: each grid observation and preceding raw result
+reaches the agent as one percept, and the chosen action index leaves as a host action.
 Snapshots retain current immutable values only. Delivered telemetry and byte IO
 are separate interface owners; neither has a parameter on action selection.
 -/
@@ -45,7 +48,7 @@ variable {profile : FeatureProfile} {config : Features.Config} {criterion : Crit
 /-- Attempt metrics read current errors, the primitive controller's resolved
 rate, and the first primitive learner. These are raw diagnostic numbers,
 without a convergence or finiteness assertion. -/
-def Agent.metrics (state : Agent profile config criterion dimension planning) : Host.LearnerMetrics :=
+def Agent.metrics (state : Agent Grid.interface profile config criterion dimension planning) : Host.LearnerMetrics :=
   ⟨(Binary32.sumFrom .zero state.control.runtime.references.demonErrors.toList).div
       (Binary32.ofUInt64 demonLayout.length.toUInt64),
     state.control.controlRate.value,
@@ -62,7 +65,7 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
   /-- Current feedback cache in its immutable horizon order. -/
   predictions : PredictionCache demonLayout
   /-- Current primitive decision and hierarchy diagnostics, absent on cold state. -/
-  decision : Option TemporalDecision
+  decision : Option (TemporalDecision Grid.actions)
   /-- One-way scalar observations from the current learners. -/
   metrics : Host.LearnerMetrics
   /-- Shared host-time gain observed after learning. -/
@@ -85,7 +88,7 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
   featureProfile : FeatureProfile
 
 /-- Capture reads this receiver, without encoding again or advancing any learner. -/
-@[noinline] def Agent.observe (state : Agent profile config criterion dimension planning) :
+@[noinline] def Agent.observe (state : Agent Grid.interface profile config criterion dimension planning) :
     AgentObservation config dimension :=
   ⟨state.clock, state.control.runtime.lifecycle.representation,
     state.control.runtime.lifecycle.consumers.skills.map (·.interest),
@@ -101,36 +104,83 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
     criterion, profile⟩
 
 /-- Full-agent callbacks bind every existing host protocol operation to its actual owner. -/
-def Agent.callbacks : Host.AgentCallbacks (Agent profile config criterion dimension planning)
+def Agent.callbacks : Host.AgentCallbacks (Agent Grid.interface profile config criterion dimension planning)
     (AgentObservation config dimension) where
   act state observation result :=
-    let (next, decision) := state.act observation result.reward result.events.done
+    let (next, decision) := state.act
+      (Grid.percept profile.taskMode observation result.reward result.events.done)
     (Host.Action.fromIndex decision.action.val, next)
   recordEnvironment state family reward := state.recordEnvironment (familyIndex family) reward
   recordAttempt state family cycle steps achieved := state.recordAttempt (familyIndex family) cycle steps achieved
   capture := Agent.observe
   metrics := Agent.metrics
 
-/-- Raw preceding reward and terminal event are passed unchanged to the composed core. -/
-theorem Agent.callbacks_act (state : Agent profile config criterion dimension planning)
+/-- The host's step is the interface agent's step on the grid percept: the raw
+preceding reward and achievement event are passed unchanged, and the host action is
+the chosen index of the interface's action set. -/
+theorem Agent.callbacks_act (state : Agent Grid.interface profile config criterion dimension planning)
     (observation : Host.Observation) (result : Host.RawStepResult) :
-    (Agent.callbacks.act state observation result).2 =
-      (state.act observation result.reward result.events.done).1 := rfl
+    Agent.callbacks.act state observation result =
+      (Host.Action.fromIndex (state.act (Grid.percept profile.taskMode observation result.reward
+          result.events.done)).2.action.val,
+        (state.act (Grid.percept profile.taskMode observation result.reward
+          result.events.done)).1) := rfl
+
+/-- The words the grid agent's coder reads are the complete host word stream: the
+declared channels, then the feedback of the receiver's stored predictions. -/
+theorem Agent.grid_words (state : Agent Grid.interface profile config criterion dimension planning)
+    (mode : TaskFeatureMode) (obs : Host.Observation) (achieved : Bool) :
+    state.words (Grid.frame mode obs achieved) =
+      observationWords obs
+        (feedbackPredictions state.control.runtime.references.demonPredictions) mode := by
+  exact congrArg (sensorWords obs mode ++ ·) (Grid.feedback_eq
+    (feedbackPredictions state.control.runtime.references.demonPredictions))
+
+/-- The grid agent's encoding of an observation is the standalone observation coder
+applied to the receiver's current bank and stored predictions. -/
+theorem Agent.grid_encode (state : Agent Grid.interface profile config criterion dimension planning)
+    (obs : Host.Observation) (achieved : Bool) :
+    (state.frame (Grid.frame profile.taskMode obs achieved)).active =
+      profile.encode dimension state.control.runtime.lifecycle.representation.bank obs
+        (feedbackPredictions state.control.runtime.references.demonPredictions) := by
+  change encode dimension _ (state.words (Grid.frame profile.taskMode obs achieved)) _ = _
+  rw [Agent.grid_words]
+  rfl
+
+/-- Every input of one grid decision, in terms of the executed host definitions. The
+percept is the frame of the observation and the reward word. Of that frame, the
+coder's words and symbols, the prediction cumulants, the declared potentials and the
+achievement event are the host's own. The decision is the interface agent's on
+exactly these. -/
+theorem Agent.grid_inputs (state : Agent Grid.interface profile config criterion dimension planning)
+    (obs : Host.Observation) (reward : Binary32) (achieved : Bool) :
+    Grid.percept profile.taskMode obs reward achieved =
+        ⟨Grid.frame profile.taskMode obs achieved, reward⟩ ∧
+      state.words (Grid.frame profile.taskMode obs achieved) = observationWords obs
+        (feedbackPredictions state.control.runtime.references.demonPredictions) profile.taskMode ∧
+      (Grid.frame profile.taskMode obs achieved).symbols =
+        observationPatch obs profile.taskMode ∧
+      signalValues (Grid.frame profile.taskMode obs achieved) reward =
+        evaluateCumulants cumulantOrder obs reward ∧
+      (Grid.frame profile.taskMode obs achieved).declared = spatialPotentials obs ∧
+      (Grid.frame profile.taskMode obs achieved).achieved = achieved :=
+  ⟨rfl, state.grid_words profile.taskMode obs achieved, rfl,
+    Grid.signalValues_eq profile.taskMode obs reward achieved, rfl, rfl⟩
 
 /-- The frame captures the actual receiver's feedback, never a recomputed future prediction. -/
-theorem Agent.observe_predictions (state : Agent profile config criterion dimension planning) :
+theorem Agent.observe_predictions (state : Agent Grid.interface profile config criterion dimension planning) :
     state.observe.predictions = state.control.runtime.references.demonPredictions := rfl
 
 /-- The observer retains the exact cached model predictions of the executed transition. -/
-theorem Agent.observe_models (state : Agent profile config criterion dimension planning) :
+theorem Agent.observe_models (state : Agent Grid.interface profile config criterion dimension planning) :
     state.observe.models = state.control.runtime.references.modelPredictions := rfl
 
 /-- Learner diagnostics are a projection of current composed storage. -/
-theorem Agent.observe_learners (state : Agent profile config criterion dimension planning) :
+theorem Agent.observe_learners (state : Agent Grid.interface profile config criterion dimension planning) :
     state.observe.learners = Host.ensembleDiagnostics state.control.runtime.lifecycle.consumers := rfl
 
 /-- Accounting preserves the entire action-selection owner and its pending feedback. -/
-theorem Agent.environment_isolation (state : Agent profile config criterion dimension planning)
+theorem Agent.environment_isolation (state : Agent Grid.interface profile config criterion dimension planning)
     (family : Fin 4) (reward : Binary32) :
     (state.recordEnvironment family reward).control.runtime = state.control.runtime ∧
     (state.recordEnvironment family reward).control.credit = state.control.credit ∧
@@ -140,7 +190,7 @@ theorem Agent.environment_isolation (state : Agent profile config criterion dime
 /-- Attempt boundaries preserve the entire action-selection owner, including every
 learner, objective and the active temporal owner, and the reward-credit state: an
 attempt's outcome and its curriculum cycle reach the observations only. -/
-theorem Agent.attempt_continuity (state : Agent profile config criterion dimension planning)
+theorem Agent.attempt_continuity (state : Agent Grid.interface profile config criterion dimension planning)
     (family : Fin 4) (cycle steps : UInt64) (achieved : Bool) :
     (state.recordAttempt family cycle steps achieved).control.runtime = state.control.runtime ∧
     (state.recordAttempt family cycle steps achieved).control.credit = state.control.credit ∧

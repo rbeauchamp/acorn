@@ -62,18 +62,19 @@ def demonImages {dimension : Dimension} {discounts : List Discount} :
 
 /-- Primary images follow the same structural segments used during installation. -/
 def primaryImage {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
-    (ensemble : Ensemble config criterion dimension demonLayout) : PrimaryImage dimension demonLayout :=
+    (ensemble : Ensemble Grid.actions config criterion dimension demonLayout) :
+    PrimaryImage Grid.actions dimension demonLayout :=
   ⟨ensemble.control.learners.map knowledge, ensemble.metaController.learners.map knowledge,
     ensemble.skills.map (fun skill => skill.policy.learners.map knowledge), demonImages ensemble.demons⟩
 
 /-- The complete checkpoint projection already carries valid history and numeric state. -/
 def snapshotImage (construction : AgentConstruction) (state : construction.State) :
-    AgentImage construction.config construction.criterion construction.dimension :=
+    AgentImage Grid.interface construction.config construction.criterion construction.dimension :=
   let runtime := state.control.runtime
   ⟨⟨runtime.lifecycle.representation.progress,
       runtime.lifecycle.consumers.skills.map
-        (fun skill : Skill construction.config construction.criterion construction.dimension
-          demonLayout =>
+        (fun skill : Skill Grid.actions construction.config construction.criterion
+          construction.dimension demonLayout =>
           skill.interest.held), state.aligned.2,
       primaryImage runtime.lifecycle.consumers⟩,
     state.control.average.rate, state.control.lifetime.durable, by
@@ -89,7 +90,7 @@ def testerWords {config : Features.Config} (progress : Progress config) : Tester
 
 /-- A typed image has one exact format-17 word projection under its receiver. -/
 def imagePayload (construction : AgentConstruction)
-    (image : AgentImage construction.config construction.criterion construction.dimension) :
+    (image : AgentImage Grid.interface construction.config construction.criterion construction.dimension) :
     Payload construction.dimension :=
   ⟨⟨formatVersion, construction.dimension.capacity.toUInt32, primaryCount.toUInt32,
       construction.config.seed, image.features.progress.clock, construction.criterion.tag.toUInt32,

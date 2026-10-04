@@ -24,9 +24,6 @@ selects the step's primitive action, primitive control or an executing option.
 -/
 namespace Acorn.Features
 
-/-- Current primitive action count with its machine-width admission. -/
-def primitiveCount : Word.Count := ⟨Acorn.FeatureConstants.primitiveCount.toUInt64, by decide⟩
-
 /-- Current meta action count with its machine-width admission. -/
 def metaCount : Word.Count := ⟨Acorn.FeatureConstants.metaActionCount.toUInt64, by decide⟩
 

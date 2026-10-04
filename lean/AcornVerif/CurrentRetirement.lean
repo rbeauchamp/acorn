@@ -181,11 +181,13 @@ theorem controller_retire_values {actions : Nat}
     simpa [Features.Controller.predictAll, Features.Controller.retire, Features.Managed.retire,
       Features.Managed.apply, Entry.apply] using same
 
-variable {shape : Features.PatchShape} {features : Features.Config} {criterion : Features.Criterion}
+variable {shape : Features.PatchShape} {actions : Word.Count} {features : Features.Config}
+  {criterion : Features.Criterion}
   {discounts : List Discount}
 
 /-- A replaced unit enters with the positive-zero outgoing weight in every reader. -/
-theorem replace_zero (state : Features.Lifecycle shape features criterion dimension discounts)
+theorem replace_zero
+    (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) :
     ∀ reader ∈ (state.replace unit).consumers.readers,
       (reader.2.state.weights.get (Features.unitFeature dimension features unit)).value =
@@ -200,7 +202,7 @@ theorem replace_zero (state : Features.Lifecycle shape features criterion dimens
 /-- **Local safety.** Replacement leaves every reader's prediction unchanged, bit for
 bit, on every input in which the replaced slot is inactive. -/
 theorem replace_predictions
-    (state : Features.Lifecycle shape features criterion dimension discounts)
+    (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) (input : ActiveSet dimension)
     (absent : Features.unitFeature dimension features unit ∉ input.indices) :
     (state.replace unit).consumers.readers.map (fun reader => reader.2.state.predict input) =
@@ -212,7 +214,8 @@ theorem replace_predictions
 
 /-- Every reader keeps its shared previous prediction and weight-change aggregate
 across a replacement. -/
-theorem replace_aggregates (state : Features.Lifecycle shape features criterion dimension discounts)
+theorem replace_aggregates
+    (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) :
     (state.replace unit).consumers.readers.map
         (fun reader => (reader.2.state.transient.vOld, reader.2.state.transient.vDelta)) =
@@ -229,7 +232,8 @@ theorem replace_aggregates (state : Features.Lifecycle shape features criterion 
 
 /-- The new unit's term preserves the numerical value of every finite partial sum
 in every reader: its outgoing weight contributes nothing to any prediction. -/
-theorem replace_neutral (state : Features.Lifecycle shape features criterion dimension discounts)
+theorem replace_neutral
+    (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) (reader : Features.PackedLearner dimension)
     (member : reader ∈ (state.replace unit).consumers.readers)
     (partialSum : Binary32) (finite : partialSum.Finite) :

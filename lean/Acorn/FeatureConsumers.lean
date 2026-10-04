@@ -26,6 +26,8 @@ row and its input column instead.
 -/
 namespace Acorn.Features
 
+variable {actions : Word.Count}
+
 /-- Erased provenance of phase-disciplined calls to the actual learner.
 The same `Permitted` definition owns the existing universal capacity theorem. -/
 inductive ManagedAdmission (config : Acorn.Config) (dimension : Dimension) :
@@ -353,12 +355,12 @@ structure Following where
 
 /-- Complete storage belonging to one option assignment. The questions it asks about its
 own policy follow the prediction channel layout. -/
-structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension)
+structure Skill (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) where
   /-- Objective identity, retained by feature-slot retirement. -/
   interest : Interest config
   /-- Current option-policy consumers. -/
-  policy : Controller (criterion.config .optionSkill) dimension Acorn.FeatureConstants.primitiveCount
+  policy : Controller (criterion.config .optionSkill) dimension actions.word.toNat
   /-- Current model consumers. -/
   model : Model dimension criterion
   /-- Off-policy trajectory of these learners while the option is not executing.
@@ -373,58 +375,58 @@ structure Skill (config : Config) (criterion : Criterion) (dimension : Dimension
 frame. -/
 def Skill.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
     {discounts : List Discount} (interest : Interest config) :
-    Skill config criterion dimension discounts :=
+    Skill actions config criterion dimension discounts :=
   ⟨interest, Controller.initial _ _ _, Model.initial _ _, none, OptionQuestions.initial _ _⟩
 
 /-- Each policy reader followed by its three model reader positions. -/
 def Skill.readers {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (skill : Skill config criterion dimension discounts) :
+    {discounts : List Discount} (skill : Skill actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   skill.policy.readers ++ skill.model.readers
 
 /-- Reset knowledge in the complete skill while retaining its target identity. -/
 def Skill.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (skill : Skill config criterion dimension discounts)
-    (feature : FeatIdx dimension) : Skill config criterion dimension discounts :=
+    {discounts : List Discount} (skill : Skill actions config criterion dimension discounts)
+    (feature : FeatIdx dimension) : Skill actions config criterion dimension discounts :=
   let ⟨interest, policy, model, following, questions⟩ := skill
   ⟨interest, policy.retire feature, model.retire feature, following, questions.retire feature⟩
 
 /-- All current learned consumers; dimensions, criteria and channel layout are nominal. -/
-structure Ensemble (config : Config) (criterion : Criterion) (dimension : Dimension)
+structure Ensemble (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) where
   /-- Primitive-action controller. -/
-  control : Controller (criterion.config .control) dimension Acorn.FeatureConstants.primitiveCount
+  control : Controller (criterion.config .control) dimension actions.word.toNat
   /-- Meta controller, including the primitive delegation action. -/
   metaController : Controller (criterion.config .control) dimension Acorn.FeatureConstants.metaActionCount
   /-- Every current skill and its model. -/
-  skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount
+  skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount
   /-- Every configured prediction channel. -/
   demons : DemonBank dimension discounts
 
 /-- Complete reader traversal, with the current alias-preserving model positions. -/
 def Ensemble.readers {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts) :
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   let ⟨control, metaController, skills, demons⟩ := ensemble
   control.readers ++ metaController.readers ++ skills.toList.flatMap Skill.readers ++ demons.readers
 
 /-- Complete structural reset of every stored family the readers traverse. -/
 def Ensemble.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
-    (feature : FeatIdx dimension) : Ensemble config criterion dimension discounts :=
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
+    (feature : FeatIdx dimension) : Ensemble actions config criterion dimension discounts :=
   let ⟨control, metaController, skills, demons⟩ := ensemble
   ⟨control.retire feature, metaController.retire feature, skills.map (·.retire feature), demons.retire feature⟩
 
 /-- Each policy learner followed by the physically stored model learners. -/
 def Skill.stored {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (skill : Skill config criterion dimension discounts) :
+    {discounts : List Discount} (skill : Skill actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   skill.policy.readers ++ skill.model.stored
 
 /-- Every physically stored learner once, in reader order. A discounted model's
 duration position aliases its reward learner and adds no outgoing weight. -/
 def Ensemble.stored {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts) :
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   let ⟨control, metaController, skills, demons⟩ := ensemble
   control.readers ++ metaController.readers ++ skills.toList.flatMap Skill.stored ++ demons.readers
@@ -438,7 +440,7 @@ def outgoing {dimension : Dimension} (readers : List (PackedLearner dimension))
 /-- Initial storage includes every action, model and supplied prediction channel. -/
 def Ensemble.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) (interests : Vector (Interest config) Acorn.FeatureConstants.skillCount) :
-    Ensemble config criterion dimension discounts :=
+    Ensemble actions config criterion dimension discounts :=
   ⟨Controller.initial _ _ _, Controller.initial _ _ _,
     interests.map (Skill.initial config criterion dimension), DemonBank.initial dimension discounts⟩
 
@@ -477,17 +479,17 @@ theorem DemonBank.reader_count {dimension : Dimension} {discounts : List Discoun
 
 /-- Each skill's coverage is derived from its policy shape and model interface. -/
 theorem Skill.reader_count {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (skill : Skill config criterion dimension discounts) :
-    skill.readers.length = Acorn.FeatureConstants.primitiveCount + 3 := by
+    {discounts : List Discount} (skill : Skill actions config criterion dimension discounts) :
+    skill.readers.length = actions.word.toNat + 3 := by
   simp [Skill.readers, Controller.reader_count, Model.reader_count]
 
 /-- The complete reader count is derived from the actual nested storage shapes. -/
 theorem Ensemble.reader_count {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts) :
-    ensemble.readers.length = Acorn.FeatureConstants.primitiveCount + Acorn.FeatureConstants.metaActionCount +
-      Acorn.FeatureConstants.skillCount * (Acorn.FeatureConstants.primitiveCount + 3) + discounts.length := by
-  have skillCount (skills : List (Skill config criterion dimension discounts)) :
-      (skills.flatMap Skill.readers).length = skills.length * (Acorn.FeatureConstants.primitiveCount + 3) := by
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts) :
+    ensemble.readers.length = actions.word.toNat + Acorn.FeatureConstants.metaActionCount +
+      Acorn.FeatureConstants.skillCount * (actions.word.toNat + 3) + discounts.length := by
+  have skillCount (skills : List (Skill actions config criterion dimension discounts)) :
+      (skills.flatMap Skill.readers).length = skills.length * (actions.word.toNat + 3) := by
     induction skills with
     | nil => simp
     | cons head tail ih => simp [Skill.reader_count, ih, Nat.add_mul, Nat.add_comm]
@@ -515,7 +517,7 @@ theorem DemonBank.retire_readers {dimension : Dimension} {discounts : List Disco
 
 /-- Skill scanning and reset include both policy and model state. -/
 theorem Skill.retire_readers {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (skill : Skill config criterion dimension discounts)
+    {discounts : List Discount} (skill : Skill actions config criterion dimension discounts)
     (feature : FeatIdx dimension) :
     (skill.retire feature).readers = skill.readers.map (PackedLearner.retire feature) := by
   simp [Skill.retire, Skill.readers, Controller.retire_readers, Model.retire_readers]
@@ -523,7 +525,7 @@ theorem Skill.retire_readers {config : Config} {criterion : Criterion} {dimensio
 /-- Complete reset commutes with the complete reader traversal, for all criteria,
 channel layouts, dimensions and states. No enumerated current consumer is omitted. -/
 theorem Ensemble.retire_readers {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (feature : FeatIdx dimension) :
     (ensemble.retire feature).readers = ensemble.readers.map (PackedLearner.retire feature) := by
   simp [Ensemble.retire, Ensemble.readers, Controller.retire_readers, DemonBank.retire_readers,

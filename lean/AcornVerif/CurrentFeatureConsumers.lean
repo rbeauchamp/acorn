@@ -15,6 +15,8 @@ assumed equivalent. Numeric primitives retain the learner's declared trust.
 namespace AcornVerif.CurrentFeatureConsumers
 open Acorn Acorn.Features AcornVerif.CurrentLearner
 
+variable {actions : Word.Count}
+
 /-- Every consumer's erased admission establishes the owning scheduling invariant. -/
 theorem managed_schedule {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) : ScheduleInv learner.state learner.phase := by
@@ -51,7 +53,7 @@ theorem managed_retire_absent {config : Acorn.Config} {dimension : Dimension}
 every reader, and each reader keeps its prior shared aggregates. -/
 theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
-    (ensemble : Ensemble config criterion dimension discounts) (feature : FeatIdx dimension)
+    (ensemble : Ensemble actions config criterion dimension discounts) (feature : FeatIdx dimension)
     (reader : PackedLearner dimension) (member : reader ∈ (ensemble.retire feature).readers) :
     registers reader.2.state feature = Vector.replicate 9 Binary32.zero ∧
     (reader.2.state.weights.get feature).value = Binary32.zero ∧
@@ -97,10 +99,10 @@ theorem readers_capacity {dimension : Dimension} (readers : List (PackedLearner 
 /-- The all-consumer scan and reset have a lifetime-independent eligibility bound. -/
 theorem ensemble_capacity {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
-    (ensemble : Ensemble config criterion dimension discounts) :
+    (ensemble : Ensemble actions config criterion dimension discounts) :
     (ensemble.readers.map (fun reader => reader.2.state.eligibleCount)).sum ≤
-      (Acorn.FeatureConstants.primitiveCount + Acorn.FeatureConstants.metaActionCount +
-        Acorn.FeatureConstants.skillCount * (Acorn.FeatureConstants.primitiveCount + 3) +
+      (actions.word.toNat + Acorn.FeatureConstants.metaActionCount +
+        Acorn.FeatureConstants.skillCount * (actions.word.toNat + 3) +
         discounts.length) *
         dimension.capacity := by
   have bound := readers_capacity ensemble.readers

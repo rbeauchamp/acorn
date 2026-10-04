@@ -122,7 +122,7 @@ def openCsv (path : System.FilePath) (checkpoint : Option System.FilePath)
 /-- All campaign reporting inputs are derived from the actual execution result. -/
 def reportText (options : Cli.Streaming) {profile : FeatureProfile}
     (result : CampaignResult options.common.world
-      (Agent profile (nativeConstruction options).config (nativeConstruction options).criterion
+      (Agent Grid.interface profile (nativeConstruction options).config (nativeConstruction options).criterion
         (nativeConstruction options).dimension (nativeConstruction options).planning))
     (outcomes : OutcomeReport (standardCurriculum options.common.world options.common.world.raw.seed).size) (elapsedMs : Nat) : String × String := Id.run do
   let agent := result.run.agent

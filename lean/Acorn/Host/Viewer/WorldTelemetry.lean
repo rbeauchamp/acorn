@@ -56,11 +56,11 @@ theorem goalTelemetry_family (goal : Option Goal) :
 
 /-- Canonical row-major flattening derives its dimensions from the sensor vectors. -/
 def observationVector (observation : Observation) (read : TileObservation → Nat) :
-    Vector Nat (patchShape.side * patchShape.side) :=
+    Vector Nat (patchSide * patchSide) :=
   Vector.ofFn fun index =>
-    let row : Fin patchShape.side := ⟨index.val / patchShape.side,
+    let row : Fin patchSide := ⟨index.val / patchSide,
       Nat.div_lt_of_lt_mul index.isLt⟩
-    let col : Fin patchShape.side := ⟨index.val % patchShape.side,
+    let col : Fin patchSide := ⟨index.val % patchSide,
       Nat.mod_lt _ (by decide)⟩
     read ((observation.tiles.get row).get col)
 
@@ -99,9 +99,9 @@ def worldTelemetry {β : Type} (frame : StepFrame β) (terminal : Bool) : List T
    ⟨"gx", .integer, gx⟩,
    ⟨"gy", .integer, gy⟩,
    ⟨"gn", .natural, quantity⟩,
-   ⟨"tiles", .array (patchShape.side * patchShape.side) .natural,
+   ⟨"tiles", .array (patchSide * patchSide) .natural,
       observationVector frame.observation (·.kind.toNat)⟩,
-   ⟨"tile_extra", .array (patchShape.side * patchShape.side) .natural,
+   ⟨"tile_extra", .array (patchSide * patchSide) .natural,
       observationVector frame.observation (fun tile => tile.food.toNat + 2 * tile.deer.toNat)⟩,
    ⟨"end", .flag, terminal⟩]
 

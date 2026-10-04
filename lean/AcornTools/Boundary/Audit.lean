@@ -41,11 +41,24 @@ def quarantined (name : Name) : Bool :=
 def learned (name : Name) : Bool :=
   (`Acorn).isPrefixOf name && !quarantined name && !compositionRoots.contains name
 
+/-- Declared modules bound to the grid world: its channel layout, its signals and its
+interface instance. -/
+def gridOwners : Array Name := #[`Acorn.Handcrafted.Observation, `Acorn.Handcrafted.Cumulants,
+  `Acorn.Handcrafted.GridWorld]
+
+/-- Every other declared module imports no world: the composed agent, its profiles and its
+world-independent declarations. A newly added declared module is world-independent until
+it is listed as a grid owner. -/
+def worldIndependent (name : Name) : Bool :=
+  (`Acorn.Handcrafted).isPrefixOf name && !gridOwners.contains name
+
 /-- The single proof module that imports the pinned FloatLib dependency. Other proof
 modules reach FloatLib's theorems through it; no executing module can. -/
 def floatLibBridge : Name := `AcornVerif.FloatLibBridge
 
 /-- Only host/composition owners may use the pinned standard containers and IO support.
+A world-independent declared module reaches learned modules and its own kind only, so
+the composed agent cannot name a host or grid type, directly or through an import.
 Proof imports name their actual dependencies; Mathlib and FloatLib umbrella imports
 needlessly load an entire library or tactic collection into each compiler process.
 FloatLib modules are admitted for the bridge alone. -/
@@ -61,7 +74,9 @@ def importAllowed (owner imported : Name) : Bool :=
   else if (`Std).isPrefixOf imported then
     (`Acorn.Host).isPrefixOf owner || compositionRoots.contains owner
   else if !(`Acorn).isPrefixOf imported then false
-  else if learned owner then learned imported else true
+  else if learned owner then learned imported
+  else if worldIndependent owner then learned imported || worldIndependent imported
+  else true
 
 /-- Errors include both the source owner and rejected capability. -/
 def reject {α : Type} (owner : Name) (reason : String) : IO α :=

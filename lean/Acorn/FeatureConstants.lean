@@ -58,7 +58,8 @@ def boatWood : Nat := 4
 def boatStone : Nat := 0
 /-- Current feature/lifecycle interface constant. -/
 def patchSide : Nat := 11
-/-- Current feature/lifecycle interface constant: task words the generator reads after the patch. -/
+/-- Current feature/lifecycle interface constant: symbol positions the grid world's task
+context fills after its kind patch. -/
 def taskContextWords : Nat := 10
 /-- Current feature/lifecycle interface constant. -/
 def reachRadius : Nat := 3

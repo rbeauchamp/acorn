@@ -32,6 +32,8 @@ The models and their targets evolve during the run.
 -/
 namespace Acorn.Features
 
+variable {actions : Word.Count}
+
 /-- Explicit research planning selection, separate from learning/frozen mode. -/
 inductive PlanningSelection where
   /-- Model-free comparator; leave knowledge and clock unchanged. -/
@@ -85,7 +87,7 @@ toward the backed-up value. Returns the prediction and the planning error observ
 def PlanningResult.lookAhead {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     PlanningResult criterion dimension × ModelCache × Binary32 :=
@@ -99,7 +101,7 @@ both the cache observation and the planning write. -/
 def PlanningResult.backup {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) : PlanningResult criterion dimension :=
   let result := state.lookAhead skills features gain rate slot
@@ -112,7 +114,7 @@ frame, so only the controller is written. -/
 def PlanningResult.sweep {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate)
     (slot : Fin Acorn.FeatureConstants.skillCount) : PlanningResult criterion dimension :=
   (state.lookAhead skills features gain rate slot).1
@@ -122,7 +124,7 @@ backup reads the weights the previous one wrote. -/
 def PlanningResult.backupAll {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     PlanningResult criterion dimension :=
   planningSlots.foldl (fun state slot => state.backup skills features gain rate slot) state
@@ -131,7 +133,7 @@ def PlanningResult.backupAll {config : Config} {criterion : Criterion} {dimensio
 def PlanningResult.sweepAll {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     PlanningResult criterion dimension :=
   planningSlots.foldl (fun state slot => state.sweep skills features gain rate slot) state
@@ -146,7 +148,7 @@ vector search control selects, after which search control moves to the preceding
 position. -/
 def planningBoundary {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (selection : PlanningSelection) :
-    PlanBoundary config criterion dimension discounts :=
+    PlanBoundary actions config criterion dimension discounts :=
   fun state skills features gain rate =>
     match selection with
     | .none => { state with errors := Vector.replicate _ .zero }
@@ -160,7 +162,7 @@ both rounds of backups, the advanced work count and the advanced search control.
 theorem planning_expectation {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     planningBoundary .expectation state skills features gain rate =
       ⟨((state.backupAll skills features gain rate).sweepAll skills
@@ -182,7 +184,7 @@ stored recent feature vectors. -/
 theorem no_planning {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (state : PlanningResult criterion dimension)
-    (skills : Vector (Skill config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
+    (skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     (planningBoundary .none state skills features gain rate).controller = state.controller ∧
     (planningBoundary .none state skills features gain rate).steps = state.steps ∧

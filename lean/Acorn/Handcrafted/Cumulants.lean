@@ -25,9 +25,6 @@ abbrev Cumulant := Fin Acorn.FeatureConstants.demonCount
 instance : Provenance Cumulant where
   origin := some .cumulants
 
-/-- Boolean host predicates become the exact binary32 indicator words. -/
-def indicator (value : Bool) : Binary32 := if value then .one else .zero
-
 /-- One canonical signal, evaluated once; malformed sensory bytes stay raw. -/
 def Cumulant.eval (signal : Cumulant) (obs : Observation) (reward : Binary32) : Binary32 :=
   indicator <| match signal.val with
@@ -65,8 +62,16 @@ def Cumulant.name (signal : Cumulant) : String :=
 /-- All signal identities are enumerated from their closed finite domain. -/
 def cumulantOrder : List Cumulant := List.finRange Acorn.FeatureConstants.demonCount
 
-/-- Horizon layout is derived from the same identities used to evaluate signals. -/
-def demonLayout : List Discount := cumulantOrder.map demonDiscount
+/-- Horizons of the ten host signals that follow the reward question, derived from
+the same identities used to evaluate them. -/
+def signalLayout : List Discount := cumulantOrder.tail.map demonDiscount
+
+/-- Horizon layout of all eleven questions: the reward question's, then the host
+signals'. -/
+abbrev demonLayout : List Discount := .g99 :: signalLayout
+
+/-- The layout is the horizon of every canonical signal, in canonical order. -/
+theorem demonLayout_signals : demonLayout = cumulantOrder.map demonDiscount := rfl
 
 /-- Evaluate an arbitrary ordered signal family without losing its horizon indices. -/
 def evaluateCumulants (signals : List Cumulant) (obs : Observation) (reward : Binary32) :
@@ -86,7 +91,9 @@ theorem Cumulant.indicator (signal : Cumulant) (obs : Observation) (reward : Bin
 
 /-- The prediction encoder's complete input derives from the typed feedback cache. -/
 def feedbackPredictions (cache : PredictionCache demonLayout) : Predictions :=
-  ⟨cache.words, by rw [cache.length]; simp [demonLayout, cumulantOrder]⟩
+  ⟨cache.words, by
+    rw [cache.length, demonLayout_signals]
+    simp [cumulantOrder]⟩
 
 /-- Encoding receives the original temporal prediction words without recomputation. -/
 theorem feedback_words (cache : PredictionCache demonLayout) :

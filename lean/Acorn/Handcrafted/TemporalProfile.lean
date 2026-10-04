@@ -3,15 +3,14 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Options
+import Acorn.Interface
 import Acorn.Handcrafted.FeatureProfile
-import Acorn.Host.Terrain
 
 /-!
 # Declared temporal comparison profiles
 
-D2 is the raw spatial indicator. D6 supplies the declared exploration rate and
-the annealed comparison's schedule; the persistent-duration law is D3 in
+D2 is a world's declared subtask potentials, which a frame carries. D6 supplies the
+declared exploration rate and the annealed comparison's schedule; the persistent-duration law is D3 in
 `Acorn.Exploration`. Ranked targets and PAR-10 per-consumer rates reuse their
 learned owners. These declarations select the recorded research profiles.
 
@@ -26,13 +25,10 @@ only the constant.
 namespace Acorn.Handcrafted
 open Features
 
-/-- Current raw spatial potential observations, in option table order. -/
-def spatialPotentials (obs : Host.Observation) : DeclaredPotentials :=
-  let kind := fun code => obs.tiles.any (fun row => row.any (fun tile => tile.kind == code))
-  ⟨.spatialPotentials, #v[
-    kind Host.TileKind.tree.code,
-    kind Host.TileKind.ore.code || kind Host.TileKind.stone.code,
-    obs.tiles.any (fun row => row.any (fun tile => tile.food != 0))]⟩
+/-- A frame's declared potentials enter selection with their D2 register entry. -/
+def _root_.Acorn.Features.Frame.declared {interface : Interface} (frame : Frame interface) :
+    DeclaredPotentials :=
+  ⟨.spatialPotentials, frame.potentials⟩
 
 /-- D6's rate: the binary32 word nearest 0.01, admitted without projection. -/
 def declaredRate : SwiftTd.ExploreRate := ⟨⟨Acorn.Constants.exploreRate1e2Bits⟩, by decide⟩
@@ -106,11 +102,11 @@ theorem annealed_write (rate : Bounded32 annealedRange) :
     annealedRange.Contains (Bounded32.project annealedRange
       (rate.value.mul ⟨Acorn.Constants.epsDecayBits⟩)).value := Bounded32.legal _
 
-/-- Declared spatial producers match every current spatial assignment. -/
-theorem spatial_admitted {config : Features.Config} {dimension : Dimension}
+/-- Every frame supplies the potential of every declared assignment. -/
+theorem spatial_admitted {interface : Interface} {config : Features.Config} {dimension : Dimension}
     (tag : Fin Acorn.FeatureConstants.skillCount) (features : SwiftTd.ActiveSet dimension)
-    (obs : Host.Observation) :
-    (Interest.declared (config := config) .spatialPotentials tag).potential features (spatialPotentials obs) =
-      some ((spatialPotentials obs).values.get tag) := by simp [Interest.potential, spatialPotentials]
+    (frame : Frame interface) :
+    (Interest.declared (config := config) .spatialPotentials tag).potential features frame.declared =
+      some (frame.potentials.get tag) := by simp [Interest.potential, Frame.declared]
 
 end Acorn.Handcrafted

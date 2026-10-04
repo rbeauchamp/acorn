@@ -95,7 +95,7 @@ def imprintCensus {config : Features.Config} {dimension : Dimension} {discounts 
 /-- The complete mutation receipt is a read of this receiver's current owners. -/
 def agentChecksum {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {planning : PlanningSelection}
-    (agent : Agent profile config criterion dimension planning) : UInt64 := Id.run do
+    (agent : Agent Grid.interface profile config criterion dimension planning) : UInt64 := Id.run do
   let runtime := agent.control.runtime
   let ensemble := runtime.lifecycle.consumers
   let representation := runtime.lifecycle.representation
