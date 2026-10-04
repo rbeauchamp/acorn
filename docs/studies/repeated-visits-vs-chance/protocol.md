@@ -11,8 +11,11 @@ status, because a registered revision is not edited ([revisions](#revisions));
 the baseline assessment's U7 row records the current status. The
 [scientific evidence guidance](../../../CONTRIBUTING.md#scientific-evidence)
 requires the owner's explicit authorization before the first run. The owner
-gave it for this revision at its registering commit and for nothing else:
-another revision, commit or seed list needs a new authorization.
+gave it for this revision, run at its registering commit only, whose `lean`
+and `scripts` trees must equal those of d3bc6e0, the commit by which
+[#73](https://github.com/rbeauchamp/acorn/pull/73) landed the change for
+[#58](https://github.com/rbeauchamp/acorn/issues/58). It covers nothing else:
+another revision, commit, source tree or seed list needs a new authorization.
 [Revisions](#revisions) says what this revision changes from revision 1, which
 was registered and never run.
 
@@ -495,26 +498,35 @@ performance cores to other work. Other load changes wall time and no outcome.
 ## Execution
 
 Preconditions: the owner's authorization names this protocol revision and the
-commit to run, which is the commit that registered it. The commit run contains
-this revision unchanged, and its Lean sources are those of the registering
-commit; the first block below refuses to continue otherwise. It takes the
+commit to run, which is the commit that registered it and no other. The `lean`
+and `scripts` trees of that commit hold the Lean sources, the pinned toolchain
+and dependencies and the scripts that verify and build the binary, and they
+equal those of d3bc6e0, in full `d3bc6e0a559a45047e4e666323621b4ca7650f0a`,
+the commit by which [#73](https://github.com/rbeauchamp/acorn/pull/73) landed
+the change for [#58](https://github.com/rbeauchamp/acorn/issues/58). The first
+block below refuses to continue otherwise. It takes the
 registering commit to be the earliest commit that changed how often the words
 `Protocol revision 2.` occur in this file. Revision 1 does not hold those
 words, and pull requests are squash-merged, so revision 2 reaches the main
 branch in one commit: that commit is the earliest one, and the block refuses
 when it finds none. The commit that first added this file, which revision 1's
-block used, is the one that registered revision 1. The block compares this
-file, the seed list and the Lean sources with the registering commit, so it
-refuses any later change to them. The checkout must have full history: a
-shallow checkout ends at a commit that then appears to have added every file
-with its present contents, so the block refuses one. Running any other Lean
-sources needs a new revision first.
+block used, is the one that registered revision 1. The block requires the
+commit checked out to be the registering commit, so it refuses every later
+commit, whatever that commit changes; the checkout is clean, so the files run
+are that commit's, this revision and the seed list among them. It then
+requires that commit's `lean` and `scripts` trees to equal those of d3bc6e0,
+so it refuses a registering commit that carries any other change to them. The
+checkout must have full history: a shallow checkout ends at a commit that then
+appears to have added every file with its present contents, so the block
+refuses one. Running any other commit or any other sources needs a new
+revision and a new authorization first.
 
 The commands are for this host (macOS, GNU coreutils installed). Each block
 below is a complete bash script, run by bash from the root of the checkout. The
 run script exports a shell function, which zsh, this host's default shell, does
 not do. The scripts are those of revision 1 with the observations directory and
-the results file renamed and the registering commit found as described above.
+the results file renamed, and with the first block finding, checking and
+recording the commit as described here.
 Before revision 1 was registered its run script was executed only in the runs
 named under [design](#design), with its seed list, side, cap and deadline
 changed, and its extraction and calculation commands only against those runs'
@@ -534,13 +546,13 @@ test -z "$(git status --porcelain)"
 test "$(git rev-parse --is-shallow-repository)" = false
 registered=$(git log -S'Protocol revision 2.' --format=%H -- "$study/protocol.md" | tail -n 1)
 test -n "$registered"
-git diff --quiet "$registered" HEAD -- lean "$study/protocol.md" "$study/seeds.txt"
+test "$(git rev-parse HEAD)" = "$registered"
+git diff --quiet d3bc6e0a559a45047e4e666323621b4ca7650f0a "$registered" -- lean scripts
 ./scripts/verify.sh
 ./scripts/lean.sh build acorn-viewer
 mkdir -p "$out"
 {
   git rev-parse HEAD
-  printf '%s\n' "$registered"
   shasum -a 256 lean/.lake/build/bin/acorn-core "$study/protocol.md" "$study/seeds.txt"
   cat lean/lean-toolchain
   sw_vers
@@ -659,9 +671,9 @@ gives the interval's lower end at W and its upper end at W + M.
   ([outcome CSV](../../design.md#outcome-csv)). An interrupted run's directory
   holds whatever that run wrote. They are never edited. The extracted results
   file and any written summary are presentations, kept apart from them.
-- **Source and environment.** The identity file records the commit run, the
-  commit that registered the revision, the SHA-256 of the binary, of this
-  protocol and of the seed list, the toolchain, the operating system, the
+- **Source and environment.** The identity file records the commit run, which
+  is the commit that registered the revision, the SHA-256 of the binary, of
+  this protocol and of the seed list, the toolchain, the operating system, the
   processor and the start time.
 - **Timing.** This revision reaches the main branch before the first run.
   GitHub's record of the merge is the independent time of registration; run
@@ -755,8 +767,12 @@ persistent exploration run whichever layer is acting
 ([#58](https://github.com/rbeauchamp/acorn/issues/58)). Running those sources
 needs this revision. It changes:
 
-- the source run, to the Lean sources of the commit that registers revision 2,
-  and with it the rule by which the first execution block finds that commit;
+- the commit run, to the commit that registers revision 2 and no other, whose
+  `lean` and `scripts` trees must equal those of d3bc6e0, the commit by which
+  #73 landed the change for #58, where revision 1 allowed a later commit that
+  left the Lean sources, the protocol and the seed list unchanged; and with it
+  the rule by which the first execution block finds and checks that commit, and
+  the identity file, which records one commit where revision 1's recorded two;
 - the observations directory, the results file and the run identities, from
   r1 to r2;
 - the record of prior access, which now discloses the generator-only
