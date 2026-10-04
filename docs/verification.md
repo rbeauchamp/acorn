@@ -291,11 +291,14 @@ contract is removed while its function stays registered. A function whose result
 type depends on an argument has no kind; its refusal theorem is registered as an
 ordinary requirement, which the audit reports with no kind. The audit does not
 find a decision function that is not registered, and no kind says that a
-specification is the intended one. `Acorn.Decisions` is the only module that
-imports Regula. It belongs to the Acorn library because Regula decides a
-registered function against the contracts of the function's own library. It
-declares no executing definition and no module imports it; the boundary audit
-admits it with the proof sources and refuses an import of it.
+specification is the intended one. `Acorn.Decisions` belongs to the Acorn library
+because Regula decides a registered function against the contracts of the
+function's own library. It is the only module that imports Regula's decision
+attribute. It declares no executing definition and no module imports it; the
+boundary audit admits it with the proof sources and refuses an import of it.
+`AcornVerif.Decisions` states a contract whose proof needs the proof library.
+Regula does not count it toward a registration, so its function is not
+registered, and the ownership audit requires the contract by name.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

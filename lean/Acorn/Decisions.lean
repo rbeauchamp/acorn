@@ -7,6 +7,7 @@ import Regula.Contract
 import Regula.Decision
 import Acorn.Agreement
 import Acorn.FeatureRanking
+import Acorn.Host.Campaign
 import Acorn.Host.Checkpoint.Admission
 import Acorn.Host.Cli
 import Acorn.Host.Viewer.ControlRequest
@@ -34,6 +35,10 @@ Three groups are registered.
   kind: a kind is stated about a function between two fixed types. Its refusal theorem is
   registered as an ordinary requirement, which the audit reports with no kind, and the
   function carries no `@[regula_decision]` registration.
+
+A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
+counts only a contract of the function's own library toward a registration, so such a function
+is not registered here.
 
 No kind says that a specification is the intended one, that every caller acts on the verdict,
 or which value an accepting result carries. Exactness of the accepted value is stated by the
@@ -66,6 +71,122 @@ private theorem dite_isSome.{u} {α : Type u} {condition : Prop} [Decidable cond
     (accept : condition → α) :
     (if holds : condition then some (accept holds) else none).isSome = true ↔ condition := by
   split <;> simp_all
+
+/-! ## Machine comparisons -/
+
+/-- NaN classification accepts exactly the words whose magnitude exceeds infinity's
+(`Binary32.isNaN_eq_magnitude`). -/
+theorem binary32_nan : Regula.ExecutableContract Binary32.isNaN
+    (Regula.Decides (· = true) (fun word : Binary32 => word.magnitude > 0x7f800000)) :=
+  ⟨decides
+    (fun word => by
+      show word.isNaN = true ↔ _
+      rw [Binary32.isNaN_eq_magnitude]
+      exact decide_eq_true_iff)
+    ⟨⟨0x7fc00000⟩, by decide⟩ ⟨.zero, by decide⟩⟩
+
+attribute [regula_decision] Binary32.isNaN
+
+/-- Zero classification accepts exactly the words with signed key zero
+(`Binary32.isZero_eq_key`). -/
+theorem binary32_zero : Regula.ExecutableContract Binary32.isZero
+    (Regula.Decides (· = true) (fun word : Binary32 => word.key = 0)) :=
+  ⟨decides
+    (fun word => by
+      show word.isZero = true ↔ _
+      rw [Binary32.isZero_eq_key]
+      exact decide_eq_true_iff)
+    ⟨.zero, by decide⟩ ⟨⟨0x3f800000⟩, by decide⟩⟩
+
+attribute [regula_decision] Binary32.isZero
+
+/-- Strict word comparison accepts exactly two non-NaN words in strict signed-key order
+(`Binary32.less_eq_key`). -/
+theorem binary32_less : Regula.ExecutableContract Binary32.less (fun compare =>
+    Regula.Decides (· = true)
+      (fun words : Binary32 × Binary32 =>
+        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key < words.2.key)
+      (Function.uncurry compare)) :=
+  ⟨decides
+    (fun words => by
+      show words.1.less words.2 = true ↔ _
+      rw [Binary32.less_eq_key]
+      simp [and_assoc])
+    ⟨(.zero, ⟨0x3f800000⟩), by decide⟩ ⟨(.zero, .zero), by decide⟩⟩
+
+attribute [regula_decision] Binary32.less
+
+/-- Non-strict word comparison accepts exactly two non-NaN words in signed-key order
+(`Binary32.lessOrEqual_eq_key`). -/
+theorem binary32_less_or_equal : Regula.ExecutableContract Binary32.lessOrEqual (fun compare =>
+    Regula.Decides (· = true)
+      (fun words : Binary32 × Binary32 =>
+        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key ≤ words.2.key)
+      (Function.uncurry compare)) :=
+  ⟨decides
+    (fun words => by
+      show words.1.lessOrEqual words.2 = true ↔ _
+      rw [Binary32.lessOrEqual_eq_key]
+      simp [and_assoc])
+    ⟨(.zero, .zero), by decide⟩ ⟨(⟨0x3f800000⟩, .zero), by decide⟩⟩
+
+attribute [regula_decision] Binary32.lessOrEqual
+
+/-- Numeric word equality accepts exactly two non-NaN words with equal signed keys
+(`Binary32.numericallyEqual_eq_key`). -/
+theorem binary32_equal : Regula.ExecutableContract Binary32.numericallyEqual (fun compare =>
+    Regula.Decides (· = true)
+      (fun words : Binary32 × Binary32 =>
+        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key = words.2.key)
+      (Function.uncurry compare)) :=
+  ⟨decides
+    (fun words => by
+      show words.1.numericallyEqual words.2 = true ↔ _
+      rw [Binary32.numericallyEqual_eq_key]
+      simp [and_assoc])
+    ⟨(.zero, .zero), by decide⟩ ⟨(⟨0x3f800000⟩, .zero), by decide⟩⟩
+
+attribute [regula_decision] Binary32.numericallyEqual
+
+/-- The magnitude test accepts exactly a word whose magnitude field is the given constant
+(`Binary32.magnitudeEq_exact`). -/
+theorem binary32_magnitude : Regula.ExecutableContract Binary32.magnitudeEq (fun test =>
+    Regula.Decides (· = true)
+      (fun input : Binary32 × UInt32 => input.1.magnitude = input.2.toNat)
+      (Function.uncurry test)) :=
+  ⟨decides
+    (fun input => by
+      show input.1.magnitudeEq input.2 = true ↔ _
+      rw [Binary32.magnitudeEq_exact]
+      exact beq_iff_eq)
+    ⟨(.zero, 0), by decide⟩ ⟨(.zero, 1), by decide⟩⟩
+
+attribute [regula_decision] Binary32.magnitudeEq
+
+/-- Binary64 NaN classification accepts exactly the words whose magnitude exceeds
+infinity's. -/
+theorem binary64_nan : Regula.ExecutableContract Binary64.isNaN
+    (Regula.Decides (· = true) (fun word : Binary64 => word.magnitude > 0x7ff0000000000000)) :=
+  ⟨decides (fun _ => decide_eq_true_iff)
+    ⟨⟨0x7ff8000000000000⟩, by decide⟩ ⟨⟨0⟩, by decide⟩⟩
+
+attribute [regula_decision] Binary64.isNaN
+
+/-- Strict binary64 comparison accepts exactly two non-NaN words in strict signed-key order
+(`Binary64.less_eq_key`). -/
+theorem binary64_less : Regula.ExecutableContract Binary64.less (fun compare =>
+    Regula.Decides (· = true)
+      (fun words : Binary64 × Binary64 =>
+        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key < words.2.key)
+      (Function.uncurry compare)) :=
+  ⟨decides
+    (fun words => by
+      show words.1.less words.2 = true ↔ _
+      rw [Binary64.less_eq_key]
+      simp [and_assoc])
+    ⟨(⟨0⟩, ⟨0x3ff0000000000000⟩), by decide⟩ ⟨(⟨0⟩, ⟨0⟩), by decide⟩⟩
+
+attribute [regula_decision] Binary64.less
 
 /-! ## Machine-state admission -/
 
@@ -264,6 +385,80 @@ theorem header_admit : Regula.ExecutableContract Checkpoint.admitHeader (fun adm
 
 attribute [regula_decision] Checkpoint.admitHeader
 
+/-- A decoded fixed-width word is the encoding of its value, followed by the returned
+suffix. -/
+private theorem decodeNat_written (width : Nat) (bytes : List UInt8) (value : Nat)
+    (rest : List UInt8) (decoded : Checkpoint.decodeNat width bytes = some (value, rest)) :
+    bytes = Checkpoint.encodeNat width value ++ rest := by
+  induction width generalizing bytes value rest with
+  | zero =>
+    simp only [Checkpoint.decodeNat, Option.some.injEq, Prod.mk.injEq] at decoded
+    simp [Checkpoint.encodeNat, decoded.2]
+  | succ width ih =>
+    cases bytes with
+    | nil => simp [Checkpoint.decodeNat, Checkpoint.byteCodec] at decoded
+    | cons digit bytes =>
+      simp only [Checkpoint.decodeNat, Checkpoint.byteCodec, bind, Option.bind] at decoded
+      cases highEq : Checkpoint.decodeNat width bytes with
+      | none => simp [highEq] at decoded
+      | some high =>
+        simp only [highEq, Option.some.injEq, Prod.mk.injEq] at decoded
+        have tail := ih bytes high.1 high.2 highEq
+        have small := digit.toNat_lt
+        have quotient : value / 256 = high.1 := by omega
+        have low : UInt8.ofNat value = digit := by
+          apply UInt8.toNat_inj.mp
+          show value % 256 = digit.toNat
+          omega
+        rw [Checkpoint.encodeNat, low, quotient, List.cons_append, ← decoded.2, ← tail]
+
+/-- Fixed-width word decoding accepts exactly the encodings of a word below the width's
+bound, followed by any suffix (`Checkpoint.nat_roundtrip`, `Checkpoint.decodeNat_bound`). -/
+theorem nat_decode : Regula.ExecutableContract Checkpoint.decodeNat (fun decode =>
+    Regula.Decides (·.isSome = true)
+      (fun input : Nat × List UInt8 => ∃ value suffix, value < 256 ^ input.1 ∧
+        input.2 = Checkpoint.encodeNat input.1 value ++ suffix)
+      (Function.uncurry decode)) :=
+  ⟨{ sound := fun input accepted => by
+       obtain ⟨⟨value, rest⟩, decoded⟩ := Option.isSome_iff_exists.mp accepted
+       exact ⟨value, rest, Checkpoint.decodeNat_bound _ _ _ _ decoded,
+         decodeNat_written _ _ _ _ decoded⟩
+     accepted := ⟨(0, []), rfl⟩
+     complete := fun input ⟨value, suffix, bound, written⟩ => by
+       show (Checkpoint.decodeNat input.1 input.2).isSome = true
+       rw [written, Checkpoint.nat_roundtrip _ _ bound]
+       rfl
+     refused := ⟨(1, []), by decide⟩ }⟩
+
+attribute [regula_decision] Checkpoint.decodeNat
+
+/-- Write-capability admission accepts exactly a positive interval with no refused image
+(`Host.WritableCheckpoint.refused`). -/
+theorem writable_checkpoint_admit :
+    Regula.ExecutableContract Host.WritableCheckpoint.admit (fun admit =>
+      Regula.Decides (·.isSome = true)
+        (fun input : (System.FilePath × UInt32) × Host.CheckpointAdmission =>
+          input.2 ≠ .refused ∧ 0 < input.1.2.toNat)
+        (Function.uncurry (Function.uncurry admit))) :=
+  ⟨decides
+    (fun ⟨⟨path, interval⟩, status⟩ => by
+      show (Host.WritableCheckpoint.admit path interval status).isSome = true ↔
+        status ≠ .refused ∧ 0 < interval.toNat
+      cases status <;> by_cases positive : 0 < interval.toNat <;>
+        simp [Host.WritableCheckpoint.admit, positive])
+    ⟨((⟨""⟩, 1), .loaded), by decide⟩ ⟨((⟨""⟩, 1), .refused), by decide⟩⟩
+
+attribute [regula_decision] Host.WritableCheckpoint.admit
+
+/-- The public resumable-profile test accepts exactly the ranked profile. It agrees with the
+constructed profile's test (`Host.research_resumable`). -/
+theorem profile_resumable : Regula.ExecutableContract Host.ResearchProfile.resumable
+    (Regula.Decides (· = true) (fun profile : Host.ResearchProfile => profile = .ranked)) :=
+  ⟨decides (fun profile => by cases profile <;> simp [Host.ResearchProfile.resumable])
+    ⟨.ranked, rfl⟩ ⟨.primitive, by decide⟩⟩
+
+attribute [regula_decision] Host.ResearchProfile.resumable
+
 /-! ## Host admission and parsing -/
 
 /-- Coordinate admission accepts exactly the signed 64-bit integers
@@ -292,6 +487,129 @@ theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
     ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩⟩
 
 attribute [regula_decision] Host.WorldConfig.admit
+
+/-- Standard world admission accepts exactly a side within the supported interval
+(`Host.WorldConfig.standard_bounds`). -/
+theorem world_config_standard :
+    Regula.ExecutableContract Host.WorldConfig.standard (fun standard =>
+      Regula.Decides (·.isOk = true)
+        (fun input : UInt64 × Host.Coordinate =>
+          (Acorn.FeatureConstants.worldMinSide : Int) ≤ input.2.val ∧
+            input.2.val ≤ (Acorn.FeatureConstants.worldMaxSide : Int))
+        (Function.uncurry standard)) :=
+  ⟨decides
+    (fun input => by
+      show (Host.WorldConfig.standard input.1 input.2).isOk = true ↔ _
+      unfold Host.WorldConfig.standard
+      by_cases low : input.2.val < Acorn.FeatureConstants.worldMinSide
+      · simp [low, Except.isOk, Except.toBool] <;> omega
+      · by_cases high : input.2.val > Acorn.FeatureConstants.worldMaxSide
+        · simp [low, high, Except.isOk, Except.toBool] <;> omega
+        · simp [low, high, Except.isOk, Except.toBool] <;> omega)
+    ⟨(0, ⟨64, by decide⟩), by decide⟩ ⟨(0, ⟨63, by decide⟩), by decide⟩⟩
+
+attribute [regula_decision] Host.WorldConfig.standard
+
+/-- The raw area product is accepted exactly when it is a signed 64-bit integer
+(`Host.RawWorldConfig.area_exact`). -/
+theorem world_area : Regula.ExecutableContract Host.RawWorldConfig.area
+    (Regula.Decides (·.isSome = true) (fun raw : Host.RawWorldConfig =>
+      -(2 ^ 63) ≤ raw.side.val * raw.side.val ∧ raw.side.val * raw.side.val < 2 ^ 63)) :=
+  ⟨decides (fun raw => coordinate_checked.evidence.iff (raw.side.val * raw.side.val))
+    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩
+    ⟨⟨0, ⟨2 ^ 62, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩⟩
+
+attribute [regula_decision] Host.RawWorldConfig.area
+
+/-- Energy spending accepts exactly a cost within the balance (`Host.Energy.spend_balance`). -/
+theorem energy_spend : Regula.ExecutableContract Host.Energy.spend (fun spend =>
+    Regula.Decides (·.isSome = true)
+      (fun input : Host.Energy × Nat => input.2 ≤ input.1.val) (Function.uncurry spend)) :=
+  ⟨decides
+    (fun input => by
+      show (Host.Energy.spend input.1 input.2).isSome = true ↔ _
+      unfold Host.Energy.spend
+      split <;> simp_all)
+    ⟨(Host.Energy.new 0, 0), Nat.zero_le _⟩ ⟨(Host.Energy.new 0, 1), by decide⟩⟩
+
+attribute [regula_decision] Host.Energy.spend
+
+/-- The raw energy cost is accepted exactly when the product fits 32 bits
+(`Host.Action.rawEnergyCost_exact`). -/
+theorem raw_energy_cost : Regula.ExecutableContract Host.Action.rawEnergyCost (fun cost =>
+    Regula.Decides (·.isSome = true)
+      (fun input : Host.Action × UInt32 =>
+        (if input.1 == .harvest then Acorn.FeatureConstants.harvestCost else 1) *
+          input.2.toNat < 2 ^ 32)
+      (Function.uncurry cost)) :=
+  ⟨decides
+    (fun input => by
+      show (Host.Action.rawEnergyCost input.1 input.2).isSome = true ↔ _
+      unfold Host.Action.rawEnergyCost
+      dsimp only
+      split <;> simp_all)
+    ⟨(.wait, 0), by decide⟩ ⟨(.harvest, 0xffffffff), by decide⟩⟩
+
+attribute [regula_decision] Host.Action.rawEnergyCost
+
+/-- Crafting accepts exactly an unowned tool whose recipe the inventory covers
+(`Host.Inventory.craft_exact`). -/
+theorem inventory_craft : Regula.ExecutableContract Host.Inventory.craft (fun craft =>
+    Regula.Decides (·.isOk = true)
+      (fun input : Host.Inventory × Host.Craftable =>
+        input.1.owns input.2 = false ∧ input.2.recipe.1 ≤ input.1.wood.toNat ∧
+          input.2.recipe.2 ≤ input.1.stone.toNat)
+      (Function.uncurry craft)) :=
+  ⟨decides
+    (fun ⟨inventory, tool⟩ => by
+      show (inventory.craft tool).isOk = true ↔ inventory.owns tool = false ∧
+        tool.recipe.1 ≤ inventory.wood.toNat ∧ tool.recipe.2 ≤ inventory.stone.toNat
+      rcases recipe : tool.recipe with ⟨wood, stone⟩
+      by_cases owned : inventory.owns tool = true
+      · simp [Host.Inventory.craft, owned, Except.isOk, Except.toBool]
+      · by_cases short : inventory.wood.toNat < wood
+        · simp [Host.Inventory.craft, recipe, owned, short, Except.isOk, Except.toBool] <;>
+            omega
+        · by_cases shortStone : inventory.stone.toNat < stone
+          · simp [Host.Inventory.craft, recipe, owned, short, shortStone, Except.isOk,
+              Except.toBool] <;> omega
+          · simp [Host.Inventory.craft, recipe, owned, short, shortStone, Except.isOk,
+              Except.toBool] <;> omega)
+    ⟨(⟨100, 100, 0, 0, false, false⟩, .axe), by decide⟩
+    ⟨(⟨0, 0, 0, 0, true, false⟩, .axe), by decide⟩⟩
+
+attribute [regula_decision] Host.Inventory.craft
+
+/-- Step-total aggregation accepts exactly a total and an outcome whose step sum fits 64 bits
+(`Host.addOutcomeSteps_exact`). -/
+theorem outcome_steps : Regula.ExecutableContract Host.addOutcomeSteps (fun add =>
+    Regula.Decides (·.isOk = true)
+      (fun input : UInt64 × Host.GoalOutcome => input.1.toNat + input.2.steps.toNat < 2 ^ 64)
+      (Function.uncurry add)) :=
+  ⟨decides
+    (fun input => by
+      show (Host.addOutcomeSteps input.1 input.2).isOk = true ↔ _
+      have advance := clock_advance.evidence.iff (input.1, input.2.steps)
+      unfold Host.addOutcomeSteps
+      cases next : Word.advanceClock input.1 input.2.steps <;>
+        simp_all [Function.uncurry, Except.isOk, Except.toBool])
+    ⟨(0, ⟨0, 0, 0, 0, false, .zero, ⟨.zero, .zero, .zero⟩, ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩⟩),
+      by decide⟩
+    ⟨(0xffffffffffffffff,
+        ⟨0, 0, 0, 1, false, .zero, ⟨.zero, .zero, .zero⟩, ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩⟩),
+      by decide⟩⟩
+
+attribute [regula_decision] Host.addOutcomeSteps
+
+/-- The unaided enterability test accepts exactly the terrain that is neither water nor
+mountain. -/
+theorem tile_walkable : Regula.ExecutableContract Host.TileKind.walkable
+    (Regula.Decides (· = true)
+      (fun kind : Host.TileKind => kind ≠ .water ∧ kind ≠ .mountain)) :=
+  ⟨decides (fun kind => by cases kind <;> simp [Host.TileKind.walkable])
+    ⟨.grass, by decide⟩ ⟨.water, by decide⟩⟩
+
+attribute [regula_decision] Host.TileKind.walkable
 
 /-- Planning-selection parsing accepts exactly the two canonical spellings
 (`PlanningSelection.parse_accepted`). -/
@@ -325,6 +643,43 @@ theorem planning_value : Regula.ExecutableContract Host.Cli.planningValue
     planning_parse.evidence.toDecidesCompletely.refutable⟩
 
 attribute [regula_decision] Host.Cli.planningValue
+
+/-- Planning admission from an argument list accepts exactly an absent option or one
+canonical spelling (`Host.Cli.planningSelection_absent`,
+`Host.Cli.planningSelection_provided`). A missing value is refused. -/
+theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelection
+    (Regula.Decides (·.isOk = true) (fun arguments : List String =>
+      Host.Cli.value arguments "--planning" = .ok none ∨
+        ∃ selection, Host.Cli.value arguments "--planning" =
+          .ok (some (PlanningSelection.name selection)))) :=
+  ⟨decides
+    (fun arguments => by
+      show (Host.Cli.planningSelection arguments).isOk = true ↔ _
+      cases found : Host.Cli.value arguments "--planning" with
+      | error refusal =>
+        simp [Host.Cli.planningSelection, found, Except.isOk, Except.toBool, bind, Except.bind]
+      | ok text =>
+        cases text with
+        | none =>
+          simp [Host.Cli.planningSelection_absent arguments found, Except.isOk, Except.toBool]
+        | some text =>
+          rw [Host.Cli.planningSelection_provided arguments text found, planningValue_isOk]
+          constructor
+          · intro accepted
+            obtain ⟨selection, written⟩ := (planning_parse.evidence.iff text).mp accepted
+            exact .inr ⟨selection, by rw [written]⟩
+          · rintro (absent | ⟨selection, provided⟩)
+            · cases absent
+            · have written : text = PlanningSelection.name selection := by simpa using provided
+              exact (planning_parse.evidence.iff text).mpr ⟨selection, written⟩)
+    ⟨[], .inl rfl⟩
+    ⟨["--planning"], fun spec => by
+      have found : Host.Cli.value ["--planning"] "--planning" =
+          .error (.missing "--planning") := rfl
+      rw [found] at spec
+      simp at spec⟩⟩
+
+attribute [regula_decision] Host.Cli.planningSelection
 
 /-- Checkpoint-status parsing accepts exactly the five emitted status lines
 (`Host.CheckpointStatus.roundtrip`). -/
@@ -362,6 +717,33 @@ theorem goal_item_decode : Regula.ExecutableContract decodeGoalItem
     none (unwritten := 1000) rfl⟩
 
 attribute [regula_decision] decodeGoalItem
+
+/-- Line extension accepts exactly a line below the line capacity
+(`LineBytes.append_exact`). -/
+theorem line_append : Regula.ExecutableContract LineBytes.append (fun append =>
+    Regula.Decides (·.isSome = true)
+      (fun input : LineBytes × UInt8 => input.1.bytes.size < lineCapacity)
+      (Function.uncurry append)) :=
+  ⟨decides (fun _ => dite_isSome _) ⟨(.empty, 0), by decide⟩
+    ⟨(⟨⟨Array.replicate lineCapacity 0⟩, by simp [ByteArray.size]⟩, 0),
+      by simp [ByteArray.size]⟩⟩
+
+attribute [regula_decision] LineBytes.append
+
+/-- Output admission accepts exactly the running or stopping phase of the same generation
+(`Phase.archiving_rejects`). -/
+theorem phase_accepts : Regula.ExecutableContract Phase.accepts (fun test =>
+    Regula.Decides (· = true)
+      (fun input : Phase × UInt64 => input.1 = .running input.2 ∨ input.1 = .stopping input.2)
+      (Function.uncurry test)) :=
+  ⟨decides
+    (fun ⟨phase, generation⟩ => by
+      show phase.accepts generation = true ↔ phase = .running generation ∨
+        phase = .stopping generation
+      cases phase <;> simp [Phase.accepts])
+    ⟨(.running 0, 0), .inl rfl⟩ ⟨(.idle, 0), by decide⟩⟩
+
+attribute [regula_decision] Phase.accepts
 
 /-- Map-cell admission accepts exactly the unseen marker and the eight terrain codes. -/
 theorem map_cell_admit : Regula.ExecutableContract MapCell.admit

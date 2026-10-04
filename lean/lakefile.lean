@@ -94,7 +94,7 @@ Executable targets and native admission request their object files explicitly;
 importing a proof or tooling leaf does not eagerly compile the whole library.
 Native compilation includes the same admission definitions used by the proofs.
 `Acorn.Decisions` registers the library's decision functions with their Regula contracts.
-It is the one module that imports Regula, and no executable imports it. -/
+It is the one module that imports Regula's decision attribute, and no executable imports it. -/
 lean_lib «Acorn» where
   globs := #[.andSubmodules `Acorn]
   moreLeancArgs := nativeFloatFlags

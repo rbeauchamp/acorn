@@ -56,6 +56,10 @@ it is listed as a grid owner. -/
 def worldIndependent (name : Name) : Bool :=
   (`Acorn.Handcrafted).isPrefixOf name && !gridOwners.contains name
 
+/-- The proof module that states Regula contracts whose proofs need the proof library. It
+alone among the proof modules imports Regula's contract type. -/
+def proofContracts : Name := `AcornVerif.Decisions
+
 /-- The single proof module that imports the pinned FloatLib dependency. Other proof
 modules reach FloatLib's theorems through it; no executing module can. -/
 def floatLibBridge : Name := `AcornVerif.FloatLibBridge
@@ -65,7 +69,8 @@ A world-independent declared module reaches learned modules and its own kind onl
 the composed agent cannot name a host or grid type, directly or through an import.
 Proof imports name their actual dependencies; Mathlib and FloatLib umbrella imports
 needlessly load an entire library or tactic collection into each compiler process.
-FloatLib modules are admitted for the bridge alone. The decision registry imports
+FloatLib modules are admitted for the bridge alone, and Regula's contract type for the proof
+module that states contracts. The decision registry imports
 executing modules and Regula's two registration interfaces, the contract type and the
 decision attribute. No module imports the registry, so the attribute's module, which
 imports Lean's elaborator, enters no executable's or proof's import closure. -/
@@ -77,7 +82,8 @@ def importAllowed (owner imported : Name) : Bool :=
   else if proofOwner owner then
     !#[`Mathlib, `Mathlib.Tactic, `FloatLib].contains imported &&
       (#[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported) ||
-        (owner == floatLibBridge && (`FloatLib).isPrefixOf imported))
+        (owner == floatLibBridge && (`FloatLib).isPrefixOf imported) ||
+        (owner == proofContracts && imported == `Regula.Contract))
   else if nativeBootstrap owner then
     (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
   else if owner == `Acorn.Constants then false
