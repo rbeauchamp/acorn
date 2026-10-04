@@ -331,7 +331,8 @@ command runs all {splice}`numberWord auditArms.length` fixed arms under the same
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
 off-policy option learning (PAR-17), option expectation models with planning under
 the current values (PAR-13, PAR-14) and, in the checksums, every option's off-policy
-questions (PAR-18);
+questions (PAR-18). Every pin also records persistent exploration by whichever layer
+selects the action, a run interrupting the option whose draw began it (PAR-8, D3);
 the declared-rate and differential pins also record the stable, sign-correct
 reward-respecting subtasks, assigned at every free decision boundary, and the
 declared-rate dynamics decision. The fixed audit arms

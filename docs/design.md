@@ -32,7 +32,8 @@ In the `ranked` configuration, these mechanisms work together:
    weights supply the ranking used to choose them.
 4. **Options** are policies that can act over several steps. A higher-level
    controller chooses between primitive control and an option, and can interrupt
-   an option using learned value estimates. An option that is not executing
+   an option using learned value estimates. An exploratory run that an option's
+   own draw begins also interrupts it. An option that is not executing
    still learns its policy from each action the agent takes, and its model from
    the steps on which the agent chose as that option would.
 5. **Models and planning.** Each option's model predicts the reward the option

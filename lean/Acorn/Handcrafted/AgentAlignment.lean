@@ -197,19 +197,36 @@ theorem TemporalControl.primitive_aligned (state : TemporalControl profile confi
     (ended : Option EndEvent) : (state.choosePrimitive features values decision ended).1.Aligned :=
   aligned
 
-/-- A served run changes occupancy and diagnostics, retaining admitted interests. -/
+/-- Interrupting a held option writes its trajectory link and keeps its interest. -/
+theorem TemporalControl.interrupt_aligned (state : TemporalControl profile config criterion dimension)
+    (aligned : state.Aligned)
+    (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
+      OptionActivation (profile.mode != .frozen))) : (state.interrupt origin).1.Aligned := by
+  cases origin with
+  | none => exact aligned
+  | some held =>
+    obtain ⟨slot, activation⟩ := held
+    unfold TemporalControl.interrupt
+    dsimp only
+    split
+    · exact state.withSkill_aligned aligned slot _ rfl
+    · exact aligned
+
+/-- A served run changes occupancy, diagnostics and an interrupted option's trajectory link,
+retaining admitted interests. -/
 theorem TemporalControl.serve_aligned (state next : TemporalControl profile config criterion dimension)
     (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
     (served : state.serve features = some (next, decision)) : next.Aligned := by
   unfold TemporalControl.serve at served
   split at served
-  · rename_i run phase
-    cases hs : run.serve with
+  · rename_i committed phase
+    cases hs : committed.run.serve with
     | none => simp [hs, bind, Option.bind] at served
     | some pair =>
       simp only [hs, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at served
       rw [← served.1]
-      split <;> exact (state.withPhase (.exploring pair.2)).skipMeta_aligned aligned
+      split <;> exact ((state.interrupt committed.origin).1.withPhase
+        (.exploring (.bare pair.2))).skipMeta_aligned (state.interrupt_aligned aligned committed.origin)
   · contradiction
   · contradiction
 
@@ -608,8 +625,8 @@ theorem TemporalControl.serve_undrawn (state next : TemporalControl profile conf
     (served : state.serve features = some (next, decision)) : decision.metaDecision = none := by
   unfold TemporalControl.serve at served
   split at served
-  · rename_i run phase
-    cases hs : run.serve with
+  · rename_i committed phase
+    cases hs : committed.run.serve with
     | none => simp [hs, bind, Option.bind] at served
     | some pair =>
       simp only [hs, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at served

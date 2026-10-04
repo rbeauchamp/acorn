@@ -28,6 +28,11 @@ the stored rate as exact rational order (`branch_exact`). At D6's declared rate
 it explores for exactly `10737418 · 2^34` of the `2^64` first words
 (`declared_branch_card`): the rate's exact binary32 value under a uniform
 first-word hypothesis, which a deterministic xoshiro prefix does not supply.
+
+`select_declared` carries that branch to the behaviour as a whole: under the declared
+policy, every decision the executed selection returns is a served step of a committed
+run or one persistent draw at D6's rate, whichever layer selected the action
+(Algorithm 1 of the same source, PDF p. 14).
 -/
 namespace AcornVerif.TemporalSupport
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -101,7 +106,8 @@ def optionSource : TemporalSource → Prop
 
 /-- Exact action-mass decomposition into served persistence, option-policy and
 fresh primitive contributions. It applies in particular to `outcomes`, whose
-option contribution includes any actual interruption and re-selection. -/
+option contribution includes any interruption by a stopping estimate and
+re-selection; an interruption by a run falls in the served contribution. -/
 theorem action_composition (law : IncomingLaw Ω) (run : Ω → Option TemporalDecision)
     (action : Action primitiveCount.word.toNat) :
     mass law (fun sample => acts (run sample) action) =
@@ -148,10 +154,10 @@ theorem served_other_mass_zero {profile : FeatureProfile} {config : Features.Con
     (state : TemporalControl profile config criterion dimension)
     (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation)
-    (reward : Binary32) (goal : Bool) (run : ExploratoryRun primitiveCount)
-    (phase : state.runtime.references.phase = .exploring run)
-    (remaining : 0 < run.remaining.val) (action : Action primitiveCount.word.toNat)
-    (other : action ≠ run.action) :
+    (reward : Binary32) (goal : Bool) (committed : CommittedRun (profile.mode != .frozen))
+    (phase : state.runtime.references.phase = .exploring committed)
+    (remaining : 0 < committed.run.remaining.val) (action : Action primitiveCount.word.toNat)
+    (other : action ≠ committed.run.action) :
     mass law (fun sample => acts (outcomes law state planning features obs reward goal sample)
       action) = 0 := by
   classical
@@ -169,7 +175,7 @@ theorem served_other_mass_zero {profile : FeatureProfile} {config : Features.Con
         ({ state with runtime := { state.runtime with
           references := { state.runtime.references with rng := law.state sample } } })
         (modelOperations criterion dimension) (planningBoundary planning) features
-        (spatialPotentials obs) reward goal run phase remaining result selected
+        (spatialPotentials obs) reward goal committed phase remaining result selected
       simp only [selected, Option.map_some, Option.some.injEq] at returned
       subst decision
       exact other (chosen.symm.trans exactAction.1)
@@ -253,16 +259,16 @@ theorem declared_branch_mass :
     ((10737418 * 2 ^ 34 : ℕ) : ℚ) / 2 ^ 64 = ModelConstants.exploreRate := by
   norm_num [ModelConstants.exploreRate]
 
-/-- A policy draw at the declared rate, as the meta-controller and every option
-make, explores exactly on the declared first-word numerators. -/
+/-- A plain policy draw at the declared rate, as the meta-controller makes over meta
+actions, explores exactly on the declared first-word numerators. -/
 theorem declared_draw_explored {count : Word.Count} (snapshot : PolicySnapshot count)
     (declared : snapshot.epsilon = Handcrafted.declaredRate) (rng : Rng.Xoshiro256) :
     (snapshot.draw rng).1.explored = decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
   change rng.nextF64.1.less (Conversion.widen snapshot.epsilon.value) = _
   rw [declared, declared_branch]
 
-/-- A primitive boundary at the declared rate begins a persistent run exactly on
-the same first-word numerators. -/
+/-- A persistent draw at the declared rate, as primitive control and every executing
+option make, begins a run exactly on the same first-word numerators. -/
 theorem declared_persistent_explored {count : Word.Count} (snapshot : PolicySnapshot count)
     (declared : snapshot.epsilon = Handcrafted.declaredRate) (rng : Rng.Xoshiro256) :
     (snapshot.drawPersistent rng).1.explored =
@@ -270,6 +276,41 @@ theorem declared_persistent_explored {count : Word.Count} (snapshot : PolicySnap
   rw [← declared_branch]
   cases branch : rng.nextF64.1.less (Conversion.widen Handcrafted.declaredRate.value) <;>
     simp [PolicySnapshot.drawPersistent, beginExploration, declared, branch]
+
+/-- Reach at the declared rate, over the executed selection. Under the declared rate
+policy, every decision the selection returns is a served step of a committed run, or
+the outcome of one persistent draw at D6's rate: it explores exactly on the declared
+first-word numerators of the generator state it was drawn at, whichever layer selected
+the action. The count of those numerators is `declared_branch_card`; it is a probability
+only under a uniform first-word hypothesis, which the deterministic generator does not
+supply. -/
+theorem select_declared {profile : FeatureProfile} {config : Features.Config}
+    {criterion : Criterion} {dimension : Dimension}
+    (state next : TemporalControl profile config criterion dimension)
+    (declared : profile.rate = .declared)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (potentials : DeclaredPotentials)
+    (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features potentials reward goal =
+      some (next, decision)) :
+    decision.source = .explorationContinuation ∨
+      ∃ (snapshot : PolicySnapshot primitiveCount) (rng : Rng.Xoshiro256),
+        CurrentTemporal.Drawn next decision snapshot rng ∧
+          snapshot.epsilon = Handcrafted.declaredRate ∧
+          decision.explored = decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
+  rcases CurrentTemporal.select_persistent state next models plan features potentials reward
+    goal decision executed with served | ⟨origin, ⟨_, drawn⟩ | ⟨slot, _, drawn⟩⟩
+  · exact Or.inl served
+  · have epsilon := (origin.declared_rates declared).1
+    exact Or.inr ⟨_, _, drawn, epsilon,
+      drawn.2.1.trans (declared_persistent_explored _ epsilon _)⟩
+  · have epsilon : (CurrentTemporal.optionSnapshot origin slot features).epsilon =
+        Handcrafted.declaredRate := (origin.declared_rates declared).2.2 fun _ =>
+      (origin.runtime.lifecycle.consumers.skills.get slot).policy.exploreRate
+        (count := primitiveCount)
+    exact Or.inr ⟨_, _, drawn, epsilon,
+      drawn.2.1.trans (declared_persistent_explored _ epsilon _)⟩
 
 end DeclaredBranch
 

@@ -16,6 +16,11 @@ zeta distribution. It serves n total actions as in §4.2; Algorithm 1's n+1
 loop is characterized separately by the retained mathematical owner.
 The seeded generator is deterministic. Nominal epsilon observations do not
 assert independent uniform draws or exact finite-word probabilities.
+
+Algorithm 1 applies the persistent draw to the agent's one behaviour policy:
+at every step with no run in progress, a run starts with probability ε, whichever
+action is greedy. `PolicySnapshot.drawPersistent` is that draw for the layer that
+selects the step's primitive action, primitive control or an executing option.
 -/
 namespace Acorn.Features
 
@@ -130,7 +135,7 @@ theorem durationRemaining_eq_spec (uniform : Binary64) :
     simp only [explorationCap, Acorn.FeatureConstants.explorationMaxDuration]
     omega
 
-/-- Branch, duration, then action: the same draw order at every primitive boundary. -/
+/-- Branch, duration, then action: the same draw order for every layer that draws. -/
 def beginExploration (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rng.Xoshiro256) :
     Option (ExploratoryRun count) × Rng.Xoshiro256 :=
   let branch := rng.nextF64
@@ -139,7 +144,7 @@ def beginExploration (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rn
     let action := uniformAction count duration.2
     (some ⟨action.1, durationRemaining duration.1⟩, action.2)
 
-/-- A primitive boundary draw retains its nominal snapshot and possible continuation. -/
+/-- A persistent draw retains its nominal snapshot and possible continuation. -/
 structure PersistentDecision (count : Word.Count) where
   /-- The actual admitted action. -/
   action : Action count.word.toNat
@@ -147,7 +152,7 @@ structure PersistentDecision (count : Word.Count) where
   explored : Bool
   /-- The run includes its already-served first action. -/
   run : Option (ExploratoryRun count)
-  /-- Nominal masses at the boundary, before persistence conditions later steps. -/
+  /-- Nominal masses at the draw, before persistence conditions later steps. -/
   probabilities : Vector Binary32 count.word.toNat
 
 /-- Persistent exploration or the existing ordered greedy reservoir. -/
@@ -159,6 +164,28 @@ def PolicySnapshot.drawPersistent {count : Word.Count} (snapshot : PolicySnapsho
   | none =>
     let greedy := snapshot.greedy draw.2
     (⟨greedy.1, false, none, snapshot.probabilities⟩, greedy.2)
+
+/-- Frozen-decision credit for a persistent draw from `snapshot`: the action the draw
+returned and the snapshot's original values, the update `Controller.policyStep` makes
+for a plain draw. -/
+def Controller.persistentStep {count : Word.Count} {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
+    (drawn : PersistentDecision count) (reward : Binary32) (duration : UInt32) :
+    Controller config dimension count.word.toNat :=
+  controller.valuesStep features snapshot.values drawn.action reward
+    (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
+
+/-- The credit is `Controller.policyStep`'s for every frozen decision of the same
+snapshot and action, so a persistent draw is credited as a plain draw of that action. -/
+theorem Controller.persistentStep_policy {count : Word.Count} {config : Acorn.Config}
+    {dimension : Dimension} (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (drawn : PersistentDecision count)
+    (decision : PolicyDecision count) (reward : Binary32) (duration : UInt32)
+    (same : decision.action = drawn.action) :
+    controller.policyStep features decision reward duration =
+      controller.persistentStep features decision.snapshot drawn reward duration := by
+  simp only [Controller.persistentStep, Controller.policyStep, same]
 
 /-- Served steps have point-mass observations, regardless of the boundary epsilon. -/
 def servedProbabilities {count : Word.Count} (action : Action count.word.toNat) :

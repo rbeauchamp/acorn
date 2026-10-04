@@ -85,7 +85,7 @@ Verdicts:
 | Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | A reward part, a transition part over at most 63 ranked feature slots, and a shared residual with one deviation per meta action for the value the ranked slots do not carry | **Adapted** (after U5) | Before U5 there was no transition part, and the continuation was a value estimator (F-B). Each row of the transition part is now the source's TD update ([[7]](#r7) eq. (17)) with the terminal target γ·x_j that eq. (15) requires; the ranked subset, the residual with its per-action deviations and the action-value nominal are declared adaptations ([PAR-13](prior-art-review.md#par-13--option-expectation-models)). |
 | Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Backups of every option's value toward r̂ plus the nominal value of each action's v̂(n̂, w) + residual, with the current weights, at free boundaries | **Adapted** (after U5) | Before U5 the backup had no look-ahead with the current value function (F-B). `PlanningResult.lookAhead` now applies the meta-controller's current weights to the predicted slots; each option's action value is backed up and the maximum is the meta-controller's choice ([PAR-14](prior-art-review.md#par-14--background-planning)). |
 | Search control [[11]](#r11) | Step 9 | A sweep over the 128 most recent earlier feature vectors, one per decision boundary, against the order they were written in | **Adapted, minimal** (after U5) | Before U5 planning happened only at the current state. The store holds feature vectors only. Priorities and other strategies are open ([#15](https://github.com/rbeauchamp/acorn/issues/15)). |
-| εz-greedy [[12]](#r12) | Step 9 exploration | Capped 1/n-tail duration ([D3](learned-only-binding.md#d3--exploration-duration--step-9)) and, since U2, a declared rate ε = 0.01 ([D6](learned-only-binding.md#d6--exploration-rate--step-9)); persistent runs start at primitive control only | **Adapted** (after U2) | The duration law is a tail-equivalent surrogate for the published zeta law. At 86ce779 the rate was a local derivation with no published source, starting near 0.63 (F-C); U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)) replaced it with a declared 0.01. That is the source's CartPole setting (Appendix A, p. 14). Its Rainbow-based Atari agents reach 0.01 only at the end of a schedule: ε "follows a linear decay schedule 1.0 to 0.01 over the course of the first 4M frames" (Appendix B.3, p. 15; Table 2, p. 16). D6 keeps the constant and removes the decay. Counting one step as one frame, ε on that schedule is still about 0.99 after the 34 000 steps a first pass can take, so a whole first pass lies inside the phase D6 removed. The source's Algorithm 1 (p. 14) applies the persistent draw to the agent's one behaviour policy; Acorn starts a run only when primitive control acts, and options and the meta-controller explore one step at a time, so while the meta-controller holds options the mechanism rarely runs ([first-pass consequences](#f-c--the-derived-exploration-rate-started-near-063), [#58](https://github.com/rbeauchamp/acorn/issues/58)). |
+| εz-greedy [[12]](#r12) | Step 9 exploration | Capped 1/n-tail duration ([D3](learned-only-binding.md#d3--exploration-duration--step-9)) and, since U2, a declared rate ε = 0.01 ([D6](learned-only-binding.md#d6--exploration-rate--step-9)); a persistent run may start at every decision, whichever layer acts | **Adapted** (after U2) | The duration law is a tail-equivalent surrogate for the published zeta law. At 86ce779 the rate was a local derivation with no published source, starting near 0.63 (F-C); U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)) replaced it with a declared 0.01. That is the source's CartPole setting (Appendix A, p. 14). Its Rainbow-based Atari agents reach 0.01 only at the end of a schedule: ε "follows a linear decay schedule 1.0 to 0.01 over the course of the first 4M frames" (Appendix B.3, p. 15; Table 2, p. 16). D6 keeps the constant and removes the decay. Counting one step as one frame, ε on that schedule is still about 0.99 after the 34 000 steps a first pass can take, so a whole first pass lies inside the phase D6 removed. The source's Algorithm 1 (p. 14) applies the persistent draw to the agent's one behaviour policy. Acorn's primitive control and executing options both make that draw, and a run an option begins interrupts it; until [#58](https://github.com/rbeauchamp/acorn/issues/58) only primitive control did, so while the meta-controller held options the mechanism rarely ran ([first-pass consequences](#f-c--the-derived-exploration-rate-started-near-063)). |
 | Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)). Average-reward GVFs are absent. |
 | Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | A cheap, general fix for discounted methods with discount near 1. Acorn uses γ = 0.99 throughout. |
 | Learned agent state [[15]](#r15) | Perception | Only the fed-back GVF buckets | **Missing** | Severe partial observability (an 11 × 11 view of a 1024 × 1024 world) with no learned memory. |
@@ -248,12 +248,12 @@ rate policy, every consumer reads the declared word at every state, and
 comparison with that word.
 `TemporalSupport.declared_branch_card` counts exactly the source words that
 explore. Under an assumed uniform, independent draw, which the deterministic
-generator does not supply, `ez_duration_mean` gives a mean run length of H₁₂₈ and
-`declared_share_lt` bounds the expected exploratory share of primitive-boundary
-cycles below 6%.
+generator does not supply, `ez_duration_mean` gives a mean run length of H₁₂₈, and
+`declared_share_gt` and `declared_share_lt` bound the expected exploratory share
+of the behaviour's cycles between 4.6% and 6%.
 
-Two consequences of D6 bear on a first pass, and neither is conformance with the
-source:
+Two consequences of D6 bore on a first pass. The first remains and is not
+conformance with the source; the second was repaired:
 
 - **The first pass lies inside the phase D6 removed.** A first pass of the
   standard curriculum takes at most 34 000 steps. Counting one step as one
@@ -261,24 +261,26 @@ source:
   ≈ 0.99 when such a pass ends, 0.85% of the way through the decay. D6's 0.01
   is the value that schedule holds only after 4M frames. The CartPole agent
   does use 0.01 from its first step.
-- **Persistence applies to one layer.** The source's Algorithm 1
-  ([[12]](#r12) p. 14) has one behaviour policy: at every step with no run in
-  progress it starts a run with probability ε, whichever action is greedy.
-  Acorn's agent starts a run only in `TemporalControl.choosePrimitive`, which
-  is reached when the meta-controller delegates to primitive control or the
-  profile has no hierarchy. An executing option and the meta-controller use the
-  plain draw (`PolicySnapshot.draw`), one exploratory step at a time. Under an
-  assumed uniform, independent draw, which the deterministic generator does not
-  supply, their model share is exactly ε (`explorationShare_single`).
-  The share below 6% is therefore a statement about primitive-boundary cycles
-  only. In two diagnostic traces of U6's run, options acted on 33 354 of the
-  33 800 steps after the first reward and on 10 361 of 10 363, and 0.95% and
-  0.93% of steps were exploratory; in the first, persistent runs served 10
-  steps from 4 starts
-  ([#58](https://github.com/rbeauchamp/acorn/issues/58)). The traces are reruns
-  of two recorded seeds (16265277883658242538 and 8789851314873071931) with
-  per-step telemetry; they are diagnostics, observed on those two seeds, and
-  not study evidence.
+- **Persistence reached one layer until [#58](https://github.com/rbeauchamp/acorn/issues/58).**
+  The source's Algorithm 1 ([[12]](#r12) p. 14) has one behaviour policy: at
+  every step with no run in progress it starts a run with probability ε,
+  whichever action is greedy. Through U6, Acorn's agent started a run only in
+  `TemporalControl.choosePrimitive`, reached when the meta-controller delegates
+  to primitive control or the profile has no hierarchy; an executing option
+  explored one step at a time. In two diagnostic traces of U6's run, options
+  acted on 33 354 of the 33 800 steps after the first reward and on 10 361 of
+  10 363, and 0.95% and 0.93% of steps were exploratory; in the first,
+  persistent runs served 10 steps from 4 starts. The traces are reruns of two
+  recorded seeds (16265277883658242538 and 8789851314873071931) with per-step
+  telemetry; they are diagnostics, observed on those two seeds before the
+  repair, and not study evidence. An executing option now makes the persistent
+  draw too, and a run it begins interrupts it
+  ([D3](learned-only-binding.md#d3--exploration-duration--step-9),
+  [PAR-8](prior-art-review.md#par-8--temporally-extended-exploration)).
+  `CurrentTemporal.select_persistent` proves every decision is a served step
+  of a run or one persistent draw, whichever layer selects the action. The
+  exploratory share a run of the repaired agent shows has not been observed
+  and is UNKNOWN, as is any effect on achievement.
 
 ### F-D · The representation barely expresses task-dependent preferences
 

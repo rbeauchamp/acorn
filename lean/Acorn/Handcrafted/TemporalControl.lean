@@ -17,6 +17,21 @@ feedback, every option's off-policy questions and the old-gain clock.
 The full agent supplies encoding/retirement order. Model learning and the selected
 planning algorithm execute the current managed owners. No attempt timeout is a termination input.
 
+Persistent exploration belongs to the behaviour (PAR-8): Dabney, Ostrovski & Barreto,
+*Temporally-Extended ε-Greedy Exploration*, ICLR (2021), arXiv:2006.01782v1, Algorithm 1,
+PDF p. 14, starts a run with probability ε at every step with no run in progress,
+whichever action is greedy. Every decision that is not served from a run makes one
+persistent draw, by the layer that selects the primitive action: primitive control
+(`choosePrimitive`) or the executing option (`stepOption`). The meta-controller's draw
+selects that layer and stays a single-step draw over meta actions. A run an option's
+draw begins interrupts the option: §4.2, PDF p. 5, makes the run an option of the
+behaviour, which "takes action a for n steps and then terminates", and one occupancy
+executes at a time. The option is the executing invocation of the frame it drew; the
+first served step ends its execution. The run gives it no terminal credit, because the
+run is not one of the option's stopping conditions, and from that step the option
+learns off-policy under its own stopping decision, like every option that is not
+executing (`interrupt`). The meta-controller decides again when the run is spent.
+
 Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence
 112 (1999), equations (8)–(9), p. 190 and §6, pp. 204–205, supplies the SMDP
 and intra-option forms. Acorn's PAR-9 uses executed-action Sarsa, and PAR-15
@@ -47,7 +62,8 @@ structure TemporalControl (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) where
   /-- One common lifecycle storage owner and exclusive phase. -/
   runtime : FeatureRuntime Host.patchShape config criterion dimension demonLayout
-    (OptionActivation (profile.mode != .frozen)) (ExploratoryRun primitiveCount) (Option TemporalDecision)
+    (OptionActivation (profile.mode != .frozen)) (CommittedRun (profile.mode != .frozen))
+    (Option TemporalDecision)
   /-- Profile-fixed primitive credit and its optional deferred span. -/
   credit : PrimitiveCredit
   /-- Credit payload cannot change the immutable policy. -/
@@ -263,9 +279,10 @@ def TemporalControl.withSkill (state : TemporalControl profile config criterion 
     consumers := { state.runtime.lifecycle.consumers with
       skills := state.runtime.lifecycle.consumers.skills.set slot.val skill slot.isLt } } } }
 
-/-- Occupancy is written atomically, so exploration and an option cannot coexist. -/
+/-- Occupancy is written atomically: one of free, a committed run or a live option.
+A committed run holds the option whose draw began it only until its first served step. -/
 def TemporalControl.withPhase (state : TemporalControl profile config criterion dimension)
-    (phase : Occupancy (OptionActivation (profile.mode != .frozen)) (ExploratoryRun primitiveCount)) :
+    (phase : Occupancy (OptionActivation (profile.mode != .frozen)) (CommittedRun (profile.mode != .frozen))) :
     TemporalControl profile config criterion dimension :=
   { state with runtime := { state.runtime with references := { state.runtime.references with phase } } }
 
@@ -282,31 +299,72 @@ def TemporalControl.choosePrimitive (state : TemporalControl profile config crit
     TemporalControl profile config criterion dimension × TemporalDecision :=
   let snapshot := state.runtime.lifecycle.consumers.control.snapshot (count := primitiveCount) features state.controlRate
   let drawn := snapshot.drawPersistent state.runtime.references.rng
-  let phase := match drawn.1.run with
-    | some run => if run.remaining.val > 0 then .exploring run else .idle
-    | none => .idle
-  let state := state.withPhase phase
+  let state := state.withPhase (Occupancy.afterPrimitive drawn.1.run)
   let state := { state with runtime := { state.runtime with references := { state.runtime.references with rng := drawn.2 } } }
   (state, ⟨if drawn.1.explored then .explorationStart else .primitive,
     drawn.1.action, snapshot.values, drawn.1.probabilities, drawn.1.explored,
     metaValues, metaDecision, none, ended⟩)
 
-/-- A continuing run bypasses every option/meta draw and preserves random state. -/
+/-- End the execution of the option a committed run holds, at the run's first served
+step. The run gives the option no terminal credit: an exploratory run is not one of its
+stopping conditions. A learning option is linked to the trajectory it was executing
+(`OptionActivation.following`), so this frame's off-policy learning (`followOptions`)
+credits the transition into the frame as it does for every option that is not
+executing, under the option's own stopping decision. A frozen option is written
+nowhere. The event records the interruption. -/
+def TemporalControl.interrupt (state : TemporalControl profile config criterion dimension)
+    (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
+      OptionActivation (profile.mode != .frozen))) :
+    TemporalControl profile config criterion dimension × Option EndEvent :=
+  match origin with
+  | none => (state, none)
+  | some (slot, activation) =>
+    (if activation.learning then
+        state.withSkill slot
+          { state.runtime.lifecycle.consumers.skills.get slot with
+            following := some activation.following }
+      else state,
+      some ⟨slot, activation.age, .interrupted⟩)
+
+/-- Interrupting a held option writes the skill table only and reports the held slot: the
+lifetime record, occupancy, random state and every other reference are untouched. -/
+theorem TemporalControl.interrupt_frame (state : TemporalControl profile config criterion dimension)
+    (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
+      OptionActivation (profile.mode != .frozen))) :
+    (state.interrupt origin).1.lifetime = state.lifetime ∧
+      (state.interrupt origin).1.runtime.references = state.runtime.references ∧
+      (state.interrupt origin).2.map (·.slot) = origin.map (·.1) := by
+  cases origin with
+  | none => exact ⟨rfl, rfl, rfl⟩
+  | some held =>
+    obtain ⟨slot, activation⟩ := held
+    refine ⟨?_, ?_, rfl⟩
+    all_goals
+      unfold TemporalControl.interrupt
+      dsimp only
+      split <;> rfl
+
+/-- A continuing run bypasses every option/meta draw and preserves random state. Its
+first served step interrupts the option whose draw began the run. -/
 def TemporalControl.serve (state : TemporalControl profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Option (TemporalControl profile config criterion dimension × TemporalDecision) :=
   match state.runtime.references.phase with
-  | .exploring run => do
-    let (action, next) ← run.serve
-    let state := (state.withPhase (.exploring next)).skipMeta
+  | .exploring committed => do
+    let (action, next) ← committed.run.serve
+    let interrupted := state.interrupt committed.origin
+    let state := (interrupted.1.withPhase (.exploring (.bare next))).skipMeta
     let state := if profile.usesHierarchy then state.withoutPlanning else state
     let values := state.runtime.lifecycle.consumers.control.predictAll features
     let metaValues := if profile.usesHierarchy then state.runtime.lifecycle.consumers.metaController.predictAll features
       else Vector.replicate _ .zero
-    pure (state, ⟨.explorationContinuation, action, values, servedProbabilities action, true, metaValues, none, none, none⟩)
+    pure (state, ⟨.explorationContinuation, action, values, servedProbabilities action, true,
+      metaValues, none, none, interrupted.2⟩)
   | .idle | .option _ _ => none
 
-/-- Install a drawn option action and retain the same slot/activation for the next frame.
+/-- Install a drawn option action. The option keeps occupancy for the next frame unless
+its draw began a run with a step left to serve, which takes occupancy and holds the
+option until that step (`Occupancy.afterOption`).
 The state is consumed and the option taken out of the table before its learners
 are updated, and `TemporalControl.stepOption_eq` proves the result equal to the
 listed composition. The ordering is meant to let the runtime reuse the learners'
@@ -324,14 +382,15 @@ def TemporalControl.stepOption (state : TemporalControl profile config criterion
     skill.stepTemporal models activation next reward average.rate references.rng
   let decision := stepped.2.2.1
   (⟨⟨⟨representation, ⟨control, metaController, stepped.1, demons⟩⟩,
-      { references with phase := .option slot stepped.2.1, rng := stepped.2.2.2 }⟩,
+      { references with
+        phase := Occupancy.afterOption slot stepped.2.1 decision.run, rng := stepped.2.2.2 }⟩,
       credit, creditMatches, average, rate, lifetime⟩,
-    ⟨.option slot, decision.action, decision.snapshot.values, decision.probabilities,
+    ⟨.option slot, decision.action, next.policy.values, decision.probabilities,
       decision.explored, metaValues, metaDecision, if started then some slot else none, ended⟩)
 
 /-- Taking the option out of the table before its update preserves the complete
 composition, for every state, slot, activation and reward word: the stepped
-option is written back to its slot, and the phase and random state follow it. -/
+option is written back to its slot, and the phase and random state follow its draw. -/
 theorem TemporalControl.stepOption_eq (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : (OptionActivation (profile.mode != .frozen))) (next : OptionContinuation dimension activation)
@@ -341,11 +400,12 @@ theorem TemporalControl.stepOption_eq (state : TemporalControl profile config cr
       let skill := state.runtime.lifecycle.consumers.skills.get slot
       let result := skill.stepTemporal models activation next reward state.average.rate
         state.runtime.references.rng
-      let state := (state.withSkill slot result.1).withPhase (.option slot result.2.1)
+      let state := (state.withSkill slot result.1).withPhase
+        (Occupancy.afterOption slot result.2.1 result.2.2.1.run)
       let state := { state with runtime := { state.runtime with references :=
         { state.runtime.references with rng := result.2.2.2 } } }
       let decision := result.2.2.1
-      (state, ⟨.option slot, decision.action, decision.snapshot.values, decision.probabilities,
+      (state, ⟨.option slot, decision.action, next.policy.values, decision.probabilities,
         decision.explored, metaValues, metaDecision, if started then some slot else none, ended⟩) := by
   cases state with
   | mk runtime credit creditMatches average rate lifetime =>
@@ -646,12 +706,11 @@ def TemporalControl.selectWithOperations (state : TemporalControl profile config
         let result := state.closeOption models features closing reward estimate
         result.1.atBoundary models plan features declared reward goal none (some result.2)
 
-/-- The sole active option, derived from exclusive occupancy. -/
+/-- The sole executing option, derived from exclusive occupancy: a live option, or the
+option a committed run holds until its first served step. -/
 def TemporalControl.activeSlot (state : TemporalControl profile config criterion dimension) :
     Option (Fin Acorn.FeatureConstants.skillCount) :=
-  match state.runtime.references.phase with
-  | .option slot _ => some slot
-  | .idle | .exploring _ => none
+  state.runtime.references.phase.executing
 
 /-- The stopping estimate options that are not executing compare against: the
 nominal value of the frame's meta snapshot. When a meta decision was drawn at this

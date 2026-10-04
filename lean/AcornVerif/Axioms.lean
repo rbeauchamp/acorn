@@ -2904,6 +2904,34 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.TemporalSupport.served_other_mass_zero
 
+/-- info: 'AcornVerif.CurrentTemporal.persistent_draw' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.persistent_draw
+
+/-- info: 'AcornVerif.CurrentTemporal.select_persistent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.select_persistent
+
+/-- info: 'AcornVerif.TemporalSupport.select_declared' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.TemporalSupport.select_declared
+
+/-- info: 'AcornVerif.CurrentTemporal.serve_interrupts' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.serve_interrupts
+
+/-- info: 'AcornVerif.CurrentTemporal.handoff_model' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.handoff_model
+
+/-- info: 'AcornVerif.CurrentTemporal.handoff_policy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.handoff_policy
+
+/-- info: 'AcornVerif.declared_share_gt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.declared_share_gt
+
 /-- info: 'AcornVerif.CurrentAgent.initialization' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentAgent.initialization
