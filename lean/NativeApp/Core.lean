@@ -27,6 +27,11 @@ private def runnerError : RunnerError → String
   | .metric _ => "campaign metric overflow"
   | .io message => message
 
+private def baselineError : BaselineError → String
+  | .campaign _ => "random baseline campaign configuration refused"
+  | .world _ => "random baseline world transition refused"
+  | .unfinished => "random baseline has no complete record: the campaign is unbounded"
+
 private def actionText : Action → String
   | .north => "Move(North)" | .south => "Move(South)"
   | .east => "Move(East)" | .west => "Move(West)"
@@ -144,16 +149,10 @@ def runCore (arguments : List String) : IO UInt32 := do
         IO.eprintln s!"control: stopped on request after {result.totalSteps} steps"
       let curriculum := standardCurriculum options.common.world options.common.world.raw.seed
       let count := min options.common.goals.toNat curriculum.size
-      let goals := (List.finRange count).toArray.map fun (index : Fin count) =>
-        have bound : index.val < curriculum.size := by
-          have := index.isLt
-          have := Nat.min_le_right options.common.goals.toNat curriculum.size
-          omega
-        (curriculum[index.val]'bound).1
       -- The comparator is a function of the command alone and takes its own copy of
       -- the initial world, so evaluating it here lets its rows precede the footer.
       let comparator := if options.baseline then
-        some (runRandomBaseline options.common.world.raw.seed options.common.world goals options.common.steps)
+        some (runRandomBaseline options.common.world options.common.world.raw.seed options.campaign)
       else none
       if let some handle ← ensureCsv then
         try
@@ -168,9 +167,9 @@ def runCore (arguments : List String) : IO UInt32 := do
       if let some comparator := comparator then
         IO.println "\n-- random-policy baseline (diagnostic) --"
         match comparator with
-        | .error _ => throw (IO.userError "random baseline world transition refused")
+        | .error error => throw (IO.userError (baselineError error))
         | .ok baseline =>
-          IO.println s!"distinct goals achieved — random policy: {(baseline.filter (·.achieved)).size}/{baseline.size}; agent: {rows.distinct}/{goals.size} (agent used {rows.attempts} attempts)"
+          IO.println s!"distinct goals achieved — random policy: {baselineDistinct count baseline}/{count}; agent: {rows.distinct}/{count} (agent used {rows.attempts} attempts; random policy used {baseline.size})"
       IO.eprintln result.resources.checkpointStatus.line
       return 0
     | .error error => throw (IO.userError (runnerError error))

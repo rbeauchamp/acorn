@@ -50,7 +50,8 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   one pass of the curriculum from a fresh agent, the agent achieved more goals
   than a uniform-random policy on 4 of 20 seeds
   ([U6](#conformance-sequence)). Whether it learns over a longer horizon has
-  not been observed.
+  not been observed; a study of repeated visits has a protocol and has not been
+  run ([U7](#conformance-sequence)).
 
 The defects survived for an instructive reason. Acorn's proofs state safety and
 admission properties, such as "the stored state stays legal" or "this identity
@@ -483,6 +484,7 @@ derivation, not measurement.
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
+| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits by more than chance's do | **Protocol written; not authorized, not run** ([protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)) |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
@@ -491,9 +493,9 @@ started, and its branch and in-progress evidence are kept.
 
 U6's [protocol](studies/first-pass-vs-chance/protocol.md) compares the two over
 one pass of the curriculum, the longest horizon on which the core's
-random-policy diagnostic is a matched comparator. The owner authorized
-revision 1 on 2026-10-03, and it was run that day at commit 6ac4eec, the commit
-that registered it. The [result](studies/first-pass-vs-chance/results.md) is
+random-policy diagnostic was a matched comparator when it was written. The
+owner authorized revision 1 on 2026-10-03, and it was run that day at commit
+6ac4eec, the commit that registered it. The [result](studies/first-pass-vs-chance/results.md) is
 **refuted at this horizon**: in most worlds the agent does not achieve more
 goals than chance in its first pass. Of 20 seeds, all with a valid outcome, the
 agent achieved at least one more goal than the comparator on 4 (W), fewer on 9
@@ -504,6 +506,17 @@ fraction of losses, 0.230 to 0.685, contains 1/2. Whether the agent learns over
 repeated visits to a goal stays UNKNOWN under that protocol, because a
 comparison over several cycles needs a comparator that follows the same
 campaign in one persistent world.
+
+U7's [protocol](studies/repeated-visits-vs-chance/protocol.md) asks that
+question. The comparator now follows the agent's whole campaign: the same
+admitted plan and attempt-boundary function, in a second copy of the initial
+world carried from attempt to attempt
+([outcome CSV](design.md#outcome-csv)). Because inventory persists, a count of
+goals achieved rises with the cycle in both arms without anything being
+learned, so the protocol compares the steps of each arm's first two visits to
+the two reach goals with those of its next two, over four cycles and 20 new
+seeds. It is written and not authorized, and nothing has been run: whether the
+agent learns over repeated visits is still UNKNOWN.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
