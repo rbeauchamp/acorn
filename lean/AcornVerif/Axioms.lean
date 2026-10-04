@@ -59,6 +59,7 @@ import AcornVerif.CurrentGoals
 import AcornVerif.CurrentCurriculum
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentCertificates
+import AcornVerif.CurrentGridWorld
 import AcornVerif.Endurance
 
 /-!
@@ -3395,6 +3396,52 @@ info: 'AcornVerif.CurrentSpawn.selectSpawn_post' depends on axioms: [propext, Cl
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentSpawn.selectSpawn_post
+
+/-- info: 'AcornVerif.Kernel.need_iff_infeasible' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.need_iff_infeasible
+
+/--
+info: 'AcornVerif.Kernel.covered_iff_need' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.covered_iff_need
+
+/--
+info: 'AcornVerif.Coverage.card_swept' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Coverage.card_swept
+
+/--
+info: 'AcornVerif.CurrentGridWorld.feasible_iff_replay' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGridWorld.feasible_iff_replay
+
+/--
+info: 'AcornVerif.CurrentGridWorld.comparator_openLoop' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGridWorld.comparator_openLoop
+
+/--
+info: 'AcornVerif.CurrentGridWorld.step_physical' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGridWorld.step_physical
+
+/--
+info: 'AcornVerif.CurrentGridWorld.reach_covered' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGridWorld.reach_covered
+
+/--
+info: 'AcornVerif.CurrentGridWorld.far_window_unsolved' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGridWorld.far_window_unsolved
 
 /-- info: 'AcornVerif.GridCorrespondence.initial_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
