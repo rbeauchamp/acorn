@@ -163,7 +163,7 @@ states that a goal box can be reached for every seed: the generator places each
 target by a hash of the seed without reading the terrain, so nothing in its
 construction relates a target to the terrain around it. For a given seed, an
 accepted blocked certificate of mountains alone proves the reach goal infeasible
-at every cap (`blocked_infeasible`). The owners are the
+at every cap (`blocked_infeasible`). The owners of the table's theorems are the
 [step proofs](../lean/AcornVerif/CurrentStep.lean),
 [goal proofs](../lean/AcornVerif/CurrentGoals.lean),
 [curriculum proofs](../lean/AcornVerif/CurrentCurriculum.lean) and
