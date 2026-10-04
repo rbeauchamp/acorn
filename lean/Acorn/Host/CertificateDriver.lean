@@ -24,9 +24,11 @@ start of a later attempt.
 
 The tool's import closure holds neither the agent composition, the campaign
 runner nor the random-policy comparator; the boundary audit refuses such an
-import. Its only world steps are those of the action lists it prints: once while
-a list is settled and once when the checker replays it. Its counts are over the
-listed seeds and do not estimate a fraction of the 2^64 seeds.
+import. Its only world steps replay candidate action lists: each candidate once
+while it is settled, and at most once more by the replay checker. A candidate the
+checker rejects, for instance one longer than the cap, has been replayed and is
+not printed. Its counts are over the listed seeds and do not estimate a fraction
+of the 2^64 seeds.
 -/
 namespace Acorn.Host.CertificateDriver
 open CertificateSearch

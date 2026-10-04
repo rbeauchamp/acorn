@@ -218,8 +218,10 @@ replay that builds a boat, so a goal box that needs one is reported blocked for 
 body without a boat, although the replay checker would accept such a list. The
 tool constructs no agent, comparator or attempt: its import closure holds neither
 the agent composition, the campaign runner nor the random-policy comparator, and
-the boundary audit refuses such an import. Its only world steps are those of the
-action lists it prints.
+the boundary audit refuses such an import. Its only world steps replay candidate
+action lists: each candidate once while the search settles it, and at most once
+more by the replay checker. A candidate the checker rejects, for instance one
+longer than the cap, has been replayed and is not printed.
 
 A study can fix its class of worlds before any run by naming a printed verdict,
 for example the seeds for which the far reach line reads `verdict=feasible`,

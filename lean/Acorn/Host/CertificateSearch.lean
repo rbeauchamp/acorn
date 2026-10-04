@@ -15,10 +15,10 @@ until its checker accepts it, and a search that finds no proposal shows nothing
 about the world.
 
 The search is breadth first over the tiles the body can enter without a boat,
-reading the executed `terrain` once per tile. `settle` is the only function that
-takes a world step: it replays a planned action list through `World.step` and
-issues an action again when the body could not pay for it, so that the list it
-returns is the list a checker then replays.
+reading the executed `terrain` once per tile. `settle` is the only function here
+that takes a world step: it replays a planned action list through `World.step`
+and issues an action again when the body could not pay for it. The list it
+returns is a candidate for the replay checker, which may still reject it.
 -/
 namespace Acorn.Host.CertificateSearch
 
