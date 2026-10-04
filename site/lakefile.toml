@@ -10,8 +10,8 @@ autoImplicit = false
 relaxedAutoImplicit = false
 warningAsError = true
 
-# Pinned Verso, the revision Regula's site uses on the same Lean and Mathlib; the exact
-# transitive revisions are locked in lake-manifest.json.
+# Pinned Verso, the revision Regula's site uses on the same Lean; the exact transitive
+# revisions are locked in lake-manifest.json.
 [[require]]
 name = "verso"
 git = "https://github.com/leanprover/verso"
