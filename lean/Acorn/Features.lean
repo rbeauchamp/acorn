@@ -168,7 +168,7 @@ structure PatchShape where
 
 /-- Sampled input position and sign, legal at storage. -/
 structure Sample (shape : PatchShape) where
-  /-- Row-major patch cell or context word. -/
+  /-- Sampled symbol position of the shape. -/
   input : Fin shape.inputs
   /-- True denotes positive one. -/
   positive : Bool
@@ -197,7 +197,7 @@ theorem drawSamples_succ (shape : PatchShape) (count : Nat) (stream : Rng.SplitM
         (drawSamples shape count stream).2.next.2) := by
   simp only [drawSamples, Nat.dfold_succ]
 
-/-- The generator consumes precisely one wrapping increment per sampled cell. -/
+/-- The generator consumes precisely one wrapping increment per sampled symbol position. -/
 theorem drawSamples_stream (shape : PatchShape) (count : Nat) (stream : Rng.SplitMix64) :
     (drawSamples shape count stream).2.state = stream.state + Rng.increment * count.toUInt64 := by
   induction count with
