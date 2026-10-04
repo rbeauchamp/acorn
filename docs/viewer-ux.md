@@ -733,7 +733,8 @@ What each panel must show. How it draws it is the code's.
   the skills. The decision chain states the selecting layer, exact primitive
   and meta probabilities, selected-action probability, exploration branch,
   option boundary (β = 1 at an end, β = 0 while continuing, with the elapsed
-  steps and the end reason), reward, prediction error and credit state at the
+  steps and the end reason; an end by an exploratory run is named as that
+  interruption, without β = 1, UX-38), reward, prediction error and credit state at the
   cursor, or their window means in fast mode (UX-8). It never calls a value
   difference an advantage, because this implementation has no
   option-advantage quantity, and initiation is explicitly the trivial
@@ -773,7 +774,8 @@ What each panel must show. How it draws it is the code's.
   exploration draw begins a persistent run ends at the run's first served step.
   The run gives it no terminal credit and takes control before that step's goal
   and duration checks, so the end is counted as an interruption, and the
-  cursor's record names the run instead of β = 1. The cursor's record (action, selecting layer, reward) is drawn
+  Behaviour panel's option boundary line names the run instead of β = 1
+  (UX-36). The cursor's record (action, selecting layer, reward) is drawn
   centred under the band at the reading cadence, never over the window's end
   labels. The legend names each slot by UX-16's rule and what it pursues, and
   the checkpoint-persistent totals report lifetime option starts (never

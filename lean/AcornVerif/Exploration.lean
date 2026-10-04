@@ -52,14 +52,15 @@ its expected length. The cycle is the behaviour's as a whole: over the executed
 selection every decision is a served step of a run or one persistent draw, by
 primitive control or by the executing option (`CurrentTemporal.select_persistent`),
 at D6's rate under the declared policy (`TemporalSupport.select_declared`). At
-D6's rate and the checked cap the share is below 6% (`declared_share_lt`). A
-single-step draw has share exactly `ε` (`explorationShare_single`): that is the
-meta-controller's draw over meta actions, and the behaviour's own share at
-`cap = 1`. The rational rate and cap are checked against the executed words by
-`CurrentConstants`; the exact branch mass of the executed draw is
-`TemporalSupport.declared_branch_card`. The model assumes independent uniform
-draws, which the deterministic generator does not supply, and it does not model
-binary64 rounding of the executed reciprocal.
+D6's rate and the checked cap the share is between 4.6% and 6%
+(`declared_share_gt`, `declared_share_lt`). A single-step draw has share exactly
+`ε` (`explorationShare_single`): that is the meta-controller's draw over meta
+actions, and the behaviour's own share at `cap = 1`; persistence never lowers the
+share below it (`explorationShare_ge`). The rational rate and cap are checked
+against the executed words by `CurrentConstants`; the exact branch mass of the
+executed draw is `TemporalSupport.declared_branch_card`. The model assumes
+independent uniform draws, which the deterministic generator does not supply, and
+it does not model binary64 rounding of the executed reciprocal.
 -/
 
 namespace AcornVerif
