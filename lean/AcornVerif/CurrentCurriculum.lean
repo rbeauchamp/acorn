@@ -33,60 +33,13 @@ open AcornVerif.CurrentGoals
 
 /-! ## The seed hash is a bijection -/
 
-/-- The finalizer's first xor-shift loses no word. -/
-theorem shift30_injective (left right : UInt64)
-    (h : left ^^^ (left >>> 30) = right ^^^ (right >>> 30)) : left = right := by
-  apply UInt64.toBitVec_inj.mp
-  apply Word.xor_shiftRight_injective (shift := 30) (by decide)
-  have bits := congrArg UInt64.toBitVec h
-  change left.toBitVec ^^^ (left.toBitVec >>> 30) =
-    right.toBitVec ^^^ (right.toBitVec >>> 30) at bits
-  exact bits
-
-/-- The finalizer's second xor-shift loses no word. -/
-theorem shift27_injective (left right : UInt64)
-    (h : left ^^^ (left >>> 27) = right ^^^ (right >>> 27)) : left = right := by
-  apply UInt64.toBitVec_inj.mp
-  apply Word.xor_shiftRight_injective (shift := 27) (by decide)
-  have bits := congrArg UInt64.toBitVec h
-  change left.toBitVec ^^^ (left.toBitVec >>> 27) =
-    right.toBitVec ^^^ (right.toBitVec >>> 27) at bits
-  exact bits
-
-/-- The finalizer's last xor-shift loses no word. -/
-theorem shift31_injective (left right : UInt64)
-    (h : left ^^^ (left >>> 31) = right ^^^ (right >>> 31)) : left = right := by
-  apply UInt64.toBitVec_inj.mp
-  apply Word.xor_shiftRight_injective (shift := 31) (by decide)
-  have bits := congrArg UInt64.toBitVec h
-  change left.toBitVec ^^^ (left.toBitVec >>> 31) =
-    right.toBitVec ^^^ (right.toBitVec >>> 31) at bits
-  exact bits
-
-/-- The SplitMix finalizer is injective: each xor-shift and each odd multiplier is.
-The multipliers' inverses modulo 2^64 are the witnesses. -/
-theorem mixFinal_injective (left right : UInt64) (h : Rng.mixFinal left = Rng.mixFinal right) :
-    left = right := by
-  have second := shift31_injective _ _ h
-  have firstMixed := Word.multiplier_injective 0x94d049bb133111eb 0x319642b2d24d8ec3
-    (by decide) _ _ second
-  have first := shift27_injective _ _ firstMixed
-  have mixed := Word.multiplier_injective 0xbf58476d1ce4e5b9 0x96de1b173f119089
-    (by decide) _ _ first
-  exact shift30_injective _ _ mixed
-
-/-- The incrementing mixer is injective on the 64-bit words. -/
-theorem mix64_injective (left right : UInt64) (h : Rng.mix64 left = Rng.mix64 right) :
-    left = right :=
-  (UInt64.add_left_inj Rng.increment).mp (mixFinal_injective _ _ h)
-
 /-- For a fixed second word and salt, the coordinate hash is injective in its first
 word, hence a bijection of the 64-bit words. -/
 theorem hash2_injective (second salt left right : UInt64)
     (h : Rng.hash2 left second salt = Rng.hash2 right second salt) : left = right := by
-  have outer := mix64_injective _ _ h
-  have inner := mix64_injective _ _ outer
-  have first := mix64_injective _ _ (Word.xor_word_injective _ _ _ inner)
+  have outer := Rng.mix64_injective _ _ h
+  have inner := Rng.mix64_injective _ _ outer
+  have first := Rng.mix64_injective _ _ (Word.xor_word_injective _ _ _ inner)
   rw [UInt64.xor_comm (salt ^^^ Rng.increment) left,
     UInt64.xor_comm (salt ^^^ Rng.increment) right] at first
   exact Word.xor_word_injective _ _ _ first

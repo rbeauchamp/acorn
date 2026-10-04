@@ -272,8 +272,8 @@ theorem performed_energy {config : WorldConfig} (world : World config) (action :
 
 /-- The energy account of one successful step. Its cost is at most 4, and at most 2
 for a move. An exhausted step had less than the cost and gains the rest recovery of 20
-(`FeatureConstants.energyRestRecover`); it executes nothing else. A paid step had the
-cost, loses no more than it, and loses exactly it unless the action is eating. -/
+(`FeatureConstants.energyRestRecover`). A paid step had the cost, loses no more than it,
+and loses exactly it unless the action is eating. -/
 theorem step_energy {config : WorldConfig} (world next : World config) (action : Action)
     (events : StepResult) (h : world.step action = .ok (next, events)) :
     ∃ cost, cost ≤ 4 ∧ (∀ direction, action.direction = some direction → cost ≤ 2) ∧
@@ -393,7 +393,8 @@ def Moves (trace : List (Action × StepResult)) : Prop :=
   ∀ entry ∈ trace, ∃ direction, entry.1.direction = some direction
 
 /-- The energy ledger of a run of moves. A move costs at most 2 and a rest restores 20,
-so an exhausted step is followed by at least ten paid ones. -/
+so 22 times the exhausted steps plus the starting energy capped at 21 is at most twice
+the steps plus the final energy capped at 21. -/
 theorem trace_moves {config : WorldConfig} {world final : World config}
     {trace : List (Action × StepResult)} (run : Trace world trace final) (moves : Moves trace) :
     22 * exhausted trace + min world.body.energy.val 21 ≤
@@ -416,9 +417,7 @@ theorem trace_moves {config : WorldConfig} {world final : World config}
       rw [exhausted_cons_false _ _ _ flag, List.length_cons]
       omega
 
-/-- Of any N successive move actions, at most (2 N + 21) / 22 are exhausted; the rest are
-paid for and executed, though a paid move into a tile the body may not enter leaves it
-in place. -/
+/-- Of any N successive move actions, at most (2 N + 21) / 22 are exhausted. -/
 theorem moves_exhausted {config : WorldConfig} {world final : World config}
     {trace : List (Action × StepResult)} (run : Trace world trace final) (moves : Moves trace) :
     22 * exhausted trace ≤ 2 * trace.length + 21 := by

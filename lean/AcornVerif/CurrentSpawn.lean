@@ -18,12 +18,12 @@ triggered the exit.
 `considerSpawn_contract` states what one application of the rule guarantees.
 `selectSpawn_post` is the postcondition of the whole search, for every configuration
 and world in which it returns a spawn. The spiral's schedule contains every tile of
-the box (`spiral_covers`), and a search that does not exit early considers them all.
-So either some walkable tile has two trees nearby, the search exits early, and the
-spawn is a walkable tile whose trees plus stone are at least two; or no tile has, and
-the spawn is a walkable tile whose score no scored candidate of the box exceeds, or
-the center when no tile is walkable. The guarantee is trees plus stone: nothing bounds
-the trees near the spawn alone.
+the box (`spiral_covers`). Either the spawn is a walkable tile whose trees plus stone
+are at least two; or no walkable tile has two trees nearby, and the spawn is a walkable
+tile whose score no scored candidate of the box exceeds, or the center when no tile is
+walkable. The first case holds whenever some walkable tile has two trees nearby
+(`spawn_of_rich`). The guarantee is trees plus stone: nothing bounds the trees near the
+spawn alone.
 
 The trees and the stone of a tile are `countKindNear`'s results, and
 `countKindNear_eq` shows that a result is the number of tiles reading as the kind
@@ -345,8 +345,8 @@ def spiralY (config : WorldConfig) (radius directionIndex offset : Nat) : Int :=
       ((offset : Int) - radius)
 
 /-- The spiral's schedule contains every tile of the box: a tile at Chebyshev distance r
-from the center lies on the north, south, east or west edge of ring r. A search that
-exits early stops before the end of the schedule. -/
+from the center lies on the north, south, east or west edge of ring r. The statement
+concerns the schedule, not the tiles a search considers before it returns. -/
 theorem spiral_covers (config : WorldConfig) (tile : BoxPosition config) :
     ∃ radius directionIndex offset, radius < config.side ∧ directionIndex < 4 ∧
       offset < 2 * radius + 1 ∧
@@ -453,8 +453,8 @@ theorem seen_all (config : WorldConfig) (tile : BoxPosition config) :
   obtain ⟨radius, direction, offset, ring, bounded, inside, admitted⟩ := spiral_covers config tile
   exact ⟨radius, direction, offset, bounded, inside, Or.inl ring, admitted⟩
 
-/-- A spawn the search returned on an early exit: the position of a scored candidate
-whose trees plus stone are at least two. -/
+/-- What an early exit guarantees of the spawn it returns: the position of a scored
+candidate whose trees plus stone are at least two. -/
 def Exited {config : WorldConfig} (world : World config) (spawn : BoxPosition config) : Prop :=
   ∃ chosen, Scored world chosen ∧ chosen.position = spawn ∧ 2 ≤ chosen.score
 
@@ -636,10 +636,10 @@ def Closed {config : WorldConfig} (world : World config)
   ∃ spawn, state.1 = some spawn ∧ Exited world spawn
 
 /-- What the spawn search guarantees, for every world in which it returns a spawn.
-Either it exited early, and the spawn is a walkable tile whose trees plus stone
-within four tiles are at least two; or it completed, no tile of the box is `Rich`,
-and the spawn is a walkable tile whose score no scored candidate of the box exceeds,
-or the center when no tile of the box is walkable. -/
+Either the spawn is a walkable tile whose trees plus stone within four tiles are at
+least two; or no tile of the box is `Rich`, and the spawn is a walkable tile whose
+score no scored candidate of the box exceeds, or the center when no tile of the box is
+walkable. -/
 theorem selectSpawn_post {config : WorldConfig} (world : World config)
     (spawn : BoxPosition config) (h : selectSpawn world = .ok spawn) :
     Exited world spawn ∨
@@ -760,9 +760,9 @@ theorem selectSpawn_post {config : WorldConfig} (world : World config)
     · simp [bind, Except.bind] at taken
   · simp [bind, Except.bind] at taken
 
-/-- If any tile of the box would end the search, the search exits early: the spawn is
-a walkable tile whose trees plus stone within four tiles are at least two. Two trees
-near the spawn itself do not follow. -/
+/-- If any tile of the box would end the search, the spawn is a walkable tile whose
+trees plus stone within four tiles are at least two. Two trees near the spawn itself do
+not follow. -/
 theorem spawn_of_rich {config : WorldConfig} (world : World config) (spawn : BoxPosition config)
     (h : selectSpawn world = .ok spawn) (tile : BoxPosition config) (rich : Rich world tile) :
     Exited world spawn := by
@@ -770,8 +770,7 @@ theorem spawn_of_rich {config : WorldConfig} (world : World config) (spawn : Box
   · exact exited
   · exact absurd rich (poor tile)
 
-/-- If any tile of the box is walkable, the spawn is walkable. Otherwise it is the
-center, which is then not walkable. -/
+/-- If any tile of the box is walkable, the spawn is walkable. -/
 theorem spawn_walkable {config : WorldConfig} (world : World config) (spawn : BoxPosition config)
     (h : selectSpawn world = .ok spawn) (tile : BoxPosition config)
     (walkable : Walkable world tile) : Walkable world spawn := by
