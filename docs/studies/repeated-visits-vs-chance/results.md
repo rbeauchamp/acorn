@@ -391,23 +391,33 @@ done < "$study/seeds.txt" > "$attempts"
 ```
 
 From those lines: the seeds achieving each visit and how many at the first
-step, by arm, goal and cycle; the reach and food visits achieved; each arm's
-totals; and the positions at the end of the reach visits:
+step, by arm, goal and cycle; the reach and food visits that were achieved or
+did not run to the cap; each arm's totals; the positions at the end of the
+reach visits; and, for each arm, how many of those visits ended with a
+coordinate on the world's edge and the range of each coordinate:
 
 ```bash
 attempts="${TMPDIR:-/tmp}/repeated-visits-r2-attempts.txt"
 awk '{ k = $1 " " $4 " " $3; a[k] += $6; f[k] += ($6 == 1 && $5 == 1) }
   END { for (k in a) print k, a[k], f[k] }' "$attempts" | sort -k1,1 -k2,2n -k3,3n
-awk '($4 == 3 || $4 == 6 || $4 == 7) && $6 == 1' "$attempts"
+awk '($4 == 3 || $4 == 6 || $4 == 7) && ($6 == 1 || $5 != 3000)' "$attempts"
 awk '{ t[$1]++; a[$1] += $6; s[$1] += $5
     if ($4 != 0 && $4 != 11) { p[$1] += $6; f[$1] += ($6 == 1 && $5 == 1) } }
   END { for (k in t) print k, t[k], a[k], s[k], p[k], f[k] }' "$attempts" | sort
 awk '$4 == 3 || $4 == 7 { k = $1 " " $2; p[k] = p[k] " " $7 "," $8 }
   END { for (k in p) print k p[k] }' "$attempts" | sort -k1,1 -k2,2n
+awk '$4 == 3 || $4 == 7 { n[$1]++; e[$1] += ($7 == 0 || $7 == 1023 || $8 == 0 || $8 == 1023)
+    if (n[$1] == 1 || $7 + 0 < xl[$1]) xl[$1] = $7 + 0
+    if (n[$1] == 1 || $7 + 0 > xh[$1]) xh[$1] = $7 + 0
+    if (n[$1] == 1 || $8 + 0 < yl[$1]) yl[$1] = $8 + 0
+    if (n[$1] == 1 || $8 + 0 > yh[$1]) yh[$1] = $8 + 0 }
+  END { for (k in n) print k, "reach visits", n[k], "on an edge", e[k],
+      "x", xl[k], "to", xh[k], "y", yl[k], "to", yh[k] }' "$attempts" | sort
 ```
 
 The learner columns are the fields demon_error, epsilon and mean_alpha of each
-outcome row:
+outcome row, first over every row and then over each seed's final row, the
+last outcome row of its CSV:
 
 ```bash
 study=docs/studies/repeated-visits-vs-chance
@@ -419,22 +429,37 @@ cat "$study"/observations/r2/seed-*/outcomes.csv | awk -F, '!/^#/ && $1 != "inde
     if (r == 1 || $7 + 0 > dh) dh = $7 + 0 }
   END { for (k in e) print "epsilon", k, e[k], "rows"
     printf "mean_alpha %.5g to %.5g; demon_error %.3g to %.3g; rows %d\n", al, ah, dl, dh, r }'
+awk -F, '!/^#/ && $1 != "index" { d[FILENAME] = $7 + 0 }
+  END { for (k in d) { n++
+      if (n == 1 || d[k] < lo) lo = d[k]
+      if (n == 1 || d[k] > hi) hi = d[k] }
+    printf "demon_error in the final rows %.3g to %.3g; rows %d\n", lo, hi, n }' \
+  "$study"/observations/r2/seed-*/outcomes.csv
 ```
 
-Agent steps, steps per second and the replacement count are the fields
-total_steps, steps_per_sec and retire_count of each CSV's last line, and the
-rate over all seeds is the sum of total_steps over the sum of wall_ms. The
-ranked positions are the ranked_slots line of the standard output. Real, user
-and system time and the maximum resident set size are the resource report at
-the end of the standard error:
+Agent steps, the campaign's wall time, steps per second and the replacement
+count are the fields total_steps, wall_ms, steps_per_sec and retire_count of
+each CSV's last line, and the rate over all seeds is the sum of total_steps
+over the sum of wall_ms. The ranked positions are the ranked_slots line of the
+standard output. Real, user and system time and the maximum resident set size
+are the resource report at the end of the standard error. After one line per
+seed come the least and the greatest of each column, with the agent steps per
+unit replaced as a last column, and then the sums and the rate over all seeds:
 
 ```bash
 study=docs/studies/repeated-visits-vs-chance
 while read -r seed; do
   d="$study/observations/r2/seed-$seed"
   printf '%s %s%s %s\n' "$seed" \
-    "$(tail -n 1 "$d/outcomes.csv" | tr ' ' '\n' | awk -F= '$1 == "total_steps" || $1 == "steps_per_sec" || $1 == "retire_count" { printf "%s ", $2 }')" \
+    "$(tail -n 1 "$d/outcomes.csv" | tr ' ' '\n' | awk -F= '$1 == "total_steps" || $1 == "wall_ms" || $1 == "steps_per_sec" || $1 == "retire_count" { printf "%s ", $2 }')" \
     "$(awk '$2 == "real" { printf "%s %s %s ", $1, $3, $5 } /maximum resident set size/ { printf "%.1f", $1 / 1048576 }' "$d/stderr.txt")" \
     "$(sed -n 's/^  ranked_slots: //p' "$d/stdout.txt" | tr ' ' '/')"
-done < "$study/seeds.txt"
+done < "$study/seeds.txt" | awk '{ print; $10 = $2 / $5; st += $2; ms += $3; re += $6; cpu += $7 + $8
+    for (i = 2; i <= 10; i++) { v = $i + 0
+      if (NR == 1 || v < lo[i]) lo[i] = v
+      if (NR == 1 || v > hi[i]) hi[i] = v } }
+  END { printf "least"; for (i = 2; i <= 10; i++) printf " %s", lo[i]
+    printf "\ngreatest"; for (i = 2; i <= 10; i++) printf " %s", hi[i]
+    printf "\nagent steps %d; steps per second %.1f; ms per step %.1f\n", st, 1000 * st / ms, ms / st
+    printf "real %.0f s, %.1f minutes for four workers; CPU %.0f s, %.2f core-hours\n", re, re / 240, cpu, cpu / 3600 }'
 ```

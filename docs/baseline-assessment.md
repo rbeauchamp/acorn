@@ -492,11 +492,12 @@ F-E left its feature-construction end inert until U3.
   its generator never saw the task.
 - **Evaluation.** Every source above establishes usefulness empirically: SwiftTD
   on Atari prediction, Swift-Sarsa on an operant-conditioning benchmark,
-  reward-respecting subtasks with planning curves in grid worlds. Acorn has one
-  observation of learning: [U6](#conformance-sequence), refuted at its one-pass
-  horizon. Under its proof-first policy a single observation is deliberate, but
-  whether the agent learns in its world beyond that horizon is irreducibly
-  empirical and still open.
+  reward-respecting subtasks with planning curves in grid worlds. Acorn has two
+  observations of learning, [U6](#conformance-sequence) and
+  [U7](#conformance-sequence), each refuted at its horizon. Under its
+  proof-first policy so few observations are deliberate, but whether the agent
+  learns on goals it does achieve, or over a horizon longer than U7's four
+  cycles, is irreducibly empirical and still open.
 
 Going by the published designs, the agent they describe differs from Acorn at the
 model and planning links; U3 and U4 brought the feature-testing and
@@ -815,8 +816,8 @@ improves decisions.
     supply one.
   - Uniform hashing for the roughly 1,300 active features.
   - Faithful transcription of the paper equations recorded in earlier reviews.
-- **UNKNOWN.** Whether the agent learns in its world beyond the one pass U6
-  observed; how often refreshes occur
+- **UNKNOWN.** Whether the agent learns on goals it does achieve, or over a
+  horizon longer than U7's four cycles; how often refreshes occur
   and units leave the ranking; option and model quality; the benefit of
   planning; the benefit of any of U1 to U5; how often a frame's behaviour has the
   distribution of an option that is not executing. Each depends on the
