@@ -17,11 +17,13 @@ triggered the exit.
 
 `considerSpawn_contract` states what one application of the rule guarantees.
 `selectSpawn_post` is the postcondition of the whole search, for every configuration
-and world in which it returns a spawn: the spiral visits every tile of the box
-(`spiral_covers`), so either some tile has two trees nearby and the spawn is a
-walkable tile whose trees plus stone are at least two, or no tile has and the spawn
-is the best-scoring walkable tile, or the center when no tile is walkable. The
-guarantee is trees plus stone: nothing bounds the trees near the spawn alone.
+and world in which it returns a spawn. The spiral's schedule contains every tile of
+the box (`spiral_covers`), and a search that does not exit early considers them all.
+So either some walkable tile has two trees nearby, the search exits early, and the
+spawn is a walkable tile whose trees plus stone are at least two; or no tile has, and
+the spawn is a walkable tile whose score no scored candidate of the box exceeds, or
+the center when no tile is walkable. The guarantee is trees plus stone: nothing bounds
+the trees near the spawn alone.
 
 The trees and the stone of a tile are `countKindNear`'s results, and
 `countKindNear_eq` shows that a result is the number of tiles reading as the kind
@@ -69,6 +71,19 @@ theorem not_rich {config : WorldConfig} {world : World config} {tile : BoxPositi
   rw [counted] at same
   cases Except.ok.inj same
   exact few enough
+
+/-- A scored candidate's score is determined by its tile: the counts are functions. -/
+theorem scored_score {config : WorldConfig} {world : World config}
+    {candidate : SpawnCandidate config} {trees stone : Nat} (scored : Scored world candidate)
+    (treeCount : countKindNear world candidate.position.position 4 .tree = .ok trees)
+    (stoneCount : countKindNear world candidate.position.position 4 .stone = .ok stone) :
+    candidate.score = trees + stone := by
+  obtain ⟨otherTrees, otherStone, treeSame, stoneSame, total⟩ := scored.scored
+  rw [treeCount] at treeSame
+  rw [stoneCount] at stoneSame
+  cases Except.ok.inj treeSame
+  cases Except.ok.inj stoneSame
+  exact total
 
 /-! ## One application of the rule -/
 
@@ -184,7 +199,8 @@ theorem considerSpawn_contract {config : WorldConfig} (world : World config) (x 
 /-! ## The search invariant -/
 
 /-- What the search knows while it has not exited, over the in-box tiles `seen` so far:
-its best is scored, no seen tile is `Rich`, and with no best no seen tile is walkable. -/
+its best is scored, no seen tile is `Rich`, with no best no seen tile is walkable, and no
+scored candidate on a seen tile outscores the best. -/
 structure Searching {config : WorldConfig} (world : World config)
     (seen : BoxPosition config → Prop) (best : Option (SpawnCandidate config)) : Prop where
   /-- The held best is a scored candidate. -/
@@ -193,6 +209,9 @@ structure Searching {config : WorldConfig} (world : World config)
   poor : ∀ tile, seen tile → ¬ Rich world tile
   /-- With no best, no seen tile is walkable. -/
   barren : best = none → ∀ tile, seen tile → ¬ Walkable world tile
+  /-- No scored candidate on a seen tile outscores the held best. -/
+  greatest : ∀ other, Scored world other → seen other.position →
+    ∃ kept, best = some kept ∧ other.score ≤ kept.score
 
 /-- The invariant passes to any smaller set of seen tiles. -/
 theorem Searching.mono {config : WorldConfig} {world : World config}
@@ -200,7 +219,8 @@ theorem Searching.mono {config : WorldConfig} {world : World config}
     (searching : Searching world seen best) (subset : ∀ tile, fewer tile → seen tile) :
     Searching world fewer best :=
   ⟨searching.scored, fun tile member => searching.poor tile (subset tile member),
-    fun empty tile member => searching.barren empty tile (subset tile member)⟩
+    fun empty tile member => searching.barren empty tile (subset tile member),
+    fun other scored member => searching.greatest other scored (subset _ member)⟩
 
 /-- One application of the rule keeps the invariant over one more seen candidate, or
 ends the search holding a candidate with trees plus stone of at least two. -/
@@ -215,8 +235,8 @@ theorem search_step {config : WorldConfig} {world : World config} {x y : Int}
   cases outcome with
   | outside refused same continues =>
     subst same continues
-    refine ⟨fun _ => ⟨searching.scored, fun tile member => ?_, fun empty tile member => ?_⟩,
-      fun exit => by cases exit⟩
+    refine ⟨fun _ => ⟨searching.scored, fun tile member => ?_, fun empty tile member => ?_,
+      fun other scored member => ?_⟩, fun exit => by cases exit⟩
     · rcases member with member | member
       · exact searching.poor tile member
       · rw [refused] at member
@@ -225,10 +245,14 @@ theorem search_step {config : WorldConfig} {world : World config} {x y : Int}
       · exact searching.barren empty tile member
       · rw [refused] at member
         cases member
+    · rcases member with member | member
+      · exact searching.greatest other scored member
+      · rw [refused] at member
+        cases member
   | blocked position kind admitted located walk same continues =>
     subst same continues
-    refine ⟨fun _ => ⟨searching.scored, fun tile member => ?_, fun empty tile member => ?_⟩,
-      fun exit => by cases exit⟩
+    refine ⟨fun _ => ⟨searching.scored, fun tile member => ?_, fun empty tile member => ?_,
+      fun other scored member => ?_⟩, fun exit => by cases exit⟩
     · rcases member with member | member
       · exact searching.poor tile member
       · rw [admitted] at member
@@ -239,6 +263,12 @@ theorem search_step {config : WorldConfig} {world : World config} {x y : Int}
       · rw [admitted] at member
         cases Option.some.inj member
         exact not_walkable located walk
+    · rcases member with member | member
+      · exact searching.greatest other scored member
+      · rw [admitted] at member
+        have same : position = other.position := Option.some.inj member
+        subst same
+        exact absurd scored.walkable (not_walkable located walk)
   | scored position kind trees stone admitted located walk treeCount stoneCount chosen flag =>
     subst flag
     have fresh : Scored world ⟨position, trees + stone⟩ :=
@@ -258,10 +288,34 @@ theorem search_step {config : WorldConfig} {world : World config} {x y : Int}
     have holding : selected ≠ none := by
       rcases chosen with ⟨-, picked⟩ | ⟨old, -, -, picked⟩ | ⟨old, -, -, picked⟩ <;>
         simp [picked]
+    have greatest : ∀ other, Scored world other →
+        (seen other.position ∨ BoxPosition.checked config x y = some other.position) →
+        ∃ kept, selected = some kept ∧ other.score ≤ kept.score := by
+      intro other scored member
+      rcases member with member | member
+      · obtain ⟨kept, was, least⟩ := searching.greatest other scored member
+        rcases chosen with ⟨empty, picked⟩ | ⟨old, wasOld, better, picked⟩ |
+          ⟨old, wasOld, worse, picked⟩
+        · rw [empty] at was
+          cases was
+        · rw [wasOld] at was
+          cases Option.some.inj was
+          exact ⟨_, picked, by change other.score ≤ trees + stone; omega⟩
+        · rw [wasOld] at was
+          cases Option.some.inj was
+          exact ⟨_, picked, least⟩
+      · rw [admitted] at member
+        have same : position = other.position := Option.some.inj member
+        subst same
+        have total := scored_score scored treeCount stoneCount
+        rcases chosen with ⟨-, picked⟩ | ⟨old, -, -, picked⟩ | ⟨old, -, worse, picked⟩
+        · exact ⟨_, picked, by change other.score ≤ trees + stone; omega⟩
+        · exact ⟨_, picked, by change other.score ≤ trees + stone; omega⟩
+        · exact ⟨old, picked, by omega⟩
     constructor
     · intro continues
       have few : ¬ 2 ≤ trees := of_decide_eq_false continues
-      refine ⟨held, fun tile member => ?_, fun empty => absurd empty holding⟩
+      refine ⟨held, fun tile member => ?_, fun empty => absurd empty holding, greatest⟩
       rcases member with member | member
       · exact searching.poor tile member
       · rw [admitted] at member
@@ -290,8 +344,9 @@ def spiralY (config : WorldConfig) (radius directionIndex offset : Nat) : Int :=
     (Direction.fromIndex ⟨directionIndex % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
       ((offset : Int) - radius)
 
-/-- The spiral visits every tile of the box: a tile at Chebyshev distance r from the
-center lies on the north, south, east or west edge of ring r. -/
+/-- The spiral's schedule contains every tile of the box: a tile at Chebyshev distance r
+from the center lies on the north, south, east or west edge of ring r. A search that
+exits early stops before the end of the schedule. -/
 theorem spiral_covers (config : WorldConfig) (tile : BoxPosition config) :
     ∃ radius directionIndex offset, radius < config.side ∧ directionIndex < 4 ∧
       offset < 2 * radius + 1 ∧
@@ -392,7 +447,7 @@ theorem seen_radius (config : WorldConfig) (radius : Nat) (tile : BoxPosition co
   unfold Before at before
   exact ⟨radius', direction', offset', bounded, inside, by unfold Before; omega, admitted⟩
 
-/-- The complete search has seen every tile of the box. -/
+/-- A search that reaches the end of the schedule has seen every tile of the box. -/
 theorem seen_all (config : WorldConfig) (tile : BoxPosition config) :
     Seen config config.side 0 0 tile := by
   obtain ⟨radius, direction, offset, ring, bounded, inside, admitted⟩ := spiral_covers config tile
@@ -583,13 +638,14 @@ def Closed {config : WorldConfig} (world : World config)
 /-- What the spawn search guarantees, for every world in which it returns a spawn.
 Either it exited early, and the spawn is a walkable tile whose trees plus stone
 within four tiles are at least two; or it completed, no tile of the box is `Rich`,
-and the spawn is the best-scoring walkable tile, or the center when no tile of the
-box is walkable. -/
+and the spawn is a walkable tile whose score no scored candidate of the box exceeds,
+or the center when no tile of the box is walkable. -/
 theorem selectSpawn_post {config : WorldConfig} (world : World config)
     (spawn : BoxPosition config) (h : selectSpawn world = .ok spawn) :
     Exited world spawn ∨
       ((∀ tile, ¬ Rich world tile) ∧
-        ((∃ chosen, Scored world chosen ∧ chosen.position = spawn) ∨
+        ((∃ chosen, Scored world chosen ∧ chosen.position = spawn ∧
+            ∀ other, Scored world other → other.score ≤ chosen.score) ∨
           (spawn = BoxPosition.center config ∧ ∀ tile, ¬ Walkable world tile))) := by
   unfold selectSpawn at h
   dsimp only at h
@@ -610,11 +666,17 @@ theorem selectSpawn_post {config : WorldConfig} (world : World config)
       cases best with
       | none =>
         exact Or.inr ⟨rfl, fun tile => searching.barren rfl tile (seen_all config tile)⟩
-      | some chosen => exact Or.inl ⟨chosen, searching.scored chosen rfl, rfl⟩
+      | some chosen =>
+        refine Or.inl ⟨chosen, searching.scored chosen rfl, rfl, fun other scored => ?_⟩
+        obtain ⟨kept, was, least⟩ :=
+          searching.greatest other scored (seen_all config other.position)
+        cases Option.some.inj was
+        exact least
   have start : Open world (Seen config 0 0 0) (none, none) :=
     ⟨rfl, fun candidate same => (by cases same),
       fun tile seen => absurd seen (seen_start config tile),
-      fun _ tile seen => absurd seen (seen_start config tile)⟩
+      fun _ tile seen => absurd seen (seen_start config tile),
+      fun other _ seen => absurd seen (seen_start config other.position)⟩
   refine forIn_range_indexed config.side
     (fun radius state => Open world (Seen config radius 0 0) state) (Closed world) _ ?_ _ final
     start outer
@@ -714,7 +776,7 @@ theorem spawn_walkable {config : WorldConfig} (world : World config) (spawn : Bo
     (h : selectSpawn world = .ok spawn) (tile : BoxPosition config)
     (walkable : Walkable world tile) : Walkable world spawn := by
   rcases selectSpawn_post world spawn h with
-    ⟨chosen, scored, same, -⟩ | ⟨-, ⟨chosen, scored, same⟩ | ⟨-, barren⟩⟩
+    ⟨chosen, scored, same, -⟩ | ⟨-, ⟨chosen, scored, same, -⟩ | ⟨-, barren⟩⟩
   · exact same ▸ scored.walkable
   · exact same ▸ scored.walkable
   · exact absurd walkable (barren tile)

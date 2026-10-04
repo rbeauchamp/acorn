@@ -18,13 +18,15 @@ A reach goal reads the body's position alone (`reach_satisfied_iff`). A craft go
 reads tool ownership and a collect goal the held count (`craft_satisfied`,
 `collect_satisfied_iff`); since no step removes a tool or lowers gold, a craft or
 gold goal achieved once is achieved again at the first step of every later visit
-(`absorbing_revisit`). A survive goal reads the clock alone, so every action
-sequence satisfies it at exactly its required step (`survive_actions`,
-`survive_tick`).
+(`absorbing_revisit`). A survive goal reads the clock alone: an action sequence
+satisfies it exactly when its length has reached the required duration
+(`survive_actions`), and a tick of an attempt reports completion exactly when the
+attempt's step count has (`survive_tick`).
 
 The survive theorems assume the wrapping 64-bit clock has not wrapped since the
-goal was installed, and all assume the world steps succeed. No theorem here shows
-that a reach, collect or craft goal is feasible.
+goal was installed, and all assume the world steps succeed. `survive_tick` is a
+per-tick statement; no theorem here composes ticks over an attempt or its cap. No
+theorem here shows that a reach, collect or craft goal is feasible.
 -/
 namespace AcornVerif.CurrentGoals
 open Acorn Acorn.Host
@@ -285,7 +287,8 @@ theorem tick_clocked {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
 
 /-- The survive goals are independent of the agent. For every agent callback, a tick
 that acts under a survive goal reports completion exactly when the attempt's step count
-has reached the required duration: the goal is achieved at exactly that step. -/
+has reached the required duration. A tick acts only below the cap, so this is a per-tick
+statement: it does not show that an attempt reaches that step count. -/
 theorem survive_tick {config : WorldConfig} {α β : Type} {required cap : UInt64}
     (callbacks : AgentCallbacks α β) (context : GoalContext)
     (attempt next : Attempt config α (.survive required) cap) (frame : StepFrame β)
