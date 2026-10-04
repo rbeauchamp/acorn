@@ -59,6 +59,33 @@ See [observations](../lean/Acorn/Host/Observation.lean),
 [actions](../lean/Acorn/Host/Task.lean), and
 [the curriculum](../lean/Acorn/Host/Curriculum.lean).
 
+### What the world guarantees
+
+A world is one output of the generator: the seed fixes the terrain, the two
+reach targets and every pseudo-random stream. The properties below are proved
+of the executed definitions, for every seed, side, world and action, under the
+hypotheses each row names. None of them shows that a goal can be achieved.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| Where the reach targets are | Goals 3 and 7 are the reach goals. Each target lies in a fixed square window around the center of the box: within the near radius (12 to 40 tiles) for goal 3 and the far radius (24 to 120 tiles) for goal 7. The generator places them by a hash of the seed and never reads the terrain. | `reach_targets` |
+| The goal box is inside the world | A reach goal is met within three tiles of its target on both axes. For a side of at least 54, every such position is inside the box the body moves in; the standard configuration admits sides from 64. | `goal_box_in_world`, `standard_goal_boxes` |
+| One target coordinate over seeds | Each value of a window is one target coordinate on ⌊2⁶⁴ / m⌋ or one more of the 2⁶⁴ seeds, where m is the window's width. This counts seeds: it is a distribution only for a seed drawn uniformly, and it says nothing about two coordinates jointly. | `coordinate_seed_count`, `hash2_injective` |
+| Reaching reads position only | A reach goal is satisfied exactly when the body is in the goal box, whatever the inventory and the time. | `reach_satisfied_iff`, `reach_goal_iff` |
+| Survive goals do not depend on the policy | From a goal's installation, every action sequence whose steps the world accepts satisfies a survive goal exactly when its length has reached the required duration. For every agent, each tick of an attempt that acts reports completion exactly when the attempt's step count has reached that duration. An attempt acts only below its cap, so one whose cap is below the duration never reports completion. That an attempt with a sufficient cap ends achieved at exactly that step is argued from these per-step statements and the attempt's stopping rule; no theorem composes them over the attempt loop. Assumes that the 64-bit clock does not wrap. | `survive_actions`, `survive_tick` |
+| Tools and gold are never lost | No world step removes an owned axe or boat or lowers gold. A craft goal or a gold goal achieved once is therefore reported achieved by the first world step of every later visit, whatever was done in between. Wood, stone and food can be spent, so the other collect goals have no such guarantee. | `step_retains`, `absorbing_revisit` |
+| Energy | Of any N steps, at most (4N + 2000) / 24 are exhausted: steps on which the body cannot pay for its action and rests. Of any N successive moves at most (2N + 21) / 22 are, so at least 2727 of 3000 moves are paid for. That a move is paid for does not show that the body changed position. | `trace_exhausted`, `moves_exhausted`, `moves_paid_at_cap` |
+| Passability is static | Whether the body may enter a tile depends on the tile's generated terrain and on the boat, and on nothing else: not harvesting, regrowth or time. A mountain tile is never enterable, and a water tile exactly when the body owns a boat. No step moves the body onto a mountain, or onto water without a boat. | `enterable_static`, `mountain_closed`, `water_needs_boat`, `step_terrain` |
+| The spawn | The spawn search follows a spiral whose schedule contains every tile of the box, and one application of its rule reports an early exit only at a walkable tile with two trees within four tiles. Either the spawn is a walkable tile whose trees plus stone within four tiles are at least two; or no tile of the box is walkable with two trees within four tiles, and the spawn is a walkable tile whose trees-plus-stone score no scored tile of the box exceeds, or the center of the box when no tile is walkable. The first case holds whenever some tile of the box is walkable with two trees within four tiles; it bounds trees plus stone, so two trees near the spawn are not guaranteed. A scored tile is a walkable one whose two counts were not refused. Holds whenever the search returns a spawn. | `selectSpawn_post`, `spawn_of_rich`, `spawn_walkable`, `spiral_covers`, `considerSpawn_contract`, `countKindNear_eq` |
+
+Not proved: that the spawn search returns a spawn rather than a refusal; that
+a goal box can be entered or reached; that the walkable terrain is connected;
+and any bound on the distance from the spawn to a target. The owners are the
+[step proofs](../lean/AcornVerif/CurrentStep.lean),
+[goal proofs](../lean/AcornVerif/CurrentGoals.lean),
+[curriculum proofs](../lean/AcornVerif/CurrentCurriculum.lean) and
+[spawn proofs](../lean/AcornVerif/CurrentSpawn.lean).
+
 ## Implementation scope
 
 The [Alberta Plan](https://arxiv.org/abs/2208.11173v3), by Sutton, Bowling and
