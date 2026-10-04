@@ -49,18 +49,19 @@ def predictionBucket (value horizon : Binary32) : Fin Acorn.FeatureConstants.pre
     omega⟩
 
 /-- Prediction feedback words in layout order, one per stored prediction, numbered
-from `index`: the channel is `feedbackChannel` plus the position and the value is the
+from `index`: the channel is `base` plus the position and the value is the
 prediction's bucket at its own horizon. -/
-def feedbackWords : List Discount → List Binary32 → Nat → List SensorWord
+def feedbackWords (base : UInt64) : List Discount → List Binary32 → Nat → List SensorWord
   | discount :: discounts, value :: values, index =>
-    ⟨feedbackChannel + index.toUInt64, (predictionBucket value discount.horizon).val.toUInt64⟩ ::
-      feedbackWords discounts values (index + 1)
+    ⟨base + index.toUInt64, (predictionBucket value discount.horizon).val.toUInt64⟩ ::
+      feedbackWords base discounts values (index + 1)
   | [], _, _ => []
   | _ :: _, [], _ => []
 
 /-- Feedback has one word per question that has a stored prediction. -/
-theorem feedbackWords_length (discounts : List Discount) (values : List Binary32) (index : Nat) :
-    (feedbackWords discounts values index).length = min discounts.length values.length := by
+theorem feedbackWords_length (base : UInt64) (discounts : List Discount) (values : List Binary32)
+    (index : Nat) :
+    (feedbackWords base discounts values index).length = min discounts.length values.length := by
   induction discounts generalizing values index with
   | nil => simp [feedbackWords]
   | cons discount rest ih =>
@@ -70,11 +71,11 @@ theorem feedbackWords_length (discounts : List Discount) (values : List Binary32
 
 /-- The word at each position names that position's channel and buckets that position's
 prediction at that position's horizon. -/
-theorem feedbackWords_getElem (discounts : List Discount) (values : List Binary32)
-    (index position : Nat) (inside : position < (feedbackWords discounts values index).length)
+theorem feedbackWords_getElem (base : UInt64) (discounts : List Discount) (values : List Binary32)
+    (index position : Nat) (inside : position < (feedbackWords base discounts values index).length)
     (horizon : position < discounts.length) (stored : position < values.length) :
-    (feedbackWords discounts values index)[position] =
-      ⟨feedbackChannel + (index + position).toUInt64,
+    (feedbackWords base discounts values index)[position] =
+      ⟨base + (index + position).toUInt64,
         (predictionBucket values[position] discounts[position].horizon).val.toUInt64⟩ := by
   induction discounts generalizing values index position with
   | nil => simp at horizon
@@ -102,15 +103,17 @@ theorem channel_offset (base : UInt64) (position : Nat) :
 /-- Every feedback word of the agent's layout is on a channel the interface reserves,
 so it differs from the channel of every word a frame can carry. -/
 theorem feedbackWords_reserved {interface : Interface} (values : List Binary32) :
-    ∀ word ∈ feedbackWords interface.layout values 0, interface.reserved word.channel = true := by
+    ∀ word ∈ feedbackWords interface.feedback interface.layout values 0,
+      interface.reserved word.channel = true := by
   intro word member
   obtain ⟨position, inside, same⟩ := List.mem_iff_getElem.mp member
-  have counted := feedbackWords_length interface.layout values 0
+  have counted := feedbackWords_length interface.feedback interface.layout values 0
   have horizon : position < interface.layout.length := by omega
   have stored : position < values.length := by omega
-  rw [feedbackWords_getElem interface.layout values 0 position inside horizon stored] at same
+  rw [feedbackWords_getElem interface.feedback interface.layout values 0 position inside horizon
+    stored] at same
   subst same
-  have offset := channel_offset feedbackChannel (0 + position)
+  have offset := channel_offset interface.feedback (0 + position)
   simp only [Interface.reserved, decide_eq_true_eq]
   omega
 

@@ -75,14 +75,15 @@ predictions this receiver stored at the preceding step. -/
 def Agent.words (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) : List SensorWord :=
   observation.words ++
-    feedbackWords interface.layout state.control.runtime.references.demonPredictions.words 0
+    feedbackWords interface.feedback interface.layout
+      state.control.runtime.references.demonPredictions.words 0
 
 /-- No word of the frame shares a channel with a feedback word. The coder's two word
 sources are therefore distinct as words; their hashed feature slots can still
 collide, as any two hashed words' can. -/
 theorem Agent.words_disjoint (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) :
-    ∀ world ∈ observation.words, ∀ feedback ∈ feedbackWords interface.layout
+    ∀ world ∈ observation.words, ∀ feedback ∈ feedbackWords interface.feedback interface.layout
       state.control.runtime.references.demonPredictions.words 0,
         world.channel ≠ feedback.channel := by
   intro world held feedback produced same
@@ -103,7 +104,7 @@ feedback word per prediction question. -/
 theorem Agent.words_length (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) :
     (state.words observation).length ≤ interface.words + interface.layout.length := by
-  have feedback := feedbackWords_length interface.layout
+  have feedback := feedbackWords_length interface.feedback interface.layout
     state.control.runtime.references.demonPredictions.words 0
   have world := observation.bounded
   simp only [Agent.words, List.length_append]

@@ -75,8 +75,9 @@ context, and six inventory words. -/
 def wordBound : Nat := patchSide * patchSide * 3 + 2 + Acorn.FeatureConstants.taskContextWords + 6
 
 /-- The grid world's interface: the window and task context as the symbol array, the
-ten host signals after the agent's reward question, nine actions and the word bound. -/
-abbrev interface : Interface := ⟨patchShape, signalLayout, actions, wordBound⟩
+ten host signals after the agent's reward question, nine actions, the word bound and
+prediction feedback channels from `0x50`. -/
+abbrev interface : Interface := ⟨patchShape, signalLayout, actions, wordBound, 0x50⟩
 
 /-- The agent's layout at the grid instance is the canonical eleven horizons. -/
 theorem interface_layout : interface.layout = demonLayout := rfl
@@ -173,7 +174,7 @@ theorem order_length : cumulantOrder.length = Acorn.FeatureConstants.demonCount 
 /-- Feedback words over the canonical signals' horizons are the standalone coder's
 prediction words, for every admitted prediction list. -/
 theorem feedback_signals (predictions : Predictions) :
-    feedbackWords (cumulantOrder.map demonDiscount) predictions.values 0 =
+    feedbackWords interface.feedback (cumulantOrder.map demonDiscount) predictions.values 0 =
       predictionWords predictions := by
   have bound := predictions.bounded
   have order := order_length
@@ -183,14 +184,15 @@ theorem feedback_signals (predictions : Predictions) :
   · intro position left right
     have stored : position < predictions.values.length := by
       simpa [predictionWords] using right
-    rw [feedbackWords_getElem (cumulantOrder.map demonDiscount) predictions.values 0 position left
-      (by simp only [List.length_map]; omega) stored]
-    simp [predictionWords, cumulantOrder, feedbackChannel]
+    rw [feedbackWords_getElem interface.feedback (cumulantOrder.map demonDiscount)
+      predictions.values 0 position left (by simp only [List.length_map]; omega) stored]
+    simp [predictionWords, cumulantOrder]
 
 /-- The interface feedback words over the grid layout are the standalone coder's
 prediction words, for every admitted prediction list. -/
 theorem feedback_eq (predictions : Predictions) :
-    feedbackWords demonLayout predictions.values 0 = predictionWords predictions :=
+    feedbackWords interface.feedback demonLayout predictions.values 0 =
+      predictionWords predictions :=
   feedback_signals predictions
 
 end Grid

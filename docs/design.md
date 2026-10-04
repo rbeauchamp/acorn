@@ -55,6 +55,8 @@ is what a world fixes ([`Interface`](../lean/Acorn/Interface.lean)): the shape o
 symbol array the feature generator samples; which prediction signals the world
 supplies and at which horizons; how many primitive actions it accepts; and how many
 words one observation carries at most. Everything the agent stores is sized by these.
+The interface also declares the first channel of the agent's prediction feedback
+words.
 
 Each step the world delivers one **percept**: a **frame** and the reward of the
 preceding transition. A frame has three parts, one for each kind of learner input:
@@ -83,20 +85,21 @@ feature configuration (`Agent.frame_length`). The timing of a step, the split of
 acting from learning, and an exact saved image are not part of the interface yet;
 the grid world waits for the agent.
 
-The agent adds its own prediction feedback words on channels `0x50` and up, one per
-prediction question. A frame cannot carry a word on one of those channels: the frame
-type holds a proof that none of its words does, so each world's adapter proves it
-where it builds a frame. No word of a world then shares a channel with a feedback
-word (`Agent.words_disjoint`). This separates channels, not features: two words on
-different channels can still hash to one feature slot, as any two hashed words can.
+The agent adds its own prediction feedback words, one per prediction question, on
+consecutive channels from the one the interface declares. A frame cannot carry a
+word on one of those channels: the frame type holds a proof that none of its words
+does, so each world's adapter proves it where it builds a frame. No word of a world
+then shares a channel with a feedback word (`Agent.words_disjoint`). This separates
+channels, not features: two words on different channels can still hash to one
+feature slot, as any two hashed words can.
 
 ### The demonstration world
 
 The grid world is one instance of the interface
 ([`Grid.interface`](../lean/Acorn/Handcrafted/GridWorld.lean)): a symbol array of
-131 positions, ten signals after the agent's own reward question, nine actions and
-at most 381 words. Its adapter builds each percept from the host's observation and
-the preceding result. `Agent.grid_inputs` in
+131 positions, ten signals after the agent's own reward question, nine actions, at
+most 381 words and feedback channels from `0x50`. Its adapter builds each percept
+from the host's observation and the preceding result. `Agent.grid_inputs` in
 [the host binding](../lean/Acorn/Host/AgentInterface.lean) states, for every
 agent state, observation and reward word, that the coder's words and symbols, the
 prediction signals and the declared potentials the agent receives are exactly the

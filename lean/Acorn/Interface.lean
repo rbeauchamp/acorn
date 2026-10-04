@@ -9,11 +9,12 @@ import Acorn.SignalValues
 /-!
 # The interface between the agent and a world
 
-A world fixes four things for the agent: the shape of the symbol array the feature
+A world fixes five things for the agent: the shape of the symbol array the feature
 generator samples; which signals it supplies as prediction targets and at which
-horizons; how many primitive actions it accepts; and how many words a frame carries
-at most. Everything the agent stores is indexed by this value, so one agent
-definition serves every world. The interface names no world's types.
+horizons; how many primitive actions it accepts; how many words a frame carries at
+most; and the first channel of the agent's prediction feedback words. Everything the
+agent stores is indexed by this value, so one agent definition serves every world.
+The interface names no world's types.
 
 Each step the world hands the agent one percept: a frame and the reward of the
 preceding transition. Nothing else reaches a learner. The agent answers with one
@@ -24,14 +25,10 @@ channel and value pairs, which the tiled coder hashes. The symbols are the input
 the generated units. The signals are the cumulants of the prediction questions.
 
 The agent adds one word of prediction feedback per question, on the channels from
-`feedbackChannel`. A frame cannot carry a word on one of them: `Frame.clear` is part
-of the type, so every adapter proves it where it builds a frame.
+the interface's `feedback` channel. A frame cannot carry a word on one of them:
+`Frame.clear` is part of the type, so every adapter proves it where it builds a frame.
 -/
 namespace Acorn.Features
-
-/-- First channel of the agent's own prediction feedback words. The channel of each
-question is this word plus the question's position in the layout. -/
-def feedbackChannel : UInt64 := 0x50
 
 /-- What one world fixes for the agent. -/
 structure Interface where
@@ -43,16 +40,19 @@ structure Interface where
   actions : Word.Count
   /-- Most words one frame carries. -/
   words : Nat
+  /-- First channel of the agent's own prediction feedback words. The channel of each
+  question is this word plus the question's position in the layout. -/
+  feedback : UInt64
 
 /-- The agent's prediction layout: its own question about reward, at the horizon the
 subtask ranking reads, then one question per signal of the world. -/
 abbrev Interface.layout (interface : Interface) : List Discount := .g99 :: interface.signals
 
-/-- Whether a channel is one of the agent's prediction feedback channels:
-`feedbackChannel` plus the position of a question of the layout, in wrapping word
-arithmetic. -/
+/-- Whether a channel is one of the agent's prediction feedback channels: the
+interface's first feedback channel plus the position of a question of the layout, in
+wrapping word arithmetic. -/
 def Interface.reserved (interface : Interface) (channel : UInt64) : Bool :=
-  (channel - feedbackChannel).toNat < interface.layout.length
+  (channel - interface.feedback).toNat < interface.layout.length
 
 /-- One observation of a world, in the form the learners consume. -/
 structure Frame (interface : Interface) where

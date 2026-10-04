@@ -27,7 +27,7 @@ comparison and target population.
 
 ### D1 · Hand-authored channels — Step 2
 
-The channel layout is authored. Each world's adapter authors the words and symbols of its frames; the grid world's reads the tile-kind patch followed by the task words in their channel order, and projection features are generated over those symbols. For every world the agent adds its own prediction feedback words, bucketed on channels of their own.
+The channel layout is authored. Each world's adapter authors the words and symbols of its frames; the grid world's reads the tile-kind patch followed by the task words in their channel order, and projection features are generated over those symbols. For every world the agent adds its own prediction feedback words, bucketed on channels of their own; each world's adapter declares the first of those channels in its interface, and the grid world's declares `0x50`.
 
 Loci: `Acorn.Handcrafted.Signals`, `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.Agent`.
 
