@@ -58,6 +58,7 @@ import AcornVerif.CurrentStep
 import AcornVerif.CurrentGoals
 import AcornVerif.CurrentCurriculum
 import AcornVerif.CurrentSpawn
+import AcornVerif.CurrentCertificates
 import AcornVerif.Endurance
 
 /-!
@@ -3422,5 +3423,41 @@ info: 'AcornVerif.CurrentSpawn.selectSpawn_post' depends on axioms: [propext, Cl
 /-- info: 'Acorn.Handcrafted.Agent.frame_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Handcrafted.Agent.frame_length
+
+/--
+info: 'AcornVerif.CurrentStep.step_adjacent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentStep.step_adjacent
+
+/--
+info: 'AcornVerif.CurrentCertificates.replay_feasible' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCertificates.replay_feasible
+
+/--
+info: 'AcornVerif.CurrentCertificates.blocked_outside' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCertificates.blocked_outside
+
+/--
+info: 'AcornVerif.CurrentCertificates.blocked_infeasible' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCertificates.blocked_infeasible
+
+/--
+info: 'AcornVerif.CurrentCertificates.stance_enter' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCertificates.stance_enter
+
+/--
+info: 'AcornVerif.CurrentCertificates.stance_harvest' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCertificates.stance_harvest
 
 end AcornVerif

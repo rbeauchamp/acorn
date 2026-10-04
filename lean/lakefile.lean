@@ -222,6 +222,13 @@ lean_exe «world-native» where
   root := `Acorn.WorldDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
+/-- Generator-only certificate tool: proposes certificates for selecting properties of a
+seed and prints what the checkers accept. Its import closure holds no agent composition,
+campaign runner or comparator. -/
+lean_exe «world-certificates» where
+  root := `Acorn.Host.CertificateDriver
+  moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+
 /-- Inventory theorem declarations from compiled project modules, scoped by
 the compiler's owning-module index rather than source text or name prefixes. -/
 lean_exe «theorem-count» where

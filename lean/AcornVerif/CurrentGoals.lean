@@ -26,7 +26,8 @@ attempt's step count has (`survive_tick`).
 The survive theorems assume the wrapping 64-bit clock has not wrapped since the
 goal was installed, and all assume the world steps succeed. `survive_tick` is a
 per-tick statement; no theorem here composes ticks over an attempt or its cap. No
-theorem here shows that a reach, collect or craft goal is feasible.
+theorem here shows that a reach, collect or craft goal is feasible;
+`AcornVerif.CurrentCertificates` decides feasibility for one seed from a certificate.
 -/
 namespace AcornVerif.CurrentGoals
 open Acorn Acorn.Host

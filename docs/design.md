@@ -133,9 +133,15 @@ See [observations](../lean/Acorn/Host/Observation.lean),
 ### What the world guarantees
 
 A world is one output of the generator: the seed fixes the terrain, the two
-reach targets and every pseudo-random stream. The properties below are proved
-of the executed definitions, for every seed, side, world and action, under the
-hypotheses each row names. None of them shows that a goal can be achieved.
+reach targets and every pseudo-random stream. Its properties come in two tiers.
+A universal property is a theorem about the generator, true for every seed. A
+selecting property is a fact about one seed's world that holds for some seeds
+and fails for others; a certificate decides it for a given seed, as
+[the next section](#what-a-certificate-establishes-about-one-seed) describes.
+
+The properties below are universal: proved of the executed definitions, for
+every seed, side, world and action, under the hypotheses each row names. None of
+them shows that a goal can be achieved.
 
 | Property | What is proved | Theorems |
 |---|---|---|
@@ -146,16 +152,83 @@ hypotheses each row names. None of them shows that a goal can be achieved.
 | Survive goals do not depend on the policy | From a goal's installation, every action sequence whose steps the world accepts satisfies a survive goal exactly when its length has reached the required duration. For every agent, each tick of an attempt that acts reports completion exactly when the attempt's step count has reached that duration. An attempt acts only below its cap, so one whose cap is below the duration never reports completion. That an attempt with a sufficient cap ends achieved at exactly that step is argued from these per-step statements and the attempt's stopping rule; no theorem composes them over the attempt loop. Assumes that the 64-bit clock does not wrap. | `survive_actions`, `survive_tick` |
 | Tools and gold are never lost | No world step removes an owned axe or boat or lowers gold. A craft goal or a gold goal achieved once is therefore reported achieved by the first world step of every later visit, whatever was done in between. Wood, stone and food can be spent, so the other collect goals have no such guarantee. | `step_retains`, `absorbing_revisit` |
 | Energy | Of any N steps, at most (4N + 2000) / 24 are exhausted: steps on which the body cannot pay for its action and rests. Of any N successive moves at most (2N + 21) / 22 are, so at least 2727 of 3000 moves are paid for. That a move is paid for does not show that the body changed position. | `trace_exhausted`, `moves_exhausted`, `moves_paid_at_cap` |
-| Passability is static | Whether the body may enter a tile depends on the tile's generated terrain and on the boat, and on nothing else: not harvesting, regrowth or time. A mountain tile is never enterable, and a water tile exactly when the body owns a boat. No step moves the body onto a mountain, or onto water without a boat. | `enterable_static`, `mountain_closed`, `water_needs_boat`, `step_terrain` |
+| Passability is static | Whether the body may enter a tile depends on the tile's generated terrain and on the boat, and on nothing else: not harvesting, regrowth or time. A mountain tile is never enterable, and a water tile exactly when the body owns a boat. A step leaves the body where it is or moves it one tile in one of the four directions, never onto a mountain and never onto water without a boat. | `enterable_static`, `mountain_closed`, `water_needs_boat`, `step_adjacent`, `step_terrain` |
 | The spawn | The spawn search follows a spiral whose schedule contains every tile of the box, and one application of its rule reports an early exit only at a walkable tile with two trees within four tiles. Either the spawn is a walkable tile whose trees plus stone within four tiles are at least two; or no tile of the box is walkable with two trees within four tiles, and the spawn is a walkable tile whose trees-plus-stone score no scored tile of the box exceeds, or the center of the box when no tile is walkable. The first case holds whenever some tile of the box is walkable with two trees within four tiles; it bounds trees plus stone, so two trees near the spawn are not guaranteed. A scored tile is a walkable one whose two counts were not refused. Holds whenever the search returns a spawn. | `selectSpawn_post`, `spawn_of_rich`, `spawn_walkable`, `spiral_covers`, `considerSpawn_contract`, `countKindNear_eq` |
 
-Not proved: that the spawn search returns a spawn rather than a refusal; that
-a goal box can be entered or reached; that the walkable terrain is connected;
-and any bound on the distance from the spawn to a target. The owners are the
+Not proved for every seed: that the spawn search returns a spawn rather than a
+refusal; that a goal box can be entered or reached; that the walkable terrain is
+connected; and any bound on the distance from the spawn to a target. That a goal
+box can be reached is false for some seeds, so no universal theorem can state
+it. The owners are the
 [step proofs](../lean/AcornVerif/CurrentStep.lean),
 [goal proofs](../lean/AcornVerif/CurrentGoals.lean),
 [curriculum proofs](../lean/AcornVerif/CurrentCurriculum.lean) and
 [spawn proofs](../lean/AcornVerif/CurrentSpawn.lean).
+
+### What a certificate establishes about one seed
+
+A selecting property is decided for one seed by a **certificate**: a small piece
+of data that an executable **checker** accepts or rejects. Each checker is a
+decision over the executed world definitions, and a theorem states what its
+acceptance establishes. The theorems are sound and not complete: an accepted
+certificate proves its row below, and a rejected or missing one proves nothing.
+The checkers are in [the certificate module](../lean/Acorn/Host/Certificate.lean)
+and the theorems in
+[the certificate proofs](../lean/AcornVerif/CurrentCertificates.lean).
+
+| Certificate | The checker accepts when | What acceptance proves | Theorems |
+|---|---|---|---|
+| Replay: an action list, for a start world, a goal and a cap | The list is nonempty and no longer than the cap, and replaying it through the executed step from the start world with the goal installed succeeds and ends in a world that satisfies the goal (`replayCertified`). | The goal is feasible from that start world within that cap (`Feasible`): some run of at least one and at most that many executed steps ends satisfying the goal, and its last step reports completion. For a reach goal the run ends with the body in the goal box; for a collect goal it ends holding the count. | `replay_feasible`, `feasible_done`, `reach_path`, `collect_path` |
+| Blocked: a finite set of tiles, for a reach target and a start tile | The start tile is outside the set, every in-box tile of the goal box is in it, and each tile of the set is impassable or has all its in-box neighbors in the set (`regionBlocked`). Impassable means mountain, or mountain and water when the certificate is for a body without a boat. | From any world whose body is on the start tile, no run of steps and goal installations in any order puts the body in the goal box, so the reach goal is never satisfied. A set that counts water covers only the runs that end without a boat. A set of mountains alone makes the reach goal infeasible at every cap. Assumes each step succeeds. | `blocked_outside`, `blocked_unsatisfied`, `blocked_infeasible` |
+| Stance: a tile and a facing direction, for an item | The tile the stance faces has static terrain that yields the item, the stance tile is walkable, and the tile behind the stance is in the box and walkable (`stanceCertified`). | In every world, a paid move in the facing direction from the tile behind the stance puts the body on the stance facing the resource, and a paid harvest from the stance adds the item: three wood with an axe, one item otherwise. A wood stance needs its tree standing; stone and ore have no such condition, since no step depletes them. Assumes each step succeeds. | `stance_enter`, `stance_harvest`, `stance_approach` |
+
+What these do not establish:
+
+- A replay certificate speaks of the start world it was checked from. The tool
+  below checks from the spawn of the generated world, before any step. A campaign
+  begins a later goal's attempt from the world its earlier attempts left, which
+  the certificate does not describe.
+- `Feasible` is a statement about runs of the executed world step. No theorem
+  here composes it with the attempt loop that an agent drives.
+- A blocked certificate that counts water says nothing about a body that builds
+  a boat.
+- A stance certificate does not show that the stance can be reached from the
+  spawn. A replay certificate for collecting one item does.
+
+**The certificate tool.** `world-certificates` generates the standard world of
+each listed seed, proposes certificates and prints what the checkers accepted:
+
+```sh
+./scripts/lean.sh exe world-certificates SIDE CAP SEED [SEED ...]
+```
+
+For each seed it prints the spawn, one line for each of the two reach goals, and
+for wood, stone and gold a stance line and a line for collecting one item from
+the spawn. A line carries its certificate: the action list as one digit per
+action index, the tiles of a blocked region, or the stance tile and direction. A
+verdict of feasible, blocked or certified is printed only from a certificate its
+checker accepted. A blocked line names its scope: any body, or a body without a
+boat. A verdict of uncertified means that no proposed certificate was accepted
+and establishes nothing about the seed.
+
+The search that proposes certificates is
+[unverified](../lean/Acorn/Host/CertificateSearch.lean): it explores the tiles
+enterable without a boat, breadth first from the spawn. It does not propose a
+replay that builds a boat, so a goal box that needs one is reported blocked for a
+body without a boat, although the replay checker would accept such a list. The
+tool constructs no agent, comparator or attempt: its import closure holds neither
+the agent composition, the campaign runner nor the random-policy comparator, and
+the boundary audit refuses such an import. Its only world steps are those of the
+action lists it prints.
+
+A study can fix its class of worlds before any run by naming a printed verdict,
+for example the seeds for which the far reach line reads `verdict=feasible`,
+together with the universal theorems it uses. The summary counts are over the
+listed seeds only. A fraction of the 2⁶⁴ seeds that have a property is an
+estimate from a sample of seeds, never a certified fact; a certificate certifies
+its own seed. Running the tool at a seed is access to that seed's world: do not
+run it at the seeds of a registered study before that study has recorded its
+result, and record any such access in the study.
 
 ## Implementation scope
 

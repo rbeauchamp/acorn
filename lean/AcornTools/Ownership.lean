@@ -34,7 +34,8 @@ def modules : Array Name := #[
   `Acorn.Handcrafted.Signals, `Acorn.Handcrafted.TemporalControl, `Acorn.Handcrafted.TemporalProfile, `Acorn.Host.AgentAdmission, `Acorn.Host.AgentArguments,
   `Acorn.Host.AgentAudit, `Acorn.Host.AgentDiagnostics, `Acorn.Host.AgentInterface, `Acorn.Host.AgentPrefix,
   `Acorn.Host.AuditPins, `Acorn.Host.Ansi, `Acorn.Host.Attempt, `Acorn.Host.Baseline,
-  `Acorn.Host.Campaign, `Acorn.Host.Checkpoint.Admission, `Acorn.Host.Checkpoint.Codec,
+  `Acorn.Host.Campaign, `Acorn.Host.Certificate, `Acorn.Host.CertificateDriver,
+  `Acorn.Host.CertificateSearch, `Acorn.Host.Checkpoint.Admission, `Acorn.Host.Checkpoint.Codec,
   `Acorn.Host.Checkpoint.Frame, `Acorn.Host.Checkpoint.IO, `Acorn.Host.Checkpoint.Schema,
   `Acorn.Host.Checkpoint.Size, `Acorn.Host.Checkpoint.Snapshot, `Acorn.Host.CheckpointDiagnostic,
   `Acorn.Host.CheckpointDriver, `Acorn.Host.Cli, `Acorn.Host.Control,
@@ -68,7 +69,8 @@ def modules : Array Name := #[
   `AcornVerif.AverageReward,
   `AcornVerif.Axioms, `AcornVerif.ParameterBudget, `AcornVerif.Checkpoint,
   `AcornVerif.CurrentBackupBounds, `AcornVerif.CurrentConstants, `AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirementRounding,
-  `AcornVerif.CurrentAgent, `AcornVerif.CurrentArithmetic, `AcornVerif.CurrentCheckpoint,
+  `AcornVerif.CurrentAgent, `AcornVerif.CurrentArithmetic, `AcornVerif.CurrentCertificates,
+  `AcornVerif.CurrentCheckpoint,
   `AcornVerif.CurrentControl, `AcornVerif.CurrentCurriculum, `AcornVerif.CurrentDivision,
   `AcornVerif.CurrentExponential,
   `AcornVerif.CurrentFeatureConsumers, `AcornVerif.CurrentFloat, `AcornVerif.CurrentFloor,
@@ -120,6 +122,7 @@ def executables : Array (String × Name) := #[
   ("browser-kernel", `NativeApp.BrowserKernel),
   ("checkpoint-native", `Acorn.Host.CheckpointDriver),
   ("world-native", `Acorn.WorldDriver),
+  ("world-certificates", `Acorn.Host.CertificateDriver),
   ("theorem-count", `AcornTools.TheoremCount),
   ("lean-boundary-audit", `AcornTools.Boundary.Main),
   ("native-audit", `AcornTools.Native.Audit),
@@ -170,7 +173,13 @@ def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Host.Viewer.BrowserStore, `Acorn.Host.Viewer.browserColumns_live,
     `Acorn.Host.Viewer.browserColumns),
   (`NativeApp.MutationAudit, `NativeApp.AuditArm.incumbent_profile,
-    `NativeApp.AuditArm.construction)
+    `NativeApp.AuditArm.construction),
+  (`AcornVerif.CurrentCertificates, `AcornVerif.CurrentCertificates.replay_feasible,
+    `Acorn.Host.replayCertified),
+  (`AcornVerif.CurrentCertificates, `AcornVerif.CurrentCertificates.blocked_outside,
+    `Acorn.Host.regionBlocked),
+  (`AcornVerif.CurrentCertificates, `AcornVerif.CurrentCertificates.stance_harvest,
+    `Acorn.Host.stanceCertified)
 ]
 
 /-- Required native entry dependencies after proof erasure. These are routing
@@ -192,6 +201,8 @@ def entryUses : Array (Name × Array Name) := #[
   (`Acorn.AgentDriver, #[`Acorn.AgentDriver.execute]),
   (`Acorn.WorldDriver, #[`Acorn.WorldDriver.execute]),
   (`Acorn.Host.CheckpointDriver, #[`Acorn.Host.CheckpointDriver.dispatch]),
+  (`Acorn.Host.CertificateDriver, #[`Acorn.Host.CertificateDriver.execute,
+    `Acorn.Host.replayCertified, `Acorn.Host.regionBlocked, `Acorn.Host.stanceCertified]),
   (`AcornTools.Boundary.Main, #[`AcornBoundaryAudit.command]),
   (`AcornTools.TheoremCount, #[`AcornTheoremCount.inventory]),
   (`AcornTools.Native.Audit, #[`AcornNativeAudit.audit]),
