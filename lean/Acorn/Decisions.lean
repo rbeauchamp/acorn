@@ -8,7 +8,7 @@ import Regula.Decision
 import Acorn.Agreement
 import Acorn.FeatureRanking
 import Acorn.Host.Campaign
-import Acorn.Host.Checkpoint.Admission
+import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.GoalProtocol
@@ -25,20 +25,80 @@ and one refused input as witnesses. `@[regula_decision]` then makes that contrac
 requirement of the function, so removing the contract while the function stays registered
 fails the Regula audit.
 
-Three groups are registered.
+## Selection rule
+
+A decision is registered here when a theorem beside its definition states a direction of its
+verdict, or when both directions follow by unfolding the definition in this module. Three
+groups are registered.
 
 * Decisions of independent arguments carry a kind and the registration. A function of several
   arguments is decided on their product through `Function.uncurry`.
 * A decision procedure whose result type is `Decidable _` carries both directions in its type,
   so it is registered with no contract.
-* An admission whose result type depends on an argument, such as `Bounded32.admit`, has no
-  kind: a kind is stated about a function between two fixed types. Its refusal theorem is
-  registered as an ordinary requirement, which the audit reports with no kind, and the
-  function carries no `@[regula_decision]` registration.
+* An admission with an argument or result type that depends on an earlier argument, such as
+  `Bounded32.admit`, has no kind: a kind is stated about a function between two fixed types.
+  The proved statement is registered as an ordinary requirement, which the audit reports with
+  no kind, and the function carries no `@[regula_decision]` registration. The ownership audit
+  requires each such contract by name instead, with a statement that still refers to the
+  executing definition.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function
-is not registered here.
+is not registered here, and the ownership audit requires its contract in the same way.
+
+## Decisions that are not registered
+
+The Regula audit requires a contract of a registered function and does not find a decision
+that is not registered. The groups below are not registered; each is recorded with the
+evidence that stands for it.
+
+* A dependent admission that applies other admissions in sequence has no contract of its own.
+  `Prediction.admit` and `LogStepSize.admit` are `Bounded32.admit` at a derived interval,
+  `Lifetime.SumCount.admit` is the body of `Checkpoint.admitSum`, and `Assignment.admit` is
+  `Assignment.admitUsing` at the bank's slot function (`Assignment.wordsUsing_roundtrip`).
+  `Controller.stepRaw` refuses exactly when `Action.admit` does
+  (`Controller.stepRaw_refuses`), `Agent.restore` exactly when the resumable-profile test
+  does (`Agent.restore_refuses`), and `FeatureProfile.admit` applies that test before
+  `FeatureImage.admit` (`FeatureProfile.unsupported_refuses`). `FeatureImage.admit`,
+  `Checkpoint.admitDemons`, `Checkpoint.admitPayload` and `Checkpoint.loadCandidate` compose
+  the checkpoint admissions; their round trips are proved in `AcornVerif.CurrentCheckpoint`
+  (`feature_roundtrip`, `demons_roundtrip`, `image_roundtrip`, `candidate_roundtrip`). An
+  accepting result of `Host.Viewer.authorizeCommand` carries the verdicts of
+  `ControlHeaders.authorizes` and `controlCommand` as fields of its type.
+* `Host.Viewer.Buffer.offer` is polymorphic in its element type, which no kind admits;
+  `Buffer.offer_iff` states its acceptance.
+* An effect with a pure core is covered through that core. `Checkpoint.loadFile` returns the
+  verdict of `Checkpoint.load` on the bytes it read, and `Checkpoint.Store.save` refuses with
+  `Checkpoint.saveBytes`; both cores are registered below. An effect with no pure core
+  decides from state outside the Lean definitions, so no theorem states its verdict:
+  `Host.StopFlag.requested` and the `Host.Viewer.Broadcast` operations read shared state under
+  a lock, `Host.Viewer.RunDirectory.adoptStrayCheckpoint` reads the file system and
+  `Host.Viewer.NativeResources.observe` reads the operating system. The concurrency and
+  operating-system assumptions of the verification guide stand for them.
+* A parser or test of fixed types with no theorem about the inputs it accepts is not
+  registered, because no direction of its verdict is proved. Nothing states which inputs it
+  accepts; what stands is the type of an accepted value alone. These are the command-line
+  parsers `Host.Cli.scan`, `Host.Cli.value`,
+  `Host.Cli.required`, `Host.Cli.natural`, `Host.Cli.unsigned`, `Host.Cli.side`,
+  `Host.Cli.profile`, `Host.Cli.criterion`, `Host.Cli.command`, `Host.Cli.demo`,
+  `Host.Cli.dispatch`, `Host.AgentArguments.profile`, `Host.AgentArguments.word`,
+  `Host.AgentArguments.admit`, `Host.Viewer.ViewerOptions.decode` and `Host.parseControl`; the
+  JSON parser `Json.parse` with its readers `Json.Value.text`, `Json.Value.natural`,
+  `Json.Value.list`, `Json.Value.fields` and `Json.decode`; and the viewer parsers
+  `Host.Viewer.Command.parse`, `Host.Viewer.controlCommand`, `Host.Viewer.jsonField`,
+  `Host.Viewer.jsonWord`, `Host.Viewer.jsonBrowserClock`, `Host.Viewer.jsonBool`,
+  `Host.Viewer.runWord`, `Host.Viewer.healthFromJson`, `Host.Viewer.captureFromJson`,
+  `Host.Viewer.HealthEnvelope.parse`, `Host.Viewer.Envelope.parse`, `Host.Viewer.LineBytes.text`,
+  `Host.Viewer.terrainFromJson`, `Host.Viewer.sensedFromJson`,
+  `Host.Viewer.SensedEnvelope.parse`, `Host.Viewer.coreIdentityFromJson`,
+  `Host.Viewer.coreIdentity`, `Host.Viewer.PersistedState.decode`,
+  `Host.Viewer.residentBytes`, `Host.Viewer.MapBytes.admit`, `Host.Viewer.decodeMapRuns` and
+  `Host.Viewer.decodeMap`. A Boolean test that no theorem characterizes, such as
+  `Host.Viewer.Lifecycle.acceptsFailure`, is in this group too.
+* A derived `DecidableEq` or `BEq` instance is generated by Lean and is not registered.
+
+A definition whose optional or Boolean result reports a selection, a lookup or the outcome of
+a state transition is not a decision in this sense.
 
 No kind says that a specification is the intended one, that every caller acts on the verdict,
 or which value an accepting result carries. Exactness of the accepted value is stated by the
@@ -238,6 +298,15 @@ theorem bonus_admit : Regula.ExecutableContract Bonus.admit
     ⟨⟨0x3f800000⟩, by decide⟩ ⟨.zero, by decide⟩⟩
 
 attribute [regula_decision] Bonus.admit
+
+/-- Prediction-list admission accepts exactly the lists within the prediction-channel count. -/
+theorem predictions_admit : Regula.ExecutableContract Predictions.admit
+    (Regula.Decides (·.isSome = true)
+      (fun values : List Binary32 => values.length ≤ Acorn.FeatureConstants.demonCount)) :=
+  ⟨decides (fun _ => dite_isSome _) ⟨[], Nat.zero_le _⟩
+    ⟨List.replicate (Acorn.FeatureConstants.demonCount + 1) .zero, by simp⟩⟩
+
+attribute [regula_decision] Predictions.admit
 
 /-- Unit-state admission accepts exactly the words whose utility lies in the utility range.
 Every stored unit is admitted from its own words (`UnitState.words_roundtrip`). -/
@@ -863,16 +932,21 @@ attribute [regula_decision] ControlHeaders.authorizes
 /-! ## Decision procedures
 
 Each result is a `Decidable` value: an accepting result carries a proof of the decided
-proposition and a refusing result a proof of its negation, so no contract is registered. -/
+proposition and a refusing result a proof of its negation, so no contract is registered. The
+instances are registered under the names Lean generates for them. -/
 
 attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidable
+  Binary32.instDecidableFinite Binary64.instDecidableFinite Interval32.instDecidableContains
+  Features.instDecidableRecent Features.instDecidableDominates Lifetime.instDecidableLegalSum
+  Checkpoint.instDecidableValid Checkpoint.instDecidableOptionsValid
 
-/-! ## Admissions with a dependent result type
+/-! ## Admissions with a dependent type
 
-The result type of each function below is indexed by an argument: the receiving interval, the
-value rule, the feature dimension or the action count. A decision kind is stated about a
-function between two fixed types, so none applies. The refusal theorem beside each definition
-is registered as an ordinary requirement, reported with no kind. -/
+An argument or result type of each function below is indexed by an earlier argument: the
+receiving interval, the value rule, the feature dimension, the bank configuration or the agent
+construction. A decision kind is stated about a function between two fixed types, so none
+applies. The proved statement about each function is registered as an ordinary requirement,
+reported with no kind, and its docstring says which direction it covers. -/
 
 /-- Bounded admission refuses exactly the words outside the receiving interval
 (`Bounded32.admit_refuses`). -/
@@ -899,5 +973,109 @@ theorem feature_index_admit : Regula.ExecutableContract FeatIdx.admit (fun admit
 theorem action_admit : Regula.ExecutableContract Action.admit (fun admit =>
     ∀ actions raw : Nat, admit actions raw = none ↔ actions ≤ raw) :=
   ⟨Action.admit_none⟩
+
+/-- Rail admission accepts every configuration (`rails_admission_total`). -/
+theorem rails_admit : Regula.ExecutableContract StepSizeRails.admit (fun admit =>
+    ∀ config : Acorn.Config, admit config ≠ none) :=
+  ⟨rails_admission_total⟩
+
+/-- An admitted squared discrepancy is the exact squared discrepancy of the two words
+(`Agreement.admitSquared_exact`).
+
+**Not claimed:** which pairs of words the receiving envelope admits. -/
+theorem squared_admit : Regula.ExecutableContract Agreement.admitSquared (fun admit =>
+    ∀ (envelope : Nat) (forecast outcome : Binary32) (sample : Fin (envelope ^ 2 + 1)),
+      admit envelope forecast outcome = some sample →
+        sample.val = Agreement.squaredUnits forecast outcome) :=
+  ⟨Agreement.admitSquared_exact⟩
+
+/-- Event admission accepts the words of every bank-relative event and returns that event
+(`Event.words_roundtrip`).
+
+**Not claimed:** that every accepted word pair is the word image of an event. -/
+theorem event_admit : Regula.ExecutableContract Event.admit (fun admit =>
+    ∀ (config : Features.Config) (event : Event config),
+      admit config event.words = some event) :=
+  ⟨fun _ => Event.words_roundtrip⟩
+
+/-- Latest-event admission accepts the words of every latest event, present or absent, and
+returns it (`admitLast_roundtrip`).
+
+**Not claimed:** that every accepted word triple is such an image. -/
+theorem last_admit : Regula.ExecutableContract admitLast (fun admit =>
+    ∀ (config : Features.Config) (last : Option (Event config)),
+      admit config (lastWords last) = some last) :=
+  ⟨fun _ => admitLast_roundtrip⟩
+
+/-- Tester admission accepts the words of every legal tester state under its own clock and
+returns that state (`Progress.words_roundtrip`).
+
+**Not claimed:** that every accepted image is the word image of a legal state. -/
+theorem progress_admit : Regula.ExecutableContract Progress.admit (fun admit =>
+    ∀ (config : Features.Config) (progress : Progress config),
+      admit config progress.clock progress.words = some progress) :=
+  ⟨fun _ => Progress.words_roundtrip⟩
+
+/-- Assignment admission accepts the words of every stored assignment of the receiving bank
+and returns that assignment (`Assignment.words_roundtrip`).
+
+**Not claimed:** that every accepted image is the word image of an assignment. -/
+theorem assignment_admit : Regula.ExecutableContract Assignment.admit (fun admit =>
+    ∀ (dimension : Dimension) (config : Features.Config) (assignment : Assignment config),
+      admit dimension config (assignment.words dimension) = some assignment) :=
+  ⟨fun dimension _ => Assignment.words_roundtrip dimension⟩
+
+/-- Box admission accepts the coordinates of every position of the receiving box and returns
+that position (`Host.BoxPosition.checked_position`).
+
+**Not claimed:** that every accepted coordinate pair lies in the box. The result type states
+that. -/
+theorem box_position_checked : Regula.ExecutableContract Host.BoxPosition.checked
+    (fun checked => ∀ (config : Host.WorldConfig) (position : Host.BoxPosition config),
+      checked config position.position.x.val position.position.y.val = some position) :=
+  ⟨fun _ => Host.BoxPosition.checked_position⟩
+
+/-- Campaign admission accepts exactly a positive step cap with a repetition budget or a
+nonempty goal range in the receiving curriculum. -/
+theorem campaign_admit : Regula.ExecutableContract Host.CampaignPlan.admit (fun admit =>
+    ∀ (size : Nat) (spec : Host.CampaignSpec), (admit size spec).isOk = true ↔
+      0 < spec.steps.toNat ∧ (spec.cycles.toNat ≠ 0 ∨ 0 < min spec.goals.toNat size)) :=
+  ⟨fun size spec => by
+    unfold Host.CampaignPlan.admit
+    by_cases steps : 0 < spec.steps.toNat
+    · by_cases productive : spec.cycles.toNat ≠ 0 ∨ 0 < min spec.goals.toNat size
+      · simp [steps, productive, Except.isOk, Except.toBool]
+      · simp [steps, productive, Except.isOk, Except.toBool]
+    · simp [steps, Except.isOk, Except.toBool]⟩
+
+/-- Frame decoding accepts the encoding of every payload of the receiving dimension and
+returns that payload (`Checkpoint.roundtrip`).
+
+**Not claimed:** that every accepted byte list is the encoding of a payload. -/
+theorem checkpoint_decode : Regula.ExecutableContract Checkpoint.decode (fun decode =>
+    ∀ (dimension : Dimension) (payload : Checkpoint.Payload dimension),
+      decode dimension (Checkpoint.encode dimension payload) = some payload) :=
+  ⟨Checkpoint.roundtrip⟩
+
+/-- The checkpoint writer refuses every state of a profile that is not resumable
+(`Checkpoint.save_refuses`). `Checkpoint.save_supported` states that it writes every other
+state. -/
+theorem checkpoint_save : Regula.ExecutableContract Checkpoint.saveBytes (fun save =>
+    ∀ (construction : AgentConstruction) (state : construction.State),
+      construction.profile.checkpointSupported = false →
+        save construction state = .error .unsupportedPolicy) :=
+  ⟨Checkpoint.save_refuses⟩
+
+/-- A refused checkpoint leaves its receiver unchanged: when loading refuses a byte list,
+`Checkpoint.loadKeeping` returns the receiver it was given, with the refusal
+(`Checkpoint.load_nonmutation`).
+
+**Not claimed:** which byte lists are accepted. `AcornVerif.CurrentCheckpoint.save_load` states
+that the bytes saved from a resumable profile load into a matching receiver. -/
+theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
+    ∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8)
+      (error : Checkpoint.Error), load construction receiver bytes = .error error →
+        Checkpoint.loadKeeping construction receiver bytes = (receiver, some error)) :=
+  ⟨Checkpoint.load_nonmutation⟩
 
 end Acorn.Decisions

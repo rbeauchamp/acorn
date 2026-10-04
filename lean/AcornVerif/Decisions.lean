@@ -9,18 +9,28 @@ import AcornVerif.CurrentCheckpoint
 /-!
 # Decision contracts proved in the proof library
 
-`Acorn.Decisions` registers the decisions of the executing library whose kinds follow from
-Lean core alone. A contract here states a direction whose proof needs this library: the
+`Acorn.Decisions` registers the decisions of the executing library whose contracts follow
+from Lean core alone. A contract here states a direction whose proof needs this library: the
 legality of every stored lifetime total rests on the real-valued bounds of
 `CurrentLifetime.stored_sum_legal`.
 
 Regula counts only a contract of the function's own library toward a decision registration,
-so the function below carries no registration. The ownership audit requires this contract by
+so the functions below carry no registration. The ownership audit requires each contract by
 name instead, with a statement that still refers to the executing definition.
 -/
 
 namespace AcornVerif.Decisions
 open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime
+
+/-- Total admission accepts the words of every stored total of the receiving quantity and
+returns that total (`CurrentCheckpoint.sum_roundtrip`). The result type depends on the
+quantity, so the contract is an ordinary requirement with no kind.
+
+**Not claimed:** that every accepted word pair is the word image of a stored total. -/
+theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
+    ∀ (quantity : Quantity) (record : SumCount quantity),
+      admit quantity (sumWords record) = some record) :=
+  ⟨fun _ => CurrentCheckpoint.sum_roundtrip⟩
 
 /-- An image whose overall reward total is a NaN word, with every other field zero. -/
 def refusedLifetime : LifetimeWords :=

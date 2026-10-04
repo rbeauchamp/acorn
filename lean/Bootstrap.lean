@@ -113,17 +113,19 @@ def lake (overrides : System.FilePath) (args : Array String) : IO.Process.SpawnA
   cmd := "lake", args := #["--no-cache", "--wfail", s!"--packages={overrides}"] ++ args,
   stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
 
-/-- The proof bridge is the single owner of its FloatLib imports. FloatLib
-publishes no build cache, and verification must not compile a dependency inside
-its deadline. Lake itself decides readiness: with `--no-build` it exits 3 unless
-every artifact and trace in the import closure of the `floatlibBridge` target is
-current, so no list of expected files is kept here. -/
-def bridgeImportsBuilt (overrides : System.FilePath) : IO Bool := do
-  let output ← IO.Process.output (lake overrides #["build", "--no-build", "floatlibBridge"])
+/-- The proof bridge is the single owner of its FloatLib imports, and the two decision
+registries of their Regula imports. FloatLib publishes no build cache, and verification
+must not compile a dependency inside its deadline. Lake itself decides readiness: with
+`--no-build` it exits 3 unless every artifact and trace in the import closure of the
+`floatlibBridge` and `regulaInterface` targets is current, so no list of expected files
+is kept here. -/
+def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
+  let output ← IO.Process.output
+    (lake overrides #["build", "--no-build", "floatlibBridge", "regulaInterface"])
   if output.exitCode == 0 then return true
   if output.exitCode == 3 then return false
   throw (IO.userError
-    s!"Lake could not decide FloatLib provisioning:\n{output.stdout}{output.stderr}")
+    s!"Lake could not decide dependency provisioning:\n{output.stdout}{output.stderr}")
 
 /-- Invoke Lake only after local dependency admission. -/
 def run (args : List String) : IO UInt32 := do
@@ -137,11 +139,12 @@ def run (args : List String) : IO UInt32 := do
   -- Lake validates its configuration trace against source and toolchain changes;
   -- explicit dependency overrides are resolved again on every invocation.
   if available then IO.FS.writeFile path (contents.compress ++ "\n")
-  let ready ← if available then bridgeImportsBuilt path else pure false
+  let ready ← if available then dependencyImportsBuilt path else pure false
   -- This status is the launcher's sole provisioning admission: 0 means ready,
   -- 2 means missing dependencies, and every refusal returns 1. It builds nothing,
   -- writes only the override file above and asks Lake whether the FloatLib modules
-  -- the bridge imports are current.
+  -- the bridge imports and the Regula modules the decision registries import are
+  -- current.
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do
     throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")

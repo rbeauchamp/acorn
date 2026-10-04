@@ -26,7 +26,7 @@ prerequisites and provisions the pinned Lean, Mathlib and FloatLib dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this builds nothing, writes only the
 launcher's own override file and asks Lake whether the FloatLib modules the proof
-bridge imports are current.
+bridge imports and the Regula modules the decision registries import are current.
 The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
@@ -50,10 +50,11 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge)` from the
-repository root to provision the pinned toolchain/dependencies; the build compiles
-only Mathlib modules absent from the upstream cache. FloatLib publishes no cache,
-so the same command compiles the FloatLib modules that the proof bridge imports.
+`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface)`
+from the repository root to provision the pinned toolchain/dependencies; the build
+compiles only Mathlib modules absent from the upstream cache. FloatLib publishes no
+cache, so the same command compiles the FloatLib modules that the proof bridge
+imports, and the two Regula interface modules that the decision registries import.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
@@ -250,7 +251,8 @@ the bootstrap's path overrides or its no-cache and warnings-as-failures flags.
 Those invocations resolve dependencies through the Git lock in
 `lean/lake-manifest.json`. The bootstrap checks no dependency's revision: it
 admits each by the presence of its files, and the FloatLib modules the proof
-bridge imports by Lake's build traces. Lake therefore fetches a dependency whose
+bridge imports and the Regula modules the decision registries import by Lake's
+build traces. Lake therefore fetches a dependency whose
 checkout is not at the locked revision.
 
 The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
@@ -280,25 +282,31 @@ FloatLib import by any executing module. The compiler, native runtime, operating
 system and spawned processes stay trusted in both modes. AcornTools is excluded
 with the six tool executables; it is the reviewed tooling trust boundary.
 
-`lean/Acorn/Decisions.lean` registers the library's decision functions: the
-admissions, parsers and validity tests whose result accepts or refuses an input.
+`lean/Acorn/Decisions.lean` registers the library's decision functions whose
+direction is proved. A decision function is an admission, parser or validity
+test: its result accepts or refuses an input.
 Each registration is a Regula executable contract about the executing definition
 itself, with the kind its proof establishes. A two-way kind states that the
 function accepts exactly the inputs that satisfy the written specification, with
 one accepted and one refused input as witnesses. Regula's decision attribute
 makes the contract a requirement of the function, so the audit fails when a
-contract is removed while its function stays registered. A function whose result
-type depends on an argument has no kind; its refusal theorem is registered as an
-ordinary requirement, which the audit reports with no kind. The audit does not
-find a decision function that is not registered, and no kind says that a
+contract is removed while its function stays registered. An admission with an
+argument or result type that depends on an earlier argument has no kind. Where a
+theorem beside its definition states a direction, that theorem is registered as
+an ordinary requirement, which the audit reports with no kind, and the ownership
+audit requires the contract by name. The audit does not find a decision function
+that is not registered. The module's documentation states the selection rule and
+lists the groups that are not registered with the evidence that stands for each:
+composed admissions, effects with no pure core, and the command-line, JSON and
+viewer parsers, for which no direction is proved. No kind says that a
 specification is the intended one. `Acorn.Decisions` belongs to the Acorn library
 because Regula decides a registered function against the contracts of the
 function's own library. It is the only module that imports Regula's decision
 attribute. It declares no executing definition and no module imports it; the
 boundary audit admits it with the proof sources and refuses an import of it.
-`AcornVerif.Decisions` states a contract whose proof needs the proof library.
-Regula does not count it toward a registration, so its function is not
-registered, and the ownership audit requires the contract by name.
+`AcornVerif.Decisions` states the contracts whose proofs need the proof library.
+Regula does not count them toward a registration, so their functions are not
+registered, and the ownership audit requires each contract by name.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

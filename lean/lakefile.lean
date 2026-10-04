@@ -311,17 +311,30 @@ library's bridge module imports it; no executable library does. -/
 require floatlib from git
   "https://github.com/lean-dojo/FloatLib" @ "1e83f09ed8c41a953cf8f93d26c210778177b94a"
 
-/-- The FloatLib modules the proof bridge imports, read from the bridge's own import
-lines so that it stays their single owner. Provisioning builds this target beside
+/-- The artifacts of every module of `library` that the given sources import, read from
+their own import lines so that each source stays the single owner of its imports. -/
+def importedArtifacts (sources : Array System.FilePath) (library : String) :
+    FetchM (Job Unit) := do
+  let mut job : Job Unit := Job.nil
+  for path in sources do
+    for line in (← IO.FS.readFile path).splitOn "\n" do
+      if line.startsWith s!"import {library}." then
+        let name := ((line.drop 7).trimAscii.toString).toName
+        let some mod ← findModule? name
+          | error s!"{path} imports an unknown module: {name}"
+        job := job.mix (← mod.leanArts.fetch)
+  return job
+
+/-- The FloatLib modules the proof bridge imports. Provisioning builds this target beside
 Mathlib; FloatLib publishes no build cache, and verification must not compile a
 dependency inside its deadline. -/
-target floatlibBridge pkg : Unit := do
-  let source ← IO.FS.readFile (pkg.dir / "AcornVerif" / "FloatLibBridge.lean")
-  let mut job : Job Unit := Job.nil
-  for line in source.splitOn "\n" do
-    if line.startsWith "import FloatLib." then
-      let name := ((line.drop 7).trimAscii.toString).toName
-      let some mod ← findModule? name
-        | error s!"the FloatLib bridge imports an unknown module: {name}"
-      job := job.mix (← mod.leanArts.fetch)
-  return job
+target floatlibBridge pkg : Unit :=
+  importedArtifacts #[pkg.dir / "AcornVerif" / "FloatLibBridge.lean"] "FloatLib"
+
+/-- The Regula interface modules the two decision registries import: the contract type and
+the decision attribute. Provisioning builds this target beside `floatlibBridge`, for the
+same reason. -/
+target regulaInterface pkg : Unit :=
+  importedArtifacts
+    #[pkg.dir / "Acorn" / "Decisions.lean", pkg.dir / "AcornVerif" / "Decisions.lean"]
+    "Regula"

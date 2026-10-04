@@ -856,8 +856,9 @@ What each panel must show. How it draws it is the code's.
   `--no-browser` supports manual/headless access and `--prepare-only` builds
   without learning. A bootstrap status admits provisioning only for missing
   dependencies. It builds nothing, writes only the launcher's own override file
-  and asks Lake whether the FloatLib modules the proof bridge imports are
-  current; malformed locks, symlinks and ambient overrides remain explicit
+  and asks Lake whether the FloatLib modules the proof bridge imports and the
+  Regula modules the decision registries import are current; malformed locks,
+  symlinks and ambient overrides remain explicit
   refusals. The script is preparation tooling, not a substitute for
   `./scripts/verify.sh` and not empirical default qualification.
 

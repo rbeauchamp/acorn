@@ -88,7 +88,7 @@ admission predicates. Do not replace unresolved proof obligations with measureme
 
 Provision pinned Lean/Mathlib v4.34.0, FloatLib, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
 compiler first. A fresh worktree has no `lean/.lake` dependencies; run
-`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge)` and then
+`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface)` and then
 `(cd site && lake build verso/VersoManual)` there before verifying.
 Then run the complete command in the actual Git checkout:
 
