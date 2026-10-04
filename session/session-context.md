@@ -34,7 +34,7 @@ two unused prediction constants removed. Useful current implementation contracts
 and supporting mathematical identities remain.
 
 README, verification documentation and the shipped review reference describe the
-current layout. BigWorld and Energy comments now state their exact mathematical
+current layout. ParameterBudget and Energy comments now state their exact mathematical
 scope: fixed formula arithmetic and conditional ledger inequalities. They do not
 claim unproved state reachability, checkpoint introspection or execution linkage.
 No learning study, audit-pin change or checkpoint-format change was performed.

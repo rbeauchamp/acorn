@@ -12,7 +12,7 @@ import AcornVerif.CurrentConstants
 import AcornVerif.CurrentRetirement
 import AcornVerif.CurrentRetirementRounding
 import AcornVerif.Resource.WordKernel
-import AcornVerif.BigWorld
+import AcornVerif.ParameterBudget
 import AcornVerif.Checkpoint
 import AcornVerif.Energy
 import AcornVerif.Exploration
@@ -338,9 +338,9 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 #guard_msgs in
 #print axioms trace_geometric_bound
 
-/-- info: 'AcornVerif.big_world_margin_holds' depends on axioms: [propext] -/
+/-- info: 'AcornVerif.state_product_exceeds_parameter_count' depends on axioms: [propext] -/
 #guard_msgs in
-#print axioms big_world_margin_holds
+#print axioms state_product_exceeds_parameter_count
 
 /-- info: 'AcornVerif.agent_exceeds_terrain_description' depends on axioms: [propext] -/
 #guard_msgs in

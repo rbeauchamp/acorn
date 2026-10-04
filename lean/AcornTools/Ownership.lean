@@ -66,7 +66,7 @@ def modules : Array Name := #[
   `AcornVerif.AgreementLifecycle, `AcornVerif.AgreementInterpretation, `AcornVerif.AgreementPrecision,
   `AcornVerif.AgreementReturn, `AcornVerif.AgreementTelemetryPrecision, `AcornVerif.CurrentAgreement,
   `AcornVerif.AverageReward,
-  `AcornVerif.Axioms, `AcornVerif.BigWorld, `AcornVerif.Checkpoint,
+  `AcornVerif.Axioms, `AcornVerif.ParameterBudget, `AcornVerif.Checkpoint,
   `AcornVerif.CurrentBackupBounds, `AcornVerif.CurrentConstants, `AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirementRounding,
   `AcornVerif.CurrentAgent, `AcornVerif.CurrentArithmetic, `AcornVerif.CurrentCheckpoint,
   `AcornVerif.CurrentControl, `AcornVerif.CurrentDivision, `AcornVerif.CurrentExponential,

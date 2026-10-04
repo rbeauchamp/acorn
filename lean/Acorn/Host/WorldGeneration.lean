@@ -9,10 +9,16 @@ import Acorn.Host.WorldState
 # Current bounded spawn selection and deer placement
 
 The spiral retains the source's cardinal order, repeated corner visits,
-strict-best tie rule and best-so-far selection after early exit. No walkable
-spawn is promised when the complete search finds none: the legal center is
-the explicit fallback. Deer placement makes exactly the configured number
-of attempts, with two successive range draws per attempt.
+strict-best tie rule and best-so-far selection after early exit. The search
+exits at the first walkable tile whose nine-by-nine square holds at least two
+trees, and returns the walkable tile with the best tree-plus-stone count seen up
+to and including it. After an early exit the returned tile's square therefore
+holds at least two trees and stones taken together; it can be an earlier tile
+with stone and no tree. Without an early exit the best walkable tile of the
+complete search is returned. No walkable spawn is promised when the complete
+search finds none: the legal center is the explicit fallback. Deer placement
+makes exactly the configured number of attempts, with two successive range
+draws per attempt.
 -/
 namespace Acorn.Host
 
