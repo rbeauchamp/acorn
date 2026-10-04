@@ -294,12 +294,14 @@ What these theorems do not establish:
   (`script_frozen_constant`), so a class of frozen agents admits only constant
   scripts and the equivalence says nothing about it.
 - **A bound for agents that read the displacement.** The reach bound holds for
-  agents whose actions do not depend on the target until it is reached. Acorn's
-  observation gives the exact displacement to the target, and the frame carries
-  it to the agent, so the executed agent is not blind on the class of targets
-  and the bound does not apply to it. A fixed rule that steps toward the target
-  needs no experience. No theorem here gives a goal whose solution the
-  observation does not show.
+  agents whose actions do not depend on the target until it is reached, and does
+  not apply to an agent whose actions read the displacement. Acorn's observation
+  gives the exact displacement to the target, and the frame carries it to the
+  agent, which makes that dependence possible. The executed agent is not shown
+  blind on the class of targets, so the theorem supplies no bound for it; that
+  its actions do depend on the target is not proved either. A fixed rule that
+  steps toward the target needs no experience. No theorem here gives a goal
+  whose solution the observation does not show.
 - **A bound over seeds.** The reach bound counts target positions for one host
   world. The generator ties the target to the seed, so reading it as a fraction
   of seeds assumes that the seed hash places targets independently of the walk
