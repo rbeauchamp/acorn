@@ -285,9 +285,10 @@ function of the latest percept alone.
 
 [Issue #69](https://github.com/rbeauchamp/acorn/issues/69) asks for need against
 frozen within-envelope agents, the uniform-random comparator included. That
-class is the experience-free agents within a memory width: what such an agent
-retains does not depend on what it has perceived. `experienceFree_iff_infeasible`
-covers it. The comparator is open-loop, so it is experience-free
+class is the experience-free agents within a memory width with room for the step
+counter (12 bits at a cap of 3000): what such an agent retains does not depend
+on what it has perceived. `experienceFree_iff_infeasible` covers it. The
+comparator is open-loop, so it is experience-free
 (`comparator_openLoop`). No width is proved for its stream, and the equivalence
 needs none for it: an infeasible goal is achieved by no agent.
 
