@@ -41,9 +41,11 @@ standard curriculum from a fresh agent. The result concerns worlds of side
 - That the agent does worse than chance in most worlds. Nine of 20 seeds are
   losses, and the interval for the fraction of losses, 0.230 to 0.685, contains
   1/2.
-- Anything about learning over repeated visits to a goal, which stays UNKNOWN:
-  the protocol's horizon is one pass
+- Anything about learning over repeated visits to a goal: the protocol's
+  horizon is one pass
   ([what a result establishes](protocol.md#what-a-result-will-and-will-not-establish)).
+  [U7](../../baseline-assessment.md#conformance-sequence) of the baseline
+  assessment asks that question.
 - Which mechanism is responsible. The comparator is not an ablation of the
   agent.
 

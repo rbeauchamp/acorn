@@ -1,0 +1,12 @@
+96e3f6b0c0d456f8dddb5099a679564ed06297e8
+d3634651365c557241e7dc8ba432a11fa1fc894dc4a8067e674120da2592470a  lean/.lake/build/bin/acorn-core
+2a6e9cc457563e68d4d0a720621e4252dbc896b107e314110c54ec750e3d3255  docs/studies/repeated-visits-vs-chance/protocol.md
+c7cc8452dfd50dc95924b718aba2f44a5568a7f3d17f608d3044c5ddca048c85  docs/studies/repeated-visits-vs-chance/seeds.txt
+leanprover/lean4:v4.34.0
+ProductName:		macOS
+ProductVersion:		27.0
+BuildVersion:		26A428
+Apple M4 Pro
+14
+25769803776
+2026-10-04T08:31:51Z
