@@ -266,7 +266,11 @@ Rules that apply to every number, label and colour on the page.
     means and shares over the last `WIN` (1,000) buffered frames ending at the
     cursor, and each says so: the Behaviour mode line reads `live · means over
     the last N frames` (or `fast replay · …`), the decision chain becomes shares
-    by selecting layer, the selected-action probability becomes the mean
+    by selecting layer (the `exploration_start` share is labelled `primitive
+    exploration start`, because that tag counts only the runs primitive control
+    drew: the first step of a run an option's draw begins is counted under
+    `option`, and every served step under `exploration continuation`, UX-14),
+    the selected-action probability becomes the mean
     probability of the actions taken, the option boundary line counts starts
     and ends by reason, the option-model and planning lines show per-slot
     means, the policy mass is the mean mass, the value bars are mean values,

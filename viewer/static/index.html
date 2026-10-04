@@ -1888,7 +1888,7 @@ function drawReadouts(f, st, fast) {
     `${ObserverMath.ratio(f.lifeErrorSum,f.lifeErrorCount).toExponential(3)} · ${fmt(f.lifeErrorCount)} settled` : "waiting for settled returns";
 
   // Behaviour: the decision chain as a share when fast, as the exact record when not.
-  const srcNames = ["primitive","exploration start","exploration continuation","option"];
+  const srcNames = ["primitive","primitive exploration start","exploration continuation","option"];
   if (fast) {
     $("p_source_k").textContent = "decision chain · shares";
     $("p_source").textContent = [3,0,1,2].map(k => `${srcNames[k]} ${pct(st.src[k], 0)}`).join(" · ");
