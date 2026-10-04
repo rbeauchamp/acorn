@@ -11,8 +11,8 @@ status, because a registered revision is not edited ([revisions](#revisions));
 the baseline assessment's U7 row records the current status. The
 [scientific evidence guidance](../../../CONTRIBUTING.md#scientific-evidence)
 requires the owner's explicit authorization before the first run. The owner
-gave it for this revision, run at its registering commit only, whose `lean`
-and `scripts` trees must equal those of d3bc6e0, the commit by which
+gave it for this revision, run at its registering commit only, whose `lean/`
+and `scripts/` trees must equal those of d3bc6e0, the commit by which
 [#73](https://github.com/rbeauchamp/acorn/pull/73) landed the change for
 [#58](https://github.com/rbeauchamp/acorn/issues/58). It covers nothing else:
 another revision, commit, source tree or seed list needs a new authorization.
@@ -498,8 +498,8 @@ performance cores to other work. Other load changes wall time and no outcome.
 ## Execution
 
 Preconditions: the owner's authorization names this protocol revision and the
-commit to run, which is the commit that registered it and no other. The `lean`
-and `scripts` trees of that commit hold the Lean sources, the pinned toolchain
+commit to run, which is the commit that registered it and no other. The `lean/`
+and `scripts/` trees of that commit hold the Lean sources, the pinned toolchain
 and dependencies and the scripts that verify and build the binary, and they
 equal those of d3bc6e0, in full `d3bc6e0a559a45047e4e666323621b4ca7650f0a`,
 the commit by which [#73](https://github.com/rbeauchamp/acorn/pull/73) landed
@@ -514,7 +514,7 @@ block used, is the one that registered revision 1. The block requires the
 commit checked out to be the registering commit, so it refuses every later
 commit, whatever that commit changes; the checkout is clean, so the files run
 are that commit's, this revision and the seed list among them. It then
-requires that commit's `lean` and `scripts` trees to equal those of d3bc6e0,
+requires that commit's `lean/` and `scripts/` trees to equal those of d3bc6e0,
 so it refuses a registering commit that carries any other change to them. The
 checkout must have full history: a shallow checkout ends at a commit that then
 appears to have added every file with its present contents, so the block
@@ -768,7 +768,7 @@ persistent exploration run whichever layer is acting
 needs this revision. It changes:
 
 - the commit run, to the commit that registers revision 2 and no other, whose
-  `lean` and `scripts` trees must equal those of d3bc6e0, the commit by which
+  `lean/` and `scripts/` trees must equal those of d3bc6e0, the commit by which
   #73 landed the change for #58, where revision 1 allowed a later commit that
   left the Lean sources, the protocol and the seed list unchanged; and with it
   the rule by which the first execution block finds and checks that commit, and
