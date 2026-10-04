@@ -18,7 +18,7 @@ Three guarantees follow. No step removes an owned tool or lowers gold
 and a run of move actions is exhausted on at most one step in eleven, plus a
 bounded start (`trace_moves`). Enterability is a fixed table of the static
 terrain plus the boat (`enterable_static`), so the body never moves onto a
-mountain and moves onto water only when it owns a boat (`step_passable`).
+mountain and moves onto water only when it owns a boat (`step_terrain`).
 
 A successful step is a hypothesis throughout: a step the world refuses returns no
 successor. Nothing here shows that a goal is feasible or that a tile is reachable.
