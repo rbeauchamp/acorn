@@ -10,10 +10,12 @@ import Acorn.Host.Curriculum
 # Native certificate tool
 
 For each listed seed the tool generates the standard world, proposes
-certificates with `Acorn.Host.CertificateSearch` and prints what the checkers of
-`Acorn.Host.Certificate` accepted: for each of the two reach goals a replay
-certificate from the spawn or a blocked certificate, and for wood, stone and gold
-a stance and a replay certificate that collects one item from the spawn.
+certificates with `Acorn.Host.CertificateSearch` and prints those the checkers of
+`Acorn.Host.Certificate` accepted. For each of the two reach goals it proposes a
+replay from the spawn and, when none is accepted, a blocked region of at most
+`regionBudget` tiles; for wood, stone and gold it proposes a stance and a replay
+that collects one item from the spawn. A line for which no proposal was accepted
+reads `uncertified`.
 
 A printed `feasible`, `blocked` or `certified` verdict is rendered from a
 certificate value, which exists only when its checker accepted it;

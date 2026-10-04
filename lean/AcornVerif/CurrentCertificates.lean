@@ -10,7 +10,8 @@ import AcornVerif.CurrentGoals
 # Soundness of the certificate checkers
 
 The checkers of `Acorn.Host.Certificate` decide selecting properties: facts about
-one generated world that hold for some seeds and fail for others. Each theorem
+one generated world that are not theorems about every seed and may hold for one
+seed and fail for another. Each theorem
 here takes the executed checker's acceptance of a certificate as its hypothesis
 and concludes a statement about the executed `World.step`. No checker is
 complete: a rejected certificate establishes nothing.

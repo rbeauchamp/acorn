@@ -8,12 +8,12 @@ import Acorn.Host.WorldDynamics
 /-!
 # Certificate checkers for selecting properties of a seed
 
-A selecting property is a fact about one generated world that holds for some
-seeds and fails for others, such as "the far reach goal can be met from the
-spawn". Each checker here is an executable decision over the executed world
-definitions. `AcornVerif.CurrentCertificates` proves what an accepted
-certificate establishes; a rejected certificate establishes nothing, since no
-checker is complete.
+A selecting property is a fact about one generated world that is not a theorem
+about every seed and may hold for one seed and fail for another, such as "the
+far reach goal can be met from the spawn". Each checker here is an executable
+decision over the executed world definitions. `AcornVerif.CurrentCertificates`
+proves what an accepted certificate establishes; a rejected certificate
+establishes nothing, since no checker is complete.
 
 A replay certificate is an action list: the checker replays it through
 `World.advanceActions` from a given world with the goal installed. A blocked

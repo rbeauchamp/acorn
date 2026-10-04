@@ -135,8 +135,9 @@ See [observations](../lean/Acorn/Host/Observation.lean),
 A world is one output of the generator: the seed fixes the terrain, the two
 reach targets and every pseudo-random stream. Its properties come in two tiers.
 A universal property is a theorem about the generator, true for every seed. A
-selecting property is a fact about one seed's world that holds for some seeds
-and fails for others; a certificate decides it for a given seed, as
+selecting property is a fact about one seed's world that is not a theorem about
+every seed: it may hold for one seed and fail for another. A certificate decides
+it for a given seed, as
 [the next section](#what-a-certificate-establishes-about-one-seed) describes.
 
 The properties below are universal: proved of the executed definitions, for
@@ -157,9 +158,12 @@ them shows that a goal can be achieved.
 
 Not proved for every seed: that the spawn search returns a spawn rather than a
 refusal; that a goal box can be entered or reached; that the walkable terrain is
-connected; and any bound on the distance from the spawn to a target. That a goal
-box can be reached is false for some seeds, so no universal theorem can state
-it. The owners are the
+connected; and any bound on the distance from the spawn to a target. No theorem
+states that a goal box can be reached for every seed: the generator places each
+target by a hash of the seed without reading the terrain, so nothing in its
+construction relates a target to the terrain around it. For a given seed, an
+accepted blocked certificate of mountains alone proves the reach goal infeasible
+at every cap (`blocked_infeasible`). The owners are the
 [step proofs](../lean/AcornVerif/CurrentStep.lean),
 [goal proofs](../lean/AcornVerif/CurrentGoals.lean),
 [curriculum proofs](../lean/AcornVerif/CurrentCurriculum.lean) and
@@ -214,14 +218,25 @@ and establishes nothing about the seed.
 The search that proposes certificates is
 [unverified](../lean/Acorn/Host/CertificateSearch.lean): it explores the tiles
 enterable without a boat, breadth first from the spawn. It does not propose a
-replay that builds a boat, so a goal box that needs one is reported blocked for a
-body without a boat, although the replay checker would accept such a list. The
-tool constructs no agent, comparator or attempt: its import closure holds neither
-the agent composition, the campaign runner nor the random-policy comparator, and
-the boundary audit refuses such an import. Its only world steps replay candidate
-action lists: each candidate once while the search settles it, and at most once
-more by the replay checker. A candidate the checker rejects, for instance one
-longer than the cap, has been replayed and is not printed.
+replay that builds a boat, although the replay checker would accept such a list.
+
+When no replay is accepted for a reach goal, the tool proposes a blocked region:
+the goal box, every tile connected to it through tiles that are not impassable,
+and their impassable neighbors, first with mountains alone impassable and then
+with mountains and water. A proposal holds at most 4096 tiles (`regionBudget` in
+[the tool](../lean/Acorn/Host/CertificateDriver.lean)), because the checker's
+work is quadratic in the region size. The line reads blocked only when the
+checker accepts a proposed region. Otherwise it reads uncertified, which
+establishes nothing: a goal box that the search cannot walk to from the spawn is
+reported blocked for a body without a boat only when the region around it fits
+that budget.
+
+The tool constructs no agent, comparator or attempt: its import closure holds
+neither the agent composition, the campaign runner nor the random-policy
+comparator, and the boundary audit refuses such an import. Its only world steps
+replay candidate action lists: each candidate once while the search settles it,
+and at most once more by the replay checker. A candidate the checker rejects,
+for instance one longer than the cap, has been replayed and is not printed.
 
 A study can fix its class of worlds before any run by naming a printed verdict,
 for example the seeds for which the far reach line reads `verdict=feasible`,
