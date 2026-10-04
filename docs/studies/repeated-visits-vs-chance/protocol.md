@@ -21,9 +21,9 @@ later visits than on earlier ones.
 ## Question
 
 Over repeated visits to the same two targets, do the `ranked` agent's attempts
-to reach them get shorter by more than those of a policy that chooses every
-action uniformly at random, when each follows the same campaign from the same
-initial world?
+to reach them get shorter, and by more than those of a policy that chooses
+every action uniformly at random, when each follows the same campaign from the
+same initial world?
 
 Terms used below:
 
@@ -111,10 +111,13 @@ owner is named, and concern the executed definitions of
    No write clears a tool or lowers gold. So in either arm a craft goal or a
    gold goal achieved once is satisfied again at the first step of every later
    visit, and a wood, stone or food goal is satisfied at once whenever the
-   stock is still there. Counts of goals achieved therefore rise with the cycle
-   number in both arms without anything being learned. A reach goal reads the
-   body's position and nothing else (`ReachRelation.between`), so no inventory
-   satisfies it: the body has to be at the target.
+   stock is still there. The stock need not be there: an arm that eats its
+   food, or crafts with the wood or stone a goal counted, can fail a goal it
+   achieved before. So what is retained can raise an arm's count of goals
+   achieved in a later cycle without anything being learned, by an amount that
+   depends on what the arm kept; the count is not bound to rise. A reach goal
+   reads the body's position and nothing else (`ReachRelation.between`), so no
+   inventory satisfies it: the body has to be at the target.
 5. **The two survive goals are independent of the policy.** *Argued from
    machine-checked lemmas.* `World.setGoal` sets the goal's origin to the
    current time. Each successful step advances the clock by one
@@ -145,12 +148,13 @@ owner is named, and concern the executed definitions of
 9. **Equal blocks cancel a constant advantage.** *Argued.* The
    [estimand](#estimand-margin-and-claims) compares each arm's first two visits
    with its last two, the same number of attempts on each side. Exchanging the
-   two blocks in both arms negates D. So if the joint distribution, over seeds,
-   of the two arms' visit steps is unchanged by that exchange, D and −D have
-   the same distribution and a seed is no more often a win than a loss: q is at
-   most 1/2. A policy that is better or worse than chance by the same amount on
-   every visit therefore cannot produce the claim. This does not say either arm
-   is in fact unchanged by the exchange; item 4 and
+   two blocks in both arms negates each arm's improvement and D, which turns
+   every win into a loss and every loss into a win. So if the joint
+   distribution, over seeds, of the two arms' visit steps is unchanged by that
+   exchange, wins are exactly as frequent as losses, and since no seed is
+   both, q is at most 1/2. A policy that is better or worse than chance by the
+   same amount on every visit therefore cannot produce the claim. This does
+   not say either arm is in fact unchanged by the exchange; item 4 and
    [the limits](#what-a-result-will-and-will-not-establish) name what else
    changes between visits.
 
@@ -159,8 +163,10 @@ than the comparator's.** For one seed the outcome is a fixed computation, but
 the only known way to evaluate it is to execute it: up to 136 000 updates of
 about three million learned parameters in binary32 arithmetic, each depending
 on the states the agent's own earlier choices reached in a generated terrain.
-No invariant of the definitions bounds the steps of an attempt, and a
-kernel-checked evaluation would re-execute the same stream at greater cost.
+The definitions bound an attempt's steps by its cap and no more: no
+established invariant determines whether or when an attempt achieves its goal,
+so none settles how often a seed is a win. A kernel-checked evaluation would
+re-execute the same stream at greater cost.
 Over the population of 2⁶⁴ seeds the frequency cannot be enumerated. It is
 estimated from a random sample of seeds.
 
@@ -184,9 +190,11 @@ campaign that gives each block of the comparison two visits to each reach goal,
 so that no block rests on a single attempt. None of these values was chosen
 with an outcome of this study in view, and none exists.
 
-**Outcomes that carry information across cycles.** By item 4 the count of goals
-achieved rises with the cycle in both arms, and by item 5 the survive goals
-carry no information. The primary outcome is the steps of the eight visits to
+**Outcomes that carry information across cycles.** By item 4 an arm's count of
+goals achieved can rise from cycle to cycle on what it retained alone, and by
+item 5 the survive goals carry no information. A count of goals achieved
+therefore does not separate learning from keeping. The primary outcome is the
+steps of the eight visits to
 the two reach goals, which only the body's position can end early. The food
 goal's steps are reported but carry no decision: the outcome record holds no
 inventory, so it cannot separate food collected during a visit from food
@@ -232,28 +240,35 @@ c. The arm's **early cost** is E = s(0, 3) + s(0, 7) + s(1, 3) + s(1, 7), its
 **improvement** is I = E − T: how many fewer steps its last four reach attempts
 took than its first four. Each cost is an integer from 4 to 12 000.
 
-For a seed, let D be the agent's improvement minus the comparator's, an integer
-from −23 992 to 23 992. A seed is a **win** when D ≥ 1200, a **loss** when
-D ≤ −1200 and a **tie** otherwise. A seed on which the world refuses either
-campaign is not a win.
+For a seed, let A be the agent's improvement, an integer from −11 996 to
+11 996, and D be A minus the comparator's improvement, an integer from −23 992
+to 23 992. A seed is a **win** when A ≥ 1200 and D ≥ 1200: the agent's reach
+attempts shortened by at least the margin, and by at least the margin more than
+the comparator's. It is a **loss** when A ≤ −1200 and D ≤ −1200, and a **tie**
+otherwise. A seed on which the world refuses either campaign is not a win.
 
 - **Estimand.** q, the fraction of the 2⁶⁴ seeds that are wins.
 - **Meaningful margin.** 1200 steps: 300 steps for each of the four late reach
   attempts, one tenth of an attempt's cap. A seed counts toward the claim only
   when the agent's reach attempts shorten, between its first two visits and its
-  last two, by at least 300 steps per attempt more than the comparator's. One
-  further late attempt that reaches its target within 1800 steps is enough; a
-  difference of a few steps is not. The value is a judgment of what is worth
-  calling improvement, fixed here before any outcome.
+  last two, by at least 300 steps per attempt, and by at least 300 steps per
+  attempt more than the comparator's. When the comparator's costs do not
+  change, one further late attempt that reaches its target within 1800 steps
+  is enough; a difference of a few steps is not. The value is a judgment of
+  what is worth calling improvement, fixed here before any outcome.
 - **Claim.** q > 1/2: in most worlds the agent's reach attempts shorten over
-  repeated visits by at least the margin more than chance's do. Equivalently,
-  the median of D is at least 1200.
+  repeated visits by at least the margin, and by at least the margin more than
+  chance's do.
 
-The comparison is with the comparator's improvement, not with zero, because a
-world that persists changes for a policy that learns nothing: the body starts
-each later visit from where the previous cycle left it, and a boat, once
-crafted, opens water (item 4). The comparator meets the same mechanisms in its
-own copy of the world.
+Both conditions are needed. The agent's improvement must exceed the
+comparator's, because a world that persists changes for a policy that learns
+nothing: the body starts each later visit from where the previous cycle left
+it, and a boat, once crafted, opens water (item 4). The comparator meets the
+same mechanisms in its own copy of the world. The agent's improvement must
+also exceed zero by the margin, because D alone can be large while the agent
+gets worse: an agent whose late cost is 1200 steps above its early cost,
+beside a comparator whose late cost is 2400 above, has D = 1200 and has not
+learned to reach anything.
 
 The mean of D is reported but carries no decision. D is bounded only by
 ±23 992, so an interval for its mean that is valid at every sample size is far
@@ -317,7 +332,7 @@ W and M are the counts defined under [uncertainty method](#uncertainty-method).
 
 | Result | Condition | What is reported |
 |---|---|---|
-| **Accepted** | W ≥ 15 | In most worlds the agent's reach attempts shorten over repeated visits by at least 300 steps per attempt more than chance's do. |
+| **Accepted** | W ≥ 15 | In most worlds the agent's reach attempts shorten over repeated visits by at least 300 steps per attempt, and by at least 300 steps per attempt more than chance's do. |
 | **Refuted** | W + M ≤ 5 | In most worlds they do not. |
 | **Inconclusive** | otherwise | The sample does not settle whether q is above or below 1/2. |
 
@@ -350,10 +365,10 @@ value 0.8 is a planning choice, not an estimate of q. If q lies between about
 an accepted one: the result line, W, losses, ties, M and the interval, in the
 baseline assessment's U7 row and in the issue. A refuted result is stated as
 refuted at this horizon. It includes the case in which neither arm reaches a
-target on any visit, where every D is 0; the exploratory counts say whether
-that happened. An inconclusive result is stated as inconclusive; it is neither
-evidence of learning nor evidence against it. Outside this study's scope,
-learning stays UNKNOWN.
+target on any visit, where every A and every D is 0; the exploratory counts say
+whether that happened. An inconclusive result is stated as inconclusive; it is
+neither evidence of learning nor evidence against it. Outside this study's
+scope, learning stays UNKNOWN.
 
 No result changes the
 [qualification register](../../prior-art-review.md#current-default-qualification).
@@ -558,13 +573,13 @@ done > "$study/results-r1.txt"
 A line whose status is not 0, or whose CSV is incomplete, is a missing seed.
 Every other line is valid and must read check ok in its fourth and seventh
 fields and 52 in its tenth and eleventh; anything else is a derived-check
-violation. For a valid line, D is the fifth field minus the sixth, less the
-eighth minus the ninth. W counts valid lines with D ≥ 1200, and M counts the
-seeds of the list without a valid line:
+violation. For a valid line, A is the fifth field minus the sixth, and D is A
+less the eighth minus the ninth. W counts valid lines with A ≥ 1200 and
+D ≥ 1200, and M counts the seeds of the list without a valid line:
 
 ```bash
-awk '$2 == 0 && $3 == "complete" { d = ($5 - $6) - ($8 - $9)
-    w += d >= 1200; l += d <= -1200; v++ }
+awk '$2 == 0 && $3 == "complete" { a = $5 - $6; d = a - ($8 - $9)
+    w += (a >= 1200 && d >= 1200); l += (a <= -1200 && d <= -1200); v++ }
   END { print "W", w + 0, "losses", l + 0, "ties", v - w - l, "M", 20 - v }' \
   docs/studies/repeated-visits-vs-chance/results-r1.txt
 ```
@@ -607,15 +622,17 @@ confirmatory test, so no multiplicity adjustment applies.
   arm's early cost, late cost and improvement, and the counts of wins, losses
   and ties, with the exact binomial interval for the fraction of losses, its
   lower end at the count of losses and its upper end at that count plus M;
-- the number of seeds on which the agent's own improvement I is at least 1200,
-  and the same for the comparator, each with its exact binomial interval. These
-  describe each arm against itself and are not the claim;
+- the number of seeds on which the agent's improvement A is at least 1200, the
+  number on which D is at least 1200 whatever A is, and the number on which the
+  comparator's improvement is at least 1200, each with its exact binomial
+  interval. Each is at most one half of the win condition and none is the
+  claim;
 - for each arm, each reach goal and each cycle, the number of seeds achieving
   the visit and the steps of each visit, and the same for the food goal, read
   with the caution under [design](#design);
 - for each arm, each of the other goals and each cycle, the number of seeds
-  achieving the visit, and how many of those at the attempt's first step: the
-  rise that item 4 derives;
+  achieving the visit, and how many of those at the attempt's first step: what
+  each arm retained, as item 4 describes;
 - the position columns at the end of each reach visit;
 - the learner columns of the outcome CSV and the campaign summary's replacement
   and ranking counts;
@@ -633,9 +650,9 @@ confirmatory test, so no multiplicity adjustment applies.
 - **Attribution.** The comparator is not an ablation of the agent: it has no
   features, no memory and no temporally extended exploration, and it is not the
   agent with learning switched off. A win shows the whole `ranked` composition
-  shortening its reach attempts over visits by more than chance does. Learning
-  is one cause of that. Another is anything that persists differently in the
-  two worlds: the two arms end each cycle in different places and with
+  shortening its reach attempts over visits, and by more than chance does.
+  Learning is one cause of that. Another is anything that persists differently
+  in the two worlds: the two arms end each cycle in different places and with
   different inventories, and an arm that owns a boat can cross water the other
   cannot. The comparator meets these mechanisms but not in the same amounts, so
   a win does not by itself exclude them, and it credits no single mechanism.

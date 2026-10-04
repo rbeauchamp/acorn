@@ -484,7 +484,7 @@ derivation, not measurement.
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
-| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits by more than chance's do | **Protocol written; not authorized, not run** ([protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)) |
+| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Protocol written; not authorized, not run** ([protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)) |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
@@ -511,12 +511,14 @@ U7's [protocol](studies/repeated-visits-vs-chance/protocol.md) asks that
 question. The comparator now follows the agent's whole campaign: the same
 admitted plan and attempt-boundary function, in a second copy of the initial
 world carried from attempt to attempt
-([outcome CSV](design.md#outcome-csv)). Because inventory persists, a count of
-goals achieved rises with the cycle in both arms without anything being
-learned, so the protocol compares the steps of each arm's first two visits to
-the two reach goals with those of its next two, over four cycles and 20 new
-seeds. It is written and not authorized, and nothing has been run: whether the
-agent learns over repeated visits is still UNKNOWN.
+([outcome CSV](design.md#outcome-csv)). Because inventory and tools persist, an
+arm can achieve more goals in a later cycle on what it kept, without anything
+being learned, so the protocol compares the steps of each arm's first two
+visits to the two reach goals with those of its next two, over four cycles and
+20 new seeds. A seed counts for the agent only when its own attempts shorten
+and shorten by more than the comparator's. It is written and not authorized,
+and nothing has been run: whether the agent learns over repeated visits is
+still UNKNOWN.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
