@@ -180,6 +180,18 @@ def Controller.smdpStep (controller : Controller config dimension actions)
   (controller.valuesStep features values action reward (Portable.pow config.rule.gamma duration)
     (Portable.pow controller.traceDecay duration), values)
 
+/-- Close a span toward a supplied continuation value and release every trace. The
+error is the one `Controller.valuesStep` forms at the same reward and discount when the
+taken action's value is `continuation`; it is credited at zero trace decay, as
+`Controller.stopStep` does, so no successor action is laid and nothing stays eligible
+for a later error. -/
+def Controller.closeStep (controller : Controller config dimension actions)
+    (reward continuation : Binary32) (duration : UInt32) :
+    Controller config dimension actions :=
+  controller.stopStep
+    ((reward.add ((Portable.pow config.rule.gamma duration).mul continuation)).sub
+      controller.vOld)
+
 /-- Terminal credit closes existing traces without adding a successor action. -/
 def Controller.terminal (controller : Controller config dimension actions) (reward : Binary32) :
     Controller config dimension actions :=

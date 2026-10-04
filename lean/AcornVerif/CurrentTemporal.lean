@@ -234,6 +234,17 @@ theorem finite_prefix_schedule (planning : PlanningSelection)
     ScheduleInv learner.state learner.phase ∧ learner.state.eligibleCount ≤ dimension.capacity :=
   ⟨managed_schedule _, managed_capacity _⟩
 
+/-- Selection preparation moves neither occupancy nor the generator. -/
+theorem prepare_frame (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    (state.prepareSelection models features reward).runtime.references.phase =
+        state.runtime.references.phase ∧
+      (state.prepareSelection models features reward).runtime.references.rng =
+        state.runtime.references.rng := by
+  by_cases hf : profile.mode = .frozen <;> cases hh : profile.usesHierarchy <;>
+    simp [TemporalControl.prepareSelection, TemporalControl.withGap, hh, hf, bne]
+
 /-- A served primitive step preempts all hierarchy choices, including goal feedback
 and the option the run holds, for every incoming RNG state and all model/planning
 implementations. -/
@@ -249,13 +260,7 @@ theorem served_preempts (state : TemporalControl profile config criterion dimens
       some result) :
     result.2.action = committed.run.action ∧ result.2.source = .explorationContinuation ∧
     result.1.runtime.references.rng = state.runtime.references.rng := by
-  have prepared :
-      (state.prepareSelection models features reward).runtime.references.phase =
-        state.runtime.references.phase ∧
-      (state.prepareSelection models features reward).runtime.references.rng =
-        state.runtime.references.rng := by
-    by_cases hf : profile.mode = .frozen <;> cases hh : profile.usesHierarchy <;>
-      simp [TemporalControl.prepareSelection, TemporalControl.withGap, hh, hf, bne]
+  have prepared := prepare_frame state models features reward
   have served : ∃ output,
       (state.prepareSelection models features reward).serve features = some output := by
     simp [TemporalControl.serve, prepared.1, phase, ExploratoryRun.serve, remaining]
@@ -265,16 +270,11 @@ theorem served_preempts (state : TemporalControl profile config criterion dimens
     simp [TemporalControl.selectWithOperations, served]
   have same := Option.some.inj (selectedOutput.symm.trans selected)
   subst result
-  simp only [TemporalControl.serve, prepared.1, phase] at served
-  simp only [ExploratoryRun.serve, remaining, ↓reduceDIte] at served
-  rcases Bool.eq_false_or_eq_true (profile.mode != .frozen) with hf | hf <;>
-    cases hh : profile.usesHierarchy <;>
-    simp only [TemporalControl.skipMeta, TemporalControl.withGap, TemporalControl.withPhase,
-      TemporalControl.withoutPlanning, hh, hf, Bool.false_and, Bool.true_and,
-      Bool.false_eq_true, ↓reduceIte] at served <;>
-    cases served <;>
-    exact ⟨rfl, rfl, (congrArg (·.rng) ((state.prepareSelection models features
-      reward).interrupt_frame committed.origin).2.1).trans prepared.2⟩
+  obtain ⟨held, rest, holds, service, source, _, generator⟩ :=
+    (state.prepareSelection models features reward).serve_frame output.1 features output.2 served
+  obtain rfl : held = committed :=
+    Occupancy.exploring.inj (holds.symm.trans (prepared.1.trans phase))
+  exact ⟨(held.run.serve_exact rest _ service).1, source, generator.trans prepared.2⟩
 
 /-- Repeated service is a proof-level fold of the actual one-step operation. -/
 def serveSteps (run : ExploratoryRun primitiveCount) : Nat → Option (ExploratoryRun primitiveCount)
@@ -695,6 +695,17 @@ theorem follow_executing (state : TemporalControl profile config criterion dimen
   · simp [followSlot, executing]
   · exact ⟨rfl, rfl⟩
 
+/-- Closing an interrupted option's meta span writes no option learner. -/
+theorem closeSpan_skills (state : TemporalControl profile config criterion dimension)
+    (continuation : Option Binary32) :
+    (state.closeSpan continuation).runtime.lifecycle.consumers.skills =
+      state.runtime.lifecycle.consumers.skills := by
+  cases continuation with
+  | none => rfl
+  | some value =>
+    rw [TemporalControl.closeSpan_eq]
+    rfl
+
 /-- Reduction, step level: after the complete local step the executing option's
 policy and model are those its selection left, so every existing contract of the
 on-policy option update describes them unchanged. -/
@@ -720,8 +731,11 @@ theorem step_executing (state : TemporalControl profile config criterion dimensi
     have followed := follow_executing chosen.1 (modelOperations criterion dimension) features
       (spatialPotentials obs) reward goal chosen.2 slot executing
     have finished := TemporalControl.finish_skill
-      (chosen.1.followOptions (modelOperations criterion dimension) features
-        (spatialPotentials obs) reward goal chosen.2) features obs reward chosen.2 slot
+      ((chosen.1.followOptions (modelOperations criterion dimension) features
+        (spatialPotentials obs) reward goal chosen.2).closeSpan
+          (chosen.1.takeoverValue features (spatialPotentials obs) goal chosen.2))
+      features obs reward chosen.2 slot
+    rw [closeSpan_skills] at finished
     simp only at followed
     constructor
     · exact (congrArg (·.policy) finished).trans (by split <;> exact followed.1)
@@ -1144,24 +1158,58 @@ def optionSnapshot (origin : TemporalControl profile config criterion dimension)
       (origin.runtime.lifecycle.consumers.skills.get slot).policy.exploreRate
         (count := primitiveCount))
 
-/-- A decision reached by a persistent draw of the acting layer, made in `origin` with
-`origin`'s generator state. Either primitive control drew, from its controller's frozen
-values at its controller rate, and the source is a primitive one; or the option at
-`slot` drew, from its own stored learner's frozen values at the rate its source
-resolves to, and the source names that slot. `origin` is existential: the statement
-does not say how selection reached it from the incoming state. -/
-def Reached (features : SwiftTd.ActiveSet dimension)
+/-- The acting layer's draw, made in `origin` with `origin`'s generator state. Either
+primitive control drew, from its controller's frozen values at its controller rate, and
+the source is a primitive one; or the option at `slot` drew, from its own stored
+learner's frozen values at the rate its source resolves to, and the source names that
+slot. -/
+def Acting (features : SwiftTd.ActiveSet dimension)
+    (origin next : TemporalControl profile config criterion dimension)
+    (decision : TemporalDecision) : Prop :=
+  (decision.source = (if decision.explored then .explorationStart else .primitive) ∧
+    Drawn next decision
+      (origin.runtime.lifecycle.consumers.control.snapshot (count := primitiveCount) features
+        origin.controlRate)
+      origin.runtime.references.rng) ∨
+  ∃ slot : Fin Acorn.FeatureConstants.skillCount,
+    decision.source = .option slot ∧
+      Drawn next decision (optionSnapshot origin slot features) origin.runtime.references.rng
+
+/-- The generator state selection hands the acting layer, in terms of the state selection
+was given: that state's own generator state when the decision records no meta decision,
+and otherwise the generator state one plain meta draw from it leaves, whose decision is
+the recorded one. -/
+def Handed (state : TemporalControl profile config criterion dimension)
+    (decision : TemporalDecision) (rng : Rng.Xoshiro256) : Prop :=
+  (decision.metaDecision = none ∧ rng = state.runtime.references.rng) ∨
+  ∃ metaSnapshot : PolicySnapshot metaCount,
+    decision.metaDecision = some (metaSnapshot.draw state.runtime.references.rng).1 ∧
+      rng = (metaSnapshot.draw state.runtime.references.rng).2
+
+/-- A served decision of the state selection was given: its occupancy held a committed
+run with a step left, the decision repeats that run's action with no draw, and the
+returned state holds the run `ExploratoryRun.serve` returns, no option, and the same
+generator state. -/
+def Served (state next : TemporalControl profile config criterion dimension)
+    (decision : TemporalDecision) : Prop :=
+  ∃ committed rest, state.runtime.references.phase = .exploring committed ∧
+    committed.run.serve = some (decision.action, rest) ∧
+    decision.source = .explorationContinuation ∧
+    next.runtime.references.phase = .exploring (.bare rest) ∧
+    next.runtime.references.rng = state.runtime.references.rng
+
+/-- A decision reached by one persistent draw of the acting layer, at the generator
+state selection hands it from the state it was given. The learners the draw reads are
+those of `origin`, the state selection holds when it draws; how its learners follow
+from the given state's (refresh, planning, meta credit, an option start) is not part of
+this statement. -/
+def Reached (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
     (next : TemporalControl profile config criterion dimension)
     (decision : TemporalDecision) : Prop :=
   ∃ origin : TemporalControl profile config criterion dimension,
-    (decision.source = (if decision.explored then .explorationStart else .primitive) ∧
-      Drawn next decision
-        (origin.runtime.lifecycle.consumers.control.snapshot (count := primitiveCount) features
-          origin.controlRate)
-        origin.runtime.references.rng) ∨
-    ∃ slot : Fin Acorn.FeatureConstants.skillCount,
-      decision.source = .option slot ∧
-        Drawn next decision (optionSnapshot origin slot features) origin.runtime.references.rng
+    Acting features origin next decision ∧
+      Handed state decision origin.runtime.references.rng
 
 /-- Storing a skill at a slot makes it the learner that slot's option draws from. -/
 theorem optionSnapshot_withSkill (state : TemporalControl profile config criterion dimension)
@@ -1189,6 +1237,14 @@ theorem choosePrimitive_drawn (state : TemporalControl profile config criterion 
         state.controlRate)
       state.runtime.references.rng :=
   ⟨rfl, rfl, rfl, (persistent_draw _ _).2.2, rfl, afterPrimitive_committed _⟩
+
+/-- Primitive control's choice is its acting draw, made in the state it was given. -/
+theorem choosePrimitive_acting (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (metaValues : Vector Binary32 metaCount.word.toNat)
+    (metaDecision : Option (PolicyDecision metaCount)) (ended : Option EndEvent) :
+    Acting features state (state.choosePrimitive features metaValues metaDecision ended).1
+      (state.choosePrimitive features metaValues metaDecision ended).2 :=
+  Or.inl ⟨rfl, choosePrimitive_drawn state features metaValues metaDecision ended⟩
 
 /-- An executing option's step is one persistent draw from the policy its continuation
 froze, for every state, slot, activation and reward word. -/
@@ -1229,23 +1285,54 @@ theorem stepOption_source (state : TemporalControl profile config criterion dime
       ended).2.source = .option slot := by
   rw [TemporalControl.stepOption_eq]
 
-/-- An option step whose continuation holds the stepping option's own frozen policy is a
-reached draw of that option, made in the stepped state. -/
-theorem stepOption_reached (state : TemporalControl profile config criterion dimension)
+/-- An option's step records the meta decision it was given. -/
+theorem stepOption_recorded (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (metaValues : Vector Binary32 metaCount.word.toNat)
+    (metaDecision : Option (PolicyDecision metaCount)) (started : Bool)
+    (ended : Option EndEvent) :
+    (state.stepOption models slot activation next reward metaValues metaDecision started
+      ended).2.metaDecision = metaDecision := by
+  rw [TemporalControl.stepOption_eq]
+
+/-- An option step whose continuation holds the stepping option's own frozen policy is
+that option's acting draw, made in the stepped state. -/
+theorem stepOption_acting (state : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : OptionActivation (profile.mode != .frozen))
     (next : OptionContinuation dimension activation) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) (metaValues : Vector Binary32 metaCount.word.toNat)
     (metaDecision : Option (PolicyDecision metaCount)) (started : Bool)
     (ended : Option EndEvent) (own : next.policy = optionSnapshot state slot features) :
-    Reached features
+    Acting features state
       (state.stepOption models slot activation next reward metaValues metaDecision started
         ended).1
       (state.stepOption models slot activation next reward metaValues metaDecision started
         ended).2 :=
-  ⟨state, Or.inr ⟨slot, stepOption_source state models slot activation next reward metaValues
+  Or.inr ⟨slot, stepOption_source state models slot activation next reward metaValues
     metaDecision started ended, own ▸ stepOption_drawn state models slot activation next reward
-      metaValues metaDecision started ended⟩⟩
+      metaValues metaDecision started ended⟩
+
+/-- Meta credit moves no generator state. -/
+theorem learnMeta_rng (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
+    (state.learnMeta features decision).runtime.references.rng =
+      state.runtime.references.rng := by
+  rw [TemporalControl.learnMeta_eq]
+  split <;> rfl
+
+/-- Terminal option credit moves no generator state. -/
+theorem closeOption_rng (state : TemporalControl profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing config criterion dimension demonLayout
+      (EndingPayload (profile.mode != .frozen)))
+    (reward terminal : Binary32) :
+    (state.closeOption models features closing reward terminal).1.runtime.references.rng =
+      state.runtime.references.rng := by
+  rw [TemporalControl.closeOption_eq]
+  split <;> rfl
 
 /-- Skipping the meta decision moves neither the generator nor occupancy. -/
 theorem skipMeta_frame (state : TemporalControl profile config criterion dimension) :
@@ -1262,6 +1349,15 @@ theorem drawn_skip {state : TemporalControl profile config criterion dimension}
   ⟨drawn.1, drawn.2.1, drawn.2.2.1, drawn.2.2.2.1,
     (skipMeta_frame state).1.trans drawn.2.2.2.2.1,
     (congrArg committedRun (skipMeta_frame state).2).trans drawn.2.2.2.2.2⟩
+
+/-- A continuing option's deferred meta clock leaves the acting draw the same. -/
+theorem acting_skip {features : SwiftTd.ActiveSet dimension}
+    {origin state : TemporalControl profile config criterion dimension}
+    {decision : TemporalDecision} (acting : Acting features origin state decision) :
+    Acting features origin state.skipMeta decision := by
+  rcases acting with ⟨source, drawn⟩ | ⟨slot, source, drawn⟩
+  · exact Or.inl ⟨source, drawn_skip drawn⟩
+  · exact Or.inr ⟨slot, source, drawn_skip drawn⟩
 
 /-- A served step reports its source. -/
 theorem serve_source (state next : TemporalControl profile config criterion dimension)
@@ -1280,21 +1376,27 @@ theorem serve_source (state next : TemporalControl profile config criterion dime
   · contradiction
   · contradiction
 
-/-- A dispatched meta decision reaches a persistent draw: primitive control's, or the
-first draw of the option it starts, from that option's own frozen policy. -/
-theorem dispatchMeta_persistent (state next : TemporalControl profile config criterion dimension)
+/-- A dispatched meta decision is recorded and reaches the acting draw at the generator
+state dispatch was given: primitive control's draw, or the first draw of the option it
+starts, from that option's own frozen policy. -/
+theorem dispatchMeta_acting (state next : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
     (decision : PolicyDecision metaCount) (ended : Option EndEvent) (observed : TemporalDecision)
     (executed : state.dispatchMeta models features declared reward goal decision ended =
-      some (next, observed)) : Reached features next observed := by
+      some (next, observed)) :
+    observed.metaDecision = some decision ∧
+      ∃ origin : TemporalControl profile config criterion dimension,
+        Acting features origin next observed ∧
+          origin.runtime.references.rng = state.runtime.references.rng := by
   rw [TemporalControl.dispatchMeta_eq] at executed
-  generalize state.learnMeta features decision = credited at executed
+  have kept := learnMeta_rng state features decision
+  generalize state.learnMeta features decision = credited at executed kept
   cases selected : skillOfMeta decision.action with
   | none =>
     simp only [selected, pure, Option.some.injEq] at executed
     cases executed
-    exact ⟨credited, Or.inl ⟨rfl, choosePrimitive_drawn credited features _ _ _⟩⟩
+    exact ⟨rfl, credited, choosePrimitive_acting credited features _ _ _, kept⟩
   | some slot =>
     simp only [selected] at executed
     cases potential : (credited.runtime.lifecycle.consumers.skills.get slot).interest.potential
@@ -1307,12 +1409,15 @@ theorem dispatchMeta_persistent (state next : TemporalControl profile config cri
         rw [executed]
         exact ⟨rfl, rfl⟩
       rw [← step]
-      refine stepOption_reached _ models slot _ _ features reward _ _ true ended ?_
+      refine ⟨stepOption_recorded _ models slot _ _ reward _ _ true ended, _,
+        stepOption_acting _ models slot _ _ features reward _ _ true ended ?_, kept⟩
       rw [optionSnapshot_withSkill]
       exact Skill.beginTemporal_policy _ models features value _ credited.skillRate
 
-/-- A free dispatch reaches a persistent draw, with or without a closing option. -/
-theorem atBoundary_persistent (state next : TemporalControl profile config criterion dimension)
+/-- A free dispatch run in `boundary`, whose generator state is the one selection was
+given in `state`, reaches a persistent draw one plain meta draw later. -/
+theorem atBoundary_reached
+    (state boundary next : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary config criterion dimension demonLayout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -1320,29 +1425,50 @@ theorem atBoundary_persistent (state next : TemporalControl profile config crite
     (closing : Option (Closing config criterion dimension demonLayout
       (EndingPayload (profile.mode != .frozen))))
     (ended : Option EndEvent) (observed : TemporalDecision)
-    (executed : state.atBoundary models plan features declared reward goal closing ended =
-      some (next, observed)) : Reached features next observed := by
+    (incoming : boundary.runtime.references.rng = state.runtime.references.rng)
+    (executed : boundary.atBoundary models plan features declared reward goal closing ended =
+      some (next, observed)) : Reached state features next observed := by
   unfold TemporalControl.atBoundary at executed
-  generalize state.refreshFree closing = refreshed at executed
+  have refreshedRng : (boundary.refreshFree closing).1.runtime.references.rng =
+      state.runtime.references.rng := incoming
+  generalize boundary.refreshFree closing = refreshed at executed refreshedRng
   dsimp only at executed
-  generalize (refreshed.1.planFree plan features).drawMeta features = drawn at executed
+  have plannedRng : (refreshed.1.planFree plan features).runtime.references.rng =
+      state.runtime.references.rng := refreshedRng
+  generalize refreshed.1.planFree plan features = planned at executed plannedRng
+  have drawnFacts :
+      (planned.drawMeta features).2 =
+          ((planned.runtime.lifecycle.consumers.metaController.snapshot (count := metaCount)
+            features planned.metaRate).draw planned.runtime.references.rng).1 ∧
+        (planned.drawMeta features).1.runtime.references.rng =
+          ((planned.runtime.lifecycle.consumers.metaController.snapshot (count := metaCount)
+            features planned.metaRate).draw planned.runtime.references.rng).2 := ⟨rfl, rfl⟩
+  rw [plannedRng] at drawnFacts
+  generalize planned.drawMeta features = drawn at executed drawnFacts
   cases hc : refreshed.2 with
   | none =>
     simp only [hc] at executed
-    exact dispatchMeta_persistent _ next models features declared reward goal drawn.2 ended
-      observed executed
+    obtain ⟨recorded, origin, acting, kept⟩ := dispatchMeta_acting drawn.1 next models features
+      declared reward goal drawn.2 ended observed executed
+    exact ⟨origin, acting, Or.inr ⟨_, recorded.trans (congrArg some drawnFacts.1),
+      kept.trans drawnFacts.2⟩⟩
   | some owner =>
     simp only [hc] at executed
-    exact dispatchMeta_persistent _ next models features declared reward goal drawn.2 _
-      observed executed
+    obtain ⟨recorded, origin, acting, kept⟩ := dispatchMeta_acting _ next models features
+      declared reward goal drawn.2 _ observed executed
+    exact ⟨origin, acting, Or.inr ⟨_, recorded.trans (congrArg some drawnFacts.1),
+      (kept.trans (closeOption_rng drawn.1 models features owner reward _)).trans drawnFacts.2⟩⟩
 
 /-- Reach of the persistent draw over the executed selection, for every state, frame,
 reward word and model and planning implementation. Each decision the selection returns
-is a served step of a committed run, or its action, branch, values, masses, committed
-run and outgoing generator state are those of a persistent draw: by primitive control
-from its controller's frozen values and rate, or by the option its source names from
-that option's own frozen values and rate (`Reached`). So a run may start at every
-decision that serves none, whichever layer acts. -/
+is a served step of the committed run the given state holds (`Served`), or its action,
+branch, values, masses, committed run and outgoing generator state are those of one
+persistent draw (`Reached`): by primitive control from its controller's frozen values
+and rate, or by the option its source names from that option's own frozen values and
+rate, at the generator state selection hands it. That state is the given one when no
+meta decision is drawn, and otherwise the one a single plain meta draw from the given
+state leaves. So a run may start at every decision that serves none, whichever layer
+acts, and its branch is a function of the incoming generator state. -/
 theorem select_persistent (state next : TemporalControl profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary config criterion dimension demonLayout)
@@ -1350,39 +1476,40 @@ theorem select_persistent (state next : TemporalControl profile config criterion
     (goal : Bool) (observed : TemporalDecision)
     (executed : state.selectWithOperations models plan features declared reward goal =
       some (next, observed)) :
-    observed.source = .explorationContinuation ∨ Reached features next observed := by
+    Served state next observed ∨ Reached state features next observed := by
   unfold TemporalControl.selectWithOperations at executed
-  generalize state.prepareSelection models features reward = prepared at executed
+  have frame := prepare_frame state models features reward
+  generalize state.prepareSelection models features reward = prepared at executed frame
   dsimp only at executed
   cases served : prepared.serve features with
   | some result =>
     simp only [served] at executed
     cases executed
-    exact Or.inl (serve_source prepared next features observed served)
+    obtain ⟨held, rest, holds, service, source, stored, generator⟩ :=
+      prepared.serve_frame next features observed served
+    exact Or.inl ⟨held, rest, frame.1.symm.trans holds, service, source, stored,
+      generator.trans frame.2⟩
   | none =>
     simp only [served] at executed
     refine Or.inr ?_
     split at executed
     · have same : (prepared.withPhase .idle).choosePrimitive features (Vector.replicate _ .zero)
           none none = (next, observed) := Option.some.inj executed
-      have drawn := choosePrimitive_drawn (prepared.withPhase .idle) features
+      have acting := choosePrimitive_acting (prepared.withPhase .idle) features
         (Vector.replicate _ .zero) none none
-      rw [same] at drawn
-      have source : ((prepared.withPhase .idle).choosePrimitive features
-          (Vector.replicate _ .zero) none none).2.source =
-          (if ((prepared.withPhase .idle).choosePrimitive features (Vector.replicate _ .zero)
-            none none).2.explored then .explorationStart else .primitive) := rfl
-      rw [same] at source
-      exact ⟨prepared.withPhase .idle, Or.inl ⟨source, drawn⟩⟩
+      have undrawn : ((prepared.withPhase .idle).choosePrimitive features
+          (Vector.replicate _ .zero) none none).2.metaDecision = none := rfl
+      rw [same] at acting undrawn
+      exact ⟨prepared.withPhase .idle, acting, Or.inl ⟨undrawn, frame.2⟩⟩
     · cases phase : prepared.runtime.references.phase with
       | idle =>
         simp only [phase] at executed
-        exact atBoundary_persistent _ next models plan features declared reward goal none none
-          observed executed
+        exact atBoundary_reached state (prepared.withPhase .idle) next models plan features
+          declared reward goal none none observed frame.2 executed
       | exploring committed =>
         simp only [phase] at executed
-        exact atBoundary_persistent _ next models plan features declared reward goal none none
-          observed executed
+        exact atBoundary_reached state (prepared.withPhase .idle) next models plan features
+          declared reward goal none none observed frame.2 executed
       | option slot activation =>
         simp only [phase] at executed
         let free := prepared.withPhase .idle
@@ -1406,21 +1533,27 @@ theorem select_persistent (state next : TemporalControl profile config criterion
             simp only [skill, free, metaPolicy] at choice
             simp only [choice, pure, Option.some.injEq] at executed
             cases executed
-            have drawn := drawn_skip (stepOption_drawn free.withoutPlanning models slot activation
-              continuation reward metaPolicy.values none false none)
-            rw [policy] at drawn
-            exact ⟨free.withoutPlanning, Or.inr ⟨slot, stepOption_source free.withoutPlanning models
-              slot activation continuation reward metaPolicy.values none false none, drawn⟩⟩
+            exact ⟨free.withoutPlanning,
+              acting_skip (stepOption_acting free.withoutPlanning models slot activation
+                continuation features reward metaPolicy.values none false none policy),
+              Or.inl ⟨stepOption_recorded free.withoutPlanning models slot activation continuation
+                reward metaPolicy.values none false none, frame.2⟩⟩
           | ending reason =>
             simp only [skill, free, metaPolicy] at choice
             simp only [choice] at executed
+            let closing : Closing config criterion dimension demonLayout
+                (EndingPayload (profile.mode != .frozen)) :=
+              ⟨slot, ⟨activation, value, reason⟩, none⟩
             cases criterion with
             | differential =>
-              exact atBoundary_persistent _ next models plan features declared reward goal _ none
-                observed executed
+              exact atBoundary_reached state free next models plan features declared reward goal
+                (some closing) none observed frame.2 executed
             | discounted =>
-              exact atBoundary_persistent _ next models plan features declared reward goal none _
-                observed executed
+              let closed := free.closeOption models features closing reward
+                (comparisonValue .discounted metaPolicy)
+              exact atBoundary_reached state closed.1 next models plan features declared reward
+                goal none (some closed.2) observed
+                ((closeOption_rng free models features closing reward _).trans frame.2) executed
 
 /-! ## An option interrupted by a run
 
@@ -1466,14 +1599,16 @@ theorem interrupt_frozen (state : TemporalControl profile config criterion dimen
 
 /-- The first served step is the interruption: the returned learners are those the
 interruption left, the event is its event, and no option is executing afterwards, so the
-frame's off-policy learning follows every slot, the interrupted one included. -/
+frame's off-policy learning follows every slot, the interrupted one included. While the
+run holds an option, the step leaves the deferred meta span as it found it. -/
 theorem serve_interrupts (state next : TemporalControl profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
     (committed : CommittedRun (profile.mode != .frozen))
     (phase : state.runtime.references.phase = .exploring committed)
     (served : state.serve features = some (next, decision)) :
     next.runtime.lifecycle = (state.interrupt committed.origin).1.runtime.lifecycle ∧
-      decision.ended = (state.interrupt committed.origin).2 ∧ next.activeSlot = none := by
+      decision.ended = (state.interrupt committed.origin).2 ∧ next.activeSlot = none ∧
+      (committed.origin.isSome = true → next.gap = state.gap) := by
   unfold TemporalControl.serve at served
   simp only [phase] at served
   cases hs : committed.run.serve with
@@ -1481,9 +1616,18 @@ theorem serve_interrupts (state next : TemporalControl profile config criterion 
   | some pair =>
     simp only [hs, bind, Option.bind, pure, Option.some.injEq] at served
     cases served
-    refine ⟨?_, rfl, ?_⟩
-    · split <;> (unfold TemporalControl.skipMeta; split <;> rfl)
-    · split <;> (unfold TemporalControl.skipMeta; split <;> rfl)
+    refine ⟨?_, rfl, ?_, fun held => ?_⟩
+    · unfold TemporalControl.skipMeta
+      repeat' split
+      all_goals rfl
+    · unfold TemporalControl.skipMeta
+      repeat' split
+      all_goals rfl
+    · have span : (state.interrupt committed.origin).1.gap = state.gap :=
+        congrArg (fun references => (⟨references.gapSteps, references.gapReward⟩ : CreditGap))
+          (state.interrupt_frame committed.origin).2.1
+      simp only [held, ↓reduceIte]
+      split <;> exact span
 
 /-- A served step commits the run `ExploratoryRun.serve` returns and holds no option: the
 decision's action is the served one, and the stored clock is one lower
@@ -1496,15 +1640,10 @@ theorem serve_run (state next : TemporalControl profile config criterion dimensi
     (served : state.serve features = some (next, decision)) :
     ∃ rest, committed.run.serve = some (decision.action, rest) ∧
       next.runtime.references.phase = .exploring (.bare rest) := by
-  unfold TemporalControl.serve at served
-  simp only [phase] at served
-  cases hs : committed.run.serve with
-  | none => simp [hs] at served
-  | some pair =>
-    simp only [hs, bind, Option.bind, pure, Option.some.injEq] at served
-    cases served
-    refine ⟨pair.2, rfl, ?_⟩
-    split <;> (unfold TemporalControl.skipMeta; split <;> rfl)
+  obtain ⟨held, rest, holds, service, _, stored, _⟩ :=
+    state.serve_frame next features decision served
+  obtain rfl : held = committed := Occupancy.exploring.inj (holds.symm.trans phase)
+  exact ⟨rest, service, stored⟩
 
 /-- The meta-controller's deferred span cannot saturate its byte through an interrupted
 option: by `stored_clocks` an option returns at most `optionMaxDuration` actions, of
@@ -1624,5 +1763,69 @@ theorem handoff_age (skill : Skill config criterion dimension discounts)
       reward gain).following.map (·.age.val) = some (activation.age.val + 1) :=
   follow_age skill models value features potential goal estimate rate action behaviour reward
     gain activation.following held next continuing
+
+/-! ## The meta span of an interrupted option
+
+The run censors the option; it does not stop it. So the meta-controller's sampled credit
+for the option closes at the first served step toward the option's own continuing
+return, and the run's rewards are credited to no meta action. That is the return the
+option's model predicts and planning backs the same value toward: the model credits no
+served step (`follow_idle_model`, `served_unarmed`) and closes where the option's own
+stopping decision does. `AcornVerif.interrupted_span_return` is the identity behind the
+contract, over exact reals: a span closed after some of the option's actions toward the
+return of the rest is the span run to its own stop. The executed credit bootstraps from
+learned values in machine words; no convergence or accuracy of those values is claimed. -/
+
+/-- One stopping decision. On the first served step of a run that held a learning
+option, the continuation its meta span closes toward is chosen by the very stopping
+decision `followOptions` takes for that option's learners at the frame: read from the
+same skill, activation, potential, estimate and rate. Where it continues, the
+continuation is the option's own meta value at the frame; where it ends, the frame's
+nominal meta value, which is also the estimate the option's stop reads
+(`handoff_stop`). -/
+theorem takeover_value (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (decision : TemporalDecision) (event : EndEvent) (following : Following)
+    (potential : Potential)
+    (active : (profile.usesHierarchy && profile.mode != .frozen) = true)
+    (served : decision.source = .explorationContinuation)
+    (ended : decision.ended = some event)
+    (linked : (state.runtime.lifecycle.consumers.skills.get event.slot).following =
+      some following)
+    (supplied : (state.runtime.lifecycle.consumers.skills.get event.slot).interest.potential
+      features declared = some potential) :
+    state.takeoverValue features declared goal decision =
+      some (match (state.runtime.lifecycle.consumers.skills.get event.slot).decideOption
+          following.activation features potential goal (state.stoppingEstimate decision)
+          state.skillRate with
+        | .continuing _ => decision.metaValues.get (metaOfSkill event.slot)
+        | .ending _ => state.stoppingEstimate decision) := by
+  simp [TemporalControl.takeoverValue, active, served, ended, linked, supplied]
+  split <;> simp [*]
+
+/-- No span closes on a frame that interrupts no option: every frame that is not a served
+step, and every served step that ends none. -/
+theorem takeover_none (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (decision : TemporalDecision)
+    (other : decision.source ≠ .explorationContinuation ∨ decision.ended = none) :
+    state.takeoverValue features declared goal decision = none := by
+  rcases other with source | ended
+  · simp [TemporalControl.takeoverValue, source]
+  · simp [TemporalControl.takeoverValue, ended]
+
+/-- The closing credit is the meta-controller's span credit for the owed span toward the
+supplied continuation (`Controller.closeStep`, the error `learnMeta` forms), and the span
+is closed. By `CurrentControl.close_step_idle` no meta trace is eligible afterwards, so
+the first loop of the next meta credit is the identity whatever error it carries. -/
+theorem closeSpan_controller (state : TemporalControl profile config criterion dimension)
+    (value : Binary32) :
+    (state.closeSpan (some value)).runtime.lifecycle.consumers.metaController =
+        state.runtime.lifecycle.consumers.metaController.closeStep
+          (criterion.center state.gap.close.1 state.gap.close.2 state.average.rate) value
+          state.gap.close.2 ∧
+      (state.closeSpan (some value)).gap = .closed := by
+  rw [TemporalControl.closeSpan_eq]
+  exact ⟨rfl, rfl⟩
 
 end AcornVerif.CurrentTemporal

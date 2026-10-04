@@ -225,8 +225,12 @@ theorem TemporalControl.serve_episodes (state next : TemporalControl profile con
       have active : state.activeSlot = committed.origin.map (·.1) := by
         simp [TemporalControl.activeSlot, phase, Occupancy.executing]
       refine ⟨?_, ?_, rfl, ?_⟩
-      · split <;> (unfold TemporalControl.skipMeta; split <;> exact interrupted.1)
-      · split <;> (unfold TemporalControl.skipMeta; split <;> rfl)
+      · unfold TemporalControl.skipMeta
+        repeat' split
+        all_goals exact interrupted.1
+      · unfold TemporalControl.skipMeta
+        repeat' split
+        all_goals rfl
       · rw [active]
         exact interrupted.2.2
 
@@ -417,6 +421,17 @@ theorem TemporalControl.follow_episodes (state : TemporalControl profile config 
   rw [TemporalControl.followOptions_eq]
   split <;> exact ⟨rfl, rfl⟩
 
+/-- Closing an interrupted option's meta span records no episode and moves no activation. -/
+theorem TemporalControl.closeSpan_episodes (state : TemporalControl profile config criterion dimension)
+    (continuation : Option Binary32) :
+    (state.closeSpan continuation).lifetime = state.lifetime ∧
+      (state.closeSpan continuation).activeSlot = state.activeSlot := by
+  cases continuation with
+  | none => exact ⟨rfl, rfl⟩
+  | some value =>
+    rw [TemporalControl.closeSpan_eq]
+    exact ⟨rfl, rfl⟩
+
 /-- Stored episode counts agree with the outstanding invocation and immutable hierarchy mode. -/
 def TemporalControl.Episodes (state : TemporalControl profile config criterion dimension) : Prop :=
   Lifetime.OptionsValid state.lifetime.options state.activeSlot ∧
@@ -461,15 +476,20 @@ theorem TemporalControl.step_episodes (state next : TemporalControl profile conf
       (spatialPotentials observation) reward goal result.2
     generalize result.1.followOptions (modelOperations criterion dimension) features
       (spatialPotentials observation) reward goal result.2 = followed at follow ⊢
+    have closed := followed.closeSpan_episodes
+      (result.1.takeoverValue features (spatialPotentials observation) goal result.2)
+    generalize followed.closeSpan
+      (result.1.takeoverValue features (spatialPotentials observation) goal result.2) =
+        spanned at closed ⊢
     constructor
     · change Lifetime.OptionsValid
-        (followed.finish features observation reward result.2).lifetime.options followed.activeSlot
-      rw [TemporalControl.finish_options, follow.1, follow.2, trace.1]
+        (spanned.finish features observation reward result.2).lifetime.options spanned.activeSlot
+      rw [TemporalControl.finish_options, closed.1, closed.2, follow.1, follow.2, trace.1]
       apply trace.2.record_valid _ result.2.episodeEnd _ valid.1
       simp [TemporalDecision.episodeEnd, Option.map_map, Function.comp_def]
     · intro primitive
-      change followed.activeSlot = none
-      rw [follow.2]
+      change spanned.activeSlot = none
+      rw [closed.2, follow.2]
       exact state.select_primitive result.1 (modelOperations criterion dimension) (planningBoundary planning)
         features (spatialPotentials observation) reward goal result.2 primitive selected
 

@@ -278,12 +278,14 @@ theorem declared_persistent_explored {count : Word.Count} (snapshot : PolicySnap
     simp [PolicySnapshot.drawPersistent, beginExploration, declared, branch]
 
 /-- Reach at the declared rate, over the executed selection. Under the declared rate
-policy, every decision the selection returns is a served step of a committed run, or
-the outcome of one persistent draw at D6's rate: it explores exactly on the declared
-first-word numerators of the generator state it was drawn at, whichever layer selected
-the action. The count of those numerators is `declared_branch_card`; it is a probability
-only under a uniform first-word hypothesis, which the deterministic generator does not
-supply. -/
+policy, every decision the selection returns is a served step of the committed run the
+given state holds, or the outcome of one persistent draw at D6's rate: it explores
+exactly on the declared first-word numerators of the generator state selection hands
+the acting layer (`CurrentTemporal.Handed`), which is the given state's own when no meta
+decision is drawn and the one a single plain meta draw from it leaves otherwise. The
+count of those numerators is `declared_branch_card`; it is a probability only under a
+uniform first-word hypothesis on that generator state, which the deterministic
+generator does not supply. -/
 theorem select_declared {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension}
     (state next : TemporalControl profile config criterion dimension)
@@ -294,23 +296,53 @@ theorem select_declared {profile : FeatureProfile} {config : Features.Config}
     (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
     (executed : state.selectWithOperations models plan features potentials reward goal =
       some (next, decision)) :
-    decision.source = .explorationContinuation ∨
+    CurrentTemporal.Served state next decision ∨
       ∃ (snapshot : PolicySnapshot primitiveCount) (rng : Rng.Xoshiro256),
-        CurrentTemporal.Drawn next decision snapshot rng ∧
+        CurrentTemporal.Handed state decision rng ∧
+          CurrentTemporal.Drawn next decision snapshot rng ∧
           snapshot.epsilon = Handcrafted.declaredRate ∧
           decision.explored = decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
   rcases CurrentTemporal.select_persistent state next models plan features potentials reward
-    goal decision executed with served | ⟨origin, ⟨_, drawn⟩ | ⟨slot, _, drawn⟩⟩
+    goal decision executed with served | ⟨origin, ⟨_, drawn⟩ | ⟨slot, _, drawn⟩, handed⟩
   · exact Or.inl served
   · have epsilon := (origin.declared_rates declared).1
-    exact Or.inr ⟨_, _, drawn, epsilon,
+    exact Or.inr ⟨_, _, handed, drawn, epsilon,
       drawn.2.1.trans (declared_persistent_explored _ epsilon _)⟩
   · have epsilon : (CurrentTemporal.optionSnapshot origin slot features).epsilon =
         Handcrafted.declaredRate := (origin.declared_rates declared).2.2 fun _ =>
       (origin.runtime.lifecycle.consumers.skills.get slot).policy.exploreRate
         (count := primitiveCount)
-    exact Or.inr ⟨_, _, drawn, epsilon,
+    exact Or.inr ⟨_, _, handed, drawn, epsilon,
       drawn.2.1.trans (declared_persistent_explored _ epsilon _)⟩
+
+/-- The declared branch as a function of the incoming generator state. Under the declared
+rate policy, a decision that is not served and records no meta decision (a continuing
+option's, or a primitive-only profile's) explores exactly when the first word of the
+generator state selection was given has a numerator below the declared threshold. A
+uniform first-word hypothesis on the incoming state therefore gives that branch D6's
+exact mass (`declared_branch_card`, `declared_branch_mass`). A decision that records a
+meta decision reads the first word after that meta draw instead. -/
+theorem declared_direct {profile : FeatureProfile} {config : Features.Config}
+    {criterion : Criterion} {dimension : Dimension}
+    (state next : TemporalControl profile config criterion dimension)
+    (declared : profile.rate = .declared)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary config criterion dimension demonLayout)
+    (features : SwiftTd.ActiveSet dimension) (potentials : DeclaredPotentials)
+    (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
+    (executed : state.selectWithOperations models plan features potentials reward goal =
+      some (next, decision))
+    (unserved : decision.source ≠ .explorationContinuation)
+    (undrawn : decision.metaDecision = none) :
+    decision.explored =
+      decide ((state.runtime.references.rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
+  rcases select_declared state next declared models plan features potentials reward goal
+    decision executed with ⟨_, _, _, _, source, _⟩ | ⟨snapshot, rng, handed, _, _, explored⟩
+  · exact absurd source unserved
+  · rcases handed with ⟨_, same⟩ | ⟨metaSnapshot, recorded, _⟩
+    · rw [explored, same]
+    · rw [undrawn] at recorded
+      cases recorded
 
 end DeclaredBranch
 

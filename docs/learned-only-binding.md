@@ -93,6 +93,16 @@ an executing option's draw begins interrupts the option.
   (`CurrentTemporal.handoff_model`) and its policy takes tree-backup credit
   (`CurrentTemporal.handoff_policy`). Where it ends, the option is stopped as
   any followed option is (`CurrentTemporal.handoff_stop`).
+- **Meta credit.** The meta-controller's span for the option closes at the first
+  served step, and the rewards of the served steps are credited to no meta
+  action. The span covers the option's own actions and is credited toward the
+  option's own continuing return: its meta value at that frame where its
+  stopping decision continues, and the frame's nominal meta value where that
+  decision ends (`CurrentTemporal.takeover_value`). That is the return the
+  option's model predicts and planning backs the same value toward, so sampled
+  credit and planning keep one contract: the option run to its own stop.
+  Closing toward the meta value of the state alone would credit the option with
+  a stop its model does not make.
 
 Loci: `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
 
@@ -160,11 +170,14 @@ One consequence follows, and it is not conformance with the source.
 `TemporalControl.declared_rates` proves every consumer reads this word at every
 state; `TemporalSupport.declared_branch_card` counts the source words that
 explore. The annealed comparison's schedule and fixed option rate are also
-declared here. Its option rate of 0.1 feeds the same persistent draw: evaluating
-the model above at that rate gives an exploratory share of about 0.38 of an
-option's steps, and an option that would return k actions is uninterrupted with
-probability 0.95^k. These two figures are evaluations of the model, not
-theorems. The derived rate of
+declared here. Its option rate of 0.1 feeds the same persistent draw. On the
+frames an option itself selects, the exploring branch is taken at 0.1 under the
+idealized draw, and an option that would return k actions is uninterrupted with
+probability 0.95^k. Evaluating the model above at a constant rate of 0.1 gives
+about 0.38 as the exploratory share of complete behaviour cycles, served steps
+after an interruption included; the annealed hierarchy mixes that rate with the
+primitive controller's schedule, so the figure does not establish the share of
+its whole stream. These figures are evaluations of the model, not theorems. The derived rate of
 [PAR-10](prior-art-review.md#par-10--derived-exploration-rate) remains a
 research-only selection.
 

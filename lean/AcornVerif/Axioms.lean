@@ -2932,6 +2932,30 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.declared_share_gt
 
+/-- info: 'AcornVerif.TemporalSupport.declared_direct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.TemporalSupport.declared_direct
+
+/-- info: 'AcornVerif.CurrentTemporal.serve_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.serve_run
+
+/-- info: 'AcornVerif.CurrentTemporal.handoff_stop' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.handoff_stop
+
+/-- info: 'AcornVerif.CurrentTemporal.takeover_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentTemporal.takeover_value
+
+/-- info: 'AcornVerif.CurrentControl.close_step_idle' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentControl.close_step_idle
+
+/-- info: 'AcornVerif.interrupted_span_return' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.interrupted_span_return
+
 /-- info: 'AcornVerif.CurrentAgent.initialization' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentAgent.initialization

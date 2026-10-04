@@ -30,7 +30,10 @@ executes at a time. The option is the executing invocation of the frame it drew;
 first served step ends its execution. The run gives it no terminal credit, because the
 run is not one of the option's stopping conditions, and from that step the option
 learns off-policy under its own stopping decision, like every option that is not
-executing (`interrupt`). The meta-controller decides again when the run is spent.
+executing (`interrupt`). The meta-controller's span for the option closes at that step
+toward the option's own continuing value, and the run's rewards are credited to no meta
+action (`takeoverValue`, `closeSpan`). The meta-controller decides again when the run
+is spent.
 
 Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence
 112 (1999), equations (8)–(9), p. 190 and §6, pp. 204–205, supplies the SMDP
@@ -345,7 +348,9 @@ theorem TemporalControl.interrupt_frame (state : TemporalControl profile config 
       split <;> rfl
 
 /-- A continuing run bypasses every option/meta draw and preserves random state. Its
-first served step interrupts the option whose draw began the run. -/
+first served step interrupts the option whose draw began the run and leaves the
+deferred meta span as that option's own actions made it, for `closeSpan`; every later
+served step advances the deferred clock. -/
 def TemporalControl.serve (state : TemporalControl profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Option (TemporalControl profile config criterion dimension × TemporalDecision) :=
@@ -353,7 +358,8 @@ def TemporalControl.serve (state : TemporalControl profile config criterion dime
   | .exploring committed => do
     let (action, next) ← committed.run.serve
     let interrupted := state.interrupt committed.origin
-    let state := (interrupted.1.withPhase (.exploring (.bare next))).skipMeta
+    let state := interrupted.1.withPhase (.exploring (.bare next))
+    let state := if committed.origin.isSome then state else state.skipMeta
     let state := if profile.usesHierarchy then state.withoutPlanning else state
     let values := state.runtime.lifecycle.consumers.control.predictAll features
     let metaValues := if profile.usesHierarchy then state.runtime.lifecycle.consumers.metaController.predictAll features
@@ -361,6 +367,36 @@ def TemporalControl.serve (state : TemporalControl profile config criterion dime
     pure (state, ⟨.explorationContinuation, action, values, servedProbabilities action, true,
       metaValues, none, none, interrupted.2⟩)
   | .idle | .option _ _ => none
+
+/-- A served step, for every state: occupancy held a committed run, the decision repeats
+its action, the returned state holds the run `ExploratoryRun.serve` returns and no
+option, and the generator state is untouched. -/
+theorem TemporalControl.serve_frame (state next : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
+    (served : state.serve features = some (next, decision)) :
+    ∃ committed rest, state.runtime.references.phase = .exploring committed ∧
+      committed.run.serve = some (decision.action, rest) ∧
+      decision.source = .explorationContinuation ∧
+      next.runtime.references.phase = .exploring (.bare rest) ∧
+      next.runtime.references.rng = state.runtime.references.rng := by
+  unfold TemporalControl.serve at served
+  cases phase : state.runtime.references.phase with
+  | idle => simp [phase] at served
+  | option slot activation => simp [phase] at served
+  | exploring committed =>
+    simp only [phase] at served
+    cases hs : committed.run.serve with
+    | none => simp [hs] at served
+    | some pair =>
+      simp only [hs, bind, Option.bind, pure, Option.some.injEq] at served
+      cases served
+      refine ⟨committed, pair.2, rfl, hs, rfl, ?_, ?_⟩
+      · unfold TemporalControl.skipMeta
+        repeat' split
+        all_goals rfl
+      · unfold TemporalControl.skipMeta
+        repeat' split
+        all_goals exact congrArg (·.rng) (state.interrupt_frame committed.origin).2.1
 
 /-- Install a drawn option action. The option keeps occupancy for the next frame unless
 its draw began a run with a step left to serve, which takes occupancy and holds the
@@ -787,6 +823,75 @@ theorem TemporalControl.followOptions_eq (state : TemporalControl profile config
         cases consumers
         rfl
 
+/-- The value an interrupted option's meta span closes toward, on the first served step
+of the run that held it; `none` on every other frame. The run censors the option
+without stopping it, so the span is credited toward the option's own continuing return:
+its own meta value at this frame while its stopping decision continues, and the frame's
+nominal meta value where that decision ends. The decision is the one `followOptions`
+takes for the option's learners at this frame, read from the same skill, estimate and
+rate. A slot whose potential source is not supplied learns nothing and closes as
+stopped. -/
+def TemporalControl.takeoverValue (state : TemporalControl profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (decision : TemporalDecision) : Option Binary32 :=
+  if profile.usesHierarchy && profile.mode != .frozen &&
+      decision.source == .explorationContinuation then
+    decision.ended.map fun event =>
+      let skill := state.runtime.lifecycle.consumers.skills.get event.slot
+      let estimate := state.stoppingEstimate decision
+      match skill.following, skill.interest.potential features declared with
+      | some following, some potential =>
+        match skill.decideOption following.activation features potential goal estimate
+          state.skillRate with
+        | .continuing _ => decision.metaValues.get (metaOfSkill event.slot)
+        | .ending _ => estimate
+      | _, _ => estimate
+  else none
+
+/-- Close the meta-controller's span at an interruption. The owed span covers the
+interrupted option's own actions and nothing of the run: selection accumulated this
+frame's reward, which the option's last action earned, and the first served step did
+not advance the deferred clock. The span is credited toward the supplied continuation
+with the error `learnMeta` forms, and every meta trace is then released, so the rewards
+of the served steps are credited to no meta action when the next decision is learned.
+The state is consumed before the controller is credited, and `closeSpan_eq` proves the
+result equal to the listed composition; storage reuse is a performance expectation,
+not a proved property. -/
+def TemporalControl.closeSpan (state : TemporalControl profile config criterion dimension)
+    (continuation : Option Binary32) : TemporalControl profile config criterion dimension :=
+  match continuation with
+  | none => state
+  | some value =>
+    let owed := state.gap.close
+    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
+      credit, creditMatches, average, rate, lifetime⟩ := state
+    let controller := metaController.closeStep
+      (criterion.center owed.1 owed.2 average.rate) value owed.2
+    ⟨⟨⟨representation, ⟨control, controller, skills, demons⟩⟩,
+        { references with gapSteps := CreditGap.closed.steps, gapReward := CreditGap.closed.reward }⟩,
+      credit, creditMatches, average, rate, lifetime⟩
+
+/-- Consuming the state before the meta-controller's closing credit preserves the
+composition: the controller takes the closing credit for the owed span and the span is
+closed; nothing else is written. -/
+theorem TemporalControl.closeSpan_eq (state : TemporalControl profile config criterion dimension)
+    (value : Binary32) :
+    state.closeSpan (some value) =
+      let owed := state.gap.close
+      let controller := state.runtime.lifecycle.consumers.metaController.closeStep
+        (criterion.center owed.1 owed.2 state.average.rate) value owed.2
+      let state := state.withGap .closed
+      { state with runtime := { state.runtime with lifecycle := { state.runtime.lifecycle with
+        consumers := { state.runtime.lifecycle.consumers with metaController := controller } } } } := by
+  cases state with
+  | mk runtime credit creditMatches average rate lifetime =>
+    cases runtime with
+    | mk lifecycle references =>
+      cases lifecycle with
+      | mk representation consumers =>
+        cases consumers
+        rfl
+
 /-- Current selection executes concrete model learning and the explicit planning choice. -/
 def TemporalControl.select (state : TemporalControl profile config criterion dimension)
     (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
@@ -796,7 +901,9 @@ def TemporalControl.select (state : TemporalControl profile config criterion dim
     features declared reward goal
 
 /-- One local temporal transition: selection, off-policy learning of every option
-that is not executing, then credit and feedback on every selected path.
+that is not executing, the closing of an interrupted option's meta span, then credit
+and feedback on every selected path. The span's continuation value is read before the
+options learn, from the state and decision selection returned.
 The input active set belongs to the caller's current encoding frame. Selection, with
 its assignment refresh, reads the Demon-0 weights as the previous step left them: the
 reward delivered here is learned by `finish`, after selection, so a subtask candidate
@@ -806,9 +913,10 @@ def TemporalControl.step (state : TemporalControl profile config criterion dimen
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32) (goal : Bool) :
     Option (TemporalControl profile config criterion dimension × TemporalDecision) := do
   let (selected, decision) ← state.select planning features (spatialPotentials obs) reward goal
+  let continuation := selected.takeoverValue features (spatialPotentials obs) goal decision
   let followed := selected.followOptions (modelOperations criterion dimension) features
     (spatialPotentials obs) reward goal decision
-  pure (followed.finish features obs reward decision, decision)
+  pure ((followed.closeSpan continuation).finish features obs reward decision, decision)
 
 /-- Selection updates finish through the same prediction/credit definition and
 cannot use a different executed action for primitive credit. -/
