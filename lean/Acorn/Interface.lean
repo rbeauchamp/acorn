@@ -21,8 +21,9 @@ action, a `Fin` of the declared count.
 
 The frame's three parts follow what the learners consume. The words are opaque
 channel and value pairs, which the tiled coder hashes. The symbols are the input of
-the generated units; a world without a symbol array supplies none, and no generated
-unit is then active. The signals are the cumulants of the prediction questions.
+the generated units; a world without a symbol array supplies none, and every
+generated unit's output is then false. The signals are the cumulants of the prediction
+questions.
 
 The agent adds one word of prediction feedback per question, on the channels from
 `feedbackChannel`. A frame cannot carry a word on one of them: `Frame.clear` is part

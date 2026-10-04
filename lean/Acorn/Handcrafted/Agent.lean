@@ -91,8 +91,8 @@ theorem Agent.words_disjoint (state : Agent interface profile config criterion d
   cases clear
 
 /-- Encode one frame with this exact receiver's old cache and current bank. With a
-symbol array, the generated units read it. Without one, no generated unit is active
-and the coder reads the words alone. -/
+symbol array, the generated units read it. Without one, every generated unit's output
+is false and the coder reads the words alone. -/
 def Agent.frame (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) : Encoding config dimension :=
   match observation.symbols with
@@ -115,8 +115,9 @@ theorem Agent.frame_present (state : Agent interface profile config criterion di
         state.control.runtime.lifecycle.representation.bank.activations patch := by
   constructor <;> simp only [Agent.frame, present] <;> rfl
 
-/-- Without a symbol array no generated unit is active: the encoding reads the words
-alone, and the tester sees every unit off. -/
+/-- Without a symbol array every generated unit's output is false: the encoding reads
+the words alone, and the tester sees every unit off. A word can still hash to a unit's
+feature slot, so that slot can be active. -/
 theorem Agent.frame_absent (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) (absent : observation.symbols = none) :
     (state.frame observation).units = Vector.replicate _ false ∧

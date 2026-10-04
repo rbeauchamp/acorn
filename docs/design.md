@@ -63,8 +63,9 @@ preceding transition. A frame has three parts, one for each kind of learner inpu
 - **words**, opaque pairs of a channel and a 64-bit value, which the coder hashes
   into features;
 - **symbols**, an array of 64-bit codes that the generated projection features
-  sample. A world without a symbol array supplies none, and no generated feature is
-  then active (`Agent.frame_absent`);
+  sample. A world without a symbol array supplies none, and every generated unit's
+  output is then false (`Agent.frame_absent`). A unit's feature slot can still be
+  active, because a word can hash to the same slot, as with any hashed features;
 - **signals**, one number per prediction question the world declares.
 
 A frame also carries the world's declared subtask potentials, which only the
