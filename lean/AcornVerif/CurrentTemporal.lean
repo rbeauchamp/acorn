@@ -731,7 +731,6 @@ theorem follow_frame (state : TemporalControl profile config criterion dimension
     (decision : TemporalDecision) :
     let next := state.followOptions models features declared reward goal decision
     next.runtime.references = state.runtime.references ∧
-      next.runtime.refresh = state.runtime.refresh ∧
       next.runtime.lifecycle.representation = state.runtime.lifecycle.representation ∧
       next.runtime.lifecycle.consumers.control = state.runtime.lifecycle.consumers.control ∧
       next.runtime.lifecycle.consumers.metaController =
@@ -740,7 +739,7 @@ theorem follow_frame (state : TemporalControl profile config criterion dimension
       next.average = state.average ∧ next.credit = state.credit := by
   dsimp only
   rw [TemporalControl.followOptions_eq]
-  split <;> exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  split <;> exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Work bound, per learner: after a followed frame every option policy learner
 keeps legal knowledge, its managed schedule and an eligibility list within the

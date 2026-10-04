@@ -30,7 +30,7 @@ inductive Error where
   | seed (found expected : UInt64)
   /-- Sensory tilings or initial bank capacity differs. -/
   | representation
-  /-- This profile's process state has no resumable format-16 image. -/
+  /-- This profile's process state has no resumable format-17 image. -/
   | unsupportedPolicy
   /-- Length, checksum, assignment, tester or durable numeric admission failed. -/
   | corrupt
@@ -103,14 +103,10 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
 @[noinline] def admitPayload (construction : AgentConstruction) (payload : Payload construction.dimension) :
     Except Error (AgentImage construction.config construction.criterion construction.dimension) := do
   let gain ← admitHeader construction payload.header
-  let pending ← match payload.header.pending with
-    | 0 => pure false
-    | 1 => pure true
-    | _ => throw .corrupt
   let raw : RawFeatureImage construction.dimension demonLayout :=
     ⟨payload.header.seed, payload.header.tilings, payload.header.units.toUInt16,
       payload.header.capacity, payload.header.criterion.toUInt8, payload.header.clock,
-      payload.tester.progress, payload.assignments, payload.primary, pending⟩
+      payload.tester.progress, payload.assignments, payload.primary⟩
   let some features := FeatureImage.admit construction.config construction.criterion construction.dimension raw
     | throw .corrupt
   let some lifetime := admitLifetime payload.lifetime | throw .corrupt
@@ -120,7 +116,7 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
 /-- Decode a complete candidate under the immutable receiver context. -/
 @[noinline] def loadCandidate (construction : AgentConstruction) (bytes : List UInt8) :
     Except Error (AgentImage construction.config construction.criterion construction.dimension) := do
-  if bytes.length < 72 || bytes.take magic.length != magic then throw .notACheckpoint
+  if bytes.length < 68 || bytes.take magic.length != magic then throw .notACheckpoint
   let some (header, _) := headerCodec.decode (bytes.drop magic.length) | throw .notACheckpoint
   let _ ← admitHeader construction header
   let some payload := decode construction.dimension bytes | throw .corrupt

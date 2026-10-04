@@ -136,13 +136,14 @@ theorem Agent.environment_isolation (state : Agent profile config criterion dime
     (state.recordEnvironment family reward).control.average = state.control.average ∧
     (state.recordEnvironment family reward).control.rate = state.control.rate := ⟨rfl, rfl, rfl, rfl⟩
 
-/-- Attempt boundaries preserve the pending action, reward-credit state and active temporal owner. -/
+/-- Attempt boundaries preserve the entire action-selection owner, including every
+learner, objective and the active temporal owner, and the reward-credit state: an
+attempt's outcome and its curriculum cycle reach the observations only. -/
 theorem Agent.attempt_continuity (state : Agent profile config criterion dimension planning)
     (family : Fin 4) (cycle steps : UInt64) (achieved : Bool) :
-    (state.recordAttempt family cycle steps achieved).control.runtime.references = state.control.runtime.references ∧
-    (state.recordAttempt family cycle steps achieved).control.runtime.lifecycle = state.control.runtime.lifecycle ∧
+    (state.recordAttempt family cycle steps achieved).control.runtime = state.control.runtime ∧
     (state.recordAttempt family cycle steps achieved).control.credit = state.control.credit ∧
     (state.recordAttempt family cycle steps achieved).control.average = state.control.average :=
-  ⟨rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl⟩
 
 end Acorn.Handcrafted

@@ -114,10 +114,12 @@ def FeatureProfile.interests (profile : FeatureProfile) (config : Features.Confi
     | .learned => .learned .neutral
     | .spatial => .declared .spatialPotentials slot
 
-/-- Attempt events request ranking exactly when a learned hierarchy uses it. -/
-def FeatureProfile.request (profile : FeatureProfile) (refresh : Refresh)
-    (cycle : UInt64) (achieved : Bool) : Refresh :=
-  if profile.subtasks == .learned && profile.usesHierarchy then refresh.request cycle achieved else refresh
+/-- The ranking assigns the subtasks exactly when they are learned; declared subtasks
+keep their declaration. Assignment happens at a free dispatch, which
+`TemporalControl.selectWithOperations` reaches only after its primitive-only branch has
+returned. A primitive-only profile draws no meta decision
+(`TemporalControl.primitive_undrawn`). -/
+def FeatureProfile.ranksSubtasks (profile : FeatureProfile) : Bool := profile.subtasks == .learned
 
 /-- The full current observation adapter derives its mode from the immutable profile. -/
 def FeatureProfile.encode (profile : FeatureProfile) (dimension : Dimension)

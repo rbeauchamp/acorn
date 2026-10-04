@@ -12,7 +12,8 @@ import Acorn.FeatureRefresh
 The byte decoder supplies dimension-sized raw knowledge blocks. Feature metadata,
 generator and tester words and assignments are admitted together before installation. Primary
 knowledge passes through each receiver's own projection; optional model storage
-and process-local caches restart cold. Saved assignments are never reranked, and an
+and process-local caches restart cold. Installation never reranks saved assignments;
+the next free boundary's refresh does, keeping every unit that is still ranked. An
 image whose slots repeat a selected unit is refused.
 Complete file-format and full-agent persistence remain their separate owners.
 -/
@@ -119,8 +120,6 @@ structure RawFeatureImage (dimension : Dimension) (discounts : List Discount) wh
   assignments : Vector AssignmentWords Acorn.FeatureConstants.skillCount
   /-- Complete primary words. -/
   primary : PrimaryImage dimension discounts
-  /-- Durable pending refresh. -/
-  pending : Bool
 
 /-- Criterion tags are exhaustive over the current immutable domain. -/
 def Criterion.tag : Criterion → UInt8
@@ -137,8 +136,6 @@ structure FeatureImage (config : Config) (criterion : Criterion) (dimension : Di
   distinct : Assignment.Distinct assignments
   /-- Primary values admitted by each receiving learner during installation. -/
   primary : PrimaryImage dimension discounts
-  /-- Saved work request. -/
-  pending : Bool
 
 /-- Metadata and every feature identity are checked before an image exists.
 The caller separately admits the full file's supported research profile. -/
@@ -152,7 +149,7 @@ def FeatureImage.admit (config : Config) (criterion : Criterion) (dimension : Di
     let assignments ← raw.assignments.mapM (Assignment.admit dimension config)
     if distinct : Assignment.distinct assignments then
       some ⟨progress, assignments, (Assignment.distinct_iff assignments).mp distinct,
-        raw.primary, raw.pending⟩
+        raw.primary⟩
     else none
 
 /-- Cold installation reconstructs the bank and clears all lifecycle-owned transient state.
@@ -164,7 +161,7 @@ def FreeDispatch.restore {shape : PatchShape} {config : Config} {criterion : Cri
     FreeDispatch shape config criterion dimension discounts payload :=
   ⟨⟨Representation.restore shape image.progress,
       state.lifecycle.consumers.restore image.primary image.assignments⟩,
-    Refresh.cold image.pending, Vector.replicate _ ModelCache.initial, none⟩
+    Vector.replicate _ ModelCache.initial, none⟩
 
 /-- Saved assignments are installed exactly, irrespective of present restored weights. -/
 theorem Ensemble.restore_assignment {config : Config} {criterion : Criterion}
@@ -185,13 +182,12 @@ theorem Ensemble.restore_distinct {config : Config} {criterion : Criterion}
   intro slot unit named
   simpa [Ensemble.restore, Interest.held] using named
 
-/-- Cold restore preserves pending work, resets the cycle and detaches all pending credit. -/
+/-- Cold restore detaches all pending credit and clears every cached model prediction. -/
 theorem FreeDispatch.restore_cold {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape config criterion dimension discounts payload)
     (image : FeatureImage config criterion dimension (.g99 :: discounts)) :
-    (state.restore image).refresh.pending = image.pending ∧
-    (state.restore image).refresh.cycle = 0 ∧ (state.restore image).closing = none ∧
-    (state.restore image).predictions = Vector.replicate _ ModelCache.initial := ⟨rfl, rfl, rfl, rfl⟩
+    (state.restore image).closing = none ∧
+    (state.restore image).predictions = Vector.replicate _ ModelCache.initial := ⟨rfl, rfl⟩
 
 end Acorn.Features

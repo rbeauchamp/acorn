@@ -133,8 +133,8 @@ model and reset its meta-controller row. Demon 0 updates a unit's weight on ever
 step where the unit has a nonzero trace and the TD error is nonzero; a trace lasts
 about 190 steps before pruning (γλ = 0.99 × 0.95, pruned at a factor of 10⁻⁵).
 A top-ranked unit is frequently active, so its bonus word differed at almost
-every refresh. Refresh becomes pending on every achieved attempt and every new
-curriculum cycle (`Refresh.request`). Success therefore reset the option policy,
+every refresh. A refresh then ran after every achieved attempt and every new
+curriculum cycle. Success therefore reset the option policy,
 model and meta row of most selected subtasks, returned their step sizes to their
 initial values, and raised their exploration rates back to the initial rate
 (F-C). The source instead sets the bonus weight to one of its higher values "so
@@ -146,7 +146,10 @@ U1 made identity the unit alone (`Assignment.same`) and made refresh slot-stable
 array, that the first slot holding a still-ranked unit keeps its policy, model,
 cached prediction and meta-controller row, and that its held bonus never
 decreases. A slot is now reinstalled only when its unit leaves the ranking or is
-retired. How often that happens is UNKNOWN: it depends on the stream.
+retired. How often that happens is UNKNOWN: it depends on the stream. Since
+[#57](https://github.com/rbeauchamp/acorn/issues/57) the refresh runs at every free
+dispatch, so a unit that leaves the three ranked score blocks is replaced at the next
+free dispatch rather than after the next achieved attempt.
 
 ### F-B · The option model is a value estimator, so planning cannot plan
 
@@ -412,23 +415,39 @@ F-E left its feature-construction end inert until U3.
   replace (F-E); U3's tester ranks by contribution utility and replaces at a
   declared rate.
 - **Temporal uniformity.** The plan's meta-algorithms for constructing
-  representations or subtasks "operate on every time step" ([[20]](#r20) p. 2). Acorn
-  triggers the subtask ranking from host attempt and cycle events. This is an
-  undeclared departure, and in a first pass it is not mild. A request is pending
-  only after an achieved attempt or a new curriculum cycle, and is consumed at
+  representations or subtasks "operate on every time step" ([[20]](#r20) p. 2). At
+  86ce779 Acorn triggered the subtask ranking from host attempt and cycle events, an
+  undeclared departure that was not mild in a first pass. A request was pending
+  only after an achieved attempt or a new curriculum cycle, and was consumed at
   the next free boundary. The ranking admits only units of positive
   reward-prediction weight (`candidateOfWeight`), the only nonzero reward is an
   achievement's, and a decision selects before the prediction learners see its
   reward (`TemporalControl.step`). A request consumed in the decision that
-  follows the first achievement therefore finds every weight zero,
-  installs nothing and is cleared, and the next request waits for the next
+  followed the first achievement therefore found every weight zero,
+  installed nothing and was cleared, and the next request waited for the next
   achievement. In a diagnostic trace of seed 16265277883658242538 of U6's run
   the three options had no subtask for the first 31 000 of 34 000 steps; in one
   of seed 8789851314873071931, for the first 422 of 10 563
   ([#57](https://github.com/rbeauchamp/acorn/issues/57)). The traces are
-  diagnostics of those two seeds, not study evidence. The option models are not
+  diagnostics of those two seeds, not study evidence. The option models were not
   affected: they take the feature ranking at every free boundary
-  (`rerankModels`).
+  (`rerankModels`). The
+  subtask ranking now runs at every free dispatch and reads no host event. A free
+  dispatch is a decision that draws a meta decision. A hierarchical agent draws one
+  whenever it serves no committed exploration run and no option is active
+  (`TemporalControl.select_drawn`). The decision at which an active option ends is also
+  a free dispatch, by the definition of `TemporalControl.selectWithOperations`, and
+  every free dispatch records its meta decision (`TemporalControl.atBoundary_interest`).
+  The decision is then taken with the slots holding
+  exactly the ranked candidates' units, one slot per candidate, for the Demon-0 weights
+  the decision started from (`TemporalControl.select_assigns`,
+  `TemporalControl.select_occupancy`). Three limits remain. The ranking does not run
+  on a step that continues an option or serves an exploration run. Selection runs
+  before the reward delivered with a decision is learned, so a candidate that reward
+  creates is installed at the next free dispatch, not at that decision. A
+  primitive-only profile draws no meta decision (`TemporalControl.primitive_undrawn`).
+  Its selection returns before the refresh, so it assigns no subtask; that is read from
+  the definition of `TemporalControl.selectWithOperations` and is not a stated theorem.
 - **The route to representation search.** Swift-Sarsa is presented as opening
   the door to learning representations "by searching over hundreds of millions of
   features in parallel" [[3]](#r3), leaning on step-size credit assignment over
@@ -512,7 +531,7 @@ The roadmap also tracks the missing published pieces that no unit covers:
   slot holding it is released to the neutral objective
   (`FeatureRuntime.retire_releases`, `FeatureRuntime.retire_occupied`).
 - **Distinct units.** No two slots hold the same unit, from admission on:
-  every pending refresh leaves them distinct whatever it starts from
+  every refresh leaves them distinct whatever it starts from
   (`FreeDispatch.refresh_distinct`), and the initial state and every step carry
   distinctness within alignment (`TemporalControl.initial_aligned`,
   `TemporalControl.step_total`); checkpoint admission refuses an image whose
@@ -620,8 +639,9 @@ learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
   in every model; a slot that stays ranked keeps its position and its row's
   weights from every other retained slot, and a retired ranked slot vacates its
   position (`Transition.rerank`, `Transition.retire`). A slot is held at one
-  position only, by a field of the ranking's type. Installed only at a subtask
-  refresh, the ranking stayed empty through each audit campaign.
+  position only, by a field of the ranking's type.
+  [PAR-13](prior-art-review.md#par-13--option-expectation-models) records the
+  cadence this replaced.
 - **Selection name and pins.** `--planning expectation` replaces `scalar`. The
   transition part is process-local like the other model learners, so the
   checkpoint format is unchanged. All three audit pins changed, because the

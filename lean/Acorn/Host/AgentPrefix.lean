@@ -140,7 +140,7 @@ theorem Agent.retire_decision (state : Agent profile config criterion dimension 
   unfold Agent.retire
   split
   · rfl
-  · exact congrArg (·.lastDecision) (state.control.runtime.retire_references active).1
+  · exact congrArg (·.lastDecision) (state.control.runtime.retire_references active)
 
 /-- Every action observer sees precisely the decision consumed by the completion boundary. -/
 theorem Agent.act_decision (state : Agent profile config criterion dimension planning)
