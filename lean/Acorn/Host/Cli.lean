@@ -258,6 +258,9 @@ def demo (arguments : List String) : Except Error Demo := do
   for (first, second) in [("--checkpoint", "--csv"), ("--control-stdin", "--baseline")] do
     if arguments.contains first && arguments.contains second then
       .error (.invalid second s!"unsupported with {first}")
+  if arguments.contains "--baseline" then
+    if (← unsigned arguments "--cycles" 64 1) == 0 then
+      .error (.invalid "--baseline" "unsupported with unbounded --cycles 0")
   let goals ← unsigned arguments "--goals" 64 10
   if goals == 0 then
     if (← unsigned arguments "--cycles" 64 1) == 0 then

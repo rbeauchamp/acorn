@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.AgentAudit
+import Acorn.Host.Baseline
 import Acorn.Host.Viewer.NativeCore
 
 /-!
@@ -12,7 +13,7 @@ import Acorn.Host.Viewer.NativeCore
 The report observes completed outcomes and the returned agent. Numeric fields
 use the exact dyadic spelling shared with telemetry. A bounded recent suffix and fixed-size goal bitmap belong to this report
 consumer; explicitly requested CSV rows stream to an exclusively created file.
-A requested comparator's rows enter that file as comment lines before the footer.
+A requested comparator's attempts enter that file as comment lines before the footer.
 Wall time is an observed native clock interval, not a performance guarantee.
 -/
 namespace NativeApp
@@ -39,11 +40,18 @@ position at the end of the attempt follows them. -/
 def outcomeCsv (outcome : GoalOutcome) : String :=
   s!"{outcome.index},{outcome.attempt},{outcome.tier},{outcome.steps},{if outcome.achieved then 1 else 0},{numberText outcome.reward},{numberText outcome.learner.demonError},{numberText outcome.learner.epsilon},{numberText outcome.learner.meanAlpha},{outcome.position.x.val},{outcome.position.y.val}\n"
 
-/-- One comparator outcome, as a comment line so that a reader of the agent's
-rows skips it. It names the fields the comparator has; its row carries no
-attempt number, tier or learner observation. -/
-def baselineCsv (outcome : GoalOutcome) : String :=
-  s!"# baseline index={outcome.index} steps={outcome.steps} achieved={if outcome.achieved then 1 else 0} x={outcome.position.x.val} y={outcome.position.y.val}\n"
+/-- One comparator attempt, as a comment line so that a reader of the agent's
+rows skips it. It names the cycle the attempt was made in, which an agent row
+does not hold, and omits the tier, which the agent's rows give at the same
+index. The comparator's row has no reward total and no learner observation. -/
+def baselineCsv (outcome : BaselineOutcome) : String :=
+  s!"# baseline cycle={outcome.context.cycle} index={outcome.context.index} attempt={outcome.context.attempt} steps={outcome.steps} achieved={if outcome.achieved then 1 else 0} x={outcome.position.x.val} y={outcome.position.y.val}\n"
+
+/-- Distinct goals the comparator achieved among the first `goals` curriculum
+entries: one for each index with an achieved attempt, in any cycle. -/
+def baselineDistinct (goals : Nat) (outcomes : Array BaselineOutcome) : Nat :=
+  ((List.range goals).filter fun index =>
+    outcomes.any fun outcome => outcome.achieved && outcome.context.index.toNat == index).length
 
 /-- Human-readable attempt outcome; it reads only the completed row. -/
 def outcomeText (outcome : GoalOutcome) : String :=

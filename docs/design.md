@@ -199,7 +199,7 @@ these boundaries do not restart its learned weights.
 | `--cycles` | Number of curriculum cycles; `0` continues until stopped. |
 | `--checkpoint PATH` | Load/save compatible learner state; supported for `ranked`. Omission keeps the terminal run in memory. |
 | `--csv PATH` | Stream attempt outcomes to a new [outcome CSV](#outcome-csv) file; cannot be combined with `--checkpoint`. |
-| `--baseline` | After the campaign, run the random-policy comparator and print both achieved counts; cannot be combined with `--control-stdin`. |
+| `--baseline` | After the campaign, run the random-policy comparator over the same campaign and print both achieved counts; cannot be combined with `--control-stdin` or with `--cycles 0`: command admission refuses either before the agent runs. |
 
 These are core flags, not viewer flags. See
 [the CLI definition](../lean/Acorn/Host/Cli.lean) for the full accepted domain.
@@ -224,7 +224,7 @@ ends. A line that starts with `#` is a comment; a reader of the rows skips it.
 index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
 # planning=<expectation or none>
 <one row per agent attempt>
-# baseline index=<goal> steps=<steps> achieved=<0 or 1> x=<x> y=<y>
+# baseline cycle=<cycle> index=<goal> attempt=<attempt> steps=<steps> achieved=<0 or 1> x=<x> y=<y>
 # seed=<seed> side=<side> weights=<count> total_steps=<steps> behavior=<hex> checksum=<hex> wall_ms=<ms> steps_per_sec=<rate> retire_count=<count> retire_last=<event> imprint_distinct_abs=<counts>
 ```
 
@@ -244,22 +244,50 @@ footer of `key=value` fields for the whole run, including the action
 fingerprint (`behavior`), the agent checksum and the observed wall time.
 
 The **comparator** is the random-policy diagnostic that `--baseline` selects. It
-draws each action from its own seeded stream, makes one attempt at each requested
-goal under the same step cap, and carries one second copy of the initial world
-from goal to goal. With `--csv`, each of its attempts is recorded in a comment
-line before the footer, in goal order, in the form shown above. Its fields mean
-what the columns of the same names mean. The comparator has no attempt number,
-tier or learner, so those fields are absent. These lines are written only when
-the comparator's pass completed.
+draws each action from its own seeded stream and from nothing else, and follows
+the campaign the agent follows in a second copy of the initial world, which it
+carries from attempt to attempt: the same requested goals, attempts per goal,
+cycles and step cap. With `--csv`, each of its attempts is recorded in a comment
+line before the footer, in campaign order, in the form shown above. `cycle` is
+the cycle of the attempt, from 0; the other fields mean what the columns of the
+same names mean. The line has no tier, reward or learner field: the comparator
+has no learner and keeps no reward total, and a goal's tier is the one in the
+agent's rows at the same index. An agent row holds no cycle: rows are written
+in campaign order, so with one attempt per goal the row numbered r from 0
+belongs to cycle ⌊r / goals⌋. These lines are written only when the
+comparator's campaign completed. A campaign
+with `--cycles 0` never completes, so it has no comparator record: command
+admission (`Cli.demo` in [the CLI definition](../lean/Acorn/Host/Cli.lean))
+refuses `--baseline` with `--cycles 0` before the agent runs.
+
+The two arms follow one campaign. The comparator admits its plan from the same
+arguments with the agent's own admission and asks the agent's own boundary
+function what follows each attempt. `boundary_single_attempt` proves that with
+one attempt per goal the next attempt does not depend on the outcome, so both
+arms make the same attempts in the same order. `start_corresponds`,
+`tick_corresponds`, `idle_corresponds` and `outcome_corresponds` prove that the
+arms' attempts correspond at goal installation, at each step and at the outcome
+row. That whole attempts therefore agree is argued, not machine-checked: no
+theorem composes these steps over the comparator's attempt loop or the agent's
+native loop. On that argument an attempt is the same function of the world and
+the action sequence in both arms: it stops at the first step that satisfies the
+goal or at the cap, and reports the same steps, completion flag and position.
+`baseline_finishes` proves that the record of a bounded campaign is never cut
+short. `baseline_action_code`,
+`action_word_interval` and `action_word_count` give the comparator's action
+law: each action is selected by 2 049 638 230 412 172 401 or one more of the
+2⁶⁴ stream outputs
+([comparator](../lean/Acorn/Host/Baseline.lean),
+[runner proofs](../lean/AcornVerif/CurrentRunner.lean)).
 
 Recording does not change either arm. An outcome row is a value handed to the
 reporter, which returns nothing. `Attempt.finish_position` proves that the
 stream continuing past an attempt is the attempt's own state with the attempt
 recorded, and that the recorded position is that state's body position.
 `foldOutcome_position` and `addOutcomeSteps_position` prove that the audit
-digest and the step total do not read the position. The comparator's loop
-carries only its world and action stream to the next goal; its rows are
-appended and returned
+digest and the step total do not read the position. The comparator is a pure
+function of the world configuration, the seed and the campaign arguments, and
+it runs after the agent's campaign has returned
 ([attempt protocol](../lean/Acorn/Host/Attempt.lean),
 [metrics](../lean/Acorn/Host/Metrics.lean),
 [comparator](../lean/Acorn/Host/Baseline.lean)).
