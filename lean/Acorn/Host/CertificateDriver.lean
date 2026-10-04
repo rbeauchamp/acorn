@@ -24,13 +24,16 @@ establishes nothing. Every certificate concerns the generated world at its spawn
 before any step: it is not a statement about the world a campaign leaves at the
 start of a later attempt.
 
-The tool's import closure holds neither the agent composition, the campaign
-runner nor the random-policy comparator; the boundary audit refuses such an
-import. Its only world steps replay candidate action lists: each candidate once
-while it is settled, and at most once more by the replay checker. A candidate the
-checker rejects, for instance one longer than the cap, has been replayed and is
-not printed. Its counts are over the listed seeds and do not estimate a fraction
-of the 2^64 seeds.
+The boundary audit refuses an import, direct or transitive, of the agent
+composition (`Acorn.Handcrafted`), the campaign runner or the random-policy
+comparator by the tool's modules, so the tool cannot construct or run any of
+them. Its import closure does hold the attempt protocol and campaign admission,
+through `Acorn.Host.Curriculum`; `execute` starts no attempt, and no audit
+enforces that. Its only world steps replay candidate action lists: each candidate
+once while it is settled, and at most once more by the replay checker. A
+candidate the checker rejects, for instance one longer than the cap, has been
+replayed and is not printed. Its counts are over the listed seeds and do not
+estimate a fraction of the 2^64 seeds.
 -/
 namespace Acorn.Host.CertificateDriver
 open CertificateSearch
@@ -154,7 +157,8 @@ def itemLines {config : WorldConfig} {world : World config} {item : Item} {cap :
   ([stance.1, obtained.1], [stance.2, obtained.2])
 
 /-- Generate one seed's standard world, search it once and check every proposal. No
-agent, comparator or attempt is constructed. -/
+agent, comparator or attempt is constructed: the boundary audit excludes the agent
+composition and the comparator, and only this definition excludes an attempt. -/
 @[noinline] def execute (seed : UInt64) (side : Coordinate) (cap : Nat) :
     Except String Report := do
   let config ← (WorldConfig.standard seed side).mapError fun _ => "world configuration refused"

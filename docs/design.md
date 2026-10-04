@@ -234,12 +234,15 @@ establishes nothing: a goal box that the search cannot walk to from the spawn is
 reported blocked for a body without a boat only when the region around it fits
 that budget.
 
-The tool constructs no agent, comparator or attempt: its import closure holds
-neither the agent composition, the campaign runner nor the random-policy
-comparator, and the boundary audit refuses such an import. Its only world steps
-replay candidate action lists: each candidate once while the search settles it,
-and at most once more by the replay checker. A candidate the checker rejects,
-for instance one longer than the cap, has been replayed and is not printed.
+The boundary audit refuses an import, direct or transitive, of the agent
+composition, the campaign runner or the random-policy comparator by the tool's
+modules, so the tool cannot construct or run any of them. The tool's import
+closure does hold the attempt protocol and campaign admission, which it reaches
+through the curriculum module. Its code starts no attempt, and no audit enforces
+that. Its only world steps replay candidate action lists: each candidate once
+while the search settles it, and at most once more by the replay checker. A
+candidate the checker rejects, for instance one longer than the cap, has been
+replayed and is not printed.
 
 A study can fix its class of worlds before any run by naming a printed verdict,
 for example the seeds for which the far reach line reads `verdict=feasible`,

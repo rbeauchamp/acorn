@@ -223,8 +223,10 @@ lean_exe «world-native» where
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Generator-only certificate tool: proposes certificates for selecting properties of a
-seed and prints what the checkers accept. Its import closure holds no agent composition,
-campaign runner or comparator. -/
+seed and prints what the checkers accept. The boundary audit keeps the agent composition,
+the campaign runner and the comparator out of its import closure. That closure holds the
+attempt protocol and campaign admission through the curriculum; the tool starts no attempt,
+and no audit enforces that. -/
 lean_exe «world-certificates» where
   root := `Acorn.Host.CertificateDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
