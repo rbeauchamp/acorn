@@ -5,12 +5,19 @@ This is the protocol of study `repeated-visits-vs-chance`, the observation that
 assessment asks for ([#61](https://github.com/rbeauchamp/acorn/issues/61)).
 It fixes every choice below before any outcome exists.
 
-**Protocol revision 1. Status when written: not authorized, not run.** This
-file does not follow later status, because a registered revision is not edited
-([revisions](#revisions)); the baseline assessment's U7 row records the current
-status. Writing this protocol does not authorize execution. The
+**Protocol revision 2. Status when written: authorized to run at the commit
+that registers this revision; not run.** This file does not follow later
+status, because a registered revision is not edited ([revisions](#revisions));
+the baseline assessment's U7 row records the current status. The
 [scientific evidence guidance](../../../CONTRIBUTING.md#scientific-evidence)
-requires the owner's explicit authorization before the first run.
+requires the owner's explicit authorization before the first run. The owner
+gave it for this revision, run at its registering commit only, whose `lean/`
+and `scripts/` trees must equal those of d3bc6e0, the commit by which
+[#73](https://github.com/rbeauchamp/acorn/pull/73) landed the change for
+[#58](https://github.com/rbeauchamp/acorn/issues/58). It covers nothing else:
+another revision, commit, source tree or seed list needs a new authorization.
+[Revisions](#revisions) says what this revision changes from revision 1, which
+was registered and never run.
 
 Study [first-pass-vs-chance](../first-pass-vs-chance/results.md) observed one
 pass of the curriculum. In one pass neither arm has met an installed goal
@@ -218,24 +225,58 @@ listed, with
 od -An -N160 -v -tu8 /dev/urandom
 ```
 
-when this revision was written. No seed was discarded or redrawn, and none is a
-seed of study first-pass-vs-chance. No outcome of any run at these seeds was
-observed. The results of study first-pass-vs-chance at its own 20 seeds were
-known when this protocol was written; they concern one pass and other seeds,
-and no value here was fitted to them. The draw itself cannot be audited
-afterwards; that is an attestation, not a proof. There is no development set,
-selection step or held-out set, because nothing is tuned.
+when revision 1 was written. No seed was discarded or redrawn, and none is a
+seed of study first-pass-vs-chance. This revision keeps the list, because no
+run was made at it ([revisions](#revisions)). No outcome of any run of the
+agent or the comparator at these seeds was observed. The results of study
+first-pass-vs-chance at its own 20 seeds were known when this protocol was
+written; they concern one pass and other seeds, and no value here was fitted
+to them. The draw itself cannot be audited afterwards; that is an attestation,
+not a proof. There is no development set, selection step or held-out set,
+because nothing is tuned.
 
-Before registration the built core was run only to check the change that
-carries this revision: that the run command parses, that the record has the
+Before revision 1 was registered the built core was run only to check the
+change that carried it: that the run command parses, that the record has the
 stated shape and that the extraction and calculation commands read it. No run
-before registration used a seed of this study's list, and none produced an
+before that registration used a seed of this study's list, and none produced an
 outcome of this study. The runs are those recorded in the pull request that
-carries this revision
+carried revision 1
 ([#68](https://github.com/rbeauchamp/acorn/pull/68)), including the ones its
-validation pipeline made, and one smoke run made while this protocol was
+validation pipeline made, and one smoke run made while that revision was
 written: seed 1, a world of side 64, a cap of 5 steps and four cycles, 260
 agent steps in all. Their outputs are not part of the record.
+
+**Access between the two registrations.** After revision 1 was registered and
+before any run of this study, the design pass for
+[#69](https://github.com/rbeauchamp/acorn/issues/69) evaluated the generated
+world at each of these 20 seeds. Its tool called the executed terrain,
+initial-world and curriculum definitions (`terrain`, `World.initial`,
+`rawStandardCurriculum`) at commit 3a09466 and searched the tiles itself. It
+constructed no agent and no comparator, took no world step and observed no
+outcome of either arm. For each seed it read the terrain, the spawn and the
+two reach targets, and it found, as an observation whose search code is
+unverified: a body that holds a boat can reach both targets within one
+attempt's cap, from every tile it can occupy, on all 20 seeds; a body without
+a boat can on 17. On the other three, one target's goal box is entirely water:
+the near target's on seeds 18389388507701574072 and 635693954212696868, and the
+far target's on seed 5290812662085785406.
+[The issue's findings](https://github.com/rbeauchamp/acorn/issues/69#issuecomment-5976491601)
+give these counts pooled with the list of study first-pass-vs-chance: 40 of 40
+and 33 of 40. They were known when this revision was written. No value of this
+protocol was set or changed in their light: the seeds, the estimand, the
+margin and the decision rule are those of revision 1, fixed before that
+evaluation existed. No listed seed is removed, reweighted or read differently
+because of them.
+
+In the same interval the built core was run for other changes, by the workers
+and validation pipelines of pull requests, among them
+[#72](https://github.com/rbeauchamp/acorn/pull/72),
+[#73](https://github.com/rbeauchamp/acorn/pull/73) and the one that carries
+this revision. No such run is known to have used a seed of this study's list,
+and none produced an outcome of this study. This is an attestation over the
+records kept, not an audit of every process on the host: the pull request that
+carries this revision records a search of this host's pipeline evidence for
+each listed seed.
 
 ## Estimand, margin and claims
 
@@ -457,24 +498,42 @@ performance cores to other work. Other load changes wall time and no outcome.
 ## Execution
 
 Preconditions: the owner's authorization names this protocol revision and the
-commit to run. That commit contains this revision unchanged, and its Lean
-sources are those of the commit that registered the revision; the first block
-below refuses to continue otherwise. It takes the registering commit to be the
-one that first added this file, which is so because pull requests are
-squash-merged and revision 1 reaches the main branch in one commit. It compares
-this file, the seed list and the Lean sources with that commit. The checkout
-must have full history: a shallow checkout ends at a commit that then appears
-to have added every file, so the block refuses one. Running any other Lean
-sources needs a new revision first.
+commit to run, which is the commit that registered it and no other. The `lean/`
+and `scripts/` trees of that commit hold the Lean sources, the pinned toolchain
+and dependencies and the scripts that verify and build the binary, and they
+equal those of d3bc6e0, in full `d3bc6e0a559a45047e4e666323621b4ca7650f0a`,
+the commit by which [#73](https://github.com/rbeauchamp/acorn/pull/73) landed
+the change for [#58](https://github.com/rbeauchamp/acorn/issues/58). The first
+block below refuses to continue otherwise. It takes the
+registering commit to be the earliest commit that changed how often the words
+`Protocol revision 2.` occur in this file. Revision 1 does not hold those
+words, and pull requests are squash-merged, so revision 2 reaches the main
+branch in one commit: that commit is the earliest one, and the block refuses
+when it finds none. The commit that first added this file, which revision 1's
+block used, is the one that registered revision 1. The block requires the
+commit checked out to be the registering commit, so it refuses every later
+commit, whatever that commit changes; the checkout is clean, so the files run
+are that commit's, this revision and the seed list among them. It then
+requires that commit's `lean/` and `scripts/` trees to equal those of d3bc6e0,
+so it refuses a registering commit that carries any other change to them. The
+checkout must have full history: a shallow checkout ends at a commit that then
+appears to have added every file with its present contents, so the block
+refuses one. Running any other commit or any other sources needs a new
+revision and a new authorization first.
 
 The commands are for this host (macOS, GNU coreutils installed). Each block
 below is a complete bash script, run by bash from the root of the checkout. The
 run script exports a shell function, which zsh, this host's default shell, does
-not do. Before registration the run script was executed only in the runs named
-under [design](#design), with its seed list, side, cap and deadline changed.
-The extraction and calculation commands were executed only against those runs'
-output and against records assembled by hand from the output definitions. No
-script has been executed with a seed of the list.
+not do. The scripts are those of revision 1 with the observations directory and
+the results file renamed, and with the first block finding, checking and
+recording the commit as described here.
+Before revision 1 was registered its run script was executed only in the runs
+named under [design](#design), with its seed list, side, cap and deadline
+changed, and its extraction and calculation commands only against those runs'
+output and against records assembled by hand from the output definitions. The
+executions of this revision's scripts before its registration are recorded in
+the pull request that carries it. No script of either revision has been
+executed with a seed of the list.
 
 Build and record the run identity, from a clean, full-history checkout of the
 authorized commit:
@@ -482,17 +541,18 @@ authorized commit:
 ```bash
 set -euo pipefail
 study=docs/studies/repeated-visits-vs-chance
-out="$study/observations/r1"
+out="$study/observations/r2"
 test -z "$(git status --porcelain)"
 test "$(git rev-parse --is-shallow-repository)" = false
-registered=$(git log --diff-filter=A --format=%H -- "$study/protocol.md" | tail -n 1)
-git diff --quiet "$registered" HEAD -- lean "$study/protocol.md" "$study/seeds.txt"
+registered=$(git log -S'Protocol revision 2.' --format=%H -- "$study/protocol.md" | tail -n 1)
+test -n "$registered"
+test "$(git rev-parse HEAD)" = "$registered"
+git diff --quiet d3bc6e0a559a45047e4e666323621b4ca7650f0a "$registered" -- lean scripts
 ./scripts/verify.sh
 ./scripts/lean.sh build acorn-viewer
 mkdir -p "$out"
 {
   git rev-parse HEAD
-  printf '%s\n' "$registered"
   shasum -a 256 lean/.lake/build/bin/acorn-core "$study/protocol.md" "$study/seeds.txt"
   cat lean/lean-toolchain
   sw_vers
@@ -507,7 +567,7 @@ directory, so it never overwrites a record:
 ```bash
 set -euo pipefail
 study=docs/studies/repeated-visits-vs-chance
-out="$study/observations/r1"
+out="$study/observations/r2"
 run_seed() {
   dir="$out/seed-$1"
   mkdir "$dir" || return 1
@@ -531,7 +591,7 @@ that already has an interrupted record, so no seed is rerun twice:
 
 ```bash
 set -euo pipefail
-out=docs/studies/repeated-visits-vs-chance/observations/r1
+out=docs/studies/repeated-visits-vs-chance/observations/r2
 mkdir -p "$out/interrupted"
 test ! -e "$out/interrupted/seed-N"
 mv "$out/seed-N" "$out/interrupted/seed-N"
@@ -551,7 +611,7 @@ comparator's attempt counts as the core printed them:
 ```bash
 set -euo pipefail
 study=docs/studies/repeated-visits-vs-chance
-out="$study/observations/r1"
+out="$study/observations/r2"
 for dir in "$out"/seed-*; do
   grep -Fqx 'csv written successfully' "$dir/stdout.txt" && csv=complete || csv=incomplete
   agent=$(awk -F, 'NR > 1 && !/^#/ { r = rows++
@@ -572,7 +632,7 @@ for dir in "$out"/seed-*; do
   printf '%s %s %s %s %s %s\n' "${dir##*seed-}" \
     "$(cat "$dir/exit-status.txt" 2> /dev/null || echo absent)" "$csv" "$agent" "$comparator" \
     "$(sed -n 's/^distinct goals achieved .* (agent used \([0-9]*\) attempts; random policy used \([0-9]*\))$/\1 \2/p' "$dir/stdout.txt")"
-done > "$study/results-r1.txt"
+done > "$study/results-r2.txt"
 ```
 
 A line whose status is not 0, or whose CSV is incomplete, is a missing seed.
@@ -592,7 +652,7 @@ awk '$2 == 0 && $3 == "complete" { v++
   END { if (bad) { print "derived-check violation on", bad, "valid line(s): no decision"
       exit 1 }
     print "W", w + 0, "losses", l + 0, "ties", v - w - l, "M", 20 - v }' \
-  docs/studies/repeated-visits-vs-chance/results-r1.txt
+  docs/studies/repeated-visits-vs-chance/results-r2.txt
 ```
 
 The [decision rule](#decision-rule) gives the result, and the interval table
@@ -600,9 +660,9 @@ gives the interval's lower end at W and its upper end at W + M.
 
 ## Records
 
-- **Run identity.** Each run is `repeated-visits-vs-chance/r1/seed-N` for its
+- **Run identity.** Each run is `repeated-visits-vs-chance/r2/seed-N` for its
   seed N, and an interrupted run that was rerun is
-  `repeated-visits-vs-chance/r1/interrupted/seed-N`. An empirical citation names
+  `repeated-visits-vs-chance/r2/interrupted/seed-N`. An empirical citation names
   the study, the revision, the run or runs and the comparison.
 - **Original observations.** Each seed's directory holds the outcome CSV, the
   standard output, the standard error with the resource report, and the exit
@@ -611,9 +671,9 @@ gives the interval's lower end at W and its upper end at W + M.
   ([outcome CSV](../../design.md#outcome-csv)). An interrupted run's directory
   holds whatever that run wrote. They are never edited. The extracted results
   file and any written summary are presentations, kept apart from them.
-- **Source and environment.** The identity file records the commit run, the
-  commit that registered the revision, the SHA-256 of the binary, of this
-  protocol and of the seed list, the toolchain, the operating system, the
+- **Source and environment.** The identity file records the commit run, which
+  is the commit that registered the revision, the SHA-256 of the binary, of
+  this protocol and of the seed list, the toolchain, the operating system, the
   processor and the start time.
 - **Timing.** This revision reaches the main branch before the first run.
   GitHub's record of the merge is the independent time of registration; run
@@ -667,6 +727,16 @@ confirmatory test, so no multiplicity adjustment applies.
   different inventories, and an arm that owns a boat can cross water the other
   cannot. The comparator meets these mechanisms but not in the same amounts, so
   a win does not by itself exclude them, and it credits no single mechanism.
+- **Need.** The result is a comparison with one named policy, the
+  uniform-random comparator. It is not evidence that the reach goals need
+  continual learning, and no such need is proved. `Goal.observe` gives the
+  agent the exact displacement of the installed target
+  (`ReachRelation.between`), so a fixed rule that steps toward the target
+  arrives wherever no water or mountain is in the way, with nothing to learn
+  but the way round them
+  ([#69](https://github.com/rbeauchamp/acorn/issues/69)). A win therefore
+  says the agent's reach attempts shortened by more than chance's, not that
+  the agent met a goal that no agent without learning can meet.
 - **A refuted or inconclusive result** does not show that the agent cannot
   learn the reach goals. The agent is rewarded for a goal only when it achieves
   it (item 6), so an agent that never reaches a target on its early visits has
@@ -687,3 +757,30 @@ directory; its seeds are redrawn only if a run was made at the old ones. After
 the run, the only edits are corrections that follow a renamed declaration or a
 moved link. The identity file holds the hash of the
 revision as run, and Git holds its text.
+
+**Revision 2** is this revision. Revision 1 was registered by
+[#68](https://github.com/rbeauchamp/acorn/pull/68) and never run. Its
+execution block runs only the Lean sources of the commit that registered it,
+and the owner authorized the run for the sources that include the change of
+[#73](https://github.com/rbeauchamp/acorn/pull/73), which makes the agent's
+persistent exploration run whichever layer is acting
+([#58](https://github.com/rbeauchamp/acorn/issues/58)). Running those sources
+needs this revision. It changes:
+
+- the commit run, to the commit that registers revision 2 and no other, whose
+  `lean/` and `scripts/` trees must equal those of d3bc6e0, the commit by which
+  #73 landed the change for #58, where revision 1 allowed a later commit that
+  left the Lean sources, the protocol and the seed list unchanged; and with it
+  the rule by which the first execution block finds and checks that commit, and
+  the identity file, which records one commit where revision 1's recorded two;
+- the observations directory, the results file and the run identities, from
+  r1 to r2;
+- the record of prior access, which now discloses the generator-only
+  evaluation made at these seeds between the two registrations
+  ([design](#design)), and the statement that the result is a comparison with
+  one named policy ([limits](#what-a-result-will-and-will-not-establish));
+- the status line and the sentences that name the revision.
+
+The question, the design, the seeds, the estimand, the margin, the uncertainty
+method, the decision rule, the stopping rule and the budget are those of
+revision 1. The seeds are not redrawn, because no run was made at them.

@@ -50,8 +50,8 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   one pass of the curriculum from a fresh agent, the agent achieved more goals
   than a uniform-random policy on 4 of 20 seeds
   ([U6](#conformance-sequence)). Whether it learns over a longer horizon has
-  not been observed; a study of repeated visits has a protocol and has not been
-  run ([U7](#conformance-sequence)).
+  not been observed; a study of repeated visits has a registered, authorized
+  protocol and has not been run ([U7](#conformance-sequence)).
 
 The defects survived for an instructive reason. Acorn's proofs state safety and
 admission properties, such as "the stored state stays legal" or "this identity
@@ -493,7 +493,7 @@ derivation, not measurement.
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
-| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Protocol written; not authorized, not run** ([protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)) |
+| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Revision 2 registered and authorized; not run** ([protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). The owner authorized execution of revision 2 at the commit that registers it only, whose `lean/` and `scripts/` trees must equal those of d3bc6e0, the commit that landed [#58](https://github.com/rbeauchamp/acorn/issues/58) |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
@@ -525,9 +525,20 @@ arm can achieve more goals in a later cycle on what it kept, without anything
 being learned, so the protocol compares the steps of each arm's first two
 visits to the two reach goals with those of its next two, over four cycles and
 20 new seeds. A seed counts for the agent only when its own attempts shorten
-and shorten by more than the comparator's. It is written and not authorized,
-and nothing has been run: whether the agent learns over repeated visits is
-still UNKNOWN.
+and shorten by more than the comparator's. Revision 1 was registered and never
+run. Revision 2 keeps its seeds, estimand, margin and decision rule and runs
+the sources that include the exploration change of
+[#73](https://github.com/rbeauchamp/acorn/pull/73); the owner authorized its
+execution at the commit that registers it only, whose `lean/` and `scripts/`
+trees must equal those of d3bc6e0, the commit by which #73 landed the change
+for [#58](https://github.com/rbeauchamp/acorn/issues/58), and the protocol's
+first block refuses any other. It discloses that, between the two
+registrations, the design pass for
+[#69](https://github.com/rbeauchamp/acorn/issues/69) evaluated the generated
+world at its seeds without running an agent or a comparator, and that its
+result is a comparison with one named policy, not evidence that the reach
+goals need continual learning. Nothing has been run: whether the agent learns
+over repeated visits is still UNKNOWN.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
