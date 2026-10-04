@@ -12,6 +12,7 @@ import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.GoalProtocol
+import Acorn.Host.Viewer.WireNumber
 import Acorn.Host.Viewer.WorldMemory
 
 /-!
@@ -27,9 +28,11 @@ fails the Regula audit.
 
 ## Selection rule
 
-A decision is registered here when a theorem beside its definition states a direction of its
-verdict, or when both directions follow by unfolding the definition in this module. Three
-groups are registered.
+A decision is registered here when a theorem beside its definition proves a property of its
+accepted or refused results, or when the inputs it accepts follow by unfolding its definition
+in this module. The property is the set of accepted or refused inputs where a theorem states
+one, and otherwise what an accepted or a refused result is; each contract's docstring says
+which. Three groups are registered.
 
 * Decisions of independent arguments carry a kind and the registration. A function of several
   arguments is decided on their product through `Function.uncurry`.
@@ -48,25 +51,40 @@ is not registered here, and the ownership audit requires its contract in the sam
 
 ## Decisions that are not registered
 
-The Regula audit requires a contract of a registered function and does not find a decision
-that is not registered. The groups below are not registered; each is recorded with the
-evidence that stands for it.
+The Regula audit requires a contract of a registered function whose result type is not
+`Decidable _`, and it does not find a decision that is not registered. The groups below are
+not registered; each is recorded with the evidence that stands for it.
 
-* A dependent admission that applies other admissions in sequence has no contract of its own.
+This record covers the `Acorn` library. `NativeApp` and `Bootstrap` are separate claimed
+libraries: Regula counts only a contract of the function's own library and refuses a
+registration written for a declaration of another, so this module can register none of their
+functions. The parsers of `NativeApp` are `NativeApp.decodeBuildIdentity`,
+`NativeApp.auditHex` and `NativeApp.auditOptions`, each of fixed types with no theorem about
+the inputs it accepts. `Bootstrap` decides only in `IO`.
+
+* An admission that applies other admissions in sequence has no contract of its own.
   `Prediction.admit` and `LogStepSize.admit` are `Bounded32.admit` at a derived interval,
-  `Lifetime.SumCount.admit` is the body of `Checkpoint.admitSum`, and `Assignment.admit` is
-  `Assignment.admitUsing` at the bank's slot function (`Assignment.wordsUsing_roundtrip`).
-  `Controller.stepRaw` refuses exactly when `Action.admit` does
-  (`Controller.stepRaw_refuses`), `Agent.restore` exactly when the resumable-profile test
-  does (`Agent.restore_refuses`), and `FeatureProfile.admit` applies that test before
-  `FeatureImage.admit` (`FeatureProfile.unsupported_refuses`). `FeatureImage.admit`,
-  `Checkpoint.admitDemons`, `Checkpoint.admitPayload` and `Checkpoint.loadCandidate` compose
-  the checkpoint admissions; their round trips are proved in `AcornVerif.CurrentCheckpoint`
-  (`feature_roundtrip`, `demons_roundtrip`, `image_roundtrip`, `candidate_roundtrip`). An
-  accepting result of `Host.Viewer.authorizeCommand` carries the verdicts of
-  `ControlHeaders.authorizes` and `controlCommand` as fields of its type.
-* `Host.Viewer.Buffer.offer` is polymorphic in its element type, which no kind admits;
-  `Buffer.offer_iff` states its acceptance.
+  `Lifetime.SumCount.admit` is the body of `Checkpoint.admitSum`, and `Assignment.admitUsing`
+  is the body of `Assignment.admit`, which applies it at the bank's slot function
+  (`Assignment.wordsUsing_roundtrip`). `Controller.stepRaw` and
+  `PredictionControl.advanceRaw` refuse exactly when `Action.admit` does
+  (`Controller.stepRaw_refuses`, `PredictionControl.raw_refusal`), `Agent.restore` exactly
+  when the resumable-profile test does (`Agent.restore_refuses`), and `FeatureProfile.admit`
+  applies that test before `FeatureImage.admit` (`FeatureProfile.unsupported_refuses`).
+  `FeatureImage.admit`, `Checkpoint.admitDemons`, `Checkpoint.admitPayload` and
+  `Checkpoint.loadCandidate` compose the checkpoint admissions; their round trips are proved
+  in `AcornVerif.CurrentCheckpoint` (`feature_roundtrip`, `demons_roundtrip`,
+  `image_roundtrip`, `candidate_roundtrip`). `Host.Position.translate` applies
+  `Host.Coordinate.checked` to each coordinate. `Host.Viewer.coreTelemetryLine` and
+  `Host.Viewer.controlTelemetryLine` apply `wireText` to the line they emit, and
+  `Host.Viewer.WorldMemory.frame` applies `sseLine` to its frame. An accepting result of
+  `Host.Viewer.authorizeCommand` carries the verdicts of `ControlHeaders.authorizes` and
+  `controlCommand` as fields of its type.
+* `Host.Viewer.Buffer.offer`, `Checkpoint.decodeList` and `Checkpoint.decodeListInto` are
+  polymorphic in their element type, which no kind admits. `Buffer.offer_iff` states the
+  acceptance of the first, and `Checkpoint.list_roundtrip` and
+  `Checkpoint.list_into_roundtrip` the round trips of the other two. Every
+  `Checkpoint.Codec` carries the round trip of its own decoder as a field.
 * An effect with a pure core is covered through that core. `Checkpoint.loadFile` returns the
   verdict of `Checkpoint.load` on the bytes it read, and `Checkpoint.Store.save` refuses with
   `Checkpoint.saveBytes`; both cores are registered below. An effect with no pure core
@@ -78,23 +96,31 @@ evidence that stands for it.
 * A parser or test of fixed types with no theorem about the inputs it accepts is not
   registered, because no direction of its verdict is proved. Nothing states which inputs it
   accepts; what stands is the type of an accepted value alone. These are the command-line
-  parsers `Host.Cli.scan`, `Host.Cli.value`,
-  `Host.Cli.required`, `Host.Cli.natural`, `Host.Cli.unsigned`, `Host.Cli.side`,
-  `Host.Cli.profile`, `Host.Cli.criterion`, `Host.Cli.command`, `Host.Cli.demo`,
-  `Host.Cli.dispatch`, `Host.AgentArguments.profile`, `Host.AgentArguments.word`,
-  `Host.AgentArguments.admit`, `Host.Viewer.ViewerOptions.decode` and `Host.parseControl`; the
-  JSON parser `Json.parse` with its readers `Json.Value.text`, `Json.Value.natural`,
-  `Json.Value.list`, `Json.Value.fields` and `Json.decode`; and the viewer parsers
-  `Host.Viewer.Command.parse`, `Host.Viewer.controlCommand`, `Host.Viewer.jsonField`,
-  `Host.Viewer.jsonWord`, `Host.Viewer.jsonBrowserClock`, `Host.Viewer.jsonBool`,
-  `Host.Viewer.runWord`, `Host.Viewer.healthFromJson`, `Host.Viewer.captureFromJson`,
-  `Host.Viewer.HealthEnvelope.parse`, `Host.Viewer.Envelope.parse`, `Host.Viewer.LineBytes.text`,
-  `Host.Viewer.terrainFromJson`, `Host.Viewer.sensedFromJson`,
-  `Host.Viewer.SensedEnvelope.parse`, `Host.Viewer.coreIdentityFromJson`,
-  `Host.Viewer.coreIdentity`, `Host.Viewer.PersistedState.decode`,
-  `Host.Viewer.residentBytes`, `Host.Viewer.MapBytes.admit`, `Host.Viewer.decodeMapRuns` and
-  `Host.Viewer.decodeMap`. A Boolean test that no theorem characterizes, such as
-  `Host.Viewer.Lifecycle.acceptsFailure`, is in this group too.
+  parsers `Host.Cli.scan`, `Host.Cli.value`, `Host.Cli.required`, `Host.Cli.natural`,
+  `Host.Cli.unsigned`, `Host.Cli.side`, `Host.Cli.profile`, `Host.Cli.criterion`,
+  `Host.Cli.command`, `Host.Cli.demo`, `Host.Cli.dispatch`, `Host.AgentArguments.profile`,
+  `Host.AgentArguments.word`, `Host.AgentArguments.admit`, `Host.Viewer.ViewerOptions.decode`
+  and `Host.parseControl`; the JSON parser `Json.parse` with its readers `Json.Value.text`,
+  `Json.Value.natural`, `Json.Value.list`, `Json.Value.fields` and `Json.decode`; and the
+  viewer parsers `Host.Viewer.Command.parse`, `Host.Viewer.controlCommand`,
+  `Host.Viewer.jsonField`, `Host.Viewer.jsonWord`, `Host.Viewer.jsonBrowserClock`,
+  `Host.Viewer.jsonBool`, `Host.Viewer.runWord`, `Host.Viewer.healthFromJson`,
+  `Host.Viewer.captureFromJson`, `Host.Viewer.HealthEnvelope.parse`,
+  `Host.Viewer.Envelope.parse`, `Host.Viewer.LineBytes.text`, `Host.Viewer.terrainFromJson`,
+  `Host.Viewer.sensedFromJson`, `Host.Viewer.SensedEnvelope.parse`,
+  `Host.Viewer.coreIdentityFromJson`, `Host.Viewer.coreIdentity`,
+  `Host.Viewer.PersistedState.decode`, `Host.Viewer.residentBytes`,
+  `Host.Viewer.MapBytes.admit`, `Host.Viewer.decodeMapRuns`, `Host.Viewer.decodeMap` and
+  `Host.Viewer.mapRunsBase64`. Kinds for these parsers against written grammars are the
+  subject of https://github.com/rbeauchamp/acorn/issues/81. The path test
+  `Checkpoint.temporaryPath` and the identity test `Host.Viewer.Identity.browserSafe` are in
+  this group too.
+* A Boolean predicate over state the library has already admitted, such as
+  `Host.Viewer.Lifecycle.acceptsFailure`, `Host.Viewer.Capture.follows` or
+  `Features.Lifecycle.eligible`, selects a branch of a transition and has no contract. The
+  theorems about those transitions stand; for the viewer the ownership audit requires
+  `Lifecycle.stale_preserves`, `Lifecycle.retire_revokes` and
+  `Admission.rejected_preserves_history`.
 * A derived `DecidableEq` or `BEq` instance is generated by Lean and is not registered.
 
 A definition whose optional or Boolean result reports a selection, a lookup or the outcome of
@@ -298,6 +324,20 @@ theorem bonus_admit : Regula.ExecutableContract Bonus.admit
     ⟨⟨0x3f800000⟩, by decide⟩ ⟨.zero, by decide⟩⟩
 
 attribute [regula_decision] Bonus.admit
+
+/-- A prediction word of the Demon-0 range is a bonus exactly when its signed key is
+positive. -/
+theorem bonus_of_weight : Regula.ExecutableContract Bonus.ofWeight
+    (Regula.Decides (·.isSome = true)
+      (fun weight : Prediction .g99 => 0 < weight.value.key)) :=
+  ⟨decides
+    (fun weight => by
+      show (Bonus.ofWeight weight).isSome = true ↔ _
+      unfold Bonus.ofWeight
+      split <;> simp_all)
+    ⟨⟨⟨0x3f800000⟩, by decide⟩, by decide⟩ ⟨⟨.zero, by decide⟩, by decide⟩⟩
+
+attribute [regula_decision] Bonus.ofWeight
 
 /-- Prediction-list admission accepts exactly the lists within the prediction-channel count. -/
 theorem predictions_admit : Regula.ExecutableContract Predictions.admit
@@ -879,6 +919,30 @@ theorem wire_text : Regula.ExecutableContract wireText
 
 attribute [regula_decision] wireText
 
+/-- Binary32 field extraction accepts exactly the finite words. -/
+theorem binary32_dyadic : Regula.ExecutableContract binary32Dyadic
+    (Regula.Decides (·.isSome = true) (fun value : Binary32 => value.Finite)) :=
+  ⟨decides
+    (fun value => by
+      show (binary32Dyadic value).isSome = true ↔ _
+      unfold binary32Dyadic
+      split <;> simp_all)
+    ⟨.zero, by decide⟩ ⟨⟨0x7fc00000⟩, by decide⟩⟩
+
+attribute [regula_decision] binary32Dyadic
+
+/-- Binary64 field extraction accepts exactly the finite words. -/
+theorem binary64_dyadic : Regula.ExecutableContract binary64Dyadic
+    (Regula.Decides (·.isSome = true) (fun value : Binary64 => value.Finite)) :=
+  ⟨decides
+    (fun value => by
+      show (binary64Dyadic value).isSome = true ↔ _
+      unfold binary64Dyadic
+      split <;> simp_all)
+    ⟨⟨0⟩, by decide⟩ ⟨⟨0x7ff8000000000000⟩, by decide⟩⟩
+
+attribute [regula_decision] binary64Dyadic
+
 /-- Folding the byte differences of a list against itself leaves the accumulator unchanged. -/
 private theorem difference_self (bytes : List UInt8) (difference : UInt8) :
     (bytes.zip bytes).foldl (fun (difference : UInt8) pair => difference ||| (pair.1 ^^^ pair.2))
@@ -946,7 +1010,8 @@ An argument or result type of each function below is indexed by an earlier argum
 receiving interval, the value rule, the feature dimension, the bank configuration or the agent
 construction. A decision kind is stated about a function between two fixed types, so none
 applies. The proved statement about each function is registered as an ordinary requirement,
-reported with no kind, and its docstring says which direction it covers. -/
+reported with no kind. Its docstring says what the statement covers: the inputs the function
+accepts or refuses, or a property of an accepted or a refused result. -/
 
 /-- Bounded admission refuses exactly the words outside the receiving interval
 (`Bounded32.admit_refuses`). -/
@@ -1047,6 +1112,44 @@ theorem campaign_admit : Regula.ExecutableContract Host.CampaignPlan.admit (fun 
       · simp [steps, productive, Except.isOk, Except.toBool]
       · simp [steps, productive, Except.isOk, Except.toBool]
     · simp [steps, Except.isOk, Except.toBool]⟩
+
+/-- The distinctness test accepts exactly the assignment tables in which no two slots hold the
+same unit (`Assignment.distinct_iff`). -/
+theorem assignment_distinct : Regula.ExecutableContract @Assignment.distinct (fun test =>
+    ∀ (config : Features.Config)
+      (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount),
+      @test config table = true ↔ Assignment.Distinct table) :=
+  ⟨@Assignment.distinct_iff⟩
+
+/-- Harvest-key admission accepts exactly the positions of the receiving box extended by one
+tile on every side. -/
+theorem harvest_key : Regula.ExecutableContract Host.harvestKey (fun admit =>
+    ∀ (config : Host.WorldConfig) (position : Host.Position),
+      (admit config position).isSome = true ↔
+        (-1 ≤ position.x.val ∧ position.x.val ≤ config.side) ∧
+          (-1 ≤ position.y.val ∧ position.y.val ≤ config.side)) :=
+  ⟨fun config position => by
+    unfold Host.harvestKey
+    by_cases column : -1 ≤ position.x.val ∧ position.x.val ≤ config.side
+    · by_cases row : -1 ≤ position.y.val ∧ position.y.val ≤ config.side <;>
+        simp [column, row]
+    · simp [column]⟩
+
+/-- Map-index admission accepts exactly the coordinates inside the receiving map side. -/
+theorem map_index : Regula.ExecutableContract mapIndex (fun admit =>
+    ∀ (side : MapSide) (x y : Int), (admit side x y).isSome = true ↔
+      0 ≤ x ∧ x < side.val ∧ 0 ≤ y ∧ y < side.val) :=
+  ⟨fun side x y => by
+    unfold mapIndex
+    split <;> simp_all⟩
+
+/-- Event-line admission accepts exactly the texts within the receiving capacity that hold
+neither newline character. -/
+theorem sse_line : Regula.ExecutableContract sseLine (fun admit =>
+    ∀ (capacity : Nat) (text : String), (admit capacity text).isSome = true ↔
+      text.utf8ByteSize ≤ capacity ∧ text.contains '\n' = false ∧
+        text.contains '\r' = false) :=
+  ⟨fun _ _ => dite_isSome _⟩
 
 /-- Frame decoding accepts the encoding of every payload of the receiving dimension and
 returns that payload (`Checkpoint.roundtrip`).

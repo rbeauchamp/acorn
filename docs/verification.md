@@ -282,24 +282,29 @@ FloatLib import by any executing module. The compiler, native runtime, operating
 system and spawned processes stay trusted in both modes. AcornTools is excluded
 with the six tool executables; it is the reviewed tooling trust boundary.
 
-`lean/Acorn/Decisions.lean` registers the library's decision functions whose
-direction is proved. A decision function is an admission, parser or validity
-test: its result accepts or refuses an input.
-Each registration is a Regula executable contract about the executing definition
-itself, with the kind its proof establishes. A two-way kind states that the
-function accepts exactly the inputs that satisfy the written specification, with
-one accepted and one refused input as witnesses. Regula's decision attribute
-makes the contract a requirement of the function, so the audit fails when a
-contract is removed while its function stays registered. An admission with an
-argument or result type that depends on an earlier argument has no kind. Where a
-theorem beside its definition states a direction, that theorem is registered as
-an ordinary requirement, which the audit reports with no kind, and the ownership
-audit requires the contract by name. The audit does not find a decision function
-that is not registered. The module's documentation states the selection rule and
-lists the groups that are not registered with the evidence that stands for each:
-composed admissions, effects with no pure core, and the command-line, JSON and
-viewer parsers, for which no direction is proved. No kind says that a
-specification is the intended one. `Acorn.Decisions` belongs to the Acorn library
+`lean/Acorn/Decisions.lean` registers the library's decision functions for which
+a property of the accepted or refused result is proved. A decision function is
+an admission, parser or validity test: its result accepts or refuses an input.
+A registration of a function between fixed types is a Regula executable contract
+about the executing definition itself, with the kind its proof establishes. A
+two-way kind states that the function accepts exactly the inputs that satisfy
+the written specification, with one accepted and one refused input as witnesses.
+Regula's decision attribute makes the contract a requirement of the function, so
+the audit fails when a contract is removed while its function stays registered.
+A decision procedure whose result type is `Decidable` carries both directions in
+its type and is registered with no contract. An admission with an argument or
+result type that depends on an earlier argument has no kind. Where a theorem
+proves which inputs it accepts or refuses, or a property of an accepted or a
+refused result, that statement is registered as an ordinary requirement, which
+the audit reports with no kind, and the ownership audit requires the contract by
+name. The audit does not find a decision function that is not registered. The
+module's documentation states the selection rule and lists the groups of the
+Acorn library that are not registered with the evidence that stands for each:
+composed and polymorphic admissions, effects with no pure core, and the
+command-line, JSON and viewer parsers, for which no direction is proved. It
+cannot register a function of another library, such as a NativeApp parser. No
+kind says that a specification is the intended one. `Acorn.Decisions` belongs to
+the Acorn library
 because Regula decides a registered function against the contracts of the
 function's own library. It is the only module that imports Regula's decision
 attribute. It declares no executing definition and no module imports it; the
