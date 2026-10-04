@@ -21,7 +21,7 @@ open Lean
 /-- All reviewed maintained modules; filesystem discovery rejects missing or extra owners. -/
 def modules : Array Name := #[
   `AcornTools,
-  `Acorn, `Acorn.Constants, `Acorn.Admission, `Acorn.AgentDriver,
+  `Acorn, `Acorn.Constants, `Acorn.Admission, `Acorn.AgentDriver, `Acorn.Decisions,
   `Acorn.Arithmetic, `Acorn.Average, `Acorn.Control,
   `Acorn.ControlDriver, `Acorn.Conversion, `Acorn.Demon,
   `Acorn.Encoding, `Acorn.Exploration, `Acorn.FeatureConstants,

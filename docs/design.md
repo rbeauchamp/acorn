@@ -438,6 +438,10 @@ updated values must satisfy the same admission as initial construction. Learned
 code cannot import host/handcrafted owners except at explicit composition roots.
 A provenance witness declares an origin; review must assess whether it is honest.
 The viewer receives telemetry and requests lifecycle stop only.
+[Acorn.Decisions](../lean/Acorn/Decisions.lean) registers the admissions, parsers
+and validity tests of the executing library with the direction each proof
+establishes; the [Regula audit](verification.md#regula-audit) requires a contract
+of every registered function.
 
 Core calls select an explicit research profile. The [prior-art register](prior-art-review.md#current-default-qualification)
 records qualification decisions. Each proof states its hypotheses, including

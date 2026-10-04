@@ -280,6 +280,23 @@ FloatLib import by any executing module. The compiler, native runtime, operating
 system and spawned processes stay trusted in both modes. AcornTools is excluded
 with the six tool executables; it is the reviewed tooling trust boundary.
 
+`lean/Acorn/Decisions.lean` registers the library's decision functions: the
+admissions, parsers and validity tests whose result accepts or refuses an input.
+Each registration is a Regula executable contract about the executing definition
+itself, with the kind its proof establishes. A two-way kind states that the
+function accepts exactly the inputs that satisfy the written specification, with
+one accepted and one refused input as witnesses. Regula's decision attribute
+makes the contract a requirement of the function, so the audit fails when a
+contract is removed while its function stays registered. A function whose result
+type depends on an argument has no kind; its refusal theorem is registered as an
+ordinary requirement, which the audit reports with no kind. The audit does not
+find a decision function that is not registered, and no kind says that a
+specification is the intended one. `Acorn.Decisions` is the only module that
+imports Regula. It belongs to the Acorn library because Regula decides a
+registered function against the contracts of the function's own library. It
+declares no executing definition and no module imports it; the boundary audit
+admits it with the proof sources and refuses an import of it.
+
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial
 definitions, an axiom outside the claim, a module that no library includes, and

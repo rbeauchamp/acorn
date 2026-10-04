@@ -52,9 +52,16 @@ def siteModules : IO (Array Name) :=
 def projectModules : IO (Array Name) := do
   return (← allModules).filter (!toolingModules.contains ·)
 
+/-- The registration leaf of the executing library: Regula executable contracts about the
+executing definitions, and their decision registrations. It belongs to the `Acorn` library
+because Regula decides a registered function against the contracts of the function's own
+library. It declares no executing definition, and no module may import it. -/
+def decisionRegistry : Name := `Acorn.Decisions
+
 /-- Every current native module needs an actual object and compiler trace, even
-when no executable imports its library root. -/
+when no executable imports its library root. The decision registry is no native module:
+it states contracts and is linked into no entry point. -/
 def nativeModule (owner : Name) : Bool :=
-  (`Acorn).isPrefixOf owner || (`NativeApp).isPrefixOf owner
+  owner != decisionRegistry && ((`Acorn).isPrefixOf owner || (`NativeApp).isPrefixOf owner)
 
 end AcornModuleInventory
