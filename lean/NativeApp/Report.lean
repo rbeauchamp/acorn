@@ -41,8 +41,9 @@ def outcomeCsv (outcome : GoalOutcome) : String :=
   s!"{outcome.index},{outcome.attempt},{outcome.tier},{outcome.steps},{if outcome.achieved then 1 else 0},{numberText outcome.reward},{numberText outcome.learner.demonError},{numberText outcome.learner.epsilon},{numberText outcome.learner.meanAlpha},{outcome.position.x.val},{outcome.position.y.val}\n"
 
 /-- One comparator attempt, as a comment line so that a reader of the agent's
-rows skips it. It names the fields the comparator has: its row carries the cycle
-its attempt was made in and no learner observation. -/
+rows skips it. It names the cycle the attempt was made in, which an agent row
+does not hold, and omits the tier, which the agent's rows give at the same
+index. The comparator's row has no reward total and no learner observation. -/
 def baselineCsv (outcome : BaselineOutcome) : String :=
   s!"# baseline cycle={outcome.context.cycle} index={outcome.context.index} attempt={outcome.context.attempt} steps={outcome.steps} achieved={if outcome.achieved then 1 else 0} x={outcome.position.x.val} y={outcome.position.y.val}\n"
 
