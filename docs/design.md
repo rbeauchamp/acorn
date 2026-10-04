@@ -250,10 +250,12 @@ carries from attempt to attempt: the same requested goals, attempts per goal,
 cycles and step cap. With `--csv`, each of its attempts is recorded in a comment
 line before the footer, in campaign order, in the form shown above. `cycle` is
 the cycle of the attempt, from 0; the other fields mean what the columns of the
-same names mean. The comparator has no learner, so those fields are absent. An
-agent row holds no cycle: rows are written in campaign order, so with one
-attempt per goal the row numbered r from 0 belongs to cycle ⌊r / goals⌋. These
-lines are written only when the comparator's campaign completed. A campaign
+same names mean. The line has no tier, reward or learner field: the comparator
+has no learner and keeps no reward total, and a goal's tier is the one in the
+agent's rows at the same index. An agent row holds no cycle: rows are written
+in campaign order, so with one attempt per goal the row numbered r from 0
+belongs to cycle ⌊r / goals⌋. These lines are written only when the
+comparator's campaign completed. A campaign
 with `--cycles 0` never completes, so it has no comparator record: command
 admission (`Cli.demo` in [the CLI definition](../lean/Acorn/Host/Cli.lean))
 refuses `--baseline` with `--cycles 0` before the agent runs.
