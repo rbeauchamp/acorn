@@ -74,7 +74,8 @@ theorem lifetime_roundtrip (record : Durable demonLayout) (valid : OptionsValid 
 
 /-- The exact receiver identity and supported-profile header is admitted without normalization. -/
 theorem header_roundtrip (construction : AgentConstruction)
-    (image : AgentImage construction.config construction.criterion construction.dimension)
+    (image : AgentImage Grid.interface construction.config construction.criterion
+      construction.dimension)
     (supported : construction.profile.checkpointSupported = true) :
     admitHeader construction (imagePayload construction image).header = .ok image.gain := by
   have units : construction.config.units.count.toUInt32.toNat = construction.config.units.count :=
@@ -85,7 +86,8 @@ theorem header_roundtrip (construction : AgentConstruction)
 
 /-- Raw feature words reconstruct the exact saved progress, objectives and primary image. -/
 theorem feature_roundtrip (construction : AgentConstruction)
-    (image : AgentImage construction.config construction.criterion construction.dimension) :
+    (image : AgentImage Grid.interface construction.config construction.criterion
+      construction.dimension) :
     FeatureImage.admit construction.config construction.criterion construction.dimension
       ⟨construction.config.seed, construction.config.tilings,
         construction.config.units.count.toUInt32.toUInt16,
@@ -113,7 +115,8 @@ theorem feature_roundtrip (construction : AgentConstruction)
 
 /-- Full admission preserves every typed image, including both signed-zero encodings. -/
 theorem image_roundtrip (construction : AgentConstruction)
-    (image : AgentImage construction.config construction.criterion construction.dimension)
+    (image : AgentImage Grid.interface construction.config construction.criterion
+      construction.dimension)
     (supported : construction.profile.checkpointSupported = true) :
     admitPayload construction (imagePayload construction image) = .ok image := by
   unfold admitPayload
@@ -195,7 +198,8 @@ theorem encoded_minimum (dimension : Dimension) (payload : Payload dimension) :
 
 /-- The actual complete-candidate loader round-trips every admitted typed image. -/
 theorem candidate_roundtrip (construction : AgentConstruction)
-    (image : AgentImage construction.config construction.criterion construction.dimension)
+    (image : AgentImage Grid.interface construction.config construction.criterion
+      construction.dimension)
     (supported : construction.profile.checkpointSupported = true) :
     loadCandidate construction (encode construction.dimension (imagePayload construction image)) =
       .ok image := by

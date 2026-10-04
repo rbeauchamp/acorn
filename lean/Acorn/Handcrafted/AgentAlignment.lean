@@ -23,8 +23,9 @@ with the slot-stable ranking of the Demon-0 weights it started from installed
 namespace Acorn.Handcrafted
 open Features
 
-variable {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
-    {profile : FeatureProfile} {discounts : List Discount} {shape : PatchShape} {payload : Type}
+variable {interface : Interface} {actions : Word.Count} {config : Features.Config}
+    {criterion : Criterion} {dimension : Dimension} {profile : FeatureProfile}
+    {discounts : List Discount} {shape : PatchShape} {payload : Type}
 
 /-- Exactly the interests the current complete agent can supply. -/
 def _root_.Acorn.Features.Interest.Aligned (interest : Interest config) : Prop :=
@@ -33,18 +34,18 @@ def _root_.Acorn.Features.Interest.Aligned (interest : Interest config) : Prop :
   | .declared origin _ => origin = .spatialPotentials
 
 /-- A complete receiving table has no unresolved declared source. -/
-def _root_.Acorn.Features.Ensemble.Aligned (state : Ensemble config criterion dimension discounts) : Prop :=
+def _root_.Acorn.Features.Ensemble.Aligned (state : Ensemble actions config criterion dimension discounts) : Prop :=
   ∀ slot : Fin Acorn.FeatureConstants.skillCount, state.skills[slot.val].interest.Aligned
 
 /-- The complete temporal state carries that same table, rather than a copied assignment list,
 with every source admitted and distinct held units. -/
-abbrev TemporalControl.Aligned (state : TemporalControl profile config criterion dimension) : Prop :=
+abbrev TemporalControl.Aligned (state : TemporalControl interface profile config criterion dimension) : Prop :=
   state.runtime.lifecycle.consumers.Aligned ∧ state.runtime.lifecycle.consumers.Distinct
 
-/-- Each admitted interest receives a potential from the actual observation adapter. -/
+/-- Each admitted interest receives a potential from every frame. -/
 theorem _root_.Acorn.Features.Interest.aligned_potential (interest : Interest config) (aligned : interest.Aligned)
-    (features : SwiftTd.ActiveSet dimension) (observation : Host.Observation) :
-    ∃ potential, interest.potential features (spatialPotentials observation) = some potential := by
+    (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) :
+    ∃ potential, interest.potential features observation.declared = some potential := by
   cases interest with
   | learned assignment => exact ⟨_, rfl⟩
   | declared origin slot =>
@@ -53,9 +54,9 @@ theorem _root_.Acorn.Features.Interest.aligned_potential (interest : Interest co
     exact ⟨_, spatial_admitted slot features observation⟩
 
 /-- Every initial profile installs only its own admitted interest family. -/
-theorem TemporalControl.initial_aligned (profile : FeatureProfile) (config : Features.Config)
-    (criterion : Criterion) (dimension : Dimension) :
-    (TemporalControl.initial profile config criterion dimension).Aligned := by
+theorem TemporalControl.initial_aligned (interface : Interface) (profile : FeatureProfile)
+    (config : Features.Config) (criterion : Criterion) (dimension : Dimension) :
+    (TemporalControl.initial interface profile config criterion dimension).Aligned := by
   rcases profile with ⟨mode, credit, rate, subtasks⟩
   constructor
   · cases subtasks <;> intro slot <;>
@@ -67,13 +68,13 @@ theorem TemporalControl.initial_aligned (profile : FeatureProfile) (config : Fea
         Skill.initial, Interest.held, Assignment.identity] at named
 
 /-- Slot retirement retains the full source identity for all hashed aliases. -/
-theorem _root_.Acorn.Features.Ensemble.retire_aligned (state : Ensemble config criterion dimension discounts)
+theorem _root_.Acorn.Features.Ensemble.retire_aligned (state : Ensemble actions config criterion dimension discounts)
     (aligned : state.Aligned) (feature : FeatIdx dimension) : (state.retire feature).Aligned := by
   intro slot
   simpa [Ensemble.retire, Skill.retire] using aligned slot
 
 /-- Releasing slots installs only the learned neutral objective. -/
-theorem _root_.Acorn.Features.Ensemble.release_aligned (state : Ensemble config criterion dimension discounts)
+theorem _root_.Acorn.Features.Ensemble.release_aligned (state : Ensemble actions config criterion dimension discounts)
     (aligned : state.Aligned) (unit : Fin config.units.count) : (state.release unit).Aligned := by
   intro slot
   simp only [Ensemble.release, Vector.getElem_map]
@@ -82,7 +83,7 @@ theorem _root_.Acorn.Features.Ensemble.release_aligned (state : Ensemble config 
   · exact aligned slot
 
 /-- Every installed assignment is learned; other slots retain their admitted source. -/
-theorem _root_.Acorn.Features.FreeDispatch.install_aligned (state : FreeDispatch shape config criterion dimension discounts payload)
+theorem _root_.Acorn.Features.FreeDispatch.install_aligned (state : FreeDispatch shape actions config criterion dimension discounts payload)
     (aligned : state.lifecycle.consumers.Aligned)
     (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config) :
     (state.install slot target).lifecycle.consumers.Aligned := by
@@ -97,14 +98,14 @@ theorem _root_.Acorn.Features.FreeDispatch.install_aligned (state : FreeDispatch
     · exact aligned index
 
 /-- The complete ordered refresh fold preserves source alignment at each write. -/
-theorem _root_.Acorn.Features.FreeDispatch.refresh_aligned (state : FreeDispatch shape config criterion dimension discounts payload)
+theorem _root_.Acorn.Features.FreeDispatch.refresh_aligned (state : FreeDispatch shape actions config criterion dimension discounts payload)
     (aligned : state.lifecycle.consumers.Aligned) :
     state.refreshRanked.lifecycle.consumers.Aligned := by
   simp only [FreeDispatch.refreshRanked]
   generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
     (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
   have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
-      (current : FreeDispatch shape config criterion dimension discounts payload)
+      (current : FreeDispatch shape actions config criterion dimension discounts payload)
       (valid : current.lifecycle.consumers.Aligned) :
       (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).lifecycle.consumers.Aligned := by
     induction slots generalizing current with
@@ -114,7 +115,7 @@ theorem _root_.Acorn.Features.FreeDispatch.refresh_aligned (state : FreeDispatch
 
 /-- The complete refresh, which also reranks every model, preserves source alignment,
 assigning or not. -/
-theorem _root_.Acorn.Features.FreeDispatch.refreshModels_aligned (state : FreeDispatch shape config criterion dimension discounts payload)
+theorem _root_.Acorn.Features.FreeDispatch.refreshModels_aligned (state : FreeDispatch shape actions config criterion dimension discounts payload)
     (assign : Bool) (aligned : state.lifecycle.consumers.Aligned) :
     (state.refreshModels assign).lifecycle.consumers.Aligned := by
   intro slot
@@ -127,23 +128,23 @@ theorem _root_.Acorn.Features.FreeDispatch.refreshModels_aligned (state : FreeDi
     exact FreeDispatch.refresh_aligned state aligned slot
 
 /-- The policy/model operations never replace the skill's interest. -/
-theorem _root_.Acorn.Features.Skill.beginTemporal_interest (skill : Skill config criterion dimension discounts)
+theorem _root_.Acorn.Features.Skill.beginTemporal_interest (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
     (skill.beginTemporal models features potential learning rate).1.interest = skill.interest := by
   cases learning <;> rfl
 
 /-- Every continuing write retains the interest whose potential was supplied. -/
-theorem _root_.Acorn.Features.Skill.stepTemporal_interest {mode : Bool} (skill : Skill config criterion dimension discounts)
+theorem _root_.Acorn.Features.Skill.stepTemporal_interest {mode : Bool} (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (activation : OptionActivation mode)
-    (next : OptionContinuation dimension activation) (reward : Binary32) (gain : RewardRate)
+    (next : OptionContinuation actions dimension activation) (reward : Binary32) (gain : RewardRate)
     (rng : Rng.Xoshiro256) :
     (skill.stepTemporal models activation next reward gain rng).1.interest = skill.interest := by
   simp only [Skill.stepTemporal_eq]
   split <;> simp only [Skill.optionStep] <;> split <;> rfl
 
 /-- Terminal policy/model credit retains its original objective. -/
-theorem _root_.Acorn.Features.Skill.endTemporal_interest {mode : Bool} (skill : Skill config criterion dimension discounts)
+theorem _root_.Acorn.Features.Skill.endTemporal_interest {mode : Bool} (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (ending : EndingPayload mode)
     (reward terminal : Binary32) (gain : RewardRate) :
@@ -153,9 +154,9 @@ theorem _root_.Acorn.Features.Skill.endTemporal_interest {mode : Bool} (skill : 
   split <;> exact (skill.terminal_owners ending.activation ending.potential reward terminal gain).1
 
 /-- Replacing one skill by learners for the same objective keeps the table aligned. -/
-theorem TemporalControl.withSkill_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.withSkill_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (slot : Fin Acorn.FeatureConstants.skillCount)
-    (skill : Skill config criterion dimension demonLayout)
+    (skill : Skill interface.actions config criterion dimension interface.layout)
     (same : skill.interest = state.runtime.lifecycle.consumers.skills[slot.val].interest) :
     (state.withSkill slot skill).Aligned := by
   have table (index : Fin Acorn.FeatureConstants.skillCount) :
@@ -176,13 +177,13 @@ theorem TemporalControl.withSkill_aligned (state : TemporalControl profile confi
     exact named
 
 /-- The optional meta-gap write does not touch the receiving skill table. -/
-theorem TemporalControl.skipMeta_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.skipMeta_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) : state.skipMeta.Aligned := by
   unfold TemporalControl.skipMeta
   split <;> exact aligned
 
 /-- Selection preparation changes clocks, meta reward and model caches only. -/
-theorem TemporalControl.prepare_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.prepare_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (reward : Binary32) :
     (state.prepareSelection models features reward).Aligned := by
@@ -191,14 +192,14 @@ theorem TemporalControl.prepare_aligned (state : TemporalControl profile config 
   split <;> split <;> exact aligned
 
 /-- A fresh primitive choice preserves all option interests. -/
-theorem TemporalControl.primitive_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.primitive_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension)
     (values : Vector Binary32 metaCount.word.toNat) (decision : Option (PolicyDecision metaCount))
     (ended : Option EndEvent) : (state.choosePrimitive features values decision ended).1.Aligned :=
   aligned
 
 /-- Interrupting a held option writes its trajectory link and keeps its interest. -/
-theorem TemporalControl.interrupt_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.interrupt_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned)
     (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
       OptionActivation (profile.mode != .frozen))) : (state.interrupt origin).1.Aligned := by
@@ -214,8 +215,8 @@ theorem TemporalControl.interrupt_aligned (state : TemporalControl profile confi
 
 /-- A served run changes occupancy, diagnostics and an interrupted option's trajectory link,
 retaining admitted interests. -/
-theorem TemporalControl.serve_aligned (state next : TemporalControl profile config criterion dimension)
-    (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
+theorem TemporalControl.serve_aligned (state next : TemporalControl interface profile config criterion dimension)
+    (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions)
     (served : state.serve features = some (next, decision)) : next.Aligned := by
   unfold TemporalControl.serve at served
   split at served
@@ -235,10 +236,10 @@ theorem TemporalControl.serve_aligned (state next : TemporalControl profile conf
   · contradiction
 
 /-- Concrete option learning preserves the source of the current table owner. -/
-theorem TemporalControl.stepOption_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.stepOption_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount) (activation : OptionActivation (profile.mode != .frozen))
-    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (next : OptionContinuation interface.actions dimension activation) (reward : Binary32)
     (values : Vector Binary32 metaCount.word.toNat) (decision : Option (PolicyDecision metaCount))
     (started : Bool) (ended : Option EndEvent) :
     (state.stepOption models slot activation next reward values decision started ended).1.Aligned := by
@@ -248,10 +249,10 @@ theorem TemporalControl.stepOption_aligned (state : TemporalControl profile conf
   rfl
 
 /-- Terminal credit updates the matching current owner or discards the detached one. -/
-theorem TemporalControl.closeOption_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.closeOption_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension)
-    (closing : Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))
+    (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
     (reward terminal : Binary32) :
     (state.closeOption models features closing reward terminal).1.Aligned := by
   rw [TemporalControl.closeOption_eq]
@@ -265,21 +266,21 @@ theorem TemporalControl.closeOption_aligned (state : TemporalControl profile con
   | some owner => exact aligned
 
 /-- Free-boundary refresh closes the potential-source premise for the next dispatch. -/
-theorem TemporalControl.refreshFree_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.refreshFree_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).1.Aligned :=
   ⟨FreeDispatch.refreshModels_aligned _ _ aligned.1, FreeDispatch.refreshModels_distinct _ _ aligned.2⟩
 
 /-- Repaying meta credit cannot replace an option's source declaration. -/
-theorem TemporalControl.learnMeta_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.learnMeta_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
     (state.learnMeta features decision).Aligned := by
   rw [TemporalControl.learnMeta_eq]
   split <;> exact aligned
 
 /-- Closing an interrupted option's meta span writes the meta-controller and the span. -/
-theorem TemporalControl.closeSpan_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.closeSpan_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (continuation : Option Binary32) :
     (state.closeSpan continuation).Aligned := by
   cases continuation with
@@ -292,10 +293,10 @@ theorem TemporalControl.closeSpan_aligned (state : TemporalControl profile confi
 theorem followSlot_interest (models : OptionModelOps criterion dimension)
     (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
-    (estimate : Binary32) (rate : ConsumerRate) (action : Action primitiveCount.word.toNat)
-    (behaviour : Vector Binary32 primitiveCount.word.toNat)
+    (estimate : Binary32) (rate : ConsumerRate) (action : Action interface.actions.word.toNat)
+    (behaviour : Vector Binary32 interface.actions.word.toNat)
     (reward : Binary32) (gain : RewardRate) (executing : Bool)
-    (skill : Skill config criterion dimension demonLayout) :
+    (skill : Skill interface.actions config criterion dimension interface.layout) :
     (followSlot models value features declared goal estimate rate action behaviour reward gain
       executing skill).interest = skill.interest := by
   unfold followSlot
@@ -307,7 +308,7 @@ theorem followSlot_interest (models : OptionModelOps criterion dimension)
     · rfl
 
 /-- A table with the same interest in every slot stays aligned and distinct. -/
-theorem TemporalControl.sameInterests_aligned (state next : TemporalControl profile config criterion dimension)
+theorem TemporalControl.sameInterests_aligned (state next : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned)
     (same : ∀ index : Fin Acorn.FeatureConstants.skillCount,
       next.runtime.lifecycle.consumers.skills[index.val].interest =
@@ -321,9 +322,9 @@ theorem TemporalControl.sameInterests_aligned (state next : TemporalControl prof
 
 /-- The common finish changes primitive credit, demons, every option's questions and
 gain, retaining every option source. -/
-theorem TemporalControl.finish_aligned (state : TemporalControl profile config criterion dimension)
-    (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (observation : Host.Observation)
-    (reward : Binary32) (decision : TemporalDecision) :
+theorem TemporalControl.finish_aligned (state : TemporalControl interface profile config criterion dimension)
+    (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
+    (reward : Binary32) (decision : TemporalDecision interface.actions) :
     (state.finish features observation reward decision).Aligned := by
   apply state.sameInterests_aligned _ aligned
   intro index
@@ -332,10 +333,10 @@ theorem TemporalControl.finish_aligned (state : TemporalControl profile config c
 
 /-- Off-policy option learning writes policies, models and trajectory links only;
 every slot keeps the interest whose potential it read. -/
-theorem TemporalControl.followOptions_aligned (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.followOptions_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
-    (goal : Bool) (decision : TemporalDecision) :
+    (goal : Bool) (decision : TemporalDecision interface.actions) :
     (state.followOptions models features declared reward goal decision).Aligned := by
   apply state.sameInterests_aligned _ aligned
   intro index
@@ -346,11 +347,11 @@ theorem TemporalControl.followOptions_aligned (state : TemporalControl profile c
   · rfl
 
 /-- The drawn meta decision has a potential for its receiving option, when selected. -/
-theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.dispatchMeta_total (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
-    (features : SwiftTd.ActiveSet dimension) (observation : Host.Observation) (reward : Binary32)
+    (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) (reward : Binary32)
     (goal : Bool) (decision : PolicyDecision metaCount) (ended : Option EndEvent) :
-    ∃ next selected, state.dispatchMeta models features (spatialPotentials observation) reward goal
+    ∃ next selected, state.dispatchMeta models features observation.declared reward goal
         decision ended = some (next, selected) ∧ next.Aligned := by
   rw [TemporalControl.dispatchMeta_eq]
   generalize hl : state.learnMeta features decision = learned
@@ -365,7 +366,7 @@ theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile conf
     obtain ⟨potential, hp⟩ := Interest.aligned_potential
       (learned.runtime.lifecycle.consumers.skills.get slot).interest hs features observation
     simp only [hp, bind, Option.bind]
-    have total : ∀ result : TemporalControl profile config criterion dimension × TemporalDecision,
+    have total : ∀ result : TemporalControl interface profile config criterion dimension × TemporalDecision interface.actions,
         result.1.Aligned → ∃ next selected, some result = some (next, selected) ∧ next.Aligned :=
       fun result resultAligned => ⟨result.1, result.2, rfl, resultAligned⟩
     apply total
@@ -377,13 +378,13 @@ theorem TemporalControl.dispatchMeta_total (state : TemporalControl profile conf
 
 /-- A free boundary always has a potential for the selected receiving skill;
 planning and detached terminal credit preserve that source alignment. -/
-theorem TemporalControl.boundary_total (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.boundary_total (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
-    (plan : PlanBoundary config criterion dimension demonLayout) (features : SwiftTd.ActiveSet dimension)
-    (observation : Host.Observation) (reward : Binary32) (goal : Bool)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout) (features : SwiftTd.ActiveSet dimension)
+    (observation : Frame interface) (reward : Binary32) (goal : Bool)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
     (ended : Option EndEvent) :
-    ∃ next decision, state.atBoundary models plan features (spatialPotentials observation) reward goal
+    ∃ next decision, state.atBoundary models plan features observation.declared reward goal
         closing ended = some (next, decision) ∧ next.Aligned := by
   unfold TemporalControl.atBoundary
   generalize hr : state.refreshFree closing = refreshed
@@ -402,11 +403,11 @@ theorem TemporalControl.boundary_total (state : TemporalControl profile config c
 
 /-- Every aligned local state selects a real action, with the same priority
 dispatcher and matching potential producer, and retains source alignment. -/
-theorem TemporalControl.select_total (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.select_total (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
-    (plan : PlanBoundary config criterion dimension demonLayout) (features : SwiftTd.ActiveSet dimension)
-    (observation : Host.Observation) (reward : Binary32) (goal : Bool) :
-    ∃ next decision, state.selectWithOperations models plan features (spatialPotentials observation) reward goal =
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout) (features : SwiftTd.ActiveSet dimension)
+    (observation : Frame interface) (reward : Binary32) (goal : Bool) :
+    ∃ next decision, state.selectWithOperations models plan features observation.declared reward goal =
       some (next, decision) ∧ next.Aligned := by
   unfold TemporalControl.selectWithOperations
   generalize hp : state.prepareSelection models features reward = prepared
@@ -449,19 +450,19 @@ theorem TemporalControl.select_total (state : TemporalControl profile config cri
 
 /-- Actual model/planning execution and common completion have no missing
 application-internal potential oracle at the full-agent boundary. -/
-theorem TemporalControl.step_total (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.step_total (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
-    (observation : Host.Observation) (reward : Binary32) (goal : Bool) :
+    (observation : Frame interface) (reward : Binary32) (goal : Bool) :
     ∃ next decision, state.step planning features observation reward goal = some (next, decision) ∧ next.Aligned := by
   obtain ⟨selected, decision, selectedEq, selectedAligned⟩ := state.select_total aligned
     (modelOperations criterion dimension) (planningBoundary planning) features observation reward goal
   refine ⟨((selected.followOptions (modelOperations criterion dimension) features
-      (spatialPotentials observation) reward goal decision).closeSpan
-        (selected.takeoverValue features (spatialPotentials observation) goal decision)).finish
+      observation.declared reward goal decision).closeSpan
+        (selected.takeoverValue features observation.declared goal decision)).finish
       features observation reward decision, decision, ?_,
     TemporalControl.finish_aligned _ (TemporalControl.closeSpan_aligned _
       (selected.followOptions_aligned selectedAligned
-        (modelOperations criterion dimension) features (spatialPotentials observation) reward goal
+        (modelOperations criterion dimension) features observation.declared reward goal
         decision) _) features observation reward decision⟩
   simp [TemporalControl.step, TemporalControl.select, selectedEq]
 
@@ -473,9 +474,9 @@ dispatch; a served exploration step, a continuing option and a primitive-only pr
 draw none. -/
 
 /-- Replacing one skill by one with the same interest changes no slot's interest. -/
-theorem TemporalControl.withSkill_interest (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.withSkill_interest (state : TemporalControl interface profile config criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount)
-    (skill : Skill config criterion dimension demonLayout)
+    (skill : Skill interface.actions config criterion dimension interface.layout)
     (same : skill.interest = state.runtime.lifecycle.consumers.skills[slot.val].interest)
     (index : Fin Acorn.FeatureConstants.skillCount) :
     (state.withSkill slot skill).runtime.lifecycle.consumers.skills[index.val].interest =
@@ -489,10 +490,10 @@ theorem TemporalControl.withSkill_interest (state : TemporalControl profile conf
   · rfl
 
 /-- A stepped option keeps every slot's interest. -/
-theorem TemporalControl.stepOption_interest (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.stepOption_interest (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount) (activation : OptionActivation (profile.mode != .frozen))
-    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (next : OptionContinuation interface.actions dimension activation) (reward : Binary32)
     (values : Vector Binary32 metaCount.word.toNat) (decision : Option (PolicyDecision metaCount))
     (started : Bool) (ended : Option EndEvent) (index : Fin Acorn.FeatureConstants.skillCount) :
     (state.stepOption models slot activation next reward values decision started
@@ -502,9 +503,9 @@ theorem TemporalControl.stepOption_interest (state : TemporalControl profile con
   exact state.withSkill_interest slot _ (by rw [Skill.stepTemporal_interest]; rfl) index
 
 /-- Terminal credit keeps every slot's interest and writes no demon. -/
-theorem TemporalControl.closeOption_interest (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.closeOption_interest (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (closing : Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))
+    (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
     (reward terminal : Binary32) (index : Fin Acorn.FeatureConstants.skillCount) :
     (state.closeOption models features closing reward
       terminal).1.runtime.lifecycle.consumers.skills[index.val].interest =
@@ -521,7 +522,7 @@ theorem TemporalControl.closeOption_interest (state : TemporalControl profile co
   | some owner => exact ⟨rfl, rfl⟩
 
 /-- Meta credit keeps every slot's interest. -/
-theorem TemporalControl.learnMeta_interest (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.learnMeta_interest (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount)
     (index : Fin Acorn.FeatureConstants.skillCount) :
     (state.learnMeta features decision).runtime.lifecycle.consumers.skills[index.val].interest =
@@ -531,11 +532,11 @@ theorem TemporalControl.learnMeta_interest (state : TemporalControl profile conf
 
 /-- The dispatch of a drawn meta decision keeps every slot's interest and records that
 decision. -/
-theorem TemporalControl.dispatchMeta_interest (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.dispatchMeta_interest (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
     (decision : PolicyDecision metaCount) (ended : Option EndEvent)
-    (next : TemporalControl profile config criterion dimension) (selected : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (selected : TemporalDecision interface.actions)
     (executed : state.dispatchMeta models features declared reward goal decision ended =
       some (next, selected)) :
     selected.metaDecision = some decision ∧
@@ -570,13 +571,13 @@ theorem TemporalControl.dispatchMeta_interest (state : TemporalControl profile c
 
 /-- Every free dispatch records the meta decision it drew and leaves each slot the
 objective its refresh installed. -/
-theorem TemporalControl.atBoundary_interest (state : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+theorem TemporalControl.atBoundary_interest (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
     (ended : Option EndEvent)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.atBoundary models plan features declared reward goal closing ended =
       some (next, decision)) :
     decision.metaDecision.isSome = true ∧
@@ -606,20 +607,20 @@ theorem TemporalControl.atBoundary_interest (state : TemporalControl profile con
 
 /-- With learned subtasks, every free dispatch leaves each slot the ranking's assignment
 for the Demon-0 weights and the objectives it started from. -/
-theorem TemporalControl.atBoundary_assigns (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.atBoundary_assigns (state : TemporalControl interface profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
     (ended : Option EndEvent)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.atBoundary models plan features declared reward goal closing ended =
       some (next, decision))
     (index : Fin Acorn.FeatureConstants.skillCount) :
     next.runtime.lifecycle.consumers.skills[index.val].interest =
       .learned (rankAssignments dimension config
-        (DemonBank.rankingWeights (discounts := demonLayout.tail)
+        (DemonBank.rankingWeights (discounts := interface.signals)
           state.runtime.lifecycle.consumers.demons)
         (state.runtime.lifecycle.consumers.skills.map (·.interest.held)))[index.val] := by
   rw [(state.atBoundary_interest models plan features declared reward goal closing ended next
@@ -627,7 +628,7 @@ theorem TemporalControl.atBoundary_assigns (state : TemporalControl profile conf
   exact (FreeDispatch.refreshModels_interest _ index).trans (FreeDispatch.refresh_targets _ index)
 
 /-- Selection preparation writes no learner, objective or representation. -/
-theorem TemporalControl.prepare_lifecycle (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.prepare_lifecycle (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) :
     (state.prepareSelection models features reward).runtime.lifecycle = state.runtime.lifecycle := by
@@ -636,8 +637,8 @@ theorem TemporalControl.prepare_lifecycle (state : TemporalControl profile confi
   split <;> split <;> rfl
 
 /-- A served exploration step draws no meta decision. -/
-theorem TemporalControl.serve_undrawn (state next : TemporalControl profile config criterion dimension)
-    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision)
+theorem TemporalControl.serve_undrawn (state next : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions)
     (served : state.serve features = some (next, decision)) : decision.metaDecision = none := by
   unfold TemporalControl.serve at served
   split at served
@@ -652,16 +653,16 @@ theorem TemporalControl.serve_undrawn (state next : TemporalControl profile conf
   · contradiction
 
 /-- A fresh primitive choice records the meta decision it was given. -/
-theorem TemporalControl.choosePrimitive_meta (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.choosePrimitive_meta (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 metaCount.word.toNat)
     (decision : Option (PolicyDecision metaCount)) (ended : Option EndEvent) :
     (state.choosePrimitive features values decision ended).2.metaDecision = decision := rfl
 
 /-- A stepped option records the meta decision it was given. -/
-theorem TemporalControl.stepOption_meta (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.stepOption_meta (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount) (activation : OptionActivation (profile.mode != .frozen))
-    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (next : OptionContinuation interface.actions dimension activation) (reward : Binary32)
     (values : Vector Binary32 metaCount.word.toNat) (decision : Option (PolicyDecision metaCount))
     (started : Bool) (ended : Option EndEvent) :
     (state.stepOption models slot activation next reward values decision started
@@ -679,19 +680,19 @@ a meta decision is taken with the slot-stable ranking installed. Each slot's obj
 the ranking's assignment for the Demon-0 weights and the objectives the decision started
 from; the reward delivered with the decision is learned afterwards, by `finish`. A served
 exploration step, a continuing option and a primitive-only profile draw no meta decision. -/
-theorem TemporalControl.select_assigns (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.select_assigns (state : TemporalControl interface profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features declared reward goal =
       some (next, decision))
     (drawn : decision.metaDecision.isSome = true)
     (index : Fin Acorn.FeatureConstants.skillCount) :
     next.runtime.lifecycle.consumers.skills[index.val].interest =
       .learned (rankAssignments dimension config
-        (DemonBank.rankingWeights (discounts := demonLayout.tail)
+        (DemonBank.rankingWeights (discounts := interface.signals)
           state.runtime.lifecycle.consumers.demons)
         (state.runtime.lifecycle.consumers.skills.map (·.interest.held)))[index.val] := by
   unfold TemporalControl.selectWithOperations at executed
@@ -748,18 +749,18 @@ theorem TemporalControl.select_assigns (state : TemporalControl profile config c
 
 /-- Timing over the executed selection, coverage: a decision that draws a meta decision
 is taken with every candidate of the ranking installed in some slot. -/
-theorem TemporalControl.select_covers (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.select_covers (state : TemporalControl interface profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features declared reward goal =
       some (next, decision))
     (drawn : decision.metaDecision.isSome = true)
     (candidate : Candidate config)
     (member : candidate ∈ rankedCandidates dimension config
-      (DemonBank.rankingWeights (discounts := demonLayout.tail)
+      (DemonBank.rankingWeights (discounts := interface.signals)
         state.runtime.lifecycle.consumers.demons)) :
     ∃ slot : Fin Acorn.FeatureConstants.skillCount,
       next.runtime.lifecycle.consumers.skills[slot.val].interest.held.identity =
@@ -774,19 +775,19 @@ theorem TemporalControl.select_covers (state : TemporalControl profile config cr
 /-- Timing over the executed selection, the count: a decision that draws a meta decision
 is taken with as many slots holding a unit as the ranking has candidates, which is the
 number of positive score blocks up to the number of slots. -/
-theorem TemporalControl.select_occupancy (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.select_occupancy (state : TemporalControl interface profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features declared reward goal =
       some (next, decision))
     (drawn : decision.metaDecision.isSome = true) :
     ((List.finRange Acorn.FeatureConstants.skillCount).filter fun slot =>
       next.runtime.lifecycle.consumers.skills[slot.val].interest.held.identity.isSome).length =
         (rankedCandidates dimension config
-          (DemonBank.rankingWeights (discounts := demonLayout.tail)
+          (DemonBank.rankingWeights (discounts := interface.signals)
             state.runtime.lifecycle.consumers.demons)).length := by
   rw [← rankAssignments_count dimension config _
     (state.runtime.lifecycle.consumers.skills.map (·.interest.held))]
@@ -800,17 +801,17 @@ theorem TemporalControl.select_occupancy (state : TemporalControl profile config
 /-- Timing over the executed selection, the full table: a decision that draws a meta
 decision when the ranking has a candidate for every slot is taken with a unit in every
 slot. -/
-theorem TemporalControl.select_full (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.select_full (state : TemporalControl interface profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features declared reward goal =
       some (next, decision))
     (drawn : decision.metaDecision.isSome = true)
     (full : (rankedCandidates dimension config
-      (DemonBank.rankingWeights (discounts := demonLayout.tail)
+      (DemonBank.rankingWeights (discounts := interface.signals)
         state.runtime.lifecycle.consumers.demons)).length = Acorn.FeatureConstants.skillCount)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     ∃ unit bonus, next.runtime.lifecycle.consumers.skills[slot.val].interest =
@@ -823,12 +824,12 @@ theorem TemporalControl.select_full (state : TemporalControl profile config crit
 
 /-- A hierarchical agent draws a meta decision at every decision that serves no
 exploration run and finds no option active, so the timing theorems apply there. -/
-theorem TemporalControl.select_drawn (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.select_drawn (state : TemporalControl interface profile config criterion dimension)
     (hierarchy : profile.usesHierarchy = true)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features declared reward goal =
       some (next, decision))
     (unserved : (state.prepareSelection models features reward).serve features = none)
@@ -850,12 +851,12 @@ theorem TemporalControl.select_drawn (state : TemporalControl profile config cri
     exact absurd phase (free slot activation)
 
 /-- A primitive-only profile draws no meta decision. -/
-theorem TemporalControl.primitive_undrawn (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.primitive_undrawn (state : TemporalControl interface profile config criterion dimension)
     (primitive : profile.usesHierarchy = false)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (next : TemporalControl profile config criterion dimension) (decision : TemporalDecision)
+    (next : TemporalControl interface profile config criterion dimension) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features declared reward goal =
       some (next, decision)) :
     decision.metaDecision = none := by

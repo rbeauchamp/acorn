@@ -155,33 +155,16 @@ theorem mem_unique {dimension : Dimension} (indices : List (FeatIdx dimension))
 theorem unique_nodup {dimension : Dimension} (indices : List (FeatIdx dimension)) :
     (unique indices).indices.Nodup := (unique indices).nodup
 
-/-- Legal generator input shape: an odd byte-representable patch side, followed
-by a fixed number of opaque context words. -/
+/-- Legal generator input shape: a positive number of opaque symbol positions. A
+world lays its own structure over them, such as a square patch followed by context
+words, or a whole grid. -/
 structure PatchShape where
-  /-- Side length. -/
-  side : Nat
-  /-- A centre exists. -/
-  odd : side % 2 = 1
-  /-- Coordinates fit the byte interface. -/
-  bounded : side ≤ 255
-  /-- Context words read after the row-major patch cells. -/
-  context : Nat
+  /-- Generator input positions. -/
+  inputs : Nat
+  /-- There is a position to sample. -/
+  positive : 0 < inputs
   /-- Every input position fits a two-byte checksum word. -/
-  contextBounded : context ≤ 255
-
-/-- Odd natural sides are nonempty. -/
-theorem PatchShape.positive (shape : PatchShape) : 0 < shape.side := by
-  have := shape.odd
-  omega
-
-/-- Generator input positions: every patch cell, then every context word. -/
-def PatchShape.inputs (shape : PatchShape) : Nat := shape.side * shape.side + shape.context
-
-/-- Every shape has an input position to sample. -/
-theorem PatchShape.inputs_positive (shape : PatchShape) : 0 < shape.inputs := by
-  have := Nat.mul_pos shape.positive shape.positive
-  unfold PatchShape.inputs
-  omega
+  bounded : inputs ≤ 65536
 
 /-- Sampled input position and sign, legal at storage. -/
 structure Sample (shape : PatchShape) where
@@ -192,7 +175,7 @@ structure Sample (shape : PatchShape) where
 
 /-- The position reads the high word and the sign the low bit, so they use disjoint bits. -/
 def Sample.ofWord (shape : PatchShape) (word : UInt64) : Sample shape where
-  input := ⟨(word >>> 32).toNat % shape.inputs, Nat.mod_lt _ shape.inputs_positive⟩
+  input := ⟨(word >>> 32).toNat % shape.inputs, Nat.mod_lt _ shape.positive⟩
   positive := (word &&& 1) != 0
 
 /-- Exactly 32 signed samples. Slots are derived separately from seed and unit. -/
@@ -472,15 +455,23 @@ theorem encode_membership (dimension : Dimension) {shape : PatchShape} {config :
     index ∈ (encode dimension bank words patch).indices ↔
       index ∈ rawEncode dimension bank words patch := mem_unique _ _
 
+/-- The unique encoding from any unit outputs satisfies the raw-input resource bound. -/
+theorem encodeWith_length (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) :
+    (encodeWith dimension config words active).indices.length ≤
+      config.tilings.toNat * words.length + config.units.count := by
+  have filtered := fold_length (rawEncodeWith dimension config words active)
+    (SwiftTd.ActiveSet.empty dimension)
+  have rawBound := rawEncodeWith_length dimension config words active
+  rw [← unique_order] at filtered
+  simp only [SwiftTd.ActiveSet.empty, List.length_nil, Nat.zero_add] at filtered
+  simpa [encodeWith] using Nat.le_trans filtered rawBound
+
 /-- The actual unique encoding satisfies the same raw-input resource bound. -/
 theorem encode_length (dimension : Dimension) {shape : PatchShape} {config : Config}
     (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
     (encode dimension bank words patch).indices.length ≤
-      config.tilings.toNat * words.length + config.units.count := by
-  have filtered := fold_length (rawEncode dimension bank words patch) (SwiftTd.ActiveSet.empty dimension)
-  have rawBound := rawEncode_length dimension bank words patch
-  rw [← unique_order] at filtered
-  simp only [SwiftTd.ActiveSet.empty, List.length_nil, Nat.zero_add] at filtered
-  simpa [encode, encodeWith, rawEncode] using Nat.le_trans filtered rawBound
+      config.tilings.toNat * words.length + config.units.count :=
+  encodeWith_length dimension config words (bank.activations patch)
 
 end Acorn.Features

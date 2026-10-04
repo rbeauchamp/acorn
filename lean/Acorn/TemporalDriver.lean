@@ -19,6 +19,9 @@ open Features Handcrafted
 /-- Small diagnostic storage; the policy definitions remain dimension-generic. -/
 def dimension : Dimension := ⟨8, by decide, ⟨3, rfl⟩, by decide⟩
 
+/-- The grid world's primitive action count. -/
+def actionCount : Word.Count := ⟨Acorn.FeatureConstants.primitiveCount.toUInt64, by decide⟩
+
 /-- A positive projected raw word becomes the diagnostic unit's held bonus; any other
 word leaves the diagnostic slot neutral. Kept out of line so the entry's route stays linear. -/
 @[noinline] def diagnosticAssignment (config : Features.Config) (unit : Fin config.units.count)
@@ -34,7 +37,7 @@ credit with dynamic inputs. Each current criterion uses the same typed kernel. -
     ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
   let interest : Interest config :=
     .learned (diagnosticAssignment config ⟨0, by change 0 < 3; decide⟩ word)
-  let skill := Skill.initial config criterion dimension (discounts := []) interest
+  let skill := Skill.initial (actions := actionCount) config criterion dimension (discounts := []) interest
   let features : SwiftTd.ActiveSet dimension := ⟨[FeatIdx.fromHash dimension word], by simp⟩
   let potential := match interest with
     | .learned assignment => assignment.potential features
@@ -48,7 +51,8 @@ credit with dynamic inputs. Each current criterion uses the same typed kernel. -
     | .ending reason => stepped.1.endTemporal models value features
         ⟨stepped.2.1, potential, reason⟩ ⟨word.toUInt32⟩ .zero (.project .zero)
     | .continuing next => (stepped.1.stepTemporal models stepped.2.1 next ⟨word.toUInt32⟩ (.project .zero) stepped.2.2.2).1
-  let snapshot := stopped.policy.snapshot (count := primitiveCount) features (stopped.policy.exploreRate (count := primitiveCount))
+  let snapshot := stopped.policy.snapshot (count := actionCount) features
+    (stopped.policy.exploreRate (count := actionCount))
   let persistent := snapshot.drawPersistent stepped.2.2.2
   let planning : PlanningResult criterion dimension :=
     ⟨Controller.initial _ _ _, Vector.replicate _ ModelCache.initial, seed,

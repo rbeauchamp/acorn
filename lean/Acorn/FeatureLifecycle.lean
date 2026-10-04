@@ -32,23 +32,25 @@ a free boundary; no caller-supplied learner list or slot can select a unit.
 -/
 namespace Acorn.Features
 
+variable {actions : Word.Count}
+
 /-- Current representation and every learned slot consumer share one owner. -/
-structure Lifecycle (shape : PatchShape) (config : Config) (criterion : Criterion)
+structure Lifecycle (shape : PatchShape) (actions : Word.Count) (config : Config) (criterion : Criterion)
     (dimension : Dimension) (discounts : List Discount) where
   /-- Projection bank with its durable generator and tester state. -/
   representation : Representation shape config
   /-- Complete receiving learner storage. -/
-  consumers : Ensemble config criterion dimension discounts
+  consumers : Ensemble actions config criterion dimension discounts
 
 /-- Whether some slot holds the unit as its learned objective. -/
 def Ensemble.holds {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (unit : Fin config.units.count) : Bool :=
   ensemble.skills.toList.any (·.interest.held.holds unit)
 
 /-- Feature retirement keeps every objective, so it keeps every held unit. -/
 theorem Ensemble.retire_holds {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (feature : FeatIdx dimension) (unit : Fin config.units.count) :
     (ensemble.retire feature).holds unit = ensemble.holds unit := by
   simp [Ensemble.holds, Ensemble.retire, Skill.retire]
@@ -57,33 +59,33 @@ variable {shape : PatchShape} {config : Config} {criterion : Criterion} {dimensi
   {discounts : List Discount}
 
 /-- The receiver's stored generator and tester state. -/
-abbrev Lifecycle.progress (state : Lifecycle shape config criterion dimension discounts) :
+abbrev Lifecycle.progress (state : Lifecycle shape actions config criterion dimension discounts) :
     Progress config :=
   state.representation.progress
 
 /-- A unit is mature once its age exceeds the maturity threshold. -/
-def Lifecycle.mature (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.mature (state : Lifecycle shape actions config criterion dimension discounts)
     (unit : Fin config.units.count) : Bool :=
   decide (state.progress.units[unit.val].birth.toNat + config.tester.maturity <
     state.progress.clock.toNat)
 
 /-- A mature unit is eligible at a free boundary; elsewhere only while no slot holds it. -/
-def Lifecycle.eligible (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.eligible (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (unit : Fin config.units.count) : Bool :=
   state.mature unit && (free || !state.consumers.holds unit)
 
 /-- Number of units eligible now. -/
-def Lifecycle.eligibleCount (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.eligibleCount (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) : Nat :=
   (List.finRange config.units.count).countP (state.eligible free)
 
 /-- Whether `unit`'s stored utility is strictly below `other`'s. -/
-def Lifecycle.lessUseful (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.lessUseful (state : Lifecycle shape actions config criterion dimension discounts)
     (unit other : Fin config.units.count) : Bool :=
   state.progress.units[unit.val].utility.value.less state.progress.units[other.val].utility.value
 
 /-- Keep the first least useful eligible unit seen so far. -/
-def Lifecycle.prefer (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.prefer (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (best : Option (Fin config.units.count)) (unit : Fin config.units.count) :
     Option (Fin config.units.count) :=
   if state.eligible free unit then
@@ -93,13 +95,13 @@ def Lifecycle.prefer (state : Lifecycle shape config criterion dimension discoun
   else best
 
 /-- The least useful eligible unit, the first in bank order among equal utilities. -/
-def Lifecycle.candidate (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.candidate (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) : Option (Fin config.units.count) :=
   (List.finRange config.units.count).foldl (state.prefer free) none
 
 /-- The scan invariant: no choice exactly when nothing seen was eligible, and a
 choice is eligible with utility key no larger than any eligible unit seen. -/
-def Lifecycle.Scanned (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.Scanned (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (best : Option (Fin config.units.count)) (seen : List (Fin config.units.count)) :
     Prop :=
   (best = none ↔ ∀ unit ∈ seen, state.eligible free unit = false) ∧
@@ -109,7 +111,7 @@ def Lifecycle.Scanned (state : Lifecycle shape config criterion dimension discou
           state.progress.units[unit.val].utility.value.key
 
 /-- Stored utilities are finite, so the machine comparison is exact key order. -/
-theorem Lifecycle.lessUseful_iff (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.lessUseful_iff (state : Lifecycle shape actions config criterion dimension discounts)
     (unit other : Fin config.units.count) :
     state.lessUseful unit other = true ↔
       state.progress.units[unit.val].utility.value.key <
@@ -120,7 +122,7 @@ theorem Lifecycle.lessUseful_iff (state : Lifecycle shape config criterion dimen
   simp
 
 /-- One preference step extends the scan invariant by one unit. -/
-theorem Lifecycle.prefer_scanned (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.prefer_scanned (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (best : Option (Fin config.units.count)) (seen : List (Fin config.units.count))
     (unit : Fin config.units.count) (scanned : state.Scanned free best seen) :
     state.Scanned free (state.prefer free best unit) (seen ++ [unit]) := by
@@ -213,7 +215,7 @@ theorem Lifecycle.prefer_scanned (state : Lifecycle shape config criterion dimen
         contradiction
 
 /-- The whole scan keeps the invariant, for every list and starting choice. -/
-theorem Lifecycle.fold_scanned (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.fold_scanned (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (units : List (Fin config.units.count)) (best : Option (Fin config.units.count))
     (seen : List (Fin config.units.count)) (scanned : state.Scanned free best seen) :
     state.Scanned free (units.foldl (state.prefer free) best) (seen ++ units) := by
@@ -225,20 +227,20 @@ theorem Lifecycle.fold_scanned (state : Lifecycle shape config criterion dimensi
     simpa [List.foldl_cons, List.append_assoc] using next
 
 /-- The candidate satisfies the invariant over the whole bank. -/
-theorem Lifecycle.candidate_scanned (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.candidate_scanned (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) :
     state.Scanned free (state.candidate free) (List.finRange config.units.count) := by
   have start : state.Scanned free none [] := ⟨by simp, by simp⟩
   simpa [Lifecycle.candidate] using state.fold_scanned free _ none [] start
 
 /-- A candidate is eligible. -/
-theorem Lifecycle.candidate_eligible (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.candidate_eligible (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (unit : Fin config.units.count) (selected : state.candidate free = some unit) :
     state.eligible free unit = true :=
   ((state.candidate_scanned free).2 unit selected).1
 
 /-- A candidate is least useful: no eligible unit has a smaller stored utility. -/
-theorem Lifecycle.candidate_least (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.candidate_least (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (unit : Fin config.units.count) (selected : state.candidate free = some unit)
     (other : Fin config.units.count) (eligible : state.eligible free other = true) :
     state.progress.units[unit.val].utility.value.key ≤
@@ -246,13 +248,13 @@ theorem Lifecycle.candidate_least (state : Lifecycle shape config criterion dime
   ((state.candidate_scanned free).2 unit selected).2 other (List.mem_finRange other) eligible
 
 /-- There is no candidate exactly when no unit is eligible. -/
-theorem Lifecycle.candidate_none_iff (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.candidate_none_iff (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) : state.candidate free = none ↔ state.eligibleCount free = 0 := by
   rw [(state.candidate_scanned free).1, Lifecycle.eligibleCount, List.countP_eq_zero]
   simp
 
 /-- Away from a free boundary a candidate is held by no slot. -/
-theorem Lifecycle.candidate_unheld (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.candidate_unheld (state : Lifecycle shape actions config criterion dimension discounts)
     (unit : Fin config.units.count) (selected : state.candidate false = some unit) :
     state.consumers.holds unit = false := by
   have eligible := state.candidate_eligible false unit selected
@@ -261,26 +263,26 @@ theorem Lifecycle.candidate_unheld (state : Lifecycle shape config criterion dim
 
 /-- One replacement: the generator's next projection, a restarted age and utility,
 and zero outgoing weight at its slot in every reader. -/
-def Lifecycle.replace (state : Lifecycle shape config criterion dimension discounts)
-    (unit : Fin config.units.count) : Lifecycle shape config criterion dimension discounts :=
+def Lifecycle.replace (state : Lifecycle shape actions config criterion dimension discounts)
+    (unit : Fin config.units.count) : Lifecycle shape actions config criterion dimension discounts :=
   ⟨state.representation.replace unit, state.consumers.retire (unitFeature dimension config unit)⟩
 
 /-- Every replacement resets exactly every reader of its selected slot. -/
-theorem Lifecycle.replace_readers (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.replace_readers (state : Lifecycle shape actions config criterion dimension discounts)
     (unit : Fin config.units.count) :
     (state.replace unit).consumers.readers =
       state.consumers.readers.map (PackedLearner.retire (unitFeature dimension config unit)) :=
   Ensemble.retire_readers _ _
 
 /-- Replacement keeps every held objective. -/
-theorem Lifecycle.replace_holds (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.replace_holds (state : Lifecycle shape actions config criterion dimension discounts)
     (unit : Fin config.units.count) :
     (state.replace unit).consumers.holds = state.consumers.holds := by
   funext other
   exact Ensemble.retire_holds _ _ _
 
 /-- A replaced unit is immature, so it is not eligible again at the same clock. -/
-theorem Lifecycle.replace_self (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.replace_self (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (unit : Fin config.units.count) :
     (state.replace unit).eligible free unit = false := by
   have birth := Progress.replace_birth state.representation.progress unit
@@ -292,7 +294,7 @@ theorem Lifecycle.replace_self (state : Lifecycle shape config criterion dimensi
   simp [late]
 
 /-- Replacement leaves every other unit's eligibility unchanged. -/
-theorem Lifecycle.replace_other (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.replace_other (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (unit other : Fin config.units.count) (different : other ≠ unit) :
     (state.replace unit).eligible free other = state.eligible free other := by
   have distinct : unit.val ≠ other.val := fun same => different (Fin.ext same.symm)
@@ -327,7 +329,7 @@ theorem countP_drop_one {α : Type} (p q : α → Bool) (target : α) :
       omega
 
 /-- Replacing an eligible unit removes exactly that unit from the eligible set. -/
-theorem Lifecycle.eligibleCount_replace (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.eligibleCount_replace (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (unit : Fin config.units.count) (eligible : state.eligible free unit = true) :
     (state.replace unit).eligibleCount free + 1 = state.eligibleCount free :=
   countP_drop_one _ _ unit _ (List.nodup_finRange _) (List.mem_finRange _) eligible
@@ -336,8 +338,8 @@ theorem Lifecycle.eligibleCount_replace (state : Lifecycle shape config criterio
 
 /-- Replace up to `due` least useful eligible units, one at a time. -/
 def Lifecycle.replaceDue (free : Bool) :
-    Nat → Lifecycle shape config criterion dimension discounts →
-      Lifecycle shape config criterion dimension discounts × List (Fin config.units.count)
+    Nat → Lifecycle shape actions config criterion dimension discounts →
+      Lifecycle shape actions config criterion dimension discounts × List (Fin config.units.count)
   | 0, state => (state, [])
   | due + 1, state =>
     match state.candidate free with
@@ -348,7 +350,7 @@ def Lifecycle.replaceDue (free : Bool) :
 
 /-- With at least `due` eligible units, exactly `due` units are replaced. -/
 theorem Lifecycle.replaceDue_length (free : Bool) :
-    ∀ (due : Nat) (state : Lifecycle shape config criterion dimension discounts),
+    ∀ (due : Nat) (state : Lifecycle shape actions config criterion dimension discounts),
       due ≤ state.eligibleCount free → (Lifecycle.replaceDue free due state).2.length = due
   | 0, _, _ => rfl
   | due + 1, state, enough => by
@@ -364,7 +366,7 @@ theorem Lifecycle.replaceDue_length (free : Bool) :
 
 /-- Away from a free boundary, every replaced unit was held by no slot. -/
 theorem Lifecycle.replaceDue_unheld :
-    ∀ (due : Nat) (state : Lifecycle shape config criterion dimension discounts),
+    ∀ (due : Nat) (state : Lifecycle shape actions config criterion dimension discounts),
       ∀ unit ∈ (Lifecycle.replaceDue false due state).2, state.consumers.holds unit = false
   | 0, _, unit, member => by simp [Lifecycle.replaceDue] at member
   | due + 1, state, unit, member => by
@@ -380,9 +382,9 @@ theorem Lifecycle.replaceDue_unheld :
 
 /-- Any learner-state property closed under slot resets survives the replacements. -/
 theorem Lifecycle.replaceDue_preserves (free : Bool)
-    (property : Ensemble config criterion dimension discounts → Prop)
+    (property : Ensemble actions config criterion dimension discounts → Prop)
     (closed : ∀ ensemble feature, property ensemble → property (ensemble.retire feature)) :
-    ∀ (due : Nat) (state : Lifecycle shape config criterion dimension discounts),
+    ∀ (due : Nat) (state : Lifecycle shape actions config criterion dimension discounts),
       property state.consumers → property (Lifecycle.replaceDue free due state).1.consumers
   | 0, _, holds => holds
   | due + 1, state, holds => by
@@ -395,7 +397,7 @@ theorem Lifecycle.replaceDue_preserves (free : Bool)
 
 /-- Replacements never change the accrued credit or the clock. -/
 theorem Lifecycle.replaceDue_counters (free : Bool) :
-    ∀ (due : Nat) (state : Lifecycle shape config criterion dimension discounts),
+    ∀ (due : Nat) (state : Lifecycle shape actions config criterion dimension discounts),
       (Lifecycle.replaceDue free due state).1.progress.credit = state.progress.credit ∧
         (Lifecycle.replaceDue free due state).1.progress.clock = state.progress.clock
   | 0, _ => ⟨rfl, rfl⟩
@@ -413,8 +415,8 @@ theorem Lifecycle.replaceDue_counters (free : Bool) :
 /-- Update every unit's contribution utility from this frame's unit outputs and the
 current outgoing weights: `|h|·Σ_k |w_k|` is the sum when the unit is active and
 zero otherwise, since `h ∈ {0, 1}`. -/
-def Lifecycle.score (state : Lifecycle shape config criterion dimension discounts)
-    (active : Vector Bool config.units.count) : Lifecycle shape config criterion dimension discounts :=
+def Lifecycle.score (state : Lifecycle shape actions config criterion dimension discounts)
+    (active : Vector Bool config.units.count) : Lifecycle shape actions config criterion dimension discounts :=
   let readers := state.consumers.stored
   let utility := fun (unit : Fin config.units.count) (current : UnitState) =>
     current.utility.update config.tester
@@ -422,7 +424,7 @@ def Lifecycle.score (state : Lifecycle shape config criterion dimension discount
   { state with representation := state.representation.rescore utility }
 
 /-- Scoring changes neither the eligible set nor the credit. -/
-theorem Lifecycle.score_eligible (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.score_eligible (state : Lifecycle shape actions config criterion dimension discounts)
     (active : Vector Bool config.units.count) (free : Bool) :
     (state.score active).eligible free = state.eligible free ∧
       (state.score active).progress.credit = state.progress.credit := by
@@ -434,12 +436,12 @@ theorem Lifecycle.score_eligible (state : Lifecycle shape config criterion dimen
       (Progress.rescore_counters _ _).2]
 
 /-- Store the accrued credit's remainder. -/
-def Lifecycle.withCredit (state : Lifecycle shape config criterion dimension discounts)
-    (credit : Fin config.tester.period) : Lifecycle shape config criterion dimension discounts :=
+def Lifecycle.withCredit (state : Lifecycle shape actions config criterion dimension discounts)
+    (credit : Fin config.tester.period) : Lifecycle shape actions config criterion dimension discounts :=
   { state with representation := state.representation.withCredit credit }
 
 /-- A credit write keeps the eligible set and stores the credit. -/
-theorem Lifecycle.withCredit_eligible (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.withCredit_eligible (state : Lifecycle shape actions config criterion dimension discounts)
     (credit : Fin config.tester.period) (free : Bool) :
     (state.withCredit credit).eligible free = state.eligible free ∧
       (state.withCredit credit).progress.credit = credit := by
@@ -451,20 +453,20 @@ theorem Lifecycle.withCredit_eligible (state : Lifecycle shape config criterion 
   · simp only [Lifecycle.progress, Lifecycle.withCredit, Representation.withCredit, fields.2.2]
 
 /-- Scoring keeps every birth. -/
-theorem Lifecycle.score_birth (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.score_birth (state : Lifecycle shape actions config criterion dimension discounts)
     (active : Vector Bool config.units.count) (unit : Fin config.units.count) :
     (state.score active).progress.units[unit.val].birth = state.progress.units[unit.val].birth := by
   simp only [Lifecycle.progress, Lifecycle.score, Representation.rescore, Progress.rescore_birth]
 
 /-- A credit write keeps every unit. -/
-theorem Lifecycle.withCredit_units (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.withCredit_units (state : Lifecycle shape actions config criterion dimension discounts)
     (credit : Fin config.tester.period) :
     (state.withCredit credit).progress.units = state.progress.units := by
   simp only [Lifecycle.progress, Lifecycle.withCredit, Representation.withCredit,
     (Progress.withCredit_fields _ _).1]
 
 /-- The stored credit plus one credit per eligible unit. -/
-def Lifecycle.accrued (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.accrued (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) : Nat :=
   state.progress.credit.val + state.eligibleCount free
 
@@ -478,9 +480,9 @@ def Tester.remainder (tester : Tester) (accrued : Nat) : Fin tester.period :=
 /-- One tester step at the end of a frame: score every unit, accrue one credit
 per eligible unit, then replace one least useful eligible unit per `period`
 credits. The returned list names every replaced unit in order. -/
-def Lifecycle.test (state : Lifecycle shape config criterion dimension discounts)
+def Lifecycle.test (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count) :
-    Lifecycle shape config criterion dimension discounts × List (Fin config.units.count) :=
+    Lifecycle shape actions config criterion dimension discounts × List (Fin config.units.count) :=
   let scored := state.score active
   let accrued := scored.accrued free
   Lifecycle.replaceDue free (config.tester.due accrued)
@@ -501,7 +503,7 @@ theorem due_le (period credit eligible : Nat) (below : credit < period) :
 /-- **Turnover by construction.** Each test replaces exactly `⌊(c + n)/period⌋`
 units, where `c` is the stored credit and `n` the number of eligible units, and
 keeps `(c + n) mod period` as its credit. -/
-theorem Lifecycle.test_accrual (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.test_accrual (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count) :
     (state.test free active).2.length =
         (state.progress.credit.val + state.eligibleCount free) / config.tester.period ∧
@@ -540,7 +542,7 @@ theorem Lifecycle.test_accrual (state : Lifecycle shape config criterion dimensi
     rfl
 
 /-- The per-step identity `period · replaced + credit' = credit + eligible`. -/
-theorem Lifecycle.test_balance (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.test_balance (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count) :
     config.tester.period * (state.test free active).2.length +
         (state.test free active).1.progress.credit.val =
@@ -549,21 +551,21 @@ theorem Lifecycle.test_balance (state : Lifecycle shape config criterion dimensi
   exact Nat.div_add_mod _ _
 
 /-- Away from a free boundary, every unit a test replaces was held by no slot. -/
-theorem Lifecycle.test_unheld (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.test_unheld (state : Lifecycle shape actions config criterion dimension discounts)
     (active : Vector Bool config.units.count) :
     ∀ unit ∈ (state.test false active).2, state.consumers.holds unit = false :=
   Lifecycle.replaceDue_unheld _ _
 
 /-- Any learner-state property closed under slot resets survives a test. -/
-theorem Lifecycle.test_preserves (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.test_preserves (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count)
-    (property : Ensemble config criterion dimension discounts → Prop)
+    (property : Ensemble actions config criterion dimension discounts → Prop)
     (closed : ∀ ensemble feature, property ensemble → property (ensemble.retire feature))
     (holds : property state.consumers) : property (state.test free active).1.consumers :=
   Lifecycle.replaceDue_preserves free property closed _ _ holds
 
 /-- A test changes no held objective. -/
-theorem Lifecycle.test_holds (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.test_holds (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count) :
     (state.test free active).1.consumers.holds = state.consumers.holds :=
   state.test_preserves free active (fun ensemble => ensemble.holds = state.consumers.holds)
@@ -572,14 +574,14 @@ theorem Lifecycle.test_holds (state : Lifecycle shape config criterion dimension
       rw [Ensemble.retire_holds, same]) rfl
 
 /-- A test keeps the clock. -/
-theorem Lifecycle.test_clock (state : Lifecycle shape config criterion dimension discounts)
+theorem Lifecycle.test_clock (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count) :
     (state.test free active).1.progress.clock = state.progress.clock :=
   (Lifecycle.replaceDue_counters free _ _).2
 
 /-- Ordinary advancement ages every unit by one step. -/
-def Lifecycle.advance (state : Lifecycle shape config criterion dimension discounts) :
-    Lifecycle shape config criterion dimension discounts :=
+def Lifecycle.advance (state : Lifecycle shape actions config criterion dimension discounts) :
+    Lifecycle shape actions config criterion dimension discounts :=
   { state with representation := state.representation.advance }
 
 end Acorn.Features

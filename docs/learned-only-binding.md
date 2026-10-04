@@ -27,9 +27,9 @@ comparison and target population.
 
 ### D1 · Hand-authored channels — Step 2
 
-The channel layout is authored. Projection features are generated over those channels: the generator reads the tile-kind patch followed by the task words in their channel order.
+The channel layout is authored. Each world's adapter authors the words and symbols of its frames; the grid world's reads the tile-kind patch followed by the task words in their channel order, and projection features are generated over those symbols. For every world the agent adds its own prediction feedback words, bucketed on channels of their own.
 
-Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.Agent`.
+Loci: `Acorn.Handcrafted.Signals`, `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.Agent`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,
@@ -38,9 +38,9 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 ### D2 · Spatial potentials — Step 10
 
-The ranked profile uses learned assignments; the spatial comparison uses authored potentials. F1–F3 describe the questions around model quality, planning and feature selection.
+The ranked profile uses learned assignments; the spatial comparison uses authored potentials, which a world's frame carries and the grid world's adapter produces. F1–F3 describe the questions around model quality, planning and feature selection.
 
-Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.AgentAlignment`, `Acorn.Handcrafted.AgentEpisodes`, `Acorn.Handcrafted.Agent`.
+Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.AgentAlignment`, `Acorn.Handcrafted.AgentEpisodes`, `Acorn.Handcrafted.Agent`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,
@@ -124,9 +124,9 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 ### D5 · Prediction targets — Step 2
 
-The host defines reward/prediction targets and horizons. Prediction weights are updated from experience for these fixed questions. Each option also asks the same eleven questions, at the same horizons, about its own policy, learned off-policy ([PAR-18](prior-art-review.md#par-18--off-policy-questions)).
+A world's interface declares its prediction targets and their horizons, and the agent adds one question of its own, whether the delivered reward is positive. The grid world declares ten targets, eleven questions in all. Prediction weights are updated from experience for these fixed questions. Each option also asks the same questions, at the same horizons, about its own policy, learned off-policy ([PAR-18](prior-art-review.md#par-18--off-policy-questions)).
 
-Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.Cumulants`, `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
+Loci: `Acorn.Handcrafted.Signals`, `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.Cumulants`, `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,

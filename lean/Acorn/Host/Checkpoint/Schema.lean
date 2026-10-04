@@ -68,7 +68,7 @@ def demonImagesCodec (dimension : Dimension) : (discounts : List Discount) → C
       (fun | .cons head tail => (head, tail)) (by intro images; cases images; rfl)
 
 /-- Primary learner segment order is shared structurally by parser and writer. -/
-def primaryCodec (dimension : Dimension) : Codec (PrimaryImage dimension demonLayout) :=
+def primaryCodec (dimension : Dimension) : Codec (PrimaryImage Grid.actions dimension demonLayout) :=
   ((vectorCodec (knowledgeCodec dimension) Acorn.FeatureConstants.primitiveCount).pair
     ((vectorCodec (knowledgeCodec dimension) Acorn.FeatureConstants.metaActionCount).pair
     ((vectorCodec (vectorCodec (knowledgeCodec dimension) Acorn.FeatureConstants.primitiveCount)
@@ -200,7 +200,7 @@ structure Payload (dimension : Dimension) where
   /-- Exactly three saved objectives. -/
   assignments : Vector AssignmentWords Acorn.FeatureConstants.skillCount
   /-- Every primary learner, in canonical segment order. -/
-  primary : PrimaryImage dimension demonLayout
+  primary : PrimaryImage Grid.actions dimension demonLayout
   /-- All durable observation fields. -/
   lifetime : LifetimeWords
   /-- Generator and tester state. -/

@@ -14,6 +14,7 @@ import AcornVerif.CurrentRetirementRounding
 import AcornVerif.Resource.WordKernel
 import AcornVerif.ParameterBudget
 import AcornVerif.Checkpoint
+import AcornVerif.GridCorrespondence
 import AcornVerif.Energy
 import AcornVerif.Exploration
 import AcornVerif.MetaGradient
@@ -3393,5 +3394,33 @@ info: 'AcornVerif.CurrentSpawn.selectSpawn_post' depends on axioms: [propext, Cl
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentSpawn.selectSpawn_post
+
+/-- info: 'AcornVerif.GridCorrespondence.initial_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.GridCorrespondence.initial_eq
+
+/-- info: 'AcornVerif.GridCorrespondence.act_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.GridCorrespondence.act_eq
+
+/-- info: 'AcornVerif.GridCorrespondence.callback_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.GridCorrespondence.callback_eq
+
+/-- info: 'AcornVerif.GridCorrespondence.restore_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.GridCorrespondence.restore_eq
+
+/-- info: 'Acorn.Handcrafted.Agent.grid_inputs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.grid_inputs
+
+/-- info: 'Acorn.Handcrafted.Agent.words_disjoint' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.words_disjoint
+
+/-- info: 'Acorn.Handcrafted.Agent.frame_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.frame_length
 
 end AcornVerif

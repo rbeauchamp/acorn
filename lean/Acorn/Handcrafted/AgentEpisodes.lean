@@ -16,8 +16,8 @@ that relation without storing an experience or proof history at runtime.
 namespace Acorn.Handcrafted
 open Features
 
-variable {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
-    {dimension : Dimension}
+variable {interface : Interface} {actions : Word.Count} {profile : FeatureProfile}
+    {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
 
 /-- Complete activation event protocol. Endings consume an old activation and
 starts reserve a new one; neither operation is inferred from diagnostic counts. -/
@@ -36,7 +36,7 @@ inductive EpisodeTrace : Option (Fin Acorn.FeatureConstants.skillCount) →
 /-- A closing refresh can detach a learner, but cannot change which activation ends. -/
 theorem _root_.Acorn.Features.FreeDispatch.install_closing_slot
     {shape : PatchShape} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload)
+    (state : FreeDispatch shape actions config criterion dimension discounts payload)
     (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config) :
     (state.install slot target).closing.map (·.slot) = state.closing.map (·.slot) := by
   unfold FreeDispatch.install
@@ -52,13 +52,13 @@ theorem _root_.Acorn.Features.FreeDispatch.install_closing_slot
 /-- All assignment refreshes preserve the closing activation's slot. -/
 theorem _root_.Acorn.Features.FreeDispatch.refresh_closing_slot
     {shape : PatchShape} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload) :
+    (state : FreeDispatch shape actions config criterion dimension discounts payload) :
     state.refreshRanked.closing.map (·.slot) = state.closing.map (·.slot) := by
   simp only [FreeDispatch.refreshRanked]
   generalize rankAssignments dimension config state.lifecycle.consumers.demons.rankingWeights
     (state.lifecycle.consumers.skills.map (·.interest.held)) = targets
   have fold (slots : List (Fin Acorn.FeatureConstants.skillCount))
-      (current : FreeDispatch shape config criterion dimension discounts payload) :
+      (current : FreeDispatch shape actions config criterion dimension discounts payload) :
       (slots.foldl (fun next slot => next.install slot targets[slot.val]) current).closing.map (·.slot) =
         current.closing.map (·.slot) := by
     induction slots generalizing current with
@@ -71,14 +71,14 @@ theorem _root_.Acorn.Features.FreeDispatch.refresh_closing_slot
 assigning or not. -/
 theorem _root_.Acorn.Features.FreeDispatch.refreshModels_closing_slot
     {shape : PatchShape} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload) (assign : Bool) :
+    (state : FreeDispatch shape actions config criterion dimension discounts payload) (assign : Bool) :
     (state.refreshModels assign).closing.map (·.slot) = state.closing.map (·.slot) := by
   cases assign with
   | false => rfl
   | true => exact state.refresh_closing_slot
 
 /-- Primitive selection creates no active option and preserves the supplied closing event. -/
-theorem TemporalControl.primitive_episodes (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.primitive_episodes (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 metaCount.word.toNat)
     (metaDecision : Option (PolicyDecision metaCount)) (ended : Option EndEvent) :
     let result := state.choosePrimitive features values metaDecision ended
@@ -89,10 +89,10 @@ theorem TemporalControl.primitive_episodes (state : TemporalControl profile conf
 /-- Option stepping retains exactly its slot and the caller's actual lifecycle events:
 the option is the executing invocation of the frame it drew, even when its draw began a
 run that will take control at the next frame. -/
-theorem TemporalControl.option_episodes (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.option_episodes (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : OptionActivation (profile.mode != .frozen))
-    (next : OptionContinuation dimension activation) (reward : Binary32)
+    (next : OptionContinuation interface.actions dimension activation) (reward : Binary32)
     (values : Vector Binary32 metaCount.word.toNat) (metaDecision : Option (PolicyDecision metaCount))
     (started : Bool) (ended : Option EndEvent) :
     let result := state.stepOption models slot activation next reward values metaDecision started ended
@@ -102,11 +102,11 @@ theorem TemporalControl.option_episodes (state : TemporalControl profile config 
   exact ⟨rfl, Occupancy.afterOption_executing _ _ _, rfl, rfl⟩
 
 /-- Boundary metaDecision dispatch has a new active slot exactly when its observation records a start. -/
-theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile config criterion dimension)
+theorem TemporalControl.dispatch_episodes (state next : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
     (decision : PolicyDecision metaCount)
-    (ended : Option EndEvent) (observed : TemporalDecision)
+    (ended : Option EndEvent) (observed : TemporalDecision interface.actions)
     (executed : state.dispatchMeta models features declared reward goal decision ended =
       some (next, observed)) :
     next.lifetime = state.lifetime ∧ next.activeSlot = observed.started ∧ observed.ended = ended := by
@@ -133,30 +133,30 @@ theorem TemporalControl.dispatch_episodes (state next : TemporalControl profile 
       exact ⟨lifetime, Occupancy.afterOption_executing _ _ _, rfl⟩
 
 /-- Refresh alters feature knowledge and detached ownership, leaving episode observations intact. -/
-theorem TemporalControl.refresh_episode_slot (state : TemporalControl profile config criterion dimension)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))) :
+theorem TemporalControl.refresh_episode_slot (state : TemporalControl interface profile config criterion dimension)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))) :
     (state.refreshFree closing).2.map (·.slot) = closing.map (·.slot) := by
   exact (FreeDispatch.refreshModels_closing_slot
     (⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩ :
-      FreeDispatch Host.patchShape config criterion dimension demonLayout.tail
+      FreeDispatch interface.shape interface.actions config criterion dimension interface.signals
         (EndingPayload (profile.mode != .frozen))) profile.ranksSubtasks)
 
 /-- Terminal credit does not itself record an episode; the common finish boundary records it once. -/
-theorem TemporalControl.close_lifetime (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.close_lifetime (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (closing : Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)))
+    (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
     (reward terminal : Binary32) :
     (state.closeOption models features closing reward terminal).1.lifetime = state.lifetime := by
   rw [TemporalControl.closeOption_eq]
   split <;> rfl
 
 /-- Free dispatch preserves episode ownership through refresh, planning and sampled terminal credit. -/
-theorem TemporalControl.boundary_episodes (state next : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+theorem TemporalControl.boundary_episodes (state next : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
     (goal : Bool)
-    (closing : Option (Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen))))
-    (ended : Option EndEvent) (observed : TemporalDecision)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (ended : Option EndEvent) (observed : TemporalDecision interface.actions)
     (executed : state.atBoundary models plan features declared reward goal closing ended =
       some (next, observed)) :
     next.lifetime = state.lifetime ∧ next.activeSlot = observed.started ∧
@@ -190,7 +190,7 @@ theorem TemporalControl.boundary_episodes (state next : TemporalControl profile 
     rfl
 
 /-- Preparation updates neither the active invocation nor any episode observation. -/
-theorem TemporalControl.prepare_episodes (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.prepare_episodes (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension) (reward : Binary32) :
     (state.prepareSelection models features reward).lifetime = state.lifetime ∧
       (state.prepareSelection models features reward).activeSlot = state.activeSlot := by
@@ -198,15 +198,15 @@ theorem TemporalControl.prepare_episodes (state : TemporalControl profile config
   split <;> split <;> exact ⟨rfl, rfl⟩
 
 /-- A deferred meta clock changes no episode ownership or accounting. -/
-theorem TemporalControl.skip_episodes (state : TemporalControl profile config criterion dimension) :
+theorem TemporalControl.skip_episodes (state : TemporalControl interface profile config criterion dimension) :
     state.skipMeta.lifetime = state.lifetime ∧ state.skipMeta.activeSlot = state.activeSlot := by
   unfold TemporalControl.skipMeta
   split <;> exact ⟨rfl, rfl⟩
 
 /-- Serving persistent exploration starts nothing, leaves no option executing and ends
 exactly the option the run held, which only its first served step can. -/
-theorem TemporalControl.serve_episodes (state next : TemporalControl profile config criterion dimension)
-    (features : SwiftTd.ActiveSet dimension) (observed : TemporalDecision)
+theorem TemporalControl.serve_episodes (state next : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (observed : TemporalDecision interface.actions)
     (executed : state.serve features = some (next, observed)) :
     next.lifetime = state.lifetime ∧ next.activeSlot = none ∧
       observed.started = none ∧ observed.ended.map (·.slot) = state.activeSlot := by
@@ -236,8 +236,8 @@ theorem TemporalControl.serve_episodes (state next : TemporalControl profile con
 
 /-- A committed run that serves nothing holds no option: a held option always has a
 served step ahead. -/
-theorem TemporalControl.unserved_free (state : TemporalControl profile config criterion dimension)
-    (features : SwiftTd.ActiveSet dimension) (committed : CommittedRun (profile.mode != .frozen))
+theorem TemporalControl.unserved_free (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (committed : CommittedRun interface.actions (profile.mode != .frozen))
     (phase : state.runtime.references.phase = .exploring committed)
     (unserved : state.serve features = none) : state.activeSlot = none := by
   have spent : committed.run.serve = none := by
@@ -252,10 +252,10 @@ theorem TemporalControl.unserved_free (state : TemporalControl profile config cr
     exact absurd positive (by omega)
 
 /-- Source-exclusive selection exposes the complete start/end transition for each activation. -/
-theorem TemporalControl.select_episodes (state next : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+theorem TemporalControl.select_episodes (state next : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
-    (observed : TemporalDecision)
+    (observed : TemporalDecision interface.actions)
     (primitive : profile.usesHierarchy = false → state.activeSlot = none)
     (executed : state.selectWithOperations models plan features declared reward goal = some (next, observed)) :
     next.lifetime = state.lifetime ∧
@@ -339,7 +339,7 @@ theorem TemporalControl.select_episodes (state next : TemporalControl profile co
           | ending reason =>
             simp only [skill, free, metaPolicy] at choice
             simp only [choice] at executed
-            let closing : Closing config criterion dimension demonLayout (EndingPayload (profile.mode != .frozen)) :=
+            let closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)) :=
               ⟨slot, ⟨activation, value, reason⟩, none⟩
             cases criterion with
             | differential =>
@@ -389,10 +389,10 @@ theorem EpisodeTrace.record_valid
       | some started => exact Lifetime.options_start_valid _ started finished
 
 /-- Primitive-only selection cannot leave an option active, regardless of prior raw occupancy. -/
-theorem TemporalControl.select_primitive (state next : TemporalControl profile config criterion dimension)
-    (models : OptionModelOps criterion dimension) (plan : PlanBoundary config criterion dimension demonLayout)
+theorem TemporalControl.select_primitive (state next : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
-    (observed : TemporalDecision) (primitive : profile.usesHierarchy = false)
+    (observed : TemporalDecision interface.actions) (primitive : profile.usesHierarchy = false)
     (executed : state.selectWithOperations models plan features declared reward goal = some (next, observed)) :
     next.activeSlot = none := by
   unfold TemporalControl.selectWithOperations at executed
@@ -412,9 +412,9 @@ theorem TemporalControl.select_primitive (state next : TemporalControl profile c
     exact proof.2.1
 
 /-- Off-policy option learning records no episode and moves no activation. -/
-theorem TemporalControl.follow_episodes (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.follow_episodes (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision) :
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions) :
     (state.followOptions models features declared reward goal decision).lifetime = state.lifetime ∧
       (state.followOptions models features declared reward goal decision).activeSlot =
         state.activeSlot := by
@@ -422,7 +422,7 @@ theorem TemporalControl.follow_episodes (state : TemporalControl profile config 
   split <;> exact ⟨rfl, rfl⟩
 
 /-- Closing an interrupted option's meta span records no episode and moves no activation. -/
-theorem TemporalControl.closeSpan_episodes (state : TemporalControl profile config criterion dimension)
+theorem TemporalControl.closeSpan_episodes (state : TemporalControl interface profile config criterion dimension)
     (continuation : Option Binary32) :
     (state.closeSpan continuation).lifetime = state.lifetime ∧
       (state.closeSpan continuation).activeSlot = state.activeSlot := by
@@ -433,14 +433,14 @@ theorem TemporalControl.closeSpan_episodes (state : TemporalControl profile conf
     exact ⟨rfl, rfl⟩
 
 /-- Stored episode counts agree with the outstanding invocation and immutable hierarchy mode. -/
-def TemporalControl.Episodes (state : TemporalControl profile config criterion dimension) : Prop :=
+def TemporalControl.Episodes (state : TemporalControl interface profile config criterion dimension) : Prop :=
   Lifetime.OptionsValid state.lifetime.options state.activeSlot ∧
     (profile.usesHierarchy = false → state.activeSlot = none)
 
 /-- All cold profiles have empty counts and no active invocation. -/
-theorem TemporalControl.initial_episodes (profile : FeatureProfile) (config : Features.Config)
-    (criterion : Criterion) (dimension : Dimension) :
-    (TemporalControl.initial profile config criterion dimension).Episodes := by
+theorem TemporalControl.initial_episodes (interface : Interface) (profile : FeatureProfile)
+    (config : Features.Config) (criterion : Criterion) (dimension : Dimension) :
+    (TemporalControl.initial interface profile config criterion dimension).Episodes := by
   constructor
   · intro slot
     simpa [TemporalControl.initial, TemporalControl.activeSlot, TemporalReferences.cold,
@@ -448,9 +448,9 @@ theorem TemporalControl.initial_episodes (profile : FeatureProfile) (config : Fe
   · intro _; rfl
 
 /-- The common finish changes options only through its actual event record. -/
-theorem TemporalControl.finish_options (state : TemporalControl profile config criterion dimension)
-    (features : SwiftTd.ActiveSet dimension) (observation : Host.Observation) (reward : Binary32)
-    (decision : TemporalDecision) :
+theorem TemporalControl.finish_options (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) (reward : Binary32)
+    (decision : TemporalDecision interface.actions) :
     (state.finish features observation reward decision).lifetime.options =
       Lifetime.recordOptions state.lifetime.options decision.episodeEnd decision.started := by
   by_cases frozen : profile.mode = .frozen <;>
@@ -459,27 +459,27 @@ theorem TemporalControl.finish_options (state : TemporalControl profile config c
   exact Lifetime.Stats.recordDemons_options _ _ _ _
 
 /-- Actual local steps preserve the episode invariant at every write boundary. -/
-theorem TemporalControl.step_episodes (state next : TemporalControl profile config criterion dimension)
+theorem TemporalControl.step_episodes (state next : TemporalControl interface profile config criterion dimension)
     (valid : state.Episodes) (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
-    (observation : Host.Observation) (reward : Binary32) (goal : Bool) (decision : TemporalDecision)
+    (observation : Frame interface) (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions)
     (executed : state.step planning features observation reward goal = some (next, decision)) :
     next.Episodes := by
   unfold TemporalControl.step at executed
-  cases selected : state.select planning features (spatialPotentials observation) reward goal with
+  cases selected : state.select planning features observation.declared reward goal with
   | none => simp [selected] at executed
   | some result =>
     simp only [selected, bind, Option.bind, pure, Option.some.injEq] at executed
     cases executed
     have trace := state.select_episodes result.1 (modelOperations criterion dimension)
-      (planningBoundary planning) features (spatialPotentials observation) reward goal result.2 valid.2 selected
+      (planningBoundary planning) features observation.declared reward goal result.2 valid.2 selected
     have follow := result.1.follow_episodes (modelOperations criterion dimension) features
-      (spatialPotentials observation) reward goal result.2
+      observation.declared reward goal result.2
     generalize result.1.followOptions (modelOperations criterion dimension) features
-      (spatialPotentials observation) reward goal result.2 = followed at follow ⊢
+      observation.declared reward goal result.2 = followed at follow ⊢
     have closed := followed.closeSpan_episodes
-      (result.1.takeoverValue features (spatialPotentials observation) goal result.2)
+      (result.1.takeoverValue features observation.declared goal result.2)
     generalize followed.closeSpan
-      (result.1.takeoverValue features (spatialPotentials observation) goal result.2) =
+      (result.1.takeoverValue features observation.declared goal result.2) =
         spanned at closed ⊢
     constructor
     · change Lifetime.OptionsValid
@@ -491,6 +491,6 @@ theorem TemporalControl.step_episodes (state next : TemporalControl profile conf
       change spanned.activeSlot = none
       rw [closed.2, follow.2]
       exact state.select_primitive result.1 (modelOperations criterion dimension) (planningBoundary planning)
-        features (spatialPotentials observation) reward goal result.2 primitive selected
+        features observation.declared reward goal result.2 primitive selected
 
 end Acorn.Handcrafted

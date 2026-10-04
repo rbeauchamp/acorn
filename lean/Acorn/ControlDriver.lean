@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Handcrafted.PredictionControl
+import Acorn.Handcrafted.GridWorld
 
 /-!
 # Native prediction/control consumer
@@ -33,15 +33,16 @@ state owners. Caller-supplied words keep native storage dynamically allocated. -
   let config : Features.Config :=
     ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
   let bank := Bank.initial Host.patchShape config
-  let state := PredictionControl.initial profile criterion dimension
+  let state := PredictionControl.initial Grid.interface profile criterion dimension
   let obs := observation word
   let features := state.encode bank obs
   let snapshot : PolicySnapshot actionCount :=
     state.control.controller.snapshot features (SwiftTd.ExploreRate.project ⟨word.toUInt32⟩)
   let decision := snapshot.draw (Rng.Xoshiro256.seed seed)
-  let state := state.advance features obs .one decision.1.action true
+  let frame := Grid.frame profile.taskMode obs false
+  let state := state.advance features frame .one decision.1.action true
   let features := state.encode bank obs
-  let state := state.advance features obs .one decision.1.action true
+  let state := state.advance features frame .one decision.1.action true
   (decision.1.action.val, state.control.average.rate.value.bits,
     (state.control.controller.predictAll features).get decision.1.action |>.bits)
 

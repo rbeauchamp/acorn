@@ -29,8 +29,10 @@ def key : Departure → String
 
 /-- Maintained loci include compositions; adding a quarantined module requires admission. -/
 def modules : List (Name × List Departure) :=
-  [(`Acorn.Handcrafted.Observation, [.featureChannels, .spatialPotentials, .cumulants]),
+  [(`Acorn.Handcrafted.Signals, [.featureChannels, .cumulants]),
+   (`Acorn.Handcrafted.Observation, [.featureChannels, .spatialPotentials, .cumulants]),
    (`Acorn.Handcrafted.Cumulants, [.cumulants]),
+   (`Acorn.Handcrafted.GridWorld, [.featureChannels, .spatialPotentials, .cumulants]),
    (`Acorn.Handcrafted.FeatureProfile, [.featureChannels, .spatialPotentials, .explorationRate,
      .featureTester]),
    (`Acorn.Handcrafted.TemporalProfile, [.spatialPotentials, .explorationRate]),

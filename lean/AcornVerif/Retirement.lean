@@ -37,31 +37,32 @@ restated here as a theorem about the whole agent transition.
 namespace AcornVerif.Retirement
 open Acorn.Features
 
-variable {shape : PatchShape} {config : Config} {criterion : Criterion}
+variable {shape : PatchShape} {actions : Acorn.Word.Count} {config : Config} {criterion : Criterion}
   {dimension : Acorn.Dimension} {discounts : List Acorn.Discount}
 
 /-- One end-of-frame cycle: any learner update, the frame's free-boundary flag and
 the frame's unit outputs. -/
-structure Cycle (config : Config) (criterion : Criterion) (dimension : Acorn.Dimension)
+structure Cycle (actions : Acorn.Word.Count) (config : Config) (criterion : Criterion)
+    (dimension : Acorn.Dimension)
     (discounts : List Acorn.Discount) where
   /-- Learning between tests; it writes only the consumers. -/
-  learn : Ensemble config criterion dimension discounts →
-    Ensemble config criterion dimension discounts
+  learn : Ensemble actions config criterion dimension discounts →
+    Ensemble actions config criterion dimension discounts
   /-- Whether the test runs at a free boundary. -/
   free : Bool
   /-- The frame's unit outputs. -/
   active : Vector Bool config.units.count
 
 /-- The state a cycle tests: the advanced clock and the updated learners. -/
-def Cycle.prepare (input : Cycle config criterion dimension discounts)
-    (state : Lifecycle shape config criterion dimension discounts) :
-    Lifecycle shape config criterion dimension discounts :=
+def Cycle.prepare (input : Cycle actions config criterion dimension discounts)
+    (state : Lifecycle shape actions config criterion dimension discounts) :
+    Lifecycle shape actions config criterion dimension discounts :=
   { state.advance with consumers := input.learn state.advance.consumers }
 
 /-- Run cycles, recording each test's eligible count and the total replaced. -/
-def run : List (Cycle config criterion dimension discounts) →
-    Lifecycle shape config criterion dimension discounts →
-      Lifecycle shape config criterion dimension discounts × List Nat × Nat
+def run : List (Cycle actions config criterion dimension discounts) →
+    Lifecycle shape actions config criterion dimension discounts →
+      Lifecycle shape actions config criterion dimension discounts × List Nat × Nat
   | [], state => (state, [], 0)
   | input :: rest, state =>
     let prepared := input.prepare state
@@ -70,15 +71,15 @@ def run : List (Cycle config criterion dimension discounts) →
     (later.1, prepared.eligibleCount input.free :: later.2.1, tested.2.length + later.2.2)
 
 /-- One eligible count is recorded per cycle. -/
-theorem run_length : ∀ (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts),
+theorem run_length : ∀ (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts),
     (run inputs state).2.1.length = inputs.length
   | [], _ => rfl
   | _ :: rest, state => by simp [run, run_length rest]
 
 /-- Credit balance over any run: `period · replaced + c_final = c₀ + Σ nₜ`. -/
-theorem run_balance : ∀ (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts),
+theorem run_balance : ∀ (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts),
     config.tester.period * (run inputs state).2.2 + (run inputs state).1.progress.credit.val =
       state.progress.credit.val + (run inputs state).2.1.sum
   | [], _ => by simp [run]
@@ -94,8 +95,8 @@ theorem run_balance : ∀ (inputs : List (Cycle config criterion dimension disco
 
 /-- **Turnover by construction.** The number replaced over any run is exactly
 `⌊(c₀ + Σ nₜ)/period⌋`. -/
-theorem run_replaced (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts) :
+theorem run_replaced (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts) :
     (run inputs state).2.2 =
       (state.progress.credit.val + (run inputs state).2.1.sum) / config.tester.period := by
   have balance := run_balance inputs state
@@ -128,8 +129,8 @@ theorem sum_upper (bound : Nat) :
 
 /-- A replacement occurs within `⌈period/k⌉` tests whenever at least `k` units are
 eligible at each of them. -/
-theorem run_turnover (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts) (bound : Nat)
+theorem run_turnover (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts) (bound : Nat)
     (eligible : ∀ count ∈ (run inputs state).2.1, bound ≤ count)
     (long : config.tester.period ≤ bound * inputs.length) :
     1 ≤ (run inputs state).2.2 := by
@@ -139,11 +140,11 @@ theorem run_turnover (inputs : List (Cycle config criterion dimension discounts)
   omega
 
 /-- Units mature now. -/
-def matureCount (state : Lifecycle shape config criterion dimension discounts) : Nat :=
+def matureCount (state : Lifecycle shape actions config criterion dimension discounts) : Nat :=
   (List.finRange config.units.count).countP state.mature
 
 /-- Units some slot holds as its objective. -/
-def heldCount (state : Lifecycle shape config criterion dimension discounts) : Nat :=
+def heldCount (state : Lifecycle shape actions config criterion dimension discounts) : Nat :=
   (List.finRange config.units.count).countP state.consumers.holds
 
 /-- A count of items satisfying `p` is at most the counts for `q` and `r` together
@@ -173,7 +174,7 @@ theorem holds_count_le (assignment : Acorn.Features.Assignment config) :
 
 /-- The slots together hold at most one unit each. -/
 theorem heldCount_le_slots :
-    ∀ (skills : List (Skill config criterion dimension discounts)),
+    ∀ (skills : List (Skill actions config criterion dimension discounts)),
       (List.finRange config.units.count).countP
         (fun unit => skills.any (·.interest.held.holds unit)) ≤ skills.length
   | [] => by simp
@@ -188,7 +189,7 @@ theorem heldCount_le_slots :
     omega
 
 /-- **Bounded holding.** At most one unit per slot is held, whatever the learner values. -/
-theorem heldCount_le (state : Lifecycle shape config criterion dimension discounts) :
+theorem heldCount_le (state : Lifecycle shape actions config criterion dimension discounts) :
     heldCount state ≤ Acorn.FeatureConstants.skillCount := by
   have bound := heldCount_le_slots (criterion := criterion) state.consumers.skills.toList
   rw [Vector.length_toList] at bound
@@ -196,7 +197,8 @@ theorem heldCount_le (state : Lifecycle shape config criterion dimension discoun
 
 /-- Every mature unit is eligible or held, so `k` mature units leave at least
 `k − h` eligible when `h` are held. -/
-theorem mature_le (state : Lifecycle shape config criterion dimension discounts) (free : Bool) :
+theorem mature_le (state : Lifecycle shape actions config criterion dimension discounts)
+    (free : Bool) :
     matureCount state ≤ state.eligibleCount free + heldCount state :=
   countP_le_add _ _ _ _ fun unit _ mature => by
     cases held : state.consumers.holds unit
@@ -205,14 +207,14 @@ theorem mature_le (state : Lifecycle shape config criterion dimension discounts)
     · exact Or.inr rfl
 
 /-- Eligible counts never exceed the bank. -/
-theorem eligibleCount_le (state : Lifecycle shape config criterion dimension discounts)
+theorem eligibleCount_le (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) : state.eligibleCount free ≤ config.units.count := by
   have := List.countP_le_length (p := state.eligible free) (l := List.finRange config.units.count)
   simpa [Lifecycle.eligibleCount] using this
 
 /-- Every recorded count is an eligible count, so it is at most the bank size. -/
-theorem run_counts_le : ∀ (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts),
+theorem run_counts_le : ∀ (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts),
     ∀ count ∈ (run inputs state).2.1, count ≤ config.units.count
   | [], _, _, member => by simp [run] at member
   | input :: rest, state, count, member => by
@@ -223,8 +225,8 @@ theorem run_counts_le : ∀ (inputs : List (Cycle config criterion dimension dis
     · exact run_counts_le rest _ count later
 
 /-- At least `bound` units are mature at every test of a run. -/
-def MatureAtEach (bound : Nat) : List (Cycle config criterion dimension discounts) →
-    Lifecycle shape config criterion dimension discounts → Prop
+def MatureAtEach (bound : Nat) : List (Cycle actions config criterion dimension discounts) →
+    Lifecycle shape actions config criterion dimension discounts → Prop
   | [], _ => True
   | input :: rest, state =>
     bound ≤ matureCount (input.prepare state) ∧
@@ -233,8 +235,8 @@ def MatureAtEach (bound : Nat) : List (Cycle config criterion dimension discount
 /-- With at least `k` mature units at each test, every recorded eligible count is
 at least `k − skillCount`. -/
 theorem run_counts_mature (bound : Nat) :
-    ∀ (inputs : List (Cycle config criterion dimension discounts))
-      (state : Lifecycle shape config criterion dimension discounts),
+    ∀ (inputs : List (Cycle actions config criterion dimension discounts))
+      (state : Lifecycle shape actions config criterion dimension discounts),
       MatureAtEach bound inputs state →
         ∀ count ∈ (run inputs state).2.1, bound - Acorn.FeatureConstants.skillCount ≤ count
   | [], _, _, _, member => by simp [run] at member
@@ -251,16 +253,16 @@ theorem run_counts_mature (bound : Nat) :
 /-- **Mature-count turnover.** A replacement occurs within `⌈period/(k − h)⌉` tests
 whenever at least `k` units are mature at each of them, where `h = skillCount`
 bounds the held units; the hypothesis `period ≤ (k − h)·L` forces `k > h`. -/
-theorem run_mature_turnover (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts) (bound : Nat)
+theorem run_mature_turnover (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts) (bound : Nat)
     (mature : MatureAtEach bound inputs state)
     (long : config.tester.period ≤ (bound - Acorn.FeatureConstants.skillCount) * inputs.length) :
     1 ≤ (run inputs state).2.2 :=
   run_turnover inputs state _ (run_counts_mature bound inputs state mature) long
 
 /-- At most `⌊(period − 1 + L·N)/period⌋` replacements occur in `L` cycles. -/
-theorem run_replaced_le (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts) :
+theorem run_replaced_le (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts) :
     (run inputs state).2.2 ≤
       (config.tester.period - 1 + config.units.count * inputs.length) / config.tester.period := by
   have total := sum_upper config.units.count _ (run_counts_le inputs state)
@@ -271,7 +273,8 @@ theorem run_replaced_le (inputs : List (Cycle config criterion dimension discoun
   omega
 
 /-- Units born after clock `τ`. -/
-def bornAfter (τ : Nat) (state : Lifecycle shape config criterion dimension discounts) : Nat :=
+def bornAfter (τ : Nat) (state : Lifecycle shape actions config criterion dimension discounts) : Nat
+    :=
   (List.finRange config.units.count).countP fun unit =>
     decide (τ < state.progress.units[unit.val].birth.toNat)
 
@@ -299,7 +302,8 @@ theorem countP_le_succ {α : Type} (p q : α → Bool) (target : α) :
       omega
 
 /-- One replacement adds at most one unit born after `τ`. -/
-theorem bornAfter_replace (τ : Nat) (state : Lifecycle shape config criterion dimension discounts)
+theorem bornAfter_replace (τ : Nat)
+    (state : Lifecycle shape actions config criterion dimension discounts)
     (unit : Fin config.units.count) :
     bornAfter τ (state.replace unit) ≤ bornAfter τ state + 1 :=
   countP_le_succ _ _ unit _ (List.nodup_finRange _) (fun other _ different => by
@@ -309,7 +313,7 @@ theorem bornAfter_replace (τ : Nat) (state : Lifecycle shape config criterion d
 
 /-- The units born after `τ` grow by at most the number replaced. -/
 theorem bornAfter_replaceDue (τ : Nat) (free : Bool) :
-    ∀ (due : Nat) (state : Lifecycle shape config criterion dimension discounts),
+    ∀ (due : Nat) (state : Lifecycle shape actions config criterion dimension discounts),
       bornAfter τ (Lifecycle.replaceDue free due state).1 ≤
         bornAfter τ state + (Lifecycle.replaceDue free due state).2.length
   | 0, _ => by simp [Lifecycle.replaceDue]
@@ -323,7 +327,8 @@ theorem bornAfter_replaceDue (τ : Nat) (free : Bool) :
       omega
 
 /-- Scoring, crediting, advancing and learning change no birth. -/
-theorem bornAfter_test (τ : Nat) (state : Lifecycle shape config criterion dimension discounts)
+theorem bornAfter_test (τ : Nat)
+    (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count) :
     bornAfter τ (state.test free active).1 ≤
       bornAfter τ state + (state.test free active).2.length := by
@@ -337,8 +342,9 @@ theorem bornAfter_test (τ : Nat) (state : Lifecycle shape config criterion dime
   exact this
 
 /-- Units born after any clock `τ` grow by at most the number replaced over a run. -/
-theorem run_bornAfter (τ : Nat) : ∀ (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts),
+theorem run_bornAfter (τ : Nat) : ∀
+    (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts),
     bornAfter τ (run inputs state).1 ≤ bornAfter τ state + (run inputs state).2.2
   | [], _ => by simp [run]
   | input :: rest, state => by
@@ -351,7 +357,7 @@ theorem run_bornAfter (τ : Nat) : ∀ (inputs : List (Cycle config criterion di
     omega
 
 /-- No unit is born after the current clock. -/
-theorem bornAfter_clock (state : Lifecycle shape config criterion dimension discounts) :
+theorem bornAfter_clock (state : Lifecycle shape actions config criterion dimension discounts) :
     bornAfter state.progress.clock.toNat state = 0 := by
   simp only [bornAfter, List.countP_eq_zero, decide_eq_true_eq, Nat.not_lt]
   intro unit _
@@ -359,8 +365,8 @@ theorem bornAfter_clock (state : Lifecycle shape config criterion dimension disc
 
 /-- **Bounded youth.** In a bank of `N` units, at most `⌊(period − 1 + L·N)/period⌋`
 units are born during any `L` cycles, whatever the stream and learner values. -/
-theorem run_young (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts) :
+theorem run_young (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts) :
     bornAfter state.progress.clock.toNat (run inputs state).1 ≤
       (config.tester.period - 1 + config.units.count * inputs.length) / config.tester.period := by
   have grown := run_bornAfter state.progress.clock.toNat inputs state
@@ -368,8 +374,8 @@ theorem run_young (inputs : List (Cycle config criterion dimension discounts))
   exact Nat.le_trans (by omega) (run_replaced_le inputs state)
 
 /-- Before saturation each cycle advances the clock by exactly one step. -/
-theorem run_clock : ∀ (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts),
+theorem run_clock : ∀ (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts),
     state.progress.clock.toNat + inputs.length ≤ maxClock →
       (run inputs state).1.progress.clock.toNat = state.progress.clock.toNat + inputs.length
   | [], _, _ => by simp [run]
@@ -392,8 +398,8 @@ theorem run_clock : ∀ (inputs : List (Cycle config criterion dimension discoun
 /-- **Bounded immaturity.** After `m + 1` unsaturated cycles, every unit that is not
 yet mature was born during them, so at most `⌊(period − 1 + (m+1)·N)/period⌋` of the
 `N` units are immature. -/
-theorem run_immature (inputs : List (Cycle config criterion dimension discounts))
-    (state : Lifecycle shape config criterion dimension discounts)
+theorem run_immature (inputs : List (Cycle actions config criterion dimension discounts))
+    (state : Lifecycle shape actions config criterion dimension discounts)
     (window : inputs.length = config.tester.maturity + 1)
     (room : state.progress.clock.toNat + inputs.length ≤ maxClock) :
     (List.finRange config.units.count).countP (fun unit => !(run inputs state).1.mature unit) ≤

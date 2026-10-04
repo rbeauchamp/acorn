@@ -78,16 +78,26 @@ theorem demonImages_size (dimension : Dimension) (discounts : List Discount)
     simp [demonImagesCodec, Codec.iso, Codec.pair, knowledge_size, ih, Nat.add_mul, Nat.add_comm]
 
 /-- Every primary learner contributes exactly two complete arrays. -/
-theorem primary_size (dimension : Dimension) (image : PrimaryImage dimension demonLayout) :
+theorem primary_size (dimension : Dimension) (image : PrimaryImage Grid.actions dimension demonLayout) :
     ((primaryCodec dimension).encode image).length = primaryCount * (dimension.capacity * 8) := by
-  simp only [primaryCodec, Codec.iso, Codec.pair, List.length_append,
-    vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension),
+  have control : ((vectorCodec (knowledgeCodec dimension)
+      Acorn.FeatureConstants.primitiveCount).encode image.control).length =
+      Acorn.FeatureConstants.primitiveCount * (dimension.capacity * 8) :=
+    vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension) _
+      image.control
+  have skills : ((vectorCodec (vectorCodec (knowledgeCodec dimension)
+      Acorn.FeatureConstants.primitiveCount) Acorn.FeatureConstants.skillCount).encode
+        image.skills).length = Acorn.FeatureConstants.skillCount *
+          (Acorn.FeatureConstants.primitiveCount * (dimension.capacity * 8)) :=
     vector_size (vectorCodec (knowledgeCodec dimension) Acorn.FeatureConstants.primitiveCount)
       (Acorn.FeatureConstants.primitiveCount * (dimension.capacity * 8))
-      (vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension) _),
+      (vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension) _)
+      _ image.skills
+  simp only [primaryCodec, Codec.iso, Codec.pair, List.length_append,
+    vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension),
     demonImages_size]
   simp only [primaryCount, Acorn.FeatureConstants.primitiveCount, Acorn.FeatureConstants.metaActionCount,
-    Acorn.FeatureConstants.skillCount, Nat.add_mul]
+    Acorn.FeatureConstants.skillCount, Nat.add_mul] at control skills ⊢
   omega
 
 /-- Count and binary64 sum occupy two wide words. -/

@@ -3,9 +3,8 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.FeatureConstants
+import Acorn.Handcrafted.Signals
 import Acorn.Host.Observation
-import Acorn.Provenance
 
 /-!
 # D1 observation channels and D2 spatial potentials
@@ -72,13 +71,13 @@ def taskWords (task : TaskObservation) (mode : TaskFeatureMode) : List SensorWor
     [⟨0x49, 4⟩, ⟨0x4A, remaining⟩, ⟨0x4B, (bitWidth 64 remaining).toUInt64⟩]
 
 /-- Current position packing uses wrapping words at both shifts. -/
-def positionWord (row col : Fin patchShape.side) : UInt64 :=
-  let dx := col.val.toUInt64 - (patchShape.side / 2).toUInt64
-  let dy := row.val.toUInt64 - (patchShape.side / 2).toUInt64
+def positionWord (row col : Fin patchSide) : UInt64 :=
+  let dx := col.val.toUInt64 - (patchSide / 2).toUInt64
+  let dy := row.val.toUInt64 - (patchSide / 2).toUInt64
   (dx <<< 32) ||| (dy &&& 0xFFFFFFFF)
 
 /-- Per-cell word order: kind, then optional food, then optional deer. -/
-def tileWords (row col : Fin patchShape.side) (tile : TileObservation) : List SensorWord :=
+def tileWords (row col : Fin patchSide) (tile : TileObservation) : List SensorWord :=
   let pos := positionWord row col
   [⟨0x10, (pos <<< 8) ||| tile.kind.toUInt64⟩] ++
     (if tile.food != 0 then [⟨0x20, pos⟩] else []) ++
@@ -87,18 +86,6 @@ def tileWords (row col : Fin patchShape.side) (tile : TileObservation) : List Se
 /-- Closed current horizon layout in canonical demon order (D5). -/
 def demonDiscount (index : Fin Acorn.FeatureConstants.demonCount) : Discount :=
   if index.val == 0 then .g99 else if index.val ≤ 5 then .g95 else .g90
-
-/-- The exact division, saturation, multiply, floor and byte-cast recipe.
-Standard native float operations, including floor and cast, retain their
-explicit runtime trust boundary; the output bound does not assume their accuracy. -/
-def predictionBucket (value horizon : Binary32) : Fin Acorn.FeatureConstants.predictionBuckets :=
-  let frac := (value.div horizon).saturate .zero ⟨0x3f800000⟩
-  let scaled := frac.mul (Binary32.ofUInt64 Acorn.FeatureConstants.predictionBuckets.toUInt64)
-  let idx := (Float32.ofBits scaled.bits).floor.toUInt8.toNat
-  ⟨min idx (Acorn.FeatureConstants.predictionBuckets - 1), by
-    have : 0 < Acorn.FeatureConstants.predictionBuckets := by decide
-    have := Nat.min_le_right idx (Acorn.FeatureConstants.predictionBuckets - 1)
-    omega⟩
 
 /-- At most the current number of prediction channels may be supplied.
 Short prefixes retain the standalone encoder's domain; overlong inputs are
@@ -120,22 +107,26 @@ def predictionWords (predictions : Predictions) : List SensorWord :=
     ⟨0x50 + i.val.toUInt64,
       (predictionBucket predictions.values[i.val] discount.horizon).val.toUInt64⟩
 
-/-- Complete row-major sensor, proprioceptive, task, inventory and prediction stream. -/
-def observationWords (obs : Observation) (predictions : Predictions)
-    (mode : TaskFeatureMode := .complete) : List SensorWord :=
-  (List.finRange patchShape.side).flatMap (fun row =>
-    (List.finRange patchShape.side).flatMap fun col => tileWords row col ((obs.tiles.get row).get col)) ++
+/-- Row-major sensor, proprioceptive, task and inventory words: everything the world
+supplies, before the agent's own prediction feedback. -/
+def sensorWords (obs : Observation) (mode : TaskFeatureMode := .complete) : List SensorWord :=
+  (List.finRange patchSide).flatMap (fun row =>
+    (List.finRange patchSide).flatMap fun col => tileWords row col ((obs.tiles.get row).get col)) ++
   [⟨0x40, obs.energy.toUInt64⟩, ⟨0x41, obs.day.toUInt64⟩] ++ taskWords obs.task mode ++
   [⟨0x43, resourceBucket obs.inventory.wood⟩, ⟨0x44, resourceBucket obs.inventory.stone⟩,
    ⟨0x45, resourceBucket obs.inventory.food⟩, ⟨0x46, resourceBucket obs.inventory.gold⟩,
-   ⟨0x47, flagWord obs.inventory.axe⟩, ⟨0x48, flagWord obs.inventory.boat⟩] ++
-  predictionWords predictions
+   ⟨0x47, flagWord obs.inventory.axe⟩, ⟨0x48, flagWord obs.inventory.boat⟩]
+
+/-- Complete stream: the world's words, then the prediction feedback. -/
+def observationWords (obs : Observation) (predictions : Predictions)
+    (mode : TaskFeatureMode := .complete) : List SensorWord :=
+  sensorWords obs mode ++ predictionWords predictions
 
 /-- Every task relation fits the generator's context, so no task word is dropped. -/
 theorem taskWords_fit (task : TaskObservation) (mode : TaskFeatureMode) :
-    (taskWords task mode).length ≤ patchShape.context := by
+    (taskWords task mode).length ≤ Acorn.FeatureConstants.taskContextWords := by
   cases task <;> cases mode <;>
-    simp [taskWords, patchShape, Acorn.FeatureConstants.taskContextWords]
+    simp [taskWords, Acorn.FeatureConstants.taskContextWords]
 
 /-- One task word as a generator input: its channel and value mixed into one opaque word. -/
 def contextCode (word : SensorWord) : UInt64 := Rng.hash3 0x7A5C word.channel word.value
@@ -144,12 +135,12 @@ def contextCode (word : SensorWord) : UInt64 := Rng.hash3 0x7A5C word.channel wo
 def absentContext : UInt64 := Rng.hash3 0x7A5C 0 0
 
 /-- The task words in channel order, padded to the fixed context width. -/
-def taskContext (obs : Observation) (mode : TaskFeatureMode) : Vector UInt64 patchShape.context :=
+def taskContext (obs : Observation) (mode : TaskFeatureMode) : Vector UInt64 Acorn.FeatureConstants.taskContextWords :=
   Vector.ofFn fun slot => ((taskWords obs.task mode)[slot.val]?.map contextCode).getD absentContext
 
 /-- Context position `slot` reads exactly the `slot`-th task word when it exists. -/
 theorem taskContext_slot (obs : Observation) (mode : TaskFeatureMode)
-    (slot : Fin patchShape.context) :
+    (slot : Fin Acorn.FeatureConstants.taskContextWords) :
     (taskContext obs mode)[slot.val] =
       ((taskWords obs.task mode)[slot.val]?.map contextCode).getD absentContext := by
   simp [taskContext]

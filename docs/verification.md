@@ -115,6 +115,63 @@ imports, capability owners, artifact origins and native routes. Every project th
 dependencies; only propext, Classical.choice and Quot.sound are admitted. The theorem inventory reports the
 checked declarations. Every proof passes through the kernel.
 
+The modules that compose the agent name no world. Source and compiled admission
+refuse a declared module that imports a host module, or references a declaration
+owned by one, unless it is one of the grid world's own declared modules:
+Acorn.Handcrafted.Observation, Acorn.Handcrafted.Cumulants and Acorn.Handcrafted.GridWorld. The last of
+them binds the grid world to the agent's interface.
+`Acorn.Handcrafted.Agent.grid_inputs` states what that binding feeds each
+learner, in terms of the host's own channel, signal and potential definitions, for
+every agent state, observation and reward word:
+
+```lean
+theorem Acorn.Handcrafted.Agent.grid_inputs {profile : Acorn.Handcrafted.FeatureProfile}
+  {config : Acorn.Features.Config} {criterion : Acorn.Features.Criterion}
+  {dimension : Acorn.Dimension} {planning : Acorn.Features.PlanningSelection}
+  (state :
+    Acorn.Handcrafted.Agent Acorn.Handcrafted.Grid.interface profile config criterion dimension
+      planning)
+  (obs : Acorn.Host.Observation) (reward : Acorn.Binary32) (achieved : Bool) :
+  Acorn.Handcrafted.Grid.percept profile.taskMode obs reward achieved =
+      { frame := Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved, reward := reward } ∧
+    state.words (Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved) =
+        Acorn.Handcrafted.observationWords obs
+          (Acorn.Handcrafted.feedbackPredictions state.control.runtime.references.demonPredictions)
+          profile.taskMode ∧
+      (Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved).symbols =
+          some (Acorn.Handcrafted.observationPatch obs profile.taskMode) ∧
+        Acorn.Handcrafted.signalValues (Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved)
+              reward =
+            Acorn.Handcrafted.evaluateCumulants Acorn.Handcrafted.cumulantOrder obs reward ∧
+          (Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved).declared =
+              Acorn.Handcrafted.spatialPotentials obs ∧
+            (Acorn.Handcrafted.Grid.frame profile.taskMode obs achieved).achieved = achieved
+```
+
+`AcornVerif.GridCorrespondence` keeps the agent's composition over host
+observations, as it was before the interface, as a frozen reference that no executing
+module imports. `AcornVerif.GridCorrespondence.act_eq` states that the
+interface agent's decision on the grid percept returns the same next state and
+decision as that reference:
+
+```lean
+theorem AcornVerif.GridCorrespondence.act_eq {profile : Acorn.Handcrafted.FeatureProfile}
+  {config : Acorn.Features.Config} {criterion : Acorn.Features.Criterion}
+  {dimension : Acorn.Dimension} {planning : Acorn.Features.PlanningSelection}
+  (state :
+    Acorn.Handcrafted.Agent Acorn.Handcrafted.Grid.interface profile config criterion dimension
+      planning)
+  (obs : Acorn.Host.Observation) (reward : Acorn.Binary32) (goal : Bool) :
+  AcornVerif.GridCorrespondence.Direct.act state obs reward goal =
+    state.act (Acorn.Handcrafted.Grid.percept profile.taskMode obs reward goal)
+```
+
+`AcornVerif.GridCorrespondence.callback_eq`,
+`AcornVerif.GridCorrespondence.initial_eq` and
+`AcornVerif.GridCorrespondence.restore_eq` state the same for the host's step,
+construction and restoration. The reference covers the composition; the storage types
+beneath it are the executed ones at the grid's action count.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine

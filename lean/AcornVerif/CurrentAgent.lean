@@ -54,7 +54,8 @@ variable {profile : FeatureProfile} {config : Features.Config} {criterion : Crit
     {dimension : Dimension} {planning : PlanningSelection}
 
 /-- Decision-bearing state contracts over the actual composed storage. -/
-structure Invariant (state : Agent profile config criterion dimension planning) : Prop where
+structure Invariant (state : Agent Grid.interface profile config criterion dimension planning) :
+    Prop where
   /-- All option objectives have their actual observation producer. -/
   sources : state.control.Aligned
   /-- Completed episodes, duration and outstanding invocation agree. -/
@@ -72,7 +73,8 @@ structure Invariant (state : Agent profile config criterion dimension planning) 
       dimension.capacity
 
 /-- State admission closes each component premise; no application-internal bridge is assumed. -/
-theorem invariant (state : Agent profile config criterion dimension planning) : Invariant state
+theorem invariant (state : Agent Grid.interface profile config criterion dimension planning) :
+    Invariant state
   :=
   ⟨state.aligned, state.episodes, lifetime_sums _,
     ⟨state.control.runtime.lifecycle.representation.progress.born,
@@ -85,17 +87,22 @@ theorem initialization (construction : AgentConstruction) : Invariant constructi
   invariant _
 
 /-- Per-edge observations constrain actual action execution and non-action isolation. -/
-def EdgeContract (before : Agent profile config criterion dimension planning)
+def EdgeContract (before : Agent Grid.interface profile config criterion dimension planning)
     (event : AgentInput config criterion dimension)
-    (after : Agent profile config criterion dimension planning) : Prop :=
+    (after : Agent Grid.interface profile config criterion dimension planning) : Prop :=
   match event with
   | .act observation result =>
-    ∃ (next : TemporalControl profile config criterion dimension) (aligned : next.Aligned)
-      (episodes : next.Episodes) (decision : TemporalDecision),
-      before.advanceClock.control.step planning (before.advanceClock.frame observation).active
-        observation result.reward result.events.done = some (next, decision) ∧
+    ∃ (next : TemporalControl Grid.interface profile config criterion dimension)
+      (aligned : next.Aligned) (episodes : next.Episodes)
+      (decision : TemporalDecision Grid.actions),
+      before.advanceClock.control.step planning
+        (before.advanceClock.frame
+          (Grid.frame profile.taskMode observation result.events.done)).active
+        (Grid.frame profile.taskMode observation result.events.done) result.reward
+        result.events.done = some (next, decision) ∧
       after = (Agent.mk next aligned episodes).retire
-        (before.advanceClock.frame observation).units ∧
+        (before.advanceClock.frame
+          (Grid.frame profile.taskMode observation result.events.done)).units ∧
       after.observe.decision = some decision ∧ decision.action.val <
         Acorn.FeatureConstants.primitiveCount
   | .environment _ _ => after.control.runtime = before.control.runtime ∧
@@ -104,23 +111,26 @@ def EdgeContract (before : Agent profile config criterion dimension planning)
   | .attempt _ _ _ _ => after.control.runtime = before.control.runtime ∧
       after.control.credit = before.control.credit ∧ after.control.average =
         before.control.average
-  | .clear => after = Agent.initial profile config criterion dimension planning
+  | .clear => after = Agent.initial Grid.interface profile config criterion dimension planning
   | .restore image => before.restore image = some after
   | .stop => after = before
 
 /-- Every accepted public input satisfies its algorithm and observation contract. -/
-theorem edge_contract (before after : Agent profile config criterion dimension planning)
+theorem edge_contract
+    (before after : Agent Grid.interface profile config criterion dimension planning)
     (event : AgentInput config criterion dimension) (stopped : Bool)
     (executed : before.input event = .ok (after, stopped)) : EdgeContract before event after :=
       by
   cases event with
   | act observation result =>
     cases executed
-    obtain ⟨next, aligned, episodes, actual, replacement⟩ :=
-      before.act_execution observation result.reward result.events.done
+    obtain ⟨next, aligned, episodes, actual, replacement⟩ := before.act_execution
+      (Grid.percept profile.taskMode observation result.reward result.events.done)
     exact ⟨next, aligned, episodes, _, actual, replacement,
-      before.act_decision observation result.reward result.events.done,
-      (before.act observation result.reward result.events.done).2.action.isLt⟩
+      before.act_decision
+        (Grid.percept profile.taskMode observation result.reward result.events.done),
+      (before.act (Grid.percept profile.taskMode observation result.reward
+        result.events.done)).2.action.isLt⟩
   | environment family reward =>
     cases executed
     exact ⟨rfl, rfl, rfl⟩
@@ -140,14 +150,15 @@ theorem edge_contract (before after : Agent profile config criterion dimension p
 
 /-- Safety at every intermediate receiver, with actual action/observation relations on each
   edge. -/
-inductive SafePath : Agent profile config criterion dimension planning →
+inductive SafePath : Agent Grid.interface profile config criterion dimension planning →
     List (AgentInput config criterion dimension) →
-      Agent profile config criterion dimension planning → Bool → Prop where
+      Agent Grid.interface profile config criterion dimension planning → Bool → Prop where
   /-- Empty prefixes retain the complete current invariant. -/
-  | nil (state : Agent profile config criterion dimension planning) (valid : Invariant state) :
+  | nil (state : Agent Grid.interface profile config criterion dimension planning)
+      (valid : Invariant state) :
       SafePath state [] state false
   /-- Stop retains its exact boundary receiver and ignores the unconsumed suffix. -/
-  | stopped (state next : Agent profile config criterion dimension planning)
+  | stopped (state next : Agent Grid.interface profile config criterion dimension planning)
       (event : AgentInput config criterion dimension) (rest : List (AgentInput config criterion
         dimension))
       (valid : Invariant state) (nextValid : Invariant next) (contract : EdgeContract state
@@ -155,7 +166,8 @@ inductive SafePath : Agent profile config criterion dimension planning →
       (executed : state.input event = .ok (next, true)) : SafePath state (event :: rest) next
         true
   /-- Each actual continuing edge carries its algorithm relation into the next safe receiver. -/
-  | continued (state next finalState : Agent profile config criterion dimension planning)
+  | continued (state next finalState : Agent Grid.interface profile config criterion dimension
+        planning)
       (event : AgentInput config criterion dimension) (rest : List (AgentInput config criterion
         dimension))
       (stopped : Bool) (valid : Invariant state) (contract : EdgeContract state event next)
@@ -165,7 +177,8 @@ inductive SafePath : Agent profile config criterion dimension planning →
 
 /-- Induction lifts the meaningful state and edge contracts through every intermediate prefix.
 -/
-theorem path_safe {state finalState : Agent profile config criterion dimension planning}
+theorem path_safe {state finalState : Agent Grid.interface profile config criterion dimension
+      planning}
     {events : List (AgentInput config criterion dimension)} {stopped : Bool}
     (path : AgentPath state events finalState stopped) : SafePath state events finalState
       stopped := by
@@ -189,7 +202,7 @@ theorem native_prefix (construction : AgentConstruction) (finalState : construct
 
 /-- Aggregate learner eligibility storage is bounded by current readers and capacity,
   independently of experience length. -/
-theorem learner_storage (state : Agent profile config criterion dimension planning) :
+theorem learner_storage (state : Agent Grid.interface profile config criterion dimension planning) :
     (state.control.runtime.lifecycle.consumers.readers.map
       (fun reader => reader.2.state.eligibleCount)).sum ≤
       (Acorn.FeatureConstants.primitiveCount + Acorn.FeatureConstants.metaActionCount +

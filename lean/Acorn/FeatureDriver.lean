@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.FeatureReferences
-import Acorn.Handcrafted.FeatureProfile
+import Acorn.Handcrafted.GridWorld
 
 /-!
 # Native feature-lifecycle consumer
@@ -32,7 +32,8 @@ The generic call prevents the initial consumer arrays becoming shared globals. -
 @[noinline] def execute (seed word : UInt64) (criterion : Criterion) : Nat × UInt64 × Nat :=
   let config : Features.Config :=
     ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
-  let initial : FeatureRuntime Host.patchShape config criterion dimension [.g99] Unit Unit Unit :=
+  let initial : FeatureRuntime Host.patchShape Handcrafted.Grid.actions config criterion dimension [.g99]
+      Unit Unit Unit :=
     ⟨⟨Representation.initial _ _, Ensemble.initial config criterion dimension [.g99] (profile.interests config)⟩,
       TemporalReferences.cold config [.g99] ()⟩
   let bank := initial.lifecycle.representation.bank

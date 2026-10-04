@@ -408,6 +408,23 @@ F-E left its feature-construction end inert until U3.
   the agent's parameters. The agent senses the world through an 11 × 11 window.
   The [parameter-budget proofs](../lean/AcornVerif/ParameterBudget.lean) own
   the parameter count, that margin and the derivation of the bit bound.
+- **The agent and its world.** The composed agent is written against an
+  interface, not against the grid world
+  ([design](design.md#the-interface-between-the-agent-and-a-world)). A world fixes
+  the shape of its symbol array, if it has one, the horizons of its prediction
+  signals, an action count and a word bound, and delivers one percept per step: a
+  frame and the reward of the preceding transition. The grid world is one instance
+  (`Grid.interface`), and `Agent.grid_inputs` states what that instance feeds each
+  learner in terms of the host's own channel, signal and potential definitions. The
+  [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
+  host's step, construction and restoration equal to a frozen composition over host
+  observations (`act_eq`, `callback_eq`, `initial_eq`, `restore_eq`). Three bindings
+  to the grid world's way of running remain outside the interface: the world waits
+  for the agent, a saved image is not an exact image of the agent (the option models
+  and the off-policy questions start afresh), and the host's achievement flag still
+  ends an executing option, now as a field of the frame that the coder does not
+  read. No second world instantiates the interface yet, so that another world fits
+  it is a design claim, not an observation.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
   way", and imagined outcomes "are then evaluated by the value functions"

@@ -19,6 +19,8 @@ Complete file-format and full-agent persistence remain their separate owners.
 -/
 namespace Acorn.Features
 
+variable {actions : Word.Count}
+
 /-- Exact-sized untrusted primary knowledge for one receiving learner. -/
 structure KnowledgeImage (dimension : Dimension) where
   /-- Raw weight words, including exceptional inputs accepted by projection. -/
@@ -55,13 +57,13 @@ def DemonBank.restore {dimension : Dimension} {discounts : List Discount}
   | .cons learner tail, .cons image rest => .cons (learner.restore image) (tail.restore rest)
 
 /-- Complete primary checkpoint shape; model learners are deliberately cold-only. -/
-structure PrimaryImage (dimension : Dimension) (discounts : List Discount) where
+structure PrimaryImage (actions : Word.Count) (dimension : Dimension) (discounts : List Discount) where
   /-- Primitive-action blocks. -/
-  control : Vector (KnowledgeImage dimension) Acorn.FeatureConstants.primitiveCount
+  control : Vector (KnowledgeImage dimension) actions.word.toNat
   /-- Meta-action blocks. -/
   metaController : Vector (KnowledgeImage dimension) Acorn.FeatureConstants.metaActionCount
   /-- Every option-policy action block. -/
-  skills : Vector (Vector (KnowledgeImage dimension) Acorn.FeatureConstants.primitiveCount)
+  skills : Vector (Vector (KnowledgeImage dimension) actions.word.toNat)
     Acorn.FeatureConstants.skillCount
   /-- Every prediction-channel block. -/
   demons : DemonImages dimension discounts
@@ -70,10 +72,10 @@ structure PrimaryImage (dimension : Dimension) (discounts : List Discount) where
 reset every model under its criterion-specific storage shape, ask every option's
 questions afresh, and link no skill to a frame from before the restore. -/
 def Ensemble.restore {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
-    (image : PrimaryImage dimension discounts)
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
+    (image : PrimaryImage actions dimension discounts)
     (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
-    Ensemble config criterion dimension discounts :=
+    Ensemble actions config criterion dimension discounts :=
   ⟨ensemble.control.restore image.control, ensemble.metaController.restore image.metaController,
     Vector.ofFn (fun i => ⟨.learned assignments[i.val],
       ensemble.skills[i.val].policy.restore image.skills[i.val], Model.initial dimension criterion,
@@ -82,8 +84,8 @@ def Ensemble.restore {config : Config} {criterion : Criterion} {dimension : Dime
 
 /-- Every restored slot starts with no stored off-policy trajectory. -/
 theorem Ensemble.restore_unlinked {config : Config} {criterion : Criterion} {dimension : Dimension}
-    {discounts : List Discount} (ensemble : Ensemble config criterion dimension discounts)
-    (image : PrimaryImage dimension discounts)
+    {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
+    (image : PrimaryImage actions dimension discounts)
     (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     (ensemble.restore image assignments).skills[slot.val].following = none := by
@@ -92,8 +94,8 @@ theorem Ensemble.restore_unlinked {config : Config} {criterion : Criterion} {dim
 /-- Every restored slot asks its questions afresh: the checkpoint stores no question. -/
 theorem Ensemble.restore_questions {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
-    (ensemble : Ensemble config criterion dimension discounts)
-    (image : PrimaryImage dimension discounts)
+    (ensemble : Ensemble actions config criterion dimension discounts)
+    (image : PrimaryImage actions dimension discounts)
     (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     (ensemble.restore image assignments).skills[slot.val].questions =
@@ -101,7 +103,7 @@ theorem Ensemble.restore_questions {config : Config} {criterion : Criterion}
   simp [Ensemble.restore]
 
 /-- Feature metadata received from the file decoder, before any mutation. -/
-structure RawFeatureImage (dimension : Dimension) (discounts : List Discount) where
+structure RawFeatureImage (actions : Word.Count) (dimension : Dimension) (discounts : List Discount) where
   /-- Stored feature salt. -/
   seed : UInt64
   /-- Stored sensory tiling count. -/
@@ -119,7 +121,7 @@ structure RawFeatureImage (dimension : Dimension) (discounts : List Discount) wh
   /-- Complete raw assignment image. -/
   assignments : Vector AssignmentWords Acorn.FeatureConstants.skillCount
   /-- Complete primary words. -/
-  primary : PrimaryImage dimension discounts
+  primary : PrimaryImage actions dimension discounts
 
 /-- Criterion tags are exhaustive over the current immutable domain. -/
 def Criterion.tag : Criterion → UInt8
@@ -127,7 +129,7 @@ def Criterion.tag : Criterion → UInt8
   | .differential => 1
 
 /-- Fully admitted feature image; no installation path accepts raw tester or identity words. -/
-structure FeatureImage (config : Config) (criterion : Criterion) (dimension : Dimension) (discounts : List Discount) where
+structure FeatureImage (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension) (discounts : List Discount) where
   /-- Legal receiver-relative generator and tester state. -/
   progress : Progress config
   /-- Exact saved objectives. -/
@@ -135,13 +137,13 @@ structure FeatureImage (config : Config) (criterion : Criterion) (dimension : Di
   /-- No two saved slots select the same unit. -/
   distinct : Assignment.Distinct assignments
   /-- Primary values admitted by each receiving learner during installation. -/
-  primary : PrimaryImage dimension discounts
+  primary : PrimaryImage actions dimension discounts
 
 /-- Metadata and every feature identity are checked before an image exists.
 The caller separately admits the full file's supported research profile. -/
 def FeatureImage.admit (config : Config) (criterion : Criterion) (dimension : Dimension)
-    {discounts : List Discount} (raw : RawFeatureImage dimension discounts) :
-    Option (FeatureImage config criterion dimension discounts) := do
+    {discounts : List Discount} (raw : RawFeatureImage actions dimension discounts) :
+    Option (FeatureImage actions config criterion dimension discounts) := do
   if raw.seed != config.seed || raw.tilings != config.tilings ||
       raw.units.toNat != config.units.count || raw.capacity.toNat != dimension.capacity ||
       raw.criterion != criterion.tag then none else do
@@ -156,9 +158,9 @@ def FeatureImage.admit (config : Config) (criterion : Criterion) (dimension : Di
 No ranking function participates, so a saved objective keeps its unit and held bonus. -/
 def FreeDispatch.restore {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload)
-    (image : FeatureImage config criterion dimension (.g99 :: discounts)) :
-    FreeDispatch shape config criterion dimension discounts payload :=
+    (state : FreeDispatch shape actions config criterion dimension discounts payload)
+    (image : FeatureImage actions config criterion dimension (.g99 :: discounts)) :
+    FreeDispatch shape actions config criterion dimension discounts payload :=
   ⟨⟨Representation.restore shape image.progress,
       state.lifecycle.consumers.restore image.primary image.assignments⟩,
     Vector.replicate _ ModelCache.initial, none⟩
@@ -166,7 +168,7 @@ def FreeDispatch.restore {shape : PatchShape} {config : Config} {criterion : Cri
 /-- Saved assignments are installed exactly, irrespective of present restored weights. -/
 theorem Ensemble.restore_assignment {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
-    (ensemble : Ensemble config criterion dimension discounts) (image : PrimaryImage dimension discounts)
+    (ensemble : Ensemble actions config criterion dimension discounts) (image : PrimaryImage actions dimension discounts)
     (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     (ensemble.restore image assignments).skills[slot.val].interest = .learned assignments[slot.val] := by
@@ -175,7 +177,7 @@ theorem Ensemble.restore_assignment {config : Config} {criterion : Criterion}
 /-- Restoring distinct saved objectives keeps distinct held units. -/
 theorem Ensemble.restore_distinct {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
-    (ensemble : Ensemble config criterion dimension discounts) (image : PrimaryImage dimension discounts)
+    (ensemble : Ensemble actions config criterion dimension discounts) (image : PrimaryImage actions dimension discounts)
     (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (distinct : Assignment.Distinct assignments) : (ensemble.restore image assignments).Distinct := by
   apply Assignment.Distinct.mono distinct
@@ -185,8 +187,8 @@ theorem Ensemble.restore_distinct {config : Config} {criterion : Criterion}
 /-- Cold restore detaches all pending credit and clears every cached model prediction. -/
 theorem FreeDispatch.restore_cold {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape config criterion dimension discounts payload)
-    (image : FeatureImage config criterion dimension (.g99 :: discounts)) :
+    (state : FreeDispatch shape actions config criterion dimension discounts payload)
+    (image : FeatureImage actions config criterion dimension (.g99 :: discounts)) :
     (state.restore image).closing = none ∧
     (state.restore image).predictions = Vector.replicate _ ModelCache.initial := ⟨rfl, rfl⟩
 

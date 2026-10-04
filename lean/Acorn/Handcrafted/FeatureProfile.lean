@@ -4,7 +4,6 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.FeatureConstants
-import Acorn.Handcrafted.Observation
 import Acorn.FeatureRestore
 
 /-!
@@ -38,9 +37,10 @@ def declaredTester : Features.Tester where
 inductive EvaluationMode where
   /-- Full hierarchical learning. -/
   | final
-  /-- Frozen learning, with the same declared observation interface. -/
+  /-- Frozen learning, over the same frames. -/
   | frozen
-  /-- Hierarchy with the reach relation omitted. -/
+  /-- Full hierarchical learning for a world whose adapter omits a declared relation
+  from its frame words. The grid world omits its reach relation. -/
   | withoutReachRelation
   /-- Primitive-only learning. -/
   | primitiveOnly
@@ -88,10 +88,6 @@ structure FeatureProfile where
   subtasks : SubtaskPolicy
   deriving DecidableEq
 
-/-- Only the relation-ablation profile changes task-word construction. -/
-def FeatureProfile.taskMode (profile : FeatureProfile) : TaskFeatureMode :=
-  if profile.mode == .withoutReachRelation then .withoutReachRelation else .complete
-
 /-- Primitive-only mode has no hierarchy to refresh. -/
 def FeatureProfile.usesHierarchy (profile : FeatureProfile) : Bool := profile.mode != .primitiveOnly
 
@@ -121,22 +117,17 @@ returned. A primitive-only profile draws no meta decision
 (`TemporalControl.primitive_undrawn`). -/
 def FeatureProfile.ranksSubtasks (profile : FeatureProfile) : Bool := profile.subtasks == .learned
 
-/-- The full current observation adapter derives its mode from the immutable profile. -/
-def FeatureProfile.encode (profile : FeatureProfile) (dimension : Dimension)
-    {config : Features.Config} (bank : Bank Host.patchShape config) (observation : Host.Observation)
-    (predictions : Predictions) : SwiftTd.ActiveSet dimension :=
-  encodeObservation dimension bank observation predictions profile.taskMode
-
 /-- Profile admission precedes all feature-image admission and installation. -/
-def FeatureProfile.admit (profile : FeatureProfile) (config : Features.Config) (criterion : Criterion)
-    (dimension : Dimension) {discounts : List Discount} (raw : RawFeatureImage dimension discounts) :
-    Option (FeatureImage config criterion dimension discounts) :=
+def FeatureProfile.admit (profile : FeatureProfile) {actions : Word.Count} (config : Features.Config)
+    (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}
+    (raw : RawFeatureImage actions dimension discounts) :
+    Option (FeatureImage actions config criterion dimension discounts) :=
   if profile.checkpointSupported then FeatureImage.admit config criterion dimension raw else none
 
 /-- Unsupported profiles cannot install a structurally legal image by bypassing their mode. -/
-theorem FeatureProfile.unsupported_refuses (profile : FeatureProfile) (config : Features.Config)
-    (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}
-    (raw : RawFeatureImage dimension discounts) (unsupported : profile.checkpointSupported = false) :
+theorem FeatureProfile.unsupported_refuses (profile : FeatureProfile) {actions : Word.Count}
+    (config : Features.Config) (criterion : Criterion) (dimension : Dimension)
+    {discounts : List Discount} (raw : RawFeatureImage actions dimension discounts) (unsupported : profile.checkpointSupported = false) :
     profile.admit config criterion dimension raw = none := by
   simp [FeatureProfile.admit, unsupported]
 

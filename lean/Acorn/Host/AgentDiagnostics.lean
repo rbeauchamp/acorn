@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.FeatureConsumers
+import Acorn.Handcrafted.GridWorld
 
 /-!
 # One-way learner diagnostics
@@ -72,7 +72,8 @@ structure EnsembleDiagnostics (discounts : List Discount) where
 /-- Read every family directly from its immutable owner. -/
 def ensembleDiagnostics {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
-    (state : Ensemble config criterion dimension discounts) : EnsembleDiagnostics discounts :=
+    (state : Ensemble Handcrafted.Grid.actions config criterion dimension discounts) :
+    EnsembleDiagnostics discounts :=
   ⟨state.control.learners.map learnerDiagnostic,
     state.metaController.learners.map learnerDiagnostic,
     state.skills.map (fun skill => skill.policy.learners.map learnerDiagnostic),
