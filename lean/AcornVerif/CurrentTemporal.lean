@@ -1769,12 +1769,19 @@ theorem handoff_age (skill : Skill config criterion dimension discounts)
 The run censors the option; it does not stop it. So the meta-controller's sampled credit
 for the option closes at the first served step toward the option's own continuing
 return, and the run's rewards are credited to no meta action. That is the return the
-option's model predicts and planning backs the same value toward: the model credits no
-served step (`follow_idle_model`, `served_unarmed`) and closes where the option's own
-stopping decision does. `AcornVerif.interrupted_span_return` is the identity behind the
-contract, over exact reals: a span closed after some of the option's actions toward the
-return of the rest is the span run to its own stop. The executed credit bootstraps from
-learned values in machine words; no convergence or accuracy of those values is claimed. -/
+option's model predicts and planning backs the same value toward: the run gives the
+model no target of its own. At the first served step the model takes the transition into
+that step: the executing option's continuing credit where the option's own stopping
+decision continues (`handoff_model`), and the close toward its terminal targets where
+that decision ends there (`handoff_stop`). Where it continues, the trajectory then lapses
+without a terminal target, because a served frame reports a point mass, which is not
+consistent with the masses of an option that gives another action a nonzero mass
+(`follow_live`, `served_unarmed`), and the model credits no served step
+(`follow_idle_model`). Its learned target is therefore still the option run to its own
+stop. `AcornVerif.interrupted_span_return` is the identity behind the contract, over
+exact reals: a span closed after some of the option's actions toward the return of the
+rest is the span run to its own stop. The executed credit bootstraps from learned values
+in machine words; no convergence or accuracy of those values is claimed. -/
 
 /-- One stopping decision. On the first served step of a run that held a learning
 option, the continuation its meta span closes toward is chosen by the very stopping

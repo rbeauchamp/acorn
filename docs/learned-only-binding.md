@@ -155,8 +155,10 @@ The meta-controller reads it in a single-step draw over meta actions. Under an
 assumed uniform, independent draw, which the deterministic generator does not
 supply, the expected exploratory share of the behaviour's cycles is between 4.6%
 and 6% (`declared_share_gt` and `declared_share_lt` in `AcornVerif.Exploration`),
-against exactly ε for a single-step draw (`explorationShare_single`). The effect
-on achievement is not derivable, and no achievement claim is made.
+against exactly ε for a single-step draw (`explorationShare_single`). Persistence
+never lowers the share below ε, for every rate in [0, 1] and every mean run length
+of at least one step (`explorationShare_ge`). The effect on achievement is not
+derivable, and no achievement claim is made.
 
 One consequence follows, and it is not conformance with the source.
 

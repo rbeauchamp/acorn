@@ -2932,6 +2932,10 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.declared_share_gt
 
+/-- info: 'AcornVerif.explorationShare_ge' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.explorationShare_ge
+
 /-- info: 'AcornVerif.TemporalSupport.declared_direct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.TemporalSupport.declared_direct
