@@ -326,7 +326,8 @@ Rules that apply to every number, label and colour on the page.
   (`1k–1k`) is printed exactly; a symbol and its number never split across a
   line. Wire identifiers appear as words (`craft axe`, `exploration start`,
   `restart scheduled`): the words are the core's, only the underscore is the
-  page's. Hover texts quote field names in plain quotation marks, since a title
+  page's, except the fast-mode share label UX-8 qualifies. Hover texts quote
+  field names in plain quotation marks, since a title
   attribute renders backticks literally.
 - **UX-12 · Comparisons wait for evidence.** No reward trend arrow is drawn while the
   newest reward bin holds fewer than an eighth of the steps of the bin before
