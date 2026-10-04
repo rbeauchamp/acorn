@@ -31,7 +31,7 @@ depends on the actions before its time only.
 Three classes of agents are defined. An `ExperienceFree` agent's memory advances
 without reading percepts. An `OpenLoop` agent's action ignores the percept as well, so
 its action sequence is the same in every world from every start
-(`openLoop_actions`). A `Frozen` agent's action is a function of the latest percept
+(`openLoop_actions`). A `Reactive` agent's action is a function of the latest percept
 alone. `MemoryWithin` is the memory axis of a resource envelope: the memory embeds in
 bit strings of a given width.
 
@@ -111,20 +111,6 @@ def path (world : World interface) (start : world.State) (actions : ℕ → Act 
   | time + 1 => world.step (path world start actions time) (actions time)
 
 /-! ## The closed loop -/
-
-/-- The world advances by the transition the agent's own action took. -/
-theorem stateAt_succ (world : World interface) (agent : Agent interface) (start : world.State)
-    (time : ℕ) :
-    stateAt world agent start (time + 1) =
-      world.step (stateAt world agent start time) (actionAt world agent start time) :=
-  rfl
-
-/-- The memory advances by one decision on the percept of the current state. -/
-theorem memoryAt_succ (world : World interface) (agent : Agent interface) (start : world.State)
-    (time : ℕ) :
-    memoryAt world agent start (time + 1) =
-      (agent.act (memoryAt world agent start time) (perceptAt world agent start time)).2 :=
-  rfl
 
 /-- The memory at a time is the fold of single decisions over the percepts before it,
 so no agent's memory depends on a later percept. -/
@@ -236,7 +222,7 @@ def OpenLoop (agent : Agent interface) : Prop :=
 
 /-- An agent whose action is a function of the latest percept alone, whatever its
 memory. -/
-def Frozen (agent : Agent interface) : Prop :=
+def Reactive (agent : Agent interface) : Prop :=
   ∃ rule : Percept interface → Act interface,
     ∀ memory percept, (agent.act memory percept).1 = rule percept
 
@@ -276,14 +262,5 @@ theorem openLoop_actions {agent : Agent interface} (blind : OpenLoop agent) :
 strings of the given width, so it has at most `2 ^ bits` distinguishable values. -/
 def MemoryWithin (agent : Agent interface) (bits : ℕ) : Prop :=
   Nonempty (agent.Memory ↪ Fin (2 ^ bits))
-
-/-- A memory that fits a width fits every larger width. -/
-theorem MemoryWithin.mono {agent : Agent interface} {small large : ℕ}
-    (fits : MemoryWithin agent small) (le : small ≤ large) : MemoryWithin agent large := by
-  obtain ⟨embedding⟩ := fits
-  have room : 2 ^ small ≤ 2 ^ large := Nat.pow_le_pow_right (by decide) le
-  refine ⟨⟨fun memory => Fin.castLE room (embedding memory), fun first second same => ?_⟩⟩
-  have values := congrArg Fin.val same
-  exact embedding.injective (Fin.ext values)
 
 end AcornVerif.Kernel

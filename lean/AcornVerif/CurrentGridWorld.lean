@@ -51,10 +51,11 @@ steps and a far radius of 120: of the window's 57600 target tiles, at least 3655
 outside any set of targets one action sequence meets.
 
 The bound concerns agents whose actions do not depend on the target until it is
-reached. Acorn's frame gives the displacement to the target, so the executed agent is
-not shown blind and the bound does not apply to it. The bound counts target positions:
-it becomes a statement about seeds only under an assumption on how the seed hash places
-targets relative to the walk.
+reached. Acorn's frame gives the displacement to the target, which makes that
+dependence possible. The executed agent is not shown blind on the class of targets, so
+the theorem supplies no bound for it; that its actions do depend on the target is not
+proved either. The bound counts target positions: it becomes a statement about seeds
+only under an assumption on how the seed hash places targets relative to the walk.
 -/
 
 namespace AcornVerif.CurrentGridWorld

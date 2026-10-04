@@ -25,9 +25,9 @@ sequence achieves it. So in one fixed world, from one start state, no admitted a
 achieving a goal is equivalent to the goal being infeasible, for every class of agents
 that admits the clocked scripts (`need_iff_infeasible`). The experience-free agents
 within a memory width with room for the counter are such a class
-(`experienceFree_iff_infeasible`). A frozen clocked script takes one action throughout
-(`script_frozen_constant`), so a class of `Frozen` agents admits only constant scripts
-and the equivalence does not apply to it.
+(`experienceFree_iff_infeasible`). A reactive clocked script takes one action throughout
+(`script_reactive_constant`), so a class of `Reactive` agents admits only constant
+scripts and the equivalence does not apply to it.
 
 ## A class of worlds
 
@@ -222,13 +222,13 @@ theorem experienceFree_iff_infeasible (goal : AttemptGoal world) (start : world.
   exact ⟨fun fails agent admitted => fails agent admitted.1 admitted.2,
     fun fails agent free fits => fails agent ⟨free, fits⟩⟩
 
-/-- A frozen clocked script takes one action at every count up to its cap, where the
-interface has a percept. A class of frozen agents therefore admits only such scripts. -/
-theorem script_frozen_constant (cap : ℕ) (actions : ℕ → Act interface)
-    (frozen : Frozen (script interface cap actions)) (percept : Percept interface)
+/-- A reactive clocked script takes one action at every count up to its cap, where the
+interface has a percept. A class of reactive agents therefore admits only such scripts. -/
+theorem script_reactive_constant (cap : ℕ) (actions : ℕ → Act interface)
+    (reactive : Reactive (script interface cap actions)) (percept : Percept interface)
     (first second : ℕ) (low : first ≤ cap) (high : second ≤ cap) :
     actions first = actions second := by
-  obtain ⟨rule, law⟩ := frozen
+  obtain ⟨rule, law⟩ := reactive
   have early : actions first = rule percept :=
     law (⟨first, Nat.lt_succ_of_le low⟩ : Fin (cap + 1)) percept
   have late : actions second = rule percept :=
@@ -343,16 +343,6 @@ theorem covered_iff_need (goals : family.Goals) (bound : ℕ) :
       (script_openLoop _ actions) solved (fun index member =>
         script_achieves (Finset.le_sup (f := fun index => (goals index).cap) member)
           (each index member))
-
-/-- A need bound leaves at least the rest of every finite set of members unsolved. -/
-theorem Need.unsolved [DecidableEq family.Index] {goals : family.Goals}
-    {admits : Agent interface → Prop} {bound : ℕ} (need : Need family goals admits bound)
-    {agent : Agent interface} (admitted : admits agent) (members solved : Finset family.Index)
-    (inside : solved ⊆ members) (each : ∀ index ∈ solved, Solves family goals agent index) :
-    members.card - bound ≤ (members \ solved).card := by
-  have few := need agent admitted solved each
-  have split := Finset.card_sdiff_add_card_eq_card inside
-  omega
 
 /-- In the class of one world, a need of zero says that no admitted agent achieves the
 goal. -/

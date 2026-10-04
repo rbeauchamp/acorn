@@ -264,16 +264,32 @@ word of the preceding transition, a world is a deterministic state machine that
 delivers one percept at each state, and an agent turns its memory and one
 percept into an action and its next memory, the shape of the executed decision.
 [The world-class layer](../lean/AcornVerif/WorldClass.lean) defines an attempt
-goal (a predicate on states, met when some state at step 1 to the cap satisfies
-it), feasibility, a class of worlds with a start state each, and need. [The grid
+goal: a predicate on states with a step cap, met when some state at step 1 to
+the cap satisfies it. A goal is feasible from a start state when some action
+sequence meets it within the cap (`Feasible`), and an agent achieves it when the
+agent's own closed loop does. A class of worlds is a family of worlds with a
+start state each, and an agent solves a member when it achieves that member's
+goal from that member's start state. A class of agents is a predicate on agents,
+and an agent is admitted when it satisfies the predicate. A need bound of k for
+a class of agents says that every admitted agent solves at most k members of the
+class of worlds (`Need`). In one world a need of zero says that no admitted
+agent achieves the goal. [The grid
 instance](../lean/AcornVerif/CurrentGridWorld.lean) builds the grid world of the
 kernel from the executed step, observation and percept adapter. A step the host
 refuses leads to an absorbing refused state, where no goal is satisfied.
 
 Three kinds of agent are distinguished. An experience-free agent's memory
 advances without reading percepts, though its action may read the current one.
-An open-loop agent reads no percept at all. A frozen agent's action is a function
-of the latest percept alone.
+An open-loop agent reads no percept at all. A reactive agent's action is a
+function of the latest percept alone.
+
+[Issue #69](https://github.com/rbeauchamp/acorn/issues/69) asks for need against
+frozen within-envelope agents, the uniform-random comparator included. That
+class is the experience-free agents within a memory width: what such an agent
+retains does not depend on what it has perceived. `experienceFree_iff_infeasible`
+covers it. The comparator is open-loop, so it is experience-free
+(`comparator_openLoop`). No width is proved for its stream, and the equivalence
+needs none for it: an infeasible goal is achieved by no agent.
 
 | Property | What is proved | Theorems |
 |---|---|---|
@@ -290,9 +306,9 @@ What these theorems do not establish:
 - **Need in one generated world.** In one world a goal is either infeasible or
   achieved by a clocked script that learns nothing. Need against the comparator's
   class can only be stated about a class of worlds, about what the agent is not
-  told. A frozen clocked script takes one action throughout
-  (`script_frozen_constant`), so a class of frozen agents admits only constant
-  scripts and the equivalence says nothing about it.
+  told. A reactive clocked script takes one action throughout
+  (`script_reactive_constant`), so a class of reactive agents admits only
+  constant scripts and the equivalence says nothing about it.
 - **A bound for agents that read the displacement.** The reach bound holds for
   agents whose actions do not depend on the target until it is reached, and does
   not apply to an agent whose actions read the displacement. Acorn's observation
