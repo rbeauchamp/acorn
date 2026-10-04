@@ -46,12 +46,15 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   (F-A) erased option learning until U1 repaired it, and a locally derived
   exploration rate made about 90% of early primitive steps random until U2
   replaced it (F-C). Options learned only while executing until U4 (F-F).
-- **Learning: one observation, refuted at its horizon; otherwise UNKNOWN.** In
-  one pass of the curriculum from a fresh agent, the agent achieved more goals
-  than a uniform-random policy on 4 of 20 seeds
-  ([U6](#conformance-sequence)). Whether it learns over a longer horizon has
-  not been observed; a study of repeated visits has a registered, authorized
-  protocol and has not been run ([U7](#conformance-sequence)).
+- **Learning: two observations, each refuted at its horizon; otherwise
+  UNKNOWN.** In one pass of the curriculum from a fresh agent, the agent
+  achieved more goals than a uniform-random policy on 4 of 20 seeds
+  ([U6](#conformance-sequence)). Over four cycles of the curriculum, its
+  attempts to reach a target shortened by more than that policy's on 0 of 20
+  seeds: of 160 reach visits the agent achieved one and the policy none
+  ([U7](#conformance-sequence)). Neither observation shows that the agent
+  cannot learn; whether it learns on goals it does achieve, or over a longer
+  horizon, has not been observed.
 
 The defects survived for an instructive reason. Acorn's proofs state safety and
 admission properties, such as "the stored state stays legal" or "this identity
@@ -517,7 +520,7 @@ derivation, not measurement.
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
 | U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
-| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Revision 2 registered and authorized; not run** ([protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). The owner authorized execution of revision 2 at the commit that registers it only, whose `lean/` and `scripts/` trees must equal those of d3bc6e0, the commit that landed [#58](https://github.com/rbeauchamp/acorn/issues/58) |
+| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Run: refuted at this horizon** ([result](studies/repeated-visits-vs-chance/results.md), [protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). Authorized and run on 2026-10-04 as revision 2 at commit 96e3f6b. Of 20 seeds: W 0, losses 1, ties 19, M 0; 95% interval for the fraction of wins 0.000 to 0.169 |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
@@ -561,8 +564,30 @@ registrations, the design pass for
 [#69](https://github.com/rbeauchamp/acorn/issues/69) evaluated the generated
 world at its seeds without running an agent or a comparator, and that its
 result is a comparison with one named policy, not evidence that the reach
-goals need continual learning. Nothing has been run: whether the agent learns
-over repeated visits is still UNKNOWN.
+goals need continual learning.
+
+The owner authorized execution after issue 58 landed, as revision 2 at its
+registering commit, and it was run on 2026-10-04 at commit 96e3f6b, the commit
+that registered it. The [result](studies/repeated-visits-vs-chance/results.md)
+is **refuted at this horizon**: in most worlds the agent's reach attempts do
+not shorten over repeated visits by at least 300 steps per attempt and by at
+least 300 more than chance's. Of 20 seeds, all with a valid outcome, none is a
+win (W = 0), one is a loss and 19 are ties, with none missing (M = 0); the
+exact 95% interval for the fraction of seeds that are wins is 0.000 to 0.169.
+Almost no reach attempt reached its target: of 160 reach visits the agent
+achieved one, on its first visit to the near target on one seed, and the
+comparator none, so on 19 seeds every cost is the cap and both improvements
+are 0. The result does not show that the agent cannot learn the reach goals.
+It is rewarded for a goal only on achieving it, so with one achievement it
+received almost nothing to learn them from, and what its attempts do once it
+reaches targets was not observed. It does not show that the agent does worse
+than chance: the interval for the fraction of losses is 0.001 to 0.249. And it
+is a comparison with one named policy, not evidence about need. The results
+record also discloses a second generator-only evaluation at the study's
+seeds, made by the validation of
+[#74](https://github.com/rbeauchamp/acorn/pull/74) after registration, which
+ran no agent or comparator on them. Whether the agent learns on goals it does
+achieve, or over a longer horizon, stays UNKNOWN.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
