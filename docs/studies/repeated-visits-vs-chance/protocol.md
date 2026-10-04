@@ -226,11 +226,16 @@ and no value here was fitted to them. The draw itself cannot be audited
 afterwards; that is an attestation, not a proof. There is no development set,
 selection step or held-out set, because nothing is tuned.
 
-One smoke run was made in preparing this protocol, to check that the run
-command parses and to check the extraction commands against the core's own
-output: seed 1, which is not in the list, a world of side 64, a cap of 5 steps
-and four cycles, 260 agent steps in all. Its output was discarded and it is not
-part of the record.
+Before registration the built core was run only to check the change that
+carries this revision: that the run command parses, that the record has the
+stated shape and that the extraction and calculation commands read it. No run
+before registration used a seed of this study's list, and none produced an
+outcome of this study. The runs are those recorded in the pull request that
+carries this revision
+([#68](https://github.com/rbeauchamp/acorn/pull/68)), including the ones its
+validation pipeline made, and one smoke run made while this protocol was
+written: seed 1, a world of side 64, a cap of 5 steps and four cycles, 260
+agent steps in all. Their outputs are not part of the record.
 
 ## Estimand, margin and claims
 
@@ -465,11 +470,11 @@ sources needs a new revision first.
 The commands are for this host (macOS, GNU coreutils installed). Each block
 below is a complete bash script, run by bash from the root of the checkout. The
 run script exports a shell function, which zsh, this host's default shell, does
-not do. The run script was executed once, for the smoke run named under
-[design](#design), with its seed, side, cap and deadline changed. The
-extraction and calculation commands were executed against that run's output and
-against records assembled by hand from the output definitions. No script has
-been executed at the study's parameters.
+not do. Before registration the run script was executed only in the runs named
+under [design](#design), with its seed list, side, cap and deadline changed.
+The extraction and calculation commands were executed only against those runs'
+output and against records assembled by hand from the output definitions. No
+script has been executed with a seed of the list.
 
 Build and record the run identity, from a clean, full-history checkout of the
 authorized commit:
@@ -575,12 +580,18 @@ Every other line is valid and must read check ok in its fourth and seventh
 fields and 52 in its tenth and eleventh; anything else is a derived-check
 violation. For a valid line, A is the fifth field minus the sixth, and D is A
 less the eighth minus the ninth. W counts valid lines with A ≥ 1200 and
-D ≥ 1200, and M counts the seeds of the list without a valid line:
+D ≥ 1200, and M counts the seeds of the list without a valid line. The command
+below enforces the derived checks: when any valid line fails one it prints no
+counts, names how many lines failed and exits with a nonzero status:
 
 ```bash
-awk '$2 == 0 && $3 == "complete" { a = $5 - $6; d = a - ($8 - $9)
-    w += (a >= 1200 && d >= 1200); l += (a <= -1200 && d <= -1200); v++ }
-  END { print "W", w + 0, "losses", l + 0, "ties", v - w - l, "M", 20 - v }' \
+awk '$2 == 0 && $3 == "complete" { v++
+    if ($4 != "ok" || $7 != "ok" || $10 != 52 || $11 != 52) bad++
+    a = $5 - $6; d = a - ($8 - $9)
+    w += (a >= 1200 && d >= 1200); l += (a <= -1200 && d <= -1200) }
+  END { if (bad) { print "derived-check violation on", bad, "valid line(s): no decision"
+      exit 1 }
+    print "W", w + 0, "losses", l + 0, "ties", v - w - l, "M", 20 - v }' \
   docs/studies/repeated-visits-vs-chance/results-r1.txt
 ```
 
