@@ -8,7 +8,7 @@ import Acorn.Portable
 /-!
 # Machine unit-interval multiplication and integer power
 
-These results unfold the pinned Lean 4.34.0 standard model in
+These results unfold the pinned Lean 4.34.1 standard model in
 `Init/Data/Float/Model/Unpacked/{Round,Pack/Basic,Operations/Mul}.lean`.
 They bound the two actual rounding stages, including carry and subnormal
 results, then connect those stages to `Binary64.mul` and `Portable.powLoop`.

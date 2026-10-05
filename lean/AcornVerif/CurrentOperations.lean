@@ -8,7 +8,7 @@ import AcornVerif.CurrentOrder
 # Subtraction and finite truncation
 
 Subtraction is related to addition of the negated unpacked value in the pinned
-Lean 4.34.0 standard model (`Unpacked/Operations/Sub.lean`), then connected to
+Lean 4.34.1 standard model (`Unpacked/Operations/Sub.lean`), then connected to
 the actual binary64 wrapper. The integer conversion proofs use the executing
 signed quotient and clamp definitions from `Acorn.Conversion`. Every numerical
 statement excludes exceptional inputs explicitly. Native primitive and

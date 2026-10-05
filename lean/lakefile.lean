@@ -74,7 +74,7 @@ package acorn where
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
     -- Mathlib's standard linter set, with its header linter kept on for this license line.
-    -- Regula's RG2006 (https://rbeauchamp.github.io/regula/v/0.7.0/rules/RG2006/) requires the
+    -- Regula's RG2006 (https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2006/) requires the
     -- two Mathlib-repository linters below to be off.
     ⟨`weak.linter.mathlibStandardSet, true⟩,
     ⟨`weak.linter.style.header, true⟩,
@@ -299,10 +299,10 @@ script acornTargets do
   return 0
 
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4" @ "v4.34.0"
+  "https://github.com/leanprover-community/mathlib4" @ "v4.34.1"
 
 require regula from git
-  "https://github.com/rbeauchamp/regula" @ "v0.7.0"
+  "https://github.com/rbeauchamp/regula" @ "v0.9.0"
 
 /-- Real-valued rounding theory about Lean core's float model. Only the proof
 library's bridge module imports it; no executable library does. -/
