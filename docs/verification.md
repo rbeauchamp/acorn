@@ -103,9 +103,9 @@ The complete discovered module inventory must equal the explicitly admitted
 ownership inventory. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
 a maintained module with a non-empty module docstring. Ownership admission
-refuses a facet-qualified build key in the root package's Lake configuration;
-`singleJobKey` in [lean/lakefile.lean](../lean/lakefile.lean) documents the
-restriction and its pinned-Lake rationale.
+refuses a facet-qualified build key in the root package's Lake configuration.
+The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
+pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
 Lake runs with `--wfail`, so any warning, including a header-time warning such
 as a deprecated import, fails the build. Source/compiled admission checks
