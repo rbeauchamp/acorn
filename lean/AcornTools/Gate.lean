@@ -138,7 +138,7 @@ def verify : IO Unit := do
   let modules ← AcornModuleInventory.allModules
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
-  -- Lake of Lean v4.34.0). A request for an executable's root module resolves to that
+  -- Lake of Lean v4.34.1). A request for an executable's root module resolves to that
   -- executable (`Package.findTargetModule?`). So an entry with `needs`, and its root
   -- module, are requested last: every other job is already scheduled when Lake starts to
   -- wait. The modules lead the rest, so that the proof modules, whose import chain is the

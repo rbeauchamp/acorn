@@ -259,7 +259,7 @@ lean_exe «corpus-audit» where
   supportInterpreter := true
 
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
-`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.34.0; leanprover/lean4#15435) stores a
+`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.34.1; leanprover/lean4#15435) stores a
 facet-qualified key under its target as written, while every other route stores that
 facet under the target's resolved form, which names the package by its key name. The two
 entries differ unless the key was written in that form. Whatever its form, the facet is
