@@ -8,7 +8,7 @@ import Acorn.Conversion
 /-!
 # Exact small-integer conversions and floating RNG observations
 
-The proofs unfold the standard logical definitions in Lean 4.34.0's
+The proofs unfold the standard logical definitions in Lean 4.34.1's
 `Init/Data/Float/Model/{Float,Unpacked/Round,Unpacked/Pack/Basic}.lean` and
 `Unpacked/Operations/{OfNat,Mul}.lean`. Normalization, zero-filled shifts and
 field packing are proved algebraically, without enumerating machine inputs.

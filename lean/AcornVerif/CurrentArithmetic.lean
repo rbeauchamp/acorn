@@ -12,7 +12,7 @@ import Mathlib.Tactic.Linarith
 /-!
 # Rounding semantics shared by the machine formats
 
-These proofs unfold the pinned Lean 4.34.0 standard model in
+These proofs unfold the pinned Lean 4.34.1 standard model in
 `Init/Data/Float/Model/Unpacked/Round.lean`. Induction connects the actual
 round/sticky-bit shifts to `Acorn.Rounding.nearestEven`; exact carry
 normalization then gives the dyadic half-unit error bound for every format.

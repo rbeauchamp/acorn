@@ -69,15 +69,16 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge)` from the
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge)` from the
 repository root to provision the pinned toolchain/dependencies; the build compiles
-only Mathlib modules absent from the upstream cache. FloatLib publishes no cache,
-so the same command compiles the FloatLib modules that the proof bridge imports.
+only Mathlib modules absent from the upstream cache, plus Regula's lint driver
+and audit worker. FloatLib publishes no cache, so the same command compiles the
+FloatLib modules that the proof bridge imports.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
 [documentation site](#documentation-site): run
-`(cd site && lake build verso/VersoManual)` once to provision pinned Verso, which
+`(cd site && lake build verso/VersoManual verso/VersoManual:shared)` once to provision pinned Verso and its shared library, which
 verification likewise requires to be built already. Do not use `lake update` to
 resolve a missing dependency; that changes the selected versions.
 
