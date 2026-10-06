@@ -243,18 +243,18 @@ theorem save_load (construction : AgentConstruction) (source receiver : construc
 
 /-- **A save writes the order word of the state's own construction.** For every
 construction, state and byte list: when `saveBytes` returns the bytes, the header codec
-reads from them a header whose order word is the word of the construction's order.
-`saveBytes` takes the state of a construction and no order word; `Store.save` writes
-these bytes. -/
+reads from them a header whose order word is the stored word of the construction's order
+(`StepOrder.Stored`). `saveBytes` takes the state of a construction and no order word;
+`Store.save` writes these bytes. -/
 theorem saved_header (construction : AgentConstruction) (state : construction.State)
     (bytes : List UInt8) (saved : saveBytes construction state = .ok bytes) :
     ∃ header rest, headerCodec.decode (bytes.drop magic.length) = some (header, rest) ∧
-      header.order = construction.order.tag := by
+      StepOrder.Stored header.order construction.order := by
   unfold saveBytes at saved
   split at saved
   · cases saved
     obtain ⟨rest, decoded⟩ := encoded_header construction.dimension (snapshot construction state)
-    exact ⟨_, rest, decoded, rfl⟩
+    exact ⟨_, rest, decoded, (StepOrder.tag_stored _ _).mp rfl⟩
   · cases saved
 
 /-- **Bytes that one construction saved are admitted by a second only under the same
@@ -270,6 +270,6 @@ theorem saved_admitted_order (saver receiver : AgentConstruction) (state : saver
   obtain ⟨read, tail, gain, decoded, admitted⟩ := loadCandidate_header receiver bytes image loaded
   rw [wrote] at decoded
   cases decoded
-  exact StepOrder.tag_injective _ _ (admitted.order.symm.trans stamped)
+  exact StepOrder.stored_injective _ _ _ admitted.order stamped
 
 end AcornVerif.CurrentCheckpoint

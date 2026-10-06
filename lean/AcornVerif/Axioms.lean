@@ -3816,6 +3816,44 @@ info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Classical.
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_iff
 
+/--
+info: 'Acorn.Checkpoint.admitHeader_checks' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.admitHeader_checks
+
+/--
+info: 'Acorn.Host.Cli.value_absent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.value_absent
+
+/--
+info: 'Acorn.Host.Cli.value_follows' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.value_follows
+
+/--
+info: 'Acorn.Host.Cli.value_missing' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.value_missing
+
+/--
+info: 'Acorn.Host.Cli.stepOrder_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrder_refused
+
+/-- info: 'Acorn.StepOrder.tag_stored' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Acorn.StepOrder.tag_stored
+
+/-- info: 'Acorn.StepOrder.stored_injective' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Acorn.StepOrder.stored_injective
+
 /-- info: 'AcornVerif.Kernel.memory_parts' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.Kernel.memory_parts

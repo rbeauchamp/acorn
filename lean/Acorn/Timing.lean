@@ -79,6 +79,25 @@ theorem StepOrder.tag_injective (first second : StepOrder) (same : first.tag = s
     first = second := by
   cases first <;> cases second <;> first | rfl | cases same
 
+/-- The specification of the stored word of a step order, written with no executed
+function: word 0 is learn-then-act and word 1 is plan-after-act. -/
+def StepOrder.Stored (word : UInt32) (order : StepOrder) : Prop :=
+  (word = 0 ∧ order = .learnThenAct) ∨ (word = 1 ∧ order = .planAfterAct)
+
+/-- **The stored word of an order is exactly its specified word.** For every order and
+word, `tag` gives the word exactly when the word is stored for the order. -/
+theorem StepOrder.tag_stored (order : StepOrder) (word : UInt32) :
+    order.tag = word ↔ StepOrder.Stored word order := by
+  cases order <;> simp [StepOrder.tag, StepOrder.Stored, eq_comm]
+
+/-- One stored word is the word of one order. -/
+theorem StepOrder.stored_injective (word : UInt32) (first second : StepOrder)
+    (one : StepOrder.Stored word first) (other : StepOrder.Stored word second) :
+    first = second :=
+  StepOrder.tag_injective first second
+    (((StepOrder.tag_stored first word).mpr one).trans
+      ((StepOrder.tag_stored second word).mpr other).symm)
+
 /-- The specification of the spelling of a step order, written with no executed function:
 a text spells an order when it is that order's one word. -/
 def StepOrder.Spelled (text : String) (order : StepOrder) : Prop :=

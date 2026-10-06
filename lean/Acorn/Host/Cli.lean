@@ -121,6 +121,134 @@ def value : List String → String → Except Error (Option String)
       | text :: _ => .ok (some text)
     else value rest wanted
 
+/-- The first occurrence of an option in an argument list with the argument after it,
+stated on the list alone: the option is at one position, no earlier argument is the
+option, and `text` is the next argument. -/
+def Follows (arguments : List String) (option text : String) : Prop :=
+  ∃ before after, arguments = before ++ option :: text :: after ∧ option ∉ before
+
+/-- An option whose first occurrence is the last argument, stated on the list alone. -/
+def Ends (arguments : List String) (option : String) : Prop :=
+  ∃ before, arguments = before ++ [option] ∧ option ∉ before
+
+/-- **The option reader finds nothing exactly when the option is absent.** For every
+argument list and option. -/
+theorem value_absent (arguments : List String) (wanted : String) :
+    value arguments wanted = .ok none ↔ wanted ∉ arguments := by
+  induction arguments with
+  | nil => simp [value]
+  | cons name rest ih =>
+    unfold value
+    by_cases same : name = wanted
+    · subst same
+      cases rest <;> simp
+    · have other : ¬ wanted = name := fun found => same found.symm
+      simp [same, other, ih]
+
+/-- **The option reader returns exactly the text after the first occurrence.** For every
+argument list, option and text. -/
+theorem value_follows (arguments : List String) (wanted text : String) :
+    value arguments wanted = .ok (some text) ↔ Follows arguments wanted text := by
+  induction arguments with
+  | nil =>
+    constructor
+    · intro found
+      cases found
+    · rintro ⟨before, after, shape, -⟩
+      cases before <;> cases shape
+  | cons name rest ih =>
+    unfold value
+    by_cases same : name = wanted
+    · subst same
+      cases rest with
+      | nil =>
+        constructor
+        · intro found
+          simp at found
+        · rintro ⟨before, after, shape, absent⟩
+          cases before with
+          | nil => cases shape
+          | cons head tail =>
+            have first : name = head := (List.cons.inj shape).1
+            exact (absent (first ▸ List.mem_cons_self)).elim
+      | cons next tail =>
+        constructor
+        · intro found
+          simp only [beq_self_eq_true, ↓reduceIte, Except.ok.injEq, Option.some.injEq] at found
+          exact ⟨[], tail, by rw [found]; rfl, List.not_mem_nil⟩
+        · rintro ⟨before, after, shape, absent⟩
+          cases before with
+          | nil =>
+            have texts : next = text := (List.cons.inj (List.cons.inj shape).2).1
+            simp [texts]
+          | cons head others =>
+            have first : name = head := (List.cons.inj shape).1
+            exact (absent (first ▸ List.mem_cons_self)).elim
+    · simp only [beq_iff_eq, same, ↓reduceIte]
+      rw [ih]
+      constructor
+      · rintro ⟨before, after, shape, absent⟩
+        refine ⟨name :: before, after, by rw [shape]; rfl, ?_⟩
+        intro found
+        rcases List.mem_cons.mp found with first | later
+        · exact same first.symm
+        · exact absent later
+      · rintro ⟨before, after, shape, absent⟩
+        cases before with
+        | nil => exact (same (List.cons.inj shape).1).elim
+        | cons head others =>
+          exact ⟨others, after, (List.cons.inj shape).2,
+            fun found => absent (List.mem_cons_of_mem _ found)⟩
+
+/-- **The option reader refuses exactly an option whose first occurrence is the last
+argument,** with the one error that names the option. -/
+theorem value_missing (arguments : List String) (wanted : String) (error : Error) :
+    value arguments wanted = .error error ↔ Ends arguments wanted ∧ error = .missing wanted := by
+  induction arguments with
+  | nil =>
+    constructor
+    · intro found
+      cases found
+    · rintro ⟨⟨before, shape, -⟩, -⟩
+      cases before <;> cases shape
+  | cons name rest ih =>
+    unfold value
+    by_cases same : name = wanted
+    · subst same
+      cases rest with
+      | nil =>
+        constructor
+        · intro found
+          simp only [beq_self_eq_true, ↓reduceIte, Except.error.injEq] at found
+          exact ⟨⟨[], rfl, List.not_mem_nil⟩, found.symm⟩
+        · rintro ⟨-, named⟩
+          simp [named]
+      | cons next tail =>
+        constructor
+        · intro found
+          simp at found
+        · rintro ⟨⟨before, shape, absent⟩, -⟩
+          cases before with
+          | nil => cases shape
+          | cons head others =>
+            have first : name = head := (List.cons.inj shape).1
+            exact (absent (first ▸ List.mem_cons_self)).elim
+    · simp only [beq_iff_eq, same, ↓reduceIte]
+      rw [ih]
+      constructor
+      · rintro ⟨⟨before, shape, absent⟩, named⟩
+        refine ⟨⟨name :: before, by rw [shape]; rfl, ?_⟩, named⟩
+        intro found
+        rcases List.mem_cons.mp found with first | later
+        · exact same first.symm
+        · exact absent later
+      · rintro ⟨⟨before, shape, absent⟩, named⟩
+        cases before with
+        | nil => exact (same (List.cons.inj shape).1).elim
+        | cons head others =>
+          exact ⟨⟨others, (List.cons.inj shape).2,
+            fun found => absent (List.mem_cons_of_mem _ found)⟩, named⟩
+
 /-- Required string admission agrees with the lifecycle protocol's Unicode trim. -/
 def required (arguments : List String) (name : String) : Except Error String := do
   let some text ← value arguments name | .error (.missing name)
@@ -236,15 +364,16 @@ theorem stepOrderValue_refused (text : String) (error : Error) :
     exact eq_comm
   | some found => simp
 
-/-- **The step order of a command line.** For every argument list and order, the
-admission returns the order exactly when the flag is absent and the order is the
-default, or the flag has a text that spells the order. The reading of the flag is the
-option reader's; the default and the spelling are this decision's. -/
+/-- **The step order of a command line, on the argument list alone.** For every argument
+list and order, the admission returns the order exactly when the option is absent from
+the list and the order is the default, or the text after the first occurrence of the
+option spells the order. The right side calls no executed function: `Follows` and
+`StepOrder.Spelled` are relations on the list and the text. -/
 theorem stepOrder_iff (arguments : List String) (order : StepOrder) :
     stepOrder arguments = .ok order ↔
-      (value arguments "--step-order" = .ok none ∧ order = .learnThenAct) ∨
-        ∃ text, value arguments "--step-order" = .ok (some text) ∧
-          StepOrder.Spelled text order := by
+      ("--step-order" ∉ arguments ∧ order = .learnThenAct) ∨
+        ∃ text, Follows arguments "--step-order" text ∧ StepOrder.Spelled text order := by
+  simp only [← value_absent, ← value_follows]
   unfold stepOrder
   cases read : value arguments "--step-order" with
   | error refusal => simp [bind, Except.bind]
@@ -258,6 +387,27 @@ theorem stepOrder_iff (arguments : List String) (order : StepOrder) :
       simp only [bind, Except.bind, Except.ok.injEq, Option.some.injEq, reduceCtorEq, false_and,
         false_or, exists_eq_left']
       exact stepOrderValue_iff text order
+
+/-- **The step order of a command line is refused in exactly two shapes of the list.**
+For every argument list and error: the first occurrence of the option is the last
+argument, with the error that names the missing value; or the text after the first
+occurrence spells no order, with the error that names the option and the text. -/
+theorem stepOrder_refused (arguments : List String) (error : Error) :
+    stepOrder arguments = .error error ↔
+      (Ends arguments "--step-order" ∧ error = .missing "--step-order") ∨
+        ∃ text, Follows arguments "--step-order" text ∧
+          (∀ order, ¬ StepOrder.Spelled text order) ∧ error = .invalid "--step-order" text := by
+  simp only [← value_missing, ← value_follows]
+  unfold stepOrder
+  cases read : value arguments "--step-order" with
+  | error refusal => simp [bind, Except.bind]
+  | ok found =>
+    cases found with
+    | none => simp [bind, Except.bind, pure, Except.pure]
+    | some text =>
+      simp only [bind, Except.bind, reduceCtorEq, false_or, Except.ok.injEq, Option.some.injEq,
+        exists_eq_left']
+      exact stepOrderValue_refused text error
 
 /-- Every omitted step order selects learn-then-act, independently of other arguments. -/
 theorem stepOrder_absent (arguments : List String)

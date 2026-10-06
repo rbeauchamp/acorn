@@ -58,39 +58,58 @@ def admitHeader (construction : AgentConstruction) (header : Header) : Except Er
   if header.order != construction.order.tag then throw (.order header.order construction.order.tag)
   return gain
 
-/-- The complete specification of header admission, written with no reference to the
-executed function: every condition under which a header is the header of an image that
-the receiving construction admits, with the reward rate it yields. -/
+/-- The complete specification of header admission: every condition under which a header
+is the header of an image that the receiving construction admits, with the reward rate it
+yields. Each field is stated on the stored words and on the typed values, and calls no
+function that the admission executes: the words are numerals, the receiver's choices are
+its constructors, and the reward rate is the returned typed value. -/
 structure HeaderAdmitted (construction : AgentConstruction) (header : Header)
     (gain : RewardRate) : Prop where
-  /-- The format generation is the current one. -/
-  version : header.version = formatVersion
-  /-- The Bellman criterion is the receiver's. -/
-  criterion : header.criterion = construction.criterion.tag.toUInt32
-  /-- The stored reward-rate word is admitted, and it is the returned rate. -/
-  gain : RewardRate.admit header.gain = some gain
-  /-- The weight space is the receiver's. -/
-  capacity : header.capacity = construction.dimension.capacity.toUInt32
-  /-- The primary learner count is the current one. -/
-  learners : header.learners = primaryCount.toUInt32
+  /-- The format generation is 18. -/
+  version : header.version = 18
+  /-- The criterion word is the word of the receiver's criterion: 0 for the discounted
+  criterion and 1 for the differential one. -/
+  criterion : (header.criterion = 0 ∧ construction.criterion = .discounted) ∨
+    (header.criterion = 1 ∧ construction.criterion = .differential)
+  /-- The returned rate holds the stored reward-rate word. A rate is a word of the reward
+  range by its type, so a stored word outside that range has no rate. -/
+  gain : gain.value = header.gain
+  /-- The stored capacity has the value of the receiver's weight space. -/
+  capacity : header.capacity.toNat = construction.dimension.capacity
+  /-- The stored learner count is 51: 9 primitive learners, 4 meta learners, 3 times 9
+  option learners and 11 demon learners. -/
+  learners : header.learners = 51
   /-- The feature salt is the receiver's. -/
   seed : header.seed = construction.config.seed
-  /-- The receiving profile supports checkpoints. -/
-  supported : construction.profile.checkpointSupported = true
-  /-- The image was saved by a profile that supports checkpoints. -/
+  /-- The receiving profile is the full learned profile with the declared rate, which is
+  the one profile that has a resumable image. -/
+  supported : construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
+    construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned
+  /-- The image was saved by a profile that has a resumable image. -/
   policy : header.supported = 1
   /-- The tiling count is the receiver's. -/
   tilings : header.tilings = construction.config.tilings
-  /-- The unit capacity is the receiver's. -/
+  /-- The stored unit capacity has the value of the receiver's. -/
   units : header.units.toNat = construction.config.units.count
-  /-- The step order word is the word of the receiver's order. -/
-  order : header.order = construction.order.tag
+  /-- The step order word is the stored word of the receiver's order. -/
+  order : StepOrder.Stored header.order construction.order
 
-/-- **Header admission is exactly its specification.** For every construction, header
-and reward rate, the executed admission returns the rate exactly when the header meets
-every condition of `HeaderAdmitted`. -/
-theorem admitHeader_iff (construction : AgentConstruction) (header : Header) (gain : RewardRate) :
-    admitHeader construction header = .ok gain ↔ HeaderAdmitted construction header gain := by
+/-- The checks of header admission in the terms the implementation writes them. This is
+a step of the proof of `admitHeader_iff`; the specification is `HeaderAdmitted`. -/
+theorem admitHeader_checks (construction : AgentConstruction) (header : Header)
+    (gain : RewardRate) :
+    admitHeader construction header = .ok gain ↔
+      header.version = formatVersion ∧
+        header.criterion = construction.criterion.tag.toUInt32 ∧
+        RewardRate.admit header.gain = some gain ∧
+        header.capacity = construction.dimension.capacity.toUInt32 ∧
+        header.learners = primaryCount.toUInt32 ∧
+        header.seed = construction.config.seed ∧
+        construction.profile.checkpointSupported = true ∧
+        header.supported = 1 ∧
+        header.tilings = construction.config.tilings ∧
+        header.units.toNat = construction.config.units.count ∧
+        header.order = construction.order.tag := by
   constructor
   · intro admitted
     unfold admitHeader at admitted
@@ -99,19 +118,60 @@ theorem admitHeader_iff (construction : AgentConstruction) (header : Header) (ga
     repeat' split at admitted
     all_goals first
       | (cases admitted; done)
-      | (constructor <;> simp_all)
-  · intro specified
-    obtain ⟨version, criterion, admittedGain, capacity, learners, seed, supported, policy,
-      tilings, units, order⟩ := specified
+      | (refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp_all)
+  · rintro ⟨version, criterion, admittedGain, capacity, learners, seed, supported, policy,
+      tilings, units, order⟩
     simp [admitHeader, version, criterion, admittedGain, capacity, learners, seed, supported,
       policy, tilings, units, order, pure, Except.pure]
 
+/-- **Header admission is exactly its specification.** For every construction, header
+and reward rate, the executed admission returns the rate exactly when the header meets
+every condition of `HeaderAdmitted`. -/
+theorem admitHeader_iff (construction : AgentConstruction) (header : Header) (gain : RewardRate) :
+    admitHeader construction header = .ok gain ↔ HeaderAdmitted construction header gain := by
+  rw [admitHeader_checks]
+  constructor
+  · rintro ⟨version, criterion, admittedGain, capacity, learners, seed, supported, policy,
+      tilings, units, order⟩
+    exact
+      { version := version
+        criterion := by
+          cases chosen : construction.criterion with
+          | discounted =>
+            rw [chosen] at criterion
+            exact .inl ⟨criterion, rfl⟩
+          | differential =>
+            rw [chosen] at criterion
+            exact .inr ⟨criterion, rfl⟩
+        gain := (Bounded32.admit_exact _ _ _ admittedGain).1
+        capacity := by
+          rw [capacity]
+          exact Nat.mod_eq_of_lt construction.dimension.wordBound
+        learners := learners
+        seed := seed
+        supported := (FeatureProfile.checkpoint_iff _).mp supported
+        policy := policy
+        tilings := tilings
+        units := units
+        order := (StepOrder.tag_stored _ _).mp order.symm }
+  · intro specified
+    refine ⟨specified.version, ?_, ?_, ?_, specified.learners, specified.seed,
+      (FeatureProfile.checkpoint_iff _).mpr specified.supported, specified.policy,
+      specified.tilings, specified.units, ((StepOrder.tag_stored _ _).mpr specified.order).symm⟩
+    · rcases specified.criterion with ⟨word, chosen⟩ | ⟨word, chosen⟩ <;> rw [word, chosen] <;> rfl
+    · rw [← specified.gain]
+      exact Bounded32.admit_self gain
+    · apply UInt32.toNat_inj.mp
+      rw [specified.capacity]
+      exact (Nat.mod_eq_of_lt construction.dimension.wordBound).symm
+
 /-- **An admitted header was saved under the receiver's step order.** For every
 construction and header, header admission succeeds only when the stored order word is
-the word of the receiver's order; `StepOrder.tag_injective` makes the two orders one. -/
+the stored word of the receiver's order; `StepOrder.stored_injective` makes the two
+orders one. -/
 theorem admitHeader_order (construction : AgentConstruction) (header : Header) (gain : RewardRate)
     (admitted : admitHeader construction header = .ok gain) :
-    header.order = construction.order.tag :=
+    StepOrder.Stored header.order construction.order :=
   ((admitHeader_iff construction header gain).mp admitted).order
 
 /-- Goals enter through their complete count relation, without repair or clamping. -/
