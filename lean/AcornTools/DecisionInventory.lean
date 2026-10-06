@@ -242,6 +242,7 @@ def hidden (module user : Name) : Name := mkPrivateNameCore module user
 /-- Every verdict-shaped definition of the claimed libraries that is neither structural nor
 the implementation of a contract, with the shape of its type and its reason. -/
 def excluded : Array (Name × Shape × Reason) := #[
+  (`AcornVerif.CurrentOak.continuation, .dependent, .model),
   (`Acorn.Host.CertificateSearch.Findings.far._default, .dependent, .default),
   (`Acorn.Host.CertificateSearch.Findings.gold._default, .dependent, .default),
   (`Acorn.Host.CertificateSearch.Findings.near._default, .dependent, .default),
@@ -569,7 +570,7 @@ theorem judged_count : (excluded.filter fun entry => entry.2.2.standing?.isSome)
   decide +kernel
 
 /-- The entries whose reason is a computed fact. -/
-theorem computed_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 206 := by
+theorem computed_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 207 := by
   decide +kernel
 
 /-- The result heads that make a definition verdict-shaped. -/
