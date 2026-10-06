@@ -60,6 +60,8 @@ import AcornVerif.CurrentCurriculum
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentGridWorld
+import AcornVerif.CurrentOak
+import AcornVerif.CurrentAccounting
 import AcornVerif.Endurance
 
 /-!
@@ -3512,5 +3514,109 @@ info: 'AcornVerif.CurrentCertificates.stance_harvest' depends on axioms: [propex
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentCertificates.stance_harvest
+
+/-- info: 'AcornVerif.Oak.step_congr' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms AcornVerif.Oak.step_congr
+
+/-- info: 'AcornVerif.Oak.Conforms.actions' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Oak.Conforms.actions
+
+/-- info: 'AcornVerif.Oak.conforms_coarse' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Oak.conforms_coarse
+
+/-- info: 'AcornVerif.Oak.Realizes.restores' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Oak.Realizes.restores
+
+/--
+info: 'AcornVerif.CurrentOak.planningBoundary_models' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.planningBoundary_models
+
+/--
+info: 'AcornVerif.CurrentOak.planningBoundary_values' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.planningBoundary_values
+
+/--
+info: 'AcornVerif.CurrentOak.planFree_realizes' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.planFree_realizes
+
+/--
+info: 'AcornVerif.CurrentOak.planFree_writes' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.planFree_writes
+
+/--
+info: 'AcornVerif.CurrentOak.frame_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.frame_congr
+
+/--
+info: 'AcornVerif.CurrentOak.step_frame' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.step_frame
+
+/--
+info: 'AcornVerif.CurrentOak.act_extras' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.act_extras
+
+/-- info: 'AcornVerif.CurrentOak.extras_departures' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.extras_departures
+
+/--
+info: 'AcornVerif.CurrentOak.followTemporal_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.followTemporal_event
+
+/--
+info: 'AcornVerif.CurrentOak.step_event_primitive' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.step_event_primitive
+
+/--
+info: 'AcornVerif.CurrentAccounting.select_relabel' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentAccounting.select_relabel
+
+/--
+info: 'AcornVerif.CurrentAccounting.step_learners' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentAccounting.step_learners
+
+/--
+info: 'AcornVerif.CurrentAccounting.act_learners' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentAccounting.act_learners
+
+/--
+info: 'AcornVerif.CurrentAccounting.act_accounting' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentAccounting.act_accounting
+
+/--
+info: 'AcornVerif.CurrentAccounting.executed_actions' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentAccounting.executed_actions
 
 end AcornVerif

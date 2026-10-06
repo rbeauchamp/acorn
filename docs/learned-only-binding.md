@@ -225,9 +225,22 @@ derivation while preserving the continuing setting, semantic compatibility,
 state admission and bounded work. Technical replacement requires an explicit
 reviewed contract; usefulness requires separate prospective qualification.
 
+### D8 · Achievement event — Step 10
+
+A frame carries whether the preceding transition achieved the goal the world installed (`Frame.achieved`), and the grid world's adapter sets it from the host's step result. The event is the world's judgment of its own goal. It is not computed from the agent's features, so it is an arrow outside the [OaK picture](design.md#the-oak-picture-and-the-executed-agent).
+
+The event reaches one decision. With the event set, an option's stopping decision ends with the reason `goal`, before its duration and estimate checks (`Skill.decideOption`, `Skill.goal_ends`). The executing option takes that decision. Each option that learns off-policy from the frame reads the event through the same decision, taken for its stored trajectory (`settleFollowing_event`, `followTemporal_event`), and so does the option an exploratory run interrupted. A profile without a hierarchy has no option, and its local transition does not read the event (`step_event_primitive`). The coder does not read the event (`frame_congr`). The completion boundary, which credits the primitive action values, the prediction learners and the options' questions, is handed the frame and reads it through its signal values only (`finish_signals`), so it does not read the event either. `CurrentOak.achievement` declares the arrow with this departure; the event itself is a bare flag of the frame, so that declaration is checked by review and not by a type.
+
+Loci: `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.AgentAlignment`, `Acorn.Handcrafted.AgentEpisodes`, `Acorn.Handcrafted.Agent`.
+
+*Replacement:* Deliver the event as a word of the frame, so that an option's stopping is learned from features, or derive it from the option's own subtask. Move the relevant decision into learned state or a justified
+derivation while preserving the continuing setting, semantic compatibility,
+state admission and bounded work. Technical replacement requires an explicit
+reviewed contract; usefulness requires separate prospective qualification.
+
 ## Standing obligations
 
-Preserve all seven declarations until an explicit replacement retires their actual
+Preserve all eight declarations until an explicit replacement retires their actual
 use. Adding a provenance constructor requires updating the closed register and
 compiled quarantine inventory. Technical admission must satisfy the
 [prior-art standard](prior-art-review.md#admission-standard), including material
