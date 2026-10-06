@@ -14,6 +14,10 @@ declaration ownership must agree. Required proof anchors name statements about
 the actual executing definitions; their types must still refer to those owners.
 This is coverage/routing admission, not an inference that names prove semantics.
 Types, proof terms, the runtime boundary and review supply the semantic evidence.
+
+The complete admission also applies the decision inventory: every verdict-shaped
+definition of the claimed libraries is structural, the implementation of a registered
+contract, or excluded with a reason, as `AcornDecisionInventory` states.
 -/
 namespace AcornOwnershipAudit
 open Lean
@@ -117,7 +121,8 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
     let projects := modules.filter (!AcornModuleInventory.toolingModules.contains ·)
     let included := projects.filter fun owner => (common.getModuleIdx? owner).isSome
     let mut counts : AcornTheoremCount.Counts := {}
-    if complete then counts ← AcornTheoremCount.countEnvironment common included
+    if complete then
+      counts ← AcornTheoremCount.countEnvironment common included (surveyed := #[`Bootstrap])
     let mut counted := included
     for owner in modules do
       let isEntry := entries.any (·.2 == owner)
@@ -154,6 +159,7 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
       require (projects.all counted.contains && counted.size == projects.size)
         "incomplete or duplicate theorem-owner admission"
       counts.report
+      AcornDecisionInventory.check counts.decisions
       let cwd ← IO.Process.getCurrentDir
       try
         IO.Process.setCurrentDir ".."

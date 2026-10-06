@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornTools.Boundary.Audit
+import AcornTools.DecisionInventory
 import AcornTools.Ownership
 
 /-!
@@ -18,6 +19,10 @@ their owning module, even if their declaration names resemble project names.
 
 The inventory includes compiler-generated auxiliary theorem declarations and
 private theorems. Counts report this complete scope of compiled declarations.
+
+The same walk reads what `AcornDecisionInventory` decides: the verdict-shaped
+definitions of the selected modules and the implementations of the registered
+contracts.
 -/
 
 namespace AcornTheoremCount
@@ -35,12 +40,15 @@ structure Counts where
   current : Nat := 0
   /-- Theorem declarations owned by native application bootstrap modules. -/
   application : Nat := 0
+  /-- Verdict-shaped definitions and contract implementations of the same modules. -/
+  decisions : AcornDecisionInventory.Observed := {}
 
 /-- Sum disjoint owning-module inventories. -/
 def Counts.add (a b : Counts) : Counts :=
   { verification := a.verification + b.verification
     current := a.current + b.current
-    application := a.application + b.application }
+    application := a.application + b.application
+    decisions := a.decisions.add b.decisions }
 
 /-- Report declaration scope, not a correctness score. -/
 def Counts.report (counts : Counts) : IO Unit := do
@@ -49,12 +57,16 @@ def Counts.report (counts : Counts) : IO Unit := do
   IO.println s!"theorem-count NativeApp={counts.application}"
   IO.println s!"theorem-count total={counts.verification + counts.current + counts.application}"
 
-/-- Count the selected owning modules in one compiled environment. -/
-def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
+/-- Count the selected owning modules in one compiled environment. The decision inventory
+also reads the `surveyed` modules, which the theorem admission does not cover. -/
+def countEnvironment (env : Environment) (owners : Array Name) (surveyed : Array Name := #[]) :
+    IO Counts := do
   let selected := owners.foldl (fun selected owner => selected.insert owner) ({} : NameSet)
   let mut counts : Counts := {}
   for (name, info) in env.constants do
     let owner ← AcornBoundaryAudit.declarationOwner env name
+    if selected.contains owner || surveyed.contains owner then
+      counts := { counts with decisions := ← counts.decisions.observe env owner name info }
     if !selected.contains owner then continue
     if info.isUnsafe || info.isPartial then
       let some parent := Compiler.isUnsafeRecName? name

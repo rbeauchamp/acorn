@@ -112,7 +112,10 @@ Lake runs with `--wfail`, so any warning, including a header-time warning such
 as a deprecated import, fails the build. Source/compiled admission checks
 imports, capability owners, artifact origins and native routes. Every project theorem is checked for axiom
 dependencies; only propext, Classical.choice and Quot.sound are admitted. The theorem inventory reports the
-checked declarations. Every proof passes through the kernel.
+checked declarations. Every proof passes through the kernel. The same walk of the
+compiled environment applies the [decision inventory](#regula-audit): every
+definition of the claimed libraries with a verdict-shaped result is registered
+with a contract or listed with the reason it carries none.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
@@ -297,12 +300,30 @@ input that a kind carries. Where a theorem
 proves which inputs it accepts or refuses, or a property of an accepted or a
 refused result, that statement is registered as an ordinary requirement, which
 the audit reports with no kind, and the ownership audit requires the contract by
-name. The audit does not find a decision function that is not registered. The
-module's documentation states the selection rule and lists the groups of the
-Acorn library that are not registered with the evidence that stands for each:
-composed and polymorphic admissions, certificate proposals, effects with no pure
-core, and the command-line, JSON and viewer parsers, for which no direction is
-proved. It
+name. A decision that takes its element type as an argument has no kind either
+and is registered in the same way. A contract states only what its theorem
+proves.
+
+Regula's audit does not find a decision function that is not registered. The
+ownership audit closes that gap with a decision inventory,
+`lean/AcornTools/DecisionInventory.lean`. A definition is verdict-shaped when
+its result type, after its arguments, is `Bool`, `Option`, `Except` or
+`Decidable`. The audit reads every verdict-shaped definition of the claimed
+libraries from the compiled environment and requires each to be in exactly one
+class: a structure field or a function with a `Decidable` result; the
+implementation of a contract of a decision registry; or an entry of the
+inventory's exclusion table, which gives the shape of the definition's type, as
+the audit computes it, and one reason from a closed list. A definition in no
+class or in two fails verification, and so does a table entry that names no such
+definition. A new verdict-shaped definition therefore cannot arrive unlisted,
+and a contract cannot be removed without an entry in the table. The reasons are
+a state transition, a selection or lookup, a Boolean property of admitted state,
+an admission composed of other admissions, a certificate proposal, a parser or
+test with no theorem about the inputs it accepts, a derived comparison and a
+model of the proof library. The inventory establishes that every such definition
+has been classified; whether each reason is right is review. The inventory's own
+decision is a pure function with a theorem that it accepts exactly a definition
+in exactly one class. `Acorn.Decisions`
 cannot register a function of another library, such as a NativeApp parser. No
 kind says that a specification is the intended one. `Acorn.Decisions` belongs to
 the Acorn library
