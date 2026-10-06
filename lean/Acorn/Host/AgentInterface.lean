@@ -106,9 +106,12 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
 
 /-- Full-agent callbacks bind every existing host protocol operation to its actual
 owner, for one step order. The two parts of a step are the agent's own parts of that
-order, so the order selects the agent's functions here and nowhere else. -/
+order, and the order is the index of the result, so a host loop of the other order
+does not take it. This is the composition over the learner state, which holds no order
+of its own; a host composes `AgentConstruction.callbacks`, whose state type is of one
+construction. -/
 def Agent.callbacks (order : StepOrder) :
-    Host.AgentCallbacks (Agent Grid.interface profile config criterion dimension planning)
+    Host.AgentCallbacks order (Agent Grid.interface profile config criterion dimension planning)
       (AgentObservation config dimension) where
   Chosen := Chosen Grid.interface profile config criterion dimension planning
   choose state observation result :=

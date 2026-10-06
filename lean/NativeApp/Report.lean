@@ -125,29 +125,29 @@ def openCsv (path : System.FilePath) (checkpoint : Option System.FilePath)
   handle.putStr s!"# {orderProvenance construction.order}\n"
   return handle
 
-/-- All campaign reporting inputs are derived from the actual execution result. -/
-def reportText (options : Cli.Streaming) {profile : FeatureProfile}
-    (result : CampaignResult options.common.world
-      (Agent Grid.interface profile (nativeConstruction options).config (nativeConstruction options).criterion
-        (nativeConstruction options).dimension (nativeConstruction options).planning))
+/-- All campaign reporting inputs are derived from the actual execution result. The
+planning selection, the step order and the sizes are those of the construction whose
+state the result holds. -/
+def reportText (options : Cli.Streaming) {construction : AgentConstruction}
+    (result : CampaignResult options.common.world construction.State)
     (outcomes : OutcomeReport (standardCurriculum options.common.world options.common.world.raw.seed).size) (elapsedMs : Nat) : String × String := Id.run do
-  let agent := result.run.agent
+  let agent := result.run.agent.agent
   let progress := agent.control.runtime.lifecycle.representation.progress
   let checksum := hexWord (agentChecksum agent)
   let last := match progress.last with
     | none => "none"
     | some event => s!"{event.step}:{event.unit.val}"
-  let census := (imprintCensus (config := (nativeConstruction options).config)
+  let census := (imprintCensus (config := construction.config)
     agent.control.runtime.lifecycle.consumers.demons).toList.map toString
   let ranked := agent.control.runtime.lifecycle.consumers.skills.toList.map fun skill =>
     toString skill.model.transition.ranked.occupied.length
   let common := options.common
   let rate := if elapsedMs == 0 then 0 else result.totalSteps.toNat * 1000 / elapsedMs
-  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance (nativeConstruction options)} {orderProvenance (nativeConstruction options).order} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
+  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance construction} {orderProvenance construction.order} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
   summary := summary ++ s!"  recent attempt detail (last {outcomes.recent.values.length} retained):\n"
   for outcome in outcomes.recent.values do summary := summary ++ outcomeText outcome
   summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {progress.replaced}\n  retire_last: {last}\n  imprint_distinct_abs: {String.intercalate " " census}\n  ranked_slots: {String.intercalate " " ranked}\n"
-  let csv := s!"# seed={common.world.raw.seed} side={common.world.raw.side.val} weights={(nativeConstruction options).dimension.capacity} total_steps={result.totalSteps} behavior={hexWord result.run.behavior} checksum={checksum} wall_ms={elapsedMs} steps_per_sec={rate} retire_count={progress.replaced} retire_last={last} imprint_distinct_abs={String.intercalate ";" census}\n"
+  let csv := s!"# seed={common.world.raw.seed} side={common.world.raw.side.val} weights={construction.dimension.capacity} total_steps={result.totalSteps} behavior={hexWord result.run.behavior} checksum={checksum} wall_ms={elapsedMs} steps_per_sec={rate} retire_count={progress.replaced} retire_last={last} imprint_distinct_abs={String.intercalate ";" census}\n"
   return (summary, csv)
 
 end NativeApp

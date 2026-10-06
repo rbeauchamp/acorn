@@ -122,7 +122,7 @@ def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
     let construction := AuditArm.annealed.construction options
     runCampaign options.common.world options.common.world.raw.seed (nativeSelection options)
       options.campaign (fun _ => IO.lazyPure fun _ => construction.initial)
-      Agent.callbacks construction.order { StreamObserver.none with onOutcome := outcome } none
+      construction.callbacks { StreamObserver.none with onOutcome := outcome } none
       stop.requested
 
 /-- Execute the fixed audit once; scientific capture may retain its actual receipt. -/
@@ -142,11 +142,11 @@ def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO Aud
   | .ok result =>
     let elapsed := (← IO.monoMsNow) - started
     if printReport then IO.print (reportText options result (← outcomes.get) elapsed).1
-    let progress := result.run.agent.control.runtime.lifecycle.representation.progress
+    let progress := result.run.agent.agent.control.runtime.lifecycle.representation.progress
     let events := (progress.units.toList.zipIdx.filterMap fun (unit, index) =>
       if unit.birth == 0 then none else some (AuditRetirement.mk unit.birth index.toUInt32)).toArray
     return ⟨streamingAudit result.outcomes result.run.behavior result.totalSteps events,
-      agentChecksum result.run.agent⟩
+      agentChecksum result.run.agent.agent⟩
 
 /-- Success requires both retained words; the command line cannot replace either pin. -/
 def runMutationAudit (arguments : List String) : IO UInt32 := do

@@ -70,13 +70,13 @@ def runAnsiDemo (common : Cli.Common) (period : Acorn.Word.Count) : IO UInt32 :=
   IO.eprintln (orderProvenance construction.order)
   IO.print "\x1b[2J\x1b[H"
   let result ← runAnsi common period (fun _ => IO.lazyPure fun _ => construction.initial)
-    (Acorn.Handcrafted.Agent.callbacks construction.order)
+    construction.callbacks
     (renderAnsi s!"{planningProvenance construction} {orderProvenance construction.order}")
     (fun index tier achieved steps =>
       IO.println s!"goal {index} (tier {tier}) {if achieved then "achieved" else "timed out"} in {steps} steps")
   match result with
   | .ok state =>
-    IO.println s!"agent state checksum: {hexWord (agentChecksum state.agent)}"
+    IO.println s!"agent state checksum: {hexWord (agentChecksum state.agent.agent)}"
     return 0
   | .error error => throw (IO.userError (runnerError error))
 

@@ -19,9 +19,11 @@ correspondence with the agent's attempt and its completion.
 namespace AcornVerif.CurrentRunner
 open Acorn Acorn.Host
 
+variable {order : StepOrder}
+
 /-- Every successful commit consumes exactly one of the prepared remaining steps. -/
 theorem commit_steps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks α β)
+    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
     next.steps.val = prepared.before.steps.val + 1 := by
   unfold PreparedStep.commit PreparedStep.environment at h
@@ -32,7 +34,7 @@ theorem commit_steps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
 
 /-- The world phase of a prepared commit advances exactly one physical clock tick. -/
 theorem commit_clock {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks α β)
+    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
     next.run.world.time = prepared.before.run.world.time + 1 := by
   unfold PreparedStep.commit PreparedStep.environment at h
@@ -182,7 +184,7 @@ theorem sense_none {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt6
 /-- A successful commit ran the world's transition on the prepared action, kept
 its result as the carried result and counted one step. -/
 theorem commit_world {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks α β)
+    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
     prepared.before.run.world.step prepared.action = .ok (next.run.world, next.run.carried.events) ∧
       next.steps.val = prepared.before.steps.val + 1 := by
@@ -196,7 +198,7 @@ theorem commit_world {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
 /-- An agent tick that acted belonged to an unfinished attempt below its cap, ran
 the world's transition on the frame's action and counted one step. -/
 theorem tick_acted {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (frame : StepFrame β)
     (h : attempt.tick callbacks context = .ok (next, some frame)) :
     attempt.finished = false ∧ attempt.steps.val < cap.toNat ∧
@@ -222,7 +224,7 @@ theorem tick_acted {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UI
 
 /-- An agent tick that took no action left a finished attempt unchanged. -/
 theorem tick_idle {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap)
     (h : attempt.tick callbacks context = .ok (next, none)) :
     attempt.finished = true ∧ next = attempt := by
@@ -246,7 +248,7 @@ same action from a corresponding state, the comparator's tick takes that step
 too and the states correspond again, for every agent callback. The comparator's
 stream advances by exactly that draw. -/
 theorem tick_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (frame : StepFrame β)
     (state : BaselineAttempt config cap) (related : Corresponds attempt state)
     (acted : attempt.tick callbacks context = .ok (next, some frame))
@@ -273,7 +275,7 @@ theorem tick_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {ca
 /-- Stop correspondence. When the agent's tick takes no action, the comparator's
 tick from a corresponding state takes none either. -/
 theorem idle_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (state : BaselineAttempt config cap)
     (related : Corresponds attempt state)
     (idle : attempt.tick callbacks context = .ok (next, none)) : state.tick = .ok state := by
@@ -294,7 +296,7 @@ theorem idle_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {ca
 the comparator's row from a corresponding state report the same steps,
 completion flag and position, and both arms carry the same world onward. -/
 theorem outcome_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt : Attempt config α goal cap) (state : BaselineAttempt config cap)
     (related : Corresponds attempt state) (taken : attempt.steps.val ≠ 0)
     (run : RunState config α) (outcome : GoalOutcome) (frame : StepFrame β)

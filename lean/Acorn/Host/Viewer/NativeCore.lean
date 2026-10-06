@@ -107,7 +107,7 @@ def runNativeCampaign (options : Cli.Streaming) (build : TelemetryBuild)
         pure (some (store.hooks construction path options.checkpointEvery))
     let result ← runCampaign options.common.world options.common.world.raw.seed (nativeSelection options)
       options.campaign (fun _ => IO.lazyPure fun _ => construction.initial)
-      Agent.callbacks construction.order observer checkpoint stop.requested
+      construction.callbacks observer checkpoint stop.requested
     match result with
     | .error error => return .error error
     | .ok result =>
@@ -117,7 +117,7 @@ def runNativeCampaign (options : Cli.Streaming) (build : TelemetryBuild)
         match ← finalFrame.get with
         | none => pure ()
         | some (frame, metrics) =>
-          let final := { frame with agent := Agent.observe agent }
+          let final := { frame with agent := Agent.observe agent.agent }
           resources ← notifyObserver (baseObserver.onAttemptEnd final metrics) resources
       return .ok { result with run := { result.run with agent := agent }, resources := resources }
 

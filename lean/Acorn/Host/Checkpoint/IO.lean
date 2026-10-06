@@ -119,7 +119,7 @@ under the stated POSIX and stable-directory assumptions. -/
       let flushed ← written.flush
       let synced ← flushed.sync store.syncProgram
       synced.publish
-      return .ok state.clock
+      return .ok state.agent.clock
     catch error =>
       temporary.cleanup
       throw error

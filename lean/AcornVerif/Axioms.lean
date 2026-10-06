@@ -3732,6 +3732,24 @@ info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classica
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_order
 
+/--
+info: 'Acorn.Handcrafted.AgentConstruction.admitImage_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.AgentConstruction.admitImage_iff
+
+/--
+info: 'Acorn.Handcrafted.AgentConstruction.callbacks_act' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.AgentConstruction.callbacks_act
+
+/--
+info: 'Acorn.Handcrafted.DefaultConstruction.runPrefix_agent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.DefaultConstruction.runPrefix_agent
+
 /-- info: 'AcornVerif.Kernel.memory_parts' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.Kernel.memory_parts

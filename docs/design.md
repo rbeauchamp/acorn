@@ -703,7 +703,11 @@ The core accepts `--step-order learn-then-act` (the default) or
 `--step-order plan-after-act`, independently of the research profile, criterion
 and planning selection. The order is part of the agent's construction: it selects
 the [step](#the-two-parts-of-a-step) the agent runs and the loop the streaming
-runner uses, together. Under `learn-then-act` the runner takes the world's
+runner uses, together. The callbacks a host loop takes have the order as a type
+index, and the state of an agent and the image a checkpoint admits are types of
+one construction (`AgentConstruction.callbacks`, `AgentConstruction.State`,
+`AgentConstruction.Image`), so the step, the loop, the stamp of a saved image
+and its admission cannot be of two orders. Under `learn-then-act` the runner takes the world's
 transition after both parts. Under `plan-after-act` it takes the transition
 between them, and the planning of a free boundary follows the action.
 

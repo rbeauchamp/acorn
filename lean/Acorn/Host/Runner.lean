@@ -21,6 +21,8 @@ explicit native trust boundaries.
 -/
 namespace Acorn.Host
 
+variable {order : StepOrder}
+
 /-- Closed current research-profile selection; there is no qualified default. -/
 inductive ResearchProfile where
   /-- Ranked learned features and subtask interests. -/
@@ -162,7 +164,7 @@ def notifyObserver (operation : IO Unit) (resources : RunnerResources) : IO Runn
 
 /-- Final observation and outcome bookkeeping use the unchanged attempt owner. -/
 def finishAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (observer : StreamObserver β) (context : GoalContext)
     (attempt : Attempt config α goal cap) (resources : RunnerResources) :
     IO (Except RunnerError (RunState config α × GoalOutcome × RunnerResources)) := do
   match attempt.finish callbacks context with
@@ -175,7 +177,7 @@ def finishAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UIn
 fuel and the attempt's own remaining witness independently bound transitions;
 no imperative early-return state retains an obsolete agent through the callback. -/
 def runAttemptSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext) :
+    (callbacks : AgentCallbacks .learnThenAct α β) (observer : StreamObserver β) (context : GoalContext) :
     Nat → Attempt config α goal cap → RunnerResources →
       IO (Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
   | 0, attempt, resources => finishAttempt callbacks observer context attempt resources
@@ -210,7 +212,7 @@ pass composes give the stage those of a pass of `runAttemptSteps` give, and
 pre-transition world and the learned agent. The reported agent duration is the sum of
 both parts, and the reported environment duration is the preceding transition's. -/
 def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext) :
+    (callbacks : AgentCallbacks .planAfterAct α β) (observer : StreamObserver β) (context : GoalContext) :
     Nat → Attempt config α goal cap → RunnerResources →
       IO (Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
   | 0, attempt, resources => finishAttempt callbacks observer context attempt resources
@@ -243,14 +245,16 @@ def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
 
 /-- Execute the admitted finite attempt through the same proved selection,
 world transition and bookkeeping, capturing only demanded step observations. The
-declared step order selects the loop. -/
+step order of the callbacks selects the loop: no caller passes an order beside them. -/
 def runAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (order : StepOrder) (observer : StreamObserver β)
+    (callbacks : AgentCallbacks order α β) (observer : StreamObserver β)
     (context : GoalContext) (initial : Attempt config α goal cap) (resources : RunnerResources) :
     IO (Except RunnerError (RunState config α × GoalOutcome × RunnerResources)) :=
-  match order with
-  | .learnThenAct => runAttemptSteps callbacks observer context cap.toNat initial resources
-  | .planAfterAct => runReleasedSteps callbacks observer context cap.toNat initial resources
+  match order, callbacks with
+  | .learnThenAct, callbacks =>
+    runAttemptSteps callbacks observer context cap.toNat initial resources
+  | .planAfterAct, callbacks =>
+    runReleasedSteps callbacks observer context cap.toNat initial resources
 
 /-! ## The native loops compute the pure fold
 
@@ -303,7 +307,7 @@ def AttemptAgrees {config : WorldConfig} {α β : Type}
 
 /-- Whatever the final bookkeeping returns is the attempt's pure finish. -/
 theorem finishAttempt_returned {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (observer : StreamObserver β) (context : GoalContext)
     (attempt : Attempt config α goal cap) (resources : RunnerResources)
     (world after : Void IO.RealWorld)
     (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
@@ -329,7 +333,7 @@ attempt, resource record and world token: a value the loop returns agrees with t
 result of `Attempt.complete` (`AttemptAgrees`), on its refusal branches as well. No
 hypothesis on the clock or the observer is used. -/
 theorem runAttemptSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
+    (callbacks : AgentCallbacks .learnThenAct α β) (observer : StreamObserver β) (context : GoalContext)
     (fuel : Nat) (attempt : Attempt config α goal cap) (resources : RunnerResources)
     (world after : Void IO.RealWorld)
     (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
@@ -396,7 +400,7 @@ on acceptance and on a refusal. The fold applies the whole step of the callbacks
 order, so each percept reaches the second part exactly once and in order in this loop
 as in the default one. -/
 theorem runReleasedSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
+    (callbacks : AgentCallbacks .planAfterAct α β) (observer : StreamObserver β) (context : GoalContext)
     (fuel : Nat) (attempt : Attempt config α goal cap) (resources : RunnerResources)
     (world after : Void IO.RealWorld)
     (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
@@ -465,15 +469,15 @@ theorem runReleasedSteps_complete {config : WorldConfig} {α β : Type} {goal : 
             obtain ⟨observed, w8, _, returned⟩ := returned_bind _ _ _ _ _ returned
             exact ih _ _ _ returned
 
-/-- **Either loop of an attempt computes the pure fold.** Whatever step order selects the
-loop, a value the attempt runner returns agrees with the result of `Attempt.complete`
-at the attempt's own step cap (`AttemptAgrees`). -/
+/-- **Either loop of an attempt computes the pure fold.** Whatever step order the
+callbacks have, a value the attempt runner returns agrees with the result of
+`Attempt.complete` at the attempt's own step cap (`AttemptAgrees`). -/
 theorem runAttempt_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (order : StepOrder) (observer : StreamObserver β)
+    (callbacks : AgentCallbacks order α β) (observer : StreamObserver β)
     (context : GoalContext) (initial : Attempt config α goal cap) (resources : RunnerResources)
     (world after : Void IO.RealWorld)
     (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
-    (returned : runAttempt callbacks order observer context initial resources world =
+    (returned : runAttempt callbacks observer context initial resources world =
       .ok value after) :
     AttemptAgrees (initial.complete callbacks context cap.toNat) value := by
   cases order with
@@ -630,7 +634,7 @@ run state is handed to the attempt, so nothing else refers to the agent while th
 runs and the attempt's first writes can reuse the agent's storage. That reuse is a
 property of the compiled code, not of these values. -/
 def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
-    {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks α β) (order : StepOrder)
+    {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks order α β)
     (observer : StreamObserver β) (readStop : BaseIO Bool)
     (progress : CampaignProgress config α plan) :
     IO (CampaignProgress config α plan ⊕ Except RunnerError (CampaignResult config α)) := do
@@ -644,7 +648,7 @@ def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
     let (goal, tier) := curriculum[cursor.goal.val]'hg
     let context := cursor.context tier
     let started := Attempt.start run goal plan.stepCap
-    match ← runAttempt callbacks order observer context started resources with
+    match ← runAttempt callbacks observer context started resources with
     | .error error => return .inr (.error error)
     | .ok (next, outcome, observed) =>
       match addOutcomeSteps totalSteps outcome with
@@ -665,7 +669,7 @@ either the progress between attempts or the campaign's result, and each pass han
 progress to `campaignStep`: no return follows that call, so the loop keeps no second
 reference to the run state across an attempt. -/
 def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
-    (plan : CampaignPlan curriculum.size) (callbacks : AgentCallbacks α β) (order : StepOrder)
+    (plan : CampaignPlan curriculum.size) (callbacks : AgentCallbacks order α β)
     (observer : StreamObserver β)
     (initial : RunState config α) (checkpoint : Option (WritableCheckpoint × (α → System.FilePath → IO Unit)))
     (readStop : BaseIO Bool) (admission : CheckpointAdmission := .missing) :
@@ -677,17 +681,17 @@ def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curr
   repeat
     match phase with
     | .inr result => return result
-    | .inl progress => phase ← campaignStep curriculum callbacks order observer readStop progress
+    | .inl progress => phase ← campaignStep curriculum callbacks observer readStop progress
 
 /-- Startup preserves refusal order and never constructs an agent before campaign admission.
 Unexpected loader errors retain the fresh agent and disable writes, like a refused image.
-The callbacks are a family over the step order and the one declared order selects both
-the agent's functions and the loop, so those two cannot disagree. The checkpoint hooks
-are a separate argument: that they stamp and admit the same order is an obligation of
-the composition root, which builds hooks, callbacks and order from one construction. -/
+The step order is the index of the callbacks and it selects the loop, so the two parts
+and the loop are of one order. The callbacks, the constructor and the checkpoint hooks
+share the agent type `α`. For the Acorn agent that type is the state type of one
+construction, which holds the order, so the hooks stamp and admit that order as well. -/
 def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection : AgentSelection)
     (spec : CampaignSpec) (buildAgent : AgentSelection → IO α)
-    (callbacks : StepOrder → AgentCallbacks α β) (order : StepOrder)
+    (callbacks : AgentCallbacks order α β)
     (observer : StreamObserver β) (checkpoint : Option (CheckpointHooks α)) (readStop : BaseIO Bool) :
     IO (Except RunnerError (CampaignResult config α)) := do
   if !selection.profile.resumable && checkpoint.isSome then return .error (.campaign .nonresumableProfile)
@@ -717,7 +721,7 @@ def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection
           admission := status
         observer.onInitialized admission
         let initial : RunState config α := ⟨world, agent, {}, initialBehavior⟩
-        runAdmittedCampaign curriculum plan (callbacks order) order observer initial writable
+        runAdmittedCampaign curriculum plan callbacks observer initial writable
           readStop admission
       catch error => return .error (.io error.toString)
 

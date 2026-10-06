@@ -207,16 +207,16 @@ an attempt returns agrees with one pure fold of whole steps,
 outside the agreement:
 
 ```lean
-theorem Acorn.Host.runAttempt_complete {config : Acorn.Host.WorldConfig} {α β : Type}
-  {goal : Acorn.Host.Goal} {cap : UInt64} (callbacks : Acorn.Host.AgentCallbacks α β)
-  (order : Acorn.StepOrder) (observer : Acorn.Host.StreamObserver β)
+theorem Acorn.Host.runAttempt_complete {order : Acorn.StepOrder} {config : Acorn.Host.WorldConfig}
+  {α β : Type} {goal : Acorn.Host.Goal} {cap : UInt64}
+  (callbacks : Acorn.Host.AgentCallbacks order α β) (observer : Acorn.Host.StreamObserver β)
   (context : Acorn.Host.GoalContext) (initial : Acorn.Host.Attempt config α goal cap)
   (resources : Acorn.Host.RunnerResources) (world after : Void IO.RealWorld)
   (value :
     Except Acorn.Host.RunnerError
       (Acorn.Host.RunState config α × Acorn.Host.GoalOutcome × Acorn.Host.RunnerResources))
   (returned :
-    Acorn.Host.runAttempt callbacks order observer context initial resources world =
+    Acorn.Host.runAttempt callbacks observer context initial resources world =
       EST.Out.ok value after) :
   Acorn.Host.AttemptAgrees (Acorn.Host.Attempt.complete callbacks context cap.toNat initial) value
 ```

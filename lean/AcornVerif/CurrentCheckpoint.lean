@@ -118,7 +118,8 @@ theorem image_roundtrip (construction : AgentConstruction)
     (image : AgentImage Grid.interface construction.config construction.criterion
       construction.dimension)
     (supported : construction.profile.checkpointSupported = true) :
-    admitPayload construction (imagePayload construction image) = .ok image := by
+    (admitPayload construction (imagePayload construction image)).map (·.image) =
+      .ok image := by
   unfold admitPayload
   rw [header_roundtrip construction image supported]
   simp only [bind, Except.bind]
@@ -126,7 +127,8 @@ theorem image_roundtrip (construction : AgentConstruction)
   simp only [imagePayload, pure, Except.pure]
   have feature := feature_roundtrip construction image
   rw [feature, lifetime]
-  simp [image.episodes]
+  simp [image.episodes, AgentConstruction.admitImage]
+  rfl
 
 /-- Every raw primary weight passes through the receiving rule at its exact index. -/
 theorem restored_weight {config : Acorn.Config} {dimension : Dimension}
@@ -201,7 +203,8 @@ theorem candidate_roundtrip (construction : AgentConstruction)
     (image : AgentImage Grid.interface construction.config construction.criterion
       construction.dimension)
     (supported : construction.profile.checkpointSupported = true) :
-    loadCandidate construction (encode construction.dimension (imagePayload construction image)) =
+    (loadCandidate construction
+        (encode construction.dimension (imagePayload construction image))).map (·.image) =
       .ok image := by
   have large := encoded_minimum construction.dimension (imagePayload construction image)
   obtain ⟨rest, header⟩ := encoded_header construction.dimension (imagePayload construction image)
@@ -220,18 +223,36 @@ theorem candidate_roundtrip (construction : AgentConstruction)
 existing cold restoration, without requiring equality of their transient state. -/
 theorem save_load (construction : AgentConstruction) (source receiver : construction.State)
     (supported : construction.profile.checkpointSupported = true) :
-    ∃ restored, receiver.restore (snapshotImage construction source) = some restored ∧
+    ∃ restored : construction.State,
+      receiver.agent.restore (snapshotImage construction source) = some restored.agent ∧
       load construction receiver (encode construction.dimension (snapshot construction source)) =
         .ok restored := by
-  have existsRestore : ∃ restored, receiver.restore (snapshotImage construction source) = some
-    restored := by
+  have existsRestore : ∃ next, receiver.agent.restore (snapshotImage construction source) = some
+    next := by
     simp [Agent.restore, supported]
-  obtain ⟨restored, restore⟩ := existsRestore
-  refine ⟨restored, restore, ?_⟩
+  obtain ⟨next, restore⟩ := existsRestore
+  have candidate := candidate_roundtrip construction (snapshotImage construction source) supported
   unfold load snapshot
-  rw [candidate_roundtrip construction (snapshotImage construction source) supported]
-  simp only [bind, Except.bind]
-  rw [restore]
-  rfl
+  cases loaded : loadCandidate construction (encode construction.dimension
+      (imagePayload construction (snapshotImage construction source))) with
+  | error refusal =>
+    rw [loaded] at candidate
+    cases candidate
+  | ok admitted =>
+    rw [loaded] at candidate
+    have same : admitted.image = snapshotImage construction source := Except.ok.inj candidate
+    have typed := receiver.restore_agent admitted
+    rw [same, restore] at typed
+    cases restored : receiver.restore admitted with
+    | none =>
+      rw [restored] at typed
+      cases typed
+    | some state =>
+      rw [restored] at typed
+      refine ⟨state, ?_, ?_⟩
+      · rw [restore]
+        exact (congrArg some (Option.some.inj typed)).symm
+      · simp only [bind, Except.bind, restored]
+        rfl
 
 end AcornVerif.CurrentCheckpoint

@@ -27,8 +27,9 @@ causality law for a two-part agent, and `actionAt_chosen` and `memoryAt_learn` u
 the loop.
 
 A `Moving` world also changes while the agent computes, and there the position is a
-parameter. The model takes one two-part agent and uses the step order for the position
-alone: after both parts under `learnThenAct`, between them under `planAfterAct`.
+parameter. The model takes one two-part agent and a `Position` of the transition: after
+both parts, or between them. `Position.ofOrder` names the position of the host loop of
+each step order; the model takes no step order beside an agent.
 `Moving.interact` is the definition of one interaction. `Moving.landing_learn`,
 `Moving.interact_landing` and `Moving.interact_memory` unfold that definition for one
 interaction from one state and memory: the action and the memory kept are the same at
@@ -102,8 +103,8 @@ theorem memoryAt_learn (parts : TwoPart interface) (world : World interface)
 
 /-- The kernel's causality law for a two-part agent: the memory before a time is the
 fold of the first part followed by the second over the percepts before that time, in
-the order the world delivered them. `Moving.loop_memory` states it under a declared
-order. -/
+the order the world delivered them. `Moving.loop_memory` states it at a declared
+position of the world's transition. -/
 theorem memory_parts (parts : TwoPart interface) (world : World interface)
     (start : world.State) (time : ℕ) :
     memoryAt world parts.agent start time =
@@ -114,6 +115,20 @@ theorem memory_parts (parts : TwoPart interface) (world : World interface)
   memory_causal world parts.agent start time
 
 /-! ## A world that moves while the agent computes -/
+
+/-- Where the world's transition is in one interaction, against the two parts of the
+agent's step. This is a parameter of the model alone: it takes no step order beside an
+agent. -/
+inductive Position where
+  /-- The world takes its transition after both parts. -/
+  | afterParts
+  /-- The world takes its transition between the two parts. -/
+  | betweenParts
+
+/-- The position at which a host loop of a step order takes the world's transition. -/
+def Position.ofOrder : StepOrder → Position
+  | .learnThenAct => .afterParts
+  | .planAfterAct => .betweenParts
 
 /-- A world that also changes while the agent computes. `elapse` is its change during
 one unit of agent work. -/
@@ -143,13 +158,13 @@ structure TwoPart.Work (parts : TwoPart interface) where
 during the first part at both positions of its transition, and during the second part
 as well when the transition follows both parts. -/
 def Moving.landing (world : Moving interface) (parts : TwoPart interface) (work : parts.Work)
-    (order : StepOrder) (pair : world.State × parts.Memory) : world.State :=
+    (position : Position) (pair : world.State × parts.Memory) : world.State :=
   let percept := world.percept pair.1
   let chosen := parts.choose pair.2 percept
   let reacted := world.elapsed (work.choose pair.2 percept) pair.1
-  match order with
-  | .learnThenAct => world.elapsed (work.learn chosen) reacted
-  | .planAfterAct => reacted
+  match position with
+  | .afterParts => world.elapsed (work.learn chosen) reacted
+  | .betweenParts => reacted
 
 /-- One interaction at a declared position of the world's transition. The world
 delivers the percept of its state and moves during the first part. With the transition
@@ -157,15 +172,15 @@ after both parts it moves during the second part and then takes its transition o
 action. With the transition between the parts it takes its transition on the action
 and then moves during the second part. -/
 def Moving.interact (world : Moving interface) (parts : TwoPart interface) (work : parts.Work)
-    (order : StepOrder) (pair : world.State × parts.Memory) : world.State × parts.Memory :=
+    (position : Position) (pair : world.State × parts.Memory) : world.State × parts.Memory :=
   let percept := world.percept pair.1
   let chosen := parts.choose pair.2 percept
   let reacted := world.elapsed (work.choose pair.2 percept) pair.1
-  match order with
-  | .learnThenAct =>
+  match position with
+  | .afterParts =>
     (world.step (world.elapsed (work.learn chosen) reacted) (parts.action chosen),
       parts.learn chosen)
-  | .planAfterAct =>
+  | .betweenParts =>
     (world.elapsed (work.learn chosen) (world.step reacted (parts.action chosen)),
       parts.learn chosen)
 
@@ -173,9 +188,9 @@ def Moving.interact (world : Moving interface) (parts : TwoPart interface) (work
 the world's transition, as the world state and the agent's memory before each
 interaction. -/
 def Moving.loop (world : Moving interface) (parts : TwoPart interface) (work : parts.Work)
-    (order : StepOrder) (start : world.State) : ℕ → world.State × parts.Memory
+    (position : Position) (start : world.State) : ℕ → world.State × parts.Memory
   | 0 => (start, parts.initial)
-  | time + 1 => world.interact parts work order (world.loop parts work order start time)
+  | time + 1 => world.interact parts work position (world.loop parts work position start time)
 
 /-- A world that waits is unchanged by any amount of agent work. -/
 theorem Moving.elapsed_waits (world : Moving interface) (waits : world.Waits) (units : ℕ)
@@ -204,9 +219,9 @@ reaches, from where it lands with the transition between the parts, during the w
 of the second part. -/
 theorem Moving.landing_learn (world : Moving interface) (parts : TwoPart interface)
     (work : parts.Work) (pair : world.State × parts.Memory) :
-    world.landing parts work .learnThenAct pair =
+    world.landing parts work .afterParts pair =
       world.elapsed (work.learn (parts.choose pair.2 (world.percept pair.1)))
-        (world.landing parts work .planAfterAct pair) :=
+        (world.landing parts work .betweenParts pair) :=
   rfl
 
 /-- **Where the two positions differ.** The definition of `Moving.interact`, for one
@@ -216,12 +231,12 @@ that position; with the transition between the parts the world then moves during
 work of the second part. -/
 theorem Moving.interact_landing (world : Moving interface) (parts : TwoPart interface)
     (work : parts.Work) (pair : world.State × parts.Memory) :
-    (world.interact parts work .learnThenAct pair).1 =
-        world.step (world.landing parts work .learnThenAct pair)
+    (world.interact parts work .afterParts pair).1 =
+        world.step (world.landing parts work .afterParts pair)
           (parts.action (parts.choose pair.2 (world.percept pair.1))) ∧
-      (world.interact parts work .planAfterAct pair).1 =
+      (world.interact parts work .betweenParts pair).1 =
         world.elapsed (work.learn (parts.choose pair.2 (world.percept pair.1)))
-          (world.step (world.landing parts work .planAfterAct pair)
+          (world.step (world.landing parts work .betweenParts pair)
             (parts.action (parts.choose pair.2 (world.percept pair.1)))) :=
   ⟨rfl, rfl⟩
 
@@ -229,18 +244,18 @@ theorem Moving.interact_landing (world : Moving interface) (parts : TwoPart inte
 part of the value the first part returned, at both positions and for every assignment
 of work. -/
 theorem Moving.interact_memory (world : Moving interface) (parts : TwoPart interface)
-    (work : parts.Work) (order : StepOrder) (pair : world.State × parts.Memory) :
-    (world.interact parts work order pair).2 =
+    (work : parts.Work) (position : Position) (pair : world.State × parts.Memory) :
+    (world.interact parts work position pair).2 =
       parts.learn (parts.choose pair.2 (world.percept pair.1)) := by
-  cases order <;> rfl
+  cases position <;> rfl
 
 /-- In a world that waits for the agent, one interaction at either position is the
 interaction of the kernel, for every assignment of work. -/
 theorem Moving.interact_waits (world : Moving interface) (parts : TwoPart interface)
-    (work : parts.Work) (waits : world.Waits) (order : StepOrder)
+    (work : parts.Work) (waits : world.Waits) (position : Position)
     (pair : world.State × parts.Memory) :
-    world.interact parts work order pair = Kernel.interact world.toWorld parts.agent pair := by
-  cases order <;>
+    world.interact parts work position pair = Kernel.interact world.toWorld parts.agent pair := by
+  cases position <;>
     simp only [Moving.interact, Moving.elapsed_waits world waits] <;> rfl
 
 /-- When the world's own change commutes with its transitions, the two positions give
@@ -250,8 +265,8 @@ theorem Moving.interact_commutes (world : Moving interface) (parts : TwoPart int
     (commutes : ∀ state action,
       world.elapse (world.step state action) = world.step (world.elapse state) action)
     (pair : world.State × parts.Memory) :
-    world.interact parts work .planAfterAct pair =
-      world.interact parts work .learnThenAct pair := by
+    world.interact parts work .betweenParts pair =
+      world.interact parts work .afterParts pair := by
   simp only [Moving.interact, Moving.elapsed_step world commutes]
 
 /-- **Each percept is learned once, in order, at either position.** For every moving
@@ -260,34 +275,34 @@ before a time is the fold of the first part followed by the second over the perc
 that loop delivered before the time, in order. Every percept before the time enters
 exactly one learning part, and no later percept enters any. -/
 theorem Moving.loop_memory (world : Moving interface) (parts : TwoPart interface)
-    (work : parts.Work) (order : StepOrder) (start : world.State) (time : ℕ) :
-    (world.loop parts work order start time).2 =
+    (work : parts.Work) (position : Position) (start : world.State) (time : ℕ) :
+    (world.loop parts work position start time).2 =
       (List.range time).foldl
         (fun memory index => parts.learn (parts.choose memory
-          (world.percept (world.loop parts work order start index).1)))
+          (world.percept (world.loop parts work position start index).1)))
         parts.initial := by
   induction time with
   | zero => rfl
   | succ time ih =>
     rw [List.range_succ, List.foldl_append]
-    exact (world.interact_memory parts work order _).trans
+    exact (world.interact_memory parts work position _).trans
       (congrArg (fun memory => parts.learn (parts.choose memory
-        (world.percept (world.loop parts work order start time).1))) ih)
+        (world.percept (world.loop parts work position start time).1))) ih)
 
 /-- **In a world that waits, the position changes nothing.** For every assignment of
 work and start state, the loop at either position is the closed loop of the kernel:
 the same world state and memory before every interaction, hence the same percepts and
 actions. -/
 theorem Moving.loop_waits (world : Moving interface) (parts : TwoPart interface)
-    (work : parts.Work) (waits : world.Waits) (order : StepOrder) (start : world.State)
+    (work : parts.Work) (waits : world.Waits) (position : Position) (start : world.State)
     (time : ℕ) :
-    world.loop parts work order start time =
+    world.loop parts work position start time =
       Kernel.loop world.toWorld parts.agent start time := by
   induction time with
   | zero => rfl
   | succ time ih =>
-    exact (congrArg (world.interact parts work order) ih).trans
-      (world.interact_waits parts work waits order _)
+    exact (congrArg (world.interact parts work position) ih).trans
+      (world.interact_waits parts work waits position _)
 
 end AcornVerif.Kernel
 

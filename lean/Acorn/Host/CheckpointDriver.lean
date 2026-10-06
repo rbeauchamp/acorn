@@ -40,10 +40,11 @@ def checked {α : Type} (result : Except Checkpoint.Error α) : IO α :=
   | .error error => throw (IO.userError s!"checkpoint refused: {repr error}")
 
 /-- Every diagnostic input reaches the existing finite-prefix transition, with no alternate
-evaluator. That transition is the step of the default order. -/
-def advance (construction : AgentConstruction) (state : construction.State) (words : List UInt64) :
-    IO construction.State := do
-  match state.runPrefix (words.map (AgentArguments.input construction)) with
+evaluator. That transition is the step of the default order, and the type of the
+construction says so. -/
+def advance (admitted : DefaultConstruction) (state : admitted.construction.State)
+    (words : List UInt64) : IO admitted.construction.State := do
+  match admitted.runPrefix state (words.map (AgentArguments.input admitted.construction)) with
   | .ok (next, _) => return next
   | .error .unsupportedProfile => throw (IO.userError "agent prefix refused unsupported restoration")
 
@@ -53,35 +54,32 @@ step, so every image this entry saves holds the order of the steps that produced
 and every image it loads was saved under that order. -/
 @[noinline] def execute (operation : Command) (path : System.FilePath)
     (admitted : DefaultConstruction) (words : List UInt64) : IO String := do
-  let construction := admitted.val
   let store ← Store.new ((← IO.appDir) / "checkpoint-sync")
-  let initial := construction.initial
+  let initial := admitted.construction.initial
   let state ← match operation with
     | .save =>
-      let state ← advance construction initial words
-      let _ ← checked (← store.save construction state path)
+      let state ← advance admitted initial words
+      let _ ← checked (← store.save admitted.construction state path)
       pure state
     | .load =>
       unless words.isEmpty do throw (IO.userError "load accepts no transition words; use resume")
-      checked (← loadFile construction initial path)
+      checked (← loadFile admitted.construction initial path)
     | .resume =>
-      let restored ← checked (← loadFile construction initial path)
-      let state ← advance construction restored words
-      let _ ← checked (← store.save construction state path)
+      let restored ← checked (← loadFile admitted.construction initial path)
+      let state ← advance admitted restored words
+      let _ ← checked (← store.save admitted.construction state path)
       pure state
-  return s!"checkpoint format={formatVersion} process={store.processId} clock={state.clock} gain={state.control.average.rate.value.bits}"
+  return s!"checkpoint format={formatVersion} process={store.processId} clock={state.agent.clock} gain={state.agent.control.average.rate.value.bits}"
 
 /-- All native arguments are admitted before file allocation or replacement. -/
 def dispatch (arguments : List String) : IO UInt32 := do
   match arguments with
   | operation :: path :: arguments =>
     let some operation := command operation | throw (IO.userError "unknown checkpoint operation")
-    match admitted : AgentArguments.admit arguments with
-    | none => throw (IO.userError "invalid checkpoint construction or input word")
-    | some (construction, words) =>
-      IO.println (← execute operation path
-        ⟨construction, AgentArguments.admit_order arguments construction words admitted⟩ words)
-      return 0
+    let some (admitted, words) := AgentArguments.admit arguments
+      | throw (IO.userError "invalid checkpoint construction or input word")
+    IO.println (← execute operation path admitted words)
+    return 0
   | _ => throw (IO.userError
       "usage: checkpoint-native (save|load|resume) FILE SEED EXPONENT TILINGS UNITS MODE CREDIT RATE SUBTASKS CRITERION PLANNING [RAW_WORD ...]")
 

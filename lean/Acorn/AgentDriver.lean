@@ -17,11 +17,12 @@ namespace Acorn.AgentDriver
 open Features Handcrafted
 
 /-- Native execution consumes the exact proved prefix and observation owners. -/
-@[noinline] def execute (construction : AgentConstruction) (words : List UInt64) : String :=
-  match construction.execute (words.map (Host.AgentArguments.input construction)) with
+@[noinline] def execute (admitted : DefaultConstruction) (words : List UInt64) : String :=
+  match AgentConstruction.execute admitted
+      (words.map (Host.AgentArguments.input admitted.construction)) with
   | .error .unsupportedProfile => "refused unsupported restore profile"
   | .ok (state, stopped) =>
-    let observed := state.observe
+    let observed := state.agent.observe
     let action := observed.decision.map (·.action.val)
     s!"clock={observed.clock} action={action} gain={observed.gain.value.bits} stopped={stopped}"
 

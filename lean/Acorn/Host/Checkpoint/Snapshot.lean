@@ -70,16 +70,16 @@ def primaryImage {config : Features.Config} {criterion : Criterion} {dimension :
 /-- The complete checkpoint projection already carries valid history and numeric state. -/
 def snapshotImage (construction : AgentConstruction) (state : construction.State) :
     AgentImage Grid.interface construction.config construction.criterion construction.dimension :=
-  let runtime := state.control.runtime
+  let runtime := state.agent.control.runtime
   ⟨⟨runtime.lifecycle.representation.progress,
       runtime.lifecycle.consumers.skills.map
         (fun skill : Skill Grid.actions construction.config construction.criterion
           construction.dimension demonLayout =>
-          skill.interest.held), state.aligned.2,
+          skill.interest.held), state.agent.aligned.2,
       primaryImage runtime.lifecycle.consumers⟩,
-    state.control.average.rate, state.control.lifetime.durable, by
+    state.agent.control.average.rate, state.agent.control.lifetime.durable, by
       intro slot
-      have valid := state.episodes.1 slot
+      have valid := state.agent.episodes.1 slot
       exact ⟨valid.1, valid.2.1, by simp⟩⟩
 
 /-- Every legal tester state fits the format-level unit count. -/
@@ -88,7 +88,9 @@ def testerWords {config : Features.Config} (progress : Progress config) : Tester
     ⟨progress.words.units, by
       simpa [Progress.words] using config.units.bounded⟩⟩
 
-/-- A typed image has one exact format-18 word projection under its receiver. -/
+/-- A typed image has one exact format-18 word projection under its receiver. The order
+word is the word of the receiver's order; `snapshot` applies it to the image of a state
+of that same construction. -/
 def imagePayload (construction : AgentConstruction)
     (image : AgentImage Grid.interface construction.config construction.criterion construction.dimension) :
     Payload construction.dimension :=

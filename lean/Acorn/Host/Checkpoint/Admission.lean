@@ -116,9 +116,12 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
     some ⟨reward, family, history, demons, errorHistory, raw.options, goals, cycles⟩
   else none
 
-/-- Complete-candidate construction: no failed admission can install a field. -/
+/-- Complete-candidate construction: no failed admission can install a field. The
+result is an image of the receiving construction: its typed admission compares the order
+word of the payload with the word of the construction's order a second time, at the
+point where the typed image is made. -/
 @[noinline] def admitPayload (construction : AgentConstruction) (payload : Payload construction.dimension) :
-    Except Error (AgentImage Grid.interface construction.config construction.criterion construction.dimension) := do
+    Except Error construction.Image := do
   let gain ← admitHeader construction payload.header
   let raw : RawFeatureImage Grid.actions construction.dimension demonLayout :=
     ⟨payload.header.seed, payload.header.tilings, payload.header.units.toUInt16,
@@ -127,12 +130,15 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
   let some features := FeatureImage.admit construction.config construction.criterion construction.dimension raw
     | throw .corrupt
   let some lifetime := admitLifetime payload.lifetime | throw .corrupt
-  if valid : OptionsValid lifetime.options none then return ⟨features, gain, lifetime, valid⟩
+  if valid : OptionsValid lifetime.options none then
+    let some image := construction.admitImage payload.header.order ⟨features, gain, lifetime, valid⟩
+      | throw (.order payload.header.order construction.order.tag)
+    return image
   else throw .corrupt
 
 /-- Decode a complete candidate under the immutable receiver context. -/
 @[noinline] def loadCandidate (construction : AgentConstruction) (bytes : List UInt8) :
-    Except Error (AgentImage Grid.interface construction.config construction.criterion construction.dimension) := do
+    Except Error construction.Image := do
   if bytes.length < 72 || bytes.take magic.length != magic then throw .notACheckpoint
   let some (header, _) := headerCodec.decode (bytes.drop magic.length) | throw .notACheckpoint
   let _ ← admitHeader construction header
