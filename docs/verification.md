@@ -114,8 +114,10 @@ imports, capability owners, artifact origins and native routes. Every project th
 dependencies; only propext, Classical.choice and Quot.sound are admitted. The theorem inventory reports the
 checked declarations. Every proof passes through the kernel. The same walk of the
 compiled environment applies the [decision inventory](#regula-audit): every
-definition of the claimed libraries with a verdict-shaped result is registered
-with a contract or listed with the reason it carries none.
+definition of the claimed libraries with a verdict-shaped result is in exactly
+one of three classes: a structure field or a function with a `Decidable` result,
+the implementation of a registered contract, or an entry of the exclusion table
+with the reason it carries no contract.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
@@ -314,16 +316,30 @@ class: a structure field or a function with a `Decidable` result; the
 implementation of a contract of a decision registry; or an entry of the
 inventory's exclusion table, which gives the shape of the definition's type, as
 the audit computes it, and one reason from a closed list. A definition in no
-class or in two fails verification, and so does a table entry that names no such
-definition. A new verdict-shaped definition therefore cannot arrive unlisted,
-and a contract cannot be removed without an entry in the table. The reasons are
-a state transition, a selection or lookup, a Boolean property of admitted state,
-an admission composed of other admissions, a certificate proposal, a parser or
-test with no theorem about the inputs it accepts, a derived comparison and a
-model of the proof library. The inventory establishes that every such definition
-has been classified; whether each reason is right is review. The inventory's own
-decision is a pure function with a theorem that it accepts exactly a definition
-in exactly one class. `Acorn.Decisions`
+class or in two fails verification, and so does a table entry that is not valid
+on its own. A new verdict-shaped definition therefore cannot arrive unlisted,
+and a contract cannot be removed without an entry in the table. The domain
+includes private definitions; only the auxiliaries that the elaborator and the
+compiler generate are outside it.
+
+Five reasons are computed, and the audit refuses an entry whose fact is false:
+no written theorem of the maintained libraries mentions the definition in its
+statement; that, and its body applies a registered decision; that, and it
+belongs to the certificate search module; it is the comparison of a derived
+instance; it belongs to the proof library. Three reasons are judgments that a
+definition which theorems do mention is not a decision: its result is the
+outcome of a state transition, a selection or lookup, or a Boolean property of
+admitted state. The test is who reads the result, and for what: a definition
+whose result accepts or refuses something from outside the admitted state, or on
+whose result a printed or stored claim rests, is a decision and has a contract.
+Each judgment names a standing theorem, and the audit checks that it is a
+written theorem of a maintained module whose statement mentions the definition.
+The audit prints the count of each class and of each reason, and two theorems of
+the inventory state how many entries are computed and how many are judgments.
+The inventory establishes that every such definition has been classified and
+that each computed fact holds; whether a judgment is right is review. The
+inventory's own decision is a pure function with a theorem that it accepts
+exactly a definition in exactly one class. `Acorn.Decisions`
 cannot register a function of another library, such as a NativeApp parser. No
 kind says that a specification is the intended one. `Acorn.Decisions` belongs to
 the Acorn library

@@ -237,31 +237,54 @@ theorem position_translate : Regula.ExecutableContract Host.Position.translate (
     ⟨((⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩, 0), 0), by decide⟩
     ⟨((⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩, 1), 0), by decide⟩⟩
 
-/-- The completion predicate, on the observation of each goal family, accepts exactly: a
-position in the goal box for a reach goal, an inventory that holds the count for a collect
-goal and an elapsed time of at least the duration for a survive goal; for a craft goal it is
-the ownership of the tool (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_iff`,
-`survive_satisfied_iff`, `craft_satisfied`). The statement is about the observations that
-`Goal.observe` produces, so it is an ordinary requirement with no kind. -/
+/-- A goal is achieved at a position, with an inventory, after an elapsed time: the position
+is in the goal box of a reach goal, the inventory holds the count of a collect goal or owns
+the tool of a craft goal, and the elapsed time is at least the duration of a survive goal. -/
+def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inventory)
+    (elapsed : UInt64) : Prop :=
+  match goal with
+  | .reach target => CurrentGoals.InGoalBox target position
+  | .collect item count => count.toNat ≤ (inventory.count item).toNat
+  | .craft tool => inventory.owns tool = true
+  | .survive required => required.toNat ≤ elapsed.toNat
+
+/-- The completion predicate accepts the observation that `Goal.observe` produces for every
+achieved goal (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_iff`,
+`survive_satisfied_iff`, `craft_satisfied`), and it refuses the observation of no goal.
+
+**Not claimed:** soundness for an observation that `Goal.observe` did not produce. The four
+theorems state the converse for the observations it does produce. -/
 theorem task_satisfied : Regula.ExecutableContract Host.TaskObservation.satisfied
-    (fun satisfied =>
-      (∀ (target position : Host.Position) (inventory : Host.Inventory) (elapsed : UInt64),
-        satisfied ((Host.Goal.reach target).observe position inventory elapsed) = true ↔
-          CurrentGoals.InGoalBox target position) ∧
-      (∀ (item : Host.Item) (count : UInt32) (position : Host.Position)
-        (inventory : Host.Inventory) (elapsed : UInt64),
-        satisfied ((Host.Goal.collect item count).observe position inventory elapsed) = true ↔
-          count.toNat ≤ (inventory.count item).toNat) ∧
-      (∀ (required : UInt64) (position : Host.Position) (inventory : Host.Inventory)
-        (elapsed : UInt64),
-        satisfied ((Host.Goal.survive required).observe position inventory elapsed) = true ↔
-          required.toNat ≤ elapsed.toNat) ∧
-      ∀ (tool : Host.Craftable) (position : Host.Position) (inventory : Host.Inventory)
-        (elapsed : UInt64),
-        satisfied ((Host.Goal.craft tool).observe position inventory elapsed) =
-          inventory.owns tool) :=
-  ⟨⟨CurrentGoals.reach_satisfied_iff, CurrentGoals.collect_satisfied_iff,
-    CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied⟩⟩
+    (Regula.DecidesCompletely (· = true)
+      (fun observation => ∃ goal position inventory elapsed,
+        Achieved goal position inventory elapsed ∧
+          observation = goal.observe position inventory elapsed)) :=
+  ⟨{ complete := fun observation ⟨goal, position, inventory, elapsed, achieved, same⟩ => by
+       rw [same]
+       cases goal with
+       | reach target =>
+         exact (CurrentGoals.reach_satisfied_iff target position inventory elapsed).mpr achieved
+       | collect item count =>
+         exact (CurrentGoals.collect_satisfied_iff item count position inventory elapsed).mpr
+           achieved
+       | craft tool =>
+         rw [CurrentGoals.craft_satisfied]
+         exact achieved
+       | survive required =>
+         exact (CurrentGoals.survive_satisfied_iff required position inventory elapsed).mpr
+           achieved
+     refused := ⟨.none, by decide⟩ }⟩
+
+/-- Whether the body may enter a tile is exactly the static passability of the tile's terrain
+with the body's boat, and it refuses exactly when the terrain refuses
+(`CurrentStep.enterable_static`). The world's type depends on the configuration, so the
+statement is an ordinary requirement. -/
+theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
+    ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
+      @enterable config world position =
+        (Host.terrain position config.raw.seed config.raw.baseScale).map
+          (fun base => CurrentStep.passable base world.body.inventory.boat)) :=
+  ⟨fun _ => CurrentStep.enterable_static⟩
 
 /-- The world's completion flag is the completion predicate of the installed goal on the
 body's position and inventory and the time since installation

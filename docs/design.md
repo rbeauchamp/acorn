@@ -630,9 +630,11 @@ or refused result is proved, with what each proof establishes; the
 [Regula audit](verification.md#regula-audit) requires a contract of every
 registered function whose result type is not `Decidable`. The ownership audit
 requires every definition of the claimed libraries with a `Bool`, `Option`,
-`Except` or `Decidable` result to be registered or to be listed in the
-[decision inventory](../lean/AcornTools/DecisionInventory.lean) with the reason
-it carries no contract.
+`Except` or `Decidable` result to be in exactly one of three classes of the
+[decision inventory](../lean/AcornTools/DecisionInventory.lean): a structure
+field or a function with a `Decidable` result, the implementation of a
+registered contract, or an excluded definition with the reason it carries no
+contract.
 
 Core calls select an explicit research profile. The [prior-art register](prior-art-review.md#current-default-qualification)
 records qualification decisions. Each proof states its hypotheses, including

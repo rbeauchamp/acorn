@@ -11,7 +11,7 @@ import Acorn.Host.Campaign
 import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
-import Acorn.Host.Viewer.BrowserRecord
+import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.GoalProtocol
 import Acorn.Host.Viewer.WireNumber
@@ -81,43 +81,48 @@ verdict-shaped definition of the claimed libraries `Acorn`, `AcornVerif`, `Nativ
 
 A definition in no class or in two fails verification. A new verdict-shaped definition
 therefore cannot arrive unlisted, and a contract cannot be removed without an entry in that
-table. The check establishes that every such definition has been classified; whether each
-reason is the right one is review.
+table. The domain includes private definitions; only the auxiliaries that the elaborator and
+the compiler generate are outside it.
 
-The reasons are the constructors of `AcornDecisionInventory.Reason`.
+The reasons are the constructors of `AcornDecisionInventory.Reason`. Five are computed: the
+audit checks the stated fact for every entry and refuses an entry whose fact is false.
 
-* `transition`, `selection` and `predicate` mark a definition that is not a decision. Its
-  result is the outcome of a state transition (`Host.World.step`, `Host.Attempt.tick`,
-  `Handcrafted.TemporalControl.step`), a selection or a lookup that can be absent
-  (`Features.Lifecycle.candidate`, `Host.Action.direction`), or a Boolean property of state
-  the library has already admitted, which selects a branch (`Features.Lifecycle.eligible`,
-  `Host.Attempt.finished`). The theorems about those transitions stand.
-* `composed` marks an admission that applies other admissions in sequence and has no theorem
-  of its own about the inputs it accepts. `Prediction.admit` and `LogStepSize.admit` are
-  `Bounded32.admit` at a derived interval, `Lifetime.SumCount.admit` is the body of
-  `Checkpoint.admitSum`, the viewer's line emitters apply `wireText` and `sseLine`, an
-  accepting result of `Host.Viewer.authorizeCommand` carries the verdicts of
-  `ControlHeaders.authorizes` and `controlCommand` as fields of its type, and
-  `Host.CertificateDriver.execute` refuses when `Host.WorldConfig.standard` or world generation
-  does. The contracts of the admissions they apply stand.
-* `proposal` marks a function of `Host.CertificateSearch` that proposes a certificate. Nothing
-  is proved about a proposal: it means nothing until its registered checker accepts it.
-* `unproved` marks a parser, a decoder or a validity test with no theorem about the inputs it
-  accepts, so no direction of its verdict is proved and no contract is invented for it. What
-  stands is the type of an accepted value alone. These are the command-line parsers of
-  `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the JSON parser
-  `Json.parse` with its readers, the viewer's envelope and map decoders, and the schema and
-  ordering tests of the viewer. Kinds for the parsers against written grammars are the subject
-  of https://github.com/rbeauchamp/acorn/issues/81. The table records the shape of each: most
-  are functions between fixed types, `Host.Viewer.MapBytes.admit` and
-  `Host.Viewer.decodeMapRuns` return `Except String (MapBytes key)` for the receiving key, and
-  `Json.decode` returns `Except String α` for the result type `α` it is given.
-* `derived` marks a comparison that Lean generates for a `deriving` clause.
-* `model` marks a definition of the proof library `AcornVerif`, which has no executable. Its
+* `unproved`: no written theorem of the maintained libraries mentions the definition in its
+  statement, so nothing is proved about it that a contract could state. A contract of a
+  registry and a proof field of a structure are not counted. These are the command-line
+  parsers of `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the JSON
+  parser `Json.parse` with its readers and private helpers, the viewer's envelope and map
+  decoders, and the transitions and lookups that no theorem mentions. Kinds for the parsers
+  against written grammars are the subject of https://github.com/rbeauchamp/acorn/issues/81.
+  The table records the shape of each: most are functions between fixed types,
+  `Host.Viewer.MapBytes.admit` and `Host.Viewer.decodeMapRuns` return
+  `Except String (MapBytes key)` for the receiving key, and `Json.decode` returns
+  `Except String α` for the result type `α` it is given.
+* `composed`: the fact of `unproved`, and the body applies a definition that has a contract or
+  a `Decidable _` result. `Prediction.admit` and `LogStepSize.admit` are `Bounded32.admit` at
+  a derived interval, `Lifetime.SumCount.admit` is the body of `Checkpoint.admitSum`, the
+  viewer's line emitters apply `wireText` and `sseLine`, and `Host.CertificateDriver.execute`
+  refuses when `Host.WorldConfig.standard` or world generation does.
+* `proposal`: the fact of `unproved`, and the definition belongs to `Host.CertificateSearch`.
+  A proposal means nothing until its registered checker accepts it.
+* `derived`: the comparison of an instance that a `deriving` clause generated.
+* `model`: a definition of the proof library `AcornVerif`, which has no executable. Its
   theorems relate it to the executing definitions, and no claim rests on running it. The
   interaction kernel and the world classes (`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state
   worlds, agents, goals and bounds as structures and propositions, so they declare no
   verdict-shaped definition.
+
+Three reasons are judgments: `transition`, `selection` and `predicate` say that a definition
+which theorems do mention is not a decision. Its result is the outcome of a state transition
+(`Host.World.step`, `Host.Attempt.tick`, `Handcrafted.TemporalControl.step`), a selection or a
+lookup that can be absent (`Features.RankedFeatures.position`, `Host.Action.direction`), or a
+Boolean property of state the library has already admitted (`Features.Lifecycle.eligible`,
+`Host.Attempt.finished`). The test is who reads the result, and for what: a definition whose
+result accepts or refuses something from outside the admitted state, or on whose result a
+printed or stored claim rests, is a decision and has a contract. `AcornDecisionInventory`
+states the test and lists the borderline cases. Each judgment names a standing theorem, and
+the audit checks that it is a written theorem of a maintained module whose statement mentions
+the definition; `AcornDecisionInventory.judged_count` states how many judgments there are.
 
 What the inventory does not hold:
 
@@ -286,6 +291,14 @@ theorem binary64_less : Regula.ExecutableContract Binary64.less (fun compare =>
     ⟨(⟨0⟩, ⟨0x3ff0000000000000⟩), by decide⟩ ⟨(⟨0⟩, ⟨0⟩), by decide⟩⟩
 
 attribute [regula_decision] Binary64.less
+
+/-- The sign classification accepts exactly the words whose sign bit is set. -/
+theorem binary32_negative : Regula.ExecutableContract Binary32.negative
+    (Regula.Decides (· = true) (fun word : Binary32 => word.bits &&& 0x80000000 ≠ 0)) :=
+  ⟨decides (fun word => by simp [Binary32.negative]) ⟨⟨0x80000000⟩, by decide⟩
+    ⟨.zero, by decide⟩⟩
+
+attribute [regula_decision] Binary32.negative
 
 /-! ## Machine-state admission -/
 
@@ -1088,6 +1101,84 @@ theorem control_authorizes : Regula.ExecutableContract ControlHeaders.authorizes
 
 attribute [regula_decision] ControlHeaders.authorizes
 
+/-- The fitting test accepts the default conversion of every shape
+(`TelemetryShape.defaultConversion_fits`), and it refuses a float conversion of a natural.
+`browserConversion_fits` states that it also accepts the conversion the browser schema assigns.
+
+**Not claimed:** soundness. The test accepts other conversions that a shape is defined for. -/
+theorem conversion_fits : Regula.ExecutableContract BrowserConversion.fits (fun test =>
+    Regula.DecidesCompletely (· = true)
+      (fun input : BrowserConversion × TelemetryShape => input.1 = input.2.defaultConversion)
+      (Function.uncurry test)) :=
+  ⟨{ complete := fun input same => by
+       show input.1.fits input.2 = true
+       rw [same]
+       exact TelemetryShape.defaultConversion_fits input.2
+     refused := ⟨(.nonFinite, .natural), by decide⟩ }⟩
+
+attribute [regula_decision] BrowserConversion.fits
+
+/-- The index-range test accepts the default conversion of every shape, for every key
+(`TelemetryShape.defaultConversion_indexed`), and it refuses an index array under a key with no
+index bound. `browserConversion_indexed` states that it also accepts the conversion the browser
+schema assigns to a key.
+
+**Not claimed:** soundness. -/
+theorem conversion_indexed : Regula.ExecutableContract BrowserConversion.indexed (fun test =>
+    Regula.DecidesCompletely (· = true)
+      (fun input : BrowserConversion × String =>
+        ∃ shape : TelemetryShape, input.1 = shape.defaultConversion)
+      (Function.uncurry test)) :=
+  ⟨{ complete := fun input ⟨shape, same⟩ => by
+       show input.1.indexed input.2 = true
+       rw [same]
+       exact TelemetryShape.defaultConversion_indexed shape input.2
+     refused := ⟨(.absentIndices, ""), by decide +kernel⟩ }⟩
+
+attribute [regula_decision] BrowserConversion.indexed
+
+/-- The capture order accepts only two different captures (`Capture.after_irreflexive`).
+
+**Not claimed:** completeness. The order is lexicographic and refuses an earlier capture. -/
+theorem capture_after : Regula.ExecutableContract Capture.after (fun test =>
+    Regula.DecidesSoundly (· = true)
+      (fun input : Capture × Capture => input.1 ≠ input.2) (Function.uncurry test)) :=
+  ⟨{ sound := fun input accepted same => by
+       have later : input.1.after input.2 = true := accepted
+       rw [same, Capture.after_irreflexive] at later
+       exact Bool.false_ne_true later
+     accepted := ⟨(⟨0, 0, 1, 0, 0, false⟩, ⟨0, 0, 0, 0, 0, false⟩), by decide⟩ }⟩
+
+attribute [regula_decision] Capture.after
+
+/-- The retry test accepts only a retry state whose budget is not exhausted
+(`Retry.exhausted_not_ready`).
+
+**Not claimed:** completeness. The test also refuses before the retry deadline. -/
+theorem retry_ready : Regula.ExecutableContract Retry.ready (fun test =>
+    Regula.DecidesSoundly (· = true)
+      (fun input : Retry × UInt64 => input.1.exhausted = false) (Function.uncurry test)) :=
+  ⟨{ sound := fun input accepted => by
+       have ready : input.1.ready input.2 = true := accepted
+       cases spent : input.1.exhausted with
+       | false => rfl
+       | true =>
+         rw [Retry.exhausted_not_ready input.1 input.2 spent] at ready
+         exact absurd ready Bool.false_ne_true
+     accepted := ⟨(Retry.initial, 0), by decide⟩ }⟩
+
+attribute [regula_decision] Retry.ready
+
+/-- The exhaustion test accepts exactly a retry state whose failure count is the failure
+limit. `Retry.exhausted_not_ready` states that no retry is ready in such a state. -/
+theorem retry_exhausted : Regula.ExecutableContract Retry.exhausted
+    (Regula.Decides (· = true) (fun retry : Retry => retry.count = failureLimit)) :=
+  ⟨decides (fun retry => by simp [Retry.exhausted, Retry.count])
+    ⟨((Retry.initial.failed 0 false).failed 0 false).failed 0 false, by decide⟩
+    ⟨Retry.initial, by decide⟩⟩
+
+attribute [regula_decision] Retry.exhausted
+
 /-! ## Decision procedures
 
 Each result is a `Decidable` value: an accepting result carries a proof of the decided
@@ -1373,6 +1464,99 @@ theorem prediction_advance_raw :
         Acorn.FeatureConstants.primitiveCount ≤ raw →
           advance state bank obs reward raw own = none) :=
   ⟨PredictionControl.raw_refusal⟩
+
+/-- The capture-follow test, for two captures with the same lifetime clock, is exactly: the
+next capture is terminal, the previous one is not, and the world clock advanced by one
+(`Capture.follows_equal_lifetime`).
+
+**Not claimed:** its verdict when the lifetime clocks differ. -/
+theorem capture_follows : Regula.ExecutableContract Capture.follows (fun test =>
+    ∀ next previous : Capture, next.lifetime = previous.lifetime →
+      test next previous =
+        (next.terminal && !previous.terminal &&
+          next.world.toNat == previous.world.toNat + 1)) :=
+  ⟨Capture.follows_equal_lifetime⟩
+
+/-- The clock-predicate evaluator accepts the agreement-order and snapshot-order programs,
+for equal leading clocks, only on the values the theorems state
+(`ClockProgram.agreementFollows_same`, `snapshotFollows_same`). The predicate's type depends
+on its arity, so the statement is an ordinary requirement.
+
+**Not claimed:** the verdict on other programs. -/
+theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval (fun eval =>
+    (∀ values : Fin 6 → Nat, values 0 = values 3 →
+      eval values ClockProgram.agreementFollows = true →
+        values 5 = 0 ∧ (values 4 < values 1 ∨ (values 1 = values 4 ∧ values 2 = 1))) ∧
+      ∀ values : Fin 14 → Nat, values 0 = values 7 →
+        eval values ClockProgram.snapshotFollows = true →
+          values 9 = 0 ∧ values 8 ≤ values 1) :=
+  ⟨⟨ClockProgram.agreementFollows_same, ClockProgram.snapshotFollows_same⟩⟩
+
+/-- A generation that does not own the identity leaves the lifecycle unchanged when its
+final checkpoint is refused (`Lifecycle.finalRefusal_stale`).
+
+**Not claimed:** which generations the test accepts. -/
+theorem owns_identity :
+    Regula.ExecutableContract Host.Viewer.Lifecycle.ownsIdentity (fun owns =>
+      ∀ (state : Host.Viewer.Lifecycle) (generation : UInt64),
+        owns state generation = false → state.refuseFinalCheckpoint generation = state) :=
+  ⟨Host.Viewer.Lifecycle.finalRefusal_stale⟩
+
+/-- The column test accepts every column of the browser store against a shape of the
+browser schema (`browserColumns_live`).
+
+**Not claimed:** which other columns it accepts. -/
+theorem column_fits : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
+    ∀ entry ∈ browserColumns, ∃ shape,
+      (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) :=
+  ⟨browserColumns_live⟩
+
+/-- The property test accepts every property of the agreement view and of the goal-progress
+view against a shape of the browser schema (`browserAgreementView_live`,
+`browserGoalProgressView_live`).
+
+**Not claimed:** which other properties it accepts. -/
+theorem property_fits : Regula.ExecutableContract BrowserProperty.fits (fun fits =>
+    (∀ entry ∈ browserAgreementView, ∃ shape,
+      (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) ∧
+      ∀ entry ∈ browserGoalProgressView, ∃ shape,
+        (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) :=
+  ⟨⟨browserAgreementView_live, browserGoalProgressView_live⟩⟩
+
+/-- What each accepted result of the option reader means for the planning option: an absent
+option selects the expectation planner, and a present value is decided by `planningValue`
+(`Cli.planningSelection_absent`, `planningSelection_provided`).
+
+**Not claimed:** which argument lists the reader accepts. -/
+theorem cli_value : Regula.ExecutableContract Host.Cli.value (fun value =>
+    ∀ arguments : List String,
+      (value arguments "--planning" = .ok none →
+        Host.Cli.planningSelection arguments = .ok .expectation) ∧
+        ∀ text, value arguments "--planning" = .ok (some text) →
+          Host.Cli.planningSelection arguments = Host.Cli.planningValue text) :=
+  ⟨fun arguments => ⟨Host.Cli.planningSelection_absent arguments,
+    fun text => Host.Cli.planningSelection_provided arguments text⟩⟩
+
+/-- A weight that enters the ranking carries the bits of its own stored word as its key
+(`candidateOfWeight_key`).
+
+**Not claimed:** which weights enter the ranking. -/
+theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun admit =>
+    ∀ (dimension : Dimension) (config : Features.Config)
+      (weights : WeightArray (.discounted .g99) dimension) (unit : Fin config.units.count)
+      (candidate : Candidate config), @admit dimension config weights unit = some candidate →
+        candidate.key =
+          (weights.get (unitFeature dimension config candidate.unit)).value.bits.toNat) :=
+  ⟨candidateOfWeight_key⟩
+
+/-- Candidate selection returns no unit exactly when no unit is eligible
+(`Lifecycle.candidate_none_iff`). `Lifecycle.candidate_least` states which unit it returns. -/
+theorem lifecycle_candidate :
+    Regula.ExecutableContract @Features.Lifecycle.candidate (fun candidate =>
+      ∀ {shape actions config criterion dimension discounts}
+        (state : Features.Lifecycle shape actions config criterion dimension discounts)
+        (free : Bool), candidate state free = none ↔ state.eligibleCount free = 0) :=
+  ⟨Features.Lifecycle.candidate_none_iff⟩
 
 /-! ## Decisions that are polymorphic in an element type
 
