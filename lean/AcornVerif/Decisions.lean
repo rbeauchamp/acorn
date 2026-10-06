@@ -122,6 +122,22 @@ theorem region_blocked : Regula.ExecutableContract Host.regionBlocked (fun check
        ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩), []), ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩),
        by decide⟩ }⟩
 
+/-- No stance of a box with one tile is accepted: no tile of that box is behind the stance. -/
+private theorem single_refused {config : Host.WorldConfig} (single : config.side = 1)
+    (stance : Host.BoxPosition config) (direction : Host.Direction) (item : Host.Item) :
+    Host.stanceCertified config stance direction item = false := by
+  cases refused : Host.stanceCertified config stance direction item with
+  | false => rfl
+  | true =>
+    obtain ⟨approach, moved, -⟩ := CurrentCertificates.stance_approach refused
+    obtain ⟨column, row⟩ := CurrentCertificates.translate_some _ _ _ _ moved
+    have approachColumn := approach.x.isLt
+    have stanceColumn := stance.x.isLt
+    have approachRow := approach.y.isLt
+    have stanceRow := stance.y.isLt
+    simp only [Host.BoxPosition.position] at column row
+    cases direction <;> simp only [Host.Direction.delta] at column row <;> omega
+
 /-- The stance checker accepts only a stance from which, in every world, a paid harvest
 yields the item (`CurrentCertificates.stance_harvest`), which a paid move from the tile behind
 it enters facing the resource (`stance_enter`), and whose tile behind is in the box and
@@ -161,18 +177,7 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
         obtain ⟨approach, moved, walkable⟩ := CurrentCertificates.stance_approach accepted
         exact ⟨approach, moved, fun world =>
           CurrentCertificates.walkable_enterable world approach.position walkable⟩⟩,
-      fun single => by
-        cases refused : Host.stanceCertified config stance direction item with
-        | false => rfl
-        | true =>
-          obtain ⟨approach, moved, -⟩ := CurrentCertificates.stance_approach refused
-          obtain ⟨column, row⟩ := CurrentCertificates.translate_some _ _ _ _ moved
-          have approachColumn := approach.x.isLt
-          have stanceColumn := stance.x.isLt
-          have approachRow := approach.y.isLt
-          have stanceRow := stance.y.isLt
-          simp only [Host.BoxPosition.position] at column row
-          cases direction <;> simp only [Host.Direction.delta] at column row <;> omega⟩⟩
+      fun single => single_refused single stance direction item⟩⟩
 
 /-- Replay checking returns a certificate only for an action list that shows its goal
 feasible (`CurrentCertificates.replay_feasible`), and it refuses the empty action list. The
@@ -213,30 +218,34 @@ theorem blocked_check : Regula.ExecutableContract Host.BlockedCertificate.check 
     by decide⟩⟩
 
 /-- Stance checking returns a certificate only for a stance from which, in every world, a
-paid harvest yields the item (`CurrentCertificates.stance_harvest`). The statement names the
-harvest relation and not the Boolean checker.
+paid harvest yields the item (`CurrentCertificates.stance_harvest`), and it refuses every
+stance of a box with one tile. The statement names the harvest relation and not the Boolean
+checker.
 
-**Not claimed:** an accepted or a refused input. Each needs the generated terrain of one
-tile; no theorem supplies one. -/
+**Not claimed:** an accepted input. It needs the generated terrain of the tiles at the stance;
+no theorem supplies one. -/
 theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (fun check =>
     ∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
       (direction : Host.Direction),
-      (check config item stance direction).isSome = true →
+      ((check config item stance direction).isSome = true →
         ∀ (world next : Host.World config) (events : Host.StepResult),
           world.body.position = stance → world.body.facing = direction →
           (item = .wood → world.tileKind (stance.facingPosition direction) = .ok .tree) →
           world.step .harvest = .ok (next, events) → events.exhausted = false →
-            events.harvested = some item) :=
-  ⟨fun config item stance direction present world next events standing facing grown stepped
-      paid => by
-    obtain ⟨certificate, built⟩ := Option.isSome_iff_exists.mp present
-    have accepted : Host.stanceCertified config stance direction item = true := by
-      unfold Host.StanceCertificate.check at built
-      split at built
-      · assumption
-      · exact absurd built (by simp)
-    exact (CurrentCertificates.stance_harvest accepted world next events standing facing grown
-      stepped paid).1⟩
+            events.harvested = some item) ∧
+        (config.side = 1 → check config item stance direction = none)) :=
+  ⟨fun config item stance direction =>
+    ⟨fun present world next events standing facing grown stepped paid => by
+      obtain ⟨certificate, built⟩ := Option.isSome_iff_exists.mp present
+      have accepted : Host.stanceCertified config stance direction item = true := by
+        unfold Host.StanceCertificate.check at built
+        split at built
+        · assumption
+        · exact absurd built (by simp)
+      exact (CurrentCertificates.stance_harvest accepted world next events standing facing grown
+        stepped paid).1,
+    fun single => by
+      simp [Host.StanceCertificate.check, single_refused single stance direction item]⟩⟩
 
 /-- The walkable test accepts only a tile that is enterable in every world of the
 configuration, with or without a boat (`CurrentCertificates.walkable_enterable`).
