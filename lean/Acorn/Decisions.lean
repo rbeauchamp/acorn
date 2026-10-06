@@ -1753,25 +1753,28 @@ theorem owns_identity :
   ⟨Host.Viewer.Lifecycle.finalRefusal_stale⟩
 
 /-- The column test accepts every column of the browser store against a shape of the
-browser schema (`browserColumns_live`).
+browser schema (`browserColumns_live`), and it refuses a flag column against a text shape,
+so neither a test that accepts everything nor one that refuses everything satisfies it.
 
-**Not claimed:** which other columns it accepts. -/
+**Not claimed:** the exact set of columns it accepts. -/
 theorem column_fits : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
-    ∀ entry ∈ browserColumns, ∃ shape,
-      (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) :=
-  ⟨browserColumns_live⟩
+    (∀ entry ∈ browserColumns, ∃ shape,
+      (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) ∧
+      fits "flag" ⟨"flag", .flag⟩ .text = false) :=
+  ⟨⟨browserColumns_live, by decide +kernel⟩⟩
 
 /-- The property test accepts every property of the agreement view and of the goal-progress
 view against a shape of the browser schema (`browserAgreementView_live`,
-`browserGoalProgressView_live`).
+`browserGoalProgressView_live`), and it refuses a doubled property of a text shape.
 
-**Not claimed:** which other properties it accepts. -/
+**Not claimed:** the exact set of properties it accepts. -/
 theorem property_fits : Regula.ExecutableContract BrowserProperty.fits (fun fits =>
     (∀ entry ∈ browserAgreementView, ∃ shape,
       (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) ∧
-      ∀ entry ∈ browserGoalProgressView, ∃ shape,
-        (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) :=
-  ⟨⟨browserAgreementView_live, browserGoalProgressView_live⟩⟩
+      (∀ entry ∈ browserGoalProgressView, ∃ shape,
+        (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) ∧
+      fits "text" ⟨"text", .twice⟩ .text = false) :=
+  ⟨⟨browserAgreementView_live, browserGoalProgressView_live, by decide +kernel⟩⟩
 
 /-- What each accepted result of the option reader means for the planning option: an absent
 option selects the expectation planner, and a present value is decided by `planningValue`
