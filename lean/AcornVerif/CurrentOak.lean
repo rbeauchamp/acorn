@@ -26,16 +26,20 @@ feature vectors only. `planArrow` is that same executed function at the picture'
 from the option models, the option values and a feature vector to the option values,
 and `planFree_realizes` shows that the executed boundary call is that arrow: it reads
 the local state through `planInput`, and it writes the arrow's value into
-`planningView`.
+`planningView`. So the planning view after the call is the arrow's value
+(`planFree_planned`), and two local states with the same planning input have the same
+planning view after it (`planFree_reads`).
 
 `planningView` holds the meta-controller's values over the options, the stored feature
 vectors with the search-control position, and three observers of the boundary itself:
 the model caches, the last planning errors and a count of the work done. `planInput`
-adds the option models and two learned scalars. The exploration rate of the
-meta-controller's nominal policy completes the value function of
-`TemporalControl.valueFunction`. The reward rate is no part of that value function: it
-enters the backed-up target (`ModelPrediction.target`). It is the rate learned from
-earlier rewards, and the boundary takes no reward word.
+adds the option models and two scalars. The reward rate is learned from earlier
+rewards; it enters the backed-up target (`ModelPrediction.target`), and the boundary
+takes no reward word. The exploration rate of the meta-controller's nominal policy
+completes the value function of `TemporalControl.valueFunction`. The profile's rate
+policy supplies it (departure D6, `RateState.controller`): the declared constant under
+the `declared` policy, the stored value of the authored schedule under `annealed`, and a
+rate a learner derives under the two policies that no research profile selects.
 
 `planFree_writes` shows that every planning boundary, whatever function it calls, writes
 the planning view only, and `planFree_keeps` names what that leaves alone: the option
@@ -67,15 +71,40 @@ declaration. `potentials_origin` and `signals_origin` show that the potentials a
 agent's reward question carry that departure in the executed values; the achievement
 event is a bare flag of the frame, and `achievement` wraps it.
 
-The achievement event reaches one decision. `Skill.goal_ends` shows that, with the event
-set, an option's stopping decision ends with the reason `goal`. `settleFollowing_event`
-and `followTemporal_event` show that an option that learns off-policy reads the event
-through that stopping decision only. `TemporalControl.finish`, which credits the
-primitive action values, the prediction learners and the options' questions, is handed
-the frame and reads it through its signal values only (`finish_signals`), so it does not
-read the event. The tester takes no frame. A profile without a hierarchy has no option
-to end, and `step_event_primitive` shows that its local transition does not read the
-event.
+## The achievement event
+
+The registered operation is the stopping decision `Skill.decideOption`. Inside it the
+event does one thing: it forces the ending with the reason `goal`
+(`decideOption_event`, `Skill.goal_ends`).
+
+Each operation that takes the achievement event reads it through stopping decisions
+only. That is proved for each of these operations, for every input of the operation:
+`Skill.settleFollowing`, `Skill.settleTemporal` and `Skill.followTemporal`
+(`settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`), `followSlot`
+and `TemporalControl.followOptions` (`followSlot_event`, `followOptions_event`),
+`TemporalControl.takeoverValue` (`takeoverValue_event`) and
+`TemporalControl.dispatchMeta` (`dispatchMeta_event`). Each theorem compares the
+`continuation` of the stopping decisions the operation consults under two events: the
+outcome of a decision without its ending reason. Where those outcomes agree, the
+operation returns one result. The hypothesis does not force the two events equal: at the
+duration cap every decision stops whatever the event is (`continuation_cap`). So each
+theorem fails if its operation reads the event anywhere but in a stopping decision, or
+reads the ending reason.
+
+`step_event` shows that `TemporalControl.step` hands the event to selection, to
+`takeoverValue` and to `followOptions`, and reads it nowhere else.
+`TemporalControl.finish`, which credits the primitive action values, the prediction
+learners and the options' questions, is handed the frame and reads it through its
+signal values only (`finish_signals`), so it does not read the event. The tester takes
+no frame. A profile without a hierarchy has no option to end, and
+`step_event_primitive` shows that its local transition does not read the event.
+
+The reason of an ending reaches no credit: `endTemporal_reason` and `closeOption_reason`
+show that the terminal credit of an option and the state it leaves are the same
+whatever the reason is. The reason goes into the end event of the returned decision.
+`TemporalControl.finish` writes that event into the lifetime observations and stores
+the decision as the last decision, which the observer reads; that is read from its
+definition and no theorem here states it.
 
 ## What is not shown
 
@@ -85,11 +114,17 @@ shown to conform to one. Four arrows are not separated from the composed step: `
 meta-controller and the primitive controller), `model` (the option models, whose
 terminal target reads the current value function) and `act` (selection). Of `perceive`,
 the coder is separated here; the prediction learners, whose outputs return as feedback
-words, and the tester are not. In a profile with a hierarchy, no theorem here follows the
-achievement event through the composed step: `TemporalControl.select`,
-`TemporalControl.takeoverValue` and `TemporalControl.followOptions` take it as an
-argument, and that each passes it to stopping decisions only is read from their
-definitions.
+words, and the tester are not.
+
+For a profile with a hierarchy, no theorem here follows the achievement event through
+selection. `TemporalControl.selectWithOperations` takes the executing option's stopping
+decision and hands the event to `TemporalControl.atBoundary`, which hands it to
+`dispatchMeta` in a later state; no theorem states that chain. The exact open statement
+is the composed step written once with the stopping rule as a parameter and no event,
+equal to the executed step when the rule is `Skill.decideOption` at the frame's event. A
+statement that some function of the stopping rule gives the step is no substitute: the
+rule at a set event differs from the rule at a clear one, so such a function exists for
+every step.
 -/
 
 namespace AcornVerif.CurrentOak
@@ -97,7 +132,7 @@ open Acorn Acorn.Features Acorn.Handcrafted
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
-  {actions : Word.Count} {discounts : List Discount}
+  {actions : Word.Count} {discounts : List Discount} {mode : Bool}
 
 /-! ## Planning reads the option models, the option values and feature vectors -/
 
@@ -327,6 +362,7 @@ def planningView : Oak.View (TemporalControl interface profile config criterion 
       recent := planned.recent } } }
   restore _ := rfl
   replace _ _ _ := rfl
+  written _ _ := rfl
 
 /-- The input of the planning arrow in a local state. -/
 def planInput (state : TemporalControl interface profile config criterion dimension) :
@@ -373,15 +409,23 @@ theorem planFree_realizes (selection : PlanningSelection)
   rfl
 
 /-- Two local states with the same option models, planning view, reward rate and
-meta-controller exploration rate are written with the same planning view. -/
+meta-controller exploration rate have the same planning view after the boundary call,
+whatever else differs between them. -/
 theorem planFree_reads (selection : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
     (first second : TemporalControl interface profile config criterion dimension)
     (same : planInput first = planInput second) :
-    ∃ planned, first.planFree (planningBoundary selection) features =
-        planningView.put first planned ∧
-      second.planFree (planningBoundary selection) features =
-        planningView.put second planned :=
+    planningView.get (first.planFree (planningBoundary selection) features) =
+      planningView.get (second.planFree (planningBoundary selection) features) :=
   (planFree_realizes selection features).reads first second same
+
+/-- After the boundary call the planning view of a local state is the planning arrow's
+value at the state's planning input. -/
+theorem planFree_planned (selection : PlanningSelection)
+    (features : SwiftTd.ActiveSet dimension)
+    (state : TemporalControl interface profile config criterion dimension) :
+    planningView.get (state.planFree (planningBoundary selection) features) =
+      planArrow interface profile config selection features (planInput state) :=
+  (planFree_realizes selection features).writes state
 
 /-- Every planning boundary, whatever function it calls, writes the planning view only:
 writing the old view back gives the old state. -/
@@ -564,33 +608,127 @@ theorem act_extras (state : Agent interface profile config criterion dimension p
 
 /-! ## The achievement event -/
 
-/-- An option that settles its off-policy trajectory reads the achievement event
-through its stopping decision only. -/
+/-- The outcome of a stopping decision without its ending reason: the continuation where
+the option continues, and nothing where it stops. -/
+def continuation {activation : OptionActivation mode}
+    (decision : OptionDecision actions dimension activation) :
+    Option (OptionContinuation actions dimension activation) :=
+  match decision with
+  | .continuing next => some next
+  | .ending _ => none
+
+/-- Two stopping decisions with the same outcome both continue, with one continuation, or
+both stop, each with its own reason. -/
+theorem continuation_eq {activation : OptionActivation mode}
+    (first second : OptionDecision actions dimension activation)
+    (same : continuation first = continuation second) :
+    (∃ next, first = .continuing next ∧ second = .continuing next) ∨
+      ∃ firstReason secondReason, first = .ending firstReason ∧ second = .ending secondReason := by
+  cases first with
+  | continuing firstNext =>
+    cases second with
+    | continuing secondNext =>
+      simp only [continuation, Option.some.injEq] at same
+      exact .inl ⟨firstNext, rfl, by rw [same]⟩
+    | ending reason => simp [continuation] at same
+  | ending firstReason =>
+    cases second with
+    | continuing secondNext => simp [continuation] at same
+    | ending secondReason => exact .inr ⟨firstReason, secondReason, rfl, rfl⟩
+
+/-- Inside the registered stopping operation the event does one thing: it forces the
+ending with the reason `goal`. With the event clear the decision is the learned one. -/
+theorem decideOption_event (skill : Skill actions config criterion dimension discounts)
+    (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate) :
+    skill.decideOption activation features potential goal estimate rate =
+      if goal then .ending .goal
+      else skill.decideOption activation features potential false estimate rate := by
+  cases goal <;> rfl
+
+/-- With the event set, the outcome of an option's stopping decision is a stop. So the
+hypotheses of the theorems below hold between a set and a clear event exactly where the
+learned decision stops as well. -/
+theorem continuation_event (skill : Skill actions config criterion dimension discounts)
+    (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (estimate : Binary32) (rate : ConsumerRate) :
+    continuation (skill.decideOption activation features potential true estimate rate) = none :=
+  rfl
+
+/-- At the duration cap the outcome of an option's stopping decision is a stop whatever
+the event is. So at the cap the hypotheses of the theorems below hold between a set and
+a clear event, and their conclusions there say that the two events give one result. -/
+theorem continuation_cap (skill : Skill actions config criterion dimension discounts)
+    (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (capped : ¬ activation.age.val < Acorn.FeatureConstants.optionMaxDuration) :
+    continuation (skill.decideOption activation features potential goal estimate rate) =
+      none := by
+  cases goal with
+  | true => rfl
+  | false => simp [Skill.decideOption, continuation, capped]
+
+/-- An option that settles its off-policy trajectory reads the achievement event through
+the outcome of its stopping decision only. The hypothesis admits a set and a clear event
+wherever the learned decision stops, so the theorem fails if `Skill.settleFollowing` reads
+the event anywhere but in that decision, or reads the ending reason. -/
 theorem settleFollowing_event (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (first second : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate)
     (same : ∀ following, skill.following = some following →
-      skill.decideOption following.activation features potential first estimate rate =
-        skill.decideOption following.activation features potential second estimate rate) :
+      continuation
+          (skill.decideOption following.activation features potential first estimate rate) =
+        continuation
+          (skill.decideOption following.activation features potential second estimate rate)) :
     skill.settleFollowing models value features potential first estimate rate reward gain =
       skill.settleFollowing models value features potential second estimate rate reward
         gain := by
   unfold Skill.settleFollowing
   cases held : skill.following with
   | none => rfl
-  | some following => simp only [same following held]
+  | some following =>
+    dsimp only
+    rcases continuation_eq _ _ (same following held) with
+      ⟨next, left, right⟩ | ⟨leftReason, rightReason, left, right⟩ <;>
+      simp only [left, right]
 
-/-- An option that learns off-policy from a frame reads the achievement event through
-its stopping decision only. -/
+/-- An invocation start settles the stored trajectory through the outcome of the stopping
+decision only. It fails if `Skill.settleTemporal` reads the event anywhere else. -/
+theorem settleTemporal_event (skill : Skill actions config criterion dimension discounts)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (first second : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate)
+    (learning : Bool)
+    (same : ∀ following, skill.following = some following →
+      continuation
+          (skill.decideOption following.activation features potential first estimate rate) =
+        continuation
+          (skill.decideOption following.activation features potential second estimate rate)) :
+    skill.settleTemporal models value features potential first estimate rate reward gain
+        learning =
+      skill.settleTemporal models value features potential second estimate rate reward gain
+        learning := by
+  unfold Skill.settleTemporal
+  split
+  · exact settleFollowing_event skill models value features potential first second estimate
+      rate reward gain same
+  · rfl
+
+/-- An option that learns off-policy from a frame reads the achievement event through the
+outcome of its stopping decision only. The hypothesis admits a set and a clear event
+wherever the learned decision stops, so the theorem fails if `Skill.followTemporal` reads
+the event anywhere but in that decision, or reads the ending reason. -/
 theorem followTemporal_event (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (first second : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (action : Action actions.word.toNat)
     (behaviour : Vector Binary32 actions.word.toNat) (reward : Binary32) (gain : RewardRate)
     (same : ∀ following, skill.following = some following →
-      skill.decideOption following.activation features potential first estimate rate =
-        skill.decideOption following.activation features potential second estimate rate) :
+      continuation
+          (skill.decideOption following.activation features potential first estimate rate) =
+        continuation
+          (skill.decideOption following.activation features potential second estimate rate)) :
     skill.followTemporal models value features potential first estimate rate action behaviour
         reward gain =
       skill.followTemporal models value features potential second estimate rate action
@@ -598,7 +736,224 @@ theorem followTemporal_event (skill : Skill actions config criterion dimension d
   unfold Skill.followTemporal
   cases held : skill.following with
   | none => rfl
-  | some following => simp only [same following held]
+  | some following =>
+    dsimp only
+    rcases continuation_eq _ _ (same following held) with
+      ⟨next, left, right⟩ | ⟨leftReason, rightReason, left, right⟩ <;>
+      simp only [left, right]
+
+/-- One slot's share of a followed frame reads the achievement event through the outcome
+of the slot's stopping decision only, and an executing slot does not read it. It fails if
+`followSlot` reads the event itself. -/
+theorem followSlot_event (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (first second : Bool) (estimate : Binary32)
+    (rate : ConsumerRate) (action : Action interface.actions.word.toNat)
+    (behaviour : Vector Binary32 interface.actions.word.toNat) (reward : Binary32)
+    (gain : RewardRate) (executing : Bool)
+    (skill : Skill interface.actions config criterion dimension interface.layout)
+    (same : ∀ potential following, executing = false →
+      skill.interest.potential features declared = some potential →
+      skill.following = some following →
+      continuation
+          (skill.decideOption following.activation features potential first estimate rate) =
+        continuation
+          (skill.decideOption following.activation features potential second estimate rate)) :
+    followSlot models value features declared first estimate rate action behaviour reward gain
+        executing skill =
+      followSlot models value features declared second estimate rate action behaviour reward
+        gain executing skill := by
+  unfold followSlot
+  cases executing with
+  | true => rfl
+  | false =>
+    cases found : skill.interest.potential features declared with
+    | none => rfl
+    | some potential =>
+      exact followTemporal_event skill models value features potential first second estimate
+        rate action behaviour reward gain (fun following held => same potential following rfl
+          found held)
+
+/-- The off-policy learning of the options reads the achievement event through the outcomes
+of the stopping decisions of the slots that are not executing only. The hypothesis names
+each such slot of the given state with a supplied potential and a stored trajectory. It
+fails if `TemporalControl.followOptions` or `followSlot` reads the event itself. -/
+theorem followOptions_event
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (first second : Bool)
+    (decision : TemporalDecision interface.actions)
+    (same : ∀ (index : Nat) (bound : index < Acorn.FeatureConstants.skillCount) potential
+        following,
+      (state.activeSlot == some ⟨index, bound⟩) = false →
+      (state.runtime.lifecycle.consumers.skills[index]).interest.potential features declared =
+        some potential →
+      (state.runtime.lifecycle.consumers.skills[index]).following = some following →
+      continuation ((state.runtime.lifecycle.consumers.skills[index]).decideOption
+          following.activation features potential first (state.stoppingEstimate decision)
+          state.skillRate) =
+        continuation ((state.runtime.lifecycle.consumers.skills[index]).decideOption
+          following.activation features potential second (state.stoppingEstimate decision)
+          state.skillRate)) :
+    state.followOptions models features declared reward first decision =
+      state.followOptions models features declared reward second decision := by
+  have tables : (state.runtime.lifecycle.consumers.skills.mapFinIdx fun index skill bound =>
+        followSlot models state.valueFunction features declared first
+          (state.stoppingEstimate decision) state.skillRate decision.action
+          decision.probabilities reward state.average.rate
+          (state.activeSlot == some ⟨index, bound⟩) skill) =
+      state.runtime.lifecycle.consumers.skills.mapFinIdx fun index skill bound =>
+        followSlot models state.valueFunction features declared second
+          (state.stoppingEstimate decision) state.skillRate decision.action
+          decision.probabilities reward state.average.rate
+          (state.activeSlot == some ⟨index, bound⟩) skill := by
+    apply Vector.ext
+    intro index bound
+    rw [Vector.getElem_mapFinIdx, Vector.getElem_mapFinIdx]
+    exact followSlot_event models state.valueFunction features declared first second
+      (state.stoppingEstimate decision) state.skillRate decision.action decision.probabilities
+      reward state.average.rate _ _
+      (fun potential following idle found held =>
+        same index bound potential following idle found held)
+  rw [TemporalControl.followOptions_eq, TemporalControl.followOptions_eq, tables]
+
+/-- The value an interrupted option's span closes toward reads the achievement event
+through the outcome of that option's stopping decision only. It fails if
+`TemporalControl.takeoverValue` reads the event anywhere else. -/
+theorem takeoverValue_event
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (first second : Bool) (decision : TemporalDecision interface.actions)
+    (same : ∀ event following potential, decision.ended = some event →
+      (state.runtime.lifecycle.consumers.skills.get event.slot).following = some following →
+      (state.runtime.lifecycle.consumers.skills.get event.slot).interest.potential features
+        declared = some potential →
+      continuation ((state.runtime.lifecycle.consumers.skills.get event.slot).decideOption
+          following.activation features potential first (state.stoppingEstimate decision)
+          state.skillRate) =
+        continuation ((state.runtime.lifecycle.consumers.skills.get event.slot).decideOption
+          following.activation features potential second (state.stoppingEstimate decision)
+          state.skillRate)) :
+    state.takeoverValue features declared first decision =
+      state.takeoverValue features declared second decision := by
+  unfold TemporalControl.takeoverValue
+  split
+  · cases ended : decision.ended with
+    | none => rfl
+    | some event =>
+      simp only [Option.map_some, Option.some.injEq]
+      cases held : (state.runtime.lifecycle.consumers.skills.get event.slot).following with
+      | none => rfl
+      | some following =>
+        cases found : (state.runtime.lifecycle.consumers.skills.get event.slot).interest.potential
+            features declared with
+        | none => rfl
+        | some potential =>
+          dsimp only
+          rcases continuation_eq _ _ (same event following potential ended held found) with
+            ⟨next, left, right⟩ | ⟨leftReason, rightReason, left, right⟩ <;>
+            simp only [left, right]
+  · rfl
+
+/-- The dispatch of a drawn meta action reads the achievement event through the outcome
+of one stopping decision only: that of the selected option's stored trajectory, in the
+state after meta credit. It fails if `TemporalControl.dispatchMeta` reads the event
+anywhere else. -/
+theorem dispatchMeta_event
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (first second : Bool)
+    (decision : PolicyDecision metaCount) (ended : Option EndEvent)
+    (same : ∀ slot potential following, skillOfMeta decision.action = some slot →
+      ((state.learnMeta features decision).runtime.lifecycle.consumers.skills.get
+        slot).interest.potential features declared = some potential →
+      ((state.learnMeta features decision).runtime.lifecycle.consumers.skills.get
+        slot).following = some following →
+      continuation (((state.learnMeta features decision).runtime.lifecycle.consumers.skills.get
+          slot).decideOption following.activation features potential first
+          (comparisonValue criterion decision.snapshot)
+          (state.learnMeta features decision).skillRate) =
+        continuation (((state.learnMeta features decision).runtime.lifecycle.consumers.skills.get
+          slot).decideOption following.activation features potential second
+          (comparisonValue criterion decision.snapshot)
+          (state.learnMeta features decision).skillRate)) :
+    state.dispatchMeta models features declared reward first decision ended =
+      state.dispatchMeta models features declared reward second decision ended := by
+  rw [TemporalControl.dispatchMeta_eq, TemporalControl.dispatchMeta_eq]
+  cases chosen : skillOfMeta decision.action with
+  | none => rfl
+  | some slot =>
+    dsimp only
+    cases found : ((state.learnMeta features decision).runtime.lifecycle.consumers.skills.get
+        slot).interest.potential features declared with
+    | none => simp only [bind, Option.bind]
+    | some potential =>
+      have settled := settleTemporal_event
+        ((state.learnMeta features decision).runtime.lifecycle.consumers.skills.get slot) models
+        (state.learnMeta features decision).valueFunction
+        features potential first second (comparisonValue criterion decision.snapshot)
+        (state.learnMeta features decision).skillRate reward
+        (state.learnMeta features decision).average.rate (profile.mode != .frozen)
+        (fun following held => same slot potential following chosen found held)
+      simp only [bind, Option.bind]
+      rw [settled]
+
+/-- The local transition hands the achievement event to selection, to the value an
+interrupted option's span closes toward and to the off-policy learning of the options,
+and reads it nowhere else. It fails if `TemporalControl.step` hands the event to the
+closing of the span or to the completion boundary. -/
+theorem step_event (state : TemporalControl interface profile config criterion dimension)
+    (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+    (observation : Frame interface) (reward : Binary32) (first second : Bool)
+    (selected : state.select planning features observation.declared reward first =
+      state.select planning features observation.declared reward second)
+    (after : ∀ next decision,
+      state.select planning features observation.declared reward second =
+        some (next, decision) →
+      next.takeoverValue features observation.declared first decision =
+          next.takeoverValue features observation.declared second decision ∧
+        next.followOptions (modelOperations criterion dimension) features observation.declared
+            reward first decision =
+          next.followOptions (modelOperations criterion dimension) features
+            observation.declared reward second decision) :
+    state.step planning features observation reward first =
+      state.step planning features observation reward second := by
+  unfold TemporalControl.step
+  rw [selected]
+  cases chosen : state.select planning features observation.declared reward second with
+  | none => simp only [bind, Option.bind]
+  | some result =>
+    have agreed := after result.1 result.2 chosen
+    simp only [bind, Option.bind, agreed.1, agreed.2]
+
+/-- The terminal credit of an option does not read the reason of its ending. -/
+theorem endTemporal_reason (skill : Skill actions config criterion dimension discounts)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (activation : OptionActivation mode)
+    (potential : Potential) (first second : OptionEnd) (reward terminal : Binary32)
+    (gain : RewardRate) :
+    skill.endTemporal models value features ⟨activation, potential, first⟩ reward terminal
+        gain =
+      skill.endTemporal models value features ⟨activation, potential, second⟩ reward terminal
+        gain :=
+  rfl
+
+/-- Closing an option writes the same local state whatever the reason of its ending is:
+the reason goes into the returned end event only. -/
+theorem closeOption_reason
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen)) (potential : Potential)
+    (first second : OptionEnd)
+    (owner : Option (Skill interface.actions config criterion dimension interface.layout))
+    (reward terminal : Binary32) :
+    (state.closeOption models features ⟨slot, ⟨activation, potential, first⟩, owner⟩ reward
+        terminal).1 =
+      (state.closeOption models features ⟨slot, ⟨activation, potential, second⟩, owner⟩ reward
+        terminal).1 := by
+  rw [TemporalControl.closeOption_eq, TemporalControl.closeOption_eq]
+  rfl
 
 /-- A profile without a hierarchy has no option to end: its local transition does not
 read the achievement event. -/

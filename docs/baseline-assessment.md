@@ -432,8 +432,9 @@ F-E left its feature-construction end inert until U3.
   are inside the agent's own modules, which import no world: the lifetime
   accounting records reward and attempts under the grid curriculum's four task
   families and attempt cycles (`Agent.recordEnvironment`, `Agent.recordAttempt`),
-  as observations no decision reads (`act_learners`), and the evaluation mode `withoutReachRelation` is named for the
-  grid world's reach relation, which only the grid adapter omits from its frame
+  as observations no decision reads (`act_learners`), and the evaluation mode
+  `withoutReachRelation` is named for the grid world's reach relation, which only
+  the grid adapter omits from its frame
   words. No second world instantiates the interface yet, so that another world fits
   it is a design claim, not an observation.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts

@@ -30,8 +30,9 @@ of the lifetime observations (`select_relabel` and the lemmas before it); the co
 boundary `TemporalControl.finish` is the one operation that reads them, and it reads
 them only to write them (`finish_learners`).
 
-The achievement event of a frame is the one host event that does reach a learner. It is
-the registered departure D8, and `AcornVerif.CurrentOak` states where it is read.
+The achievement event of a frame does reach a learner. It is departure D8, and
+`AcornVerif.CurrentOak` states, for each operation that takes it, that the operation
+reads it through stopping decisions only.
 
 `executed_actions` carries the result to the closed loop of the kernel: from two agent
 states with the same learners, the executed agent takes the same action at every time,

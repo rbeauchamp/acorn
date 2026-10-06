@@ -75,9 +75,10 @@ preceding transition. A frame has three parts, one for each kind of learner inpu
 A frame also carries the world's declared subtask potentials, which only the
 `spatial` comparison reads, and whether the preceding transition achieved the
 installed goal. That achievement event is departure
-[D8](learned-only-binding.md#d8--achievement-event--step-10): it ends the
-executing option and the stored off-policy trajectory of every other option, and
-the coder does not read it. Nothing else reaches a learner.
+[D8](learned-only-binding.md#d8--achievement-event--step-10): it forces an
+option's stopping decision to end, for the executing option and for the stored
+off-policy trajectory of every other option, and the coder does not read it.
+Nothing else is in a percept.
 The agent answers with one action, a number below the interface's action count
 ([`Agent.act`](../lean/Acorn/Handcrafted/Agent.lean)).
 
@@ -391,8 +392,9 @@ holds its whole memory (`Oak.conforms_coarse`), so such a statement is as strong
 as the types and arrows of its instance and no stronger. For one operation of an agent, `Oak.Realizes` says
 that the operation reads the memory through one function, applies an arrow, and
 writes the arrow's value into one view of the memory. Such an operation changes
-nothing outside the view (`Oak.Realizes.restores`) and reads nothing but the
-arrow's input (`Oak.Realizes.reads`).
+nothing outside the view (`Oak.Realizes.restores`), leaves the arrow's value in
+the view (`Oak.Realizes.writes`), and from two memories with the same input
+leaves the same part in the view (`Oak.Realizes.reads`).
 
 [The executed arrows](../lean/AcornVerif/CurrentOak.lean) and
 [the accounting proofs](../lean/AcornVerif/CurrentAccounting.lean) state what the
@@ -419,13 +421,13 @@ objectives](#learning-objective).
 | Property | What is proved | Theorems |
 |---|---|---|
 | Planning reads no percept | The executed planning boundary takes no frame, no reward word and no host event. Of the option table it is handed, it reads the models only: two tables with the same models give the same result, for every selection, planning state, feature vector, reward rate and exploration rate. The option values and the search-control state it returns read the planning state through the higher-level controller and the stored feature vectors only; the model caches, the last errors and the work count reach neither. | `planningBoundary_models`, `planningBoundary_values` |
-| The boundary call is the planning arrow | `planArrow` is the executed boundary at the picture's type: from the option models, the option values and a feature vector to the option values. The executed call reads the local state through the option models, the planning view and two learned scalars, and writes the arrow's value into the planning view. The planning view is the option values, the stored feature vectors with the search-control position, the model caches, the last planning errors and a count of planning work. The scalars are the exploration rate of the higher-level controller's nominal policy, which completes the value function, and the reward rate learned from earlier rewards, which enters the backed-up target. | `planFree_realizes`, `planFree_reads` |
+| The boundary call is the planning arrow | `planArrow` is the executed boundary at the picture's type: from the option models, the option values and a feature vector to the option values. The executed call reads the local state through the option models, the planning view and two scalars, and after it the planning view is the arrow's value; two local states with the same input have the same planning view after it. The planning view is the option values, the stored feature vectors with the search-control position, the model caches, the last planning errors and a count of planning work. Of the two scalars, the reward rate is learned from earlier rewards and enters the backed-up target. The exploration rate of the higher-level controller's nominal policy completes the value function, and the profile's rate policy supplies it ([D6](learned-only-binding.md#d6--exploration-rate--step-9)): the declared constant in four research profiles and the authored schedule in `annealed`. | `planFree_realizes`, `planFree_planned`, `planFree_reads` |
 | Planning writes the planning view only | Every planning boundary, whatever function it calls, leaves the rest of the local state as it was. The option policies, the option models, the primitive action values, the prediction learners and the representation are unchanged. | `planFree_writes`, `planFree_keeps` |
 | The coder reads words and symbols | The features of a frame and the outputs of the generated units are functions of the bank, the frame's words, the stored prediction feedback and the frame's symbols. Two frames with the same words and symbols give the same features, whatever their signals, declared potentials and achievement events are. | `features_eq`, `units_eq`, `frame_congr` |
 | The extra arrows are listed | The full decision reads a percept through the features and unit outputs of its frame, its reward word and three extra arrows only: on two percepts that agree in those it returns the same decision and next state. The arrows are the declared potentials (D2), the signal values of the prediction questions (D5) and the achievement event (D8). The local transition reads the frame through the first two only; the event is a separate argument. The potentials and the agent's reward question carry their departure in the executed values. | `act_extras`, `step_frame`, `extras`, `extras_departures`, `potentials_origin`, `signals_origin` |
-| The achievement event ends options | With the event set, an option's stopping decision ends with the reason `goal`. An option that learns off-policy reads the event through that stopping decision only. The completion of a decision, which credits the primitive action values, the prediction learners and the options' questions, reads the frame through its signal values only, so it does not read the event. A profile without a hierarchy has no option to end, and its local transition does not read the event. | `Skill.goal_ends`, `settleFollowing_event`, `followTemporal_event`, `finish_signals`, `step_event_primitive` |
-| Host accounting writes observations only | Environment accounting, attempt accounting and censoring at process exit keep the composed storage of representation, learners and references, the primitive credit, the reward rate and the rate schedule, in every world interface. | `recordEnvironment_learners`, `recordAttempt_learners`, `censor_learners` |
-| No decision reads the lifetime observations | From two agent states that differ in their lifetime observations only, the full decision returns the same decision and states that again differ in those observations only, on every percept. So a host operation that writes those observations only changes neither the next decision nor the learners after it, and from two such states the executed agent takes the same action at every time in every world of the kernel. | `step_learners`, `act_learners`, `act_accounting`, `executed_actions` |
+| Each operation that takes the achievement event reads it through stopping decisions only | Inside the stopping decision the event does one thing: it forces the ending with the reason `goal`. Seven operations hand the event to a stopping decision: the settling and the off-policy learning of one option, the off-policy learning of all options, the value an interrupted option's span closes toward, and the dispatch of the higher-level controller's choice. For each, on every input: where the outcomes of the stopping decisions it consults agree under two events, it returns one result. An outcome is a decision without its ending reason. The condition does not force the events equal, because at the duration cap every decision stops whatever the event is; so each theorem fails if its operation reads the event elsewhere. The local transition hands the event to selection and to two of those operations, and to nothing else. The completion of a decision reads the frame through its signal values only. A profile without a hierarchy does not read the event. | `decideOption_event`, `Skill.goal_ends`, `continuation_cap`, `settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`, `followSlot_event`, `followOptions_event`, `takeoverValue_event`, `dispatchMeta_event`, `step_event`, `finish_signals`, `step_event_primitive` |
+| Host accounting does not reach a learner: it writes observations only | Environment accounting, attempt accounting and censoring at process exit keep the composed storage of representation, learners and references, the primitive credit, the reward rate and the rate schedule, in every world interface. | `recordEnvironment_learners`, `recordAttempt_learners`, `censor_learners` |
+| Host accounting does not reach a learner: no decision reads the observations | From two agent states that differ in their lifetime observations only, the full decision returns the same decision and states that again differ in those observations only, on every percept. So a host operation that writes those observations only changes neither the next decision nor the learners after it, and from two such states the executed agent takes the same action at every time in every world of the kernel. | `step_learners`, `act_learners`, `act_accounting`, `executed_actions` |
 
 What these theorems do not establish:
 
@@ -447,11 +449,17 @@ What these theorems do not establish:
   leaves the box of options and values, and the signature lets the model arrow
   read both. The executed model's terminal target does read the current value
   function ([PAR-13](prior-art-review.md#par-13--option-expectation-models)).
-- **Where the composed step sends the achievement event.** Selection, the value
-  an interrupted option's span closes toward, and the off-policy learning of the
-  options take the event as an argument. In a profile with a hierarchy, that
-  each passes it to stopping decisions only is read from their definitions; no
-  theorem follows the event through the composed step.
+- **The achievement event through selection.** In a profile with a hierarchy,
+  selection takes the executing option's stopping decision and hands the event
+  to the free boundary, which hands it to the dispatch in a later state. No
+  theorem states that chain, so no theorem here says where the composed step
+  sends the event. The exact open statement is the composed step written once
+  with the stopping rule as a parameter and no event, equal to the executed step
+  when the rule is the executed stopping decision at the frame's event. The
+  reason of an ending reaches no credit (`endTemporal_reason`,
+  `closeOption_reason`): it goes into the end event of the returned decision, and
+  from there into the lifetime observations and the stored last decision, as
+  read from the completion of a decision.
 - **That planning runs on the feature vectors perception produced.** The planning
   arrow's inputs have the picture's types. That the boundary call receives the
   current frame's features and a stored earlier vector is the definition of the

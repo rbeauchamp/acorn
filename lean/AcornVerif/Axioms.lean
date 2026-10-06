@@ -3619,4 +3619,62 @@ info: 'AcornVerif.CurrentAccounting.executed_actions' depends on axioms: [propex
 #guard_msgs in
 #print axioms AcornVerif.CurrentAccounting.executed_actions
 
+/-- info: 'AcornVerif.Oak.Realizes.writes' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Oak.Realizes.writes
+
+/--
+info: 'AcornVerif.CurrentOak.planFree_planned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.planFree_planned
+
+/--
+info: 'AcornVerif.CurrentOak.decideOption_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.decideOption_event
+
+/--
+info: 'AcornVerif.CurrentOak.continuation_cap' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.continuation_cap
+
+/--
+info: 'AcornVerif.CurrentOak.settleFollowing_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.settleFollowing_event
+
+/--
+info: 'AcornVerif.CurrentOak.followOptions_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.followOptions_event
+
+/--
+info: 'AcornVerif.CurrentOak.takeoverValue_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.takeoverValue_event
+
+/--
+info: 'AcornVerif.CurrentOak.dispatchMeta_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.dispatchMeta_event
+
+/--
+info: 'AcornVerif.CurrentOak.step_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.step_event
+
+/--
+info: 'AcornVerif.CurrentOak.closeOption_reason' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.closeOption_reason
+
 end AcornVerif

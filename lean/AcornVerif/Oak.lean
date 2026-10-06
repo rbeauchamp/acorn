@@ -61,9 +61,12 @@ conforms to the instance whose perception holds its whole memory
 arrows of its instance and no stronger. `Oak.Realizes` is
 the same statement for one arrow and one operation of an agent, through an `Oak.View`
 of the agent's memory: the operation reads the memory through one function, applies the
-arrow, and writes the arrow's value into the view. `Oak.Realizes.restores` shows that
-such an operation changes nothing outside the view, and `Oak.Realizes.reads` that it
-reads nothing but the arrow's input.
+arrow, and writes the arrow's value into the view. A view has the three laws of a lens,
+so the part it holds and the rest of the memory are independent. `Oak.Realizes.writes`
+shows that the part in the view after such an operation is the arrow's value,
+`Oak.Realizes.restores` that the operation changes nothing outside the view, and
+`Oak.Realizes.reads` that from two memories with the same input it leaves the same part
+in the view.
 
 This module defines the picture and proves nothing of the executed agent.
 `AcornVerif.CurrentOak` states which arrows the executed definitions realize. The order
@@ -250,7 +253,9 @@ theorem Oak.conforms_coarse (agent : Agent interface) : Oak.Conforms agent (Oak.
 
 /-! ## Conformance of one arrow -/
 
-/-- A view of a memory: the part one box holds, with the way to write the part back. -/
+/-- A view of a memory: the part one box holds, with the way to write the part back. The
+three laws make the part and the rest of the memory independent: a write changes the part
+to the value written and changes nothing else. -/
 structure Oak.View (Memory Part : Type) where
   /-- The part of a memory. -/
   get : Memory → Part
@@ -260,6 +265,8 @@ structure Oak.View (Memory Part : Type) where
   restore : ∀ memory, put memory (get memory) = memory
   /-- A second write replaces the first. -/
   replace : ∀ memory first second, put (put memory first) second = put memory second
+  /-- The part of a written memory is the part written. -/
+  written : ∀ memory part, get (put memory part) = part
 
 /-- An operation on a memory realizes an arrow when it reads the memory through `read`,
 applies the arrow, and writes the arrow's value into a view. -/
@@ -275,13 +282,21 @@ theorem Oak.Realizes.restores {Memory Part Input : Type} {operation : Memory →
     view.put (operation memory) (view.get memory) = memory := by
   rw [realized memory, view.replace, view.restore]
 
+/-- After an operation that realizes an arrow, the part in the arrow's view is the
+arrow's value at the input the operation read. -/
+theorem Oak.Realizes.writes {Memory Part Input : Type} {operation : Memory → Memory}
+    {read : Memory → Input} {arrow : Input → Part} {view : Oak.View Memory Part}
+    (realized : Oak.Realizes operation read arrow view) (memory : Memory) :
+    view.get (operation memory) = arrow (read memory) := by
+  rw [realized memory, view.written]
+
 /-- An operation that realizes an arrow reads its memory through the arrow's input only:
-two memories with the same input have the same part written. -/
+from two memories with the same input it leaves the same part in the arrow's view. -/
 theorem Oak.Realizes.reads {Memory Part Input : Type} {operation : Memory → Memory}
     {read : Memory → Input} {arrow : Input → Part} {view : Oak.View Memory Part}
     (realized : Oak.Realizes operation read arrow view) (first second : Memory)
     (same : read first = read second) :
-    ∃ part, operation first = view.put first part ∧ operation second = view.put second part :=
-  ⟨arrow (read first), realized first, by rw [realized second, same]⟩
+    view.get (operation first) = view.get (operation second) := by
+  rw [realized.writes first, realized.writes second, same]
 
 end AcornVerif
