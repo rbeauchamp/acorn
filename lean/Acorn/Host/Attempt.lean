@@ -17,12 +17,12 @@ retained. Supervision has no parameter on this action-selection path.
 
 The agent's step has two parts: `choose` selects the action, and `learn` completes
 the step from the value `choose` returned with it. `AgentCallbacks.act` is both parts
-before the world's transition. `DecisionInput.chooseOwned` and
-`OwnedEnvironment.learn` put the world's transition between the parts. The world of
+before the world's transition. `DecisionInput.chooseOwned`, `OwnedStep.release` and
+`Released.learn` put the world's transition between the parts. The world of
 this protocol takes one transition for each action and waits for it, so one pass
-releases the same action and commits the same step either way:
-`DecisionInput.chooseOwned_action` and `DecisionInput.chooseOwned_commit`. The
-callbacks carry no order; the runner that calls them selects it.
+releases the same action and ends in the same stage either way, on acceptance and on
+a refusal: `DecisionInput.chooseOwned_action` and `DecisionInput.chooseOwned_release`.
+`Attempt.complete` is the pure fold of passes that both native loops compute.
 -/
 namespace Acorn.Host
 
@@ -366,47 +366,90 @@ before the callback, as in `DecisionInput.selectOwned`. -/
   ⟨⟨⟨world, (), carried, behavior⟩, installed, steps, reward, lastAction⟩,
     remaining, observation, sensed, chosen.1, chosen.2⟩
 
-/-- The second part, after the world's transition: complete the step from the chosen
-value. The transition, its result and the pre-action attempt are untouched. -/
-@[noinline] def OwnedEnvironment.learn {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+/-- The world's answer to a released action. Both answers keep the stage the action
+was released from, so the value that stage holds is never dropped: a refusal returns
+it with the refusal. -/
+inductive Released (config : WorldConfig) (α : Type) (goal : Goal) (cap : UInt64) where
+  /-- The world took the transition. -/
+  | accepted (environment : OwnedEnvironment config α goal cap)
+  /-- The world refused the action; the stage is unchanged. -/
+  | refused (error : WorldError) (selected : OwnedStep config α goal cap)
+
+/-- Release the action of a stage to the world: the same transition as
+`OwnedStep.environment`, with the stage kept on a refusal. -/
+@[noinline] def OwnedStep.release {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64}
+    (selected : OwnedStep config α goal cap) : Released config α goal cap :=
+  match hstep : selected.before.run.world.step selected.action with
+  | .error error => .refused error selected
+  | .ok (world, result) => .accepted ⟨selected, world, result, hstep⟩
+
+/-- The transition result of a release, without the stage a refusal keeps. -/
+def Released.environment {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64}
+    (released : Released config α goal cap) : Except WorldError (OwnedEnvironment config α goal cap) :=
+  match released with
+  | .accepted environment => .ok environment
+  | .refused error _ => .error error
+
+/-- A release is the transition of `OwnedStep.environment`, for every stage. -/
+theorem OwnedStep.release_environment {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64}
+    (selected : OwnedStep config α goal cap) :
+    selected.release.environment = selected.environment := by
+  unfold OwnedStep.release OwnedStep.environment
+  split <;> rfl
+
+/-- The second part on a stage: complete the step from the chosen value the stage
+holds. The pre-action attempt, the observation and the action are untouched. -/
+def OwnedStep.learn {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (selected : OwnedStep config callbacks.Chosen goal cap) :
+    OwnedStep config α goal cap :=
+  let ⟨before, remaining, observation, sensed, action, chosen⟩ := selected
+  ⟨before, remaining, observation, sensed, action, callbacks.learn chosen⟩
+
+/-- The second part, after the world's answer, on both answers: complete the step from
+the chosen value. The transition, its result and a refusal are untouched. -/
+@[noinline] def Released.learn {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks α β)
-    (environment : OwnedEnvironment config callbacks.Chosen goal cap) :
-    OwnedEnvironment config α goal cap :=
-  let ⟨⟨before, remaining, observation, sensed, action, chosen⟩, world, result, stepped⟩ :=
-    environment
-  ⟨⟨before, remaining, observation, sensed, action, callbacks.learn chosen⟩, world, result,
-    stepped⟩
+    (released : Released config callbacks.Chosen goal cap) : Released config α goal cap :=
+  match released with
+  | .accepted ⟨selected, world, result, stepped⟩ =>
+    .accepted ⟨selected.learn callbacks, world, result, stepped⟩
+  | .refused error selected => .refused error (selected.learn callbacks)
 
-/-- **One pass commits the same step in both orders.** For every callback and input,
-taking the world's transition between the two parts and then learning gives the stage
-that both parts followed by the transition give, and the same refusal when the world
-refuses the action. The second part receives the value the first part returned on this
-pass's observation and carried result, and nothing else. The world of this protocol
-takes one transition for each action and waits for it; the equality is a statement
-about one pass in such a world. -/
-theorem DecisionInput.chooseOwned_commit {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+/-- The first part followed by the second on its result is the whole step: the stage of
+`DecisionInput.selectOwned`, for every callback and input. -/
+theorem DecisionInput.chooseOwned_learn {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (input : DecisionInput config α goal cap) (callbacks : AgentCallbacks α β) :
-    (input.chooseOwned callbacks).environment.map (OwnedEnvironment.learn callbacks) =
-      (input.selectOwned callbacks).environment := by
-  cases input with
-  | mk before remaining observation sensed =>
-    cases before with
-    | mk run installed steps reward lastAction =>
-      cases run
-      unfold OwnedStep.environment
-      simp only [DecisionInput.chooseOwned, DecisionInput.selectOwned, AgentCallbacks.act]
-      split <;> rfl
-
-/-- The action released between the two parts is the action of the whole step. -/
-theorem DecisionInput.chooseOwned_action {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (input : DecisionInput config α goal cap) (callbacks : AgentCallbacks α β) :
-    (input.chooseOwned callbacks).action = (input.selectOwned callbacks).action := by
+    (input.chooseOwned callbacks).learn callbacks = input.selectOwned callbacks := by
   cases input with
   | mk before remaining observation sensed =>
     cases before with
     | mk run installed steps reward lastAction =>
       cases run
       rfl
+
+/-- **One pass is the same in both positions of the world's transition, on every
+answer.** For every callback and input, releasing the action between the two parts and
+then learning gives what both parts followed by the release give: on acceptance the
+same committed stage, and on a refusal the same refusal with the same learned stage.
+The second part therefore runs exactly once on the pass's own observation and carried
+result, whether the world accepts or refuses. The world of this protocol takes one
+transition for each action and waits for it; the equality is a statement about one
+pass in such a world. -/
+theorem DecisionInput.chooseOwned_release {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (input : DecisionInput config α goal cap) (callbacks : AgentCallbacks α β) :
+    (input.chooseOwned callbacks).release.learn callbacks = (input.selectOwned callbacks).release := by
+  rw [← input.chooseOwned_learn callbacks]
+  generalize input.chooseOwned callbacks = chosen
+  obtain ⟨before, remaining, observation, sensed, action, value⟩ := chosen
+  unfold OwnedStep.release
+  simp only [OwnedStep.learn]
+  split <;> rfl
+
+/-- The action released between the two parts is the action of the whole step. -/
+theorem DecisionInput.chooseOwned_action {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (input : DecisionInput config α goal cap) (callbacks : AgentCallbacks α β) :
+    (input.chooseOwned callbacks).action = (input.selectOwned callbacks).action :=
+  congrArg (·.action) (input.chooseOwned_learn callbacks)
 
 /-- Commit composes the same transition and bookkeeping owners used by native IO. -/
 def PreparedStep.commit {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
@@ -436,6 +479,27 @@ def Attempt.finish {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UI
     ⟨context.index, context.attempt, context.tier, steps, achieved, attempt.reward, callbacks.metrics agent,
       attempt.run.world.body.position.position⟩
   return (run, outcome, frame)
+
+/-- The pure content of a whole attempt: passes of the whole step, in order, until the
+attempt finishes or the world refuses an action, then the final observation and
+bookkeeping. Every value either native loop returns agrees with this fold, whichever
+side of the world's transition the second part runs on (`runAttempt_complete`). A
+refusal ends the fold and returns no agent. -/
+def Attempt.complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (context : GoalContext) :
+    Nat → Attempt config α goal cap →
+      Except WorldError (RunState config α × GoalOutcome × StepFrame β)
+  | 0, attempt => attempt.finish callbacks context
+  | fuel + 1, attempt =>
+    if attempt.finished then attempt.finish callbacks context else
+      match attempt.sense with
+      | .error error => .error error
+      | .ok none => attempt.finish callbacks context
+      | .ok (some input) =>
+        match (input.selectOwned callbacks).environment with
+        | .error error => .error error
+        | .ok environment =>
+          Attempt.complete callbacks context fuel (environment.record callbacks)
 
 /-- The stream that continues past an attempt boundary is the attempt's own run
 with the attempt recorded, for every callback: no outcome row is an input to it.

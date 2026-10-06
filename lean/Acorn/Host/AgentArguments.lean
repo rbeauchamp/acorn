@@ -10,7 +10,9 @@ import Acorn.Host.AgentAdmission
 
 All current profile, criterion, planning, dimension and representation words
 are admitted before learner allocation. Native agent and checkpoint commands
-share this parser and the same raw-observation adapter.
+share this parser and the same raw-observation adapter. Both commands run the prefix
+fold of `Agent.act`, which is the default step order, so every construction they admit
+declares that order and they take no order word.
 -/
 namespace Acorn.Host.AgentArguments
 open Features Handcrafted
@@ -54,9 +56,27 @@ def admit (arguments : List String) : Option (AgentConstruction × List UInt64) 
     let tilings ← word tilings
     let units ← units.toNat?
     let exponent ← exponent.toNat?
-    let construction ← AgentConstruction.admit profile criterion planning seed tilings units exponent
+    let construction ← AgentConstruction.admit profile criterion planning .learnThenAct seed
+      tilings units exponent
     let words ← words.mapM word
     return (construction, words)
   | _ => none
+
+/-- Every construction this parser admits has the default step order: the native
+drivers fold `Agent.act`, the step of that order, and take no order word. -/
+theorem admit_order (arguments : List String) (construction : AgentConstruction)
+    (words : List UInt64) (admitted : admit arguments = some (construction, words)) :
+    construction.order = .learnThenAct := by
+  unfold admit at admitted
+  split at admitted
+  · simp only [bind, Option.bind_eq_some_iff, pure] at admitted
+    obtain ⟨_, _, rest⟩ := admitted
+    split at rest
+    all_goals
+      simp only [Option.bind_eq_some_iff] at rest
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, made, constructed, _, _, same⟩ := rest
+      cases same
+      exact AgentConstruction.admit_order _ _ _ _ _ _ _ _ _ constructed
+  · cases admitted
 
 end Acorn.Host.AgentArguments

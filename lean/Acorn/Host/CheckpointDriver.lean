@@ -39,16 +39,21 @@ def checked {α : Type} (result : Except Checkpoint.Error α) : IO α :=
   | .ok value => pure value
   | .error error => throw (IO.userError s!"checkpoint refused: {repr error}")
 
-/-- Every diagnostic input reaches the existing finite-prefix transition, with no alternate evaluator. -/
+/-- Every diagnostic input reaches the existing finite-prefix transition, with no alternate
+evaluator. That transition is the step of the default order. -/
 def advance (construction : AgentConstruction) (state : construction.State) (words : List UInt64) :
     IO construction.State := do
   match state.runPrefix (words.map (AgentArguments.input construction)) with
   | .ok (next, _) => return next
   | .error .unsupportedProfile => throw (IO.userError "agent prefix refused unsupported restoration")
 
-/-- The invoked process owns the writer; load always binds to the admitted receiver. -/
+/-- The invoked process owns the writer; load always binds to the admitted receiver.
+The receiver is a construction of the default step order: `advance` runs that order's
+step, so every image this entry saves holds the order of the steps that produced it,
+and every image it loads was saved under that order. -/
 @[noinline] def execute (operation : Command) (path : System.FilePath)
-    (construction : AgentConstruction) (words : List UInt64) : IO String := do
+    (admitted : DefaultConstruction) (words : List UInt64) : IO String := do
+  let construction := admitted.val
   let store ← Store.new ((← IO.appDir) / "checkpoint-sync")
   let initial := construction.initial
   let state ← match operation with
@@ -71,10 +76,12 @@ def dispatch (arguments : List String) : IO UInt32 := do
   match arguments with
   | operation :: path :: arguments =>
     let some operation := command operation | throw (IO.userError "unknown checkpoint operation")
-    let some (construction, words) := AgentArguments.admit arguments
-      | throw (IO.userError "invalid checkpoint construction or input word")
-    IO.println (← execute operation path construction words)
-    return 0
+    match admitted : AgentArguments.admit arguments with
+    | none => throw (IO.userError "invalid checkpoint construction or input word")
+    | some (construction, words) =>
+      IO.println (← execute operation path
+        ⟨construction, AgentArguments.admit_order arguments construction words admitted⟩ words)
+      return 0
   | _ => throw (IO.userError
       "usage: checkpoint-native (save|load|resume) FILE SEED EXPONENT TILINGS UNITS MODE CREDIT RATE SUBTASKS CRITERION PLANNING [RAW_WORD ...]")
 

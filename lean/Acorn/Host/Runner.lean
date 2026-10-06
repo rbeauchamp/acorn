@@ -199,15 +199,16 @@ def runAttemptSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : U
         let resources := { resources with environmentUs := elapsedMicroseconds beforeEnvironment afterEnvironment }
         runAttemptSteps callbacks observer context fuel (environment.record callbacks) resources
 
-/-- The act-then-learn loop: the first part, the world's transition on the released
-action, then the second part (PAR-19; the source is cited in `Acorn.Timing`).
-`DecisionInput.chooseOwned_commit` proves that the functions one pass composes commit
-the stage those of a pass of `runAttemptSteps` commit; the loops themselves are IO code
-under the reviewed native routes. The step frame is delivered
-after the second part; it holds the same pre-transition world and the same learned
-agent as the learn-then-act frame, and a world refusal ends the attempt before it. The
-reported agent duration is the sum of both parts, and the reported environment
-duration is the preceding transition's. -/
+/-- The loop that releases the action between the two parts: the first part, the
+world's transition on the released action, then the second part (PAR-19; the source
+is cited in `Acorn.Timing`). The second part runs on both answers of the world, so a
+refused action still has its percept learned and its step frame delivered before the
+refusal is returned. `DecisionInput.chooseOwned_release` proves that the functions one
+pass composes give the stage those of a pass of `runAttemptSteps` give, and
+`runReleasedSteps_complete` proves that the loop returns the pure fold
+`Attempt.complete`. The step frame is delivered after the second part; it holds the
+pre-transition world and the learned agent. The reported agent duration is the sum of
+both parts, and the reported environment duration is the preceding transition's. -/
 def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext) :
     Nat → Attempt config α goal cap → RunnerResources →
@@ -222,20 +223,23 @@ def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
       let beforeChoice ← IO.monoNanosNow
       let chosen ← IO.lazyPure fun _ => input.chooseOwned callbacks
       let afterChoice ← IO.monoNanosNow
-      let committed ← IO.lazyPure fun _ => chosen.environment
-      match committed with
-      | .error error => return .error (.world error)
-      | .ok environment =>
-        let afterEnvironment ← IO.monoNanosNow
-        let learned ← IO.lazyPure fun _ => environment.learn callbacks
-        let afterLearning ← IO.monoNanosNow
+      let released ← IO.lazyPure fun _ => chosen.release
+      let afterRelease ← IO.monoNanosNow
+      let learned ← IO.lazyPure fun _ => released.learn callbacks
+      let afterLearning ← IO.monoNanosNow
+      let update := elapsedMicroseconds (beforeChoice + afterRelease) (afterChoice + afterLearning)
+      match learned with
+      | .refused error selected =>
+        let _ ← notifyObserver (observer.deliverStep (fun _ => selected.frame callbacks context)
+          (resources.capture update)) resources
+        return .error (.world error)
+      | .accepted environment =>
         let resources ← notifyObserver (observer.deliverStep
-          (fun _ => learned.selected.frame callbacks context)
-          (resources.capture (elapsedMicroseconds (beforeChoice + afterEnvironment)
-            (afterChoice + afterLearning)))) resources
+          (fun _ => environment.selected.frame callbacks context)
+          (resources.capture update)) resources
         let resources := { resources with
-          environmentUs := elapsedMicroseconds afterChoice afterEnvironment }
-        runReleasedSteps callbacks observer context fuel (learned.record callbacks) resources
+          environmentUs := elapsedMicroseconds afterChoice afterRelease }
+        runReleasedSteps callbacks observer context fuel (environment.record callbacks) resources
 
 /-- Execute the admitted finite attempt through the same proved selection,
 world transition and bookkeeping, capturing only demanded step observations. The
@@ -246,7 +250,239 @@ def runAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64
     IO (Except RunnerError (RunState config α × GoalOutcome × RunnerResources)) :=
   match order with
   | .learnThenAct => runAttemptSteps callbacks observer context cap.toNat initial resources
-  | .actThenLearn => runReleasedSteps callbacks observer context cap.toNat initial resources
+  | .planAfterAct => runReleasedSteps callbacks observer context cap.toNat initial resources
+
+/-! ## The native loops compute the pure fold
+
+`IO` is a function on a world token. The statements below are about every token: if a
+loop returns a value from it, the value agrees with the result of `Attempt.complete`
+(`AttemptAgrees`: the same refusal, or the same run state and outcome). They do
+not state that a loop returns; that rests on `notifyObserver` catching every observer
+failure and on the clock read, which cannot fail by its type. The order of effects,
+the observer's own effects and the reported durations are outside these statements. -/
+
+/-- A returned bind ran its first action to a value and its continuation from there. -/
+theorem returned_bind {α β : Type} (action : IO α) (next : α → IO β)
+    (world after : Void IO.RealWorld) (value : β)
+    (returned : (action >>= next) world = .ok value after) :
+    ∃ first middle, action world = .ok first middle ∧ next first middle = .ok value after := by
+  have unfolded : (action >>= next) world = EST.bind action next world := rfl
+  rw [unfolded] at returned
+  unfold EST.bind at returned
+  cases ran : action world with
+  | ok first middle =>
+    rw [ran] at returned
+    exact ⟨first, middle, rfl, returned⟩
+  | error failure middle =>
+    rw [ran] at returned
+    cases returned
+
+/-- A returned `pure` returns its value. -/
+theorem returned_pure {α : Type} (value found : α) (world after : Void IO.RealWorld)
+    (returned : (pure value : IO α) world = .ok found after) : found = value := by
+  have unfolded : (pure value : IO α) world = .ok value world := rfl
+  rw [unfolded] at returned
+  cases returned
+  rfl
+
+/-- A returned `IO.lazyPure` returns the value of its function. -/
+theorem returned_lazyPure {α : Type} (fn : Unit → α) (found : α) (world after : Void IO.RealWorld)
+    (returned : IO.lazyPure fn world = .ok found after) : found = fn () :=
+  returned_pure (fn ()) found world after returned
+
+/-- A value a native attempt loop returned agrees with a result of the pure fold: the
+same refusal, or the same run state and outcome. The fold's terminal frame and the
+loop's resource counters are observations outside the agreement. -/
+def AttemptAgrees {config : WorldConfig} {α β : Type}
+    (folded : Except WorldError (RunState config α × GoalOutcome × StepFrame β))
+    (returned : Except RunnerError (RunState config α × GoalOutcome × RunnerResources)) : Prop :=
+  match folded, returned with
+  | .error refused, .error (.world found) => found = refused
+  | .ok (run, outcome, _), .ok (found, observed, _) => found = run ∧ observed = outcome
+  | _, _ => False
+
+/-- Whatever the final bookkeeping returns is the attempt's pure finish. -/
+theorem finishAttempt_returned {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
+    (attempt : Attempt config α goal cap) (resources : RunnerResources)
+    (world after : Void IO.RealWorld)
+    (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
+    (returned : finishAttempt callbacks observer context attempt resources world = .ok value after) :
+    AttemptAgrees (attempt.finish callbacks context) value := by
+  unfold finishAttempt at returned
+  cases finished : attempt.finish callbacks context with
+  | error refused =>
+    rw [finished] at returned
+    have same := returned_pure _ _ _ _ returned
+    rw [same]
+    exact rfl
+  | ok result =>
+    obtain ⟨run, outcome, frame⟩ := result
+    rw [finished] at returned
+    obtain ⟨observed, middle, _, rest⟩ := returned_bind _ _ _ _ _ returned
+    have same := returned_pure _ _ _ _ rest
+    rw [same]
+    exact ⟨rfl, rfl⟩
+
+/-- **The default loop computes the pure fold.** For every callback, observer, fuel,
+attempt, resource record and world token: a value the loop returns agrees with the
+result of `Attempt.complete` (`AttemptAgrees`), on its refusal branches as well. No
+hypothesis on the clock or the observer is used. -/
+theorem runAttemptSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
+    (fuel : Nat) (attempt : Attempt config α goal cap) (resources : RunnerResources)
+    (world after : Void IO.RealWorld)
+    (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
+    (returned : runAttemptSteps callbacks observer context fuel attempt resources world =
+      .ok value after) :
+    AttemptAgrees (attempt.complete callbacks context fuel) value := by
+  induction fuel generalizing attempt resources world with
+  | zero =>
+    unfold runAttemptSteps at returned
+    unfold Attempt.complete
+    exact finishAttempt_returned callbacks observer context attempt resources world after value
+      returned
+  | succ fuel ih =>
+    unfold runAttemptSteps at returned
+    unfold Attempt.complete
+    cases finished : attempt.finished with
+    | true =>
+      simp only [finished, ↓reduceIte] at returned ⊢
+      exact finishAttempt_returned callbacks observer context attempt resources world after value
+        returned
+    | false =>
+      simp only [finished, Bool.false_eq_true, ↓reduceIte] at returned ⊢
+      cases sensed : attempt.sense with
+      | error refused =>
+        rw [sensed] at returned
+        have same := returned_pure _ _ _ _ returned
+        rw [same]
+        exact rfl
+      | ok found =>
+        cases found with
+        | none =>
+          rw [sensed] at returned
+          exact finishAttempt_returned callbacks observer context attempt resources world after
+            value returned
+        | some input =>
+          rw [sensed] at returned
+          dsimp only at returned ⊢
+          obtain ⟨beforeUpdate, w1, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          obtain ⟨selected, w2, chose, returned⟩ := returned_bind _ _ _ _ _ returned
+          have selectedEq := returned_lazyPure _ _ _ _ chose
+          subst selectedEq
+          obtain ⟨afterUpdate, w3, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          obtain ⟨observed, w4, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          obtain ⟨beforeEnvironment, w5, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          obtain ⟨committed, w6, stepped, returned⟩ := returned_bind _ _ _ _ _ returned
+          have committedEq := returned_lazyPure _ _ _ _ stepped
+          subst committedEq
+          cases transition : (input.selectOwned callbacks).environment with
+          | error refused =>
+            rw [transition] at returned
+            have same := returned_pure _ _ _ _ returned
+            rw [same]
+            exact rfl
+          | ok environment =>
+            rw [transition] at returned
+            dsimp only at returned ⊢
+            obtain ⟨afterEnvironment, w7, _, returned⟩ := returned_bind _ _ _ _ _ returned
+            exact ih _ _ _ returned
+
+/-- **The loop that releases the action between the parts computes the same pure
+fold.** For every callback, observer, fuel, attempt, resource record and world token: a
+value the loop returns agrees with the result of `Attempt.complete` (`AttemptAgrees`),
+on acceptance and on a refusal. The fold applies the whole step of the callbacks once for each pass, in
+order, so each percept reaches the second part exactly once and in order in this loop
+as in the default one. -/
+theorem runReleasedSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
+    (fuel : Nat) (attempt : Attempt config α goal cap) (resources : RunnerResources)
+    (world after : Void IO.RealWorld)
+    (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
+    (returned : runReleasedSteps callbacks observer context fuel attempt resources world =
+      .ok value after) :
+    AttemptAgrees (attempt.complete callbacks context fuel) value := by
+  induction fuel generalizing attempt resources world with
+  | zero =>
+    unfold runReleasedSteps at returned
+    unfold Attempt.complete
+    exact finishAttempt_returned callbacks observer context attempt resources world after value
+      returned
+  | succ fuel ih =>
+    unfold runReleasedSteps at returned
+    unfold Attempt.complete
+    cases finished : attempt.finished with
+    | true =>
+      simp only [finished, ↓reduceIte] at returned ⊢
+      exact finishAttempt_returned callbacks observer context attempt resources world after value
+        returned
+    | false =>
+      simp only [finished, Bool.false_eq_true, ↓reduceIte] at returned ⊢
+      cases sensed : attempt.sense with
+      | error refused =>
+        rw [sensed] at returned
+        have same := returned_pure _ _ _ _ returned
+        rw [same]
+        exact rfl
+      | ok found =>
+        cases found with
+        | none =>
+          rw [sensed] at returned
+          exact finishAttempt_returned callbacks observer context attempt resources world after
+            value returned
+        | some input =>
+          rw [sensed] at returned
+          dsimp only at returned ⊢
+          obtain ⟨beforeChoice, w1, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          obtain ⟨chosen, w2, chose, returned⟩ := returned_bind _ _ _ _ _ returned
+          have chosenEq := returned_lazyPure _ _ _ _ chose
+          subst chosenEq
+          obtain ⟨afterChoice, w3, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          obtain ⟨released, w4, stepped, returned⟩ := returned_bind _ _ _ _ _ returned
+          have releasedEq := returned_lazyPure _ _ _ _ stepped
+          subst releasedEq
+          obtain ⟨afterRelease, w5, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          obtain ⟨learned, w6, learnt, returned⟩ := returned_bind _ _ _ _ _ returned
+          have learnedEq := (returned_lazyPure _ _ _ _ learnt).trans
+            (input.chooseOwned_release callbacks)
+          subst learnedEq
+          obtain ⟨afterLearning, w7, _, returned⟩ := returned_bind _ _ _ _ _ returned
+          have transition := (input.selectOwned callbacks).release_environment
+          cases answer : (input.selectOwned callbacks).release with
+          | refused refusal selected =>
+            rw [answer] at returned transition
+            rw [← transition]
+            dsimp only at returned
+            obtain ⟨observed, w8, _, returned⟩ := returned_bind _ _ _ _ _ returned
+            have same := returned_pure _ _ _ _ returned
+            rw [same]
+            exact rfl
+          | accepted environment =>
+            rw [answer] at returned transition
+            rw [← transition]
+            dsimp only at returned
+            obtain ⟨observed, w8, _, returned⟩ := returned_bind _ _ _ _ _ returned
+            exact ih _ _ _ returned
+
+/-- **Either loop of an attempt computes the pure fold.** Whatever step order selects the
+loop, a value the attempt runner returns agrees with the result of `Attempt.complete`
+at the attempt's own step cap (`AttemptAgrees`). -/
+theorem runAttempt_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (order : StepOrder) (observer : StreamObserver β)
+    (context : GoalContext) (initial : Attempt config α goal cap) (resources : RunnerResources)
+    (world after : Void IO.RealWorld)
+    (value : Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
+    (returned : runAttempt callbacks order observer context initial resources world =
+      .ok value after) :
+    AttemptAgrees (initial.complete callbacks context cap.toNat) value := by
+  cases order with
+  | learnThenAct =>
+    exact runAttemptSteps_complete callbacks observer context cap.toNat initial resources world
+      after value returned
+  | planAfterAct =>
+    exact runReleasedSteps_complete callbacks observer context cap.toNat initial resources world
+      after value returned
 
 /-- The reason a successfully running campaign returned. -/
 inductive CampaignEnd where
@@ -444,10 +680,14 @@ def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curr
     | .inl progress => phase ← campaignStep curriculum callbacks order observer readStop progress
 
 /-- Startup preserves refusal order and never constructs an agent before campaign admission.
-Unexpected loader errors retain the fresh agent and disable writes, like a refused image. -/
+Unexpected loader errors retain the fresh agent and disable writes, like a refused image.
+The callbacks are a family over the step order and the one declared order selects both
+the agent's functions and the loop, so those two cannot disagree. The checkpoint hooks
+are a separate argument: that they stamp and admit the same order is an obligation of
+the composition root, which builds hooks, callbacks and order from one construction. -/
 def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection : AgentSelection)
-    (spec : CampaignSpec) (buildAgent : AgentSelection → IO α) (callbacks : AgentCallbacks α β)
-    (order : StepOrder)
+    (spec : CampaignSpec) (buildAgent : AgentSelection → IO α)
+    (callbacks : StepOrder → AgentCallbacks α β) (order : StepOrder)
     (observer : StreamObserver β) (checkpoint : Option (CheckpointHooks α)) (readStop : BaseIO Bool) :
     IO (Except RunnerError (CampaignResult config α)) := do
   if !selection.profile.resumable && checkpoint.isSome then return .error (.campaign .nonresumableProfile)
@@ -477,8 +717,8 @@ def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection
           admission := status
         observer.onInitialized admission
         let initial : RunState config α := ⟨world, agent, {}, initialBehavior⟩
-        runAdmittedCampaign curriculum plan callbacks order observer initial writable readStop
-          admission
+        runAdmittedCampaign curriculum plan (callbacks order) order observer initial writable
+          readStop admission
       catch error => return .error (.io error.toString)
 
 end Acorn.Host

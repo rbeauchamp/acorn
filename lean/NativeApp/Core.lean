@@ -65,13 +65,13 @@ runs both parts of a step before the world's transition, so its order is
 learn-then-act; command admission refuses `--step-order` with `--view`. -/
 def runAnsiDemo (common : Cli.Common) (period : Acorn.Word.Count) : IO UInt32 := do
   let construction := Acorn.Handcrafted.AgentConstruction.standard common.world.raw.seed
-    ⟨common.profile, .discounted⟩ common.planning
+    ⟨common.profile, .discounted⟩ common.planning .learnThenAct
   IO.eprintln (planningProvenance construction)
-  IO.eprintln (orderProvenance .learnThenAct)
+  IO.eprintln (orderProvenance construction.order)
   IO.print "\x1b[2J\x1b[H"
   let result ← runAnsi common period (fun _ => IO.lazyPure fun _ => construction.initial)
-    Acorn.Handcrafted.Agent.callbacks
-    (renderAnsi s!"{planningProvenance construction} {orderProvenance .learnThenAct}")
+    (Acorn.Handcrafted.Agent.callbacks construction.order)
+    (renderAnsi s!"{planningProvenance construction} {orderProvenance construction.order}")
     (fun index tier achieved steps =>
       IO.println s!"goal {index} (tier {tier}) {if achieved then "achieved" else "timed out"} in {steps} steps")
   match result with
@@ -113,7 +113,7 @@ def runCore (arguments : List String) : IO UInt32 := do
   let options ← streamingOptions arguments
   let some build := buildIdentity | throw (IO.userError "embedded native build identity is invalid")
   IO.eprintln (planningProvenance (nativeConstruction options))
-  IO.eprintln (orderProvenance options.order)
+  IO.eprintln (orderProvenance (nativeConstruction options).order)
   let stop ← StopFlag.new
   stop.withCommands options.controlStdin do
     let outcomes ← IO.mkRef ({} : OutcomeReport
@@ -131,7 +131,7 @@ def runCore (arguments : List String) : IO UInt32 := do
       if let some handle ← csv.get then return some handle
       let some path := options.csv | return none
       try
-        let handle ← openCsv path options.checkpoint (nativeConstruction options) options.order
+        let handle ← openCsv path options.checkpoint (nativeConstruction options)
         csv.set (some handle)
         return some handle
       catch error =>

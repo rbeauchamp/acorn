@@ -421,15 +421,18 @@ F-E left its feature-construction end inert until U3.
   (`Grid.interface`), and `Agent.grid_inputs` states what that instance feeds each
   learner in terms of the host's own channel, signal and potential definitions. The
   [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
-  host's step, construction and restoration equal to a frozen composition over host
-  observations (`act_eq`, `callback_eq`, `initial_eq`, `restore_eq`). Five bindings
+  host's step under the default step order, construction and restoration equal to a
+  frozen composition over host observations (`act_eq`, `callback_eq`, `initial_eq`,
+  `restore_eq`). Five bindings
   to the grid world remain. Three are to its way of running. Two of those are
   outside the interface: the world waits for the agent, and a saved image is not an
   exact image of the agent (the option models and the off-policy questions start
-  afresh). The step itself is two functions, and a host can release the action
-  between them ([design](design.md#the-two-parts-of-a-step)); one pass of the host
-  protocol commits the same step either way (`DecisionInput.chooseOwned_commit`),
-  and no executing world runs on a wall clock. One is carried by the frame: the host's achievement flag still ends an
+  afresh). The step itself is two functions, and under the `plan-after-act` step
+  order a host releases the action between them, with planning after the action
+  ([design](design.md#the-two-parts-of-a-step)); every value that either native
+  loop returns agrees with one pure fold of whole steps in its refusal, or in its run
+  state and outcome (`runAttempt_complete`), and no executing world runs on a wall
+  clock. One is carried by the frame: the host's achievement flag still ends an
   option, as a field that the coder does not read (`frame_congr`); it is declared
   as departure [D8](learned-only-binding.md#d8--achievement-event--step-10). Two
   are inside the agent's own modules, which import no world: the lifetime

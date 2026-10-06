@@ -25,9 +25,11 @@ the explicitly requested research profile; it is not a profile promotion. -/
 def nativeSelection (options : Cli.Streaming) : AgentSelection :=
   ⟨options.common.profile, options.criterion.getD .discounted⟩
 
-/-- The ordinary campaign carries the admitted planning selection into the full agent type. -/
+/-- The ordinary campaign carries the admitted planning selection into the full agent
+type and the admitted step order into the construction. -/
 def nativeConstruction (options : Cli.Streaming) : AgentConstruction :=
-  AgentConstruction.standard options.common.world.raw.seed (nativeSelection options) options.common.planning
+  AgentConstruction.standard options.common.world.raw.seed (nativeSelection options)
+    options.common.planning options.order
 
 /-- User-facing task names are exhaustive projections of the actual host goal. -/
 def curriculumGoalName : Goal → String
@@ -105,7 +107,7 @@ def runNativeCampaign (options : Cli.Streaming) (build : TelemetryBuild)
         pure (some (store.hooks construction path options.checkpointEvery))
     let result ← runCampaign options.common.world options.common.world.raw.seed (nativeSelection options)
       options.campaign (fun _ => IO.lazyPure fun _ => construction.initial)
-      Agent.callbacks options.order observer checkpoint stop.requested
+      Agent.callbacks construction.order observer checkpoint stop.requested
     match result with
     | .error error => return .error error
     | .ok result =>
@@ -127,6 +129,11 @@ theorem nativeParameters_stepCap (options : Cli.Streaming) (build : TelemetryBui
 /-- Every admitted planning selection reaches the same full-agent construction unchanged. -/
 theorem nativeConstruction_planning (options : Cli.Streaming) :
     (nativeConstruction options).planning = options.common.planning := rfl
+
+/-- The admitted step order reaches the construction unchanged; the construction's
+order selects the agent's functions and the loop, and the checkpoint records it. -/
+theorem nativeConstruction_order (options : Cli.Streaming) :
+    (nativeConstruction options).order = options.order := rfl
 
 /-- The criterion explicitly requested at admission reaches agent construction. -/
 theorem nativeConstruction_criterion (options : Cli.Streaming) :

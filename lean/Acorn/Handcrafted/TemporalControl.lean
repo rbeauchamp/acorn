@@ -40,7 +40,8 @@ Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence
 and intra-option forms. Acorn's PAR-9 uses executed-action Sarsa, and PAR-15
 centers every layer with one shared pre-observation gain. For the executing
 option, nominal epsilon means are used only for interruption, and differential
-terminal credit uses the next sampled meta action after refresh and planning.
+terminal credit uses the next sampled meta action, drawn after the refresh and after
+the planning that selection runs.
 
 After selection, every option that is not executing learns from the action
 actually taken (PAR-17): Sutton, Machado et al., *Reward-respecting subtasks for

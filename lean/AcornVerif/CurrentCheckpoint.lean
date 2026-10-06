@@ -10,7 +10,7 @@ import AcornVerif.CurrentLearner
 /-!
 # Current checkpoint admission and installation laws
 
-These statements concern the actual format-17 parser, writer, legal-state
+These statements concern the actual format-18 parser, writer, legal-state
 constructors and full-agent restoration. The laws describe parsing, serialization
 and pure restoration. Native persistence relies on the filesystem and OS.
 -/
@@ -191,7 +191,7 @@ theorem encoded_header (dimension : Dimension) (payload : Payload dimension) :
 
 /-- All encoded payloads contain the minimum magic, header and checksum framing. -/
 theorem encoded_minimum (dimension : Dimension) (payload : Payload dimension) :
-    68 ≤ (encode dimension payload).length := by
+    72 ≤ (encode dimension payload).length := by
   rw [encoded_size]
   simp only [payloadBytes]
   omega
@@ -209,7 +209,7 @@ theorem candidate_roundtrip (construction : AgentConstruction)
     magic.length = magic := by
     simp [Checkpoint.encode, List.append_assoc]
   unfold loadCandidate
-  simp only [show ¬(encode construction.dimension (imagePayload construction image)).length < 68
+  simp only [show ¬(encode construction.dimension (imagePayload construction image)).length < 72
     by omega,
     decide_false, magicOk, bne_self_eq_false, Bool.false_or, Bool.false_eq_true, ↓reduceIte, header]
   rw [header_roundtrip construction image supported]

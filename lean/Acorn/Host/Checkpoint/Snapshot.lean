@@ -88,14 +88,14 @@ def testerWords {config : Features.Config} (progress : Progress config) : Tester
     ⟨progress.words.units, by
       simpa [Progress.words] using config.units.bounded⟩⟩
 
-/-- A typed image has one exact format-17 word projection under its receiver. -/
+/-- A typed image has one exact format-18 word projection under its receiver. -/
 def imagePayload (construction : AgentConstruction)
     (image : AgentImage Grid.interface construction.config construction.criterion construction.dimension) :
     Payload construction.dimension :=
   ⟨⟨formatVersion, construction.dimension.capacity.toUInt32, primaryCount.toUInt32,
       construction.config.seed, image.features.progress.clock, construction.criterion.tag.toUInt32,
       image.gain.value, construction.config.tilings, construction.config.units.count.toUInt32,
-      if construction.profile.checkpointSupported then 1 else 0⟩,
+      if construction.profile.checkpointSupported then 1 else 0, construction.order.tag⟩,
     image.features.assignments.map (Assignment.words construction.dimension), image.features.primary,
     lifetimeWords image.lifetime, testerWords image.features.progress⟩
 

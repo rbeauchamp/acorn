@@ -122,7 +122,7 @@ def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
     let construction := AuditArm.annealed.construction options
     runCampaign options.common.world options.common.world.raw.seed (nativeSelection options)
       options.campaign (fun _ => IO.lazyPure fun _ => construction.initial)
-      Agent.callbacks options.order { StreamObserver.none with onOutcome := outcome } none
+      Agent.callbacks construction.order { StreamObserver.none with onOutcome := outcome } none
       stop.requested
 
 /-- Execute the fixed audit once; scientific capture may retain its actual receipt. -/

@@ -89,6 +89,8 @@ structure Identity where
   criterion : Nat
   /-- Supported policy encoding. -/
   policy : Nat
+  /-- Step order tag. -/
+  order : Nat
   deriving DecidableEq
 
 /-- Every component is required; no component is summarized by a digest. -/
@@ -96,7 +98,7 @@ def identityAccepted (receiver image : Identity) : Prop :=
   image.seed = receiver.seed ∧ image.tilings = receiver.tilings ∧
   image.initialBank = receiver.initialBank ∧ image.weights = receiver.weights ∧
   image.learners = receiver.learners ∧ image.criterion = receiver.criterion ∧
-  image.policy = receiver.policy
+  image.policy = receiver.policy ∧ image.order = receiver.order
 
 /-- Componentwise acceptance is exactly complete representation equality. -/
 theorem identity_accepted_iff (receiver image : Identity) :

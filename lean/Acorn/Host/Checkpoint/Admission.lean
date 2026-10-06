@@ -8,9 +8,9 @@ import Acorn.Host.Checkpoint.Frame
 /-!
 # Receiver-bound checkpoint admission
 
-Parsing has no receiver write capability. Exact header identity, all durable
-numeric domains, assignments and tester state are admitted before the complete
-image reaches `Agent.restore`. The primary image contains raw words by design:
+Parsing has no receiver write capability. Exact header identity, including the step
+order the image was saved under, all durable numeric domains, assignments and tester
+state are admitted before the complete image reaches `Agent.restore`. The primary image contains raw words by design:
 installation applies each immutable receiving learner's projection.
 -/
 namespace Acorn.Checkpoint
@@ -30,7 +30,9 @@ inductive Error where
   | seed (found expected : UInt64)
   /-- Sensory tilings or initial bank capacity differs. -/
   | representation
-  /-- This profile's process state has no resumable format-17 image. -/
+  /-- The image was saved under a different step order than the receiver declares. -/
+  | order (found expected : UInt32)
+  /-- This profile's process state has no resumable format-18 image. -/
   | unsupportedPolicy
   /-- Length, checksum, assignment, tester or durable numeric admission failed. -/
   | corrupt
@@ -53,7 +55,22 @@ def admitHeader (construction : AgentConstruction) (header : Header) : Except Er
   if !construction.profile.checkpointSupported || header.supported != 1 then throw .unsupportedPolicy
   if header.tilings != construction.config.tilings || header.units.toNat != construction.config.units.count then
     throw .representation
+  if header.order != construction.order.tag then throw (.order header.order construction.order.tag)
   return gain
+
+/-- **An admitted header was saved under the receiver's step order.** For every
+construction and header, header admission succeeds only when the stored order word is
+the word of the receiver's order; `StepOrder.tag_injective` makes the two orders one. -/
+theorem admitHeader_order (construction : AgentConstruction) (header : Header) (gain : RewardRate)
+    (admitted : admitHeader construction header = .ok gain) :
+    header.order = construction.order.tag := by
+  unfold admitHeader at admitted
+  simp only [bind, Except.bind, pure, Except.pure, throw, throwThe, MonadExceptOf.throw]
+    at admitted
+  repeat' split at admitted
+  all_goals first
+    | (cases admitted; done)
+    | simp_all
 
 /-- Goals enter through their complete count relation, without repair or clamping. -/
 def admitGoal (words : GoalWords) : Option GoalTotals :=
@@ -116,7 +133,7 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
 /-- Decode a complete candidate under the immutable receiver context. -/
 @[noinline] def loadCandidate (construction : AgentConstruction) (bytes : List UInt8) :
     Except Error (AgentImage Grid.interface construction.config construction.criterion construction.dimension) := do
-  if bytes.length < 68 || bytes.take magic.length != magic then throw .notACheckpoint
+  if bytes.length < 72 || bytes.take magic.length != magic then throw .notACheckpoint
   let some (header, _) := headerCodec.decode (bytes.drop magic.length) | throw .notACheckpoint
   let _ ← admitHeader construction header
   let some payload := decode construction.dimension bytes | throw .corrupt

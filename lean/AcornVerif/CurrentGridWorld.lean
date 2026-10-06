@@ -294,7 +294,7 @@ theorem executed_callback {profile : FeatureProfile} {features : Features.Config
     (state : Agent Grid.interface profile features criterion dimension planning)
     (live : Live config) (observation : Host.Observation)
     (seen : live.world.observe = .ok observation) :
-    Agent.callbacks.act state observation live.carried =
+    (Agent.callbacks .learnThenAct).act state observation live.carried =
       (Host.Action.fromIndex ((executedAgent state).act state
           ((gridWorld config profile.taskMode).percept (some live))).1.val,
         ((executedAgent state).act state

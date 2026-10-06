@@ -200,7 +200,8 @@ structure PlanningResult (criterion : Criterion) (dimension : Dimension) where
   /-- Recently seen feature vectors and the search-control position among them. -/
   recent : RecentFeatures dimension
 
-/-- Required planning interface at a free boundary, before the meta snapshot. The
+/-- Required planning interface at a free boundary. Selection calls it before the meta
+snapshot; the step order that plans after the action calls it on the selected state. The
 last argument is the meta-controller's exploration rate, the rate of the nominal
 policy the backed-up value reads. -/
 abbrev PlanBoundary (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)

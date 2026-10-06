@@ -105,12 +105,14 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
     criterion, profile⟩
 
 /-- Full-agent callbacks bind every existing host protocol operation to its actual
-owner. The two parts of a step are the agent's own. -/
-def Agent.callbacks : Host.AgentCallbacks (Agent Grid.interface profile config criterion dimension planning)
-    (AgentObservation config dimension) where
+owner, for one step order. The two parts of a step are the agent's own parts of that
+order, so the order selects the agent's functions here and nowhere else. -/
+def Agent.callbacks (order : StepOrder) :
+    Host.AgentCallbacks (Agent Grid.interface profile config criterion dimension planning)
+      (AgentObservation config dimension) where
   Chosen := Chosen Grid.interface profile config criterion dimension planning
   choose state observation result :=
-    let chosen := state.choose
+    let chosen := state.choose order
       (Grid.percept profile.taskMode observation result.reward result.events.done)
     (Host.Action.fromIndex chosen.decision.action.val, chosen)
   learn := Chosen.learn
@@ -119,19 +121,30 @@ def Agent.callbacks : Host.AgentCallbacks (Agent Grid.interface profile config c
   capture := Agent.observe
   metrics := Agent.metrics
 
-/-- The host's whole step is the interface agent's step on the grid percept: the raw
-preceding reward and achievement event are passed unchanged, the host action is the
-chosen index of the interface's action set, and the two parts the host calls compose
-to the executed `Agent.act`. -/
+/-- Under the default order the host's whole step is the interface agent's step on the
+grid percept: the raw preceding reward and achievement event are passed unchanged, the
+host action is the chosen index of the interface's action set, and the two parts the
+host calls compose to the executed `Agent.act`. -/
 theorem Agent.callbacks_act (state : Agent Grid.interface profile config criterion dimension planning)
     (observation : Host.Observation) (result : Host.RawStepResult) :
-    Agent.callbacks.act state observation result =
+    (Agent.callbacks .learnThenAct).act state observation result =
       (Host.Action.fromIndex (state.act (Grid.percept profile.taskMode observation result.reward
           result.events.done)).2.action.val,
         (state.act (Grid.percept profile.taskMode observation result.reward
           result.events.done)).1) := by
   rw [Agent.act_parts]
   rfl
+
+/-- Under every order the host's whole step is the agent's whole step of that order on
+the grid percept. -/
+theorem Agent.callbacks_ordered (order : StepOrder)
+    (state : Agent Grid.interface profile config criterion dimension planning)
+    (observation : Host.Observation) (result : Host.RawStepResult) :
+    (Agent.callbacks order).act state observation result =
+      (Host.Action.fromIndex (state.actOrdered order (Grid.percept profile.taskMode observation
+          result.reward result.events.done)).2.action.val,
+        (state.actOrdered order (Grid.percept profile.taskMode observation result.reward
+          result.events.done)).1) := rfl
 
 /-- The words the grid agent's coder reads are the complete host word stream: the
 declared channels, then the feedback of the receiver's stored predictions. -/

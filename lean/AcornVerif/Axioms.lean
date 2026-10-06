@@ -3697,10 +3697,40 @@ info: 'Acorn.Handcrafted.Chosen.learn_rng' depends on axioms: [propext, Classica
 #print axioms Acorn.Handcrafted.Chosen.learn_rng
 
 /--
-info: 'Acorn.Host.DecisionInput.chooseOwned_commit' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Acorn.Host.DecisionInput.chooseOwned_release' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Acorn.Host.DecisionInput.chooseOwned_commit
+#print axioms Acorn.Host.DecisionInput.chooseOwned_release
+
+/--
+info: 'Acorn.Host.runAttemptSteps_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.runAttemptSteps_complete
+
+/--
+info: 'Acorn.Host.runReleasedSteps_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.runReleasedSteps_complete
+
+/--
+info: 'Acorn.Handcrafted.TemporalControl.atBoundary_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.TemporalControl.atBoundary_unplanned
+
+/--
+info: 'Acorn.Handcrafted.Agent.actOrdered_undrawn' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.actOrdered_undrawn
+
+/--
+info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.admitHeader_order
 
 /-- info: 'AcornVerif.Kernel.memory_parts' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
