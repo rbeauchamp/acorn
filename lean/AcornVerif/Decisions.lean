@@ -72,27 +72,95 @@ theorem lifetime_admit : Regula.ExecutableContract admitLifetime
        have illegal : ¬LegalSum .reward 0 ⟨0x7ff8000000000000⟩ := by decide
        simp [admitLifetime, admitSum, SumCount.admit, refusedLifetime, illegal]⟩ }⟩
 
+/-- The marker of an accepted input in a requirement with no kind: the acceptance predicate
+holds of the result of the function at one input. The ownership audit counts a marked fact
+only at the top level of a condition, with a standard predicate, about the function that the
+condition binds. `Acorn.Decisions` declares the same marker, because no module imports a
+registry. -/
+def Accepts.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := accepts result
+
+/-- The marker of a refused input: the acceptance predicate does not hold of the result of the
+function at one input. -/
+def Refuses.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ¬accepts result
+
+/-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
+def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
+
 /-! ## Certificate checkers -/
 
-/-- The replay checker accepts only an action list that shows its goal feasible from its
-world within its cap (`CurrentCertificates.replay_feasible`): some run of at least one and at
-most `cap` executed steps, from the world with the goal installed, ends in a world that
-satisfies the goal. It refuses the empty action list and every list longer than the cap. The
-world's type depends on the configuration, so the statement has no kind.
+/-- A goal is achieved at a position, with an inventory, after an elapsed time: the position
+is in the goal box of a reach goal, the inventory holds the count of a collect goal or owns
+the tool of a craft goal, and the elapsed time is at least the duration of a survive goal. -/
+def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inventory)
+    (elapsed : UInt64) : Prop :=
+  match goal with
+  | .reach target => CurrentGoals.InGoalBox target position
+  | .collect item count => count.toNat ≤ (inventory.count item).toNat
+  | .craft tool => inventory.owns tool = true
+  | .survive required => required.toNat ≤ elapsed.toNat
 
-**Not claimed:** completeness, or an accepted input. The checker refuses an action list that
-does not itself reach the goal, whether or not the goal is feasible. An acceptance fact needs
-an executed world step, whose value rests on the generated terrain; no theorem supplies one. -/
+/-- An observation that the completion predicate accepts is the observation of an achieved
+goal. -/
+private theorem satisfied_achieved (goal : Host.Goal) (position : Host.Position)
+    (inventory : Host.Inventory) (elapsed : UInt64)
+    (satisfied : (goal.observe position inventory elapsed).satisfied = true) :
+    Achieved goal position inventory elapsed := by
+  cases goal with
+  | reach target => exact (CurrentGoals.reach_satisfied_iff _ _ _ _).mp satisfied
+  | collect item count => exact (CurrentGoals.collect_satisfied_iff _ _ _ _ _).mp satisfied
+  | craft tool =>
+    rw [CurrentGoals.craft_satisfied] at satisfied
+    exact satisfied
+  | survive required => exact (CurrentGoals.survive_satisfied_iff _ _ _ _).mp satisfied
+
+/-- A goal is reached from a world within a cap: some run of at least one and at most `cap`
+executed steps, from the world with the goal installed, ends in a world in which the goal is
+achieved. The end is stated on the final position, inventory and elapsed time, and it names no
+completion test. The run is a run of the executed world step, which is the subject of the
+claim. -/
+def Reaches {config : Host.WorldConfig} (world : Host.World config) (goal : Host.Goal)
+    (cap : Nat) : Prop :=
+  ∃ (trace : List (Host.Action × Host.StepResult)) (final : Host.World config),
+    CurrentStep.Trace (world.setGoal goal) trace final ∧ 0 < trace.length ∧
+      trace.length ≤ cap ∧
+      Achieved goal final.body.position.position final.body.inventory
+        (final.time.toNat - final.goalStart.toNat).toUInt64
+
+/-- An accepted action list shows that its goal is reached. -/
+private theorem replay_reaches {config : Host.WorldConfig} {world : Host.World config}
+    {goal : Host.Goal} {cap : Nat} {actions : List Host.Action}
+    (accepted : Host.replayCertified world goal cap actions = true) : Reaches world goal cap := by
+  obtain ⟨trace, final, run, nonempty, short, satisfied⟩ :=
+    CurrentCertificates.replay_feasible accepted
+  have installed : final.goal = some goal := by
+    rw [CurrentCertificates.trace_goal run]
+    rfl
+  rw [CurrentGoals.goalSatisfied_eq final goal installed] at satisfied
+  exact ⟨trace, final, run, nonempty, short, satisfied_achieved _ _ _ _ satisfied⟩
+
+/-- The replay checker accepts only an action list that shows its goal reached from its world
+within its cap (`CurrentCertificates.replay_feasible` with the four goal-family theorems): some
+run of at least one and at most `cap` executed steps, from the world with the goal installed,
+ends in a world in which the goal is achieved. It refuses the empty action list and every list
+longer than the cap. In the empty world of one tile it accepts one wait for the goal to
+survive one step, and it refuses the empty list. The world's type depends on the
+configuration, so the statement has no kind.
+
+**Not claimed:** completeness. The checker refuses an action list that does not itself reach
+the goal, whether or not the goal can be reached. -/
 theorem replay_certified : Regula.ExecutableContract @Host.replayCertified (fun check =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
+    (∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
       (∀ actions : List Host.Action, @check config world goal cap actions = true →
-        CurrentCertificates.Feasible world goal cap) ∧
+        Reaches world goal cap) ∧
         @check config world goal cap [] = false ∧
         ∀ actions : List Host.Action, cap < actions.length →
-          @check config world goal cap actions = false) :=
-  ⟨fun _ _ _ cap =>
-    ⟨fun _ => CurrentCertificates.replay_feasible, by simp [Host.replayCertified],
-      fun actions longer => by simp [Host.replayCertified, Nat.not_le.mpr longer]⟩⟩
+          @check config world goal cap actions = false) ∧
+      Accepts (· = true) (@check quiet (Host.World.empty quiet) (.survive 1) 1 [.wait]) ∧
+      Refuses (· = true) (@check quiet (Host.World.empty quiet) (.survive 1) 1 [])) :=
+  ⟨⟨fun _ _ _ cap =>
+      ⟨fun _ => replay_reaches, by simp [Host.replayCertified],
+        fun actions longer => by simp [Host.replayCertified, Nat.not_le.mpr longer]⟩,
+    by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
 /-- The goal box of a target is unreachable from a start tile: after any run of steps and goal
 installations from a world whose body is on the start tile, the body is outside the goal box.
@@ -122,6 +190,16 @@ theorem region_blocked : Regula.ExecutableContract Host.regionBlocked (fun check
        ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩), []), ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩),
        by decide⟩ }⟩
 
+/-- A movement action and the direction it heads in, stated by their constructors. -/
+def Heads (action : Host.Action) (direction : Host.Direction) : Prop :=
+  (action = .north ∧ direction = .north) ∨ (action = .south ∧ direction = .south) ∨
+    (action = .east ∧ direction = .east) ∨ (action = .west ∧ direction = .west)
+
+/-- The direction table gives the direction that a movement action heads in. -/
+private theorem heads_direction {action : Host.Action} {direction : Host.Direction}
+    (heads : Heads action direction) : action.direction = some direction := by
+  rcases heads with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rfl
+
 /-- No stance of a box with one tile is accepted: no tile of that box is behind the stance. -/
 private theorem single_refused {config : Host.WorldConfig} (single : config.side = 1)
     (stance : Host.BoxPosition config) (direction : Host.Direction) (item : Host.Item) :
@@ -141,7 +219,9 @@ private theorem single_refused {config : Host.WorldConfig} (single : config.side
 /-- The stance checker accepts only a stance from which, in every world, a paid harvest
 yields the item (`CurrentCertificates.stance_harvest`), which a paid move from the tile behind
 it enters facing the resource (`stance_enter`), and whose tile behind is in the box and
-enterable in every world (`stance_approach`, `walkable_enterable`). A wood stance needs its
+enterable in every world (`stance_approach`, `walkable_enterable`). The tile behind and the
+move are stated by coordinate equations and by the constructors of the action and the
+direction, with no checked translation and no direction table. A wood stance needs its
 tree standing. It refuses every stance of a box with one tile, because no tile of that box is
 behind the stance. The stance's type depends on the configuration, so the statement has no
 kind.
@@ -161,40 +241,50 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
               next.body.inventory = world.body.inventory.add item
                 (if item == .wood && world.body.inventory.axe then 3 else 1)) ∧
         (∀ (world next : Host.World config) (action : Host.Action) (events : Host.StepResult),
-          action.direction = some direction →
-          world.body.position.position.translate direction.delta.1 direction.delta.2 =
-            some stance.position →
+          Heads action direction →
+          stance.position.x.val =
+            world.body.position.position.x.val + direction.delta.1 →
+          stance.position.y.val =
+            world.body.position.position.y.val + direction.delta.2 →
           world.step action = .ok (next, events) → events.exhausted = false →
             next.body.position = stance ∧ next.body.facing = direction) ∧
         ∃ approach : Host.BoxPosition config,
-          approach.position.translate direction.delta.1 direction.delta.2 =
-            some stance.position ∧
+          stance.position.x.val = approach.position.x.val + direction.delta.1 ∧
+            stance.position.y.val = approach.position.y.val + direction.delta.2 ∧
             ∀ world : Host.World config, world.enterable approach.position = .ok true) ∧
         (config.side = 1 → check config stance direction item = false)) :=
   ⟨fun config stance direction item =>
     ⟨fun accepted =>
-      ⟨CurrentCertificates.stance_harvest accepted, CurrentCertificates.stance_enter accepted, by
+      ⟨CurrentCertificates.stance_harvest accepted,
+        fun world next action events heads column row =>
+          CurrentCertificates.stance_enter accepted world next action events
+            (heads_direction heads)
+            (CurrentCertificates.translate_of_eq _ _ _ _ column row), by
         obtain ⟨approach, moved, walkable⟩ := CurrentCertificates.stance_approach accepted
-        exact ⟨approach, moved, fun world =>
+        obtain ⟨column, row⟩ := CurrentCertificates.translate_some _ _ _ _ moved
+        exact ⟨approach, column, row, fun world =>
           CurrentCertificates.walkable_enterable world approach.position walkable⟩⟩,
       fun single => single_refused single stance direction item⟩⟩
 
-/-- Replay checking returns a certificate only for an action list that shows its goal
-feasible (`CurrentCertificates.replay_feasible`), and it refuses the empty action list. The
-statement names the feasibility relation and not the Boolean checker that it calls.
-
-**Not claimed:** an accepted input. An acceptance fact needs an executed world step, whose
-value rests on the generated terrain; no theorem supplies one. -/
+/-- Replay checking returns a certificate only for an action list that shows its goal reached
+(`replay_certified` states the relation), and it refuses the empty action list. In the empty
+world of one tile it returns a certificate for one wait and the goal to survive one step, and
+none for the empty list. The statement names the relation and not the Boolean checker that the
+constructor calls. -/
 theorem replay_check : Regula.ExecutableContract @Host.ReplayCertificate.check (fun check =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
+    (∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
       (∀ actions : List Host.Action, (@check config world goal cap actions).isSome = true →
-        CurrentCertificates.Feasible world goal cap) ∧
-        @check config world goal cap [] = none) :=
-  ⟨fun _ world goal cap =>
-    ⟨fun actions present => by
-        obtain ⟨certificate, -⟩ := Option.isSome_iff_exists.mp present
-        exact CurrentCertificates.replay_feasible certificate.accepted,
-      by simp [Host.ReplayCertificate.check, Host.replayCertified]⟩⟩
+        Reaches world goal cap) ∧
+        @check config world goal cap [] = none) ∧
+      Accepts (·.isSome = true)
+        (@check quiet (Host.World.empty quiet) (.survive 1) 1 [.wait]) ∧
+      Refuses (·.isSome = true) (@check quiet (Host.World.empty quiet) (.survive 1) 1 [])) :=
+  ⟨⟨fun _ world goal cap =>
+      ⟨fun actions present => by
+          obtain ⟨certificate, -⟩ := Option.isSome_iff_exists.mp present
+          exact replay_reaches certificate.accepted,
+        by simp [Host.ReplayCertificate.check, Host.replayCertified]⟩,
+    by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
 /-- Blocked checking returns a certificate only for a region that shows the goal box
 unreachable from the start tile (`CurrentCertificates.blocked_outside`); it refuses a region
@@ -340,17 +430,6 @@ theorem position_translate : Regula.ExecutableContract Host.Position.translate (
     ⟨((⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩, 0), 0), by decide⟩
     ⟨((⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩, 1), 0), by decide⟩⟩
 
-/-- A goal is achieved at a position, with an inventory, after an elapsed time: the position
-is in the goal box of a reach goal, the inventory holds the count of a collect goal or owns
-the tool of a craft goal, and the elapsed time is at least the duration of a survive goal. -/
-def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inventory)
-    (elapsed : UInt64) : Prop :=
-  match goal with
-  | .reach target => CurrentGoals.InGoalBox target position
-  | .collect item count => count.toNat ≤ (inventory.count item).toNat
-  | .craft tool => inventory.owns tool = true
-  | .survive required => required.toNat ≤ elapsed.toNat
-
 /-- The completion predicate accepts the observation that `Goal.observe` produces for every
 achieved goal (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_iff`,
 `survive_satisfied_iff`, `craft_satisfied`), and it refuses the observation of no goal.
@@ -490,6 +569,107 @@ theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fu
       fun tool installed => by
         rw [CurrentGoals.goalSatisfied_eq world _ installed]
         exact CurrentGoals.craft_satisfied _ _ _ _⟩⟩
+
+/-- An action replay returns a world exactly when a run of the executed world step over those
+actions ends in that world (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). In the
+empty world of one tile the replay of one wait returns a world. The world step is the subject
+of the claim. The world's type depends on the configuration, so the statement has no kind. -/
+theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (fun advance =>
+    (∀ (config : Host.WorldConfig) (world final : Host.World config)
+      (actions : List Host.Action),
+      @advance config world actions = .ok final ↔
+        ∃ trace, CurrentStep.Trace world trace final ∧ trace.map (·.1) = actions) ∧
+      Accepts (·.isOk = true) (@advance quiet (Host.World.empty quiet) [.wait])) :=
+  ⟨⟨fun _ world final actions =>
+      ⟨CurrentStep.actions_trace world final actions,
+        fun ⟨_, run, same⟩ => same ▸ CurrentStep.trace_actions run⟩,
+    by unfold Accepts; decide +kernel⟩⟩
+
+/-- What the readers of the terrain do with its result: enterability is the terrain result
+mapped through static passability with the body's boat, so a terrain refusal is the only
+refusal of an entry (`CurrentStep.enterable_static`), and no successful step moves the body
+onto a tile whose terrain is a mountain, or water without a boat (`CurrentStep.step_terrain`).
+
+The statement names `Host.World.enterable` and `Host.World.step`, which are defined through
+the terrain. It is a statement about those readers, and it is not independent of the terrain
+generator.
+
+**Not claimed:** the terrain of any tile, an accepted input or a refused input. The terrain
+is the result of binary32 noise arithmetic, and no theorem states the terrain of a tile. -/
+theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
+    ∀ (config : Host.WorldConfig),
+      (∀ (world : Host.World config) (position : Host.Position),
+        world.enterable position =
+          (terrain position config.raw.seed config.raw.baseScale).map
+            (fun base => CurrentStep.passable base world.body.inventory.boat)) ∧
+        ∀ (world next : Host.World config) (action : Host.Action) (events : Host.StepResult),
+          world.step action = .ok (next, events) →
+          next.body.position ≠ world.body.position →
+            terrain next.body.position.position config.raw.seed config.raw.baseScale ≠
+                .ok .mountain ∧
+              (terrain next.body.position.position config.raw.seed config.raw.baseScale =
+                  .ok .water → world.body.inventory.boat = true)) :=
+  ⟨fun _ => ⟨CurrentStep.enterable_static, CurrentStep.step_terrain⟩⟩
+
+/-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
+with the same refusal. The terrain generator is the subject of the claim. The world's type
+depends on the configuration, so the statement has no kind.
+
+**Not claimed:** the kind of an accepted tile, an accepted input or a refused input.
+`CurrentStep.enterable_static` states what an entry reads from it. -/
+theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
+    ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position)
+      (refusal : Host.WorldError),
+      @tileKind config world position = .error refusal ↔
+        Host.terrain position config.raw.seed config.raw.baseScale = .error refusal) :=
+  ⟨fun config world position refusal => by
+    unfold Host.World.tileKind
+    cases Host.terrain position config.raw.seed config.raw.baseScale with
+    | error other => simp [bind, Except.bind]
+    | ok base =>
+      simp only [bind, Except.bind, pure, Except.pure, reduceCtorEq, iff_false]
+      repeat' split
+      all_goals simp⟩
+
+/-- A paid action that succeeds either found the energy short, rested and set the exhausted
+flag, or spent the cost of the action with the exhausted flag clear
+(`CurrentStep.payAndAct_outcome`). The world's type depends on the configuration, so the
+statement has no kind.
+
+**Not claimed:** the effect of the action on the body. `CurrentStep.payAndAct_outcome` states
+it through the relation `CurrentStep.Performed`. -/
+theorem pay_and_act : Regula.ExecutableContract @Host.payAndAct (fun pay =>
+    ∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
+      (active : Host.ActionChange config), @pay config world action = .ok active →
+        ∃ night,
+          (world.body.energy.spend (action.energyCost night) = none ∧
+            active.body = { world.body with energy := world.body.energy.gain .rest } ∧
+            active.events.exhausted = true) ∨
+          (∃ energy, world.body.energy.spend (action.energyCost night) = some energy ∧
+            active.events.exhausted = false)) :=
+  ⟨fun _ world action active paid => by
+    obtain ⟨night, short | ⟨energy, spent, -, awake⟩⟩ :=
+      CurrentStep.payAndAct_outcome world action active paid
+    · exact ⟨night, .inl short⟩
+    · exact ⟨night, .inr ⟨energy, spent, awake⟩⟩⟩
+
+/-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
+body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
+tile and the move are stated by coordinate equations and constructors. Enterability is the
+executed test of the world, which is the subject of that hypothesis. The world's type depends
+on the configuration, so the statement has no kind. -/
+theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perform =>
+    ∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
+      (direction : Host.Direction) (position : Host.BoxPosition config)
+      (active : Host.ActionChange config), Heads action direction →
+      position.position.x.val = world.body.position.position.x.val + direction.delta.1 →
+      position.position.y.val = world.body.position.position.y.val + direction.delta.2 →
+      world.enterable position.position = .ok true →
+      @perform config world action = .ok active →
+        active.body.position = position ∧ active.body.facing = direction) :=
+  ⟨fun _ world action direction position active heads column row enter performed =>
+    CurrentCertificates.perform_move world action direction position (heads_direction heads)
+      (CurrentCertificates.translate_of_eq _ _ _ _ column row) enter active performed⟩
 
 /-! ## Learner admissions -/
 

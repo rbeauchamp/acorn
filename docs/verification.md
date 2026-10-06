@@ -324,35 +324,39 @@ class or in two fails verification, and so does a table entry that is not valid
 on its own. A new verdict-shaped definition therefore cannot arrive unlisted,
 and a contract cannot be removed without an entry in the table. The domain is
 every definition or opaque constant with a verdict-shaped type, private ones,
-instances and field defaults included. A constant leaves the domain only by a
-certificate that the environment gives for that constant: the matcher data, the
-auxiliary-recursor and no-confusion data, the kernel's partial or unsafe flag of
-a recursion companion, and the equation data of the recursion compilers. Neither
-a name nor the source range that Lean records decides: a range is metadata, a
-written field default has none and a derived comparison has one.
+instances and field defaults included. A constant leaves the domain only as a
+recursion companion of a parent declaration: the parent has equation data of a
+recursion compiler in the environment, the name is the one that compiler derives
+from the parent, and the companion has the parent's signature or is applied by
+the parent's body. Neither a name nor a flag nor the source range that Lean
+records decides.
 
-Five reasons are computed, and the audit refuses an entry whose fact is false:
-no written theorem of the maintained libraries names the definition in its
-statement, which is the absence of a direct reference and nothing more; that,
-and its body applies a registered decision; that, and it belongs to the
-certificate search module; it is the comparison of a derived instance, inside
-the declaration of the type it compares; it is the default value of a structure
-field with no argument of its own; it belongs to the proof library. Three
-reasons are judgments that a
-definition which theorems do mention is not a decision: its result is the
-outcome of a state transition, a selection or lookup, or a Boolean property of
-admitted state. The test is who reads the result, and for what: a definition on
-whose result a caller refuses, suppresses or admits, so that an external action,
-a published value or a stored record depends on it, is a decision and has a
-contract.
-Each judgment names a standing theorem, and the audit checks that it is a
-written theorem of a maintained module whose statement mentions the definition.
-The audit prints the count of each class and of each reason, and two theorems of
-the inventory state how many entries are computed and how many are judgments.
-The inventory establishes that every such definition has been classified and
-that each computed fact holds; whether a judgment is right is review. The
-inventory's own decision is a pure function with a theorem that it accepts
-exactly a definition in exactly one class. `Acorn.Decisions`
+The audit computes the fact behind each reason and refuses an entry whose fact
+is false. For six of the reasons no written theorem of the maintained
+libraries names the definition in its statement, or another computed fact holds:
+no such theorem, which is the absence of a direct reference and nothing more;
+that, and its body applies a registered decision; that, and it belongs to the
+certificate search module and each caller outside that module applies a
+registered decision; it is the comparison of a derived instance, inside the
+declaration of the type it compares; it is the default value of a structure
+field that is not a function; it belongs to the proof library. One more reason
+is for a definition that a written theorem does name and that has no contract.
+Its entry gives one such theorem, and the audit checks that theorem and requires
+that no implementation of a registered decision reaches the definition through
+definition bodies. A definition that a registered decision reaches has a
+contract. The inventory makes no statement about what a caller does with the
+result of a definition in this class. Two facts rest in part on a position and
+not on a recorded relationship: that a comparison is derived is inferred from
+the recorded declaration ranges, and the proof library is identified by its
+modules. The audit prints the count of each class and of each reason, and two
+theorems of the inventory state how many entries have a standing theorem and how
+many have none. The audit also lists the decision functions whose contracts
+carry no accepted input or no refused input. A kind carries its witnesses in its
+type, and a requirement with no kind carries one as a marked closed fact at the
+top level of its condition. The inventory establishes that every such definition
+has been classified and that each computed fact holds. The inventory's own
+decision is a pure function with a theorem that it accepts exactly a definition
+in exactly one class. `Acorn.Decisions`
 cannot register a function of another library, such as a NativeApp parser. No
 kind says that a specification is the intended one. `Acorn.Decisions` belongs to
 the Acorn library

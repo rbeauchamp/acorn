@@ -97,8 +97,8 @@ ones, instances and field defaults included. A constant leaves it only by a cert
 the environment gives for that constant, such as the matcher data or the equation data of a
 recursion compiler; neither a name nor a recorded source range decides.
 
-The reasons are the constructors of `AcornDecisionInventory.Reason`. Five are computed: the
-audit checks the stated fact for every entry and refuses an entry whose fact is false.
+The reasons are the constructors of `AcornDecisionInventory.Reason`. The audit computes the
+fact behind each reason and refuses an entry whose fact is false.
 
 * `unproved`: no written theorem of the maintained libraries names the definition in its
   statement. The fact is the absence of a direct reference and nothing more. A contract of a
@@ -116,27 +116,25 @@ audit checks the stated fact for every entry and refuses an entry whose fact is 
   a derived interval, `Lifetime.SumCount.admit` is the body of `Checkpoint.admitSum`, the
   viewer's line emitters apply `wireText` and `sseLine`, and `Host.CertificateDriver.execute`
   refuses when `Host.WorldConfig.standard` or world generation does.
-* `proposal`: the fact of `unproved`, and the definition belongs to `Host.CertificateSearch`.
-  A proposal means nothing until its registered checker accepts it.
-* `derived`: the comparison of an instance that a `deriving` clause generated.
+* `proposal`: the fact of `unproved`, the definition belongs to `Host.CertificateSearch`, and
+  each caller outside that module applies a registered decision.
+* `derived`: the comparison of an instance that a `deriving` clause generated. That it is
+  generated is inferred from the recorded declaration ranges.
+* `default`: the default value of a structure field that is not a function, which is stored
+  data as the field is.
 * `model`: a definition of the proof library `AcornVerif`, which has no executable. Its
   theorems relate it to the executing definitions, and no claim rests on running it. The
   interaction kernel and the world classes (`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state
   worlds, agents, goals and bounds as structures and propositions, so they declare no
   verdict-shaped definition.
-
-Three reasons are judgments: `transition`, `selection` and `predicate` say that a definition
-which theorems do mention is not a decision. Its result is the outcome of a state transition
-(`Host.World.step`, `Host.Attempt.tick`, `Handcrafted.TemporalControl.step`), a selection or a
-lookup that can be absent (`Features.RankedFeatures.position`, `Host.Action.direction`), or a
-Boolean property of state the library has already admitted (`Features.Lifecycle.eligible`,
-`Features.Occupancy.free`). The test is who reads the result, and for what: a definition on
-whose result a caller refuses, suppresses or admits, so that an external action, a published
-value or a stored record depends on it, is a decision and has a contract.
-`AcornDecisionInventory`
-states the test and lists the borderline cases. Each judgment names a standing theorem, and
-the audit checks that it is a written theorem of a maintained module whose statement mentions
-the definition; `AcornDecisionInventory.judged_count` states how many judgments there are.
+* `named`: a written theorem names the definition, no contract states it, and no
+  implementation of a registered decision reaches it through definition bodies. The entry
+  gives one such theorem, which the audit checks. These are transitions of the world, of the
+  attempt and campaign runners, of the temporal controller and of the agent prefix, and
+  selections and predicates of the feature library. The inventory makes no statement about
+  what a caller does with the result of such a definition. A definition that a registered
+  decision reaches has a contract; the last section of this module states those.
+  `AcornDecisionInventory.named_count` states how many entries the class has.
 
 What the inventory does not hold:
 
@@ -190,6 +188,22 @@ private theorem dite_isSome.{u} {α : Type u} {condition : Prop} [Decidable cond
     (if holds : condition then some (accept holds) else none).isSome = true ↔ condition := by
   split <;> simp_all
 
+/-- The marker of an accepted input in a requirement with no kind: the acceptance predicate
+holds of the result of the function at one input. The ownership audit counts a marked fact
+only at the top level of a condition, where it is below no quantifier and no hypothesis, with
+a standard predicate, about the function that the condition binds. -/
+def Accepts.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := accepts result
+
+/-- The marker of a refused input: the acceptance predicate does not hold of the result of the
+function at one input. -/
+def Refuses.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ¬accepts result
+
+/-- An admission that is one test with a computed value accepts exactly when the tested
+condition holds. -/
+private theorem ite_isSome.{u} {α : Type u} {condition : Prop} [Decidable condition]
+    (value : α) : (if condition then some value else none).isSome = true ↔ condition := by
+  split <;> simp_all
+
 /-! ## Machine comparisons -/
 
 /-- NaN classification accepts exactly the words whose magnitude exceeds infinity's
@@ -205,6 +219,11 @@ theorem binary32_nan : Regula.ExecutableContract Binary32.isNaN
 
 attribute [regula_decision] Binary32.isNaN
 
+/-- A binary32 word is not a NaN exactly when its magnitude does not exceed infinity's. -/
+private theorem ordered32 (word : Binary32) :
+    word.isNaN = false ↔ word.magnitude ≤ 0x7f800000 := by
+  rw [Binary32.isNaN_eq_magnitude, decide_eq_false_iff_not, Nat.not_lt]
+
 /-- Zero classification accepts exactly the words with signed key zero
 (`Binary32.isZero_eq_key`). -/
 theorem binary32_zero : Regula.ExecutableContract Binary32.isZero
@@ -218,49 +237,55 @@ theorem binary32_zero : Regula.ExecutableContract Binary32.isZero
 
 attribute [regula_decision] Binary32.isZero
 
-/-- Strict word comparison accepts exactly two non-NaN words in strict signed-key order
+/-- Strict word comparison accepts exactly two words with a magnitude of infinity's or less in
+strict signed-key order
 (`Binary32.less_eq_key`). -/
 theorem binary32_less : Regula.ExecutableContract Binary32.less (fun compare =>
     Regula.Decides (· = true)
       (fun words : Binary32 × Binary32 =>
-        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key < words.2.key)
+        words.1.magnitude ≤ 0x7f800000 ∧ words.2.magnitude ≤ 0x7f800000 ∧
+          words.1.key < words.2.key)
       (Function.uncurry compare)) :=
   ⟨decides
     (fun words => by
       show words.1.less words.2 = true ↔ _
-      rw [Binary32.less_eq_key]
+      rw [Binary32.less_eq_key, ← ordered32, ← ordered32]
       simp [and_assoc])
     ⟨(.zero, ⟨0x3f800000⟩), by decide⟩ ⟨(.zero, .zero), by decide⟩⟩
 
 attribute [regula_decision] Binary32.less
 
-/-- Non-strict word comparison accepts exactly two non-NaN words in signed-key order
+/-- Non-strict word comparison accepts exactly two words with a magnitude of infinity's or less
+in signed-key order
 (`Binary32.lessOrEqual_eq_key`). -/
 theorem binary32_less_or_equal : Regula.ExecutableContract Binary32.lessOrEqual (fun compare =>
     Regula.Decides (· = true)
       (fun words : Binary32 × Binary32 =>
-        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key ≤ words.2.key)
+        words.1.magnitude ≤ 0x7f800000 ∧ words.2.magnitude ≤ 0x7f800000 ∧
+          words.1.key ≤ words.2.key)
       (Function.uncurry compare)) :=
   ⟨decides
     (fun words => by
       show words.1.lessOrEqual words.2 = true ↔ _
-      rw [Binary32.lessOrEqual_eq_key]
+      rw [Binary32.lessOrEqual_eq_key, ← ordered32, ← ordered32]
       simp [and_assoc])
     ⟨(.zero, .zero), by decide⟩ ⟨(⟨0x3f800000⟩, .zero), by decide⟩⟩
 
 attribute [regula_decision] Binary32.lessOrEqual
 
-/-- Numeric word equality accepts exactly two non-NaN words with equal signed keys
+/-- Numeric word equality accepts exactly two words with a magnitude of infinity's or less and
+equal signed keys
 (`Binary32.numericallyEqual_eq_key`). -/
 theorem binary32_equal : Regula.ExecutableContract Binary32.numericallyEqual (fun compare =>
     Regula.Decides (· = true)
       (fun words : Binary32 × Binary32 =>
-        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key = words.2.key)
+        words.1.magnitude ≤ 0x7f800000 ∧ words.2.magnitude ≤ 0x7f800000 ∧
+          words.1.key = words.2.key)
       (Function.uncurry compare)) :=
   ⟨decides
     (fun words => by
       show words.1.numericallyEqual words.2 = true ↔ _
-      rw [Binary32.numericallyEqual_eq_key]
+      rw [Binary32.numericallyEqual_eq_key, ← ordered32, ← ordered32]
       simp [and_assoc])
     ⟨(.zero, .zero), by decide⟩ ⟨(⟨0x3f800000⟩, .zero), by decide⟩⟩
 
@@ -290,17 +315,25 @@ theorem binary64_nan : Regula.ExecutableContract Binary64.isNaN
 
 attribute [regula_decision] Binary64.isNaN
 
-/-- Strict binary64 comparison accepts exactly two non-NaN words in strict signed-key order
-(`Binary64.less_eq_key`). -/
+/-- A binary64 word is not a NaN exactly when its magnitude does not exceed infinity's. -/
+private theorem ordered64 (word : Binary64) :
+    word.isNaN = false ↔ word.magnitude ≤ 0x7ff0000000000000 := by
+  have classified : word.isNaN = true ↔ word.magnitude > 0x7ff0000000000000 :=
+    decide_eq_true_iff
+  rw [← Bool.not_eq_true, classified, Nat.not_lt]
+
+/-- Strict binary64 comparison accepts exactly two words with a magnitude of infinity's or
+less in strict signed-key order (`Binary64.less_eq_key`). -/
 theorem binary64_less : Regula.ExecutableContract Binary64.less (fun compare =>
     Regula.Decides (· = true)
       (fun words : Binary64 × Binary64 =>
-        words.1.isNaN = false ∧ words.2.isNaN = false ∧ words.1.key < words.2.key)
+        words.1.magnitude ≤ 0x7ff0000000000000 ∧ words.2.magnitude ≤ 0x7ff0000000000000 ∧
+          words.1.key < words.2.key)
       (Function.uncurry compare)) :=
   ⟨decides
     (fun words => by
       show words.1.less words.2 = true ↔ _
-      rw [Binary64.less_eq_key]
+      rw [Binary64.less_eq_key, ← ordered64, ← ordered64]
       simp [and_assoc])
     ⟨(⟨0⟩, ⟨0x3ff0000000000000⟩), by decide⟩ ⟨(⟨0⟩, ⟨0⟩), by decide⟩⟩
 
@@ -439,6 +472,10 @@ def Resumable (profile : FeatureProfile) : Prop :=
     profile.subtasks = .learned
 
 /-- The executed resumable-profile test accepts exactly a resumable profile. -/
+instance (profile : FeatureProfile) : Decidable (Resumable profile) := by
+  unfold Resumable
+  infer_instance
+
 private theorem resumable_iff (profile : FeatureProfile) :
     profile.checkpointSupported = true ↔ Resumable profile :=
   FeatureProfile.checkpoint_iff profile
@@ -494,7 +531,7 @@ def HeaderMatches (input : AgentConstruction × Checkpoint.Header) : Prop :=
     input.2.capacity = input.1.dimension.capacity.toUInt32 ∧
     input.2.learners = Checkpoint.primaryCount.toUInt32 ∧
     input.2.seed = input.1.config.seed ∧
-    input.1.profile.checkpointSupported = true ∧
+    Resumable input.1.profile ∧
     input.2.supported = 1 ∧
     input.2.tilings = input.1.config.tilings ∧
     input.2.units.toNat = input.1.config.units.count
@@ -504,6 +541,7 @@ private theorem admitHeader_isOk (construction : AgentConstruction) (header : Ch
     (Checkpoint.admitHeader construction header).isOk = true ↔
       HeaderMatches (construction, header) := by
   unfold HeaderMatches
+  rw [← resumable_iff]
   by_cases version : header.version = Checkpoint.formatVersion
   case neg => simp [Checkpoint.admitHeader, Except.isOk, Except.toBool, bind, Except.bind, version]
   by_cases criterion : header.criterion = construction.criterion.tag.toUInt32
@@ -695,20 +733,40 @@ theorem energy_spend : Regula.ExecutableContract Host.Energy.spend (fun spend =>
 
 attribute [regula_decision] Host.Energy.spend
 
-/-- The raw energy cost is accepted exactly when the product fits 32 bits
-(`Host.Action.rawEnergyCost_exact`). -/
+/-- The derived comparison of an action with the harvest action accepts exactly the harvest
+action. -/
+private theorem harvest_beq (action : Host.Action) :
+    (action == .harvest) = true ↔ action = .harvest := by
+  cases action <;>
+    first
+    | exact ⟨fun _ => rfl, fun _ => rfl⟩
+    | exact ⟨fun same => absurd same (by decide), fun same => nomatch same⟩
+
+/-- The raw energy cost is accepted exactly when the product fits 32 bits: the multiplier
+times the harvest cost for the harvest action, and the multiplier for every other action
+(`Host.Action.rawEnergyCost_exact`). The specification states the action by constructor
+equality and names no comparison. -/
 theorem raw_energy_cost : Regula.ExecutableContract Host.Action.rawEnergyCost (fun cost =>
     Regula.Decides (·.isSome = true)
       (fun input : Host.Action × UInt32 =>
-        (if input.1 == .harvest then Acorn.FeatureConstants.harvestCost else 1) *
-          input.2.toNat < 2 ^ 32)
+        (input.1 = .harvest → Acorn.FeatureConstants.harvestCost * input.2.toNat < 2 ^ 32) ∧
+          (input.1 ≠ .harvest → input.2.toNat < 2 ^ 32))
       (Function.uncurry cost)) :=
   ⟨decides
-    (fun input => by
-      show (Host.Action.rawEnergyCost input.1 input.2).isSome = true ↔ _
+    (fun ⟨action, multiplier⟩ => by
+      show (Host.Action.rawEnergyCost action multiplier).isSome = true ↔ _
       unfold Host.Action.rawEnergyCost
       dsimp only
-      split <;> simp_all)
+      rw [ite_isSome]
+      by_cases harvest : action = .harvest
+      · rw [ite_eq_left ((harvest_beq action).mpr harvest)]
+        exact ⟨fun fits => ⟨fun _ => fits, fun differs => absurd harvest differs⟩,
+          fun both => both.1 harvest⟩
+      · have test : ¬(action == .harvest) = true := fun same =>
+          harvest ((harvest_beq action).mp same)
+        rw [ite_eq_right test, Nat.one_mul]
+        exact ⟨fun fits => ⟨fun same => absurd same harvest, fun _ => fits⟩,
+          fun both => both.2 harvest⟩)
     ⟨(.wait, 0), by decide⟩ ⟨(.harvest, 0xffffffff), by decide⟩⟩
 
 attribute [regula_decision] Host.Action.rawEnergyCost
@@ -1897,13 +1955,37 @@ theorem campaign_admit : Regula.ExecutableContract Host.CampaignPlan.admit (fun 
       · simp [steps, productive, Except.isOk, Except.toBool]
     · simp [steps, Except.isOk, Except.toBool]⟩
 
-/-- The distinctness test accepts exactly the assignment tables in which no two slots hold the
-same unit (`Assignment.distinct_iff`). -/
+/-- An objective has an identity exactly when it is a selected unit, and the identity is that
+unit. -/
+private theorem identity_selected {config : Features.Config} (assignment : Assignment config)
+    (unit : Fin config.units.count) :
+    assignment.identity = some unit ↔ ∃ bonus, assignment = .selected unit bonus := by
+  cases assignment with
+  | neutral => simp [Assignment.identity]
+  | selected other bonus =>
+    simp only [Assignment.identity, Option.some.injEq, Assignment.selected.injEq]
+    exact ⟨fun same => ⟨bonus, same, rfl⟩, fun ⟨_, same, _⟩ => same⟩
+
+/-- The distinctness test accepts exactly the assignment tables in which no two slots hold a
+selected objective of the same unit (`Assignment.distinct_iff`). The specification states the
+objectives by their constructor and names no identity reader. -/
 theorem assignment_distinct : Regula.ExecutableContract @Assignment.distinct (fun test =>
     ∀ (config : Features.Config)
       (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount),
-      @test config table = true ↔ Assignment.Distinct table) :=
-  ⟨@Assignment.distinct_iff⟩
+      @test config table = true ↔
+        ∀ (left right : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count)
+          (first second : Bonus), table[left.val] = .selected unit first →
+            table[right.val] = .selected unit second → left = right) :=
+  ⟨fun config table => by
+    rw [Assignment.distinct_iff]
+    constructor
+    · intro distinct left right unit first second held other
+      exact distinct left right unit ((identity_selected _ _).mpr ⟨first, held⟩)
+        ((identity_selected _ _).mpr ⟨second, other⟩)
+    · intro distinct left right unit held other
+      obtain ⟨first, selected⟩ := (identity_selected _ _).mp held
+      obtain ⟨second, chosen⟩ := (identity_selected _ _).mp other
+      exact distinct left right unit first second selected chosen⟩
 
 /-- Harvest-key admission accepts exactly the positions of the receiving box extended by one
 tile on every side. -/
@@ -2298,5 +2380,194 @@ theorem schema_covers : Regula.ExecutableContract @schemaCovers (fun covers =>
           (entry.1, shape) ∈ schema ∧ fits entry.1 entry.2 shape = true) ∧
         @covers α fits [] schema = true) :=
   ⟨fun _ fits table schema => ⟨schemaCovers_sound fits table schema, rfl⟩⟩
+
+/-! ## Definitions that a registered decision reads
+
+A registered decision reaches each definition below, and a theorem names it. The statement
+about each is exact on stored data, or it is the theorem about it. -/
+
+/-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
+def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
+
+/-- The identity of an objective is absent for the neutral objective and is the unit of a
+selected one. The objective's type depends on the bank configuration, so the statement is a
+requirement with no kind. -/
+theorem assignment_identity : Regula.ExecutableContract @Assignment.identity (fun identity =>
+    ∀ (config : Features.Config),
+      @identity config .neutral = none ∧
+        ∀ (unit : Fin config.units.count) (bonus : Bonus),
+          @identity config (.selected unit bonus) = some unit) :=
+  ⟨fun _ => ⟨rfl, fun _ _ => rfl⟩⟩
+
+/-- A total admits one more sample exactly while its count is below the count limit, and an
+admitted write adds one to the count and the sample to the sum (`Agreement.Total.observe_exact`).
+It admits a sample into the empty total and refuses one at the count limit. The total's type
+depends on the envelope, so the statement is a requirement with no kind. -/
+theorem total_observe : Regula.ExecutableContract @Agreement.Total.observe (fun observe =>
+    (∀ (envelope : Nat) (total : Agreement.Total envelope) (sample : Fin (envelope ^ 2 + 1)),
+      ((@observe envelope total sample).isSome = true ↔
+        total.count.val < Agreement.countLimit) ∧
+        ∀ next : Agreement.Total envelope, @observe envelope total sample = some next →
+          next.count.val = total.count.val + 1 ∧ next.sum = total.sum + sample.val) ∧
+      Accepts (·.isSome = true) (@observe 0 (Agreement.Total.empty 0) 0) ∧
+      Refuses (·.isSome = true)
+        (@observe 0 ⟨⟨Agreement.countLimit, Nat.lt_succ_self _⟩, 0, Nat.zero_le _⟩ 0)) :=
+  ⟨⟨fun envelope total sample =>
+      ⟨by
+        unfold Agreement.Total.observe
+        rw [dite_isSome]
+        exact Nat.add_lt_add_iff_right,
+      fun next written => Agreement.Total.observe_exact total next sample written⟩,
+    by unfold Accepts; decide, by unfold Refuses; decide⟩⟩
+
+/-- The direction table gives a direction exactly for the four movement actions. -/
+theorem action_direction : Regula.ExecutableContract Host.Action.direction
+    (Regula.Decides (·.isSome = true) (fun action : Host.Action =>
+      action = .north ∨ action = .south ∨ action = .east ∨ action = .west)) :=
+  ⟨decides (fun action => by cases action <;> simp [Host.Action.direction])
+    ⟨.north, .inl rfl⟩ ⟨.wait, by simp⟩⟩
+
+attribute [regula_decision] Host.Action.direction
+
+/-- A successful world step advances the clock by one (`Host.World.step_clock`), and the step
+of a wait in the empty world of one tile succeeds. The world's type depends on the
+configuration, so the statement is a requirement with no kind.
+
+**Not claimed:** which steps succeed, or the successor state. The theorems of
+`AcornVerif.CurrentStep` state the successor. -/
+theorem world_step : Regula.ExecutableContract @Host.World.step (fun step =>
+    (∀ (config : Host.WorldConfig) (world next : Host.World config) (action : Host.Action)
+      (events : Host.StepResult), @step config world action = .ok (next, events) →
+        next.time = world.time + 1) ∧
+      Accepts (·.isOk = true) (@step quiet (Host.World.empty quiet) .wait)) :=
+  ⟨⟨fun _ => Host.World.step_clock, by unfold Accepts; decide +kernel⟩⟩
+
+/-- A unit is mature exactly when its birth step plus the maturity threshold is before the
+clock. -/
+theorem lifecycle_mature : Regula.ExecutableContract @Features.Lifecycle.mature (fun mature =>
+    ∀ {shape actions config criterion dimension discounts}
+      (state : Features.Lifecycle shape actions config criterion dimension discounts)
+      (unit : Fin config.units.count),
+      mature state unit = true ↔
+        state.progress.units[unit.val].birth.toNat + config.tester.maturity <
+          state.progress.clock.toNat) :=
+  ⟨fun _ _ => decide_eq_true_iff⟩
+
+/-- A unit is eligible exactly when it can be replaced: `Replaceable`, on the stored birth
+step, the clock and the objectives. -/
+theorem lifecycle_eligible :
+    Regula.ExecutableContract @Features.Lifecycle.eligible (fun eligible =>
+      ∀ {shape actions config criterion dimension discounts}
+        (state : Features.Lifecycle shape actions config criterion dimension discounts)
+        (free : Bool) (unit : Fin config.units.count),
+        eligible state free unit = true ↔ Replaceable state free unit) :=
+  ⟨eligible_iff⟩
+
+/-- An objective holds a unit exactly when it is a selected objective of that unit. -/
+private theorem holds_selected {config : Features.Config} (unit : Fin config.units.count)
+    (assignment : Assignment config) :
+    assignment.holds unit = true ↔ ∃ bonus, assignment = .selected unit bonus := by
+  cases assignment with
+  | neutral => simp [Assignment.holds]
+  | selected other bonus =>
+    simp only [Assignment.holds, beq_iff_eq, Assignment.selected.injEq]
+    exact ⟨fun same => ⟨bonus, same, rfl⟩, fun ⟨_, same, _⟩ => same⟩
+
+/-- A unit is held exactly when the objective of some skill is a selected objective of that
+unit. -/
+theorem ensemble_holds : Regula.ExecutableContract @Ensemble.holds (fun holds =>
+    ∀ {actions config criterion dimension discounts}
+      (ensemble : Ensemble actions config criterion dimension discounts)
+      (unit : Fin config.units.count),
+      holds ensemble unit = true ↔
+        ∃ skill ∈ ensemble.skills.toList, ∃ bonus,
+          skill.interest.held = .selected unit bonus) :=
+  ⟨fun ensemble unit => by
+    simp only [Ensemble.holds, List.any_eq_true, holds_selected]⟩
+
+/-- One preference step keeps its choice for a unit that cannot be replaced. For a unit that
+can, it selects that unit when there is no choice, and with a choice it selects the unit
+exactly when the stored utility key of the unit is below the key of the choice
+(`Lifecycle.lessUseful_iff`). -/
+theorem lifecycle_prefer : Regula.ExecutableContract @Features.Lifecycle.prefer (fun prefer =>
+    ∀ {shape actions config criterion dimension discounts}
+      (state : Features.Lifecycle shape actions config criterion dimension discounts)
+      (free : Bool) (best : Option (Fin config.units.count)) (unit : Fin config.units.count),
+      (¬Replaceable state free unit → prefer state free best unit = best) ∧
+        (Replaceable state free unit →
+          prefer state free none unit = some unit ∧
+            ∀ prior, prefer state free (some prior) unit =
+              if state.progress.units[unit.val].utility.value.key <
+                  state.progress.units[prior.val].utility.value.key then some unit
+              else some prior)) :=
+  ⟨fun state free best unit =>
+    ⟨fun fixed => by
+        have refused : state.eligible free unit = false :=
+          Bool.eq_false_iff.mpr fun eligible =>
+            fixed ((eligible_iff state free unit).mp eligible)
+        simp [Features.Lifecycle.prefer, refused],
+      fun replaceable => by
+        have eligible := (eligible_iff state free unit).mpr replaceable
+        refine ⟨by simp [Features.Lifecycle.prefer, eligible], fun prior => ?_⟩
+        by_cases less : state.lessUseful unit prior = true
+        · have strict := (state.lessUseful_iff unit prior).mp less
+          simp [Features.Lifecycle.prefer, eligible, less, strict]
+        · have refused := Bool.eq_false_iff.mpr less
+          have loose : ¬(state.progress.units[unit.val].utility.value.key <
+              state.progress.units[prior.val].utility.value.key) := fun strict =>
+            less ((state.lessUseful_iff unit prior).mpr strict)
+          simp [Features.Lifecycle.prefer, eligible, refused, loose]⟩⟩
+
+/-- The hashed-slot potential of an objective is set exactly for a selected objective whose
+unit feature is active. `unitFeature` is the slot map, which the potential also reads. -/
+theorem assignment_potential : Regula.ExecutableContract @Assignment.potential (fun potential =>
+    ∀ {dimension : Dimension} {config : Features.Config} (assignment : Assignment config)
+      (active : SwiftTd.ActiveSet dimension),
+      potential assignment active = true ↔
+        ∃ unit bonus, assignment = .selected unit bonus ∧
+          unitFeature dimension config unit ∈ active.indices) :=
+  ⟨fun assignment active => by
+    cases assignment with
+    | neutral => simp [Assignment.potential, Assignment.feature]
+    | selected unit bonus =>
+      simp only [Assignment.potential, Assignment.feature, decide_eq_true_eq,
+        Assignment.selected.injEq]
+      exact ⟨fun member => ⟨unit, bonus, ⟨rfl, rfl⟩, member⟩,
+        fun ⟨_, _, ⟨same, _⟩, member⟩ => same ▸ member⟩⟩
+
+/-- The lifetime payload of a decision is present exactly when the decision ended an option,
+and it carries the slot, the age and the reason of that ending
+(`TemporalControl.finish_options` states that the lifetime record reads it). -/
+theorem episode_end : Regula.ExecutableContract @TemporalDecision.episodeEnd (fun episodeEnd =>
+    ∀ {actions} (decision : TemporalDecision actions),
+      (episodeEnd decision = none ↔ decision.ended = none) ∧
+        ∀ event, decision.ended = some event →
+          ∃ ending, episodeEnd decision = some ending ∧ ending.slot = event.slot ∧
+            ending.duration = event.age.val.toUInt32 ∧
+            (ending.reason.val = 0 ↔ event.reason = .goal) ∧
+            (ending.reason.val = 1 ↔ event.reason = .duration) ∧
+            (ending.reason.val = 2 ↔ event.reason = .interrupted)) :=
+  ⟨fun decision =>
+    ⟨by simp [TemporalDecision.episodeEnd], fun event ended => by
+      simp only [TemporalDecision.episodeEnd, ended, Option.map_some]
+      refine ⟨_, rfl, rfl, rfl, ?_⟩
+      cases event.reason <;> simp⟩⟩
+
+/-- The phase flag after a managed entry is set exactly: after a first-loop, terminal, install,
+clear or release entry, and after a plan, retire or restore entry when it was set before. The
+entry is stated by its constructor. The entry's type depends on the dimension, so the
+statement is a requirement with no kind. -/
+theorem next_ready : Regula.ExecutableContract @SwiftTd.nextReady (fun next =>
+    ∀ {dimension : Dimension} (entry : SwiftTd.Entry dimension) (before : Bool),
+      @next dimension entry before = true ↔
+        (∃ delta vDelta decay, entry = .first delta vDelta decay) ∨
+          (∃ target, entry = .terminal target) ∨
+          (∃ weights beta, entry = .install weights beta) ∨ entry = .clear ∨
+          entry = .release ∨
+          (before = true ∧
+            ((∃ features target, entry = .plan features target) ∨
+              (∃ idx, entry = .retire idx) ∨ (∃ raw, entry = .restoreWeights raw) ∨
+              ∃ raw, entry = .restoreBeta raw))) :=
+  ⟨fun entry before => by cases entry <;> simp [SwiftTd.nextReady]⟩
 
 end Acorn.Decisions

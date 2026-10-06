@@ -36,60 +36,47 @@ structural; it states the shape the audit computes; and its reason is supported 
 facts the audit computes (`Reason.supported`). A new verdict-shaped definition therefore
 cannot arrive unlisted, and a contract cannot be removed without an entry here.
 
-## What is computed and what is a judgment
+## What is computed
 
-The domain, the three classes, the shape and five of the eight reasons are computed from the
-compiled environment. `Reason` states the fact behind each computed reason; an entry whose
-fact is false fails verification.
+The domain, the three classes, the shape and every reason are computed from the compiled
+environment. `Reason` states the fact behind each reason, and which part of that fact is a
+relationship that the environment records and which part is a position; an entry whose fact
+is false fails verification.
 
-Three reasons are judgments: `transition`, `selection` and `predicate` say that a definition
-is not a decision although theorems mention it. The judgment is that its result is not a
-verdict a claim relies on: the caller that reads it takes the next state, a selected value
-or a branch of a transition from it, and no input from outside the admitted state is accepted
-or refused by it. Each such entry names a standing theorem, and the audit checks that the
-theorem is a written theorem of a maintained module whose statement mentions the definition.
-A definition whose theorems state which inputs it accepts or refuses is registered with a
-contract instead.
-
-The test for the judgment is who reads the result, and for what. A definition is a decision,
-and is never in the judgment class, when a caller refuses, suppresses or admits on its
-result, so that an external action, a published value or a stored record depends on it, or
-when a caller reads the result to accept or refuse something that came from outside the
-admitted state. It is not a decision when the transition that called it reads the result as
-its next state, as a value to use, or as a property of state that was already admitted, to
-choose which of its own branches runs, and passes a refusal on as its own. The borderline
-cases, each kept as a judgment for the reason given:
-
-* `Features.Lifecycle.eligible` and `mature` are properties of a unit that the selection
-  `Features.Lifecycle.candidate` reads; the contract of `candidate` states when it selects.
-* `Host.terrain` and `Host.World.tileKind` compute a tile and refuse on signed overflow. The
-  checks that read a tile to accept or refuse a move or a certificate (`Host.World.enterable`,
-  `Host.impassable`, `Host.walkableTile`) have contracts.
-* `Host.Action.direction` is a total table that the transition `Host.performAction` reads.
-
-A use during the compilation of a published schema counts as an admission, and a contract
-on a caller is no reason to exclude the function that the caller branches on.
-
-`judged_count` and `computed_count` state how many entries are judgments and how many carry
-a computed reason. A new judgment changes the first number and needs its standing theorem.
+The reasons with no standing theorem say that no written theorem names the definition, with
+one more fact for some of them. The reason `named` is for a definition that a written theorem
+does name and that has no contract: the entry gives one such theorem, the audit checks it,
+and the audit requires that no implementation of a registered decision reaches the
+definition through definition bodies. A definition that a registered decision reaches has a
+contract. The inventory makes no statement about what a caller does with the result of a
+`named` definition. `named_count` states how many such entries there are; a new entry changes
+that number.
 
 ## The domain
 
-The domain holds every constant of the surveyed modules that can carry an executable body,
-a definition or an opaque constant, private ones included, whose type is verdict-shaped. A
-field default and an instance are such constants. A constant leaves the domain only by a
-certificate that the environment gives for that constant (`certificate?`): the matcher
-data, the auxiliary-recursor data, the no-confusion data, the kernel's partial or unsafe flag of a
-recursion companion, and the equation data of the structural and well-founded recursion
-compilers for the companions they generate. A name alone decides nothing, and neither does
-the source range that Lean records for a declaration: a range is metadata, a written field
-default has none, and a derived comparison has one. A constant with no certificate is
-treated as written, and it needs a contract or a valid entry. The audit prints how many
-constants left by each certificate. `controls` checks five written declarations that a name
-or a range would get wrong.
+The domain holds every constant of the surveyed modules that can carry an executable body, a
+definition or an opaque constant, private ones included, whose type is verdict-shaped by the
+one telescope of this module (`signatureOf`). A field default and an instance are such
+constants. A constant leaves the domain only as a recursion companion of a parent declaration
+(`companion?`): the parent has equation data of a recursion compiler in the environment, the
+name is the one that compiler derives from the parent, and the companion has the parent's
+signature or is applied by the parent's body. A flag, a name or a position alone removes
+nothing. A matcher, an auxiliary recursor and a no-confusion definition return a value of
+their motive or a sort, so they are not verdict-shaped and need no rule. The audit prints how
+many constants left as each kind of companion. `controls` checks written declarations that a
+name, a flag or a count of written binders would decide wrongly.
+
+## Witnesses
+
+The audit lists the decision functions whose contracts carry no accepted input, and those
+whose contracts carry no refused input. A kind carries its witnesses in its type. A
+requirement with no kind carries one as a marked fact (`acceptanceMarkers`, `refusalMarkers`)
+at the top level of its condition, with a standard acceptance predicate, about the function
+that the condition binds. Such a fact is below no quantifier and no hypothesis, so it is a
+proved statement about one closed input and cannot hold vacuously.
 
 This is a check that every such definition has been classified and that each computed fact
-holds. Whether a judgment is right is review.
+holds. Whether a contract states the intended specification is review.
 -/
 namespace AcornDecisionInventory
 open Lean Meta
@@ -103,68 +90,74 @@ inductive Shape where
   | dependent
   deriving DecidableEq, Repr
 
-/-- Why a verdict-shaped definition carries no contract. The first five are computed: the
-audit checks the stated fact. The last three are judgments, each with a standing theorem. -/
+/-- Why a verdict-shaped definition carries no contract. Each reason is a fact that the audit
+computes, and an entry whose fact is false fails verification. The docstring of each reason
+says which part of its fact comes from a relationship that the environment records and which
+part is a position. -/
 inductive Reason where
-  /-- Computed: no written theorem of the maintained libraries names the definition in its
-  statement. This is the absence of a direct reference and nothing more: a theorem about a
-  caller can still imply a property of the definition. A contract of a decision registry and
-  a proof field of a structure are not counted: the first is a registration, the second
-  states what a value of that structure carries. -/
+  /-- No written theorem of the maintained libraries names the definition in its statement.
+  This is the absence of a direct reference and nothing more: a theorem about a caller can
+  still imply a property of the definition. A contract of a decision registry is not counted.
+  A theorem is not written when the environment relates it to a parent declaration: a proof
+  field of a structure, a reserved equation name, or the injectivity or size theorem that
+  Lean names for a recorded constructor. -/
   | unproved
-  /-- Computed: the fact of `unproved`, and the body applies a definition that has a
-  contract or a `Decidable` result. The contracts of the decisions it applies stand. -/
+  /-- The fact of `unproved`, and the body applies a definition that has a contract or a
+  `Decidable` result. The contracts of the decisions it applies stand. -/
   | composed
-  /-- Computed: the fact of `unproved`, and the definition belongs to the certificate search
-  module. A registered checker decides every proposal. -/
+  /-- The fact of `unproved`; the definition belongs to the certificate search module; and
+  each definition outside that module whose body names it also applies a definition with a
+  contract or a `Decidable` result. The module is a position. The caller fact is computed
+  from the bodies. It does not show that the caller passes the proposal to that decision. -/
   | proposal
-  /-- Computed: the definition is the comparison of a registered `BEq` instance of a type of
-  the same module, and the recorded ranges of both lie inside the declaration of that type,
-  where a `deriving` clause puts what it generates. -/
+  /-- The definition is the `beq` of a registered instance of `BEq` for a type of the same
+  module, and the recorded ranges of the definition and of the instance lie inside the
+  declaration of that type, where a `deriving` clause puts what it generates. The instance
+  and the type are recorded relationships. That the comparison is generated is inferred from
+  the ranges, which are a position: Lean records no relation between a `deriving` clause and
+  what it generates. A macro that expands to a type and a handwritten instance with the
+  derived names would be classed wrongly as derived. A `deriving instance` command that
+  stands apart from its type is classed as not derived, which fails closed. -/
   | derived
-  /-- Computed: the definition is the default value of a structure field and takes no
-  argument beyond the parameters of the structure, so it is a stored value. -/
+  /-- The definition is the default value of a structure field that is not a function, so it
+  is a stored value: the field is a recorded projection, the name is the one Lean derives for
+  its default, and the projection has no argument beyond the structure. -/
   | default
-  /-- Computed: the definition belongs to the proof library, which has no executable. Its
-  theorems relate it to the executing definitions, and no claim rests on running it. -/
+  /-- The definition belongs to a module of the proof library. The library is a position. No
+  executable runs the definition as long as the boundary audit refuses an import of the proof
+  library by an executing module; this inventory does not check that itself. A definition of
+  the proof library that an executable imported would be classed wrongly. -/
   | model
-  /-- Judgment: the result is the outcome of a state transition or of a computation step,
-  and a refusal reports that the step did not happen. `standing` is a theorem about it. -/
-  | transition (standing : Name)
-  /-- Judgment: the optional result is a selection, a lookup or a derived value, and an
-  absent result reports that there is nothing to return. `standing` is a theorem about it. -/
-  | selection (standing : Name)
-  /-- Judgment: a Boolean property of state the library has already admitted, which selects
-  a branch of a transition. `standing` is a theorem about it. -/
-  | predicate (standing : Name)
+  /-- A written theorem of a maintained module names the definition in its statement, and
+  `standing` is one such theorem; no contract states the definition; and no implementation of
+  a registered decision reaches the definition through definition bodies. The fact says
+  nothing about what a caller does with the result. -/
+  | named (standing : Name)
   deriving DecidableEq, Repr
 
-/-- The standing theorem of a judgment. -/
+/-- The standing theorem of an entry that a theorem names. -/
 def Reason.standing? : Reason → Option Name
-  | .transition standing | .selection standing | .predicate standing => some standing
+  | .named standing => some standing
   | _ => none
 
 /-- The name of a reason, without its standing theorem. -/
 def Reason.label : Reason → String
   | .unproved => "unproved" | .composed => "composed" | .proposal => "proposal"
   | .derived => "derived" | .default => "default" | .model => "model"
-  | .transition _ => "transition"
-  | .selection _ => "selection" | .predicate _ => "predicate"
+  | .named _ => "named"
 
-/-- The names of the computed reasons. -/
-def Reason.computedLabels : List String :=
+/-- The names of the reasons with no standing theorem. -/
+def Reason.plainLabels : List String :=
   ["unproved", "composed", "proposal", "derived", "default", "model"]
 
-/-- The names of the reasons that are judgments. -/
-def Reason.judgmentLabels : List String := ["transition", "selection", "predicate"]
+/-- The name of the reason with a standing theorem. -/
+def Reason.namedLabel : String := "named"
 
-/-- The two lists hold every reason, each in the list for what it is: a reason with a
-standing theorem is a judgment, and every other reason is computed. -/
+/-- The list and the label hold every reason, each for what it is. -/
 theorem Reason.label_listed (reason : Reason) :
-    (reason.standing?.isNone → reason.label ∈ Reason.computedLabels) ∧
-      (reason.standing?.isSome → reason.label ∈ Reason.judgmentLabels) := by
-  cases reason <;> simp [Reason.label, Reason.standing?, Reason.computedLabels,
-    Reason.judgmentLabels]
+    (reason.standing?.isNone → reason.label ∈ Reason.plainLabels) ∧
+      (reason.standing?.isSome → reason.label = Reason.namedLabel) := by
+  cases reason <;> simp [Reason.label, Reason.standing?, Reason.plainLabels, Reason.namedLabel]
 
 /-- The facts the audit computes about one excluded definition. -/
 structure Evidence where
@@ -173,16 +166,19 @@ structure Evidence where
   mentioned : Bool
   /-- The body applies a definition that has a contract or a `Decidable` result. -/
   applies : Bool
-  /-- The definition belongs to the certificate search module. -/
+  /-- The definition belongs to the certificate search module, and each outside definition
+  that names it applies a definition with a contract or a `Decidable` result. -/
   searching : Bool
   /-- The definition is the comparison of a derived instance. -/
   generated : Bool
-  /-- The definition is the default of a structure field with no argument of its own. -/
+  /-- The definition is the default of a structure field that is not a function. -/
   fieldDefault : Bool
   /-- The definition belongs to the proof library. -/
   proofLibrary : Bool
   /-- The entry's standing theorem is such a written theorem and mentions the definition. -/
   standing : Bool
+  /-- The implementation of a registered decision reaches the definition. -/
+  reached : Bool
   deriving DecidableEq, Repr
 
 /-- Whether the computed facts support a reason. -/
@@ -193,12 +189,11 @@ def Reason.supported : Reason → Evidence → Bool
   | .derived, evidence => evidence.generated
   | .default, evidence => evidence.fieldDefault
   | .model, evidence => evidence.proofLibrary
-  | .transition _, evidence | .selection _, evidence | .predicate _, evidence =>
-    evidence.standing
+  | .named _, evidence => evidence.standing && !evidence.reached
 
-/-- A reason with no standing theorem is supported by computed facts alone. -/
-theorem Reason.supported_computed (reason : Reason) (left right : Evidence)
-    (computed : reason.standing? = none) (mentioned : left.mentioned = right.mentioned)
+/-- A reason with no standing theorem does not depend on a standing theorem or on reach. -/
+theorem Reason.supported_plain (reason : Reason) (left right : Evidence)
+    (plain : reason.standing? = none) (mentioned : left.mentioned = right.mentioned)
     (applies : left.applies = right.applies) (searching : left.searching = right.searching)
     (generated : left.generated = right.generated)
     (fieldDefault : left.fieldDefault = right.fieldDefault)
@@ -213,11 +208,20 @@ theorem Reason.unproved_refused (reason : Reason) (evidence : Evidence)
     reason.supported evidence = false := by
   rcases unproved with rfl | rfl | rfl <;> simp [Reason.supported, mentioned]
 
-/-- A judgment is supported exactly when its standing theorem is checked. -/
-theorem Reason.supported_judgment (reason : Reason) (evidence : Evidence) (standing : Name)
-    (judged : reason.standing? = some standing) :
-    reason.supported evidence = evidence.standing := by
+/-- An entry that a theorem names is supported exactly when its standing theorem is checked
+and no registered decision reaches the definition. -/
+theorem Reason.supported_named (reason : Reason) (evidence : Evidence) (standing : Name)
+    (named : reason.standing? = some standing) :
+    reason.supported evidence = (evidence.standing && !evidence.reached) := by
   cases reason <;> simp_all [Reason.supported, Reason.standing?]
+
+/-- A definition that a registered decision reaches cannot stay in the class of entries that
+a theorem names: it needs a contract. -/
+theorem Reason.reached_refused (reason : Reason) (evidence : Evidence) (standing : Name)
+    (named : reason.standing? = some standing) (reached : evidence.reached = true) :
+    reason.supported evidence = false := by
+  rw [Reason.supported_named reason evidence standing named, reached]
+  simp
 
 /-- The decision registries: the modules whose contracts count toward the inventory. -/
 def registries : Array Name := #[`Acorn.Decisions, `AcornVerif.Decisions]
@@ -417,8 +421,6 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Json.unicodeWhitespace, .fixed, .unproved),
   (`Acorn.Json.version, .fixed, .unproved),
   (`Acorn.Lifetime.DemonRecords.agreementRatio, .dependent, .composed),
-  (`Acorn.SwiftTd.nextReady, .dependent,
-    .transition `Acorn.Features.Managed.apply._proof_1),
   (`Acorn.WorldDriver.coordinate, .fixed, .unproved),
   (`Acorn.WorldDriver.dispatch, .fixed, .unproved),
   (`Acorn.WorldDriver.execute, .fixed, .unproved),
@@ -499,101 +501,79 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`AcornVerif.GridCorrespondence.Direct.step, .dependent, .model),
   (`AcornVerif.Resource.WordTree.admit, .dependent, .model),
   (`AcornVerif.TemporalSupport.outcomes, .dependent, .model),
-  (`Acorn.Agreement.Total.observe, .dependent, .transition `Acorn.Agreement.Total.observe_exact),
   (`Acorn.Features.ExploratoryRun.serve, .dependent,
-    .transition `Acorn.Features.ExploratoryRun.serve_exact),
-  (`Acorn.Handcrafted.Agent.input, .dependent, .transition `AcornVerif.CurrentAgent.edge_contract),
+    .named `Acorn.Features.ExploratoryRun.serve_exact),
+  (`Acorn.Handcrafted.Agent.input, .dependent, .named `AcornVerif.CurrentAgent.edge_contract),
   (`Acorn.Handcrafted.Agent.runPrefix, .dependent,
-    .transition `Acorn.Handcrafted.Agent.clear_suffix),
+    .named `Acorn.Handcrafted.Agent.clear_suffix),
   (`Acorn.Handcrafted.AgentConstruction.execute, .dependent,
-    .transition `AcornVerif.CurrentAgent.native_prefix),
+    .named `AcornVerif.CurrentAgent.native_prefix),
   (`Acorn.Handcrafted.TemporalControl.atBoundary, .dependent,
-    .transition `Acorn.Handcrafted.TemporalControl.atBoundary_assigns),
+    .named `Acorn.Handcrafted.TemporalControl.atBoundary_assigns),
   (`Acorn.Handcrafted.TemporalControl.dispatchMeta, .dependent,
-    .transition `Acorn.Handcrafted.TemporalControl.dispatchMeta_eq),
+    .named `Acorn.Handcrafted.TemporalControl.dispatchMeta_eq),
   (`Acorn.Handcrafted.TemporalControl.select, .dependent,
-    .transition `AcornVerif.CurrentTemporal.step_executing),
+    .named `AcornVerif.CurrentTemporal.step_executing),
   (`Acorn.Handcrafted.TemporalControl.selectWithOperations, .dependent,
-    .transition `Acorn.Handcrafted.TemporalControl.primitive_undrawn),
+    .named `Acorn.Handcrafted.TemporalControl.primitive_undrawn),
   (`Acorn.Handcrafted.TemporalControl.serve, .dependent,
-    .transition `Acorn.Handcrafted.TemporalControl.select_drawn),
+    .named `Acorn.Handcrafted.TemporalControl.select_drawn),
   (`Acorn.Handcrafted.TemporalControl.step, .dependent,
-    .transition `Acorn.Handcrafted.TemporalControl.step_episodes),
-  (`Acorn.Host.AnsiState.tick, .dependent, .transition `Acorn.Host.AnsiState.tick_observation),
-  (`Acorn.Host.Attempt.finish, .dependent, .transition `Acorn.Host.Attempt.finish_position),
-  (`Acorn.Host.Attempt.sense, .dependent, .transition `AcornVerif.CurrentRunner.sense_none),
-  (`Acorn.Host.Attempt.tick, .dependent, .transition `Acorn.Host.Attempt.tick_finished),
+    .named `Acorn.Handcrafted.TemporalControl.step_episodes),
+  (`Acorn.Host.AnsiState.tick, .dependent, .named `Acorn.Host.AnsiState.tick_observation),
+  (`Acorn.Host.Attempt.finish, .dependent, .named `Acorn.Host.Attempt.finish_position),
+  (`Acorn.Host.Attempt.sense, .dependent, .named `AcornVerif.CurrentRunner.sense_none),
+  (`Acorn.Host.Attempt.tick, .dependent, .named `Acorn.Host.Attempt.tick_finished),
   (`Acorn.Host.BaselineAttempt.tick, .dependent,
-    .transition `AcornVerif.CurrentRunner.idle_corresponds),
+    .named `AcornVerif.CurrentRunner.idle_corresponds),
   (`Acorn.Host.OwnedStep.environment, .dependent,
-    .transition `Acorn.Host.SelectedStep.owned_commit),
-  (`Acorn.Host.PreparedStep.commit, .dependent, .transition `AcornVerif.CurrentRunner.commit_clock),
+    .named `Acorn.Host.SelectedStep.owned_commit),
+  (`Acorn.Host.PreparedStep.commit, .dependent, .named `AcornVerif.CurrentRunner.commit_clock),
   (`Acorn.Host.PreparedStep.environment, .dependent,
-    .transition `Acorn.Host.SelectedStep.owned_commit),
-  (`Acorn.Host.World.advanceActions, .dependent,
-    .transition `Acorn.Host.World.advanceActions_clock),
-  (`Acorn.Host.World.initial, .dependent, .transition `Acorn.Host.World.initial_fields),
-  (`Acorn.Host.World.observe, .dependent, .transition `Acorn.Host.World.observe_task),
-  (`Acorn.Host.World.step, .dependent, .transition `Acorn.Host.World.step_clock),
-  (`Acorn.Host.World.tileKind, .dependent,
-    .transition `AcornVerif.CurrentCertificates.stance_harvest),
+    .named `Acorn.Host.SelectedStep.owned_commit),
+  (`Acorn.Host.World.initial, .dependent, .named `Acorn.Host.World.initial_fields),
+  (`Acorn.Host.World.observe, .dependent, .named `Acorn.Host.World.observe_task),
   (`Acorn.Host.considerSpawn, .dependent,
-    .transition `AcornVerif.CurrentSpawn.considerSpawn_contract),
-  (`Acorn.Host.countKindNear, .dependent, .transition `AcornVerif.CurrentSpawn.countKindNear_eq),
-  (`Acorn.Host.payAndAct, .dependent, .transition `AcornVerif.CurrentStep.payAndAct_outcome),
-  (`Acorn.Host.performAction, .dependent, .transition `AcornVerif.CurrentCertificates.perform_move),
+    .named `AcornVerif.CurrentSpawn.considerSpawn_contract),
+  (`Acorn.Host.countKindNear, .dependent, .named `AcornVerif.CurrentSpawn.countKindNear_eq),
   (`Acorn.Host.runBaselineCampaign, .dependent,
-    .transition `AcornVerif.CurrentRunner.baseline_campaign_finishes),
-  (`Acorn.Host.runRandomBaseline, .fixed, .transition `AcornVerif.CurrentRunner.baseline_finishes),
-  (`Acorn.Host.selectSpawn, .dependent, .transition `AcornVerif.CurrentSpawn.initial_spawn),
-  (`Acorn.Host.terrain, .fixed, .transition `AcornVerif.CurrentCertificates.stance_yield),
-  (`Acorn.Features.Assignment.identity, .dependent,
-    .selection `Acorn.Features.Assignment.Distinct.mono),
-  (`Acorn.Features.Lifecycle.prefer, .dependent, .selection `Acorn.Features.Lifecycle.fold_scanned),
+    .named `AcornVerif.CurrentRunner.baseline_campaign_finishes),
+  (`Acorn.Host.runRandomBaseline, .fixed, .named `AcornVerif.CurrentRunner.baseline_finishes),
+  (`Acorn.Host.selectSpawn, .dependent, .named `AcornVerif.CurrentSpawn.initial_spawn),
   (`Acorn.Features.Occupancy.executing, .dependent,
-    .selection `Acorn.Features.Occupancy.afterOption_executing),
+    .named `Acorn.Features.Occupancy.afterOption_executing),
   (`Acorn.Features.RankedFeatures.position, .dependent,
-    .selection `Acorn.Features.RankedFeatures.position_complete),
-  (`Acorn.Features.TemporalDecision.episodeEnd, .dependent,
-    .selection `Acorn.Handcrafted.TemporalControl.finish_options),
-  (`Acorn.Features.best, .dependent, .selection `Acorn.Features.best_spec),
-  (`Acorn.Features.kept, .dependent, .selection `Acorn.Features.entrants_le_open),
+    .named `Acorn.Features.RankedFeatures.position_complete),
+  (`Acorn.Features.best, .dependent, .named `Acorn.Features.best_spec),
+  (`Acorn.Features.kept, .dependent, .named `Acorn.Features.entrants_le_open),
   (`Acorn.Handcrafted.TemporalControl.activeSlot, .dependent,
-    .selection `Acorn.Handcrafted.TemporalControl.boundary_episodes),
+    .named `Acorn.Handcrafted.TemporalControl.boundary_episodes),
   (`Acorn.Handcrafted.TemporalControl.takeoverValue, .dependent,
-    .selection `AcornVerif.CurrentTemporal.takeover_none),
+    .named `AcornVerif.CurrentTemporal.takeover_none),
   (`Acorn.Handcrafted.skillOfMeta, .fixed,
-    .selection `Acorn.Handcrafted.TemporalControl.dispatchMeta_eq),
-  (`Acorn.Host.Action.direction, .fixed, .selection `AcornVerif.CurrentCertificates.perform_move),
-  (`Acorn.Features.Assignment.potential, .dependent,
-    .predicate `AcornVerif.CurrentTemporal.learned_potential),
-  (`Acorn.Features.Ensemble.holds, .dependent,
-    .predicate `Acorn.Features.Ensemble.releaseAll_unheld),
+    .named `Acorn.Handcrafted.TemporalControl.dispatchMeta_eq),
   (`Acorn.Features.Interface.reserved, .fixed,
-    .predicate `Acorn.Handcrafted.Grid.sensorWords_clear),
-  (`Acorn.Features.Lifecycle.eligible, .dependent,
-    .predicate `Acorn.Features.Lifecycle.candidate_eligible),
-  (`Acorn.Features.Lifecycle.mature, .dependent, .predicate `AcornVerif.Retirement.run_immature),
+    .named `Acorn.Handcrafted.Grid.sensorWords_clear),
   (`Acorn.Features.Occupancy.free, .dependent,
-    .predicate `Acorn.Features.FeatureRuntime.retire_occupied),
+    .named `Acorn.Features.FeatureRuntime.retire_occupied),
   (`Acorn.Features.OptionActivation.learning, .dependent,
-    .predicate `Acorn.Features.Skill.stepTemporal_eq),
+    .named `Acorn.Features.Skill.stepTemporal_eq),
   (`Acorn.Features.TemporalDecision.own, .dependent,
-    .predicate `Acorn.Handcrafted.TemporalControl.finish_credit),
+    .named `Acorn.Handcrafted.TemporalControl.finish_credit),
   (`Acorn.Handcrafted.FeatureProfile.ranksSubtasks, .fixed,
-    .predicate `Acorn.Handcrafted.TemporalControl.atBoundary_assigns),
+    .named `Acorn.Handcrafted.TemporalControl.atBoundary_assigns),
   (`Acorn.Handcrafted.FeatureProfile.usesHierarchy, .fixed,
-    .predicate `Acorn.Handcrafted.TemporalControl.finish_eq),
+    .named `Acorn.Handcrafted.TemporalControl.finish_eq),
   (`Acorn.Handcrafted.askedBy, .dependent,
-    .predicate `Acorn.Handcrafted.TemporalControl.finish_skill)
+    .named `Acorn.Handcrafted.TemporalControl.finish_skill)
 ]
 
-/-- The entries that are judgments: each names a standing theorem. -/
-theorem judged_count : (excluded.filter fun entry => entry.2.2.standing?.isSome).size = 55 := by
+/-- The entries that a theorem names. A new entry changes this number, which is reviewed. -/
+theorem named_count : (excluded.filter fun entry => entry.2.2.standing?.isSome).size = 39 := by
   decide +kernel
 
-/-- The entries whose reason is a computed fact. -/
-theorem computed_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 207 := by
+/-- The entries with a reason that has no standing theorem. -/
+theorem plain_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 207 := by
   decide +kernel
 
 /-- The result heads that make a definition verdict-shaped. -/
@@ -646,6 +626,8 @@ structure Observed where
   /-- Definitions outside the search module that name one of its constants, with the
   constants their bodies name. -/
   searchers : Array (Name × Array Name) := #[]
+  /-- The constants that the body of each definition of the surveyed modules names. -/
+  bodies : NameMap (Array Name) := {}
 
 /-- Join what two contracts state about one function. -/
 def Registered.add (left right : Registered) : Registered :=
@@ -660,7 +642,8 @@ def Observed.add (left right : Observed) : Observed :=
     standing := right.standing.foldl (fun all name => all.insert name) left.standing
     certified := right.certified.fold (fun all label count =>
       all.insert label (all.getD label 0 + count)) left.certified
-    searchers := left.searchers ++ right.searchers }
+    searchers := left.searchers ++ right.searchers
+    bodies := right.bodies.foldl (fun all name uses => all.insert name uses) left.bodies }
 
 /-- What the one telescope of the inventory reads from a type. Every count of arguments in
 this module comes from here. -/
@@ -702,9 +685,12 @@ def within (inner outer : DeclarationRange) : Bool :=
     (inner.endPos.line < outer.endPos.line ||
       (inner.endPos.line == outer.endPos.line && inner.endPos.column ≤ outer.endPos.column))
 
-/-- Whether Lean generated a theorem, by a certificate of the environment: a proof field
-of a structure, an equation or unfolding theorem under a reserved name, or the injectivity
-or size theorem that Lean names for a recorded constructor. Every other theorem is written. -/
+/-- Whether Lean generated a theorem, by a relationship that the environment records: a proof
+field of a structure, an equation or unfolding theorem under a reserved name, or the
+injectivity or size theorem that Lean names for a recorded constructor. Every other theorem
+counts as written. A proof that the elaborator abstracted from a declaration counts as
+written too, so a definition that only such a proof names cannot be `unproved`; that errs
+toward a contract. -/
 def generatedTheorem (env : Environment) (name : Name) : Bool :=
   (env.getProjectionFnInfo? name).isSome || isReservedName env name ||
     (match env.find? name.getPrefix with
@@ -876,6 +862,7 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
     let searches := owner != searchModule && uses.any fun constant =>
       ((env.getModuleIdxFor? constant).bind fun index =>
         env.header.moduleNames[index.toNat]?) == some searchModule
+    let observed := { observed with bodies := observed.bodies.insert name uses }
     let observed := if searches then
       { observed with searchers := observed.searchers.push (name, uses) } else observed
     let some signature ← reduce env (signatureOf info.type) | return observed
@@ -893,9 +880,27 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
     return { observed with candidates := observed.candidates.push candidate }
   | _ => return observed
 
+/-- The definitions that the implementations of the registered decisions reach through
+definition bodies, the implementations included. -/
+def reachable (observed : Observed) : NameSet := Id.run do
+  let mut seen : NameSet := {}
+  let mut pending : Array Name := observed.contracts.foldl (fun all name _ => all.push name) #[]
+  -- Each definition is entered at most once, so the walk ends within the number of bodies.
+  for _ in [0:observed.bodies.size + pending.size + 1] do
+    let mut next : Array Name := #[]
+    for name in pending do
+      if seen.contains name then continue
+      seen := seen.insert name
+      for used in (observed.bodies.find? name).getD #[] do
+        unless seen.contains used do next := next.push used
+    if next.isEmpty then break
+    pending := next
+  return seen
+
 /-- Validate the table and apply the inventory decision to every observed definition. All
 failures are reported together. -/
 def check (observed : Observed) : IO Unit := do
+  let reached := reachable observed
   let mut failures : Array String := #[]
   let mut candidates : NameMap Candidate := {}
   let mut applied : NameSet := observed.contracts.foldl (fun all name _ => all.insert name) {}
@@ -930,7 +935,8 @@ def check (observed : Observed) : IO Unit := do
           generated := candidate.generated
           fieldDefault := candidate.fieldDefault
           proofLibrary := (`AcornVerif).isPrefixOf candidate.owner
-          standing := observed.standing.contains name }
+          standing := observed.standing.contains name
+          reached := reached.contains name }
       if reason.supported evidence then
         valid := valid.insert name
         counts := counts.insert reason.label (counts.getD reason.label 0 + 1)
@@ -961,15 +967,14 @@ def check (observed : Observed) : IO Unit := do
   let count (label : String) : Nat := counts.getD label 0
   let reasons (labels : List String) : String :=
     ", ".intercalate (labels.map fun label => s!"{label} {count label}")
-  let computed := (Reason.computedLabels.map count).sum
-  let judged := (Reason.judgmentLabels.map count).sum
+  let plain := (Reason.plainLabels.map count).sum
   IO.println (s!"decisions: {observed.candidates.size} verdict-shaped definitions: " ++
     s!"{structural} structural, {contracts} with a contract ({decided} with a decision " ++
     s!"kind, {contracts - decided} with a requirement that the Regula audit does not check " ++
     "for witnesses or independence), " ++
-    s!"{computed} excluded by a computed reason ({reasons Reason.computedLabels}), " ++
-    s!"{judged} excluded by judgment with a standing theorem " ++
-    s!"({reasons Reason.judgmentLabels}); " ++
+    s!"{plain} with no contract and no theorem that names them ({reasons Reason.plainLabels}), " ++
+    s!"{count Reason.namedLabel} with no contract that a theorem names and no registered " ++
+    "decision reaches; " ++
     s!"recursion companions outside the domain: {observed.certified.toList}")
   -- The decision functions whose contracts carry no accepted or no refused input.
   let stated := observed.contracts.foldl (fun all name stated => all.push (name, stated)) #[]
