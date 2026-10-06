@@ -165,12 +165,18 @@ same committed stage, and on a refusal the same refusal with the same learned
 stage (`DecisionInput.chooseOwned_release`). The two native loops of an attempt
 are proved against one pure fold, `Attempt.complete`, which applies the whole
 step of the callbacks once for each pass, in order, and ends at the first
-refusal: every value that either loop returns, from every world token, is the
-fold's refusal or the fold's run state and outcome (`runAttemptSteps_complete`,
-`runReleasedSteps_complete`, `runAttempt_complete`). These are statements of
-partial correctness: they concern the values a loop returns, and they use no
-hypothesis on the clock or the observer. The order of effects, the observer's own
-effects and the reported durations are outside them. A refusal ends the campaign
+refusal: every value that either loop returns, from every world token, agrees
+with the fold in its run state and outcome, or in its refusal
+(`runAttemptSteps_complete`, `runReleasedSteps_complete`,
+`runAttempt_complete`). A refusal of an action holds the stage of the refused
+pass, and the agreement fixes it: it is the whole step of the callbacks, the
+first part and then the second, applied once to that pass's own input
+(`Attempt.complete_learned`). A refusal of an observation holds no stage. So the
+second part runs exactly once on a refused pass in both loops. These are
+statements of partial correctness: they concern the values a loop returns, and
+they use no hypothesis on the clock or the observer. The order of effects, the
+observer's own effects, the terminal frame, the resource counters and the
+reported durations are outside them. A campaign reports the error of a refusal
 and returns no agent, in both orders.
 
 A world declares how its time relates to the agent's computation

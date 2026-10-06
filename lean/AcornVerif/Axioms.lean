@@ -3715,6 +3715,12 @@ info: 'Acorn.Host.runReleasedSteps_complete' depends on axioms: [propext, Classi
 #print axioms Acorn.Host.runReleasedSteps_complete
 
 /--
+info: 'Acorn.Host.Attempt.complete_learned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Attempt.complete_learned
+
+/--
 info: 'Acorn.Handcrafted.TemporalControl.atBoundary_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in

@@ -486,26 +486,111 @@ def Attempt.finish {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UI
       attempt.run.world.body.position.position⟩
   return (run, outcome, frame)
 
+/-- A refusal that ends an attempt. `learned` is the stage of the refused pass after its
+second part: it is present when the world refused an action, and absent when the world
+refused an observation, before a pass or at the end of the attempt. A campaign reports
+the error alone; the stage is what the correspondence of the native loops fixes. -/
+structure Refusal (config : WorldConfig) (α : Type) (goal : Goal) (cap : UInt64) where
+  /-- The world's refusal. -/
+  error : WorldError
+  /-- The learned stage of the refused pass, for a refused action. -/
+  learned : Option (OwnedStep config α goal cap)
+
+/-- The final observation and bookkeeping of an attempt, with a refused observation as a
+refusal that holds no stage. -/
+def Attempt.close {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
+    (attempt : Attempt config α goal cap) :
+    Except (Refusal config α goal cap) (RunState config α × GoalOutcome × StepFrame β) :=
+  match attempt.finish callbacks context with
+  | .error error => .error ⟨error, none⟩
+  | .ok result => .ok result
+
 /-- The pure content of a whole attempt: passes of the whole step, in order, until the
-attempt finishes or the world refuses an action, then the final observation and
-bookkeeping. Every value either native loop returns agrees with this fold, whichever
-side of the world's transition the second part runs on (`runAttempt_complete`). A
-refusal ends the fold and returns no agent. -/
+attempt finishes or the world refuses, then the final observation and bookkeeping.
+Every value either native loop returns agrees with this fold, whichever side of the
+world's transition the second part runs on (`runAttempt_complete`). A refused action
+ends the fold with the stage of that pass after the whole step, the first part and
+then the second, applied once to the pass's own observation and carried result. -/
 def Attempt.complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (context : GoalContext) :
     Nat → Attempt config α goal cap →
-      Except WorldError (RunState config α × GoalOutcome × StepFrame β)
-  | 0, attempt => attempt.finish callbacks context
+      Except (Refusal config α goal cap) (RunState config α × GoalOutcome × StepFrame β)
+  | 0, attempt => attempt.close callbacks context
   | fuel + 1, attempt =>
-    if attempt.finished then attempt.finish callbacks context else
+    if attempt.finished then attempt.close callbacks context else
       match attempt.sense with
-      | .error error => .error error
-      | .ok none => attempt.finish callbacks context
+      | .error error => .error ⟨error, none⟩
+      | .ok none => attempt.close callbacks context
       | .ok (some input) =>
-        match (input.selectOwned callbacks).environment with
-        | .error error => .error error
-        | .ok environment =>
+        match (input.selectOwned callbacks).release with
+        | .refused error learned => .error ⟨error, some learned⟩
+        | .accepted environment =>
           Attempt.complete callbacks context fuel (environment.record callbacks)
+
+/-- **The stage a refused action leaves is the stage of one whole step.** For every
+callback, fuel and attempt: when the fold ends in a refusal that holds a stage, an
+attempt of the fold sensed an input, the stage is the whole step on that input, and
+the world refused the action of that step. A refusal that holds no stage is a refused
+observation. -/
+theorem Attempt.complete_learned {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks order α β) (context : GoalContext) (fuel : Nat)
+    (attempt : Attempt config α goal cap) (error : WorldError)
+    (learned : OwnedStep config α goal cap)
+    (refused : (attempt.complete callbacks context fuel :
+      Except (Refusal config α goal cap) (RunState config α × GoalOutcome × StepFrame β)) =
+        .error ⟨error, some learned⟩) :
+    ∃ (reached : Attempt config α goal cap) (input : DecisionInput config α goal cap),
+      reached.sense = .ok (some input) ∧ learned = input.selectOwned callbacks ∧
+        (input.selectOwned callbacks).environment = .error error := by
+  have closed : ∀ current : Attempt config α goal cap,
+      (current.close callbacks context :
+        Except (Refusal config α goal cap) (RunState config α × GoalOutcome × StepFrame β)) ≠
+          .error ⟨error, some learned⟩ := by
+    intro current same
+    unfold Attempt.close at same
+    split at same <;> cases same
+  induction fuel generalizing attempt with
+  | zero =>
+    unfold Attempt.complete at refused
+    exact (closed attempt refused).elim
+  | succ fuel ih =>
+    unfold Attempt.complete at refused
+    split at refused
+    · exact (closed attempt refused).elim
+    · cases sensed : attempt.sense with
+      | error other =>
+        rw [sensed] at refused
+        cases refused
+      | ok found =>
+        cases found with
+        | none =>
+          rw [sensed] at refused
+          exact (closed attempt refused).elim
+        | some input =>
+          rw [sensed] at refused
+          dsimp only at refused
+          cases answer : (input.selectOwned callbacks).release with
+          | refused other stage =>
+            rw [answer] at refused
+            have same := Except.error.inj refused
+            have errors : other = error := congrArg Refusal.error same
+            have stages : some stage = some learned := congrArg Refusal.learned same
+            have transition := (input.selectOwned callbacks).release_environment
+            rw [answer] at transition
+            have kept : stage = input.selectOwned callbacks := by
+              unfold OwnedStep.release at answer
+              split at answer
+              · cases answer
+                rfl
+              · cases answer
+            refine ⟨attempt, input, sensed, ?_, ?_⟩
+            · exact (Option.some.inj stages).symm.trans kept
+            · rw [← errors]
+              exact transition.symm
+          | accepted environment =>
+            rw [answer] at refused
+            exact ih _ refused
 
 /-- The stream that continues past an attempt boundary is the attempt's own run
 with the attempt recorded, for every callback: no outcome row is an input to it.

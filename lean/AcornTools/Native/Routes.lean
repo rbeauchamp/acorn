@@ -257,14 +257,13 @@ def routes : Array (String × String × Array String) := #[
   ("Host/Runner", "lp_acorn_Acorn_Host_runAttempt___redArg", #["lp_acorn_Acorn_Host_runAttemptSteps___redArg", "lp_acorn_Acorn_Host_runReleasedSteps___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg", #["lp_acorn_Acorn_Host_Attempt_sense___redArg", "l_IO_lazyPure___redArg", "l_IO_lazyPure___redArg", "l_IO_lazyPure___redArg", "lp_acorn_Acorn_Host_notifyObserver", "lp_acorn_Acorn_Host_OwnedEnvironment_record___redArg", "lp_acorn_Acorn_Host_notifyObserver"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__1", #["lp_acorn_Acorn_Host_DecisionInput_chooseOwned___redArg"]),
-  ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__0", #["lp_acorn_Acorn_Host_OwnedStep_release___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__2", #["lp_acorn_Acorn_Host_Released_learn___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__0", #["lp_acorn_Acorn_Host_OwnedStep_frame___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__3", #["lp_acorn_Acorn_Host_OwnedStep_frame___redArg"]),
-  ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__4", #["lp_acorn_Acorn_Host_OwnedStep_frame___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg", #["lp_acorn_Acorn_Host_Attempt_sense___redArg", "l_IO_lazyPure___redArg", "lean_alloc_closure", "lp_acorn_Acorn_Host_notifyObserver", "l_IO_lazyPure___redArg", "lp_acorn_Acorn_Host_OwnedEnvironment_record___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__1", #["lp_acorn_Acorn_Host_DecisionInput_selectOwned___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__2", #["lp_acorn_Acorn_Host_OwnedStep_frame___redArg"]),
-  ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__3", #["lp_acorn_Acorn_Host_OwnedStep_environment___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__3", #["lp_acorn_Acorn_Host_OwnedStep_release___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_StreamObserver_deliverStep___redArg", #["lean_apply_1", "lean_apply_3"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_finishAttempt___redArg", #["lp_acorn_Acorn_Host_Attempt_finish___redArg", "lp_acorn_Acorn_Host_notifyObserver"])
 ]
@@ -279,11 +278,11 @@ def closures : Array (String × String × Array String) := #[
     "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__3"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runReleasedSteps___redArg", #[
     "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__1",
-    "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__0",
+    "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__3",
     "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__2",
-    "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__3",
+    "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__0",
     "lp_acorn_Acorn_Host_StreamObserver_deliverStep___boxed",
-    "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__4",
+    "lp_acorn_Acorn_Host_runReleasedSteps___redArg___lam__3",
     "lp_acorn_Acorn_Host_StreamObserver_deliverStep___boxed"]),
   ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_planAfter", #[
     "lp_acorn_Acorn_Features_planningBoundary___boxed"]),

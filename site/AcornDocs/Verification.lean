@@ -193,9 +193,10 @@ A host releases the action after both parts or between them.
 protocol gives the same result either way, on acceptance and on a refusal.
 {decl}`Acorn.Host.runAttempt_complete` states that every value either native loop of
 an attempt returns agrees with one pure fold of whole steps,
-{decl}`Acorn.Host.Attempt.complete`, in its refusal or in its run state and outcome
-({decl}`Acorn.Host.AttemptAgrees`). The terminal frame and the resource counters are
-outside the agreement:
+{decl}`Acorn.Host.Attempt.complete`, in its run state and outcome, or in its refusal
+with the learned stage of a refused pass ({decl}`Acorn.Host.AttemptAgrees`,
+{decl}`Acorn.Host.Attempt.complete_learned`). The terminal frame and the resource
+counters are outside the agreement:
 
 {statement Acorn.Host.runAttempt_complete}
 

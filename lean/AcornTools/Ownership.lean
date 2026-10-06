@@ -165,6 +165,7 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Handcrafted.AgentConstruction.admitImage),
   (`Acorn.Host.AgentAdmission, `Acorn.Handcrafted.DefaultConstruction.runPrefix_agent,
     `Acorn.Handcrafted.DefaultConstruction.runPrefix),
+  (`Acorn.Host.Attempt, `Acorn.Host.Attempt.complete_learned, `Acorn.Host.Attempt.complete),
   (`Acorn.Host.Runner, `Acorn.Host.runAttemptSteps_complete, `Acorn.Host.runAttemptSteps),
   (`Acorn.Host.Runner, `Acorn.Host.runReleasedSteps_complete, `Acorn.Host.runReleasedSteps),
   (`Acorn.Host.AgentInterface, `Acorn.Handcrafted.Agent.callbacks_act,

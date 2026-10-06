@@ -430,9 +430,9 @@ F-E left its feature-construction end inert until U3.
   afresh). The step itself is two functions, and under the `plan-after-act` step
   order a host releases the action between them, with planning after the action
   ([design](design.md#the-two-parts-of-a-step)); every value that either native
-  loop returns agrees with one pure fold of whole steps in its refusal, or in its run
-  state and outcome (`runAttempt_complete`), and no executing world runs on a wall
-  clock. One is carried by the frame: the host's achievement flag still ends an
+  loop returns agrees with one pure fold of whole steps, in its run state and
+  outcome or in its refusal with the learned stage of a refused pass
+  (`runAttempt_complete`), and no executing world runs on a wall clock. One is carried by the frame: the host's achievement flag still ends an
   option, as a field that the coder does not read (`frame_congr`); it is declared
   as departure [D8](learned-only-binding.md#d8--achievement-event--step-10). Two
   are inside the agent's own modules, which import no world: the lifetime
