@@ -101,7 +101,8 @@ def modules : Array Name := #[
   `Acorn.Host.Viewer.NativeResources, `AcornTools.Native.Audit,
   `AcornVerif.Resource.WordKernel,
   `AcornTools.Native.Resources, `AcornTools.Native.Routes, `NativeApp.Viewer, `AcornTools.Ownership,
-  `AcornTools.OwnershipAudit, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount
+  `AcornTools.OwnershipAudit, `AcornTools.OwnershipSource, `AcornTools.SealedControl,
+  `AcornTools.Theorems, `AcornTools.TheoremCount
 ]
 
 /-- The reviewed modules of the documentation site, the separate Lake package in `site/`;
@@ -235,15 +236,19 @@ def anchors : Array (Name × Name × Name) := #[
 the state, the image and the chosen value of one construction are of that construction's
 step order, and a callback record is of the order in its index. The constructor of each
 must be sealed: private, or a row of `sealedConstants`. A change of visibility that
-removes one from the rule fails the audit. -/
+removes one from the rule fails the audit. The audit also finds every maker of these
+types by its type, in the modules that may reference a sealed constant, and seals it
+unless it is an open maker. -/
 def sealedTypes : Array Name := #[
   `Acorn.Handcrafted.AgentConstruction.State, `Acorn.Handcrafted.AgentConstruction.Image,
   `Acorn.Handcrafted.AgentConstruction.Chosen, `Acorn.Handcrafted.Chosen,
   `Acorn.Host.AgentCallbacks]
 
 /-- Constants with a public name that only the listed modules may reference in a
-definition. The audit adds every private constructor of a project type with its declaring
-module; that set is computed and has no row here.
+definition. The audit computes the other sealed constants and has no row for them: every
+private constructor of a project type with its declaring module, every alias of a sealed
+constructor (found by its body), and every maker of a sealed type (found by its type)
+with the modules of that type's constructors.
 
 - The constructor of the callback record: its declaring module, the agent's two parts
   (`Agent.callbacks`) and the construction's callbacks (`AgentConstruction.callbacks`).
@@ -261,6 +266,26 @@ def sealedConstants : Array (Name × Array Name) := #[
       `Acorn.Host.Checkpoint.Snapshot]),
   (`Acorn.Handcrafted.AgentConstruction.callbacks,
     #[`Acorn.Host.AgentAdmission, `NativeApp.Core])
+]
+
+/-- Makers of a sealed type that every module may call, each with the theorem that says
+why its value is of the order its type claims. The audit requires that each is a maker by
+its type and that the statement of the theorem names it.
+
+- Cold initialization: no step is taken, so the state is the agent's initial state.
+- The finite prefix from cold initialization, for a construction that holds the proof of
+  the default order: the fold is the agent's own prefix, whose step is `Agent.act`.
+- The campaign of a construction: the host campaign over the construction's own cold
+  initialization and callbacks.
+- The first part of the agent's step: the chosen value holds the order it was selected
+  under. -/
+def openMakers : Array (Name × Name) := #[
+  (`Acorn.Handcrafted.AgentConstruction.initial,
+    `Acorn.Handcrafted.AgentConstruction.initial_agent),
+  (`Acorn.Handcrafted.AgentConstruction.execute, `AcornVerif.CurrentAgent.native_prefix),
+  (`Acorn.Handcrafted.AgentConstruction.runCampaign,
+    `Acorn.Handcrafted.AgentConstruction.runCampaign_callbacks),
+  (`Acorn.Handcrafted.Agent.choose, `Acorn.Handcrafted.Agent.choose_selected)
 ]
 
 /-- Required native entry dependencies after proof erasure. These are routing

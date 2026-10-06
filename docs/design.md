@@ -721,12 +721,18 @@ bytes only when the order word in their own header is the receiver's
 
 These types hold no proof of an order, because the learner state and the durable
 image carry none. The index and the ownership audit prevent a mix of orders
-inside this project: the audit reads the compiled declarations and refuses a
-definition that applies the constructor of one of these types, or takes the
-callbacks of a construction, outside the modules that own them. They do not stop
-a definition outside the project that builds one of these structures directly.
-They do not stop an edit of the order word in a checkpoint file, because the file
-is not authenticated.
+inside this project. The audit reads the compiled declarations and refuses a
+definition, outside the modules that own it, that references a constant which
+makes a value of one of these types: a constructor, an alias of a constructor
+(found by its body), another maker (found by its type), or the callbacks of a
+construction. Four makers are open to every module, each with a theorem
+(`AcornOwnership.openMakers`): cold initialization, the finite prefix of a
+construction of the default order, the campaign of a construction, and the first
+part of the agent's step. The audit classifies a function of an owning module by
+its type and does not read its body, so those modules stay the reviewed makers.
+The index and the audit do not stop a definition outside the project that builds
+one of these structures directly. They do not stop an edit of the order word in
+a checkpoint file, because the file is not authenticated.
 
 Under `learn-then-act` the runner takes the world's
 transition after both parts. Under `plan-after-act` it takes the transition

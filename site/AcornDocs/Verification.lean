@@ -135,13 +135,19 @@ ownership inventory. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
 a maintained module with a non-empty module docstring. Ownership admission
 refuses a facet-qualified build key in the root package's Lake configuration.
-Ownership admission also reads the compiled declarations for sealed constants:
-no definition of a project module outside the permitted modules references a
-private constructor of a project type or a constant of the sealed table. A
-private constructor does not stop a tactic, so this check is the enforcement,
-and it covers the modules of this project only. Two control declarations in the
-audit make a sealed value outside its module, and the audit requires that the
-rule reports them.
+Ownership admission also reads the compiled declarations for sealed constants,
+the constants that make a value of a type whose maker is a claim of this
+project: a private constructor of a project type, a constructor in the sealed
+table, an alias of such a constructor (found by its body), and a maker of a
+sealed type in the modules that own it (found by its type). No definition of a
+project module outside the permitted modules references one. A private
+constructor does not stop a tactic, and Lean generates a public alias of a
+public constructor, so this check is the enforcement. It covers the modules of
+this project only, and it classifies a function of an owning module by its type
+without reading its body. Five control declarations in the audit make a sealed
+value outside its module. The audit requires that the complete rule reports
+them, and that the rule without the computed parts reports only the two that
+use a constructor.
 The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
 pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and

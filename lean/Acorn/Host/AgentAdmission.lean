@@ -198,6 +198,22 @@ def AgentConstruction.runCampaign (construction : AgentConstruction) (config : H
   Host.runCampaign config seed selection spec (fun _ => IO.lazyPure fun _ => construction.initial)
     construction.callbacks observer checkpoint readStop
 
+/-- **The campaign of a construction is the host campaign over that construction's own
+cold initialization and callbacks.** For every construction and every other argument, the
+agent constructor that the host campaign receives returns the construction's cold initial
+state, and the callback record it receives is the construction's own. A caller of
+`AgentConstruction.runCampaign` supplies neither. -/
+theorem AgentConstruction.runCampaign_callbacks (construction : AgentConstruction)
+    (config : Host.WorldConfig) (seed : UInt64) (selection : Host.AgentSelection)
+    (spec : Host.CampaignSpec)
+    (observer : Host.StreamObserver
+      (AgentObservation construction.config construction.dimension))
+    (checkpoint : Option (Host.CheckpointHooks construction.State)) (readStop : BaseIO Bool) :
+    construction.runCampaign config seed selection spec observer checkpoint readStop =
+      Host.runCampaign config seed selection spec
+        (fun _ => IO.lazyPure fun _ => construction.initial) construction.callbacks observer
+        checkpoint readStop := rfl
+
 /-- A construction of the default step order. The finite-prefix transition folds
 `Agent.act`, which is the step of that order, so the prefix operations take this type
 only. -/
