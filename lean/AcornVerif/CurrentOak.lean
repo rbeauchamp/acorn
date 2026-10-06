@@ -77,22 +77,29 @@ The registered operation is the stopping decision `Skill.decideOption`. Inside i
 event does one thing: it forces the ending with the reason `goal`
 (`decideOption_event`, `Skill.goal_ends`).
 
-Each operation that takes the achievement event reads it through stopping decisions
-only. That is proved for each of these operations, for every input of the operation:
-`Skill.settleFollowing`, `Skill.settleTemporal` and `Skill.followTemporal`
-(`settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`), `followSlot`
-and `TemporalControl.followOptions` (`followSlot_event`, `followOptions_event`),
+For each operation that takes the achievement event, where the outcomes of the stopping
+decisions it consults agree under two events, its results agree. That is proved for
+each of these operations, for every input of the operation: `Skill.settleFollowing`,
+`Skill.settleTemporal` and `Skill.followTemporal` (`settleFollowing_event`,
+`settleTemporal_event`, `followTemporal_event`), `followSlot` and
+`TemporalControl.followOptions` (`followSlot_event`, `followOptions_event`),
 `TemporalControl.takeoverValue` (`takeoverValue_event`) and
-`TemporalControl.dispatchMeta` (`dispatchMeta_event`). Each theorem compares the
-`continuation` of the stopping decisions the operation consults under two events: the
-outcome of a decision without its ending reason. Where those outcomes agree, the
-operation returns one result. The hypothesis does not force the two events equal: at the
-duration cap every decision stops whatever the event is (`continuation_cap`). So each
-theorem fails if its operation reads the event anywhere but in a stopping decision, or
-reads the ending reason.
+`TemporalControl.dispatchMeta` (`dispatchMeta_event`). An outcome is the `continuation`
+of a decision: the decision without its ending reason. The hypothesis does not force the
+two events equal: at the duration cap every decision stops whatever the event is
+(`continuation_cap`). So a theorem fails if its operation's result differs between a set
+and a clear event where the decisions stop under both, as it does if the operation
+reads the event in a stopping case, or reads the ending reason.
 
-`step_event` shows that `TemporalControl.step` hands the event to selection, to
-`takeoverValue` and to `followOptions`, and reads it nowhere else.
+These are statements about results, and they do not exclude every read of the event.
+Where a decision continues the event is clear, because a set event forces the ending.
+A read of the event there sees one value and changes no result, so it leaves every
+theorem here true. That the operations contain no such read is read from their
+definitions.
+
+`step_event` shows that, where selection, `takeoverValue` and `followOptions` agree
+under two events, `TemporalControl.step` agrees: the rest of the transition does not
+depend on the event.
 `TemporalControl.finish`, which credits the primitive action values, the prediction
 learners and the options' questions, is handed the frame and reads it through its
 signal values only (`finish_signals`), so it does not read the event. The tester takes
@@ -124,7 +131,8 @@ is the composed step written once with the stopping rule as a parameter and no e
 equal to the executed step when the rule is `Skill.decideOption` at the frame's event. A
 statement that some function of the stopping rule gives the step is no substitute: the
 rule at a set event differs from the rule at a clear one, so such a function exists for
-every step.
+every step. The same parameterized form is what excludes every read of the event
+outside the stopping decisions, which the theorems about results here do not.
 -/
 
 namespace AcornVerif.CurrentOak
@@ -668,10 +676,12 @@ theorem continuation_cap (skill : Skill actions config criterion dimension disco
   | true => rfl
   | false => simp [Skill.decideOption, continuation, capped]
 
-/-- An option that settles its off-policy trajectory reads the achievement event through
-the outcome of its stopping decision only. The hypothesis admits a set and a clear event
-wherever the learned decision stops, so the theorem fails if `Skill.settleFollowing` reads
-the event anywhere but in that decision, or reads the ending reason. -/
+/-- Where the outcome of the stopping decision of a stored trajectory agrees under two
+achievement events, settling the trajectory gives one result. The hypothesis admits a
+set and a clear event wherever the learned decision stops, so the theorem fails if the
+settling of a stopped trajectory depends on the event or on the ending reason. It does
+not exclude a read of the event where the decision continues: there the event is
+clear. -/
 theorem settleFollowing_event (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (first second : Bool)
@@ -693,8 +703,11 @@ theorem settleFollowing_event (skill : Skill actions config criterion dimension 
       ⟨next, left, right⟩ | ⟨leftReason, rightReason, left, right⟩ <;>
       simp only [left, right]
 
-/-- An invocation start settles the stored trajectory through the outcome of the stopping
-decision only. It fails if `Skill.settleTemporal` reads the event anywhere else. -/
+/-- Where the outcome of the stopping decision of the stored trajectory agrees under two
+achievement events, an invocation start settles it to one result. It fails if
+`Skill.settleTemporal` depends on the event where it settles nothing or where the
+trajectory stops under both events. It does not exclude a read where the decision
+continues. -/
 theorem settleTemporal_event (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (first second : Bool)
@@ -715,10 +728,12 @@ theorem settleTemporal_event (skill : Skill actions config criterion dimension d
       rate reward gain same
   · rfl
 
-/-- An option that learns off-policy from a frame reads the achievement event through the
-outcome of its stopping decision only. The hypothesis admits a set and a clear event
-wherever the learned decision stops, so the theorem fails if `Skill.followTemporal` reads
-the event anywhere but in that decision, or reads the ending reason. -/
+/-- Where the outcome of the stopping decision of a stored trajectory agrees under two
+achievement events, the option's off-policy learning from the frame gives one result.
+The hypothesis admits a set and a clear event wherever the learned decision stops, so
+the theorem fails if the learning of a stopped trajectory, or of an option with no
+trajectory, depends on the event or on the ending reason. It does not exclude a read of
+the event where the decision continues: there the event is clear. -/
 theorem followTemporal_event (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (first second : Bool)
@@ -742,9 +757,11 @@ theorem followTemporal_event (skill : Skill actions config criterion dimension d
       ⟨next, left, right⟩ | ⟨leftReason, rightReason, left, right⟩ <;>
       simp only [left, right]
 
-/-- One slot's share of a followed frame reads the achievement event through the outcome
-of the slot's stopping decision only, and an executing slot does not read it. It fails if
-`followSlot` reads the event itself. -/
+/-- Where the outcome of a slot's stopping decision agrees under two achievement events,
+the slot's share of a followed frame is one result. An executing slot and a slot with no
+supplied potential consult no decision, and the hypothesis asks nothing of them, so the
+theorem fails if `followSlot` depends on the event for such a slot or for a stopped
+trajectory. It does not exclude a read where the decision continues. -/
 theorem followSlot_event (models : OptionModelOps criterion dimension)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (first second : Bool) (estimate : Binary32)
@@ -774,10 +791,12 @@ theorem followSlot_event (models : OptionModelOps criterion dimension)
         rate action behaviour reward gain (fun following held => same potential following rfl
           found held)
 
-/-- The off-policy learning of the options reads the achievement event through the outcomes
-of the stopping decisions of the slots that are not executing only. The hypothesis names
-each such slot of the given state with a supplied potential and a stored trajectory. It
-fails if `TemporalControl.followOptions` or `followSlot` reads the event itself. -/
+/-- Where the outcomes of the stopping decisions of the slots that are not executing
+agree under two achievement events, the off-policy learning of the options gives one
+state. The hypothesis names each such slot of the given state with a supplied potential
+and a stored trajectory. The theorem fails if `TemporalControl.followOptions` depends on
+the event for another slot, for a stopped trajectory, or outside the option table. It
+does not exclude a read where a decision continues. -/
 theorem followOptions_event
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -817,9 +836,11 @@ theorem followOptions_event
         same index bound potential following idle found held)
   rw [TemporalControl.followOptions_eq, TemporalControl.followOptions_eq, tables]
 
-/-- The value an interrupted option's span closes toward reads the achievement event
-through the outcome of that option's stopping decision only. It fails if
-`TemporalControl.takeoverValue` reads the event anywhere else. -/
+/-- Where the outcome of the interrupted option's stopping decision agrees under two
+achievement events, the value its span closes toward is one value. It fails if
+`TemporalControl.takeoverValue` depends on the event where it consults no decision or
+where the decision stops under both events. It does not exclude a read where the
+decision continues. -/
 theorem takeoverValue_event
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
@@ -855,10 +876,12 @@ theorem takeoverValue_event
             simp only [left, right]
   · rfl
 
-/-- The dispatch of a drawn meta action reads the achievement event through the outcome
-of one stopping decision only: that of the selected option's stored trajectory, in the
-state after meta credit. It fails if `TemporalControl.dispatchMeta` reads the event
-anywhere else. -/
+/-- Where the outcome of one stopping decision agrees under two achievement events, the
+dispatch of a drawn meta action gives one result. The decision is that of the selected
+option's stored trajectory, in the state after meta credit. The theorem fails if
+`TemporalControl.dispatchMeta` depends on the event in the meta credit, the primitive
+choice or the start of the option, or where the trajectory stops under both events. It
+does not exclude a read where the decision continues. -/
 theorem dispatchMeta_event
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -898,10 +921,11 @@ theorem dispatchMeta_event
       simp only [bind, Option.bind]
       rw [settled]
 
-/-- The local transition hands the achievement event to selection, to the value an
-interrupted option's span closes toward and to the off-policy learning of the options,
-and reads it nowhere else. It fails if `TemporalControl.step` hands the event to the
-closing of the span or to the completion boundary. -/
+/-- Where selection, the value an interrupted option's span closes toward and the
+off-policy learning of the options agree under two achievement events, the local
+transition agrees. So the rest of the transition does not depend on the event: the
+theorem fails if the closing of the span or the completion boundary is made to depend
+on it. -/
 theorem step_event (state : TemporalControl interface profile config criterion dimension)
     (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
     (observation : Frame interface) (reward : Binary32) (first second : Bool)

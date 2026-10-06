@@ -31,8 +31,8 @@ boundary `TemporalControl.finish` is the one operation that reads them, and it r
 them only to write them (`finish_learners`).
 
 The achievement event of a frame does reach a learner. It is departure D8, and
-`AcornVerif.CurrentOak` states, for each operation that takes it, that the operation
-reads it through stopping decisions only.
+`AcornVerif.CurrentOak` states, for each operation that takes it, that the operation's
+results agree under two events where the outcomes of the stopping decisions agree.
 
 `executed_actions` carries the result to the closed loop of the kernel: from two agent
 states with the same learners, the executed agent takes the same action at every time,

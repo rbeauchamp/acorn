@@ -425,7 +425,7 @@ objectives](#learning-objective).
 | Planning writes the planning view only | Every planning boundary, whatever function it calls, leaves the rest of the local state as it was. The option policies, the option models, the primitive action values, the prediction learners and the representation are unchanged. | `planFree_writes`, `planFree_keeps` |
 | The coder reads words and symbols | The features of a frame and the outputs of the generated units are functions of the bank, the frame's words, the stored prediction feedback and the frame's symbols. Two frames with the same words and symbols give the same features, whatever their signals, declared potentials and achievement events are. | `features_eq`, `units_eq`, `frame_congr` |
 | The extra arrows are listed | The full decision reads a percept through the features and unit outputs of its frame, its reward word and three extra arrows only: on two percepts that agree in those it returns the same decision and next state. The arrows are the declared potentials (D2), the signal values of the prediction questions (D5) and the achievement event (D8). The local transition reads the frame through the first two only; the event is a separate argument. The potentials and the agent's reward question carry their departure in the executed values. | `act_extras`, `step_frame`, `extras`, `extras_departures`, `potentials_origin`, `signals_origin` |
-| Each operation that takes the achievement event reads it through stopping decisions only | Inside the stopping decision the event does one thing: it forces the ending with the reason `goal`. Seven operations hand the event to a stopping decision: the settling and the off-policy learning of one option, the off-policy learning of all options, the value an interrupted option's span closes toward, and the dispatch of the higher-level controller's choice. For each, on every input: where the outcomes of the stopping decisions it consults agree under two events, it returns one result. An outcome is a decision without its ending reason. The condition does not force the events equal, because at the duration cap every decision stops whatever the event is; so each theorem fails if its operation reads the event elsewhere. The local transition hands the event to selection and to two of those operations, and to nothing else. The completion of a decision reads the frame through its signal values only. A profile without a hierarchy does not read the event. | `decideOption_event`, `Skill.goal_ends`, `continuation_cap`, `settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`, `followSlot_event`, `followOptions_event`, `takeoverValue_event`, `dispatchMeta_event`, `step_event`, `finish_signals`, `step_event_primitive` |
+| Where the stopping outcomes agree, the results agree | Inside the stopping decision the achievement event does one thing: it forces the ending with the reason `goal`. Seven operations take the event and consult a stopping decision: the settling and the off-policy learning of one option, the off-policy learning of all options, the value an interrupted option's span closes toward, and the dispatch of the higher-level controller's choice. For each, on every input: where the outcomes of the stopping decisions it consults agree under two events, its results agree. An outcome is a decision without its ending reason. The condition does not force the events equal, because at the duration cap every decision stops whatever the event is; so a theorem fails if its operation's result differs between a set and a clear event where the decisions stop under both. Where selection and two of those operations agree under two events, the local transition agrees. The completion of a decision reads the frame through its signal values only. A profile without a hierarchy does not read the event. | `decideOption_event`, `Skill.goal_ends`, `continuation_cap`, `settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`, `followSlot_event`, `followOptions_event`, `takeoverValue_event`, `dispatchMeta_event`, `step_event`, `finish_signals`, `step_event_primitive` |
 | Host accounting does not reach a learner: it writes observations only | Environment accounting, attempt accounting and censoring at process exit keep the composed storage of representation, learners and references, the primitive credit, the reward rate and the rate schedule, in every world interface. | `recordEnvironment_learners`, `recordAttempt_learners`, `censor_learners` |
 | Host accounting does not reach a learner: no decision reads the observations | From two agent states that differ in their lifetime observations only, the full decision returns the same decision and states that again differ in those observations only, on every percept. So a host operation that writes those observations only changes neither the next decision nor the learners after it, and from two such states the executed agent takes the same action at every time in every world of the kernel. | `step_learners`, `act_learners`, `act_accounting`, `executed_actions` |
 
@@ -449,17 +449,26 @@ What these theorems do not establish:
   leaves the box of options and values, and the signature lets the model arrow
   read both. The executed model's terminal target does read the current value
   function ([PAR-13](prior-art-review.md#par-13--option-expectation-models)).
+- **That no operation reads the achievement event outside a stopping decision.**
+  The event theorems are about results: where the stopping outcomes agree under
+  two events, the results agree. They do not exclude every read of the event.
+  Where a decision continues the event is clear, because a set event forces the
+  ending; a read of the event there sees one value and changes no result, so it
+  leaves every such theorem true. That the operations contain no such read is
+  read from their definitions.
 - **The achievement event through selection.** In a profile with a hierarchy,
   selection takes the executing option's stopping decision and hands the event
   to the free boundary, which hands it to the dispatch in a later state. No
   theorem states that chain, so no theorem here says where the composed step
-  sends the event. The exact open statement is the composed step written once
-  with the stopping rule as a parameter and no event, equal to the executed step
-  when the rule is the executed stopping decision at the frame's event. The
-  reason of an ending reaches no credit (`endTemporal_reason`,
-  `closeOption_reason`): it goes into the end event of the returned decision, and
-  from there into the lifetime observations and the stored last decision, as
-  read from the completion of a decision.
+  sends the event. The reason of an ending reaches no credit
+  (`endTemporal_reason`, `closeOption_reason`): it goes into the end event of the
+  returned decision, and from there into the lifetime observations and the
+  stored last decision, as read from the completion of a decision.
+- **The statement that closes both.** The exact open statement is the composed
+  step written once with the stopping rule as a parameter and no event, equal to
+  the executed step when the rule is the executed stopping decision at the
+  frame's event. With no event to read, it excludes every read outside the
+  stopping decisions, and it covers the chain through selection.
 - **That planning runs on the feature vectors perception produced.** The planning
   arrow's inputs have the picture's types. That the boundary call receives the
   current frame's features and a stored earlier vector is the definition of the
