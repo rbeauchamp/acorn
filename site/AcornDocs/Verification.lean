@@ -292,15 +292,18 @@ Regula's decision attribute makes the contract a requirement of the function, so
 the audit fails when a contract is removed while its function stays registered.
 A decision procedure whose result type is `Decidable` carries both directions in
 its type and is registered with no contract. An admission with an argument or
-result type that depends on an earlier argument has no kind. Where a theorem
+result type that depends on an earlier argument has no kind. Neither has a
+function between fixed types for which no proof supplies the accepted or refused
+input that a kind carries. Where a theorem
 proves which inputs it accepts or refuses, or a property of an accepted or a
 refused result, that statement is registered as an ordinary requirement, which
 the audit reports with no kind, and the ownership audit requires the contract by
 name. The audit does not find a decision function that is not registered. The
 module's documentation states the selection rule and lists the groups of the
 Acorn library that are not registered with the evidence that stands for each:
-composed and polymorphic admissions, effects with no pure core, and the
-command-line, JSON and viewer parsers, for which no direction is proved. It
+composed and polymorphic admissions, certificate proposals, effects with no pure
+core, and the command-line, JSON and viewer parsers, for which no direction is
+proved. It
 cannot register a function of another library, such as a NativeApp parser. No
 kind says that a specification is the intended one. `Acorn.Decisions` belongs to
 the Acorn library
@@ -310,7 +313,11 @@ attribute. It declares no executing definition and no module imports it; the
 boundary audit admits it with the proof sources and refuses an import of it.
 `AcornVerif.Decisions` states the contracts whose proofs need the proof library.
 Regula does not count them toward a registration, so their functions are not
-registered, and the ownership audit requires each contract by name.
+registered, and the ownership audit requires each contract by name. Among them
+are the certificate checkers. No checker is complete, so each contract states
+what an accepted certificate establishes: the blocked checker carries the sound
+kind, and the replay and stance checkers, whose arguments have a dependent type,
+an ordinary requirement.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

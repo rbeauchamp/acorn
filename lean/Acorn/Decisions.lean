@@ -8,6 +8,7 @@ import Regula.Decision
 import Acorn.Agreement
 import Acorn.FeatureRanking
 import Acorn.Host.Campaign
+import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
 import Acorn.Host.Viewer.ControlRequest
@@ -32,7 +33,7 @@ A decision is registered here when a theorem beside its definition proves a prop
 accepted or refused results, or when the inputs it accepts follow by unfolding its definition
 in this module. The property is the set of accepted or refused inputs where a theorem states
 one, and otherwise what an accepted or a refused result is; each contract's docstring says
-which. Three groups are registered.
+which. Four groups are registered.
 
 * Decisions of independent arguments carry a kind and the registration. A function of several
   arguments is decided on their product through `Function.uncurry`.
@@ -44,10 +45,20 @@ which. Three groups are registered.
   no kind, and the function carries no `@[regula_decision]` registration. The ownership audit
   requires each such contract by name instead, with a statement that still refers to the
   executing definition.
+* A function between fixed types for which no proof supplies the witness of a kind has no kind
+  either. Each kind carries an input the function accepts or one it refuses. For
+  `Host.impassable` and `Host.walkableTile` that input is the generated terrain of one tile,
+  and no theorem states the terrain of a tile. The proved statement is registered as an
+  ordinary requirement, and the ownership audit requires it in the same way.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function
-is not registered here, and the ownership audit requires its contract in the same way.
+is not registered here, and the ownership audit requires its contract in the same way. The
+certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified`
+are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
+statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
+No checker is complete, so `Host.regionBlocked` carries the sound kind and the other two, whose
+arguments have a dependent type, an ordinary requirement.
 
 ## Decisions that are not registered
 
@@ -60,7 +71,13 @@ libraries: Regula counts only a contract of the function's own library and refus
 registration written for a declaration of another, so this module can register none of their
 functions. The parsers of `NativeApp` are `NativeApp.decodeBuildIdentity`,
 `NativeApp.auditHex` and `NativeApp.auditOptions`, each of fixed types with no theorem about
-the inputs it accepts. `Bootstrap` decides only in `IO`.
+the inputs it accepts. `Bootstrap` decides only in `IO`. The proof library `AcornVerif` has no
+executable, so no claim rests on running one of its definitions. Its definitions with an
+optional or Boolean result, such as `AcornVerif.Checkpoint.authorize`,
+`AcornVerif.CurrentStep.passable` and `AcornVerif.CurrentGridWorld.advance`, are models that
+its theorems relate to the executing definitions. Its interaction kernel and world classes
+(`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state worlds, agents, goals and bounds as
+structures and propositions.
 
 * An admission that applies other admissions in sequence has no contract of its own.
   `Prediction.admit` and `LogStepSize.admit` are `Bounded32.admit` at a derived interval,
@@ -79,7 +96,15 @@ the inputs it accepts. `Bootstrap` decides only in `IO`.
   `Host.Viewer.controlTelemetryLine` apply `wireText` to the line they emit, and
   `Host.Viewer.WorldMemory.frame` applies `sseLine` to its frame. An accepting result of
   `Host.Viewer.authorizeCommand` carries the verdicts of `ControlHeaders.authorizes` and
-  `controlCommand` as fields of its type.
+  `controlCommand` as fields of its type. `Host.CertificateDriver.execute` refuses when
+  `Host.WorldConfig.standard` or world generation does, or when the standard curriculum does
+  not hold a reach goal at each of the two indices it reads.
+* A function that proposes a certificate decides nothing. `Host.CertificateSearch.explore`,
+  `pathTo`, `settle` and `region`, with their helpers `neighbor`, `behind`, `kindAt`,
+  `arrivalDirection`, `inGoalBox` and `Findings.complete`, propose candidates, and nothing is
+  proved about them: a proposal means nothing until its checker accepts it.
+  `Host.CertificateDriver.certifyReach` and `certifyItem` pass each proposal to its checker
+  and keep the certificate the checker returns.
 * `Host.Viewer.Buffer.offer`, `Checkpoint.decodeList` and `Checkpoint.decodeListInto` are
   polymorphic in their element type, which no kind admits. `Buffer.offer_iff` states the
   acceptance of the first, and `Checkpoint.list_roundtrip` and
@@ -87,8 +112,10 @@ the inputs it accepts. `Bootstrap` decides only in `IO`.
   `Checkpoint.Codec` carries the round trip of its own decoder as a field.
 * An effect with a pure core is covered through that core. `Checkpoint.loadFile` returns the
   verdict of `Checkpoint.load` on the bytes it read, and `Checkpoint.Store.save` refuses with
-  `Checkpoint.saveBytes`; both cores are registered below. An effect with no pure core
-  decides from state outside the Lean definitions, so no theorem states its verdict:
+  `Checkpoint.saveBytes`; both cores are registered below. `Host.CertificateDriver.dispatch`
+  admits its arguments with `Host.CertificateDriver.natural` and `Host.Coordinate.checked` and
+  prints what `execute` returns. An effect with no pure core decides from state outside the
+  Lean definitions, so no theorem states its verdict:
   `Host.StopFlag.requested` and the `Host.Viewer.Broadcast` operations read shared state under
   a lock, `Host.Viewer.RunDirectory.adoptStrayCheckpoint` reads the file system and
   `Host.Viewer.NativeResources.observe` reads the operating system. The concurrency and
@@ -99,9 +126,10 @@ the inputs it accepts. `Bootstrap` decides only in `IO`.
   parsers `Host.Cli.scan`, `Host.Cli.value`, `Host.Cli.required`, `Host.Cli.natural`,
   `Host.Cli.unsigned`, `Host.Cli.side`, `Host.Cli.profile`, `Host.Cli.criterion`,
   `Host.Cli.command`, `Host.Cli.demo`, `Host.Cli.dispatch`, `Host.AgentArguments.profile`,
-  `Host.AgentArguments.word`, `Host.AgentArguments.admit`, `Host.Viewer.ViewerOptions.decode`
-  and `Host.parseControl`; the JSON parser `Json.parse` with its readers `Json.Value.text`,
-  `Json.Value.natural`, `Json.Value.list`, `Json.Value.fields` and `Json.decode`; and the
+  `Host.AgentArguments.word`, `Host.AgentArguments.admit`, `Host.Viewer.ViewerOptions.decode`,
+  `Host.CertificateDriver.natural` and `Host.parseControl`; the JSON parser `Json.parse` with
+  its readers `Json.Value.text`, `Json.Value.natural`, `Json.Value.list`, `Json.Value.fields`
+  and `Json.decode`; and the
   viewer parsers `Host.Viewer.Command.parse`, `Host.Viewer.controlCommand`,
   `Host.Viewer.jsonField`, `Host.Viewer.jsonWord`, `Host.Viewer.jsonBrowserClock`,
   `Host.Viewer.jsonBool`, `Host.Viewer.runWord`, `Host.Viewer.healthFromJson`,
@@ -803,6 +831,88 @@ theorem checkpoint_status_parse : Regula.ExecutableContract Host.CheckpointStatu
 
 attribute [regula_decision] Host.CheckpointStatus.parse
 
+/-! ## Certificate tests
+
+The checkers of `Host.Certificate` decide a certificate by these tests of one tile. The checkers
+themselves are registered in `AcornVerif.Decisions`, with what an accepted certificate
+establishes, and below with the admissions of a dependent type. -/
+
+/-- The region test accepts exactly a tile that is one of the listed cells
+(`AcornVerif.CurrentCertificates.inRegion_iff`). -/
+theorem region_member : Regula.ExecutableContract Host.inRegion (fun test =>
+    Regula.Decides (· = true)
+      (fun input : List Host.Position × Host.Position => input.2 ∈ input.1)
+      (Function.uncurry test)) :=
+  ⟨decides (fun input => by simp [Function.uncurry, Host.inRegion])
+    ⟨([⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩], ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩),
+      List.mem_singleton.mpr rfl⟩
+    ⟨([], ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩), List.not_mem_nil⟩⟩
+
+attribute [regula_decision] Host.inRegion
+
+/-- The box test accepts exactly the tiles with both coordinates inside the side of the
+receiving box. `AcornVerif.CurrentCertificates.inBox_position` states that it accepts every
+body position. -/
+theorem box_member : Regula.ExecutableContract Host.inBox (fun test =>
+    Regula.Decides (· = true)
+      (fun input : Host.WorldConfig × Host.Position =>
+        (0 ≤ input.2.x.val ∧ input.2.x.val < input.1.side) ∧
+          (0 ≤ input.2.y.val ∧ input.2.y.val < input.1.side))
+      (Function.uncurry test)) :=
+  ⟨decides
+    (fun input => by
+      show (Host.BoxPosition.checked input.1 input.2.x.val input.2.y.val).isSome = true ↔ _
+      unfold Host.BoxPosition.checked
+      by_cases column : 0 ≤ input.2.x.val ∧ input.2.x.val < input.1.side
+      · by_cases row : 0 ≤ input.2.y.val ∧ input.2.y.val < input.1.side <;>
+          simp [column, row]
+      · simp [column])
+    ⟨(⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩,
+        ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩), by decide⟩
+    ⟨(⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩,
+        ⟨⟨-1, by decide⟩, ⟨0, by decide⟩⟩), by decide⟩⟩
+
+attribute [regula_decision] Host.inBox
+
+/-- The cover test accepts exactly an absent tile, a listed tile and a tile outside the
+receiving box. -/
+theorem region_covers : Regula.ExecutableContract Host.covered (fun test =>
+    Regula.Decides (· = true)
+      (fun input : (Host.WorldConfig × List Host.Position) × Option Host.Position =>
+        ∀ tile, input.2 = some tile → tile ∈ input.1.2 ∨ Host.inBox input.1.1 tile = false)
+      (Function.uncurry (Function.uncurry test))) :=
+  ⟨decides
+    (fun ⟨⟨config, cells⟩, candidate⟩ => by
+      cases candidate with
+      | none => simp [Function.uncurry, Host.covered]
+      | some tile => simp [Function.uncurry, Host.covered, Host.inRegion])
+    ⟨((⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩, []), none),
+      fun _ absent => nomatch absent⟩
+    ⟨((⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩, []),
+        some ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩),
+      fun covers =>
+        (covers _ rfl).elim List.not_mem_nil (fun outside => absurd outside (by decide))⟩⟩
+
+attribute [regula_decision] Host.covered
+
+/-- The impassable test accepts exactly a tile whose static terrain is a mountain, or water
+when the certificate is for a body without a boat. It refuses a terrain refusal.
+
+The function is between fixed types, but each kind carries an accepted or a refused input of
+the function, which is the generated terrain of one tile, and no theorem states the terrain of
+a tile. The statement is therefore an ordinary requirement with no kind. -/
+theorem tile_impassable : Regula.ExecutableContract Host.impassable (fun test =>
+    ∀ (config : Host.WorldConfig) (boat : Bool) (tile : Host.Position),
+      test config boat tile = true ↔
+        Host.terrain tile config.raw.seed config.raw.baseScale = .ok .mountain ∨
+          (Host.terrain tile config.raw.seed config.raw.baseScale = .ok .water ∧
+            boat = false)) :=
+  ⟨fun config boat tile => by
+    unfold Host.impassable
+    cases Host.terrain tile config.raw.seed config.raw.baseScale with
+    | error refusal => simp
+    | ok kind => cases kind <;> simp⟩
+
 /-! ## Viewer protocol admission -/
 
 open Host.Viewer
@@ -1180,5 +1290,35 @@ theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
       (error : Checkpoint.Error), load construction receiver bytes = .error error →
         Checkpoint.loadKeeping construction receiver bytes = (receiver, some error)) :=
   ⟨Checkpoint.load_nonmutation⟩
+
+/-- Replay checking returns a certificate exactly when the replay checker accepts the action
+list. The certificate's type carries that acceptance; `AcornVerif.Decisions.replay_certified`
+states what it establishes. -/
+theorem replay_check : Regula.ExecutableContract @Host.ReplayCertificate.check (fun check =>
+    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat)
+      (actions : List Host.Action),
+      (@check config world goal cap actions).isSome = true ↔
+        Host.replayCertified world goal cap actions = true) :=
+  ⟨fun _ _ _ _ _ => dite_isSome _⟩
+
+/-- Blocked checking returns a certificate exactly when the blocked checker accepts the
+region. The certificate's type carries that acceptance; `AcornVerif.Decisions.region_blocked`
+states what it establishes. -/
+theorem blocked_check : Regula.ExecutableContract Host.BlockedCertificate.check (fun check =>
+    ∀ (config : Host.WorldConfig) (boat : Bool) (target start : Host.Position)
+      (cells : List Host.Position),
+      (check config boat target start cells).isSome = true ↔
+        Host.regionBlocked config boat target cells start = true) :=
+  ⟨fun _ _ _ _ _ => dite_isSome _⟩
+
+/-- Stance checking returns a certificate exactly when the stance checker accepts the stance.
+The certificate's type carries that acceptance; `AcornVerif.Decisions.stance_certified` states
+what it establishes. -/
+theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (fun check =>
+    ∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
+      (direction : Host.Direction),
+      (check config item stance direction).isSome = true ↔
+        Host.stanceCertified config stance direction item = true) :=
+  ⟨fun _ _ _ _ => dite_isSome _⟩
 
 end Acorn.Decisions
