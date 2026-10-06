@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Acorn.Host.AgentPrefix
 import AcornVerif.CurrentGridWorld
+import AcornVerif.Oak
 
 /-!
 # Host accounting does not reach a learner
@@ -30,9 +31,14 @@ of the lifetime observations (`select_relabel` and the lemmas before it); the co
 boundary `TemporalControl.finish` is the one operation that reads them, and it reads
 them only to write them (`finish_learners`).
 
-The achievement event of a frame does reach a learner. It is departure D8, and
-`AcornVerif.CurrentOak` states, for each operation that takes it, that the operation's
-results agree under two events where the outcomes of the stopping decisions agree.
+The achievement event of a frame does reach a learner. It is departure D8.
+`AcornVerif.CurrentOak` states, for seven operations that take it, that the operation's
+results agree under two events where the outcomes of the stopping decisions it consults
+agree: `Skill.settleFollowing`, `Skill.settleTemporal`, `Skill.followTemporal`,
+`followSlot`, `TemporalControl.followOptions`, `TemporalControl.takeoverValue` and
+`TemporalControl.dispatchMeta`. Selection (`TemporalControl.selectWithOperations`) also
+takes the event: it consults the executing option's stopping decision and hands the
+event to `TemporalControl.atBoundary`. No such theorem covers those two.
 
 `executed_actions` carries the result to the closed loop of the kernel: from two agent
 states with the same learners, the executed agent takes the same action at every time,
@@ -550,46 +556,6 @@ theorem act_accounting (state : Agent interface profile config criterion dimensi
   act_learners (account state) state (isolated state) percept
 
 /-! ## The closed loop -/
-
-/-- Two agents of the kernel take the same actions in every world when a relation of
-their memories holds at the start and every decision keeps it and gives one action. -/
-theorem related_actions {first second : Kernel.Agent interface}
-    (related : first.Memory → second.Memory → Prop)
-    (initial : related first.initial second.initial)
-    (kept : ∀ left right percept, related left right →
-      (first.act left percept).1 = (second.act right percept).1 ∧
-        related (first.act left percept).2 (second.act right percept).2)
-    (world : Kernel.World interface) (start : world.State) (time : ℕ) :
-    Kernel.actionAt world first start time = Kernel.actionAt world second start time := by
-  have held : ∀ count,
-      (Kernel.loop world first start count).1 = (Kernel.loop world second start count).1 ∧
-        related (Kernel.loop world first start count).2
-          (Kernel.loop world second start count).2 := by
-    intro count
-    induction count with
-    | zero => exact ⟨rfl, initial⟩
-    | succ count ih =>
-      have decided := kept _ _ (world.percept (Kernel.loop world first start count).1) ih.2
-      change world.step (Kernel.loop world first start count).1
-            (first.act (Kernel.loop world first start count).2
-              (world.percept (Kernel.loop world first start count).1)).1 =
-          world.step (Kernel.loop world second start count).1
-            (second.act (Kernel.loop world second start count).2
-              (world.percept (Kernel.loop world second start count).1)).1 ∧
-        related
-          (first.act (Kernel.loop world first start count).2
-            (world.percept (Kernel.loop world first start count).1)).2
-          (second.act (Kernel.loop world second start count).2
-            (world.percept (Kernel.loop world second start count).1)).2
-      rw [← ih.1]
-      exact ⟨congrArg _ decided.1, decided.2⟩
-  have decided := kept _ _ (world.percept (Kernel.loop world first start time).1) (held time).2
-  change (first.act (Kernel.loop world first start time).2
-      (world.percept (Kernel.loop world first start time).1)).1 =
-    (second.act (Kernel.loop world second start time).2
-      (world.percept (Kernel.loop world second start time).1)).1
-  rw [← (held time).1]
-  exact decided.1
 
 /-- The executed agent's actions are a function of its learners: from two agent states
 with the same learners, the executed agent takes the same action at every time, in every

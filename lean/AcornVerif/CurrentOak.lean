@@ -69,7 +69,7 @@ percepts whose frames encode to the same features and unit outputs and that have
 same reward and the same values of the three arrows. Each arrow's departure is a
 declaration. `potentials_origin` and `signals_origin` show that the potentials and the
 agent's reward question carry that departure in the executed values; the achievement
-event is a bare flag of the frame, and `achievement` wraps it.
+event is a bare flag of the frame, and `achievement` reads it as it is.
 
 ## The achievement event
 
@@ -77,9 +77,9 @@ The registered operation is the stopping decision `Skill.decideOption`. Inside i
 event does one thing: it forces the ending with the reason `goal`
 (`decideOption_event`, `Skill.goal_ends`).
 
-For each operation that takes the achievement event, where the outcomes of the stopping
-decisions it consults agree under two events, its results agree. That is proved for
-each of these operations, for every input of the operation: `Skill.settleFollowing`,
+For each of seven operations that take the achievement event, where the outcomes of the
+stopping decisions it consults agree under two events, its results agree. That is
+proved for every input of the operation. The seven are `Skill.settleFollowing`,
 `Skill.settleTemporal` and `Skill.followTemporal` (`settleFollowing_event`,
 `settleTemporal_event`, `followTemporal_event`), `followSlot` and
 `TemporalControl.followOptions` (`followSlot_event`, `followOptions_event`),
@@ -90,6 +90,10 @@ two events equal: at the duration cap every decision stops whatever the event is
 (`continuation_cap`). So a theorem fails if its operation's result differs between a set
 and a clear event where the decisions stop under both, as it does if the operation
 reads the event in a stopping case, or reads the ending reason.
+
+Selection (`TemporalControl.selectWithOperations`) also takes the event: it consults the
+executing option's stopping decision and hands the event to
+`TemporalControl.atBoundary`. No such theorem covers those two.
 
 These are statements about results, and they do not exclude every read of the event.
 Where a decision continues the event is clear, because a set event forces the ending.
@@ -122,6 +126,18 @@ meta-controller and the primitive controller), `model` (the option models, whose
 terminal target reads the current value function) and `act` (selection). Of `perceive`,
 the coder is separated here; the prediction learners, whose outputs return as feedback
 words, and the tester are not.
+
+The tester is more than not separated: the signature has no place for what it reads. In
+`Oak.step` the next `Perception` is a function of the old perception and the percept
+only. The executed tester runs at the end of every learning decision (`Agent.retire`),
+and `Lifecycle.score` computes each unit's utility from the outgoing weights of its
+readers: the primitive controller, the meta-controller, the option policies, the option
+models and the prediction learners. That utility selects the unit to replace, so the
+next bank depends on the options, values and models. So the executed learning agent
+conforms only to an instance whose `Perception` carrier holds those learners. This is a
+second open structural choice beside the order of the step, and neither remedy is
+selected: an arrow by which feature construction reads the use of features by the other
+boxes, or the tester's read declared as an arrow outside the picture (departure D7).
 
 For a profile with a hierarchy, no theorem here follows the achievement event through
 selection. `TemporalControl.selectWithOperations` takes the executing option's stopping
@@ -491,37 +507,24 @@ theorem frame_congr (state : Agent interface profile config criterion dimension 
 
 /-! ## The arrows outside the picture -/
 
-/-- The host's achievement event of a frame: whether the preceding transition achieved
-the goal the world installed. -/
-structure Achievement where
-  /-- The event. -/
-  achieved : Bool
-
-/-- The achievement event is declared as departure D8. -/
-instance : Provenance Achievement := ⟨some .achievementEvent⟩
-
 /-- The declared subtask potentials of a frame, departure D2. -/
 def potentials (interface : Interface) : Oak.Extra interface where
   Carrier := DeclaredPotentials
-  provenance := ⟨some .spatialPotentials⟩
   departure := .spatialPotentials
-  registered := rfl
   read percept := percept.frame.declared
 
 /-- The signal values of the prediction questions at a percept, departure D5. -/
 def signals (interface : Interface) : Oak.Extra interface where
   Carrier := Cumulants interface.layout
-  provenance := ⟨some .cumulants⟩
   departure := .cumulants
-  registered := rfl
   read percept := signalValues percept.frame percept.reward
 
-/-- The host's achievement event at a percept, departure D8. -/
+/-- The host's achievement event at a percept, departure D8: whether the preceding
+transition achieved the goal the world installed. -/
 def achievement (interface : Interface) : Oak.Extra interface where
-  Carrier := Achievement
+  Carrier := Bool
   departure := .achievementEvent
-  registered := rfl
-  read percept := ⟨percept.frame.achieved⟩
+  read percept := percept.frame.achieved
 
 /-- The arrows outside the picture that the executed decision reads from a percept, each
 with the departure it names. -/
@@ -546,11 +549,6 @@ theorem signals_origin (percept : Percept interface) :
     (signals interface).read percept =
       .cons (some (signals interface).departure) (rewardSignal percept.reward)
         percept.frame.signals :=
-  rfl
-
-/-- The achievement arrow reads the frame's own flag. -/
-theorem achievement_read (percept : Percept interface) :
-    ((achievement interface).read percept).achieved = percept.frame.achieved :=
   rfl
 
 /-- The completion boundary reads a frame through its signal values only. -/
@@ -592,10 +590,10 @@ theorem act_extras (state : Agent interface profile config criterion dimension p
       Oak.Extra.readAll (extras interface) second) :
     state.act first = state.act second := by
   have unfolded : (first.frame.declared, signalValues first.frame first.reward,
-      (⟨first.frame.achieved⟩ : Achievement), ()) =
+      first.frame.achieved, ()) =
       (second.frame.declared, signalValues second.frame second.reward,
-        (⟨second.frame.achieved⟩ : Achievement), ()) := extra
-  simp only [Prod.mk.injEq, Achievement.mk.injEq, and_true] at unfolded
+        second.frame.achieved, ()) := extra
+  simp only [Prod.mk.injEq, and_true] at unfolded
   obtain ⟨declared, signals, achieved⟩ := unfolded
   obtain ⟨firstNext, firstValid, firstEpisodes, firstStep, firstState⟩ :=
     state.act_execution first

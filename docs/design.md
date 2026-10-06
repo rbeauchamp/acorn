@@ -369,11 +369,11 @@ action, and the state that feature construction keeps is a type that only
 perception reads and writes.
 
 An **extra arrow** is a value that the options and values read from a percept
-beside its features and its reward (`Oak.Extra`). It holds a `Provenance`
-declaration for its type and names a registered departure, and the two must
-agree, so no extra arrow exists without a departure. The declaration is not
-checked against what the arrow reads; as for every such declaration, review
-checks it against the code that produces the value. `Oak.toAgent` composes the
+beside its features and its reward (`Oak.Extra`). Its field
+`departure : Departure` is mandatory, so no extra arrow exists without a
+registered departure. The departure is a declaration and is not checked against
+what the arrow reads; review checks it against the code that produces the
+value. `Oak.toAgent` composes the
 arrows into an agent of the kernel, each once per percept: perceive, pose,
 solve, model, plan, act. Such an agent reads a percept through what perception
 returns for it, its reward and its extra arrows only (`Oak.step_congr`).
@@ -425,7 +425,7 @@ objectives](#learning-objective).
 | Planning writes the planning view only | Every planning boundary, whatever function it calls, leaves the rest of the local state as it was. The option policies, the option models, the primitive action values, the prediction learners and the representation are unchanged. | `planFree_writes`, `planFree_keeps` |
 | The coder reads words and symbols | The features of a frame and the outputs of the generated units are functions of the bank, the frame's words, the stored prediction feedback and the frame's symbols. Two frames with the same words and symbols give the same features, whatever their signals, declared potentials and achievement events are. | `features_eq`, `units_eq`, `frame_congr` |
 | The extra arrows are listed | The full decision reads a percept through the features and unit outputs of its frame, its reward word and three extra arrows only: on two percepts that agree in those it returns the same decision and next state. The arrows are the declared potentials (D2), the signal values of the prediction questions (D5) and the achievement event (D8). The local transition reads the frame through the first two only; the event is a separate argument. The potentials and the agent's reward question carry their departure in the executed values. | `act_extras`, `step_frame`, `extras`, `extras_departures`, `potentials_origin`, `signals_origin` |
-| Where the stopping outcomes agree, the results agree | Inside the stopping decision the achievement event does one thing: it forces the ending with the reason `goal`. Seven operations take the event and consult a stopping decision: the settling and the off-policy learning of one option, the off-policy learning of all options, the value an interrupted option's span closes toward, and the dispatch of the higher-level controller's choice. For each, on every input: where the outcomes of the stopping decisions it consults agree under two events, its results agree. An outcome is a decision without its ending reason. The condition does not force the events equal, because at the duration cap every decision stops whatever the event is; so a theorem fails if its operation's result differs between a set and a clear event where the decisions stop under both. Where selection and two of those operations agree under two events, the local transition agrees. The completion of a decision reads the frame through its signal values only. A profile without a hierarchy does not read the event. | `decideOption_event`, `Skill.goal_ends`, `continuation_cap`, `settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`, `followSlot_event`, `followOptions_event`, `takeoverValue_event`, `dispatchMeta_event`, `step_event`, `finish_signals`, `step_event_primitive` |
+| Where the stopping outcomes agree, the results agree | Inside the stopping decision the achievement event does one thing: it forces the ending with the reason `goal`. The theorems cover seven operations that take the event and consult a stopping decision: the settling and the off-policy learning of one option, the off-policy learning of all options, the value an interrupted option's span closes toward, and the dispatch of the higher-level controller's choice. For each of the seven, on every input: where the outcomes of the stopping decisions it consults agree under two events, its results agree. Selection (`TemporalControl.selectWithOperations`) also takes the event: it consults the executing option's stopping decision and hands the event to the free boundary (`TemporalControl.atBoundary`). No such theorem covers those two. An outcome is a decision without its ending reason. The condition does not force the events equal, because at the duration cap every decision stops whatever the event is; so a theorem fails if its operation's result differs between a set and a clear event where the decisions stop under both. Where selection and two of those operations agree under two events, the local transition agrees. The completion of a decision reads the frame through its signal values only. A profile without a hierarchy does not read the event. | `decideOption_event`, `Skill.goal_ends`, `continuation_cap`, `settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`, `followSlot_event`, `followOptions_event`, `takeoverValue_event`, `dispatchMeta_event`, `step_event`, `finish_signals`, `step_event_primitive` |
 | Host accounting does not reach a learner: it writes observations only | Environment accounting, attempt accounting and censoring at process exit keep the composed storage of representation, learners and references, the primitive credit, the reward rate and the rate schedule, in every world interface. | `recordEnvironment_learners`, `recordAttempt_learners`, `censor_learners` |
 | Host accounting does not reach a learner: no decision reads the observations | From two agent states that differ in their lifetime observations only, the full decision returns the same decision and states that again differ in those observations only, on every percept. So a host operation that writes those observations only changes neither the next decision nor the learners after it, and from two such states the executed agent takes the same action at every time in every world of the kernel. | `step_learners`, `act_learners`, `act_accounting`, `executed_actions` |
 
@@ -445,6 +445,19 @@ What these theorems do not establish:
   also credits an ending option before it plans. Either the step is changed to
   the signature's order as a declared mode, or the composition of the arrows
   takes the step's schedule as a parameter. That choice is open.
+- **That feature construction reads the old perception and the percept only.**
+  In `Oak.step` the next `Perception` is a function of those two. The executed
+  tester reads more. At the end of every learning decision it computes each
+  unit's utility from the outgoing weights of the unit's readers
+  (`Lifecycle.score`): the primitive controller, the higher-level controller,
+  the option policies, the option models and the prediction learners. That
+  utility selects the unit to replace, so the next bank depends on the options,
+  values and models. So the executed learning agent conforms only to an instance
+  whose `Perception` type holds those learners. Either the signature gets an
+  arrow by which feature construction reads the use of features by the other
+  boxes, or the tester's read is declared as an arrow outside the picture
+  (departure [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)).
+  That second structural choice is open too.
 - **That the option models read options only.** The picture's edge to the models
   leaves the box of options and values, and the signature lets the model arrow
   read both. The executed model's terminal target does read the current value

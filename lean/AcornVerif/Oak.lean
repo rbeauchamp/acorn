@@ -42,15 +42,18 @@ are not drawn, and the signature states how it reads each.
   the carrier `Perception`, which `perceive` alone reads and writes.
 
 An `Oak.Extra` is an arrow outside the picture: a value that `solve` reads from each
-percept beside the features and the reward. An extra arrow holds a `Acorn.Provenance`
-declaration for its carrier and names a registered departure, and `registered` states
-that the two agree, so no extra arrow exists without a departure. The declaration is not
-checked against what the arrow reads: as for every `Provenance` declaration, review
-checks it against the producing code. No other arrow takes an extra.
+percept beside the features and the reward. Its field `departure : Departure` is
+mandatory, so no extra arrow exists without a registered departure. The departure is a
+declaration and is not checked against what the arrow reads: review checks it against
+the producing code. No other arrow takes an extra.
 
 `Oak.toAgent` composes the arrows into an agent of `AcornVerif.Kernel`, each arrow once
 per percept: perceive, pose, solve, model, plan, act. `Oak.step_congr` shows that such
 an agent reads a percept through its features, its reward and its extra arrows only.
+
+`related_actions` is the one induction over the closed loop: two agents of the kernel
+take the same actions in every world when a relation of their memories holds at the
+start and every decision keeps it and gives one action.
 
 `Oak.Conforms` is the form of a conformance statement: under a map of memories, an
 agent takes the action of the composed arrows on every percept and keeps the image of
@@ -75,6 +78,17 @@ plan, then act. The executed step is not in that order. At a free boundary it pl
 first, then draws an action, and credits the transition into the frame after the draw;
 under the discounted criterion it also credits an ending option before it plans. So the
 executed agent is not shown to conform to an instance with separate arrows.
+
+A second structural choice is open beside the order. In `Oak.step` the next
+`Perception` is a function of the old perception and the percept only. The executed
+tester reads more: `Lifecycle.score` computes each unit's utility from the outgoing
+weights of its readers, which are the primitive controller, the meta-controller, the
+option policies, the option models and the prediction learners, and that utility
+selects the unit to replace. So the next bank depends on the options, values and
+models, and the executed learning agent conforms only to an instance whose `Perception`
+carrier holds those learners. Two remedies exist and neither is selected: an arrow by
+which feature construction reads the use of features by the other boxes, or the
+tester's read declared as an arrow outside the picture (departure D7).
 -/
 
 namespace AcornVerif
@@ -85,18 +99,14 @@ variable {interface : Interface}
 /-! ## Arrows outside the picture -/
 
 /-- An arrow outside the picture: a value that the options and values read from each
-percept beside its features and its reward. It holds a provenance declaration for its
-carrier and names a registered departure, and the two agree. Nothing here checks the
-declaration against the value the arrow reads. -/
+percept beside its features and its reward. It names a registered departure, and that
+field is mandatory. Nothing here checks the departure against the value the arrow
+reads. -/
 structure Oak.Extra (interface : Interface) where
   /-- What the arrow carries. -/
   Carrier : Type
-  /-- The declared origin of the carrier. -/
-  [provenance : Provenance Carrier]
   /-- The registered departure the arrow belongs to. -/
   departure : Departure
-  /-- The carrier's declared origin is that departure. -/
-  registered : Provenance.origin (α := Carrier) = some departure
   /-- The value the arrow reads from a percept. -/
   read : Percept interface → Carrier
 
@@ -186,6 +196,45 @@ theorem Oak.step_congr (oak : Oak interface) (memory : oak.Memory)
 
 /-! ## Conformance of an agent -/
 
+/-- Two agents of the kernel take the same actions in every world when a relation of
+their memories holds at the start and every decision keeps it and gives one action. -/
+theorem related_actions {first second : Agent interface}
+    (related : first.Memory → second.Memory → Prop)
+    (initial : related first.initial second.initial)
+    (kept : ∀ left right percept, related left right →
+      (first.act left percept).1 = (second.act right percept).1 ∧
+        related (first.act left percept).2 (second.act right percept).2)
+    (world : World interface) (start : world.State) (time : ℕ) :
+    actionAt world first start time = actionAt world second start time := by
+  have held : ∀ count,
+      (loop world first start count).1 = (loop world second start count).1 ∧
+        related (loop world first start count).2 (loop world second start count).2 := by
+    intro count
+    induction count with
+    | zero => exact ⟨rfl, initial⟩
+    | succ count ih =>
+      have decided := kept _ _ (world.percept (loop world first start count).1) ih.2
+      change world.step (loop world first start count).1
+            (first.act (loop world first start count).2
+              (world.percept (loop world first start count).1)).1 =
+          world.step (loop world second start count).1
+            (second.act (loop world second start count).2
+              (world.percept (loop world second start count).1)).1 ∧
+        related
+          (first.act (loop world first start count).2
+            (world.percept (loop world first start count).1)).2
+          (second.act (loop world second start count).2
+            (world.percept (loop world second start count).1)).2
+      rw [← ih.1]
+      exact ⟨congrArg _ decided.1, decided.2⟩
+  have decided := kept _ _ (world.percept (loop world first start time).1) (held time).2
+  change (first.act (loop world first start time).2
+      (world.percept (loop world first start time).1)).1 =
+    (second.act (loop world second start time).2
+      (world.percept (loop world second start time).1)).1
+  rw [← (held time).1]
+  exact decided.1
+
 /-- The form of a conformance statement: under a map of memories, the composed arrows
 take the agent's action on every percept and keep the image of the agent's next
 memory. -/
@@ -194,25 +243,6 @@ def Oak.Conforms (agent : Agent interface) (oak : Oak interface) : Prop :=
     oak.step (view memory) percept =
       ((agent.act memory percept).1, view (agent.act memory percept).2)
 
-/-- Under a conformance map, the closed loop of the composed arrows holds the agent's
-world state and the image of the agent's memory at every time. -/
-theorem Oak.loop_view {agent : Agent interface} {oak : Oak interface}
-    (view : agent.Memory → oak.Memory)
-    (same : ∀ memory percept, oak.step (view memory) percept =
-      ((agent.act memory percept).1, view (agent.act memory percept).2))
-    (world : World interface) (start : world.State) (time : ℕ) :
-    loop world (oak.toAgent (view agent.initial)) start time =
-      ((loop world agent start time).1, view (loop world agent start time).2) := by
-  induction time with
-  | zero => rfl
-  | succ time ih =>
-    change interact world (oak.toAgent (view agent.initial))
-      (loop world (oak.toAgent (view agent.initial)) start time) = _
-    rw [ih]
-    change (world.step _ (oak.step (view _) _).1, (oak.step (view _) _).2) = _
-    rw [same]
-    rfl
-
 /-- A conforming agent and the composed arrows take the same actions in every world,
 from every start state, at every time. -/
 theorem Oak.Conforms.actions {agent : Agent interface} {oak : Oak interface}
@@ -220,13 +250,11 @@ theorem Oak.Conforms.actions {agent : Agent interface} {oak : Oak interface}
     ∃ initial : oak.Memory, ∀ (world : World interface) (start : world.State) (time : ℕ),
       actionAt world (oak.toAgent initial) start time = actionAt world agent start time := by
   obtain ⟨view, same⟩ := conforms
-  refine ⟨view agent.initial, fun world start time => ?_⟩
-  have held := Oak.loop_view view same world start time
-  change ((oak.toAgent (view agent.initial)).act
-    (loop world (oak.toAgent (view agent.initial)) start time).2
-    (world.percept (loop world (oak.toAgent (view agent.initial)) start time).1)).1 = _
-  rw [held]
-  exact congrArg Prod.fst (same _ _)
+  refine ⟨view agent.initial, related_actions (first := oak.toAgent (view agent.initial))
+    (second := agent) (fun (left : oak.Memory) right => left = view right) rfl ?_⟩
+  intro left right percept held
+  subst held
+  exact ⟨congrArg Prod.fst (same right percept), congrArg Prod.snd (same right percept)⟩
 
 /-- The coarsest instance of an agent: perception holds the agent's whole memory and
 takes its decision, the feature of a percept is the chosen action, and no other arrow
