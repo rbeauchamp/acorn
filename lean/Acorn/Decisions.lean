@@ -2148,22 +2148,68 @@ theorem goal_headline :
     cases invalid : state.invalid <;> by_cases empty : goals = 0 <;>
       simp [GoalAchievement.State.headline, invalid, empty]⟩
 
-/-- No control warning is published while the lifecycle is not idle
-(`controlWarning_active`). An idle initial lifecycle publishes a warning for an abnormal exit
-and none without a cause, so neither a function that never warns nor one that always warns
-satisfies the statement.
+/-- The phase comparison refuses exactly the idle phase. -/
+private theorem phase_live (phase : Host.Viewer.Phase) :
+    (phase != .idle) = true ↔ phase ≠ .idle := by
+  cases phase with
+  | idle => exact ⟨fun differs => absurd differs (by decide), fun differs => absurd rfl differs⟩
+  | starting generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
+  | running generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
+  | stopping generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
+  | archiving => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
 
-**Not claimed:** the exact set of idle states that publish a warning. -/
+/-- The status comparison accepts exactly a failed final save. -/
+private theorem status_failed (status : Option Host.CheckpointStatus) :
+    (status == some .failed) = true ↔ status = some .failed := by
+  cases status with
+  | none => exact ⟨fun same => absurd same (by decide), fun same => nomatch same⟩
+  | some value =>
+    cases value <;>
+      first
+      | exact ⟨fun _ => rfl, fun _ => rfl⟩
+      | exact ⟨fun same => absurd same (by decide), fun same => nomatch same⟩
+
+/-- A control warning is published exactly for an idle lifecycle whose process exited
+abnormally or whose final checkpoint save failed (`controlWarning_active` is the refusal while
+the lifecycle is not idle). -/
 theorem control_warning : Regula.ExecutableContract controlWarning (fun warning =>
-    (∀ (lifecycle : Host.Viewer.Lifecycle) (detail : ControlDetail),
-      (lifecycle.phaseValue != .idle) = true → warning lifecycle detail = none) ∧
-      (warning (Host.Viewer.Lifecycle.initial ⟨0, 0, 0⟩ .stopped)
+    Regula.Decides (·.isSome = true)
+      (fun input : Host.Viewer.Lifecycle × ControlDetail =>
+        input.1.phaseValue = .idle ∧
+          (input.2.abnormalExit = true ∨ input.2.log.checkpoint = some .failed))
+      (Function.uncurry warning)) :=
+  ⟨.of_iff
+    (fun ⟨lifecycle, detail⟩ => by
+      show (controlWarning lifecycle detail).isSome = true ↔
+        (lifecycle.phaseValue = .idle ∧
+          (detail.abnormalExit = true ∨ detail.log.checkpoint = some .failed))
+      unfold controlWarning
+      by_cases idle : lifecycle.phaseValue = .idle
+      · have settled : ¬(lifecycle.phaseValue != .idle) = true := fun differs =>
+          (phase_live _).mp differs idle
+        rw [ite_eq_right settled]
+        by_cases abnormal : detail.abnormalExit = true
+        · rw [ite_eq_left abnormal]
+          exact ⟨fun _ => ⟨idle, .inl abnormal⟩, fun _ => rfl⟩
+        · rw [ite_eq_right abnormal]
+          by_cases failed : detail.log.checkpoint = some .failed
+          · rw [ite_eq_left ((status_failed _).mpr failed)]
+            exact ⟨fun _ => ⟨idle, .inr failed⟩, fun _ => rfl⟩
+          · have test : ¬(detail.log.checkpoint == some .failed) = true := fun same =>
+              failed ((status_failed _).mp same)
+            rw [ite_eq_right test]
+            exact ⟨fun present => by simp at present,
+              fun cause => cause.2.elim (absurd · abnormal) (absurd · failed)⟩
+      · rw [ite_eq_left ((phase_live _).mpr idle)]
+        exact ⟨fun present => by simp at present, fun cause => absurd cause.1 idle⟩)
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped,
         { transition := .initialized, reason := "", clearDisabled := none, log := {},
-          abnormalExit := true }).isSome = true ∧
-      warning (Host.Viewer.Lifecycle.initial ⟨0, 0, 0⟩ .stopped)
-        { transition := .initialized, reason := "", clearDisabled := none, log := {} } =
-        none) :=
-  ⟨⟨controlWarning_active, by decide, by decide⟩⟩
+          abnormalExit := true }), by decide⟩
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped,
+        { transition := .initialized, reason := "", clearDisabled := none, log := {} }),
+      by decide⟩⟩
+
+attribute [regula_decision] controlWarning
 
 /-- An attempt is finished exactly at its step cap, or after at least one step whose carried
 result reports the goal done. -/
