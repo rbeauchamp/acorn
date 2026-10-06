@@ -767,7 +767,8 @@ Unexpected loader errors retain the fresh agent and disable writes, like a refus
 The step order is the index of the callbacks and it selects the loop, so the two parts
 and the loop are of one order. The callbacks, the constructor and the checkpoint hooks
 share the agent type `α`. For the Acorn agent that type is the state type of one
-construction, which holds the order, so the hooks stamp and admit that order as well. -/
+construction, which holds the order, so the hooks stamp and admit that order as well;
+its campaign entry takes the construction and derives the constructor and the callbacks. -/
 def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection : AgentSelection)
     (spec : CampaignSpec) (buildAgent : AgentSelection → IO α)
     (callbacks : AgentCallbacks order α β)

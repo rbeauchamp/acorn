@@ -31,8 +31,10 @@ variable {order : StepOrder}
 
 /-- The full-agent owner supplies actual learning and accounting definitions. The step
 order is an index of the type: a host loop takes the callbacks of the order whose
-position of the world's transition it implements, so the two parts and the loop of two
-different orders cannot be composed. -/
+position of the world's transition it implements. The index is a label, and no field
+depends on it: a record is of its order because of the code that made it. The ownership
+audit names the modules that may apply the constructor and refuses it elsewhere in this
+project. -/
 structure AgentCallbacks (order : StepOrder) (α β : Type) where
   /-- What the agent holds between the two parts of one step. -/
   Chosen : Type

@@ -708,9 +708,11 @@ theorem TemporalControl.step_selected
 percept, its encoding, the temporal state selection returned, and the decision. The
 decision's action is the action of the step. The two proofs state that the second part
 of this value is a legal agent; they are erased. The planning selection is carried as
-an index, so a chosen value returns to an agent of the type it came from. The
-constructor is private to this module and `Agent.choose` is its one use, so the order
-a chosen value holds is the order its selection ran under. -/
+an index, so a chosen value returns to an agent of the type it came from. In this
+module `Agent.choose` is the one use of the constructor, so the order a chosen value
+holds is the order its selection ran under. The constructor is private, which stops the
+constructor notation outside this module and does not stop a tactic; the ownership audit
+refuses a definition of another project module that applies it. -/
 structure Chosen (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) (planning : PlanningSelection) where
   private mk ::
