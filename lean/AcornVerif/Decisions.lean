@@ -296,16 +296,19 @@ theorem blocked_check : Regula.ExecutableContract Host.BlockedCertificate.check 
       ((check config boat target start cells).isSome = true →
         Unreachable config boat target start) ∧
         check config boat target start [start] = none) ∧
-      (check ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩ true
-        ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩ []).isSome =
-        true) :=
+      Accepts (·.isSome = true)
+        (check quiet true ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩
+          []) ∧
+      Refuses (·.isSome = true)
+        (check quiet true ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩
+          [⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩])) :=
   ⟨⟨fun config boat target start cells =>
       ⟨fun present world final located later boatless => by
           obtain ⟨certificate, -⟩ := Option.isSome_iff_exists.mp present
           exact CurrentCertificates.blocked_outside (cells := certificate.cells)
             (by rw [located]; exact certificate.accepted) later boatless,
         by simp [Host.BlockedCertificate.check, Host.regionBlocked, Host.inRegion]⟩,
-    by decide⟩⟩
+    by unfold Accepts; decide, by unfold Refuses; decide⟩⟩
 
 /-- Stance checking returns a certificate only for a stance from which, in every world, a
 paid harvest yields the item (`CurrentCertificates.stance_harvest`), and it refuses every

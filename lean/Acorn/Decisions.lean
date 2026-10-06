@@ -198,6 +198,9 @@ def Accepts.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ac
 function at one input. -/
 def Refuses.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ¬accepts result
 
+/-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
+def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
+
 /-- An admission that is one test with a computed value accepts exactly when the tested
 condition holds. -/
 private theorem ite_isSome.{u} {α : Type u} {condition : Prop} [Decidable condition]
@@ -1845,8 +1848,10 @@ accepts or refuses, or a property of an accepted or a refused result. -/
 /-- Bounded admission refuses exactly the words outside the receiving interval
 (`Bounded32.admit_refuses`). -/
 theorem bounded_admit : Regula.ExecutableContract Bounded32.admit (fun admit =>
-    ∀ (range : Interval32) (raw : Binary32), admit range raw = none ↔ ¬range.Contains raw) :=
-  ⟨Bounded32.admit_refuses⟩
+    (∀ (range : Interval32) (raw : Binary32), admit range raw = none ↔ ¬range.Contains raw) ∧
+      Accepts (·.isSome = true) (admit rewardRange .zero) ∧
+      Refuses (·.isSome = true) (admit rewardRange ⟨0x7fc00000⟩)) :=
+  ⟨⟨Bounded32.admit_refuses, by unfold Accepts; decide, by unfold Refuses; decide⟩⟩
 
 /-- Weight admission refuses exactly the words outside the receiving rule's domain
 (`weight_admit_refuses`). -/
@@ -1865,8 +1870,9 @@ theorem feature_index_admit : Regula.ExecutableContract FeatIdx.admit (fun admit
 /-- Action admission refuses exactly the indices outside the action space
 (`Action.admit_none`). -/
 theorem action_admit : Regula.ExecutableContract Action.admit (fun admit =>
-    ∀ actions raw : Nat, admit actions raw = none ↔ actions ≤ raw) :=
-  ⟨Action.admit_none⟩
+    (∀ actions raw : Nat, admit actions raw = none ↔ actions ≤ raw) ∧
+      Accepts (·.isSome = true) (admit 1 0) ∧ Refuses (·.isSome = true) (admit 1 1)) :=
+  ⟨⟨Action.admit_none, by unfold Accepts; decide, by unfold Refuses; decide⟩⟩
 
 /-- Rail admission accepts every configuration (`rails_admission_total`). -/
 theorem rails_admit : Regula.ExecutableContract StepSizeRails.admit (fun admit =>
@@ -1879,22 +1885,25 @@ is within the squared envelope, and an admitted sample is that exact squared dis
 admission also computes; `AcornVerif.Decisions.squared_admit_accepts` states acceptance against
 the real discrepancy of the two words. -/
 theorem squared_admit : Regula.ExecutableContract Agreement.admitSquared (fun admit =>
-    ∀ (envelope : Nat) (forecast outcome : Binary32),
+    (∀ (envelope : Nat) (forecast outcome : Binary32),
       ((admit envelope forecast outcome).isSome = true ↔
         forecast.Finite ∧ outcome.Finite ∧
           Agreement.squaredUnits forecast outcome ≤ envelope ^ 2) ∧
         ∀ sample : Fin (envelope ^ 2 + 1), admit envelope forecast outcome = some sample →
-          sample.val = Agreement.squaredUnits forecast outcome) :=
-  ⟨fun envelope forecast outcome =>
-    ⟨by
-      unfold Agreement.admitSquared
-      by_cases finite : forecast.Finite ∧ outcome.Finite
-      · rw [ite_eq_left finite, dite_isSome, Nat.lt_succ_iff]
-        exact ⟨fun within => ⟨finite.1, finite.2, within⟩, fun accepted => accepted.2.2⟩
-      · rw [ite_eq_right finite]
-        exact ⟨fun accepted => by simp at accepted,
-          fun accepted => absurd ⟨accepted.1, accepted.2.1⟩ finite⟩,
-      Agreement.admitSquared_exact envelope forecast outcome⟩⟩
+          sample.val = Agreement.squaredUnits forecast outcome) ∧
+      Accepts (·.isSome = true) (admit 0 .zero .zero) ∧
+      Refuses (·.isSome = true) (admit 0 ⟨0x7fc00000⟩ .zero)) :=
+  ⟨⟨fun envelope forecast outcome =>
+      ⟨by
+        unfold Agreement.admitSquared
+        by_cases finite : forecast.Finite ∧ outcome.Finite
+        · rw [ite_eq_left finite, dite_isSome, Nat.lt_succ_iff]
+          exact ⟨fun within => ⟨finite.1, finite.2, within⟩, fun accepted => accepted.2.2⟩
+        · rw [ite_eq_right finite]
+          exact ⟨fun accepted => by simp at accepted,
+            fun accepted => absurd ⟨accepted.1, accepted.2.1⟩ finite⟩,
+        Agreement.admitSquared_exact envelope forecast outcome⟩,
+    by unfold Accepts; decide, by unfold Refuses; decide⟩⟩
 
 /-- Event admission accepts the words of every bank-relative event and returns that event
 (`Event.words_roundtrip`).
@@ -1938,9 +1947,13 @@ that position (`Host.BoxPosition.checked_position`).
 **Not claimed:** that every accepted coordinate pair lies in the box. The result type states
 that. -/
 theorem box_position_checked : Regula.ExecutableContract Host.BoxPosition.checked
-    (fun checked => ∀ (config : Host.WorldConfig) (position : Host.BoxPosition config),
-      checked config position.position.x.val position.position.y.val = some position) :=
-  ⟨fun _ => Host.BoxPosition.checked_position⟩
+    (fun checked =>
+      (∀ (config : Host.WorldConfig) (position : Host.BoxPosition config),
+        checked config position.position.x.val position.position.y.val = some position) ∧
+        Accepts (·.isSome = true) (checked quiet 0 0) ∧
+        Refuses (·.isSome = true) (checked quiet 1 0)) :=
+  ⟨⟨fun _ => Host.BoxPosition.checked_position, by unfold Accepts; decide,
+    by unfold Refuses; decide⟩⟩
 
 /-- Campaign admission accepts exactly a positive step cap with a repetition budget or a
 nonempty goal range in the receiving curriculum. -/
@@ -1990,16 +2003,19 @@ theorem assignment_distinct : Regula.ExecutableContract @Assignment.distinct (fu
 /-- Harvest-key admission accepts exactly the positions of the receiving box extended by one
 tile on every side. -/
 theorem harvest_key : Regula.ExecutableContract Host.harvestKey (fun admit =>
-    ∀ (config : Host.WorldConfig) (position : Host.Position),
+    (∀ (config : Host.WorldConfig) (position : Host.Position),
       (admit config position).isSome = true ↔
         (-1 ≤ position.x.val ∧ position.x.val ≤ config.side) ∧
-          (-1 ≤ position.y.val ∧ position.y.val ≤ config.side)) :=
-  ⟨fun config position => by
-    unfold Host.harvestKey
-    by_cases column : -1 ≤ position.x.val ∧ position.x.val ≤ config.side
-    · by_cases row : -1 ≤ position.y.val ∧ position.y.val ≤ config.side <;>
-        simp [column, row]
-    · simp [column]⟩
+          (-1 ≤ position.y.val ∧ position.y.val ≤ config.side)) ∧
+      Accepts (·.isSome = true) (admit quiet ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩) ∧
+      Refuses (·.isSome = true) (admit quiet ⟨⟨5, by decide⟩, ⟨0, by decide⟩⟩)) :=
+  ⟨⟨fun config position => by
+      unfold Host.harvestKey
+      by_cases column : -1 ≤ position.x.val ∧ position.x.val ≤ config.side
+      · by_cases row : -1 ≤ position.y.val ∧ position.y.val ≤ config.side <;>
+          simp [column, row]
+      · simp [column],
+    by unfold Accepts; decide, by unfold Refuses; decide⟩⟩
 
 /-- Map-index admission accepts exactly the coordinates inside the receiving map side. -/
 theorem map_index : Regula.ExecutableContract mapIndex (fun admit =>
@@ -2274,9 +2290,11 @@ theorem lifecycle_candidate :
 /-- A total supplies a score exactly when it holds at least one sample under a nonzero
 envelope: the product of its count and the squared envelope is positive. -/
 theorem total_ratio : Regula.ExecutableContract @Agreement.Total.ratio (fun ratio =>
-    ∀ (envelope : Nat) (total : Agreement.Total envelope),
-      (@ratio envelope total).isSome = true ↔ 0 < total.count.val * envelope ^ 2) :=
-  ⟨fun _ _ => dite_isSome _⟩
+    (∀ (envelope : Nat) (total : Agreement.Total envelope),
+      (@ratio envelope total).isSome = true ↔ 0 < total.count.val * envelope ^ 2) ∧
+      Accepts (·.isSome = true) (@ratio 1 ⟨⟨1, by decide⟩, 0, Nat.zero_le _⟩) ∧
+      Refuses (·.isSome = true) (@ratio 1 (Agreement.Total.empty 1))) :=
+  ⟨⟨fun _ _ => dite_isSome _, by unfold Accepts; decide, by unfold Refuses; decide⟩⟩
 
 /-- A channel publishes a score exactly when it has no recorded fault and holds at least one
 sample under a nonzero envelope (`Agreement.Channel.fault_no_score` is the fault direction). -/
@@ -2385,9 +2403,6 @@ theorem schema_covers : Regula.ExecutableContract @schemaCovers (fun covers =>
 
 A registered decision reaches each definition below, and a theorem names it. The statement
 about each is exact on stored data, or it is the theorem about it. -/
-
-/-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
-def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
 
 /-- The identity of an objective is absent for the neutral objective and is the unit of a
 selected one. The objective's type depends on the bank configuration, so the statement is a
