@@ -58,19 +58,61 @@ def admitHeader (construction : AgentConstruction) (header : Header) : Except Er
   if header.order != construction.order.tag then throw (.order header.order construction.order.tag)
   return gain
 
+/-- The complete specification of header admission, written with no reference to the
+executed function: every condition under which a header is the header of an image that
+the receiving construction admits, with the reward rate it yields. -/
+structure HeaderAdmitted (construction : AgentConstruction) (header : Header)
+    (gain : RewardRate) : Prop where
+  /-- The format generation is the current one. -/
+  version : header.version = formatVersion
+  /-- The Bellman criterion is the receiver's. -/
+  criterion : header.criterion = construction.criterion.tag.toUInt32
+  /-- The stored reward-rate word is admitted, and it is the returned rate. -/
+  gain : RewardRate.admit header.gain = some gain
+  /-- The weight space is the receiver's. -/
+  capacity : header.capacity = construction.dimension.capacity.toUInt32
+  /-- The primary learner count is the current one. -/
+  learners : header.learners = primaryCount.toUInt32
+  /-- The feature salt is the receiver's. -/
+  seed : header.seed = construction.config.seed
+  /-- The receiving profile supports checkpoints. -/
+  supported : construction.profile.checkpointSupported = true
+  /-- The image was saved by a profile that supports checkpoints. -/
+  policy : header.supported = 1
+  /-- The tiling count is the receiver's. -/
+  tilings : header.tilings = construction.config.tilings
+  /-- The unit capacity is the receiver's. -/
+  units : header.units.toNat = construction.config.units.count
+  /-- The step order word is the word of the receiver's order. -/
+  order : header.order = construction.order.tag
+
+/-- **Header admission is exactly its specification.** For every construction, header
+and reward rate, the executed admission returns the rate exactly when the header meets
+every condition of `HeaderAdmitted`. -/
+theorem admitHeader_iff (construction : AgentConstruction) (header : Header) (gain : RewardRate) :
+    admitHeader construction header = .ok gain ↔ HeaderAdmitted construction header gain := by
+  constructor
+  · intro admitted
+    unfold admitHeader at admitted
+    simp only [bind, Except.bind, pure, Except.pure, throw, throwThe, MonadExceptOf.throw]
+      at admitted
+    repeat' split at admitted
+    all_goals first
+      | (cases admitted; done)
+      | (constructor <;> simp_all)
+  · intro specified
+    obtain ⟨version, criterion, admittedGain, capacity, learners, seed, supported, policy,
+      tilings, units, order⟩ := specified
+    simp [admitHeader, version, criterion, admittedGain, capacity, learners, seed, supported,
+      policy, tilings, units, order, pure, Except.pure]
+
 /-- **An admitted header was saved under the receiver's step order.** For every
 construction and header, header admission succeeds only when the stored order word is
 the word of the receiver's order; `StepOrder.tag_injective` makes the two orders one. -/
 theorem admitHeader_order (construction : AgentConstruction) (header : Header) (gain : RewardRate)
     (admitted : admitHeader construction header = .ok gain) :
-    header.order = construction.order.tag := by
-  unfold admitHeader at admitted
-  simp only [bind, Except.bind, pure, Except.pure, throw, throwThe, MonadExceptOf.throw]
-    at admitted
-  repeat' split at admitted
-  all_goals first
-    | (cases admitted; done)
-    | simp_all
+    header.order = construction.order.tag :=
+  ((admitHeader_iff construction header gain).mp admitted).order
 
 /-- Goals enter through their complete count relation, without repair or clamping. -/
 def admitGoal (words : GoalWords) : Option GoalTotals :=

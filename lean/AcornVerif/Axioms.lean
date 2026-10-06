@@ -3756,6 +3756,42 @@ info: 'Acorn.Handcrafted.DefaultConstruction.runPrefix_agent' depends on axioms:
 #guard_msgs in
 #print axioms Acorn.Handcrafted.DefaultConstruction.runPrefix_agent
 
+/--
+info: 'Acorn.StepOrder.parse_spelled' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.StepOrder.parse_spelled
+
+/--
+info: 'Acorn.StepOrder.parse_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.StepOrder.parse_refused
+
+/--
+info: 'Acorn.Host.Cli.stepOrderValue_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrderValue_iff
+
+/--
+info: 'Acorn.Host.Cli.stepOrderValue_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrderValue_refused
+
+/--
+info: 'Acorn.Host.Cli.stepOrder_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrder_iff
+
+/--
+info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.admitHeader_iff
+
 /-- info: 'AcornVerif.Kernel.memory_parts' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.Kernel.memory_parts

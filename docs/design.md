@@ -736,7 +736,12 @@ Startup diagnostics and the streaming campaign summary report the effective
 selection, and CSV output has it in a comment line of its own after the planning
 comment. A checkpoint records the order in its header, and header admission
 succeeds only for an image whose order is the order of the receiving run
-(`admitHeader_order`). The ANSI view runs
+(`admitHeader_order`). The decisions that admit an order each have an exact
+two-way statement against a specification that names no executed function: the
+parser and the command-line admission against the spelling of an order
+(`StepOrder.parse_spelled`, `StepOrder.parse_refused`, `stepOrderValue_iff`,
+`stepOrder_iff`), and header admission against the complete list of its
+conditions (`admitHeader_iff`). The ANSI view runs
 both parts before each transition, reports `step-order=learn-then-act` and
 refuses `--step-order`.
 

@@ -79,6 +79,37 @@ theorem StepOrder.tag_injective (first second : StepOrder) (same : first.tag = s
     first = second := by
   cases first <;> cases second <;> first | rfl | cases same
 
+/-- The specification of the spelling of a step order, written with no executed function:
+a text spells an order when it is that order's one word. -/
+def StepOrder.Spelled (text : String) (order : StepOrder) : Prop :=
+  (text = "learn-then-act" ∧ order = .learnThenAct) ∨
+    (text = "plan-after-act" ∧ order = .planAfterAct)
+
+/-- **The parser accepts exactly the spelled orders.** For every string and order, the
+parser returns the order exactly when the text spells it. -/
+theorem StepOrder.parse_spelled (text : String) (order : StepOrder) :
+    StepOrder.parse text = some order ↔ StepOrder.Spelled text order := by
+  cases order <;> by_cases first : text = "learn-then-act" <;>
+    by_cases second : text = "plan-after-act" <;>
+    simp_all [StepOrder.parse, StepOrder.Spelled]
+
+/-- **The parser refuses exactly the texts that spell no order.** -/
+theorem StepOrder.parse_refused (text : String) :
+    StepOrder.parse text = none ↔ ∀ order, ¬ StepOrder.Spelled text order := by
+  constructor
+  · intro refused order spelled
+    rw [(StepOrder.parse_spelled text order).mpr spelled] at refused
+    cases refused
+  · intro unspelled
+    cases parsed : StepOrder.parse text with
+    | none => rfl
+    | some order => exact (unspelled order ((StepOrder.parse_spelled text order).mp parsed)).elim
+
+/-- The word that run provenance prints for an order spells that order, and no other. -/
+theorem StepOrder.name_spelled (order other : StepOrder) :
+    StepOrder.Spelled order.name other ↔ other = order := by
+  cases order <;> cases other <;> simp [StepOrder.Spelled, StepOrder.name]
+
 /-- Accepted spelling identifies exactly the selected constructor over the entire
 string domain. -/
 theorem StepOrder.parse_accepted (text : String) (order : StepOrder) :

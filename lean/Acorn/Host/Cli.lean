@@ -212,6 +212,53 @@ def stepOrder (arguments : List String) : Except Error StepOrder := do
   | none => return .learnThenAct
   | some text => stepOrderValue text
 
+/-- **The value admission accepts exactly the spelled orders.** For every text and order,
+the admission returns the order exactly when the text spells it
+(`StepOrder.Spelled`, a specification with no executed function). -/
+theorem stepOrderValue_iff (text : String) (order : StepOrder) :
+    stepOrderValue text = .ok order ↔ StepOrder.Spelled text order := by
+  rw [← StepOrder.parse_spelled]
+  unfold stepOrderValue
+  cases StepOrder.parse text with
+  | none => simp
+  | some found => simp
+
+/-- **The value admission refuses exactly the texts that spell no order,** with the one
+error that names the flag and the text. -/
+theorem stepOrderValue_refused (text : String) (error : Error) :
+    stepOrderValue text = .error error ↔
+      (∀ order, ¬ StepOrder.Spelled text order) ∧ error = .invalid "--step-order" text := by
+  rw [← StepOrder.parse_refused]
+  unfold stepOrderValue
+  cases StepOrder.parse text with
+  | none =>
+    simp only [Except.error.injEq, true_and]
+    exact eq_comm
+  | some found => simp
+
+/-- **The step order of a command line.** For every argument list and order, the
+admission returns the order exactly when the flag is absent and the order is the
+default, or the flag has a text that spells the order. The reading of the flag is the
+option reader's; the default and the spelling are this decision's. -/
+theorem stepOrder_iff (arguments : List String) (order : StepOrder) :
+    stepOrder arguments = .ok order ↔
+      (value arguments "--step-order" = .ok none ∧ order = .learnThenAct) ∨
+        ∃ text, value arguments "--step-order" = .ok (some text) ∧
+          StepOrder.Spelled text order := by
+  unfold stepOrder
+  cases read : value arguments "--step-order" with
+  | error refusal => simp [bind, Except.bind]
+  | ok found =>
+    cases found with
+    | none =>
+      simp only [bind, Except.bind, pure, Except.pure, Except.ok.injEq, true_and, reduceCtorEq,
+        false_and, exists_false, or_false]
+      exact eq_comm
+    | some text =>
+      simp only [bind, Except.bind, Except.ok.injEq, Option.some.injEq, reduceCtorEq, false_and,
+        false_or, exists_eq_left']
+      exact stepOrderValue_iff text order
+
 /-- Every omitted step order selects learn-then-act, independently of other arguments. -/
 theorem stepOrder_absent (arguments : List String)
     (absent : value arguments "--step-order" = .ok none) :
