@@ -372,17 +372,69 @@ theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fu
 /-! ## Learner admissions -/
 
 /-- A declared interest refuses a source of declared potentials with another origin
-(`CurrentTemporal.declared_refusal`).
-
-**Not claimed:** the value an accepted source supplies; `CurrentTemporal.learned_potential`
-and `Handcrafted.spatial_admitted` state it. -/
+(`CurrentTemporal.declared_refusal`), and a learned interest accepts every source
+(`CurrentTemporal.learned_potential`). -/
 theorem interest_potential : Regula.ExecutableContract @Interest.potential (fun potential =>
-    ∀ {config : Features.Config} {dimension : Dimension} (origin : Departure)
-      (tag : Fin Acorn.FeatureConstants.skillCount) (features : SwiftTd.ActiveSet dimension)
-      (declared : DeclaredPotentials),
-      origin ≠ declared.origin →
-        potential (Interest.declared (config := config) origin tag) features declared = none) :=
-  ⟨CurrentTemporal.declared_refusal⟩
+    ∀ {config : Features.Config} {dimension : Dimension},
+      (∀ (origin : Departure) (tag : Fin Acorn.FeatureConstants.skillCount)
+        (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials),
+        origin ≠ declared.origin →
+          potential (Interest.declared (config := config) origin tag) features declared =
+            none) ∧
+      ∀ (assignment : Assignment config) (features : SwiftTd.ActiveSet dimension)
+        (declared : DeclaredPotentials),
+        (potential (Interest.learned assignment) features declared).isSome = true) :=
+  ⟨⟨CurrentTemporal.declared_refusal, fun _ _ _ => rfl⟩⟩
+
+/-- Profile admission accepts the feature words of every agent image of a resumable
+construction and returns its features (`CurrentCheckpoint.feature_roundtrip`). The refusal
+under every other profile is `profile_admit` in `Acorn.Decisions`. -/
+theorem profile_admit_accepts : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
+    ∀ (construction : AgentConstruction)
+      (image : AgentImage Grid.interface construction.config construction.criterion
+        construction.dimension),
+      construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
+        construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned →
+      admit construction.profile construction.config construction.criterion
+        construction.dimension
+        ⟨construction.config.seed, construction.config.tilings,
+          construction.config.units.count.toUInt32.toUInt16,
+          construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
+          image.features.progress.clock, (testerWords image.features.progress).progress,
+          image.features.assignments.map (Assignment.words construction.dimension),
+          image.features.primary⟩ = some image.features) :=
+  ⟨fun construction image resumable => by
+    have supported := (FeatureProfile.checkpoint_iff construction.profile).mpr resumable
+    simp only [FeatureProfile.admit, supported, ↓reduceIte]
+    exact CurrentCheckpoint.feature_roundtrip construction image⟩
+
+/-- Loading accepts the bytes that a resumable construction saved from any state, for every
+receiver of that construction (`CurrentCheckpoint.save_load`). The refusal under every other
+profile is `checkpoint_load` in `Acorn.Decisions`. -/
+theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun load =>
+    ∀ (construction : AgentConstruction) (source receiver : construction.State),
+      construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
+        construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned →
+      (load construction receiver
+        (encode construction.dimension (snapshot construction source))).isOk = true) :=
+  ⟨fun construction source receiver resumable => by
+    have supported := (FeatureProfile.checkpoint_iff construction.profile).mpr resumable
+    obtain ⟨restored, -, loaded⟩ :=
+      CurrentCheckpoint.save_load construction source receiver supported
+    rw [loaded]
+    rfl⟩
+
+/-- Squared-discrepancy admission accepts every pair of finite words whose exact
+discrepancy is within the magnitude of a finite envelope word
+(`CurrentAgreement.admitSquared_available`). `squared_admit` in `Acorn.Decisions` states the
+value of an accepted result. -/
+theorem squared_admit_accepts : Regula.ExecutableContract Agreement.admitSquared (fun admit =>
+    ∀ forecast outcome envelope : Binary32, forecast.Finite → outcome.Finite →
+      envelope.Finite →
+      |CurrentArithmetic.numerical32 forecast - CurrentArithmetic.numerical32 outcome| ≤
+        |CurrentArithmetic.numerical32 envelope| →
+      (admit (Agreement.magnitudeUnits envelope) forecast outcome).isSome = true) :=
+  ⟨CurrentAgreement.admitSquared_available⟩
 
 /-- Precision derivation accepts the pending power of every sample that tracks its exact
 return and power within the settlement window under the ideal bound

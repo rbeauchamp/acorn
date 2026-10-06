@@ -1574,17 +1574,27 @@ theorem checkpoint_save : Regula.ExecutableContract Checkpoint.saveBytes (fun sa
     | false => simp [Checkpoint.save_refuses construction state supported, Except.isOk,
         Except.toBool]⟩
 
-/-- A refused checkpoint leaves its receiver unchanged: when loading refuses a byte list,
-`Checkpoint.loadKeeping` returns the receiver it was given, with the refusal
-(`Checkpoint.load_nonmutation`).
+/-- Loading refuses every byte list under a profile that is not resumable. The acceptance
+of the bytes that a resumable construction saved is `checkpoint_load_accepts` in
+`AcornVerif.Decisions`. The specification names the four discriminants of the profile and
+no function that loading calls.
 
-**Not claimed:** which byte lists are accepted. `AcornVerif.CurrentCheckpoint.save_load` states
-that the bytes saved from a resumable profile load into a matching receiver. -/
+**Not claimed:** which other byte lists a resumable construction refuses. -/
 theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
-    ∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8)
-      (error : Checkpoint.Error), load construction receiver bytes = .error error →
-        Checkpoint.loadKeeping construction receiver bytes = (receiver, some error)) :=
-  ⟨Checkpoint.load_nonmutation⟩
+    ∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8),
+      ¬Resumable construction.profile → (load construction receiver bytes).isOk = false) :=
+  ⟨fun construction receiver bytes other => by
+    have unsupported : construction.profile.checkpointSupported = false := by
+      cases supported : construction.profile.checkpointSupported with
+      | false => rfl
+      | true => exact absurd ((resumable_iff _).mp supported) other
+    unfold Checkpoint.load
+    cases Checkpoint.loadCandidate construction bytes with
+    | error refusal => rfl
+    | ok image =>
+      simp [bind, Except.bind, Agent.restore_refuses receiver image unsupported, Except.isOk,
+        Except.toBool]
+      rfl⟩
 
 /-- The holding test accepts exactly an objective whose identity is the given unit
 (`Assignment.holds_iff`). -/
@@ -1661,17 +1671,19 @@ theorem agent_restore : Regula.ExecutableContract @Agent.restore (fun restore =>
     cases supported : profile.checkpointSupported <;> simp [Agent.restore, supported]⟩
 
 /-- Profile admission refuses every feature image under a profile that is not resumable
-(`FeatureProfile.unsupported_refuses`).
-
-**Not claimed:** which images a resumable profile admits; `feature_image_admit` in
-`AcornVerif.Decisions` states that. -/
+(`FeatureProfile.unsupported_refuses`). The acceptance of the feature words of an agent image
+under a resumable profile is `profile_admit_accepts` in `AcornVerif.Decisions`. The
+specification names the four discriminants of the profile. -/
 theorem profile_admit : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
     ∀ (profile : FeatureProfile) {actions : Word.Count} (config : Features.Config)
       (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}
       (raw : RawFeatureImage actions dimension discounts),
-      profile.checkpointSupported = false →
-        admit profile config criterion dimension raw = none) :=
-  ⟨FeatureProfile.unsupported_refuses⟩
+      ¬Resumable profile → admit profile config criterion dimension raw = none) :=
+  ⟨fun profile _ config criterion dimension _ raw other =>
+    FeatureProfile.unsupported_refuses profile config criterion dimension raw (by
+      cases supported : profile.checkpointSupported with
+      | false => rfl
+      | true => exact absurd ((resumable_iff _).mp supported) other)⟩
 
 /-- The raw prediction-control step accepts exactly an action index inside the primitive
 actions (`PredictionControl.raw_refusal` is the refusal direction). -/
@@ -1803,14 +1815,20 @@ theorem total_ratio : Regula.ExecutableContract @Agreement.Total.ratio (fun rati
       (@ratio envelope total).isSome = true ↔ 0 < total.count.val * envelope ^ 2) :=
   ⟨fun _ _ => dite_isSome _⟩
 
-/-- A channel with a recorded arithmetic fault publishes no score
-(`Agreement.Channel.fault_no_score`).
-
-**Not claimed:** the score of a channel with no fault. -/
+/-- A channel publishes a score exactly when it has no recorded fault and holds at least one
+sample under a nonzero envelope (`Agreement.Channel.fault_no_score` is the fault direction). -/
 theorem channel_ratio : Regula.ExecutableContract @Agreement.Channel.ratio (fun ratio =>
-    ∀ (discount : Discount) (channel : Agreement.Channel discount) (fault : Agreement.Fault),
-      channel.fault = some fault → @ratio discount channel = none) :=
-  ⟨fun _ => Agreement.Channel.fault_no_score⟩
+    ∀ (discount : Discount) (channel : Agreement.Channel discount),
+      (@ratio discount channel).isSome = true ↔
+        channel.fault = none ∧
+          0 < channel.total.count.val * Agreement.envelopeUnits discount ^ 2) :=
+  ⟨fun discount channel => by
+    have present : (Agreement.Total.ratio channel.total).isSome = true ↔
+        0 < channel.total.count.val * Agreement.envelopeUnits discount ^ 2 := dite_isSome _
+    unfold Agreement.Channel.ratio
+    cases fault : channel.fault with
+    | some failure => simp
+    | none => simpa using present⟩
 
 /-- The headline score is present exactly for valid accounting over at least one goal
 (`GoalAchievement.State.invalid_no_headline` is one refusal direction). -/
