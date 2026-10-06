@@ -146,6 +146,70 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
     ⟨CurrentCertificates.stance_harvest accepted, CurrentCertificates.stance_enter accepted,
       CurrentCertificates.stance_approach accepted⟩⟩
 
+/-- Replay checking returns a certificate only for an action list that shows its goal
+feasible (`CurrentCertificates.replay_feasible`), and it refuses the empty action list. The
+statement names the feasibility relation and not the Boolean checker that it calls.
+
+**Not claimed:** an accepted input. An acceptance fact needs an executed world step, whose
+value rests on the generated terrain; no theorem supplies one. -/
+theorem replay_check : Regula.ExecutableContract @Host.ReplayCertificate.check (fun check =>
+    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
+      (∀ actions : List Host.Action, (@check config world goal cap actions).isSome = true →
+        CurrentCertificates.Feasible world goal cap) ∧
+        @check config world goal cap [] = none) :=
+  ⟨fun _ world goal cap =>
+    ⟨fun actions present => by
+        obtain ⟨certificate, -⟩ := Option.isSome_iff_exists.mp present
+        exact CurrentCertificates.replay_feasible certificate.accepted,
+      by simp [Host.ReplayCertificate.check, Host.replayCertified]⟩⟩
+
+/-- Blocked checking returns a certificate only for a region that shows the goal box
+unreachable from the start tile (`CurrentCertificates.blocked_outside`); it refuses a region
+that holds the start tile; and it accepts the empty region for a goal box outside the box of
+the world. The statement names the unreachability relation and not the Boolean checker. -/
+theorem blocked_check : Regula.ExecutableContract Host.BlockedCertificate.check (fun check =>
+    (∀ (config : Host.WorldConfig) (boat : Bool) (target start : Host.Position)
+      (cells : List Host.Position),
+      ((check config boat target start cells).isSome = true →
+        Unreachable config boat target start) ∧
+        check config boat target start [start] = none) ∧
+      (check ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩ true
+        ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩ []).isSome =
+        true) :=
+  ⟨⟨fun config boat target start cells =>
+      ⟨fun present world final located later boatless => by
+          obtain ⟨certificate, -⟩ := Option.isSome_iff_exists.mp present
+          exact CurrentCertificates.blocked_outside (cells := certificate.cells)
+            (by rw [located]; exact certificate.accepted) later boatless,
+        by simp [Host.BlockedCertificate.check, Host.regionBlocked, Host.inRegion]⟩,
+    by decide⟩⟩
+
+/-- Stance checking returns a certificate only for a stance from which, in every world, a
+paid harvest yields the item (`CurrentCertificates.stance_harvest`). The statement names the
+harvest relation and not the Boolean checker.
+
+**Not claimed:** an accepted or a refused input. Each needs the generated terrain of one
+tile; no theorem supplies one. -/
+theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (fun check =>
+    ∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
+      (direction : Host.Direction),
+      (check config item stance direction).isSome = true →
+        ∀ (world next : Host.World config) (events : Host.StepResult),
+          world.body.position = stance → world.body.facing = direction →
+          (item = .wood → world.tileKind (stance.facingPosition direction) = .ok .tree) →
+          world.step .harvest = .ok (next, events) → events.exhausted = false →
+            events.harvested = some item) :=
+  ⟨fun config item stance direction present world next events standing facing grown stepped
+      paid => by
+    obtain ⟨certificate, built⟩ := Option.isSome_iff_exists.mp present
+    have accepted : Host.stanceCertified config stance direction item = true := by
+      unfold Host.StanceCertificate.check at built
+      split at built
+      · assumption
+      · exact absurd built (by simp)
+    exact (CurrentCertificates.stance_harvest accepted world next events standing facing grown
+      stepped paid).1⟩
+
 /-- The walkable test accepts only a tile that is enterable in every world of the
 configuration, with or without a boat (`CurrentCertificates.walkable_enterable`).
 

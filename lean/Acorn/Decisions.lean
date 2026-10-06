@@ -1939,34 +1939,4 @@ theorem schema_covers : Regula.ExecutableContract @schemaCovers (fun covers =>
         @covers α fits [] schema = true) :=
   ⟨fun _ fits table schema => ⟨schemaCovers_sound fits table schema, rfl⟩⟩
 
-/-- Replay checking returns a certificate exactly when the replay checker accepts the action
-list. The certificate's type carries that acceptance; `AcornVerif.Decisions.replay_certified`
-states what it establishes. -/
-theorem replay_check : Regula.ExecutableContract @Host.ReplayCertificate.check (fun check =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat)
-      (actions : List Host.Action),
-      (@check config world goal cap actions).isSome = true ↔
-        Host.replayCertified world goal cap actions = true) :=
-  ⟨fun _ _ _ _ _ => dite_isSome _⟩
-
-/-- Blocked checking returns a certificate exactly when the blocked checker accepts the
-region. The certificate's type carries that acceptance; `AcornVerif.Decisions.region_blocked`
-states what it establishes. -/
-theorem blocked_check : Regula.ExecutableContract Host.BlockedCertificate.check (fun check =>
-    ∀ (config : Host.WorldConfig) (boat : Bool) (target start : Host.Position)
-      (cells : List Host.Position),
-      (check config boat target start cells).isSome = true ↔
-        Host.regionBlocked config boat target cells start = true) :=
-  ⟨fun _ _ _ _ _ => dite_isSome _⟩
-
-/-- Stance checking returns a certificate exactly when the stance checker accepts the stance.
-The certificate's type carries that acceptance; `AcornVerif.Decisions.stance_certified` states
-what it establishes. -/
-theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (fun check =>
-    ∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
-      (direction : Host.Direction),
-      (check config item stance direction).isSome = true ↔
-        Host.stanceCertified config stance direction item = true) :=
-  ⟨fun _ _ _ _ => dite_isSome _⟩
-
 end Acorn.Decisions
