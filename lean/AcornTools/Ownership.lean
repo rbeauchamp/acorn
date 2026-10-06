@@ -226,6 +226,38 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.stanceCertified)
 ]
 
+/-- Types whose values carry a claim about their makers that the type does not prove:
+the state, the image and the chosen value of one construction are of that construction's
+step order, and a callback record is of the order in its index. The constructor of each
+must be sealed: private, or a row of `sealedConstants`. A change of visibility that
+removes one from the rule fails the audit. -/
+def sealedTypes : Array Name := #[
+  `Acorn.Handcrafted.AgentConstruction.State, `Acorn.Handcrafted.AgentConstruction.Image,
+  `Acorn.Handcrafted.AgentConstruction.Chosen, `Acorn.Handcrafted.Chosen,
+  `Acorn.Host.AgentCallbacks]
+
+/-- Constants with a public name that only the listed modules may reference in a
+definition. The audit adds every private constructor of a project type with its declaring
+module; that set is computed and has no row here.
+
+- The constructor of the callback record: its declaring module, the agent's two parts
+  (`Agent.callbacks`) and the construction's callbacks (`AgentConstruction.callbacks`).
+- The constructor of the image of a construction: its declaring module and its two
+  makers, the admission of a payload and the snapshot of a state.
+- The callbacks of a construction: the module that defines them and derives them for a
+  campaign (`AgentConstruction.runCampaign`), and the ANSI entry, which makes its own
+  construction of the default order. No other module gets the two parts of a
+  construction, as a record or as functions. -/
+def sealedConstants : Array (Name × Array Name) := #[
+  (`Acorn.Host.AgentCallbacks.mk,
+    #[`Acorn.Host.Attempt, `Acorn.Host.AgentInterface, `Acorn.Host.AgentAdmission]),
+  (`Acorn.Handcrafted.AgentConstruction.Image.mk,
+    #[`Acorn.Host.AgentAdmission, `Acorn.Host.Checkpoint.Admission,
+      `Acorn.Host.Checkpoint.Snapshot]),
+  (`Acorn.Handcrafted.AgentConstruction.callbacks,
+    #[`Acorn.Host.AgentAdmission, `NativeApp.Core])
+]
+
 /-- Required native entry dependencies after proof erasure. These are routing
 obligations; the IR graph alone does not prove control-flow or argument semantics.
 Erased ANSI and checksum parameters select the compiler's reduced-arity owners. -/
