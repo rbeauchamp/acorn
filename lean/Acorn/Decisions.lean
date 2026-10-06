@@ -66,7 +66,10 @@ proved about the executing definition. It does not check a witness of either out
 does not check that the statement is independent of the implementation. Each docstring of
 such a statement says whether it gives the exact condition of acceptance, or which of an
 accepted and a refused input it gives, and what it does not claim. The ownership audit prints
-how many implementations have a kind and how many have only such a requirement.
+how many implementations have a kind and how many have only such a requirement. A statement
+can carry one closed accepted input and one closed refused input with the markers `Accepts`
+and `Refuses`, at the top level of its condition; the ownership audit lists the decision
+functions whose contracts carry none.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function
