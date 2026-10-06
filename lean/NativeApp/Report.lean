@@ -126,8 +126,8 @@ def openCsv (path : System.FilePath) (checkpoint : Option System.FilePath)
   return handle
 
 /-- All campaign reporting inputs are derived from the actual execution result. The
-planning selection, the step order and the sizes are those of the construction whose
-state the result holds. -/
+planning selection, the step order and the weight capacity, in the summary and in the
+CSV footer, are those of the construction whose state the result holds. -/
 def reportText (options : Cli.Streaming) {construction : AgentConstruction}
     (result : CampaignResult options.common.world construction.State)
     (outcomes : OutcomeReport (standardCurriculum options.common.world options.common.world.raw.seed).size) (elapsedMs : Nat) : String × String := Id.run do
@@ -143,7 +143,7 @@ def reportText (options : Cli.Streaming) {construction : AgentConstruction}
     toString skill.model.transition.ranked.occupied.length
   let common := options.common
   let rate := if elapsedMs == 0 then 0 else result.totalSteps.toNat * 1000 / elapsedMs
-  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance construction} {orderProvenance construction.order} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
+  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance construction} {orderProvenance construction.order} weights={construction.dimension.capacity} achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
   summary := summary ++ s!"  recent attempt detail (last {outcomes.recent.values.length} retained):\n"
   for outcome in outcomes.recent.values do summary := summary ++ outcomeText outcome
   summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {progress.replaced}\n  retire_last: {last}\n  imprint_distinct_abs: {String.intercalate " " census}\n  ranked_slots: {String.intercalate " " ranked}\n"
