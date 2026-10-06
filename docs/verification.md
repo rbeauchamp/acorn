@@ -260,7 +260,7 @@ skip it as Lake's build directory.
 
 `lean/foundation_manifest.json` states what is audited. A claim names the
 strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
-NativeApp and Bootstrap, with the ten application executables, claim Regula's
+NativeApp and Bootstrap, with the eleven application executables, claim Regula's
 standard-logical profile: propext, Quot.sound and Classical.choice, and no other
 axiom. No stricter profile is attainable, because Lean's core definitions of
 binary32 and binary64 arithmetic depend on Classical.choice, as do the Mathlib

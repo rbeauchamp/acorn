@@ -56,6 +56,17 @@ def worldIndependent (name : Name) : Bool :=
 modules reach FloatLib's theorems through it; no executing module can. -/
 def floatLibBridge : Name := `AcornVerif.FloatLibBridge
 
+/-- Owners of the generator-only certificate tool. -/
+def generatorOnly (name : Name) : Bool :=
+  #[`Acorn.Host.Certificate, `Acorn.Host.CertificateSearch, `Acorn.Host.CertificateDriver].contains name
+
+/-- What a generator-only owner may not import, directly or transitively: the agent
+composition, the campaign runner and the random-policy comparator. The certificate tool
+therefore cannot construct or run any of them. -/
+def generatorExcluded (imported : Name) : Bool :=
+  (`Acorn.Handcrafted).isPrefixOf imported ||
+    #[`Acorn.Host.Runner, `Acorn.Host.Baseline].contains imported
+
 /-- Only host/composition owners may use the pinned standard containers and IO support.
 A world-independent declared module reaches learned modules and its own kind only, so
 the composed agent cannot name a host or grid type, directly or through an import.
@@ -64,6 +75,7 @@ needlessly load an entire library or tactic collection into each compiler proces
 FloatLib modules are admitted for the bridge alone. -/
 def importAllowed (owner imported : Name) : Bool :=
   if (`Init).isPrefixOf imported then true
+  else if generatorOnly owner && generatorExcluded imported then false
   else if proofOwner owner then
     !#[`Mathlib, `Mathlib.Tactic, `FloatLib].contains imported &&
       (#[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported) ||

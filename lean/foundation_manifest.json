@@ -10,11 +10,12 @@
         "temporal-native",
         "agent-native",
         "checkpoint-native",
-        "world-native"
+        "world-native",
+        "world-certificates"
       ],
       "claim": "standard-logical",
       "execution": "checked",
-      "rationale": "Acorn's executable definitions: machine encodings, arithmetic, the learners, feature lifecycle, world, host runner, checkpoint and viewer protocol, and the native drivers that consume them. Its binary32 and binary64 operations use Lean's core float model, which depends on Classical.choice, so choice-free is not attainable. Checked execution holds because the library declares no extern, replacement, unsafe or partial code and imports only the Lean toolchain, so every boundary its definitions and seven executables reach belongs to the toolchain's own trusted base. Native arithmetic, the Lean runtime and the POSIX effects reached through toolchain primitives stay trusted, and the spawned checkpoint-sync process is outside the account."
+      "rationale": "Acorn's executable definitions: machine encodings, arithmetic, the learners, feature lifecycle, world, host runner, checkpoint and viewer protocol, and the native drivers that consume them. Its binary32 and binary64 operations use Lean's core float model, which depends on Classical.choice, so choice-free is not attainable. Checked execution holds because the library declares no extern, replacement, unsafe or partial code and imports only the Lean toolchain, so every boundary its definitions and eight executables reach belongs to the toolchain's own trusted base. Native arithmetic, the Lean runtime and the POSIX effects reached through toolchain primitives stay trusted, and the spawned checkpoint-sync process is outside the account."
     },
     {
       "library": "AcornVerif",

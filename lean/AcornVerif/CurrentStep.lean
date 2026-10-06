@@ -17,11 +17,13 @@ Three guarantees follow. No step removes an owned tool or lowers gold
 (`step_retains`). Energy obeys a ledger over any run of steps (`trace_energy`),
 and a run of move actions is exhausted on at most one step in eleven, plus a
 bounded start (`trace_moves`). Enterability is a fixed table of the static
-terrain plus the boat (`enterable_static`), so the body never moves onto a
-mountain and moves onto water only when it owns a boat (`step_terrain`).
+terrain plus the boat (`enterable_static`). A step leaves the body where it is or
+moves it one tile in a direction (`step_adjacent`), never onto a mountain and onto
+water only when it owns a boat (`step_terrain`).
 
 A successful step is a hypothesis throughout: a step the world refuses returns no
-successor. Nothing here shows that a goal is feasible or that a tile is reachable.
+successor. Nothing here shows that a goal is feasible or that a tile is reachable;
+`AcornVerif.CurrentCertificates` decides those for one seed from a certificate.
 -/
 namespace AcornVerif.CurrentStep
 open Acorn Acorn.Host
@@ -31,9 +33,12 @@ inductive Performed {config : WorldConfig} (world : World config) (action : Acti
     (body : Body config) : Prop where
   /-- A blocked move, a failed recipe, an empty harvest, a wait: nothing changes. -/
   | unchanged (same : body = world.body)
-  /-- A move onto an in-box tile the body may enter, picking up the food there. -/
+  /-- A move one tile in a direction, onto an in-box tile the body may enter, picking up
+  the food there. -/
   | moved (direction : Direction) (candidate : Position) (position : BoxPosition config)
       (picked : UInt32) (heading : action.direction = some direction)
+      (translated : world.body.position.position.translate direction.delta.1 direction.delta.2 =
+        some candidate)
       (admitted : BoxPosition.checked config candidate.x.val candidate.y.val = some position)
       (entered : world.enterable candidate = .ok true)
       (result : body = ⟨position, direction, world.body.energy,
@@ -84,7 +89,8 @@ theorem performAction_outcome {config : WorldConfig} (world : World config) (act
             simp only [entered, bind, Except.bind, pure, Except.pure, Bool.not_true,
               Bool.false_eq_true, ↓reduceIte, Except.ok.injEq] at h
             subst h
-            exact ⟨.moved direction candidate position _ heading admitted entered rfl, rfl⟩
+            exact ⟨.moved direction candidate position _ heading translated admitted entered rfl,
+              rfl⟩
   | none =>
     cases action with
     | north | south | east | west => simp [Action.direction] at heading
@@ -144,11 +150,12 @@ theorem payAndAct_outcome {config : WorldConfig} (world : World config) (action 
   · rename_i energy paid
     exact Or.inr ⟨energy, paid, performAction_outcome _ _ _ h⟩
 
-/-- A successful step's body and exhaustion flag are those of its active change. -/
-theorem step_active {config : WorldConfig} (world next : World config) (action : Action)
+/-- A successful step's body is its active change's, and its events are the active
+change's with the completion flag of the successor. -/
+theorem step_events {config : WorldConfig} (world next : World config) (action : Action)
     (events : StepResult) (h : world.step action = .ok (next, events)) :
     ∃ active, payAndAct world action = .ok active ∧ next.body = active.body ∧
-      events.exhausted = active.events.exhausted := by
+      events = { active.events with done := next.goalSatisfied } := by
   unfold World.step at h
   cases ha : payAndAct world action with
   | error error => simp [ha, bind, Except.bind] at h
@@ -161,6 +168,14 @@ theorem step_active {config : WorldConfig} (world next : World config) (action :
       simp only [hp, pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨active, rfl, rfl, rfl⟩
+
+/-- A successful step's body and exhaustion flag are those of its active change. -/
+theorem step_active {config : WorldConfig} (world next : World config) (action : Action)
+    (events : StepResult) (h : world.step action = .ok (next, events)) :
+    ∃ active, payAndAct world action = .ok active ∧ next.body = active.body ∧
+      events.exhausted = active.events.exhausted := by
+  obtain ⟨active, paid, body, same⟩ := step_events world next action events h
+  exact ⟨active, paid, body, by rw [same]⟩
 
 /-! ## What the inventory keeps -/
 
@@ -225,7 +240,7 @@ theorem step_retains {config : WorldConfig} (world next : World config) (action 
     exact Retains.refl _
   · cases performed with
     | unchanged same => rw [same]; exact Retains.refl _
-    | moved direction candidate position picked heading admitted entered result =>
+    | moved direction candidate position picked heading translated admitted entered result =>
       rw [result]; exact add_retains world.body.inventory .food picked
     | harvested item amount result =>
       rw [result]; exact add_retains world.body.inventory item amount
@@ -258,7 +273,7 @@ theorem performed_energy {config : WorldConfig} (world : World config) (action :
       (action ≠ .eat → body.energy = world.body.energy) := by
   cases performed with
   | unchanged same => rw [same]; exact ⟨Nat.le_refl _, fun _ => rfl⟩
-  | moved direction candidate position picked heading admitted entered result =>
+  | moved direction candidate position picked heading translated admitted entered result =>
     rw [result]; exact ⟨Nat.le_refl _, fun _ => rfl⟩
   | harvested item amount result => rw [result]; exact ⟨Nat.le_refl _, fun _ => rfl⟩
   | crafted tool inventory recipe result => rw [result]; exact ⟨Nat.le_refl _, fun _ => rfl⟩
@@ -503,12 +518,15 @@ theorem checked_position {config : WorldConfig} (candidate : Position)
     · contradiction
   · contradiction
 
-/-- A successful step leaves the body where it is or moves it onto a tile whose static
-terrain it may enter with the boat it held before the step. -/
-theorem step_passable {config : WorldConfig} (world next : World config) (action : Action)
+/-- A successful step leaves the body where it is or moves it one tile in a direction,
+onto a tile whose static terrain it may enter with the boat it held before the step. -/
+theorem step_adjacent {config : WorldConfig} (world next : World config) (action : Action)
     (events : StepResult) (h : world.step action = .ok (next, events)) :
     next.body.position = world.body.position ∨
-      ∃ base, terrain next.body.position.position config.raw.seed config.raw.baseScale = .ok base ∧
+      ∃ (direction : Direction) (base : TileKind),
+        world.body.position.position.translate direction.delta.1 direction.delta.2 =
+          some next.body.position.position ∧
+        terrain next.body.position.position config.raw.seed config.raw.baseScale = .ok base ∧
         passable base world.body.inventory.boat = true := by
   obtain ⟨active, paid, body, -⟩ := step_active world next action events h
   rw [body]
@@ -518,10 +536,13 @@ theorem step_passable {config : WorldConfig} (world next : World config) (action
     rw [exhausted]
   · cases performed with
     | unchanged same => left; rw [same]
-    | moved direction candidate position picked heading admitted entered result =>
+    | moved direction candidate position picked heading translated admitted entered result =>
       right
       rw [result]
-      change ∃ base, terrain position.position config.raw.seed config.raw.baseScale = .ok base ∧
+      change ∃ (direction : Direction) (base : TileKind),
+        world.body.position.position.translate direction.delta.1 direction.delta.2 =
+          some position.position ∧
+        terrain position.position config.raw.seed config.raw.baseScale = .ok base ∧
         passable base world.body.inventory.boat = true
       rw [checked_position candidate position admitted]
       rw [enterable_static] at entered
@@ -529,10 +550,21 @@ theorem step_passable {config : WorldConfig} (world next : World config) (action
       | error refusal => simp [located, Except.map] at entered
       | ok base =>
         rw [located] at entered
-        exact ⟨base, rfl, Except.ok.inj entered⟩
+        exact ⟨direction, base, translated, rfl, Except.ok.inj entered⟩
     | harvested item amount result => left; rw [result]
     | crafted tool inventory recipe result => left; rw [result]
     | ate meal result => left; rw [result]
+
+/-- A successful step leaves the body where it is or moves it onto a tile whose static
+terrain it may enter with the boat it held before the step. -/
+theorem step_passable {config : WorldConfig} (world next : World config) (action : Action)
+    (events : StepResult) (h : world.step action = .ok (next, events)) :
+    next.body.position = world.body.position ∨
+      ∃ base, terrain next.body.position.position config.raw.seed config.raw.baseScale = .ok base ∧
+        passable base world.body.inventory.boat = true := by
+  rcases step_adjacent world next action events h with same | ⟨-, base, -, located, enters⟩
+  · exact Or.inl same
+  · exact Or.inr ⟨base, located, enters⟩
 
 /-- The body never moves onto a mountain tile, and moves onto a water tile only when
 it owned a boat before the step. -/
