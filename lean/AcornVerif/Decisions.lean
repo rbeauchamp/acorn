@@ -23,8 +23,10 @@ about runs of the executed world step, proved in `CurrentCertificates`.
 No certificate checker is complete: each contract below states what an accepted certificate
 establishes, and a refused certificate establishes nothing. The blocked checker is a function
 between fixed types and carries the sound kind. The replay and stance checkers take an
-argument whose type depends on the configuration, so their statements are ordinary
-requirements with no kind.
+argument whose type depends on the configuration, so their statements are requirements with
+no kind. A requirement with no kind is weaker than a kind: the Regula audit checks that its
+theorem is proved about the executing definition, and it does not check a witness of either
+outcome or that the statement is independent of the implementation.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here for the same reason: their theorems are
@@ -40,7 +42,7 @@ open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime
 
 /-- Total admission accepts the words of every stored total of the receiving quantity and
 returns that total (`CurrentCheckpoint.sum_roundtrip`). The result type depends on the
-quantity, so the contract is an ordinary requirement with no kind.
+quantity, so the contract is a requirement with no kind.
 
 **Not claimed:** that every accepted word pair is the word image of a stored total. -/
 theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
@@ -75,17 +77,22 @@ theorem lifetime_admit : Regula.ExecutableContract admitLifetime
 /-- The replay checker accepts only an action list that shows its goal feasible from its
 world within its cap (`CurrentCertificates.replay_feasible`): some run of at least one and at
 most `cap` executed steps, from the world with the goal installed, ends in a world that
-satisfies the goal. The world's type depends on the configuration, so the contract is an
-ordinary requirement with no kind.
+satisfies the goal. It refuses the empty action list and every list longer than the cap. The
+world's type depends on the configuration, so the statement has no kind.
 
-**Not claimed:** completeness. The checker refuses an action list that does not itself reach
-the goal, whether or not the goal is feasible. -/
+**Not claimed:** completeness, or an accepted input. The checker refuses an action list that
+does not itself reach the goal, whether or not the goal is feasible. An acceptance fact needs
+an executed world step, whose value rests on the generated terrain; no theorem supplies one. -/
 theorem replay_certified : Regula.ExecutableContract @Host.replayCertified (fun check =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat)
-      (actions : List Host.Action),
-      @check config world goal cap actions = true →
-        CurrentCertificates.Feasible world goal cap) :=
-  ⟨fun _ _ _ _ _ => CurrentCertificates.replay_feasible⟩
+    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
+      (∀ actions : List Host.Action, @check config world goal cap actions = true →
+        CurrentCertificates.Feasible world goal cap) ∧
+        @check config world goal cap [] = false ∧
+        ∀ actions : List Host.Action, cap < actions.length →
+          @check config world goal cap actions = false) :=
+  ⟨fun _ _ _ cap =>
+    ⟨fun _ => CurrentCertificates.replay_feasible, by simp [Host.replayCertified],
+      fun actions longer => by simp [Host.replayCertified, Nat.not_le.mpr longer]⟩⟩
 
 /-- The goal box of a target is unreachable from a start tile: after any run of steps and goal
 installations from a world whose body is on the start tile, the body is outside the goal box.
@@ -118,14 +125,18 @@ theorem region_blocked : Regula.ExecutableContract Host.regionBlocked (fun check
 /-- The stance checker accepts only a stance from which, in every world, a paid harvest
 yields the item (`CurrentCertificates.stance_harvest`), which a paid move from the tile behind
 it enters facing the resource (`stance_enter`), and whose tile behind is in the box and
-walkable (`stance_approach`). A wood stance needs its tree standing. The stance's type depends
-on the configuration, so the contract is an ordinary requirement with no kind.
+enterable in every world (`stance_approach`, `walkable_enterable`). A wood stance needs its
+tree standing. It refuses every stance of a box with one tile, because no tile of that box is
+behind the stance. The stance's type depends on the configuration, so the statement has no
+kind.
 
-**Not claimed:** completeness, or that a step succeeds: a successful step is a hypothesis. -/
+**Not claimed:** completeness, an accepted input, or that a step succeeds: a successful step is
+a hypothesis. An acceptance fact needs the generated terrain of the tiles at the stance; no
+theorem supplies one. -/
 theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun check =>
     ∀ (config : Host.WorldConfig) (stance : Host.BoxPosition config)
       (direction : Host.Direction) (item : Host.Item),
-      check config stance direction item = true →
+      (check config stance direction item = true →
         (∀ (world next : Host.World config) (events : Host.StepResult),
           world.body.position = stance → world.body.facing = direction →
           (item = .wood → world.tileKind (stance.facingPosition direction) = .ok .tree) →
@@ -141,10 +152,27 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
             next.body.position = stance ∧ next.body.facing = direction) ∧
         ∃ approach : Host.BoxPosition config,
           approach.position.translate direction.delta.1 direction.delta.2 =
-            some stance.position ∧ Host.walkableTile config approach.position = true) :=
-  ⟨fun _ _ _ _ accepted =>
-    ⟨CurrentCertificates.stance_harvest accepted, CurrentCertificates.stance_enter accepted,
-      CurrentCertificates.stance_approach accepted⟩⟩
+            some stance.position ∧
+            ∀ world : Host.World config, world.enterable approach.position = .ok true) ∧
+        (config.side = 1 → check config stance direction item = false)) :=
+  ⟨fun config stance direction item =>
+    ⟨fun accepted =>
+      ⟨CurrentCertificates.stance_harvest accepted, CurrentCertificates.stance_enter accepted, by
+        obtain ⟨approach, moved, walkable⟩ := CurrentCertificates.stance_approach accepted
+        exact ⟨approach, moved, fun world =>
+          CurrentCertificates.walkable_enterable world approach.position walkable⟩⟩,
+      fun single => by
+        cases refused : Host.stanceCertified config stance direction item with
+        | false => rfl
+        | true =>
+          obtain ⟨approach, moved, -⟩ := CurrentCertificates.stance_approach refused
+          obtain ⟨column, row⟩ := CurrentCertificates.translate_some _ _ _ _ moved
+          have approachColumn := approach.x.isLt
+          have stanceColumn := stance.x.isLt
+          have approachRow := approach.y.isLt
+          have stanceRow := stance.y.isLt
+          simp only [Host.BoxPosition.position] at column row
+          cases direction <;> simp only [Host.Direction.delta] at column row <;> omega⟩⟩
 
 /-- Replay checking returns a certificate only for an action list that shows its goal
 feasible (`CurrentCertificates.replay_feasible`), and it refuses the empty action list. The
@@ -215,7 +243,7 @@ configuration, with or without a boat (`CurrentCertificates.walkable_enterable`)
 
 The function is between fixed types, but the sound kind carries an input the function
 accepts, which is the generated terrain of one tile, and no theorem states the terrain of a
-tile. The statement is therefore an ordinary requirement with no kind.
+tile. The statement is therefore a requirement with no kind.
 
 **Not claimed:** completeness. The test refuses water, which a body with a boat enters. -/
 theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test =>
@@ -227,7 +255,7 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
 
 Each admission below composes the admissions of its parts. Its round trip is proved in
 `CurrentCheckpoint`, and its type depends on the receiving construction or on the discounts,
-so the statement is an ordinary requirement with no kind. -/
+so the statement is a requirement with no kind. -/
 
 /-- Demon admission accepts the columns of every durable demon list of the receiving discounts
 and returns that list (`CurrentCheckpoint.demons_roundtrip`).
@@ -414,7 +442,7 @@ theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun ind
 /-- Whether the body may enter a tile is exactly the static passability of the tile's terrain
 with the body's boat, and it refuses exactly when the terrain refuses
 (`CurrentStep.enterable_static`). The world's type depends on the configuration, so the
-statement is an ordinary requirement. -/
+statement is a requirement with no kind. -/
 theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
       @enterable config world position =
@@ -426,7 +454,7 @@ theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun e
 the goal box, the inventory holding the count, the time since installation reaching the
 duration; for a craft goal it is the ownership of the tool (`CurrentGoals.goalSatisfied_eq`
 with the four family theorems). The statement names no function that the flag applies. The
-world's type depends on the configuration, so it is an ordinary requirement. -/
+world's type depends on the configuration, so it is a requirement with no kind. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
     ∀ (config : Host.WorldConfig) (world : Host.World config),
       (∀ target, world.goal = some (.reach target) →

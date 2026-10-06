@@ -20,6 +20,14 @@ is in exactly one of three classes.
 * It is an entry of `excluded`, with the shape of its type and the reason it carries no
   contract.
 
+A contract has one of two strengths, and the audit prints how many implementations have each.
+A contract whose statement is a decision kind (`Regula.Decides`, `Regula.DecidesSoundly`,
+`Regula.DecidesCompletely`) carries a witness of each outcome it claims, and the Regula audit
+checks that its specification does not name the implementation. A contract with any other
+statement is a requirement that the Regula audit does not check for witnesses or
+independence: that audit checks only that the theorem is proved about the executing
+definition.
+
 The ownership audit reads the classes of each definition from the compiled environment and
 applies `classified`, the decision of this inventory. A definition in no class or in two
 fails verification. Every entry of `excluded` is validated on its own as well: it names
@@ -605,6 +613,8 @@ structure Observed where
   candidates : Array Candidate := #[]
   /-- Implementations of the contracts that the decision registries state. -/
   contracts : NameSet := {}
+  /-- Implementations with a contract whose statement is a decision kind. -/
+  kinded : NameSet := {}
   /-- Constants that the statement of a written theorem outside the registries names. -/
   mentioned : NameSet := {}
   /-- Excluded definitions whose standing theorem was read and names them. -/
@@ -616,6 +626,7 @@ structure Observed where
 def Observed.add (left right : Observed) : Observed :=
   { candidates := left.candidates ++ right.candidates
     contracts := right.contracts.foldl (fun all name => all.insert name) left.contracts
+    kinded := right.kinded.foldl (fun all name => all.insert name) left.kinded
     mentioned := right.mentioned.foldl (fun all name => all.insert name) left.mentioned
     standing := right.standing.foldl (fun all name => all.insert name) left.standing
     certified := right.certified.fold (fun all label count =>
@@ -705,6 +716,18 @@ def derivedComparison (env : Environment) (name : Name) : Bool :=
     | _, _, _ => false
   | _ => false
 
+/-- The decision kinds of Regula. Its audit checks a witness of each kind and the independence
+of its specification from the implementation. -/
+def kinds : Array Name :=
+  #[``Regula.Decides, ``Regula.DecidesSoundly, ``Regula.DecidesCompletely]
+
+/-- A contract condition that is a decision kind: after its binders, its head is one of the
+kinds. A statement of any other form is a requirement that the Regula audit does not check
+for witnesses or independence. -/
+def isKind : Expr → Bool
+  | .lam _ _ body _ => isKind body
+  | condition => (condition.getAppFn.constName?).any kinds.contains
+
 /-- Read one declaration of a surveyed module. A contract of a decision registry adds its
 implementation. Any other written theorem adds the constants its statement names, and
 checks the entries that name it as their standing theorem. A definition or an opaque
@@ -718,7 +741,10 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
         return observed
       let some implementation := (info.type.getAppArgs[1]?).bind (·.getAppFn.constName?)
         | throw (IO.userError s!"{name}: contract names no implementation constant")
-      return { observed with contracts := observed.contracts.insert implementation }
+      let decided := (info.type.getAppArgs[2]?).any isKind
+      return { observed with
+        contracts := observed.contracts.insert implementation
+        kinded := if decided then observed.kinded.insert implementation else observed.kinded }
     unless written env name do return observed
     let used := info.type.getUsedConstantsAsSet
     let mut standing := observed.standing
@@ -791,13 +817,16 @@ def check (observed : Observed) : IO Unit := do
   -- Each definition is in exactly one class.
   let mut structural := 0
   let mut contracts := 0
+  let mut decided := 0
   for candidate in observed.candidates do
     let classes : Classes :=
       ⟨candidate.structural, observed.contracts.contains candidate.name,
         valid.contains candidate.name⟩
     if classified classes then
       if classes.structural then structural := structural + 1
-      if classes.contract then contracts := contracts + 1
+      if classes.contract then
+        contracts := contracts + 1
+        if observed.kinded.contains candidate.name then decided := decided + 1
     else if !named.contains candidate.name then
       failures := failures.push (s!"{candidate.name} has no contract and no exclusion entry " ++
         s!"(its type is {repr candidate.shape})")
@@ -818,7 +847,9 @@ def check (observed : Observed) : IO Unit := do
   let predicate := count "predicate"
   let judged := transition + selection + predicate
   IO.println (s!"decisions: {observed.candidates.size} verdict-shaped definitions: " ++
-    s!"{structural} structural, {contracts} with a contract, " ++
+    s!"{structural} structural, {contracts} with a contract ({decided} with a decision " ++
+    s!"kind, {contracts - decided} with a requirement that the Regula audit does not check " ++
+    "for witnesses or independence), " ++
     s!"{valid.size - judged} excluded by a computed reason (unproved {unproved}, " ++
     s!"composed {composed}, proposal {proposal}, derived {derived}, default {defaults}, " ++
     s!"model {model}), " ++

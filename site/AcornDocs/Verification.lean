@@ -301,11 +301,15 @@ result type that depends on an earlier argument has no kind. Neither has a
 function between fixed types for which no proof supplies the accepted or refused
 input that a kind carries. Where a theorem
 proves which inputs it accepts or refuses, or a property of an accepted or a
-refused result, that statement is registered as an ordinary requirement, which
-the audit reports with no kind, and the ownership audit requires the contract by
-name. A decision that takes its element type as an argument has no kind either
-and is registered in the same way. A contract states only what its theorem
-proves.
+refused result, that statement is registered as a requirement with no kind, and
+the ownership audit requires the contract by name. A decision that takes its
+element type as an argument has no kind either and is registered in the same
+way. A requirement with no kind is weaker than a kind: the Regula audit checks
+that its theorem is proved about the executing definition, and it does not check
+a witness of either outcome or that the statement is independent of the
+implementation. The ownership audit prints how many implementations have a kind
+and how many have only such a requirement. A contract states only what its
+theorem proves.
 
 Regula's audit does not find a decision function that is not registered. The
 ownership audit closes that gap with a decision inventory,
@@ -363,7 +367,7 @@ registered, and the ownership audit requires each contract by name. Among them
 are the certificate checkers. No checker is complete, so each contract states
 what an accepted certificate establishes: the blocked checker carries the sound
 kind, and the replay and stance checkers, whose arguments have a dependent type,
-an ordinary requirement.
+a requirement with no kind.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

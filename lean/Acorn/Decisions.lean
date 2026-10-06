@@ -45,18 +45,24 @@ with one proved direction carries that direction alone. Five groups are register
   so it is registered with no contract.
 * A decision with an argument or result type that depends on an earlier argument, such as
   `Bounded32.admit`, has no kind: a kind is stated about a function between two fixed types.
-  The proved statement is registered as an ordinary requirement, which the audit reports with
-  no kind, and the function carries no `@[regula_decision]` registration. The ownership audit
-  requires each such contract by name instead, with a statement that still refers to the
-  executing definition.
+  The proved statement is registered as a requirement with no kind, and the function carries
+  no `@[regula_decision]` registration. The ownership audit requires each such contract by
+  name instead, with a statement that still refers to the executing definition.
 * A decision that takes its element type as an argument, such as `Host.Viewer.Buffer.offer`,
   has no kind for the same reason, and its statement for every element type is registered in
   the same way.
 * A function between fixed types for which no proof supplies the witness of a kind has no kind
   either. Each kind carries an input the function accepts or one it refuses. For
   `Host.impassable` and `Host.walkableTile` that input is the generated terrain of one tile,
-  and no theorem states the terrain of a tile. The proved statement is registered as an
-  ordinary requirement, and the ownership audit requires it in the same way.
+  and no theorem states the terrain of a tile. The proved statement is registered as a
+  requirement with no kind, and the ownership audit requires it in the same way.
+
+A requirement with no kind is weaker than a kind. The Regula audit checks that its theorem is
+proved about the executing definition. It does not check a witness of either outcome, and it
+does not check that the statement is independent of the implementation. Each docstring of
+such a statement says whether it gives the exact condition of acceptance, or which of an
+accepted and a refused input it gives, and what it does not claim. The ownership audit prints
+how many implementations have a kind and how many have only such a requirement.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function
@@ -65,7 +71,7 @@ certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stan
 are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
 statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
 No checker is complete, so `Host.regionBlocked` carries the sound kind and the other two, whose
-arguments have a dependent type, an ordinary requirement.
+arguments have a dependent type, a requirement with no kind.
 
 ## The complete record
 
@@ -152,8 +158,7 @@ No kind says that a specification is the intended one, that every caller acts on
 or which value an accepting result carries. Exactness of the accepted value is stated by the
 theorems beside each definition.
 
-This module declares theorems and three specification predicates, and no executing
-definition.
+This module declares theorems and specification predicates, and no executing definition.
 No executable and no other module imports it, so the registration attribute's module, which
 imports Lean's elaborator, is linked into no native entry point.
 -/
@@ -796,20 +801,110 @@ theorem planning_value : Regula.ExecutableContract Host.Cli.planningValue
 
 attribute [regula_decision] Host.Cli.planningValue
 
-/-- Planning admission from an argument list accepts exactly an absent option or one
-canonical spelling (`Host.Cli.planningSelection_absent`,
-`Host.Cli.planningSelection_provided`). A missing value is refused. -/
+/-- The first occurrence of an option in an argument list, stated on the list with no reader:
+the option stands after a prefix that does not hold it, and `rest` is what stands after it. -/
+def FirstOption (arguments : List String) (wanted : String) (rest : List String) : Prop :=
+  ∃ before, arguments = before ++ wanted :: rest ∧ wanted ∉ before
+
+private theorem firstOption_nil (wanted : String) (rest : List String) :
+    ¬FirstOption [] wanted rest := by
+  rintro ⟨before, parts, -⟩
+  cases before <;> cases parts
+
+private theorem firstOption_cons (name wanted : String) (tail rest : List String) :
+    FirstOption (name :: tail) wanted rest ↔
+      (name = wanted ∧ rest = tail) ∨ (name ≠ wanted ∧ FirstOption tail wanted rest) := by
+  constructor
+  · rintro ⟨before, parts, absent⟩
+    cases before with
+    | nil =>
+      injection parts with head same
+      exact .inl ⟨head, same.symm⟩
+    | cons first more =>
+      injection parts with head same
+      have differs : name ≠ wanted := fun equal =>
+        absent (by rw [← head, equal]; exact List.mem_cons_self)
+      exact .inr ⟨differs, more, same, fun member => absent (List.mem_cons_of_mem _ member)⟩
+  · rintro (⟨rfl, rfl⟩ | ⟨differs, before, rfl, absent⟩)
+    · exact ⟨[], rfl, List.not_mem_nil⟩
+    · refine ⟨name :: before, rfl, fun member => ?_⟩
+      rcases List.mem_cons.mp member with same | inside
+      · exact differs same.symm
+      · exact absent inside
+
+/-- The option reader accepts exactly when the first occurrence of the option is not the last
+argument. -/
+private theorem value_accepts (wanted : String) : ∀ arguments : List String,
+    (Host.Cli.value arguments wanted).isOk = true ↔ ¬FirstOption arguments wanted []
+  | [] => by simp [Host.Cli.value, Except.isOk, Except.toBool, firstOption_nil]
+  | name :: tail => by
+    rw [firstOption_cons]
+    by_cases same : name = wanted
+    · subst same
+      cases tail <;> simp [Host.Cli.value, Except.isOk, Except.toBool]
+    · have recursive := value_accepts wanted tail
+      simp only [Host.Cli.value, beq_iff_eq, same, ↓reduceIte, false_and, ne_eq, not_false_eq_true,
+        true_and, false_or]
+      exact recursive
+
+/-- The option reader returns no value exactly for a list without the option, and a value
+exactly when that value stands after the first occurrence of the option. -/
+private theorem value_found (wanted : String) : ∀ (arguments : List String),
+    (Host.Cli.value arguments wanted = .ok none ↔ wanted ∉ arguments) ∧
+      ∀ text, Host.Cli.value arguments wanted = .ok (some text) ↔
+        ∃ after, FirstOption arguments wanted (text :: after)
+  | [] => by simp [Host.Cli.value, firstOption_nil]
+  | name :: tail => by
+    by_cases same : name = wanted
+    · subst same
+      cases tail with
+      | nil => simp [Host.Cli.value, firstOption_cons, firstOption_nil]
+      | cons next more =>
+        refine ⟨by simp [Host.Cli.value], fun text => ?_⟩
+        simp only [Host.Cli.value, beq_self_eq_true, ↓reduceIte, Except.ok.injEq, Option.some.injEq,
+          firstOption_cons, true_and, ne_eq, not_true_eq_false, false_and, or_false,
+          List.cons.injEq]
+        constructor
+        · rintro rfl
+          exact ⟨more, rfl, rfl⟩
+        · rintro ⟨after, same, -⟩
+          exact same.symm
+    · obtain ⟨absent, present⟩ := value_found wanted tail
+      have differs : ¬wanted = name := fun equal => same equal.symm
+      refine ⟨?_, fun text => ?_⟩
+      · simp only [Host.Cli.value, beq_iff_eq, same, ↓reduceIte, List.mem_cons, differs, false_or]
+        exact absent
+      · simp only [Host.Cli.value, beq_iff_eq, same, ↓reduceIte, firstOption_cons, false_and,
+          ne_eq, not_false_eq_true, true_and, false_or]
+        exact present text
+
+/-- Planning admission from an argument list accepts exactly a list without the option, or one
+whose first occurrence of the option has a canonical spelling after it
+(`Host.Cli.planningSelection_absent`, `Host.Cli.planningSelection_provided`). A missing value
+is refused. The specification is stated on the argument list and names no reader. -/
 theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelection
     (Regula.Decides (·.isOk = true) (fun arguments : List String =>
-      Host.Cli.value arguments "--planning" = .ok none ∨
-        ∃ selection, Host.Cli.value arguments "--planning" =
-          .ok (some (PlanningSelection.name selection)))) :=
-  ⟨decides
+      "--planning" ∉ arguments ∨
+        ∃ selection after,
+          FirstOption arguments "--planning" (PlanningSelection.name selection :: after))) :=
+  ⟨.of_iff
     (fun arguments => by
       show (Host.Cli.planningSelection arguments).isOk = true ↔ _
+      obtain ⟨absent, present⟩ := value_found "--planning" arguments
+      rw [← absent]
       cases found : Host.Cli.value arguments "--planning" with
       | error refusal =>
-        simp [Host.Cli.planningSelection, found, Except.isOk, Except.toBool, bind, Except.bind]
+        have refused : (Host.Cli.planningSelection arguments).isOk = false := by
+          simp [Host.Cli.planningSelection, found, Except.isOk, Except.toBool, bind, Except.bind]
+        rw [refused]
+        constructor
+        · intro accepted
+          cases accepted
+        · rintro (absurd | ⟨selection, after, first⟩)
+          · cases absurd
+          · have provided := (present _).mpr ⟨after, first⟩
+            rw [found] at provided
+            cases provided
       | ok text =>
         cases text with
         | none =>
@@ -819,17 +914,15 @@ theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelectio
           constructor
           · intro accepted
             obtain ⟨selection, written⟩ := (planning_parse.evidence.iff text).mp accepted
-            exact .inr ⟨selection, by rw [written]⟩
-          · rintro (absent | ⟨selection, provided⟩)
-            · cases absent
-            · have written : text = PlanningSelection.name selection := by simpa using provided
+            obtain ⟨after, first⟩ := (present text).mp found
+            exact .inr ⟨selection, after, written ▸ first⟩
+          · rintro (absurd | ⟨selection, after, first⟩)
+            · cases absurd
+            · have provided := (present _).mpr ⟨after, first⟩
+              rw [found] at provided
+              have written : text = PlanningSelection.name selection := by simpa using provided
               exact (planning_parse.evidence.iff text).mpr ⟨selection, written⟩)
-    ⟨[], .inl rfl⟩
-    ⟨["--planning"], fun spec => by
-      have found : Host.Cli.value ["--planning"] "--planning" =
-          .error (.missing "--planning") := rfl
-      rw [found] at spec
-      simp at spec⟩⟩
+    ⟨[], by decide⟩ ⟨["--planning"], by decide⟩⟩
 
 attribute [regula_decision] Host.Cli.planningSelection
 
@@ -915,7 +1008,7 @@ when the certificate is for a body without a boat. It refuses a terrain refusal.
 
 The function is between fixed types, but each kind carries an accepted or a refused input of
 the function, which is the generated terrain of one tile, and no theorem states the terrain of
-a tile. The statement is therefore an ordinary requirement with no kind. -/
+a tile. The statement is therefore a requirement with no kind. -/
 theorem tile_impassable : Regula.ExecutableContract Host.impassable (fun test =>
     ∀ (config : Host.WorldConfig) (boat : Bool) (tile : Host.Position),
       test config boat tile = true ↔
@@ -1118,39 +1211,112 @@ theorem control_authorizes : Regula.ExecutableContract ControlHeaders.authorizes
 
 attribute [regula_decision] ControlHeaders.authorizes
 
-/-- The fitting test accepts the default conversion of every shape
-(`TelemetryShape.defaultConversion_fits`), and it refuses a float conversion of a natural.
-`browserConversion_fits` states that it also accepts the conversion the browser schema assigns.
-
-**Not claimed:** soundness. The test accepts other conversions that a shape is defined for. -/
+/-- The fitting test accepts exactly: the identity conversion of every shape, a float
+conversion of a binary32 or binary64 shape, an optional-reading or optional-index conversion
+of an optional natural, and each array conversion of an array of its own element shape
+(`TelemetryShape.defaultConversion_fits` and `browserConversion_fits` state that it accepts the
+default conversion and the conversion that the browser schema assigns). -/
 theorem conversion_fits : Regula.ExecutableContract BrowserConversion.fits (fun test =>
-    Regula.DecidesCompletely (· = true)
-      (fun input : BrowserConversion × TelemetryShape => input.1 = input.2.defaultConversion)
+    Regula.Decides (· = true)
+      (fun input : BrowserConversion × TelemetryShape =>
+        input.1 = .keep ∨
+          (input.1 = .nonFinite ∧ (input.2 = .binary32 ∨ input.2 = .binary64)) ∨
+          ((input.1 = .unmeasured ∨ input.1 = .absentIndex) ∧ input.2 = .optional .natural) ∨
+          ∃ count, (input.1 = .float32 ∧ input.2 = .array count .binary32) ∨
+            (input.1 = .float64 ∧ input.2 = .array count .binary64) ∨
+            (input.1 = .counts ∧ input.2 = .array count .natural) ∨
+            (input.1 = .absentIndices ∧ input.2 = .array count (.optional .natural)))
       (Function.uncurry test)) :=
-  ⟨{ complete := fun input same => by
-       show input.1.fits input.2 = true
-       rw [same]
-       exact TelemetryShape.defaultConversion_fits input.2
-     refused := ⟨(.nonFinite, .natural), by decide⟩ }⟩
+  ⟨decides
+    (fun ⟨conversion, shape⟩ => by
+      cases conversion <;> cases shape <;>
+        first
+        | (simp [Function.uncurry, BrowserConversion.fits]; done)
+        | (rename_i element
+           cases element <;>
+             first
+             | (simp [Function.uncurry, BrowserConversion.fits]; done)
+             | (rename_i inner
+                cases inner <;> simp [Function.uncurry, BrowserConversion.fits])))
+    ⟨(.keep, .natural), .inl rfl⟩ ⟨(.nonFinite, .natural), by simp⟩⟩
 
 attribute [regula_decision] BrowserConversion.fits
 
-/-- The index-range test accepts the default conversion of every shape, for every key
-(`TelemetryShape.defaultConversion_indexed`), and it refuses an index array under a key with no
-index bound. `browserConversion_indexed` states that it also accepts the conversion the browser
-schema assigns to a key.
+/-- The exclusive bound that the browser rules place on the present indices of a field: the
+bound of the first rule that gives the key an array of optional bounded indices. Stated on the
+rule table, with no lookup. -/
+def FirstIndexBound (key : String) (upper : Nat) : Prop :=
+  ∃ before after,
+    browserRules = before ++ (key, BrowserRule.each (.nullable (.range upper))) :: after ∧
+      ∀ other, (key, BrowserRule.each (.nullable (.range other))) ∉ before
 
-**Not claimed:** soundness. -/
+private theorem indexBound_iff (key : String) (upper : Nat) :
+    browserIndexBound key = some upper ↔ FirstIndexBound key upper := by
+  unfold browserIndexBound FirstIndexBound
+  rw [List.findSome?_eq_some_iff]
+  constructor
+  · rintro ⟨before, ⟨name, rule⟩, after, parts, found, absent⟩
+    dsimp only at found
+    split at found
+    · rename_i bound
+      by_cases same : name = key
+      · subst same
+        simp only [↓reduceIte, Option.some.injEq] at found
+        subst found
+        refine ⟨before, after, parts, fun other member => ?_⟩
+        have none := absent _ member
+        simp at none
+      · simp [same] at found
+    · simp at found
+  · rintro ⟨before, after, parts, absent⟩
+    refine ⟨before, _, after, parts, by simp, fun ⟨name, rule⟩ member => ?_⟩
+    dsimp only
+    split
+    · rename_i bound
+      by_cases same : name = key
+      · subst same
+        exact absurd member (absent bound)
+      · simp [same]
+    · rfl
+
+/-- The index-range test accepts exactly: every conversion that is not an index array, and an
+index array under a key whose first optional-index rule bounds each present index by `2 ^ 31`
+or less (`TelemetryShape.defaultConversion_indexed` and `browserConversion_indexed` state that
+it accepts the default conversion and the conversion that the browser schema assigns). The
+specification `FirstIndexBound` is stated on the rule table and names no lookup. -/
 theorem conversion_indexed : Regula.ExecutableContract BrowserConversion.indexed (fun test =>
-    Regula.DecidesCompletely (· = true)
+    Regula.Decides (· = true)
       (fun input : BrowserConversion × String =>
-        ∃ shape : TelemetryShape, input.1 = shape.defaultConversion)
+        input.1 = .absentIndices → ∃ upper, FirstIndexBound input.2 upper ∧ upper ≤ 2 ^ 31)
       (Function.uncurry test)) :=
-  ⟨{ complete := fun input ⟨shape, same⟩ => by
-       show input.1.indexed input.2 = true
-       rw [same]
-       exact TelemetryShape.defaultConversion_indexed shape input.2
-     refused := ⟨(.absentIndices, ""), by decide +kernel⟩ }⟩
+  ⟨.of_iff
+    (fun ⟨conversion, key⟩ => by
+      show conversion.indexed key = true ↔
+        (conversion = .absentIndices → ∃ upper, FirstIndexBound key upper ∧ upper ≤ 2 ^ 31)
+      cases conversion with
+      | absentIndices =>
+        unfold BrowserConversion.indexed
+        cases found : browserIndexBound key with
+        | none =>
+          constructor
+          · intro accepted
+            cases accepted
+          · intro bounded
+            obtain ⟨upper, first, -⟩ := bounded rfl
+            rw [(indexBound_iff key upper).mpr first] at found
+            cases found
+        | some upper =>
+          constructor
+          · intro within _
+            exact ⟨upper, (indexBound_iff key upper).mp found, of_decide_eq_true within⟩
+          · intro bounded
+            obtain ⟨other, first, within⟩ := bounded rfl
+            have same := (indexBound_iff key other).mpr first
+            rw [found] at same
+            cases same
+            exact decide_eq_true within
+      | _ => simp [BrowserConversion.indexed])
+    ⟨(.keep, ""), by decide⟩ ⟨(.absentIndices, ""), by decide +kernel⟩⟩
 
 attribute [regula_decision] BrowserConversion.indexed
 
@@ -1408,8 +1574,8 @@ attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidab
 An argument or result type of each function below is indexed by an earlier argument: the
 receiving interval, the value rule, the feature dimension, the bank configuration or the agent
 construction. A decision kind is stated about a function between two fixed types, so none
-applies. The proved statement about each function is registered as an ordinary requirement,
-reported with no kind. Its docstring says what the statement covers: the inputs the function
+applies. The proved statement about each function is registered as a requirement with no
+kind. Its docstring says what the statement covers: the inputs the function
 accepts or refuses, or a property of an accepted or a refused result. -/
 
 /-- Bounded admission refuses exactly the words outside the receiving interval
@@ -1443,15 +1609,28 @@ theorem rails_admit : Regula.ExecutableContract StepSizeRails.admit (fun admit =
     ∀ config : Acorn.Config, admit config ≠ none) :=
   ⟨rails_admission_total⟩
 
-/-- An admitted squared discrepancy is the exact squared discrepancy of the two words
-(`Agreement.admitSquared_exact`).
-
-**Not claimed:** which pairs of words the receiving envelope admits. -/
+/-- Squared-discrepancy admission accepts exactly two finite words whose squared discrepancy
+is within the squared envelope, and an admitted sample is that exact squared discrepancy
+(`Agreement.admitSquared_exact`). `Agreement.squaredUnits` is the measured quantity, which the
+admission also computes; `AcornVerif.Decisions.squared_admit_accepts` states acceptance against
+the real discrepancy of the two words. -/
 theorem squared_admit : Regula.ExecutableContract Agreement.admitSquared (fun admit =>
-    ∀ (envelope : Nat) (forecast outcome : Binary32) (sample : Fin (envelope ^ 2 + 1)),
-      admit envelope forecast outcome = some sample →
-        sample.val = Agreement.squaredUnits forecast outcome) :=
-  ⟨Agreement.admitSquared_exact⟩
+    ∀ (envelope : Nat) (forecast outcome : Binary32),
+      ((admit envelope forecast outcome).isSome = true ↔
+        forecast.Finite ∧ outcome.Finite ∧
+          Agreement.squaredUnits forecast outcome ≤ envelope ^ 2) ∧
+        ∀ sample : Fin (envelope ^ 2 + 1), admit envelope forecast outcome = some sample →
+          sample.val = Agreement.squaredUnits forecast outcome) :=
+  ⟨fun envelope forecast outcome =>
+    ⟨by
+      unfold Agreement.admitSquared
+      by_cases finite : forecast.Finite ∧ outcome.Finite
+      · rw [ite_eq_left finite, dite_isSome, Nat.lt_succ_iff]
+        exact ⟨fun within => ⟨finite.1, finite.2, within⟩, fun accepted => accepted.2.2⟩
+      · rw [ite_eq_right finite]
+        exact ⟨fun accepted => by simp at accepted,
+          fun accepted => absurd ⟨accepted.1, accepted.2.1⟩ finite⟩,
+      Agreement.admitSquared_exact envelope forecast outcome⟩⟩
 
 /-- Event admission accepts the words of every bank-relative event and returns that event
 (`Event.words_roundtrip`).
@@ -1723,7 +1902,7 @@ equal leading clocks, accepts only the values the theorems state
 (`ClockProgram.agreementFollows_same`, `snapshotFollows_same`), and it accepts the
 snapshot-order program whenever the same process and run are not terminal, share a cycle
 and resolved more attempts (`ClockProgram.snapshotFollows_goal`). The predicate's type
-depends on its arity, so the statement is an ordinary requirement.
+depends on its arity, so the statement is a requirement with no kind.
 
 **Not claimed:** the verdict on other programs. -/
 theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval (fun eval =>
@@ -1739,55 +1918,126 @@ theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval 
   ⟨⟨ClockProgram.agreementFollows_same, ClockProgram.snapshotFollows_same,
     ClockProgram.snapshotFollows_goal⟩⟩
 
-/-- A generation that does not own the identity leaves the lifecycle unchanged when its
-final checkpoint is refused (`Lifecycle.finalRefusal_stale`). The statement names
-`Lifecycle.refuseFinalCheckpoint`, which is defined by this test, so it is no specification
-that a kind could decide the test against, and it is an ordinary requirement.
-
-**Not claimed:** which generations the test accepts. -/
+/-- The identity test accepts exactly the generation of a live process, or the last reserved
+generation while no process is live (`Lifecycle.ownsIdentity_iff`). The specification
+`Lifecycle.OwnsIdentity` is stated on the stored phase and the generation allocator, beside
+those private fields, and it names no test. -/
 theorem owns_identity :
     Regula.ExecutableContract Host.Viewer.Lifecycle.ownsIdentity (fun owns =>
-      ∀ (state : Host.Viewer.Lifecycle) (generation : UInt64),
-        owns state generation = false → state.refuseFinalCheckpoint generation = state) :=
-  ⟨Host.Viewer.Lifecycle.finalRefusal_stale⟩
+      Regula.Decides (· = true)
+        (fun input : Host.Viewer.Lifecycle × UInt64 => input.1.OwnsIdentity input.2)
+        (Function.uncurry owns)) :=
+  ⟨.of_iff (fun input => Host.Viewer.Lifecycle.ownsIdentity_iff input.1 input.2)
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped, 0), by decide⟩
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped, 1), by decide⟩⟩
 
-/-- The column test accepts every column of the browser store against a shape of the
-browser schema (`browserColumns_live`), and it refuses a flag column against a text shape,
-so neither a test that accepts everything nor one that refuses everything satisfies it.
+attribute [regula_decision] Host.Viewer.Lifecycle.ownsIdentity
 
-**Not claimed:** the exact set of columns it accepts. -/
+/-- Each column of the browser store fits each schema field of its own key. -/
+private theorem columns_fit : ∀ entry ∈ browserColumns, ∀ field ∈ browserSchema,
+    field.1 = entry.1 → BrowserColumn.fits entry.1 entry.2 field.2 = true := by
+  decide +kernel
+
+/-- The column test accepts every column of the browser store against the shape that the
+browser schema gives its key, and it refuses a flag column against a text shape.
+
+**Not claimed:** soundness. The test accepts columns that the store does not ship. -/
 theorem column_fits : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
-    (∀ entry ∈ browserColumns, ∃ shape,
-      (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) ∧
-      fits "flag" ⟨"flag", .flag⟩ .text = false) :=
-  ⟨⟨browserColumns_live, by decide +kernel⟩⟩
+    Regula.DecidesCompletely (· = true)
+      (fun input : (String × BrowserColumn) × TelemetryShape =>
+        input.1 ∈ browserColumns ∧ (input.1.1, input.2) ∈ browserSchema)
+      (Function.uncurry (Function.uncurry fits))) :=
+  ⟨{ complete := fun input listed =>
+       columns_fit input.1 listed.1 (input.1.1, input.2) listed.2 rfl
+     refused := ⟨(("flag", ⟨"flag", .flag⟩), .text), by decide +kernel⟩ }⟩
 
-/-- The property test accepts every property of the agreement view and of the goal-progress
-view against a shape of the browser schema (`browserAgreementView_live`,
-`browserGoalProgressView_live`), and it refuses a doubled property of a text shape.
+attribute [regula_decision] BrowserColumn.fits
 
-**Not claimed:** the exact set of properties it accepts. -/
+/-- A table lookup returns only an item that the table holds. -/
+private theorem lookup_listed {β : Type} : ∀ (table : List (String × β)) (key : String) (item : β),
+    table.lookup key = some item → ∃ name, (name, item) ∈ table
+  | [], _, _, found => by simp at found
+  | (name, value) :: rest, key, item, found => by
+    rw [List.lookup_cons] at found
+    split at found
+    · cases found
+      exact ⟨name, List.mem_cons_self⟩
+    · obtain ⟨other, member⟩ := lookup_listed rest key item found
+      exact ⟨other, List.mem_cons_of_mem _ member⟩
+
+/-- The representation of a field is a binary32 array exactly for a binary32 array shape: no
+override is defined for such a shape, and only such a shape has that default. -/
+private theorem conversion_float32 (key : String) (shape : TelemetryShape) :
+    browserConversion key shape = .float32 ↔ ∃ count, shape = .array count .binary32 := by
+  have default : shape.defaultConversion = .float32 ↔ ∃ count, shape = .array count .binary32 := by
+    cases shape with
+    | array count element => cases element <;> simp [TelemetryShape.defaultConversion]
+    | _ => simp [TelemetryShape.defaultConversion]
+  unfold browserConversion
+  cases found : browserOverrides.lookup key with
+  | none => exact default
+  | some conversion =>
+    obtain ⟨name, member⟩ := lookup_listed browserOverrides key conversion found
+    have listed : conversion = .unmeasured ∨ conversion = .absentIndex ∨
+        conversion = .absentIndices := by
+      simp only [browserOverrides, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false]
+        at member
+      rcases member with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp
+    show (if conversion.fits shape then conversion else shape.defaultConversion) = .float32 ↔ _
+    split
+    · rename_i fits
+      constructor
+      · intro same
+        rcases listed with rfl | rfl | rfl <;> cases same
+      · rintro ⟨count, rfl⟩
+        rcases listed with rfl | rfl | rfl <;> simp [BrowserConversion.fits] at fits
+    · exact default
+
+/-- The property test accepts exactly a plain property of any field and a doubled property of
+a field with a binary32 array shape (`browserAgreementView_live` and
+`browserGoalProgressView_live` state that it accepts the shipped views). The specification is
+stated on the reading and the shape, and it names no conversion. -/
 theorem property_fits : Regula.ExecutableContract BrowserProperty.fits (fun fits =>
-    (∀ entry ∈ browserAgreementView, ∃ shape,
-      (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) ∧
-      (∀ entry ∈ browserGoalProgressView, ∃ shape,
-        (entry.1, shape) ∈ browserSchema ∧ fits entry.1 entry.2 shape = true) ∧
-      fits "text" ⟨"text", .twice⟩ .text = false) :=
-  ⟨⟨browserAgreementView_live, browserGoalProgressView_live, by decide +kernel⟩⟩
+    Regula.Decides (· = true)
+      (fun input : (String × BrowserProperty) × TelemetryShape =>
+        input.1.2.reading = .value ∨ ∃ count, input.2 = .array count .binary32)
+      (Function.uncurry (Function.uncurry fits))) :=
+  ⟨decides
+    (fun ⟨⟨key, property⟩, shape⟩ => by
+      show BrowserProperty.fits key property shape = true ↔
+        (property.reading = .value ∨ ∃ count, shape = .array count .binary32)
+      unfold BrowserProperty.fits
+      cases property.reading with
+      | value => simp
+      | twice =>
+        simp only [reduceCtorEq, false_or]
+        rw [← conversion_float32 key shape]
+        cases browserConversion key shape <;> simp)
+    ⟨(("", ⟨"", .value⟩), .text), .inl rfl⟩
+    ⟨(("", ⟨"", .twice⟩), .text), by simp⟩⟩
 
-/-- What each accepted result of the option reader means for the planning option: an absent
-option selects the expectation planner, and a present value is decided by `planningValue`
-(`Cli.planningSelection_absent`, `planningSelection_provided`).
+attribute [regula_decision] BrowserProperty.fits
 
-**Not claimed:** which argument lists the reader accepts. -/
+/-- The option reader refuses exactly when the first occurrence of the option is the last
+argument, so that no value stands after it. The specification is stated on the argument list.
+`cli_value_found` states which value an accepted result carries. -/
 theorem cli_value : Regula.ExecutableContract Host.Cli.value (fun value =>
-    ∀ arguments : List String,
-      (value arguments "--planning" = .ok none →
-        Host.Cli.planningSelection arguments = .ok .expectation) ∧
-        ∀ text, value arguments "--planning" = .ok (some text) →
-          Host.Cli.planningSelection arguments = Host.Cli.planningValue text) :=
-  ⟨fun arguments => ⟨Host.Cli.planningSelection_absent arguments,
-    fun text => Host.Cli.planningSelection_provided arguments text⟩⟩
+    Regula.Decides (·.isOk = true)
+      (fun input : List String × String => ¬FirstOption input.1 input.2 [])
+      (Function.uncurry value)) :=
+  ⟨.of_iff (fun input => value_accepts input.2 input.1) ⟨([], ""), by decide⟩
+    ⟨([""], ""), by decide⟩⟩
+
+attribute [regula_decision] Host.Cli.value
+
+/-- The option reader returns no value exactly for a list without the option, and it returns a
+value exactly when that value stands after the first occurrence of the option. -/
+theorem cli_value_found : Regula.ExecutableContract Host.Cli.value (fun value =>
+    ∀ (arguments : List String) (wanted : String),
+      (value arguments wanted = .ok none ↔ wanted ∉ arguments) ∧
+        ∀ text, value arguments wanted = .ok (some text) ↔
+          ∃ after, FirstOption arguments wanted (text :: after)) :=
+  ⟨fun arguments wanted => value_found wanted arguments⟩
 
 /-- A weight enters the ranking exactly when its signed word is positive, and an entering
 weight carries the bits of its own stored word as its key (`candidateOfWeight_key`). -/
@@ -1803,14 +2053,68 @@ theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun 
     ⟨@dite_isSome _ _ (Binary32.positiveDecidable _) _,
       candidateOfWeight_key dimension config weights unit⟩⟩
 
-/-- Candidate selection returns no unit exactly when no unit is eligible
-(`Lifecycle.candidate_none_iff`). `Lifecycle.candidate_least` states which unit it returns. -/
+/-- A unit can be replaced: it is older than the maturity threshold and, away from a free
+boundary, it is the objective of no skill. Stated on the stored birth step, the clock and the
+objectives, with no eligibility test. -/
+def Replaceable {shape : PatchShape} {actions : Word.Count} {config : Features.Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount}
+    (state : Features.Lifecycle shape actions config criterion dimension discounts)
+    (free : Bool) (unit : Fin config.units.count) : Prop :=
+  state.progress.units[unit.val].birth.toNat + config.tester.maturity <
+      state.progress.clock.toNat ∧
+    (free = true ∨ ∀ skill ∈ state.consumers.skills.toList,
+      ∀ bonus, skill.interest.held ≠ .selected unit bonus)
+
+private theorem eligible_iff {shape : PatchShape} {actions : Word.Count}
+    {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (state : Features.Lifecycle shape actions config criterion dimension discounts)
+    (free : Bool) (unit : Fin config.units.count) :
+    state.eligible free unit = true ↔ Replaceable state free unit := by
+  have held : ∀ assignment : Assignment config,
+      ¬assignment.holds unit = true ↔ ∀ bonus, assignment ≠ .selected unit bonus := by
+    intro assignment
+    cases assignment with
+    | neutral => simp [Assignment.holds]
+    | selected other bonus =>
+      simp only [Assignment.holds, beq_iff_eq, ne_eq, Assignment.selected.injEq, not_and]
+      constructor
+      · intro differs _ same
+        exact absurd same differs
+      · intro differs same
+        exact differs bonus same rfl
+  simp only [Features.Lifecycle.eligible, Features.Lifecycle.mature, Ensemble.holds,
+    Replaceable, Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true, Bool.not_eq_true',
+    List.any_eq_false, held]
+
+/-- Candidate selection returns no unit exactly when no unit can be replaced, and a returned
+unit can be replaced and has the least stored utility among the units that can
+(`Lifecycle.candidate_none_iff`, `candidate_eligible`, `candidate_least`). The specification
+`Replaceable` is stated on stored data and names no eligibility test. -/
 theorem lifecycle_candidate :
     Regula.ExecutableContract @Features.Lifecycle.candidate (fun candidate =>
       ∀ {shape actions config criterion dimension discounts}
         (state : Features.Lifecycle shape actions config criterion dimension discounts)
-        (free : Bool), candidate state free = none ↔ state.eligibleCount free = 0) :=
-  ⟨Features.Lifecycle.candidate_none_iff⟩
+        (free : Bool),
+        (candidate state free = none ↔ ∀ unit, ¬Replaceable state free unit) ∧
+          ∀ unit, candidate state free = some unit → Replaceable state free unit ∧
+            ∀ other, Replaceable state free other →
+              state.progress.units[unit.val].utility.value.key ≤
+                state.progress.units[other.val].utility.value.key) :=
+  ⟨fun state free =>
+    ⟨by
+      rw [Features.Lifecycle.candidate_none_iff, Features.Lifecycle.eligibleCount,
+        List.countP_eq_zero]
+      constructor
+      · intro none unit replaceable
+        exact none unit (List.mem_finRange unit) ((eligible_iff state free unit).mpr replaceable)
+      · intro none unit _ eligible
+        exact none unit ((eligible_iff state free unit).mp eligible),
+    fun unit selected =>
+      ⟨(eligible_iff state free unit).mp (state.candidate_eligible free unit selected),
+        fun other replaceable =>
+          state.candidate_least free unit selected other
+            ((eligible_iff state free other).mpr replaceable)⟩⟩⟩
 
 /-- A total supplies a score exactly when it holds at least one sample under a nonzero
 envelope: the product of its count and the squared envelope is positive. -/
@@ -1895,7 +2199,7 @@ theorem checkpoint_due_at :
 
 A kind is stated about a function between two fixed types, so none applies to a function that
 takes its element type as an argument. The proved statement holds for every element type and
-is registered as an ordinary requirement. -/
+is registered as a requirement with no kind. -/
 
 /-- List decoding accepts the encodings of every list under the receiving codec, followed by
 any suffix, and returns the list and the suffix (`Checkpoint.list_roundtrip`).
