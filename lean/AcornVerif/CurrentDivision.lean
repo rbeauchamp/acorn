@@ -7,7 +7,7 @@ import AcornVerif.CurrentOperations
 /-!
 # Executing division and residual rounding
 
-These proofs connect the pinned Lean 4.34.0 standard model's
+These proofs connect the pinned Lean 4.34.1 standard model's
 `Unpacked/Operations/Div.lean` quotient, exponent selection and residual-bit
 rounding to the actual binary64 division wrapper. The bound uses the enclosing
 integer quotient interval, so it holds for every residual-accuracy case without

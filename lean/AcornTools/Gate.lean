@@ -69,7 +69,7 @@ def audits : IO Unit :=
 
 /-- The refusal for a documentation dependency that is not provisioned. -/
 def siteUnprovisioned (missing : String) : IO.Error := IO.userError
-  s!"missing pinned documentation dependencies ({missing}); run (cd site && lake build verso/VersoManual)"
+  s!"missing pinned documentation dependencies ({missing}); see docs/verification.md#platform-setup"
 
 /-- The documentation site in `site/` is a second Lake workspace over this package's
 dependency checkouts and pinned Verso. Each locked Git dependency is mapped to its

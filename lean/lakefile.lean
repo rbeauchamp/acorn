@@ -74,7 +74,7 @@ package acorn where
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
     -- Mathlib's standard linter set, with its header linter kept on for this license line.
-    -- Regula's RG2006 (https://rbeauchamp.github.io/regula/v/0.7.0/rules/RG2006/) requires the
+    -- Regula's RG2006 (https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2006/) requires the
     -- two Mathlib-repository linters below to be off.
     ⟨`weak.linter.mathlibStandardSet, true⟩,
     ⟨`weak.linter.style.header, true⟩,
@@ -224,6 +224,15 @@ lean_exe «world-native» where
   root := `Acorn.WorldDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
+/-- Generator-only certificate tool: proposes certificates for selecting properties of a
+seed and prints what the checkers accept. The boundary audit keeps the agent composition,
+the campaign runner and the comparator out of its import closure. That closure holds the
+attempt protocol and campaign admission through the curriculum; the tool starts no attempt,
+and no audit enforces that. -/
+lean_exe «world-certificates» where
+  root := `Acorn.Host.CertificateDriver
+  moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+
 /-- Inventory theorem declarations from compiled project modules, scoped by
 the compiler's owning-module index rather than source text or name prefixes. -/
 lean_exe «theorem-count» where
@@ -301,10 +310,10 @@ script acornTargets do
   return 0
 
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4" @ "v4.34.0"
+  "https://github.com/leanprover-community/mathlib4" @ "v4.34.1"
 
 require regula from git
-  "https://github.com/rbeauchamp/regula" @ "v0.7.0"
+  "https://github.com/rbeauchamp/regula" @ "v0.9.0"
 
 /-- Real-valued rounding theory about Lean core's float model. Only the proof
 library's bridge module imports it; no executable library does. -/

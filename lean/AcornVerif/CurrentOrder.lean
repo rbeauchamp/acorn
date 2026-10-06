@@ -7,7 +7,7 @@ import AcornVerif.CurrentArithmetic
 /-!
 # Numerical interpretation and machine order
 
-The pinned Lean 4.34.0 standard `UnpackedFloat` decoder defines the finite
+The pinned Lean 4.34.1 standard `UnpackedFloat` decoder defines the finite
 numerical reading. A strictly increasing integer significand scale connects
 that reading to the executing raw keys and comparisons, including signed zero.
 Existing assembled conversion theorems supply exact widening and integer-value

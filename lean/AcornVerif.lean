@@ -34,6 +34,11 @@ import AcornVerif.CurrentStep
 import AcornVerif.CurrentGoals
 import AcornVerif.CurrentCurriculum
 import AcornVerif.CurrentSpawn
+import AcornVerif.CurrentCertificates
+import AcornVerif.Kernel
+import AcornVerif.WorldClass
+import AcornVerif.Coverage
+import AcornVerif.CurrentGridWorld
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentAgent

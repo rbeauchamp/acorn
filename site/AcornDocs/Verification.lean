@@ -69,16 +69,17 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface)`
-from the repository root to provision the pinned toolchain/dependencies; the build
-compiles only Mathlib modules absent from the upstream cache. FloatLib publishes no
-cache, so the same command compiles the FloatLib modules that the proof bridge
-imports, and the two Regula interface modules that the decision registries import.
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface)` from the
+repository root to provision the pinned toolchain/dependencies; the build compiles
+only Mathlib modules absent from the upstream cache, plus Regula's lint driver
+and audit worker. FloatLib publishes no cache, so the same command compiles the
+FloatLib modules that the proof bridge imports, and the two Regula interface modules
+that the decision registries import.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
 [documentation site](#documentation-site): run
-`(cd site && lake build verso/VersoManual)` once to provision pinned Verso, which
+`(cd site && lake build verso/VersoManual verso/VersoManual:shared)` once to provision pinned Verso and its shared library, which
 verification likewise requires to be built already. Do not use `lake update` to
 resolve a missing dependency; that changes the selected versions.
 
@@ -135,11 +136,8 @@ ownership inventory. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
 a maintained module with a non-empty module docstring. Ownership admission
 refuses a facet-qualified build key in the root package's Lake configuration.
-The Lake of Lean v4.34.0 stores such a key under its target as written, which is
-a different entry from the target's own unless the key names its package in
-resolved form, and it fetches the key concurrently with other fetches. Either
-way a second job can run on the same output file
-([leanprover/lean4#15435](https://github.com/leanprover/lean4/issues/15435)).
+The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
+pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
 Lake runs with `--wfail`, so any warning, including a header-time warning such
 as a deprecated import, fails the build. Source/compiled admission checks
@@ -257,8 +255,8 @@ build traces. Lake therefore fetches a dependency whose
 checkout is not at the locked revision.
 
 The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
-configuration and 3 when the audit is incomplete. The first run compiles Regula's
-driver. Regula writes scratch copies of Lean sources to .lake/regula-scratch under
+configuration and 3 when the audit is incomplete. Regula writes scratch copies
+of Lean sources to .lake/regula-scratch under
 lean; a killed run leaves them until the next Regula run removes them. Git ignores
 .lake, and the module inventory, the native source inventory and the corpus walk
 skip it as Lake's build directory.
