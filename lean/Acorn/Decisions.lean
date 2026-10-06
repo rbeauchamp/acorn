@@ -1241,6 +1241,145 @@ theorem capture_follows_complete : Regula.ExecutableContract Capture.follows (fu
 
 attribute [regula_decision] Capture.follows
 
+/-- The ownership test accepts exactly a tool whose own flag is set in the inventory. -/
+theorem inventory_owns : Regula.ExecutableContract Host.Inventory.owns (fun owns =>
+    Regula.Decides (· = true)
+      (fun input : Host.Inventory × Host.Craftable =>
+        (input.2 = .axe ∧ input.1.axe = true) ∨ (input.2 = .boat ∧ input.1.boat = true))
+      (Function.uncurry owns)) :=
+  ⟨decides
+    (fun ⟨inventory, tool⟩ => by cases tool <;> simp [Function.uncurry, Host.Inventory.owns])
+    ⟨(⟨0, 0, 0, 0, true, false⟩, .axe), by decide⟩
+    ⟨(⟨0, 0, 0, 0, false, false⟩, .axe), by decide⟩⟩
+
+attribute [regula_decision] Host.Inventory.owns
+
+/-- The harvest table yields an item exactly for a tree, stone or ore tile. -/
+theorem harvest_yield : Regula.ExecutableContract Host.TileKind.harvestYield
+    (Regula.Decides (·.isSome = true)
+      (fun kind : Host.TileKind => kind = .tree ∨ kind = .stone ∨ kind = .ore)) :=
+  ⟨decides (fun kind => by cases kind <;> simp [Host.TileKind.harvestYield])
+    ⟨.tree, .inl rfl⟩ ⟨.grass, by decide⟩⟩
+
+attribute [regula_decision] Host.TileKind.harvestYield
+
+/-- A checkpoint write is due exactly at a closing boundary or at phase zero of its period.
+The accepted input is an admitted writer at phase zero, and the refused input is that
+writer advanced once, both at a boundary that does not close. -/
+theorem checkpoint_due : Regula.ExecutableContract Host.WritableCheckpoint.due (fun due =>
+    Regula.Decides (· = true)
+      (fun input : Host.WritableCheckpoint × Bool =>
+        input.2 = true ∨ input.1.phase.val = 0)
+      (Function.uncurry due)) :=
+  ⟨decides (fun input => by simp [Function.uncurry, Host.WritableCheckpoint.due])
+    ⟨((Host.WritableCheckpoint.admit "checkpoint" 2 .loaded).get (by decide), false),
+      by decide⟩
+    ⟨(((Host.WritableCheckpoint.admit "checkpoint" 2 .loaded).get (by decide)).advance, false),
+      by decide⟩⟩
+
+attribute [regula_decision] Host.WritableCheckpoint.due
+
+/-- The index-bound lookup finds a bound exactly for a key that the browser rules give an
+array of optional bounded indices. -/
+theorem index_bound : Regula.ExecutableContract browserIndexBound
+    (Regula.Decides (·.isSome = true)
+      (fun key : String =>
+        ∃ upper, (key, BrowserRule.each (.nullable (.range upper))) ∈ browserRules)) :=
+  ⟨.of_iff
+    (fun key => by
+      unfold browserIndexBound
+      rw [List.findSome?_isSome_iff]
+      constructor
+      · rintro ⟨⟨name, rule⟩, member, found⟩
+        dsimp only at found
+        split at found
+        · rename_i upper
+          by_cases same : name = key
+          · exact ⟨upper, same ▸ member⟩
+          · simp [same] at found
+        · simp at found
+      · rintro ⟨upper, member⟩
+        exact ⟨_, member, by simp⟩)
+    ⟨"agreement_channel_score", by decide +kernel⟩ ⟨"", by decide +kernel⟩⟩
+
+attribute [regula_decision] browserIndexBound
+
+/-- The element-bound lookup finds a bound exactly for a key that the browser rules give an
+array of bounded elements (`BrowserConstant.tileKinds_admitted` states the bound of the
+tiles). -/
+theorem element_bound : Regula.ExecutableContract browserElementBound
+    (Regula.Decides (·.isSome = true)
+      (fun key : String => ∃ upper, (key, BrowserRule.each (.range upper)) ∈ browserRules)) :=
+  ⟨.of_iff
+    (fun key => by
+      unfold browserElementBound
+      rw [List.findSome?_isSome_iff]
+      constructor
+      · rintro ⟨⟨name, rule⟩, member, found⟩
+        dsimp only at found
+        split at found
+        · rename_i upper
+          by_cases same : name = key
+          · exact ⟨upper, same ▸ member⟩
+          · simp [same] at found
+        · simp at found
+      · rintro ⟨upper, member⟩
+        exact ⟨_, member, by simp⟩)
+    ⟨"tiles", by decide +kernel⟩ ⟨"", by decide +kernel⟩⟩
+
+attribute [regula_decision] browserElementBound
+
+/-- The numeric-record test accepts exactly: a float conversion of a binary32 or binary64
+shape, an optional-reading or optional-index conversion of an optional natural, and the
+identity conversion of a natural, an integer, a goal kind or a goal item. -/
+theorem conversion_number : Regula.ExecutableContract BrowserConversion.number (fun test =>
+    Regula.Decides (· = true)
+      (fun input : BrowserConversion × TelemetryShape =>
+        (input.1 = .nonFinite ∧ (input.2 = .binary32 ∨ input.2 = .binary64)) ∨
+          ((input.1 = .unmeasured ∨ input.1 = .absentIndex) ∧ input.2 = .optional .natural) ∨
+          (input.1 = .keep ∧ (input.2 = .natural ∨ input.2 = .integer ∨ input.2 = .goalKind ∨
+            input.2 = .goalItem)))
+      (Function.uncurry test)) :=
+  ⟨decides
+    (fun ⟨conversion, shape⟩ => by
+      cases conversion <;> cases shape <;>
+        first
+        | (simp [Function.uncurry, BrowserConversion.number, BrowserConversion.fits]; done)
+        | (rename_i element
+           cases element <;>
+             simp [Function.uncurry, BrowserConversion.number, BrowserConversion.fits]))
+    ⟨(.keep, .natural), .inr (.inr ⟨rfl, .inl rfl⟩)⟩ ⟨(.keep, .text), by simp⟩⟩
+
+attribute [regula_decision] BrowserConversion.number
+
+/-- The numeric-array test finds a length exactly for: a binary32 array under the float32
+conversion, a binary64 array under the float64 conversion, a natural array under the counts
+conversion and an array of optional naturals under the optional-index conversion. -/
+theorem conversion_numbers : Regula.ExecutableContract BrowserConversion.numbers (fun test =>
+    Regula.Decides (·.isSome = true)
+      (fun input : BrowserConversion × TelemetryShape => ∃ count,
+        (input.1 = .float32 ∧ input.2 = .array count .binary32) ∨
+          (input.1 = .float64 ∧ input.2 = .array count .binary64) ∨
+          (input.1 = .counts ∧ input.2 = .array count .natural) ∨
+          (input.1 = .absentIndices ∧ input.2 = .array count (.optional .natural)))
+      (Function.uncurry test)) :=
+  ⟨decides
+    (fun ⟨conversion, shape⟩ => by
+      cases conversion <;> cases shape <;>
+        first
+        | (simp [Function.uncurry, BrowserConversion.numbers, BrowserConversion.fits]; done)
+        | (rename_i element
+           cases element <;>
+             first
+             | (simp [Function.uncurry, BrowserConversion.numbers, BrowserConversion.fits]; done)
+             | (rename_i inner
+                cases inner <;>
+                  simp [Function.uncurry, BrowserConversion.numbers, BrowserConversion.fits])))
+    ⟨(.float32, .array 1 .binary32), 1, .inl ⟨rfl, rfl⟩⟩
+    ⟨(.keep, .natural), by simp⟩⟩
+
+attribute [regula_decision] BrowserConversion.numbers
+
 /-! ## Decision procedures
 
 Each result is a `Decidable` value: an accepting result carries a proof of the decided
@@ -1673,20 +1812,19 @@ theorem boundary_closing :
         closing decision = true ↔ decision = .complete ∨ decision = .stopped) :=
   ⟨fun decision => by cases decision <;> simp [Host.BoundaryDecision.closing]⟩
 
-/-- A checkpoint write is due exactly at a closing boundary or at phase zero of its period. -/
-theorem checkpoint_due : Regula.ExecutableContract Host.WritableCheckpoint.due (fun due =>
-    ∀ (capability : Host.WritableCheckpoint) (closing : Bool),
-      due capability closing = true ↔ closing = true ∨ capability.phase.val = 0) :=
-  ⟨fun capability closing => by simp [Host.WritableCheckpoint.due]⟩
-
-/-- Every closing boundary schedules the armed checkpoint writer
-(`WritableCheckpoint.closing_due`). `checkpoint_due` states the schedule exactly. -/
+/-- A checkpoint write is scheduled at a boundary exactly when the boundary is complete or
+stopped, or the writer is at phase zero of its period. `WritableCheckpoint.closing_due` is the
+closing direction. -/
 theorem checkpoint_due_at :
     Regula.ExecutableContract @Host.WritableCheckpoint.dueAt (fun dueAt =>
       ∀ {size : Nat} {plan : Host.CampaignPlan size} (capability : Host.WritableCheckpoint)
         (decision : Host.BoundaryDecision plan),
-        decision.closing = true → dueAt capability decision = true) :=
-  ⟨Host.WritableCheckpoint.closing_due⟩
+        dueAt capability decision = true ↔
+          decision = .complete ∨ decision = .stopped ∨ capability.phase.val = 0) :=
+  ⟨fun capability decision => by
+    cases decision <;>
+      simp [Host.WritableCheckpoint.dueAt, Host.WritableCheckpoint.due,
+        Host.BoundaryDecision.closing]⟩
 
 /-! ## Decisions that are polymorphic in an element type
 

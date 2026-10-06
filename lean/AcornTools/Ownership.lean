@@ -240,7 +240,6 @@ def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Decisions, `Acorn.Decisions.control_warning, `Acorn.Host.Viewer.controlWarning),
   (`Acorn.Decisions, `Acorn.Decisions.attempt_finished, `Acorn.Host.Attempt.finished),
   (`Acorn.Decisions, `Acorn.Decisions.boundary_closing, `Acorn.Host.BoundaryDecision.closing),
-  (`Acorn.Decisions, `Acorn.Decisions.checkpoint_due, `Acorn.Host.WritableCheckpoint.due),
   (`Acorn.Decisions, `Acorn.Decisions.checkpoint_due_at, `Acorn.Host.WritableCheckpoint.dueAt),
   (`AcornTools.DecisionInventory, `AcornDecisionInventory.classified_decides,
     `AcornDecisionInventory.classified),

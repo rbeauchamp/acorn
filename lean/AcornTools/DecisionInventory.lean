@@ -52,17 +52,15 @@ its next state, as a value to use, or as a property of state that was already ad
 choose which of its own branches runs, and passes a refusal on as its own. The borderline
 cases, each kept as a judgment for the reason given:
 
-* `Host.Inventory.owns` reads one stored flag. Its callers that refuse on it,
-  `Host.Inventory.craft` and the completion predicate, have contracts.
 * `Features.Lifecycle.eligible` and `mature` are properties of a unit that the selection
   `Features.Lifecycle.candidate` reads; the contract of `candidate` states when it selects.
 * `Host.terrain` and `Host.World.tileKind` compute a tile and refuse on signed overflow. The
   checks that read a tile to accept or refuse a move or a certificate (`Host.World.enterable`,
   `Host.impassable`, `Host.walkableTile`) have contracts.
-* `Host.TileKind.harvestYield` and `Host.Action.direction` are total tables. The caller that
-  accepts or refuses a certificate on a yield, `Host.stanceCertified`, has a contract.
-* `Host.Viewer.browserElementBound` is a lookup that the registered schema test
-  `Host.Viewer.BrowserColumn.fits` reads; nothing is published on its result at run time.
+* `Host.Action.direction` is a total table that the transition `Host.performAction` reads.
+
+A use during the compilation of a published schema counts as an admission, and a contract
+on a caller is no reason to exclude the function that the caller branches on.
 
 `judged_count` and `computed_count` state how many entries are judgments and how many carry
 a computed reason. A new judgment changes the first number and needs its standing theorem.
@@ -333,8 +331,6 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Host.Endurance.mean, .fixed, .unproved),
   (`Acorn.Host.Viewer.BrowserColumn.view, .fixed, .unproved),
   (`Acorn.Host.Viewer.BrowserConversion.finite, .fixed, .unproved),
-  (`Acorn.Host.Viewer.BrowserConversion.number, .fixed, .unproved),
-  (`Acorn.Host.Viewer.BrowserConversion.numbers, .fixed, .unproved),
   (`Acorn.Host.Viewer.BrowserMath.Test.eval, .fixed, .unproved),
   (`Acorn.Host.Viewer.Buffer.pop, .dependent, .unproved),
   (`Acorn.Host.Viewer.Command.parse, .fixed, .unproved),
@@ -355,7 +351,6 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Host.Viewer.SensedEnvelope.parse, .fixed, .unproved),
   (`Acorn.Host.Viewer.ViewerOptions.decode, .fixed, .unproved),
   (`Acorn.Host.Viewer.WorldMemory.isIncomplete, .dependent, .unproved),
-  (`Acorn.Host.Viewer.browserIndexBound, .fixed, .unproved),
   (`Acorn.Host.Viewer.captureFromJson, .fixed, .unproved),
   (`Acorn.Host.Viewer.controlCommand, .fixed, .unproved),
   (`Acorn.Host.Viewer.coreIdentity, .fixed, .unproved),
@@ -546,10 +541,6 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Handcrafted.skillOfMeta, .fixed,
     .selection `Acorn.Handcrafted.TemporalControl.dispatchMeta_eq),
   (`Acorn.Host.Action.direction, .fixed, .selection `AcornVerif.CurrentCertificates.perform_move),
-  (`Acorn.Host.TileKind.harvestYield, .fixed,
-    .selection `AcornVerif.CurrentCertificates.stance_yield),
-  (`Acorn.Host.Viewer.browserElementBound, .fixed,
-    .selection `Acorn.Host.Viewer.BrowserConstant.tileKinds_admitted),
   (`Acorn.Features.Assignment.potential, .dependent,
     .predicate `AcornVerif.CurrentTemporal.learned_potential),
   (`Acorn.Features.Ensemble.holds, .dependent,
@@ -570,16 +561,15 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Handcrafted.FeatureProfile.usesHierarchy, .fixed,
     .predicate `Acorn.Handcrafted.TemporalControl.finish_eq),
   (`Acorn.Handcrafted.askedBy, .dependent,
-    .predicate `Acorn.Handcrafted.TemporalControl.finish_skill),
-  (`Acorn.Host.Inventory.owns, .fixed, .predicate `Acorn.Host.Inventory.craft_exact)
+    .predicate `Acorn.Handcrafted.TemporalControl.finish_skill)
 ]
 
 /-- The entries that are judgments: each names a standing theorem. -/
-theorem judged_count : (excluded.filter fun entry => entry.2.2.standing?.isSome).size = 58 := by
+theorem judged_count : (excluded.filter fun entry => entry.2.2.standing?.isSome).size = 55 := by
   decide +kernel
 
 /-- The entries whose reason is a computed fact. -/
-theorem computed_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 209 := by
+theorem computed_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 206 := by
   decide +kernel
 
 /-- The result heads that make a definition verdict-shaped. -/
