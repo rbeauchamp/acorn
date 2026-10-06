@@ -710,10 +710,25 @@ The core accepts `--step-order learn-then-act` (the default) or
 and planning selection. The order is part of the agent's construction: it selects
 the [step](#the-two-parts-of-a-step) the agent runs and the loop the streaming
 runner uses, together. The callbacks a host loop takes have the order as a type
-index, and the state of an agent and the image a checkpoint admits are types of
+index, and the state of an agent and the image of a checkpoint are types of
 one construction (`AgentConstruction.callbacks`, `AgentConstruction.State`,
-`AgentConstruction.Image`), so the step, the loop, the stamp of a saved image
-and its admission cannot be of two orders. Under `learn-then-act` the runner takes the world's
+`AgentConstruction.Image`). A campaign takes the construction and derives the
+callbacks itself (`AgentConstruction.runCampaign`). A save takes a state of a
+construction and writes the order word of that construction, and a load admits
+bytes only when the order word in their own header is the receiver's
+(`CurrentCheckpoint.saved_header`, `Checkpoint.loadCandidate_header`,
+`CurrentCheckpoint.saved_admitted_order`).
+
+These types hold no proof of an order, because the learner state and the durable
+image carry none. The index and the ownership audit prevent a mix of orders
+inside this project: the audit reads the compiled declarations and refuses a
+definition that applies the constructor of one of these types, or takes the
+callbacks of a construction, outside the modules that own them. They do not stop
+a definition outside the project that builds one of these structures directly.
+They do not stop an edit of the order word in a checkpoint file, because the file
+is not authenticated.
+
+Under `learn-then-act` the runner takes the world's
 transition after both parts. Under `plan-after-act` it takes the transition
 between them, and the planning of a free boundary follows the action.
 
@@ -737,11 +752,15 @@ selection, and CSV output has it in a comment line of its own after the planning
 comment. A checkpoint records the order in its header, and header admission
 succeeds only for an image whose order is the order of the receiving run
 (`admitHeader_order`). The decisions that admit an order each have an exact
-two-way statement against a specification that names no executed function: the
-parser and the command-line admission against the spelling of an order
-(`StepOrder.parse_spelled`, `StepOrder.parse_refused`, `stepOrderValue_iff`,
-`stepOrder_iff`), and header admission against the complete list of its
-conditions (`admitHeader_iff`). The ANSI view runs
+two-way statement against a specification that calls no function the decision
+executes. The parser and the value admission are stated against the spelling of
+an order (`StepOrder.parse_spelled`, `StepOrder.parse_refused`,
+`stepOrderValue_iff`). The command-line admission is stated on the argument list
+alone (`stepOrder_iff`, `stepOrder_refused`), and the option reader it calls has
+its own contract on that list (`Cli.value_absent`, `Cli.value_follows`,
+`Cli.value_missing`). Header admission is stated on the stored words and the
+returned typed values (`admitHeader_iff` against `HeaderAdmitted`, with
+`StepOrder.tag_stored` for the order word). The ANSI view runs
 both parts before each transition, reports `step-order=learn-then-act` and
 refuses `--step-order`.
 
