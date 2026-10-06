@@ -1239,27 +1239,6 @@ theorem capture_follows_complete : Regula.ExecutableContract Capture.follows (fu
 
 attribute [regula_decision] Capture.follows
 
-/-- The identity-ownership test accepts every generation whose final checkpoint refusal
-changes the lifecycle (`Lifecycle.finalRefusal_stale`), and it refuses a generation that an
-initial lifecycle never reserved. `owns_identity` states the theorem as it is written.
-
-**Not claimed:** soundness. A refusal that is already recorded leaves the state unchanged for
-an owning generation too. -/
-theorem owns_identity_complete :
-    Regula.ExecutableContract Host.Viewer.Lifecycle.ownsIdentity (fun owns =>
-      Regula.DecidesCompletely (· = true)
-        (fun input : Host.Viewer.Lifecycle × UInt64 =>
-          input.1.refuseFinalCheckpoint input.2 ≠ input.1)
-        (Function.uncurry owns)) :=
-  ⟨{ complete := fun input changed => by
-       cases owned : input.1.ownsIdentity input.2 with
-       | true => exact owned
-       | false =>
-         exact absurd (Host.Viewer.Lifecycle.finalRefusal_stale input.1 input.2 owned) changed
-     refused := ⟨(Host.Viewer.Lifecycle.initial ⟨0, 0, 0⟩ .stopped, 1), by decide⟩ }⟩
-
-attribute [regula_decision] Host.Viewer.Lifecycle.ownsIdentity
-
 /-! ## Decision procedures
 
 Each result is a `Decidable` value: an accepting result carries a proof of the decided
@@ -1574,7 +1553,9 @@ theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval 
   ⟨⟨ClockProgram.agreementFollows_same, ClockProgram.snapshotFollows_same⟩⟩
 
 /-- A generation that does not own the identity leaves the lifecycle unchanged when its
-final checkpoint is refused (`Lifecycle.finalRefusal_stale`).
+final checkpoint is refused (`Lifecycle.finalRefusal_stale`). The statement names
+`Lifecycle.refuseFinalCheckpoint`, which is defined by this test, so it is no specification
+that a kind could decide the test against, and it is an ordinary requirement.
 
 **Not claimed:** which generations the test accepts. -/
 theorem owns_identity :
