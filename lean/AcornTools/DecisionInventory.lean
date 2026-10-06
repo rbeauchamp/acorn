@@ -44,42 +44,41 @@ A definition whose theorems state which inputs it accepts or refuses is register
 contract instead.
 
 The test for the judgment is who reads the result, and for what. A definition is a decision,
-and is never in the judgment class, when a caller reads its result to accept or refuse
-something that came from outside the admitted state (bytes, text, raw words, a certificate, a
-candidate value), or when a printed or stored claim rests on the result itself, as with goal
-completion and a certificate verdict. It is not a decision when the transition that called it
-reads the result as its next state, as a value to use, or as a property of state that was
-already admitted, to choose which of its own branches runs. The borderline cases, each kept as
-a judgment for the reason given:
+and is never in the judgment class, when a caller refuses, suppresses or admits on its
+result, so that an external action, a published value or a stored record depends on it, or
+when a caller reads the result to accept or refuse something that came from outside the
+admitted state. It is not a decision when the transition that called it reads the result as
+its next state, as a value to use, or as a property of state that was already admitted, to
+choose which of its own branches runs, and passes a refusal on as its own. The borderline
+cases, each kept as a judgment for the reason given:
 
-* `Host.Attempt.finished` ends an attempt. The outcome that is recorded is the completion
-  flag `Host.World.goalSatisfied`, which has a contract; `finished` only stops the stepping.
-* `Host.BoundaryDecision.closing` and `Host.WritableCheckpoint.dueAt` schedule a checkpoint
-  write. No claim rests on the schedule: what is written is admitted again when it is loaded.
-* `Host.Inventory.owns` reads one stored flag. The craft-goal verdict is
-  `Host.TaskObservation.satisfied`, whose contract states ownership as its specification.
+* `Host.Inventory.owns` reads one stored flag. Its callers that refuse on it,
+  `Host.Inventory.craft` and the completion predicate, have contracts.
 * `Features.Lifecycle.eligible` and `mature` are properties of a unit that the selection
   `Features.Lifecycle.candidate` reads; the contract of `candidate` states when it selects.
-* `Agreement.Aggregate.ratio`, `Agreement.Channel.ratio` and `Agreement.aggregateAll` return
-  a score or its absence. The verdict that a sample is invalid is made when the channel
-  settles, by `Agreement.Ratio.admit` and `Agreement.precision`, which have contracts.
 * `Host.terrain` and `Host.World.tileKind` compute a tile and refuse on signed overflow. The
   checks that read a tile to accept or refuse a move or a certificate (`Host.World.enterable`,
   `Host.impassable`, `Host.walkableTile`) have contracts.
+* `Host.TileKind.harvestYield` and `Host.Action.direction` are total tables. The caller that
+  accepts or refuses a certificate on a yield, `Host.stanceCertified`, has a contract.
+* `Host.Viewer.browserElementBound` is a lookup that the registered schema test
+  `Host.Viewer.BrowserColumn.fits` reads; nothing is published on its result at run time.
 
 `judged_count` and `computed_count` state how many entries are judgments and how many carry
 a computed reason. A new judgment changes the first number and needs its standing theorem.
 
 ## The domain
 
-The domain holds every definition of the surveyed modules, private ones included, except the
-auxiliaries of the elaborator and the compiler. `auxiliary` is the filter: it removes a name
-exactly when a component of its user-facing name is numeric, begins with an underscore, or
-is `match_`, `proof_` or `eq_` followed by digits (`auxiliary_iff`). A source definition has
-no such component, because Lean refuses a written name with a leading underscore and
-reserves the three numbered forms. The audit also requires a declaration at or above the
-part of a removed name before its first such component, so the filter removes only an
-auxiliary of an existing declaration, and it prints how many definitions it removed.
+The domain holds every verdict-shaped definition of the surveyed modules that the source
+declares, private ones included. The evidence is the source range that Lean records for a
+declaration made by a declaration command: a definition with its own recorded range is a
+written definition, whatever its name, and it needs a contract or a valid entry. A
+definition with no recorded range was made by the elaborator or the compiler (a matcher, a
+recursor, a constructor helper), and the audit prints how many of those it left out. No name
+pattern decides anything. A `deriving` clause records its own range for the comparison it
+generates, so that definition is in the domain; the reason `derived` is supported only when
+the definition and its `BEq` instance lie inside the declaration of the type they compare.
+`controls` checks the three cases that a name pattern would get wrong.
 
 This is a check that every such definition has been classified and that each computed fact
 holds. Whether a judgment is right is review.
@@ -99,10 +98,11 @@ inductive Shape where
 /-- Why a verdict-shaped definition carries no contract. The first five are computed: the
 audit checks the stated fact. The last three are judgments, each with a standing theorem. -/
 inductive Reason where
-  /-- Computed: no written theorem of the maintained libraries mentions the definition in
-  its statement, so nothing is proved about it that a contract could state. A contract of a
-  decision registry and a proof field of a structure are not counted: the first is a
-  registration, the second states what a value of that structure carries. -/
+  /-- Computed: no written theorem of the maintained libraries names the definition in its
+  statement. This is the absence of a direct reference and nothing more: a theorem about a
+  caller can still imply a property of the definition. A contract of a decision registry and
+  a proof field of a structure are not counted: the first is a registration, the second
+  states what a value of that structure carries. -/
   | unproved
   /-- Computed: the fact of `unproved`, and the body applies a definition that has a
   contract or a `Decidable` result. The contracts of the decisions it applies stand. -/
@@ -110,8 +110,8 @@ inductive Reason where
   /-- Computed: the fact of `unproved`, and the definition belongs to the certificate search
   module. A registered checker decides every proposal. -/
   | proposal
-  /-- Computed: the definition is the comparison of an instance that a `deriving` clause
-  generated. -/
+  /-- Computed: the definition is the comparison of a `BEq` instance, and both lie inside
+  the declaration of the type they compare, where only a `deriving` clause can put them. -/
   | derived
   /-- Computed: the definition belongs to the proof library, which has no executable. Its
   theorems relate it to the executing definitions, and no claim rests on running it. -/
@@ -227,50 +227,6 @@ theorem classified_decides :
   ⟨.of_iff classified_iff ⟨⟨true, false, false⟩, rfl⟩
     ⟨⟨false, false, false⟩, Bool.false_ne_true⟩⟩
 
-/-- A name component that the elaborator or the compiler generates: it begins with an
-underscore, or it is `match_`, `proof_` or `eq_` followed by digits. -/
-def auxiliaryComponent (component : String) : Bool :=
-  component.startsWith "_" || #["match_", "proof_", "eq_"].any fun lead =>
-    component.startsWith lead && lead.length < component.length &&
-      (component.drop lead.length).all Char.isDigit
-
-/-- The domain filter, on a user-facing name: some component is numeric or is an auxiliary
-component. -/
-def auxiliary : Name → Bool
-  | .anonymous => false
-  | .num _ _ => true
-  | .str parent component => auxiliaryComponent component || auxiliary parent
-
-/-- The filter removes a name exactly when one of its components is numeric or auxiliary. -/
-theorem auxiliary_iff (name : Name) : auxiliary name = true ↔
-    ∃ component ∈ name.components, match component with
-      | .num _ _ => True
-      | .str _ text => auxiliaryComponent text = true
-      | .anonymous => False := by
-  induction name with
-  | anonymous => simp [auxiliary, Name.components, Name.componentsRev]
-  | str parent text ih =>
-    simp only [auxiliary, Bool.or_eq_true, ih, Name.components, Name.componentsRev,
-      List.reverse_cons, List.mem_append, List.mem_singleton]
-    constructor
-    · rintro (own | ⟨component, member, holds⟩)
-      · exact ⟨.str .anonymous text, .inr rfl, own⟩
-      · exact ⟨component, .inl member, holds⟩
-    · rintro ⟨component, member | rfl, holds⟩
-      · exact .inr ⟨component, member, holds⟩
-      · exact .inl holds
-  | num parent index ih =>
-    simp only [auxiliary, Name.components, Name.componentsRev, List.reverse_cons,
-      List.mem_append, List.mem_singleton, true_iff]
-    exact ⟨.num .anonymous index, .inr rfl, trivial⟩
-
-/-- The longest prefix of a user-facing name that the filter keeps. -/
-def sourceParent : Name → Name
-  | .anonymous => .anonymous
-  | .num parent _ => sourceParent parent
-  | .str parent component =>
-    if auxiliary (.str parent component) then sourceParent parent else .str parent component
-
 /-- The compiled name of a private definition of a module. -/
 def hidden (module user : Name) : Name := mkPrivateNameCore module user
 
@@ -278,7 +234,6 @@ def hidden (module user : Name) : Name := mkPrivateNameCore module user
 the implementation of a contract, with the shape of its type and its reason. -/
 def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.AgentDriver.dispatch, .fixed, .unproved),
-  (`Acorn.Agreement.Total.ratio, .dependent, .unproved),
   (`Acorn.Checkpoint.temporaryPath, .fixed, .unproved),
   (`Acorn.Features.Assignment.feature, .dependent, .unproved),
   (`Acorn.Features.Assignment.retain, .dependent, .unproved),
@@ -345,7 +300,6 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Host.Viewer.sensedFromJson, .fixed, .unproved),
   (`Acorn.Host.Viewer.terrainFromJson, .fixed, .unproved),
   (`Acorn.Host.World.observeTile, .dependent, .unproved),
-  (`Acorn.Host.WritableCheckpoint.due, .fixed, .unproved),
   (`Acorn.Host.controlWhitespace, .fixed, .unproved),
   (`Acorn.Host.fbm, .fixed, .unproved),
   (`Acorn.Host.foodDue, .fixed, .unproved),
@@ -370,7 +324,7 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Json.texts, .fixed, .unproved),
   (`Acorn.Json.unicodeWhitespace, .fixed, .unproved),
   (`Acorn.Json.version, .fixed, .unproved),
-  (`Acorn.Lifetime.DemonRecords.agreementRatio, .dependent, .unproved),
+  (`Acorn.Lifetime.DemonRecords.agreementRatio, .dependent, .composed),
   (`Acorn.SwiftTd.nextReady, .dependent, .unproved),
   (`Acorn.WorldDriver.coordinate, .fixed, .unproved),
   (`Acorn.WorldDriver.dispatch, .fixed, .unproved),
@@ -500,10 +454,6 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Host.runRandomBaseline, .fixed, .transition `AcornVerif.CurrentRunner.baseline_finishes),
   (`Acorn.Host.selectSpawn, .dependent, .transition `AcornVerif.CurrentSpawn.initial_spawn),
   (`Acorn.Host.terrain, .fixed, .transition `AcornVerif.CurrentCertificates.stance_yield),
-  (`Acorn.Agreement.Aggregate.ratio, .fixed,
-    .selection `AcornVerif.CurrentAgreement.aggregate_ratio_value),
-  (`Acorn.Agreement.Channel.ratio, .dependent, .selection `Acorn.Agreement.Channel.fault_no_score),
-  (`Acorn.Agreement.aggregateAll, .fixed, .selection `Acorn.Agreement.aggregateAll_missing),
   (`Acorn.Features.Assignment.identity, .dependent,
     .selection `Acorn.Features.Assignment.Distinct.mono),
   (`Acorn.Features.Lifecycle.prefer, .dependent, .selection `Acorn.Features.Lifecycle.fold_scanned),
@@ -522,17 +472,10 @@ def excluded : Array (Name × Shape × Reason) := #[
   (`Acorn.Handcrafted.skillOfMeta, .fixed,
     .selection `Acorn.Handcrafted.TemporalControl.dispatchMeta_eq),
   (`Acorn.Host.Action.direction, .fixed, .selection `AcornVerif.CurrentCertificates.perform_move),
-  (`Acorn.Host.Endurance.rankIndex, .fixed, .selection `Acorn.Host.Endurance.rankIndex_bound),
   (`Acorn.Host.TileKind.harvestYield, .fixed,
     .selection `AcornVerif.CurrentCertificates.stance_yield),
-  (`Acorn.Host.Viewer.GoalAchievement.State.headline, .dependent,
-    .selection `Acorn.Host.Viewer.GoalAchievement.State.headline_latest),
-  (`Acorn.Host.Viewer.LaunchMode.clearDisabled, .fixed,
-    .selection `Acorn.Host.Viewer.fixed_clear_disabled),
   (`Acorn.Host.Viewer.browserElementBound, .fixed,
     .selection `Acorn.Host.Viewer.BrowserConstant.tileKinds_admitted),
-  (`Acorn.Host.Viewer.controlWarning, .fixed, .selection `Acorn.Host.Viewer.controlWarning_active),
-  (`Acorn.Portable.expSaturation, .fixed, .selection `Acorn.Portable.exp_eq_spec),
   (`Acorn.Features.Assignment.potential, .dependent,
     .predicate `AcornVerif.CurrentTemporal.learned_potential),
   (`Acorn.Features.Ensemble.holds, .dependent,
@@ -554,20 +497,15 @@ def excluded : Array (Name × Shape × Reason) := #[
     .predicate `Acorn.Handcrafted.TemporalControl.finish_eq),
   (`Acorn.Handcrafted.askedBy, .dependent,
     .predicate `Acorn.Handcrafted.TemporalControl.finish_skill),
-  (`Acorn.Host.Attempt.finished, .dependent, .predicate `Acorn.Host.Attempt.tick_finished),
-  (`Acorn.Host.BoundaryDecision.closing, .dependent,
-    .predicate `Acorn.Host.WritableCheckpoint.closing_due),
-  (`Acorn.Host.Inventory.owns, .fixed, .predicate `Acorn.Host.Inventory.craft_exact),
-  (`Acorn.Host.WritableCheckpoint.dueAt, .dependent,
-    .predicate `Acorn.Host.WritableCheckpoint.closing_due)
+  (`Acorn.Host.Inventory.owns, .fixed, .predicate `Acorn.Host.Inventory.craft_exact)
 ]
 
 /-- The entries that are judgments: each names a standing theorem. -/
-theorem judged_count : (excluded.filter fun entry => entry.2.2.standing?.isSome).size = 68 := by
+theorem judged_count : (excluded.filter fun entry => entry.2.2.standing?.isSome).size = 57 := by
   decide +kernel
 
 /-- The entries whose reason is a computed fact. -/
-theorem computed_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 173 := by
+theorem computed_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 171 := by
   decide +kernel
 
 /-- The result heads that make a definition verdict-shaped. -/
@@ -604,10 +542,8 @@ structure Observed where
   mentioned : NameSet := {}
   /-- Excluded definitions whose standing theorem was read and names them. -/
   standing : NameSet := {}
-  /-- Auxiliary definitions the domain filter removed. -/
-  auxiliaries : Nat := 0
-  /-- Removed definitions with no source declaration before their auxiliary component. -/
-  orphans : Array Name := #[]
+  /-- Definitions with no recorded source range: made by the elaborator or the compiler. -/
+  unwritten : Nat := 0
 
 /-- Join the observations of two environments. -/
 def Observed.add (left right : Observed) : Observed :=
@@ -615,8 +551,7 @@ def Observed.add (left right : Observed) : Observed :=
     contracts := right.contracts.foldl (fun all name => all.insert name) left.contracts
     mentioned := right.mentioned.foldl (fun all name => all.insert name) left.mentioned
     standing := right.standing.foldl (fun all name => all.insert name) left.standing
-    auxiliaries := left.auxiliaries + right.auxiliaries
-    orphans := left.orphans ++ right.orphans }
+    unwritten := left.unwritten + right.unwritten }
 
 /-- The result head of a type after its arguments, with reducible definitions unfolded, and
 whether a binder type or the result names one of the arguments. -/
@@ -632,29 +567,48 @@ def shapeOf (type : Expr) : MetaM (Option (Name × Shape)) :=
         if declared.type.containsFVar other.fvarId! then dependent := true
     return some (head, if dependent then .dependent else .fixed)
 
-/-- Whether a theorem is written in the source. Lean generates the others: an auxiliary of
-another declaration, a proof field of a structure, an equation or unfolding theorem under a
-reserved name, and the injectivity and size theorems of a constructor. -/
-def written (env : Environment) (name : Name) : Bool :=
-  let user := (privateToUserName? name).getD name
-  !auxiliary user && (env.getProjectionFnInfo? name).isNone && !isReservedName env name &&
-    !(match env.find? name.getPrefix with
-      | some (.ctorInfo _) => true
-      | _ => false)
+/-- The source range that Lean recorded for a declaration made by a declaration command. -/
+def sourceRange (env : Environment) (name : Name) : Option DeclarationRange :=
+  (declRangeExt.find? (level := .server) env name).map (·.range)
 
-/-- Whether a declaration exists at the name or above it. -/
-def declared (env : Environment) : Name → Bool
-  | .anonymous => false
-  | .num parent index => env.contains (.num parent index) || declared env parent
-  | .str parent component => env.contains (.str parent component) || declared env parent
+/-- Whether one recorded range lies inside another. -/
+def within (inner outer : DeclarationRange) : Bool :=
+  (outer.pos.line < inner.pos.line ||
+      (outer.pos.line == inner.pos.line && outer.pos.column ≤ inner.pos.column)) &&
+    (inner.endPos.line < outer.endPos.line ||
+      (inner.endPos.line == outer.endPos.line && inner.endPos.column ≤ outer.endPos.column))
+
+/-- Whether a theorem is written in the source: it has its own recorded range and is not a
+proof field of a structure. -/
+def written (env : Environment) (name : Name) : Bool :=
+  (sourceRange env name).isSome && (env.getProjectionFnInfo? name).isNone
+
+/-- Whether a definition is the comparison that a `deriving` clause generated: it is the
+`beq` of a registered instance of `BEq` for a type of the same module, and the definition
+and the instance both lie inside the declaration of that type. -/
+def derivedComparison (env : Environment) (name : Name) : Bool :=
+  match name with
+  | .str parent "beq" =>
+    match env.find? parent, sourceRange env name, sourceRange env parent with
+    | some instanceInfo, some own, some instanceRange =>
+      let type := instanceInfo.type.getForallBody
+      match type.getAppFn.constName?, (type.getAppArgs[0]?).bind (·.getAppFn.constName?) with
+      | some ``BEq, some compared =>
+        Lean.Meta.isInstanceCore env parent &&
+          env.getModuleIdxFor? compared == env.getModuleIdxFor? name &&
+          (match sourceRange env compared with
+            | some outer => within own outer && within instanceRange outer
+            | none => false)
+      | _, _ => false
+    | _, _, _ => false
+  | _ => false
 
 /-- Read one declaration of a surveyed module. A contract of a decision registry adds its
 implementation. Any other written theorem adds the constants its statement names, and
-checks the entries that name it as their standing theorem. A definition that the domain
-filter keeps and whose result is a verdict adds a candidate. -/
+checks the entries that name it as their standing theorem. A definition with its own
+source range whose result is a verdict adds a candidate. -/
 def Observed.observe (observed : Observed) (env : Environment) (owner name : Name)
     (info : ConstantInfo) : IO Observed := do
-  let user := (privateToUserName? name).getD name
   match info with
   | .thmInfo _ =>
     if registries.contains owner then
@@ -673,22 +627,15 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
       mentioned := used.foldl (fun all constant => all.insert constant) observed.mentioned
       standing }
   | .defnInfo definition =>
-    if auxiliary user then
-      let parent := sourceParent user
-      let present := declared env parent ||
-        (isPrivateName name && declared env (mkPrivateNameCore owner parent))
-      return { observed with
-        auxiliaries := observed.auxiliaries + 1
-        orphans := if present then observed.orphans else observed.orphans.push name }
+    if (sourceRange env name).isNone then
+      return { observed with unwritten := observed.unwritten + 1 }
     let (shape, _) ← (shapeOf info.type).run'.toIO
       { fileName := "decision-inventory", fileMap := default } { env := env }
     let some (head, shape) := shape | return observed
     unless verdictHead head do return observed
     let decidable := head == ``Decidable
     let field := (env.getProjectionFnInfo? name).isSome
-    let generated := match name with
-      | .str parent "beq" => Lean.Meta.isInstanceCore env parent
-      | _ => false
+    let generated := derivedComparison env name
     let candidate : Candidate :=
       { name, owner, shape, structural := field || decidable, decidable := decidable && !field,
         generated, uses := definition.value.getUsedConstants }
@@ -704,8 +651,6 @@ def check (observed : Observed) : IO Unit := do
   for candidate in observed.candidates do
     candidates := candidates.insert candidate.name candidate
     if candidate.decidable then applied := applied.insert candidate.name
-  for orphan in observed.orphans do
-    failures := failures.push s!"{orphan} has an auxiliary name and no source declaration"
   -- Each entry is valid on its own.
   let mut valid : NameSet := {}
   let mut named : NameSet := {}
@@ -772,6 +717,25 @@ def check (observed : Observed) : IO Unit := do
     s!"composed {composed}, proposal {proposal}, derived {derived}, model {model}), " ++
     s!"{judged} excluded by judgment with a standing theorem " ++
     s!"(transition {transition}, selection {selection}, predicate {predicate}); " ++
-    s!"{observed.auxiliaries} auxiliaries outside the domain")
+    s!"{observed.unwritten} definitions with no source range outside the domain")
+
+/-- The cases that a name pattern would decide wrongly, as written declarations of
+`AcornTools.DecisionInventoryControls`. The audit refuses to run unless the domain keeps the
+written definition named like a matcher, the written theorem below a constructor counts as
+written, and the handwritten comparison of a declared instance is not `derived`. -/
+def controls (env : Environment) : IO Unit := do
+  let root := `AcornDecisionInventory.Control
+  let matcher := root ++ `T.match_37
+  let below := root ++ `T.a.refused
+  let comparison := root ++ `instBEqT.beq
+  for name in #[matcher, below, comparison] do
+    unless env.contains name do
+      throw (IO.userError s!"decision inventory control {name} is missing")
+  unless (sourceRange env matcher).isSome do
+    throw (IO.userError "decision inventory: a written matcher-named definition left the domain")
+  unless written env below do
+    throw (IO.userError "decision inventory: a written theorem below a constructor is not counted")
+  if derivedComparison env comparison then
+    throw (IO.userError "decision inventory: a handwritten comparison is accepted as derived")
 
 end AcornDecisionInventory

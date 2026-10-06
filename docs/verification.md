@@ -318,20 +318,24 @@ inventory's exclusion table, which gives the shape of the definition's type, as
 the audit computes it, and one reason from a closed list. A definition in no
 class or in two fails verification, and so does a table entry that is not valid
 on its own. A new verdict-shaped definition therefore cannot arrive unlisted,
-and a contract cannot be removed without an entry in the table. The domain
-includes private definitions; only the auxiliaries that the elaborator and the
-compiler generate are outside it.
+and a contract cannot be removed without an entry in the table. The domain is
+every definition with its own recorded source range, private ones included; a
+definition that the elaborator or the compiler made has no such range, and no
+name pattern decides anything.
 
 Five reasons are computed, and the audit refuses an entry whose fact is false:
-no written theorem of the maintained libraries mentions the definition in its
-statement; that, and its body applies a registered decision; that, and it
-belongs to the certificate search module; it is the comparison of a derived
-instance; it belongs to the proof library. Three reasons are judgments that a
+no written theorem of the maintained libraries names the definition in its
+statement, which is the absence of a direct reference and nothing more; that,
+and its body applies a registered decision; that, and it belongs to the
+certificate search module; it is the comparison of a derived instance, inside
+the declaration of the type it compares; it belongs to the proof library. Three
+reasons are judgments that a
 definition which theorems do mention is not a decision: its result is the
 outcome of a state transition, a selection or lookup, or a Boolean property of
-admitted state. The test is who reads the result, and for what: a definition
-whose result accepts or refuses something from outside the admitted state, or on
-whose result a printed or stored claim rests, is a decision and has a contract.
+admitted state. The test is who reads the result, and for what: a definition on
+whose result a caller refuses, suppresses or admits, so that an external action,
+a published value or a stored record depends on it, is a decision and has a
+contract.
 Each judgment names a standing theorem, and the audit checks that it is a
 written theorem of a maintained module whose statement mentions the definition.
 The audit prints the count of each class and of each reason, and two theorems of

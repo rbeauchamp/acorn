@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import AcornTools.Boundary.Audit
 import AcornTools.DecisionInventory
+import AcornTools.DecisionInventoryControls
 import AcornTools.Ownership
 
 /-!

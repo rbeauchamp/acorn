@@ -14,6 +14,7 @@ import Acorn.Host.Cli
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.GoalProtocol
+import Acorn.Host.Viewer.Options
 import Acorn.Host.Viewer.WireNumber
 import Acorn.Host.Viewer.WorldMemory
 
@@ -81,14 +82,14 @@ verdict-shaped definition of the claimed libraries `Acorn`, `AcornVerif`, `Nativ
 
 A definition in no class or in two fails verification. A new verdict-shaped definition
 therefore cannot arrive unlisted, and a contract cannot be removed without an entry in that
-table. The domain includes private definitions; only the auxiliaries that the elaborator and
-the compiler generate are outside it.
+table. The domain is every definition with its own recorded source range, private ones
+included; a definition that the elaborator or the compiler made has no such range.
 
 The reasons are the constructors of `AcornDecisionInventory.Reason`. Five are computed: the
 audit checks the stated fact for every entry and refuses an entry whose fact is false.
 
-* `unproved`: no written theorem of the maintained libraries mentions the definition in its
-  statement, so nothing is proved about it that a contract could state. A contract of a
+* `unproved`: no written theorem of the maintained libraries names the definition in its
+  statement. The fact is the absence of a direct reference and nothing more. A contract of a
   registry and a proof field of a structure are not counted. These are the command-line
   parsers of `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the JSON
   parser `Json.parse` with its readers and private helpers, the viewer's envelope and map
@@ -117,9 +118,10 @@ which theorems do mention is not a decision. Its result is the outcome of a stat
 (`Host.World.step`, `Host.Attempt.tick`, `Handcrafted.TemporalControl.step`), a selection or a
 lookup that can be absent (`Features.RankedFeatures.position`, `Host.Action.direction`), or a
 Boolean property of state the library has already admitted (`Features.Lifecycle.eligible`,
-`Host.Attempt.finished`). The test is who reads the result, and for what: a definition whose
-result accepts or refuses something from outside the admitted state, or on whose result a
-printed or stored claim rests, is a decision and has a contract. `AcornDecisionInventory`
+`Features.Occupancy.free`). The test is who reads the result, and for what: a definition on
+whose result a caller refuses, suppresses or admits, so that an external action, a published
+value or a stored record depends on it, is a decision and has a contract.
+`AcornDecisionInventory`
 states the test and lists the borderline cases. Each judgment names a standing theorem, and
 the audit checks that it is a written theorem of a maintained module whose statement mentions
 the definition; `AcornDecisionInventory.judged_count` states how many judgments there are.
@@ -1179,6 +1181,85 @@ theorem retry_exhausted : Regula.ExecutableContract Retry.exhausted
 
 attribute [regula_decision] Retry.exhausted
 
+/-- Aggregation accepts exactly a list in which no channel is missing
+(`Agreement.aggregateAll_missing` states the refusal of a missing first channel). -/
+theorem aggregate_all : Regula.ExecutableContract Agreement.aggregateAll
+    (Regula.Decides (·.isSome = true)
+      (fun ratios : List (Option Agreement.Ratio) => ∀ ratio ∈ ratios, ratio.isSome = true)) :=
+  ⟨decides
+    (fun ratios => by
+      induction ratios with
+      | nil => simp [Agreement.aggregateAll]
+      | cons head tail ih =>
+        cases head with
+        | none => simp [Agreement.aggregateAll]
+        | some ratio => simpa [Agreement.aggregateAll] using ih)
+    ⟨[], by simp⟩ ⟨[none], by simp⟩⟩
+
+attribute [regula_decision] Agreement.aggregateAll
+
+/-- The aggregate score is present exactly when the product of the question count and the
+denominator is positive. `AcornVerif.CurrentAgreement.aggregate_ratio_value` states its value. -/
+theorem aggregate_ratio : Regula.ExecutableContract Agreement.Aggregate.ratio
+    (Regula.Decides (·.isSome = true)
+      (fun aggregate : Agreement.Aggregate =>
+        0 < aggregate.questions * aggregate.denominator)) :=
+  ⟨decides (fun _ => dite_isSome _)
+    ⟨Agreement.Aggregate.empty.add ⟨0, 1, by decide, by decide⟩, by decide⟩
+    ⟨.empty, by decide⟩⟩
+
+attribute [regula_decision] Agreement.Aggregate.ratio
+
+/-- Clear is unavailable exactly under a fixed launch command (`fixed_clear_disabled`). -/
+theorem clear_disabled : Regula.ExecutableContract LaunchMode.clearDisabled
+    (Regula.Decides (·.isSome = true)
+      (fun mode : LaunchMode => ∃ command, mode = .fixed command)) :=
+  ⟨decides (fun mode => by cases mode <;> simp [LaunchMode.clearDisabled])
+    ⟨.fixed "", "", rfl⟩ ⟨.ranked, by simp⟩⟩
+
+attribute [regula_decision] LaunchMode.clearDisabled
+
+/-- The capture-follow test accepts every pair with equal lifetime clocks whose next capture
+is terminal, whose previous capture is not, and whose world clock advanced by one
+(`Capture.follows_equal_lifetime`), and it refuses a repeated capture. `capture_follows`
+states the exact verdict for equal lifetime clocks.
+
+**Not claimed:** soundness. The test also accepts a later lifetime clock. -/
+theorem capture_follows_complete : Regula.ExecutableContract Capture.follows (fun test =>
+    Regula.DecidesCompletely (· = true)
+      (fun input : Capture × Capture =>
+        input.1.lifetime = input.2.lifetime ∧ input.1.terminal = true ∧
+          input.2.terminal = false ∧ input.1.world.toNat = input.2.world.toNat + 1)
+      (Function.uncurry test)) :=
+  ⟨{ complete := fun input ⟨same, terminal, running, advanced⟩ => by
+       show input.1.follows input.2 = true
+       rw [Capture.follows_equal_lifetime input.1 input.2 same]
+       simp [terminal, running, advanced]
+     refused := ⟨(⟨0, 0, 0, 0, 0, false⟩, ⟨0, 0, 0, 0, 0, false⟩), by decide⟩ }⟩
+
+attribute [regula_decision] Capture.follows
+
+/-- The identity-ownership test accepts every generation whose final checkpoint refusal
+changes the lifecycle (`Lifecycle.finalRefusal_stale`), and it refuses a generation that an
+initial lifecycle never reserved. `owns_identity` states the theorem as it is written.
+
+**Not claimed:** soundness. A refusal that is already recorded leaves the state unchanged for
+an owning generation too. -/
+theorem owns_identity_complete :
+    Regula.ExecutableContract Host.Viewer.Lifecycle.ownsIdentity (fun owns =>
+      Regula.DecidesCompletely (· = true)
+        (fun input : Host.Viewer.Lifecycle × UInt64 =>
+          input.1.refuseFinalCheckpoint input.2 ≠ input.1)
+        (Function.uncurry owns)) :=
+  ⟨{ complete := fun input changed => by
+       cases owned : input.1.ownsIdentity input.2 with
+       | true => exact owned
+       | false =>
+         exact absurd (Host.Viewer.Lifecycle.finalRefusal_stale input.1 input.2 owned) changed
+     refused := ⟨(Host.Viewer.Lifecycle.initial ⟨0, 0, 0⟩ .stopped, 1), by decide⟩ }⟩
+
+attribute [regula_decision] Host.Viewer.Lifecycle.ownsIdentity
+
 /-! ## Decision procedures
 
 Each result is a `Decidable` value: an accepting result carries a proof of the decided
@@ -1557,6 +1638,72 @@ theorem lifecycle_candidate :
         (state : Features.Lifecycle shape actions config criterion dimension discounts)
         (free : Bool), candidate state free = none ↔ state.eligibleCount free = 0) :=
   ⟨Features.Lifecycle.candidate_none_iff⟩
+
+/-- A total supplies a score exactly when it holds at least one sample under a nonzero
+envelope: the product of its count and the squared envelope is positive. -/
+theorem total_ratio : Regula.ExecutableContract @Agreement.Total.ratio (fun ratio =>
+    ∀ (envelope : Nat) (total : Agreement.Total envelope),
+      (@ratio envelope total).isSome = true ↔ 0 < total.count.val * envelope ^ 2) :=
+  ⟨fun _ _ => dite_isSome _⟩
+
+/-- A channel with a recorded arithmetic fault publishes no score
+(`Agreement.Channel.fault_no_score`).
+
+**Not claimed:** the score of a channel with no fault. -/
+theorem channel_ratio : Regula.ExecutableContract @Agreement.Channel.ratio (fun ratio =>
+    ∀ (discount : Discount) (channel : Agreement.Channel discount) (fault : Agreement.Fault),
+      channel.fault = some fault → @ratio discount channel = none) :=
+  ⟨fun _ => Agreement.Channel.fault_no_score⟩
+
+/-- Invalid goal accounting supplies no headline score
+(`GoalAchievement.State.invalid_no_headline`).
+
+**Not claimed:** which valid states supply a headline. -/
+theorem goal_headline :
+    Regula.ExecutableContract @GoalAchievement.State.headline (fun headline =>
+      ∀ (goals attempts : Nat) (state : GoalAchievement.State goals attempts),
+        state.invalid = true → @headline goals attempts state = none) :=
+  ⟨fun _ _ => GoalAchievement.State.invalid_no_headline⟩
+
+/-- No control warning is published while the lifecycle is not idle
+(`controlWarning_active`).
+
+**Not claimed:** which idle states publish a warning. -/
+theorem control_warning : Regula.ExecutableContract controlWarning (fun warning =>
+    ∀ (lifecycle : Host.Viewer.Lifecycle) (detail : ControlDetail),
+      (lifecycle.phaseValue != .idle) = true → warning lifecycle detail = none) :=
+  ⟨controlWarning_active⟩
+
+/-- An attempt is finished exactly at its step cap, or after at least one step whose carried
+result reports the goal done. -/
+theorem attempt_finished : Regula.ExecutableContract @Host.Attempt.finished (fun finished =>
+    ∀ {config : Host.WorldConfig} {α : Type} {goal : Host.Goal} {cap : UInt64}
+      (attempt : Host.Attempt config α goal cap),
+      finished attempt = true ↔ attempt.steps.val = cap.toNat ∨
+        (attempt.steps.val ≠ 0 ∧ attempt.run.carried.events.done = true)) :=
+  ⟨fun attempt => by simp [Host.Attempt.finished]⟩
+
+/-- A boundary decision closes the campaign exactly when it is complete or stopped. -/
+theorem boundary_closing :
+    Regula.ExecutableContract @Host.BoundaryDecision.closing (fun closing =>
+      ∀ {size : Nat} {plan : Host.CampaignPlan size} (decision : Host.BoundaryDecision plan),
+        closing decision = true ↔ decision = .complete ∨ decision = .stopped) :=
+  ⟨fun decision => by cases decision <;> simp [Host.BoundaryDecision.closing]⟩
+
+/-- A checkpoint write is due exactly at a closing boundary or at phase zero of its period. -/
+theorem checkpoint_due : Regula.ExecutableContract Host.WritableCheckpoint.due (fun due =>
+    ∀ (capability : Host.WritableCheckpoint) (closing : Bool),
+      due capability closing = true ↔ closing = true ∨ capability.phase.val = 0) :=
+  ⟨fun capability closing => by simp [Host.WritableCheckpoint.due]⟩
+
+/-- Every closing boundary schedules the armed checkpoint writer
+(`WritableCheckpoint.closing_due`). `checkpoint_due` states the schedule exactly. -/
+theorem checkpoint_due_at :
+    Regula.ExecutableContract @Host.WritableCheckpoint.dueAt (fun dueAt =>
+      ∀ {size : Nat} {plan : Host.CampaignPlan size} (capability : Host.WritableCheckpoint)
+        (decision : Host.BoundaryDecision plan),
+        decision.closing = true → dueAt capability decision = true) :=
+  ⟨Host.WritableCheckpoint.closing_due⟩
 
 /-! ## Decisions that are polymorphic in an element type
 

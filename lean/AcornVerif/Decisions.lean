@@ -7,7 +7,9 @@ import Regula.Contract
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
+import AcornVerif.CurrentExponential
 import AcornVerif.CurrentTemporal
+import AcornVerif.Endurance
 
 /-!
 # Decision contracts proved in the proof library
@@ -274,6 +276,76 @@ theorem task_satisfied : Regula.ExecutableContract Host.TaskObservation.satisfie
          exact (CurrentGoals.survive_satisfied_iff required position inventory elapsed).mpr
            achieved
      refused := ⟨.none, by decide⟩ }⟩
+
+/-- The completion predicate, on the observation of each goal family, is exactly: a position
+in the goal box for a reach goal, an inventory that holds the count for a collect goal and
+an elapsed time of at least the duration for a survive goal; for a craft goal it is the
+ownership of the tool (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_iff`,
+`survive_satisfied_iff`, `craft_satisfied`). These equivalences are both directions for the
+observations that `Goal.observe` produces; `task_satisfied` states the kind. -/
+theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
+    (fun satisfied =>
+      (∀ (target position : Host.Position) (inventory : Host.Inventory) (elapsed : UInt64),
+        satisfied ((Host.Goal.reach target).observe position inventory elapsed) = true ↔
+          CurrentGoals.InGoalBox target position) ∧
+      (∀ (item : Host.Item) (count : UInt32) (position : Host.Position)
+        (inventory : Host.Inventory) (elapsed : UInt64),
+        satisfied ((Host.Goal.collect item count).observe position inventory elapsed) = true ↔
+          count.toNat ≤ (inventory.count item).toNat) ∧
+      (∀ (required : UInt64) (position : Host.Position) (inventory : Host.Inventory)
+        (elapsed : UInt64),
+        satisfied ((Host.Goal.survive required).observe position inventory elapsed) = true ↔
+          required.toNat ≤ elapsed.toNat) ∧
+      ∀ (tool : Host.Craftable) (position : Host.Position) (inventory : Host.Inventory)
+        (elapsed : UInt64),
+        satisfied ((Host.Goal.craft tool).observe position inventory elapsed) =
+          inventory.owns tool) :=
+  ⟨⟨CurrentGoals.reach_satisfied_iff, CurrentGoals.collect_satisfied_iff,
+    CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied⟩⟩
+
+/-- The exponential classifier sends a word to reduction, with no saturated result, exactly
+when the word is finite and strictly between the underflow and the overflow thresholds
+(`CurrentExponential.expSaturation_ends`). -/
+theorem exp_saturation : Regula.ExecutableContract Portable.expSaturation
+    (Regula.Decides (· = none)
+      (fun value : Binary32 => value.Finite ∧
+        (Binary32.mk Acorn.Constants.expUnderflowBits).less value = true ∧
+          value.less ⟨Acorn.Constants.expOverflowBits⟩ = true)) :=
+  ⟨{ sound := fun value admitted => by
+       have ends := CurrentExponential.expSaturation_ends value
+       rw [admitted] at ends
+       exact ends
+     accepted := ⟨.zero, by decide⟩
+     complete := fun value ⟨finite, above, below⟩ => by
+       have ends := CurrentExponential.expSaturation_ends value
+       cases saturated : Portable.expSaturation value with
+       | none => rfl
+       | some result =>
+         rw [saturated] at ends
+         have number : value.isNaN = false := by
+           cases nan : value.isNaN with
+           | false => rfl
+           | true =>
+             rw [Binary32.isNaN_eq_magnitude] at nan
+             have high := of_decide_eq_true nan
+             unfold Binary32.Finite at finite
+             omega
+         simp [number, above, below] at ends
+     refused := ⟨⟨0x7fc00000⟩, by decide⟩ }⟩
+
+/-- Rank selection returns an index only when the cumulative count through some bin reaches
+the target rank (`Endurance.rankIndex_spec`, which also states that no earlier bin does).
+
+**Not claimed:** completeness. No theorem states that a reachable rank is always found. -/
+theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun index =>
+    Regula.DecidesSoundly (·.isSome = true)
+      (fun input : ((Nat × Nat) × Nat) × List Nat =>
+        ∃ i, input.1.1.1 ≤ input.1.1.2 * (input.1.2 + (input.2.take (i + 1)).sum))
+      (Function.uncurry (Function.uncurry (Function.uncurry index)))) :=
+  ⟨{ sound := fun input accepted => by
+       obtain ⟨i, found⟩ := Option.isSome_iff_exists.mp accepted
+       exact ⟨i, (Endurance.rankIndex_spec input.1.1.1 input.1.1.2 input.1.2 input.2 i found).1⟩
+     accepted := ⟨(((0, 1), 0), [0]), by decide⟩ }⟩
 
 /-- Whether the body may enter a tile is exactly the static passability of the tile's terrain
 with the body's boat, and it refuses exactly when the terrain refuses

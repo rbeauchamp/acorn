@@ -159,6 +159,7 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
       require (projects.all counted.contains && counted.size == projects.size)
         "incomplete or duplicate theorem-owner admission"
       counts.report
+      AcornDecisionInventory.controls common
       AcornDecisionInventory.check counts.decisions
       let cwd ← IO.Process.getCurrentDir
       try
