@@ -66,6 +66,7 @@ private def externalSymbols : List String := [
   "Float32",
   "Int",
   "Nat",
+  "Decidable",
   "Classical",
   "Quot",
   "propext",
