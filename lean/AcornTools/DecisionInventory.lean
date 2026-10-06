@@ -151,6 +151,21 @@ def Reason.label : Reason → String
   | .transition _ => "transition"
   | .selection _ => "selection" | .predicate _ => "predicate"
 
+/-- The names of the computed reasons. -/
+def Reason.computedLabels : List String :=
+  ["unproved", "composed", "proposal", "derived", "default", "model"]
+
+/-- The names of the reasons that are judgments. -/
+def Reason.judgmentLabels : List String := ["transition", "selection", "predicate"]
+
+/-- The two lists hold every reason, each in the list for what it is: a reason with a
+standing theorem is a judgment, and every other reason is computed. -/
+theorem Reason.label_listed (reason : Reason) :
+    (reason.standing?.isNone → reason.label ∈ Reason.computedLabels) ∧
+      (reason.standing?.isSome → reason.label ∈ Reason.judgmentLabels) := by
+  cases reason <;> simp [Reason.label, Reason.standing?, Reason.computedLabels,
+    Reason.judgmentLabels]
+
 /-- The facts the audit computes about one excluded definition. -/
 structure Evidence where
   /-- A written theorem of the maintained libraries, outside the decision registries,
@@ -602,39 +617,67 @@ structure Candidate where
   decidable : Bool
   /-- The comparison of a derived instance. -/
   generated : Bool
-  /-- The default of a structure field with no argument of its own. -/
+  /-- The default of a structure field that is not a function. -/
   fieldDefault : Bool
   /-- The constants its body names. -/
   uses : Array Name
+
+/-- What the contracts of the registries state about one decision function. -/
+structure Registered where
+  /-- One of its contracts is a decision kind. -/
+  kind : Bool := false
+  /-- One of its contracts carries an input that the function accepts. -/
+  accepted : Bool := false
+  /-- One of its contracts carries an input that the function refuses. -/
+  refused : Bool := false
 
 /-- What the walk has read so far. -/
 structure Observed where
   /-- Verdict-shaped definitions of the surveyed modules. -/
   candidates : Array Candidate := #[]
-  /-- Implementations of the contracts that the decision registries state. -/
-  contracts : NameSet := {}
-  /-- Implementations with a contract whose statement is a decision kind. -/
-  kinded : NameSet := {}
+  /-- The decision functions that the registries state a contract about. -/
+  contracts : NameMap Registered := {}
   /-- Constants that the statement of a written theorem outside the registries names. -/
   mentioned : NameSet := {}
   /-- Excluded definitions whose standing theorem was read and names them. -/
   standing : NameSet := {}
-  /-- Constants that left the domain, by the name of their certificate. -/
+  /-- Verdict-shaped constants that left the domain, by the name of their relationship. -/
   certified : Std.HashMap String Nat := {}
+  /-- Definitions outside the search module that name one of its constants, with the
+  constants their bodies name. -/
+  searchers : Array (Name × Array Name) := #[]
+
+/-- Join what two contracts state about one function. -/
+def Registered.add (left right : Registered) : Registered :=
+  ⟨left.kind || right.kind, left.accepted || right.accepted, left.refused || right.refused⟩
 
 /-- Join the observations of two environments. -/
 def Observed.add (left right : Observed) : Observed :=
   { candidates := left.candidates ++ right.candidates
-    contracts := right.contracts.foldl (fun all name => all.insert name) left.contracts
-    kinded := right.kinded.foldl (fun all name => all.insert name) left.kinded
+    contracts := right.contracts.foldl (fun all name stated =>
+      all.insert name (((all.find? name).getD {}).add stated)) left.contracts
     mentioned := right.mentioned.foldl (fun all name => all.insert name) left.mentioned
     standing := right.standing.foldl (fun all name => all.insert name) left.standing
     certified := right.certified.fold (fun all label count =>
-      all.insert label (all.getD label 0 + count)) left.certified }
+      all.insert label (all.getD label 0 + count)) left.certified
+    searchers := left.searchers ++ right.searchers }
 
-/-- The result head of a type after its arguments, with reducible definitions unfolded, and
-whether a binder type or the result names one of the arguments. -/
-def shapeOf (type : Expr) : MetaM (Option (Name × Shape)) :=
+/-- What the one telescope of the inventory reads from a type. Every count of arguments in
+this module comes from here. -/
+structure Signature where
+  /-- The head constant of the result, with reducible definitions unfolded. -/
+  head : Name
+  /-- The head constant of the first argument of the result: the type that a class instance
+  is about. -/
+  about : Option Name
+  /-- The number of arguments, with reducible definitions unfolded. -/
+  arguments : Nat
+  /-- Whether a binder type or the result names one of the arguments. -/
+  shape : Shape
+
+/-- The signature of a type: its arguments and its result after reducible definitions are
+unfolded. A type whose result has no head constant has none. -/
+def signatureOf (type : Expr) : MetaM (Option Signature) :=
   forallTelescopeReducing type fun arguments body => do
     let body ← whnfR body
     let some head := body.getAppFn.constName? | return none
@@ -644,7 +687,9 @@ def shapeOf (type : Expr) : MetaM (Option (Name × Shape)) :=
       let declared ← argument.fvarId!.getDecl
       for other in arguments do
         if declared.type.containsFVar other.fvarId! then dependent := true
-    return some (head, if dependent then .dependent else .fixed)
+    return some
+      { head, about := (body.getAppArgs[0]?).bind (·.getAppFn.constName?)
+        arguments := arguments.size, shape := if dependent then .dependent else .fixed }
 
 /-- The source range that Lean recorded for a declaration made by a declaration command. -/
 def sourceRange (env : Environment) (name : Name) : Option DeclarationRange :=
@@ -672,66 +717,138 @@ def generatedTheorem (env : Environment) (name : Name) : Bool :=
 /-- Whether a theorem is written in the source. -/
 def written (env : Environment) (name : Name) : Bool := !generatedTheorem env name
 
-/-- The certificate by which a constant leaves the domain, if the environment gives one. -/
-def certificate? (env : Environment) (name : Name) (info : ConstantInfo) : Option String :=
-  if Lean.Meta.isMatcherCore env name then some "matcher"
-  else if isAuxRecursor env name then some "auxiliary recursor"
-  else if isNoConfusion env name then some "no-confusion"
-  else if info.isUnsafe || info.isPartial then some "partial recursion companion"
-  else
-    let parent := name.getPrefix
-    if (Lean.Elab.Structural.eqnInfoExt.find? env parent).isSome &&
-        (name == Lean.Meta.mkSmartUnfoldingNameFor parent || name == .str parent "_f") then
-      some "structural recursion companion"
-    else if (Lean.Elab.WF.eqnInfoExt.find? env parent).any (·.declNameNonRec == name) then
-      some "well-founded recursion companion"
+/-- The relationship by which a verdict-shaped constant leaves the domain: it is a companion
+that a recursion compiler made for a parent declaration. The parent has equation data of
+that compiler in the environment, the name is the one the compiler derives from the parent,
+and the content agrees: a companion that is another body of the parent has the parent's
+signature, and a companion that is one step of the recursion is applied by the parent's
+body. A flag, a name or a position alone gives no relationship. -/
+def companion? (env : Environment) (name : Name) (info : ConstantInfo) : Option String :=
+  let parent := name.getPrefix
+  match env.find? parent with
+  | none => none
+  | some parentInfo =>
+    let structural := (Lean.Elab.Structural.eqnInfoExt.find? env parent).isSome
+    let wellFounded := Lean.Elab.WF.eqnInfoExt.find? env parent
+    let signature := info.type == parentInfo.type && info.levelParams == parentInfo.levelParams
+    let applied := (parentInfo.value?.map (·.getUsedConstants.contains name)).getD false
+    if structural && signature && name == Lean.Meta.mkSmartUnfoldingNameFor parent then
+      some "unfolding body of a structural recursion"
+    else if (structural || wellFounded.isSome) && signature && info.isPartial &&
+        name == Lean.Compiler.mkUnsafeRecName parent then
+      some "compiled body of a recursion"
+    else if structural && applied && name == .str parent "_f" then
+      some "step of a structural recursion"
+    else if applied && wellFounded.any (·.declNameNonRec == name) then
+      some "step of a well-founded recursion"
     else none
 
-/-- Whether a definition is the default value of a structure field with no argument beyond
-the parameters of the structure. -/
-def storedDefault (env : Environment) (name : Name) (info : ConstantInfo) : Bool :=
-  match env.getProjectionFnInfo? name.getPrefix with
-  | some projection =>
-    name == Lean.mkDefaultFnOfProjFn name.getPrefix &&
-      info.type.getForallBinderNames.length ≤ projection.numParams
-  | none => false
+/-- Whether a definition is the default value of a structure field that is not a function:
+the field is a recorded projection, the name is the one Lean derives for its default, and
+the projection takes the parameters of the structure and the structure, and nothing more.
+The count is the count of `signatureOf`, so a function type behind a reducible definition
+is a function type. -/
+def storedDefault (env : Environment) (name : Name) : MetaM Bool := do
+  let field := name.getPrefix
+  let some projection := env.getProjectionFnInfo? field | return false
+  unless name == Lean.mkDefaultFnOfProjFn field do return false
+  let some fieldInfo := env.find? field | return false
+  let some signature ← signatureOf fieldInfo.type | return false
+  return signature.arguments == projection.numParams + 1
 
 /-- Whether a definition is the comparison that a `deriving` clause generated: it is the
 `beq` of a registered instance of `BEq` for a type of the same module, and the definition
-and the instance both lie inside the declaration of that type. -/
-def derivedComparison (env : Environment) (name : Name) : Bool :=
-  match name with
-  | .str parent "beq" =>
-    match env.find? parent, sourceRange env name, sourceRange env parent with
-    | some instanceInfo, some own, some instanceRange =>
-      let type := instanceInfo.type.getForallBody
-      match type.getAppFn.constName?, (type.getAppArgs[0]?).bind (·.getAppFn.constName?) with
-      | some ``BEq, some compared =>
-        Lean.Meta.isInstanceCore env parent &&
-          env.getModuleIdxFor? compared == env.getModuleIdxFor? name &&
-          (match sourceRange env compared with
-            | some outer => within own outer && within instanceRange outer
-            | none => false)
-      | _, _ => false
-    | _, _, _ => false
-  | _ => false
+and the instance both lie inside the declaration of that type. The relationship to the
+instance and to the type is validated. That the comparison is generated is inferred from the
+recorded ranges, because Lean records no relation between a `deriving` clause and what it
+generates. -/
+def derivedComparison (env : Environment) (name : Name) : MetaM Bool := do
+  let .str parent "beq" := name | return false
+  let some instanceInfo := env.find? parent | return false
+  let some own := sourceRange env name | return false
+  let some instanceRange := sourceRange env parent | return false
+  let some signature ← signatureOf instanceInfo.type | return false
+  let some compared := signature.about | return false
+  unless signature.head == ``BEq && Lean.Meta.isInstanceCore env parent do return false
+  unless env.getModuleIdxFor? compared == env.getModuleIdxFor? name do return false
+  let some outer := sourceRange env compared | return false
+  return within own outer && within instanceRange outer
 
 /-- The decision kinds of Regula. Its audit checks a witness of each kind and the independence
 of its specification from the implementation. -/
 def kinds : Array Name :=
   #[``Regula.Decides, ``Regula.DecidesSoundly, ``Regula.DecidesCompletely]
 
+/-- The body of a contract condition, below its binders. -/
+def conditionBody : Expr → Expr
+  | .lam _ _ body _ => conditionBody body
+  | condition => condition
+
 /-- A contract condition that is a decision kind: after its binders, its head is one of the
 kinds. A statement of any other form is a requirement that the Regula audit does not check
 for witnesses or independence. -/
-def isKind : Expr → Bool
-  | .lam _ _ body _ => isKind body
-  | condition => (condition.getAppFn.constName?).any kinds.contains
+def isKind (condition : Expr) : Bool :=
+  ((conditionBody condition).getAppFn.constName?).any kinds.contains
 
-/-- Read one declaration of a surveyed module. A contract of a decision registry adds its
-implementation. Any other written theorem adds the constants its statement names, and
-checks the entries that name it as their standing theorem. A definition or an opaque
-constant with no generator certificate whose result is a verdict adds a candidate. -/
+/-- The marker propositions of the registries for an accepted and for a refused input. Each
+registry declares its own pair, because no module imports a registry. -/
+def acceptanceMarkers : Array Name := #[`Acorn.Decisions.Accepts, `AcornVerif.Decisions.Accepts]
+
+@[inherit_doc acceptanceMarkers]
+def refusalMarkers : Array Name := #[`Acorn.Decisions.Refuses, `AcornVerif.Decisions.Refuses]
+
+/-- The acceptance predicates that a witness can use: the result is `true`, is present, or
+is not an error. -/
+def standardAccepts : Expr → Bool
+  | .lam _ _ body _ =>
+    match body.eq? with
+    | some (type, result, expected) =>
+      type.isConstOf ``Bool && expected.isConstOf ``Bool.true &&
+        (result == .bvar 0 ||
+          ((result.isAppOf ``Option.isSome || result.isAppOf ``Except.isOk) &&
+            result.appArg! == .bvar 0))
+    | none => false
+  | _ => false
+
+/-- The conjuncts of a proposition at its top level. -/
+def conjuncts : Expr → Array Expr
+  | .app (.app (.const ``And _) left) right => conjuncts left ++ conjuncts right
+  | proposition => #[proposition]
+
+/-- Whether a requirement with no kind carries a witness with one of the given markers: a
+conjunct at the top level of the condition whose predicate is a standard one and whose
+result is an application of the implementation that the condition binds. Such a conjunct is
+below no quantifier and no hypothesis, so it is a proved statement about one closed input. -/
+def witnessed (markers : Array Name) : Expr → Bool
+  | .lam _ _ body _ =>
+    (conjuncts body).any fun fact =>
+      (fact.getAppFn.constName?).any markers.contains &&
+        (match fact.getAppArgs with
+          | #[_, predicate, result] => standardAccepts predicate && result.getAppFn == .bvar 0
+          | _ => false)
+  | _ => false
+
+/-- What one contract condition states: its kind, and the witnesses it carries. A two-way
+kind carries both witnesses in its type, a sound kind the accepted one and a complete kind
+the refused one. -/
+def registered (condition : Expr) : Registered :=
+  match (conditionBody condition).getAppFn.constName? with
+  | some ``Regula.Decides => ⟨true, true, true⟩
+  | some ``Regula.DecidesSoundly => ⟨true, true, false⟩
+  | some ``Regula.DecidesCompletely => ⟨true, false, true⟩
+  | _ => ⟨false, witnessed acceptanceMarkers condition, witnessed refusalMarkers condition⟩
+
+/-- Evaluate a computation of the elaborator's reduction engine on a compiled environment. -/
+def reduce {α : Type} (env : Environment) (computation : MetaM α) : IO α := do
+  let (result, _) ← computation.run'.toIO
+    { fileName := "decision-inventory", fileMap := default } { env := env }
+  return result
+
+/-- Read one declaration of a surveyed module. A contract of a decision registry adds what
+it states about its implementation. Any other written theorem adds the constants its
+statement names, and checks the entries that name it as their standing theorem. A definition
+or an opaque constant whose result is a verdict adds a candidate, unless it is a recursion
+companion of a parent declaration. -/
 def Observed.observe (observed : Observed) (env : Environment) (owner name : Name)
     (info : ConstantInfo) : IO Observed := do
   match info with
@@ -741,10 +858,10 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
         return observed
       let some implementation := (info.type.getAppArgs[1]?).bind (·.getAppFn.constName?)
         | throw (IO.userError s!"{name}: contract names no implementation constant")
-      let decided := (info.type.getAppArgs[2]?).any isKind
-      return { observed with
-        contracts := observed.contracts.insert implementation
-        kinded := if decided then observed.kinded.insert implementation else observed.kinded }
+      let some condition := info.type.getAppArgs[2]?
+        | throw (IO.userError s!"{name}: contract has no condition")
+      let stated := ((observed.contracts.find? implementation).getD {}).add (registered condition)
+      return { observed with contracts := observed.contracts.insert implementation stated }
     unless written env name do return observed
     let used := info.type.getUsedConstantsAsSet
     let mut standing := observed.standing
@@ -755,20 +872,24 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
       mentioned := used.foldl (fun all constant => all.insert constant) observed.mentioned
       standing }
   | .defnInfo _ | .opaqueInfo _ =>
-    if let some label := certificate? env name info then
+    let uses := (info.value?.map (·.getUsedConstants)).getD #[]
+    let searches := owner != searchModule && uses.any fun constant =>
+      ((env.getModuleIdxFor? constant).bind fun index =>
+        env.header.moduleNames[index.toNat]?) == some searchModule
+    let observed := if searches then
+      { observed with searchers := observed.searchers.push (name, uses) } else observed
+    let some signature ← reduce env (signatureOf info.type) | return observed
+    unless verdictHead signature.head do return observed
+    if let some label := companion? env name info then
       return { observed with certified :=
         observed.certified.insert label (observed.certified.getD label 0 + 1) }
-    let (shape, _) ← (shapeOf info.type).run'.toIO
-      { fileName := "decision-inventory", fileMap := default } { env := env }
-    let some (head, shape) := shape | return observed
-    unless verdictHead head do return observed
-    let decidable := head == ``Decidable
+    let decidable := signature.head == ``Decidable
     let field := (env.getProjectionFnInfo? name).isSome
-    let generated := derivedComparison env name
     let candidate : Candidate :=
-      { name, owner, shape, structural := field || decidable, decidable := decidable && !field,
-        generated, fieldDefault := storedDefault env name info,
-        uses := (info.value?.map (·.getUsedConstants)).getD #[] }
+      { name, owner, shape := signature.shape, structural := field || decidable
+        decidable := decidable && !field
+        generated := ← reduce env (derivedComparison env name)
+        fieldDefault := ← reduce env (storedDefault env name), uses }
     return { observed with candidates := observed.candidates.push candidate }
   | _ => return observed
 
@@ -777,7 +898,7 @@ failures are reported together. -/
 def check (observed : Observed) : IO Unit := do
   let mut failures : Array String := #[]
   let mut candidates : NameMap Candidate := {}
-  let mut applied : NameSet := observed.contracts
+  let mut applied : NameSet := observed.contracts.foldl (fun all name _ => all.insert name) {}
   for candidate in observed.candidates do
     candidates := candidates.insert candidate.name candidate
     if candidate.decidable then applied := applied.insert candidate.name
@@ -803,7 +924,9 @@ def check (observed : Observed) : IO Unit := do
       let evidence : Evidence :=
         { mentioned := observed.mentioned.contains name
           applies := candidate.uses.any applied.contains
-          searching := candidate.owner == searchModule
+          searching := candidate.owner == searchModule &&
+            observed.searchers.all fun (_, uses) =>
+              !uses.contains name || uses.any applied.contains
           generated := candidate.generated
           fieldDefault := candidate.fieldDefault
           proofLibrary := (`AcornVerif).isPrefixOf candidate.owner
@@ -826,7 +949,7 @@ def check (observed : Observed) : IO Unit := do
       if classes.structural then structural := structural + 1
       if classes.contract then
         contracts := contracts + 1
-        if observed.kinded.contains candidate.name then decided := decided + 1
+        if ((observed.contracts.find? candidate.name).any (·.kind)) then decided := decided + 1
     else if !named.contains candidate.name then
       failures := failures.push (s!"{candidate.name} has no contract and no exclusion entry " ++
         s!"(its type is {repr candidate.shape})")
@@ -836,50 +959,70 @@ def check (observed : Observed) : IO Unit := do
     for failure in failures do IO.eprintln s!"decision inventory: {failure}"
     throw (IO.userError s!"{failures.size} decision inventory failures")
   let count (label : String) : Nat := counts.getD label 0
-  let unproved := count "unproved"
-  let composed := count "composed"
-  let proposal := count "proposal"
-  let derived := count "derived"
-  let defaults := count "default"
-  let model := count "model"
-  let transition := count "transition"
-  let selection := count "selection"
-  let predicate := count "predicate"
-  let judged := transition + selection + predicate
+  let reasons (labels : List String) : String :=
+    ", ".intercalate (labels.map fun label => s!"{label} {count label}")
+  let computed := (Reason.computedLabels.map count).sum
+  let judged := (Reason.judgmentLabels.map count).sum
   IO.println (s!"decisions: {observed.candidates.size} verdict-shaped definitions: " ++
     s!"{structural} structural, {contracts} with a contract ({decided} with a decision " ++
     s!"kind, {contracts - decided} with a requirement that the Regula audit does not check " ++
     "for witnesses or independence), " ++
-    s!"{valid.size - judged} excluded by a computed reason (unproved {unproved}, " ++
-    s!"composed {composed}, proposal {proposal}, derived {derived}, default {defaults}, " ++
-    s!"model {model}), " ++
+    s!"{computed} excluded by a computed reason ({reasons Reason.computedLabels}), " ++
     s!"{judged} excluded by judgment with a standing theorem " ++
-    s!"(transition {transition}, selection {selection}, predicate {predicate}); " ++
-    s!"left by certificate: {observed.certified.toList}")
+    s!"({reasons Reason.judgmentLabels}); " ++
+    s!"recursion companions outside the domain: {observed.certified.toList}")
+  -- The decision functions whose contracts carry no accepted or no refused input.
+  let stated := observed.contracts.foldl (fun all name stated => all.push (name, stated)) #[]
+  let lacking (select : Registered → Bool) : List String :=
+    ((stated.filter fun (_, stated) => !select stated).map (·.1.toString)).qsort (· < ·) |>.toList
+  let unaccepted := lacking (·.accepted)
+  let unrefused := lacking (·.refused)
+  IO.println (s!"decision witnesses: {stated.size} decision functions with a contract; " ++
+    s!"{unaccepted.length} with no accepted input in a contract: {unaccepted}; " ++
+    s!"{unrefused.length} with no refused input in a contract: {unrefused}")
 
-/-- The cases that a name or a source range would decide wrongly, as written declarations of
-`AcornTools.DecisionInventoryControls`. The audit refuses to run unless no certificate
-removes the written definition named like a matcher, the opaque constant or the field
-default that is a function, the written theorem below a constructor counts as written, the
-handwritten comparison of a declared instance is not `derived`, and the field default that
-is a function is not a stored default. -/
+/-- The cases that a name, a flag or a count of written binders would decide wrongly, as
+written declarations of `AcornTools.DecisionInventoryControls`. The audit refuses to run
+unless no companion relationship removes the written definition named like a matcher, the
+opaque constant, the unsafe definition or the two field defaults that are functions; the
+written theorem below a constructor counts as written; the handwritten comparison of a
+declared instance is not `derived`; and neither field default that is a function is a stored
+default, the one behind a reducible definition included. -/
 def controls (env : Environment) : IO Unit := do
   let root := `AcornDecisionInventory.Control
   let matcher := root ++ `T.match_37
   let below := root ++ `T.a.refused
   let comparison := root ++ `instBEqT.beq
   let sealed := root ++ `sealed
+  let gate := root ++ `gate
   let guard := Lean.mkDefaultFnOfProjFn (root ++ `Guard.accepts)
-  for name in #[matcher, comparison, sealed, guard] do
+  let veiled := Lean.mkDefaultFnOfProjFn (root ++ `Veiled.accepts)
+  for name in #[matcher, comparison, sealed, gate, guard, veiled] do
     let some info := env.find? name
       | throw (IO.userError s!"decision inventory control {name} is missing")
-    if let some label := certificate? env name info then
-      throw (IO.userError s!"decision inventory: the written control {name} left by {label}")
+    let some signature ← reduce env (signatureOf info.type)
+      | throw (IO.userError s!"decision inventory control {name} has no signature")
+    unless verdictHead signature.head do
+      throw (IO.userError s!"decision inventory: the written control {name} is not verdict-shaped")
+    if let some label := companion? env name info then
+      throw (IO.userError s!"decision inventory: the written control {name} left as {label}")
   unless env.contains below && written env below do
     throw (IO.userError "decision inventory: a written theorem below a constructor is not counted")
-  if derivedComparison env comparison then
+  if ← reduce env (derivedComparison env comparison) then
     throw (IO.userError "decision inventory: a handwritten comparison is accepted as derived")
-  if (env.find? guard).any (storedDefault env guard) then
-    throw (IO.userError "decision inventory: a field default with an argument is a stored value")
+  for default in #[guard, veiled] do
+    if ← reduce env (storedDefault env default) then
+      throw (IO.userError
+        s!"decision inventory: the field default {default} is a function and is a stored value")
+  let marker := #[root ++ `Accepts]
+  let condition (name : Name) : IO Expr := do
+    let some value := (env.find? (root ++ name)).bind (·.value?)
+      | throw (IO.userError s!"decision inventory control {root ++ name} is missing")
+    return value
+  unless witnessed marker (← condition `closedFact) do
+    throw (IO.userError "decision inventory: a closed witness at the top level is not counted")
+  for name in #[`hypothetical, `quantified, `unconditional, `foreign] do
+    if witnessed marker (← condition name) then
+      throw (IO.userError s!"decision inventory: the marker of control {name} is counted")
 
 end AcornDecisionInventory
