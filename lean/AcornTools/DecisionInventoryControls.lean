@@ -7,10 +7,12 @@ Authors: acorn contributors
 /-!
 # Controls of the decision inventory
 
-Three written declarations that a name pattern would take for compiler output. The
-ownership audit checks, through `AcornDecisionInventory.controls`, that the inventory keeps
-the first in its domain, counts the second as a written theorem and refuses the reason
-`derived` for the third. They are read by that check and by nothing else.
+Five written declarations that a name or a source range would take for compiler output.
+The ownership audit checks, through `AcornDecisionInventory.controls`, that no generator
+certificate removes the definition named like a matcher, the opaque constant or the field
+default, that the theorem below a constructor counts as written, that the handwritten
+comparison is not `derived`, and that the field default with an argument is not a stored
+value. They are read by that check and by nothing else.
 -/
 namespace AcornDecisionInventory.Control
 
@@ -32,5 +34,13 @@ def instBEqT.beq : T → T → Bool := fun _ _ => true
 
 /-- A declared instance of the handwritten comparison. -/
 instance instBEqT : BEq T := ⟨instBEqT.beq⟩
+
+/-- A written opaque constant with an executable body. -/
+opaque sealed (count : Nat) : Bool := count == 0
+
+/-- A structure whose field default is a written predicate. -/
+structure Guard where
+  /-- The predicate, with a default that the source writes. -/
+  accepts : Nat → Bool := fun count => count == 0
 
 end AcornDecisionInventory.Control

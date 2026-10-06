@@ -82,8 +82,10 @@ verdict-shaped definition of the claimed libraries `Acorn`, `AcornVerif`, `Nativ
 
 A definition in no class or in two fails verification. A new verdict-shaped definition
 therefore cannot arrive unlisted, and a contract cannot be removed without an entry in that
-table. The domain is every definition with its own recorded source range, private ones
-included; a definition that the elaborator or the compiler made has no such range.
+table. The domain is every definition or opaque constant with a verdict-shaped type, private
+ones, instances and field defaults included. A constant leaves it only by a certificate that
+the environment gives for that constant, such as the matcher data or the equation data of a
+recursion compiler; neither a name nor a recorded source range decides.
 
 The reasons are the constructors of `AcornDecisionInventory.Reason`. Five are computed: the
 audit checks the stated fact for every entry and refuses an entry whose fact is false.

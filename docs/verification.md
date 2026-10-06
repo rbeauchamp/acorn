@@ -319,16 +319,21 @@ the audit computes it, and one reason from a closed list. A definition in no
 class or in two fails verification, and so does a table entry that is not valid
 on its own. A new verdict-shaped definition therefore cannot arrive unlisted,
 and a contract cannot be removed without an entry in the table. The domain is
-every definition with its own recorded source range, private ones included; a
-definition that the elaborator or the compiler made has no such range, and no
-name pattern decides anything.
+every definition or opaque constant with a verdict-shaped type, private ones,
+instances and field defaults included. A constant leaves the domain only by a
+certificate that the environment gives for that constant: the matcher data, the
+auxiliary-recursor and no-confusion data, the kernel's partial or unsafe flag of
+a recursion companion, and the equation data of the recursion compilers. Neither
+a name nor the source range that Lean records decides: a range is metadata, a
+written field default has none and a derived comparison has one.
 
 Five reasons are computed, and the audit refuses an entry whose fact is false:
 no written theorem of the maintained libraries names the definition in its
 statement, which is the absence of a direct reference and nothing more; that,
 and its body applies a registered decision; that, and it belongs to the
 certificate search module; it is the comparison of a derived instance, inside
-the declaration of the type it compares; it belongs to the proof library. Three
+the declaration of the type it compares; it is the default value of a structure
+field with no argument of its own; it belongs to the proof library. Three
 reasons are judgments that a
 definition which theorems do mention is not a decision: its result is the
 outcome of a state transition, a selection or lookup, or a Boolean property of
