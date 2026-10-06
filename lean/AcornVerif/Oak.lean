@@ -49,7 +49,8 @@ the producing code. No other arrow takes an extra.
 
 `Oak.toAgent` composes the arrows into an agent of `AcornVerif.Kernel`, each arrow once
 per percept: perceive, pose, solve, model, plan, act. `Oak.step_congr` shows that such
-an agent reads a percept through its features, its reward and its extra arrows only.
+an agent reads a percept through what `perceive` returns for it (the next perception
+state and the features), its reward and its extra arrows only.
 
 `related_actions` is the one induction over the closed loop: two agents of the kernel
 take the same actions in every world when a relation of their memories holds at the
@@ -186,8 +187,8 @@ def Oak.toAgent (oak : Oak interface) (initial : oak.Memory) : Agent interface w
   initial := initial
   act := oak.step
 
-/-- A step of the picture reads a percept through its features, its reward and its
-extra arrows only. -/
+/-- A step of the picture reads a percept through what `perceive` returns for it (the
+next perception state and the features), its reward and its extra arrows only. -/
 theorem Oak.step_congr (oak : Oak interface) (memory : oak.Memory)
     (first second : Percept interface)
     (perceived : oak.perceive memory.perception first = oak.perceive memory.perception second)
