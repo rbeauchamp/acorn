@@ -71,8 +71,9 @@ structure Frame (interface : Interface) where
   /-- Declared subtask potentials in option-slot order. Only a profile whose subtasks
   are declared reads them. -/
   potentials : Vector Potential Acorn.FeatureConstants.skillCount
-  /-- Whether the preceding transition achieved the installed goal. It ends an
-  executing option and is no input of the coder. -/
+  /-- Whether the preceding transition achieved the installed goal. It forces an option's
+  stopping decision to end, for the executing option and for the stored off-policy
+  trajectory of every other option (departure D8), and it is no input of the coder. -/
   achieved : Bool
 
 /-- Everything a world delivers to the agent at one step. -/

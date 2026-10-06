@@ -427,12 +427,14 @@ F-E left its feature-construction end inert until U3.
   outside the interface: the world waits for the agent, and a saved image is not an
   exact image of the agent (the option models and the off-policy questions start
   afresh). One is carried by the frame: the host's achievement flag still ends an
-  executing option, as a field that the coder does not read. Two are inside the
-  agent's own modules, which import no world: the lifetime accounting records
-  reward and attempts under the grid curriculum's four task families and attempt
-  cycles (`Agent.recordEnvironment`, `Agent.recordAttempt`), as observations no
-  learner reads, and the evaluation mode `withoutReachRelation` is named for the
-  grid world's reach relation, which only the grid adapter omits from its frame
+  option, as a field that the coder does not read (`frame_congr`); it is declared
+  as departure [D8](learned-only-binding.md#d8--achievement-event--step-10). Two
+  are inside the agent's own modules, which import no world: the lifetime
+  accounting records reward and attempts under the grid curriculum's four task
+  families and attempt cycles (`Agent.recordEnvironment`, `Agent.recordAttempt`),
+  as observations no decision reads (`act_learners`), and the evaluation mode
+  `withoutReachRelation` is named for the grid world's reach relation, which only
+  the grid adapter omits from its frame
   words. No second world instantiates the interface yet, so that another world fits
   it is a design claim, not an observation.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts

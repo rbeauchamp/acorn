@@ -26,23 +26,25 @@ def key : Departure → String
   | .cumulants => "D5"
   | .explorationRate => "D6"
   | .featureTester => "D7"
+  | .achievementEvent => "D8"
 
 /-- Maintained loci include compositions; adding a quarantined module requires admission. -/
 def modules : List (Name × List Departure) :=
   [(`Acorn.Handcrafted.Signals, [.featureChannels, .cumulants]),
    (`Acorn.Handcrafted.Observation, [.featureChannels, .spatialPotentials, .cumulants]),
    (`Acorn.Handcrafted.Cumulants, [.cumulants]),
-   (`Acorn.Handcrafted.GridWorld, [.featureChannels, .spatialPotentials, .cumulants]),
+   (`Acorn.Handcrafted.GridWorld, [.featureChannels, .spatialPotentials, .cumulants,
+     .achievementEvent]),
    (`Acorn.Handcrafted.FeatureProfile, [.featureChannels, .spatialPotentials, .explorationRate,
      .featureTester]),
    (`Acorn.Handcrafted.TemporalProfile, [.spatialPotentials, .explorationRate]),
    (`Acorn.Handcrafted.PredictionControl, [.featureChannels, .cumulants, .learnerParameters]),
    (`Acorn.Handcrafted.TemporalControl, [.spatialPotentials, .explorationDuration,
-     .learnerParameters, .cumulants, .explorationRate]),
-   (`Acorn.Handcrafted.AgentAlignment, [.spatialPotentials]),
-   (`Acorn.Handcrafted.AgentEpisodes, [.spatialPotentials]),
+     .learnerParameters, .cumulants, .explorationRate, .achievementEvent]),
+   (`Acorn.Handcrafted.AgentAlignment, [.spatialPotentials, .achievementEvent]),
+   (`Acorn.Handcrafted.AgentEpisodes, [.spatialPotentials, .achievementEvent]),
    (`Acorn.Handcrafted.Agent, [.featureChannels, .spatialPotentials, .explorationDuration,
-     .learnerParameters, .cumulants, .explorationRate, .featureTester])]
+     .learnerParameters, .cumulants, .explorationRate, .featureTester, .achievementEvent])]
 
 /-- Every quarantine data type is a declared producer, immutable profile or
 composite state/proof relation. Newly elaborated inductive types fail closed. -/
@@ -62,7 +64,8 @@ private def require (legal : Bool) (message : String) : IO Unit :=
 inventory. Documents must name every module in every declared departure it uses. -/
 def check (env : Environment) : IO Unit := do
   let departures : List Departure := [.featureChannels, .spatialPotentials,
-    .explorationDuration, .learnerParameters, .cumulants, .explorationRate, .featureTester]
+    .explorationDuration, .learnerParameters, .cumulants, .explorationRate, .featureTester,
+    .achievementEvent]
   let some (.inductInfo declaration) := env.find? `Acorn.Departure
     | throw (IO.userError "departure type is not a compiled inductive")
   require (declaration.ctors.length == departures.length &&

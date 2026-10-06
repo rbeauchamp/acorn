@@ -39,6 +39,9 @@ import AcornVerif.Kernel
 import AcornVerif.WorldClass
 import AcornVerif.Coverage
 import AcornVerif.CurrentGridWorld
+import AcornVerif.Oak
+import AcornVerif.CurrentOak
+import AcornVerif.CurrentAccounting
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentAgent
