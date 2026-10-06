@@ -669,6 +669,80 @@ def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
           (checkpointAction next.agent checkpoint boundary resources)
         return .inl ⟨next, nextDecision, total, outcomes, attempts, savedResources, checkpoint⟩
 
+/-- **A campaign boundary that continues ran one attempt of the pure fold.** For every
+curriculum, plan, callback record, observer, stop reader, progress record and world
+token: when the boundary returns the next progress, the progress it took held a cursor,
+and the pure fold of the callbacks, from the run state that progress held and for the
+goal of that cursor at the plan's step cap, returns the run state of the next progress.
+So every run state that the campaign loop carries from one boundary to the next is made
+from the one before by the given callbacks through `Attempt.complete`, and by nothing
+else. The statement is about one boundary; the loop that repeats it is a library
+iteration and is outside it. -/
+theorem campaignStep_attempt {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
+    {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks order α β)
+    (observer : StreamObserver β) (readStop : BaseIO Bool)
+    (progress next : CampaignProgress config α plan) (world after : Void IO.RealWorld)
+    (returned : campaignStep curriculum callbacks observer readStop progress world =
+      .ok (.inl next) after) :
+    ∃ (cursor : CampaignCursor plan) (bound : cursor.goal.val < curriculum.size)
+        (outcome : GoalOutcome) (frame : StepFrame β),
+      progress.decision = .continue cursor ∧
+        (Attempt.start progress.run (curriculum[cursor.goal.val]'bound).1 plan.stepCap).complete
+            callbacks (cursor.context (curriculum[cursor.goal.val]'bound).2) plan.stepCap.toNat =
+          .ok (next.run, outcome, frame) := by
+  obtain ⟨run, decision, totalSteps, outcomes, attempts, resources, checkpoint⟩ := progress
+  unfold campaignStep at returned
+  cases decision with
+  | complete =>
+    have same := returned_pure _ _ _ _ returned
+    cases same
+  | stopped =>
+    have same := returned_pure _ _ _ _ returned
+    cases same
+  | «continue» cursor =>
+    have bound : cursor.goal.val < curriculum.size := by
+      have := cursor.goal.isLt
+      have := plan.goals.isLt
+      omega
+    dsimp only at returned
+    obtain ⟨attempted, w1, ran, returned⟩ := returned_bind _ _ _ _ _ returned
+    have agrees := runAttempt_complete callbacks observer _ _ _ _ _ _ ran
+    cases attempted with
+    | error refusal =>
+      have same := returned_pure _ _ _ _ returned
+      cases same
+    | ok result =>
+      obtain ⟨following, outcome, observed⟩ := result
+      dsimp only at returned
+      cases added : addOutcomeSteps totalSteps outcome with
+      | error failure =>
+        rw [added] at returned
+        have same := returned_pure _ _ _ _ returned
+        cases same
+      | ok total =>
+        rw [added] at returned
+        dsimp only at returned
+        obtain ⟨noted, w2, _, returned⟩ := returned_bind _ _ _ _ _ returned
+        obtain ⟨stopping, w3, _, returned⟩ := returned_bind _ _ _ _ _ returned
+        obtain ⟨saved, w4, _, returned⟩ := returned_bind _ _ _ _ _ returned
+        obtain ⟨savedResources, nextDecision⟩ := saved
+        have same := returned_pure _ _ _ _ returned
+        cases same
+        refine ⟨cursor, bound, outcome, ?_⟩
+        dsimp only
+        revert agrees
+        cases Attempt.complete callbacks (cursor.context (curriculum[cursor.goal.val]'bound).2)
+            plan.stepCap.toNat
+            (Attempt.start run (curriculum[cursor.goal.val]'bound).1 plan.stepCap) with
+        | error refused =>
+          intro agrees
+          exact agrees.elim
+        | ok result =>
+          intro agrees
+          obtain ⟨kept, seen, frame⟩ := result
+          obtain ⟨rfl, rfl⟩ := agrees
+          exact ⟨frame, rfl, rfl⟩
+
 /-- Complete native campaign loop after domain and startup admission. The loop carries
 either the progress between attempts or the campaign's result, and each pass hands the
 progress to `campaignStep`: no return follows that call, so the loop keeps no second

@@ -105,9 +105,8 @@ def runNativeCampaign (options : Cli.Streaming) (build : TelemetryBuild)
       | some path => do
         let store ← Checkpoint.Store.new syncProgram
         pure (some (store.hooks construction path options.checkpointEvery))
-    let result ← runCampaign options.common.world options.common.world.raw.seed (nativeSelection options)
-      options.campaign (fun _ => IO.lazyPure fun _ => construction.initial)
-      construction.callbacks observer checkpoint stop.requested
+    let result ← construction.runCampaign options.common.world options.common.world.raw.seed
+      (nativeSelection options) options.campaign observer checkpoint stop.requested
     match result with
     | .error error => return .error error
     | .ok result =>

@@ -3739,10 +3739,34 @@ info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classica
 #print axioms Acorn.Checkpoint.admitHeader_order
 
 /--
-info: 'Acorn.Handcrafted.AgentConstruction.admitImage_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Acorn.Checkpoint.loadCandidate_header' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Acorn.Handcrafted.AgentConstruction.admitImage_iff
+#print axioms Acorn.Checkpoint.loadCandidate_header
+
+/--
+info: 'Acorn.Checkpoint.load_candidate' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.load_candidate
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.saved_header' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.saved_header
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.saved_admitted_order' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.saved_admitted_order
+
+/--
+info: 'Acorn.Host.campaignStep_attempt' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.campaignStep_attempt
 
 /--
 info: 'Acorn.Handcrafted.AgentConstruction.callbacks_act' depends on axioms: [propext, Classical.choice, Quot.sound]

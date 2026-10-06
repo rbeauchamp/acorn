@@ -67,11 +67,13 @@ def primaryImage {config : Features.Config} {criterion : Criterion} {dimension :
   ⟨ensemble.control.learners.map knowledge, ensemble.metaController.learners.map knowledge,
     ensemble.skills.map (fun skill => skill.policy.learners.map knowledge), demonImages ensemble.demons⟩
 
-/-- The complete checkpoint projection already carries valid history and numeric state. -/
+/-- The complete checkpoint projection already carries valid history and numeric state.
+The result is an image of the construction of the state it reads: this is the one maker
+of an image from a state. -/
 def snapshotImage (construction : AgentConstruction) (state : construction.State) :
-    AgentImage Grid.interface construction.config construction.criterion construction.dimension :=
+    construction.Image :=
   let runtime := state.agent.control.runtime
-  ⟨⟨runtime.lifecycle.representation.progress,
+  ⟨⟨⟨runtime.lifecycle.representation.progress,
       runtime.lifecycle.consumers.skills.map
         (fun skill : Skill Grid.actions construction.config construction.criterion
           construction.dimension demonLayout =>
@@ -80,7 +82,7 @@ def snapshotImage (construction : AgentConstruction) (state : construction.State
     state.agent.control.average.rate, state.agent.control.lifetime.durable, by
       intro slot
       have valid := state.agent.episodes.1 slot
-      exact ⟨valid.1, valid.2.1, by simp⟩⟩
+      exact ⟨valid.1, valid.2.1, by simp⟩⟩⟩
 
 /-- Every legal tester state fits the format-level unit count. -/
 def testerWords {config : Features.Config} (progress : Progress config) : TesterWords :=
@@ -88,18 +90,19 @@ def testerWords {config : Features.Config} (progress : Progress config) : Tester
     ⟨progress.words.units, by
       simpa [Progress.words] using config.units.bounded⟩⟩
 
-/-- A typed image has one exact format-18 word projection under its receiver. The order
-word is the word of the receiver's order; `snapshot` applies it to the image of a state
-of that same construction. -/
-def imagePayload (construction : AgentConstruction)
-    (image : AgentImage Grid.interface construction.config construction.criterion construction.dimension) :
+/-- An image of a construction has one exact format-18 word projection. The order word
+is the word of the order of the image's own construction: the writer takes no image of
+another construction and no order word. -/
+def imagePayload (construction : AgentConstruction) (image : construction.Image) :
     Payload construction.dimension :=
   ⟨⟨formatVersion, construction.dimension.capacity.toUInt32, primaryCount.toUInt32,
-      construction.config.seed, image.features.progress.clock, construction.criterion.tag.toUInt32,
-      image.gain.value, construction.config.tilings, construction.config.units.count.toUInt32,
+      construction.config.seed, image.image.features.progress.clock,
+      construction.criterion.tag.toUInt32, image.image.gain.value, construction.config.tilings,
+      construction.config.units.count.toUInt32,
       if construction.profile.checkpointSupported then 1 else 0, construction.order.tag⟩,
-    image.features.assignments.map (Assignment.words construction.dimension), image.features.primary,
-    lifetimeWords image.lifetime, testerWords image.features.progress⟩
+    image.image.features.assignments.map (Assignment.words construction.dimension),
+    image.image.features.primary, lifetimeWords image.image.lifetime,
+    testerWords image.image.features.progress⟩
 
 /-- Snapshotting reads only the durable projection; it does not act or advance the stream. -/
 def snapshot (construction : AgentConstruction) (state : construction.State) : Payload construction.dimension :=

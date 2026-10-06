@@ -92,9 +92,11 @@ def AgentConstruction.standard (seed : UInt64) (selection : Host.AgentSelection)
 /-- The agent of one construction. Every step of its history, from cold initialization
 or from an image admitted for the same construction, was taken under the construction's
 step order. The learner state it holds carries no order; that history is the claim of
-this type. The constructor is private to this module, so the operations below are the
-only ways to make a state, and each of them keeps the construction: a state of one
-construction is not a state of a construction of another order. -/
+this type, and it is a claim about this project's code. The operations below are the
+makers of a state, and each of them keeps the construction. The constructor is private,
+which stops the constructor notation outside this module and does not stop a tactic. The
+ownership audit reads the compiled declarations and refuses a definition outside this
+module that applies the constructor. -/
 structure AgentConstruction.State (construction : AgentConstruction) where
   private mk ::
   /-- The learner state, with all immutable construction choices in its type. -/
@@ -109,41 +111,17 @@ def AgentConstruction.initial (construction : AgentConstruction) : construction.
 theorem AgentConstruction.initial_agent (construction : AgentConstruction) :
     construction.initial.agent = Agent.initial _ _ _ _ _ _ := rfl
 
-/-- An image admitted for one construction: the step order word of its saved bytes is the
-word of the construction's order. `AgentConstruction.admitImage` is its one producer. -/
+/-- A durable image of one construction. It has two makers: the snapshot of a state of
+the construction (`Acorn.Checkpoint.snapshotImage`), and the admission of a decoded
+payload whose header holds the word of the construction's order
+(`Acorn.Checkpoint.admitPayload`). The durable image it holds carries no order, so the
+construction is a claim about this project's code: the ownership audit refuses a
+definition outside this module and the modules of the two makers that applies the
+constructor. -/
 structure AgentConstruction.Image (construction : AgentConstruction) where
-  private mk ::
-  /-- The admitted durable image. -/
+  /-- The durable image. -/
   image : AgentImage Grid.interface construction.config construction.criterion
     construction.dimension
-
-/-- Admit a decoded image under the step order word that was read from its bytes. A
-word that is not the word of the receiving order is refused here, where the typed image
-is made, and not only where the header is read. -/
-def AgentConstruction.admitImage (construction : AgentConstruction) (word : UInt32)
-    (image : AgentImage Grid.interface construction.config construction.criterion
-      construction.dimension) : Option construction.Image :=
-  if word = construction.order.tag then some ⟨image⟩ else none
-
-/-- **A typed image exists exactly for the receiver's order word.** For every
-construction, word and decoded image, admission returns an image exactly when the word
-is the word of the construction's order, and the admitted image is the decoded one. -/
-theorem AgentConstruction.admitImage_iff (construction : AgentConstruction) (word : UInt32)
-    (image : AgentImage Grid.interface construction.config construction.criterion
-      construction.dimension) (admitted : construction.Image) :
-    construction.admitImage word image = some admitted ↔
-      word = construction.order.tag ∧ admitted.image = image := by
-  unfold AgentConstruction.admitImage
-  constructor
-  · intro made
-    split at made
-    · rename_i same
-      cases made
-      exact ⟨same, rfl⟩
-    · cases made
-  · rintro ⟨same, rfl⟩
-    cases admitted
-    simp [same]
 
 /-- Restoration takes an image of the receiver's own construction. The learner state is
 replaced by the agent's own restore; a profile that cannot restore is refused. -/
@@ -164,7 +142,7 @@ def AgentConstruction.State.censorObservations {construction : AgentConstruction
   ⟨state.agent.censorObservations⟩
 
 /-- What the agent of one construction holds between the two parts of a step. The first
-part of `AgentConstruction.callbacks` is its one producer. -/
+part of `AgentConstruction.callbacks` is its one maker. -/
 structure AgentConstruction.Chosen (construction : AgentConstruction) where
   private mk ::
   /-- The chosen value of the agent, made under the construction's order. -/
@@ -174,7 +152,9 @@ structure AgentConstruction.Chosen (construction : AgentConstruction) where
 /-- The host callbacks of one construction: the two parts of the construction's own step
 order, over the construction's own state type, with that order as the index a host loop
 reads. The step, the loop, the state that a checkpoint stamps and the image it admits
-all come from the one construction. -/
+all come from the one construction. A campaign does not take this record from a caller:
+`AgentConstruction.runCampaign` derives it. The ownership audit names the modules that
+reference this definition and the modules that apply the constructor of the record. -/
 def AgentConstruction.callbacks (construction : AgentConstruction) :
     Host.AgentCallbacks construction.order construction.State
       (AgentObservation construction.config construction.dimension) :=
@@ -203,6 +183,20 @@ theorem AgentConstruction.callbacks_act (construction : AgentConstruction)
     ((construction.callbacks.act state observation result).1,
         (construction.callbacks.act state observation result).2.agent) =
       (Agent.callbacks construction.order).act state.agent observation result := rfl
+
+/-- The campaign of one construction. A caller gives the construction and no agent
+function: the constructor of the agent is the construction's cold initialization, the two
+parts of each step are the construction's callbacks, and the index of those callbacks
+selects the loop, so the position of the world's transition is that of the construction's
+order. The checkpoint hooks are over the construction's state type. -/
+def AgentConstruction.runCampaign (construction : AgentConstruction) (config : Host.WorldConfig)
+    (seed : UInt64) (selection : Host.AgentSelection) (spec : Host.CampaignSpec)
+    (observer : Host.StreamObserver
+      (AgentObservation construction.config construction.dimension))
+    (checkpoint : Option (Host.CheckpointHooks construction.State)) (readStop : BaseIO Bool) :
+    IO (Except Host.RunnerError (Host.CampaignResult config construction.State)) :=
+  Host.runCampaign config seed selection spec (fun _ => IO.lazyPure fun _ => construction.initial)
+    construction.callbacks observer checkpoint readStop
 
 /-- A construction of the default step order. The finite-prefix transition folds
 `Agent.act`, which is the step of that order, so the prefix operations take this type

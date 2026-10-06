@@ -158,10 +158,10 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
     some ⟨reward, family, history, demons, errorHistory, raw.options, goals, cycles⟩
   else none
 
-/-- Complete-candidate construction: no failed admission can install a field. The
-result is an image of the receiving construction: its typed admission compares the order
-word of the payload with the word of the construction's order a second time, at the
-point where the typed image is made. -/
+/-- Complete-candidate construction: no failed admission can install a field. This is
+the one maker of an image of a construction from bytes. The order word it compares with
+the receiving construction is the word of the payload's own header (`admitHeader`); it
+takes no order word beside the payload. -/
 @[noinline] def admitPayload (construction : AgentConstruction) (payload : Payload construction.dimension) :
     Except Error construction.Image := do
   let gain ← admitHeader construction payload.header
@@ -172,10 +172,7 @@ point where the typed image is made. -/
   let some features := FeatureImage.admit construction.config construction.criterion construction.dimension raw
     | throw .corrupt
   let some lifetime := admitLifetime payload.lifetime | throw .corrupt
-  if valid : OptionsValid lifetime.options none then
-    let some image := construction.admitImage payload.header.order ⟨features, gain, lifetime, valid⟩
-      | throw (.order payload.header.order construction.order.tag)
-    return image
+  if valid : OptionsValid lifetime.options none then return ⟨⟨features, gain, lifetime, valid⟩⟩
   else throw .corrupt
 
 /-- Decode a complete candidate under the immutable receiver context. -/
@@ -193,6 +190,59 @@ point where the typed image is made. -/
   let image ← loadCandidate construction bytes
   let some restored := receiver.restore image | throw .unsupportedPolicy
   return restored
+
+/-- **A candidate is admitted only from bytes whose own header the receiver admits.**
+For every construction, byte list and image: when the loader returns the image, the
+header that the header codec reads from those bytes is admitted for the construction
+(`HeaderAdmitted`). In particular the order word in the bytes is the word of the
+receiving construction's order. The loader takes no order word from its caller. -/
+theorem loadCandidate_header (construction : AgentConstruction) (bytes : List UInt8)
+    (image : construction.Image) (loaded : loadCandidate construction bytes = .ok image) :
+    ∃ header rest gain, headerCodec.decode (bytes.drop magic.length) = some (header, rest) ∧
+      HeaderAdmitted construction header gain := by
+  unfold loadCandidate at loaded
+  simp only [bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at loaded
+  split at loaded
+  · cases loaded
+  · cases decoded : headerCodec.decode (bytes.drop magic.length) with
+    | none =>
+      rw [decoded] at loaded
+      cases loaded
+    | some found =>
+      obtain ⟨header, rest⟩ := found
+      rw [decoded] at loaded
+      dsimp only at loaded
+      cases admitted : admitHeader construction header with
+      | error refusal =>
+        rw [admitted] at loaded
+        cases loaded
+      | ok gain =>
+        exact ⟨header, rest, gain, rfl, (admitHeader_iff construction header gain).mp admitted⟩
+
+/-- **A loaded state is the receiver restored from an admitted candidate.** For every
+construction, receiver, byte list and state: when `load` returns the state, the loader
+admitted an image of the construction from those bytes, and the state is the receiver's
+own restore of that image. -/
+theorem load_candidate (construction : AgentConstruction) (receiver restored : construction.State)
+    (bytes : List UInt8) (loaded : load construction receiver bytes = .ok restored) :
+    ∃ image, loadCandidate construction bytes = .ok image ∧
+      receiver.restore image = some restored := by
+  unfold load at loaded
+  cases candidate : loadCandidate construction bytes with
+  | error refusal =>
+    rw [candidate] at loaded
+    cases loaded
+  | ok image =>
+    rw [candidate] at loaded
+    simp only [bind, Except.bind, pure, Except.pure, throw, throwThe, MonadExceptOf.throw] at loaded
+    cases installed : receiver.restore image with
+    | none =>
+      rw [installed] at loaded
+      cases loaded
+    | some state =>
+      rw [installed] at loaded
+      cases loaded
+      exact ⟨image, rfl, installed⟩
 
 /-- An explicit return of the unchanged state on refusal, with the error preserved. -/
 def loadKeeping (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8) :
