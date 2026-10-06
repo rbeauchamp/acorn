@@ -358,16 +358,37 @@ theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun e
           (fun base => CurrentStep.passable base world.body.inventory.boat)) :=
   ⟨fun _ => CurrentStep.enterable_static⟩
 
-/-- The world's completion flag is the completion predicate of the installed goal on the
-body's position and inventory and the time since installation
-(`CurrentGoals.goalSatisfied_eq`). `task_satisfied` states what that predicate accepts. The
-world's type depends on the configuration, so the statement is an ordinary requirement. -/
+/-- The world's completion flag, for each family of installed goal, is exactly: the body in
+the goal box, the inventory holding the count, the time since installation reaching the
+duration; for a craft goal it is the ownership of the tool (`CurrentGoals.goalSatisfied_eq`
+with the four family theorems). The statement names no function that the flag applies. The
+world's type depends on the configuration, so it is an ordinary requirement. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal),
-      world.goal = some goal →
-        @satisfied config world = (goal.observe world.body.position.position
-          world.body.inventory (world.time.toNat - world.goalStart.toNat).toUInt64).satisfied) :=
-  ⟨fun _ => CurrentGoals.goalSatisfied_eq⟩
+    ∀ (config : Host.WorldConfig) (world : Host.World config),
+      (∀ target, world.goal = some (.reach target) →
+        (@satisfied config world = true ↔
+          CurrentGoals.InGoalBox target world.body.position.position)) ∧
+      (∀ item count, world.goal = some (.collect item count) →
+        (@satisfied config world = true ↔
+          count.toNat ≤ (world.body.inventory.count item).toNat)) ∧
+      (∀ required, world.goal = some (.survive required) →
+        (@satisfied config world = true ↔
+          required.toNat ≤ ((world.time.toNat - world.goalStart.toNat).toUInt64).toNat)) ∧
+      ∀ tool, world.goal = some (.craft tool) →
+        @satisfied config world = world.body.inventory.owns tool) :=
+  ⟨fun _ world =>
+    ⟨fun target installed => by
+        rw [CurrentGoals.goalSatisfied_eq world _ installed]
+        exact CurrentGoals.reach_satisfied_iff _ _ _ _,
+      fun item count installed => by
+        rw [CurrentGoals.goalSatisfied_eq world _ installed]
+        exact CurrentGoals.collect_satisfied_iff _ _ _ _ _,
+      fun required installed => by
+        rw [CurrentGoals.goalSatisfied_eq world _ installed]
+        exact CurrentGoals.survive_satisfied_iff _ _ _ _,
+      fun tool installed => by
+        rw [CurrentGoals.goalSatisfied_eq world _ installed]
+        exact CurrentGoals.craft_satisfied _ _ _ _⟩⟩
 
 /-! ## Learner admissions -/
 

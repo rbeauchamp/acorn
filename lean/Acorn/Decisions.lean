@@ -1168,20 +1168,19 @@ theorem capture_after : Regula.ExecutableContract Capture.after (fun test =>
 
 attribute [regula_decision] Capture.after
 
-/-- The retry test accepts only a retry state whose budget is not exhausted
-(`Retry.exhausted_not_ready`).
+/-- The retry test accepts only a retry state whose failure count is below the failure
+limit (`Retry.exhausted_not_ready`). The specification names the count and no function that
+the test calls.
 
 **Not claimed:** completeness. The test also refuses before the retry deadline. -/
 theorem retry_ready : Regula.ExecutableContract Retry.ready (fun test =>
     Regula.DecidesSoundly (· = true)
-      (fun input : Retry × UInt64 => input.1.exhausted = false) (Function.uncurry test)) :=
-  ⟨{ sound := fun input accepted => by
+      (fun input : Retry × UInt64 => input.1.count ≠ failureLimit) (Function.uncurry test)) :=
+  ⟨{ sound := fun input accepted spent => by
        have ready : input.1.ready input.2 = true := accepted
-       cases spent : input.1.exhausted with
-       | false => rfl
-       | true =>
-         rw [Retry.exhausted_not_ready input.1 input.2 spent] at ready
-         exact absurd ready Bool.false_ne_true
+       have exhausted : input.1.exhausted = true := by simp [Retry.exhausted, ← spent, Retry.count]
+       rw [Retry.exhausted_not_ready input.1 input.2 exhausted] at ready
+       exact absurd ready Bool.false_ne_true
      accepted := ⟨(Retry.initial, 0), by decide⟩ }⟩
 
 attribute [regula_decision] Retry.ready
@@ -1790,17 +1789,19 @@ theorem cli_value : Regula.ExecutableContract Host.Cli.value (fun value =>
   ⟨fun arguments => ⟨Host.Cli.planningSelection_absent arguments,
     fun text => Host.Cli.planningSelection_provided arguments text⟩⟩
 
-/-- A weight that enters the ranking carries the bits of its own stored word as its key
-(`candidateOfWeight_key`).
-
-**Not claimed:** which weights enter the ranking. -/
+/-- A weight enters the ranking exactly when its signed word is positive, and an entering
+weight carries the bits of its own stored word as its key (`candidateOfWeight_key`). -/
 theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun admit =>
     ∀ (dimension : Dimension) (config : Features.Config)
-      (weights : WeightArray (.discounted .g99) dimension) (unit : Fin config.units.count)
-      (candidate : Candidate config), @admit dimension config weights unit = some candidate →
-        candidate.key =
-          (weights.get (unitFeature dimension config candidate.unit)).value.bits.toNat) :=
-  ⟨candidateOfWeight_key⟩
+      (weights : WeightArray (.discounted .g99) dimension) (unit : Fin config.units.count),
+      ((@admit dimension config weights unit).isSome = true ↔
+        0 < (weights.get (unitFeature dimension config unit)).value.key) ∧
+        ∀ candidate : Candidate config, @admit dimension config weights unit = some candidate →
+          candidate.key =
+            (weights.get (unitFeature dimension config candidate.unit)).value.bits.toNat) :=
+  ⟨fun dimension config weights unit =>
+    ⟨@dite_isSome _ _ (Binary32.positiveDecidable _) _,
+      candidateOfWeight_key dimension config weights unit⟩⟩
 
 /-- Candidate selection returns no unit exactly when no unit is eligible
 (`Lifecycle.candidate_none_iff`). `Lifecycle.candidate_least` states which unit it returns. -/
