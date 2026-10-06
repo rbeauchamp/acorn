@@ -85,11 +85,12 @@ def command (arguments : List String) : Except Error Command :=
     | "endurance-stability" => .ok .enduranceStability
     | _ => if name.startsWith "--" then .ok .demo else .error (.command name)
 
-/-- The current 20-option schema; the boolean determines value consumption. -/
+/-- The current 21-option schema; the boolean determines value consumption. -/
 def demoFlags : List (String × Bool) :=
   [("--seed", true), ("--side", true), ("--steps", true), ("--attempts", true),
     ("--goals", true), ("--cycles", true), ("--view", true), ("--csv", true),
-    ("--criterion", true), ("--research-profile", true), ("--planning", true), ("--checkpoint", true),
+    ("--criterion", true), ("--research-profile", true), ("--planning", true),
+    ("--step-order", true), ("--checkpoint", true),
     ("--checkpoint-every", true), ("--baseline", false), ("--telemetry", false),
     ("--control-stdin", false), ("--run-id", true), ("--agent-epoch", true),
     ("--new-agent-epoch", true), ("--cleared", false)]
@@ -196,6 +197,35 @@ theorem planningSelection_provided (arguments : List String) (text : String)
   simp [planningSelection, provided]
   rfl
 
+/-- Explicit step-order admission delegates the single closed spelling rule to
+`StepOrder.parse`; this layer owns only its error vocabulary and performs no
+substitution. -/
+def stepOrderValue (text : String) : Except Error StepOrder :=
+  match StepOrder.parse text with
+  | some order => .ok order
+  | Option.none => .error (.invalid "--step-order" text)
+
+/-- Omission selects learn-then-act: both parts of a step precede the world's
+transition. Explicit values use the same checked admission. -/
+def stepOrder (arguments : List String) : Except Error StepOrder := do
+  match ← value arguments "--step-order" with
+  | none => return .learnThenAct
+  | some text => stepOrderValue text
+
+/-- Every omitted step order selects learn-then-act, independently of other arguments. -/
+theorem stepOrder_absent (arguments : List String)
+    (absent : value arguments "--step-order" = .ok none) :
+    stepOrder arguments = .ok .learnThenAct := by
+  simp [stepOrder, absent]
+  rfl
+
+/-- Every supplied step order reaches the closed-domain parser without substitution. -/
+theorem stepOrder_provided (arguments : List String) (text : String)
+    (provided : value arguments "--step-order" = .ok (some text)) :
+    stepOrder arguments = stepOrderValue text := by
+  simp [stepOrder, provided]
+  rfl
+
 /-- Shared world and finite/unbounded goal schedule, with no agent construction side effect. -/
 structure Common where
   /-- Explicit research profile. -/
@@ -239,6 +269,8 @@ structure Streaming where
   newAgentEpoch : UInt64
   /-- Explicit cleared origin instead of fresh origin. -/
   cleared : Bool
+  /-- Declared order of the agent's two step parts around the world's transition. -/
+  order : StepOrder
 
 /-- The separate ANSI domain has no ignored streaming-only option. -/
 inductive Demo where
@@ -271,6 +303,7 @@ def demo (arguments : List String) : Except Error Demo := do
   let epoch ← unsigned arguments "--agent-epoch" 64 0
   let criterion ← criterion arguments
   let planning ← planningSelection arguments
+  let order ← stepOrder arguments
   let view ← unsigned arguments "--view" 64 0
   if view > 0 then
     for (name, _) in demoFlags do
@@ -294,7 +327,8 @@ def demo (arguments : List String) : Except Error Demo := do
   else
     return .streaming ⟨common, attempts, criterion, checkpoint, checkpointEvery,
       arguments.contains "--baseline", arguments.contains "--telemetry", csv,
-      arguments.contains "--control-stdin", runId, epoch.toUInt64, newEpoch, arguments.contains "--cleared"⟩
+      arguments.contains "--control-stdin", runId, epoch.toUInt64, newEpoch, arguments.contains "--cleared",
+      order⟩
 
 /-- Streaming schedule is a direct projection, without a second set of defaults. -/
 def Streaming.campaign (options : Streaming) : CampaignSpec :=

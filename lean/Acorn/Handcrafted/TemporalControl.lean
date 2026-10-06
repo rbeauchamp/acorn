@@ -919,6 +919,35 @@ def TemporalControl.step (state : TemporalControl interface profile config crite
     obs.declared reward goal decision
   pure ((followed.closeSpan continuation).finish features obs reward decision, decision)
 
+/-- The part of one local transition that follows selection: off-policy learning of
+every option that is not executing, the closing of an interrupted option's meta span,
+then credit and feedback. Its inputs are the state and decision selection returned and
+the frame and reward selection read. The decision is an input; it draws no action. -/
+def TemporalControl.learn (selected : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32) (goal : Bool)
+    (decision : TemporalDecision interface.actions) :
+    TemporalControl interface profile config criterion dimension :=
+  let continuation := selected.takeoverValue features obs.declared goal decision
+  let followed := selected.followOptions (modelOperations criterion dimension) features
+    obs.declared reward goal decision
+  (followed.closeSpan continuation).finish features obs reward decision
+
+/-- One local transition is selection, then the learning part on the state and decision
+selection returned, for every state, frame and reward word. A refused selection is a
+refused transition. -/
+theorem TemporalControl.step_parts (state : TemporalControl interface profile config criterion dimension)
+    (planning : PlanningSelection)
+    (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32) (goal : Bool) :
+    state.step planning features obs reward goal =
+      (state.select planning features obs.declared reward goal).map fun selected =>
+        (selected.1.learn features obs reward goal selected.2, selected.2) := by
+  unfold TemporalControl.step
+  cases state.select planning features obs.declared reward goal with
+  | none => rfl
+  | some selected =>
+    obtain ⟨selected, decision⟩ := selected
+    rfl
+
 /-- Selection updates finish through the same prediction/credit definition and
 cannot use a different executed action for primitive credit. -/
 theorem TemporalControl.finish_credit (state : TemporalControl interface profile config criterion dimension)

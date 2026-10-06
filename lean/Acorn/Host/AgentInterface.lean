@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Handcrafted.Agent
+import Acorn.Handcrafted.StepParts
 import Acorn.Handcrafted.GridWorld
 import Acorn.Host.Runner
 import Acorn.Host.AgentDiagnostics
@@ -11,9 +11,10 @@ import Acorn.Host.AgentDiagnostics
 /-!
 # Current agent input and observation boundary
 
-The runner callbacks call the actual composed transition and lifetime owners at the
-grid world's interface instance: each grid observation and preceding raw result
-reaches the agent as one percept, and the chosen action index leaves as a host action.
+The runner callbacks call the two parts of the actual composed transition and the
+lifetime owners at the grid world's interface instance: each grid observation and
+preceding raw result reaches the agent as one percept, and the chosen action index
+leaves as a host action.
 Snapshots retain current immutable values only. Delivered telemetry and byte IO
 are separate interface owners; neither has a parameter on action selection.
 -/
@@ -103,28 +104,34 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
     | .idle => 0,
     criterion, profile⟩
 
-/-- Full-agent callbacks bind every existing host protocol operation to its actual owner. -/
+/-- Full-agent callbacks bind every existing host protocol operation to its actual
+owner. The two parts of a step are the agent's own. -/
 def Agent.callbacks : Host.AgentCallbacks (Agent Grid.interface profile config criterion dimension planning)
     (AgentObservation config dimension) where
-  act state observation result :=
-    let (next, decision) := state.act
+  Chosen := Chosen Grid.interface profile config criterion dimension planning
+  choose state observation result :=
+    let chosen := state.choose
       (Grid.percept profile.taskMode observation result.reward result.events.done)
-    (Host.Action.fromIndex decision.action.val, next)
+    (Host.Action.fromIndex chosen.decision.action.val, chosen)
+  learn := Chosen.learn
   recordEnvironment state family reward := state.recordEnvironment (familyIndex family) reward
   recordAttempt state family cycle steps achieved := state.recordAttempt (familyIndex family) cycle steps achieved
   capture := Agent.observe
   metrics := Agent.metrics
 
-/-- The host's step is the interface agent's step on the grid percept: the raw
-preceding reward and achievement event are passed unchanged, and the host action is
-the chosen index of the interface's action set. -/
+/-- The host's whole step is the interface agent's step on the grid percept: the raw
+preceding reward and achievement event are passed unchanged, the host action is the
+chosen index of the interface's action set, and the two parts the host calls compose
+to the executed `Agent.act`. -/
 theorem Agent.callbacks_act (state : Agent Grid.interface profile config criterion dimension planning)
     (observation : Host.Observation) (result : Host.RawStepResult) :
     Agent.callbacks.act state observation result =
       (Host.Action.fromIndex (state.act (Grid.percept profile.taskMode observation result.reward
           result.events.done)).2.action.val,
         (state.act (Grid.percept profile.taskMode observation result.reward
-          result.events.done)).1) := rfl
+          result.events.done)).1) := by
+  rw [Agent.act_parts]
+  rfl
 
 /-- The words the grid agent's coder reads are the complete host word stream: the
 declared channels, then the feedback of the receiver's stored predictions. -/

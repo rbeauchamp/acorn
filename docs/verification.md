@@ -170,6 +170,29 @@ theorem AcornVerif.GridCorrespondence.act_eq {profile : Acorn.Handcrafted.Featur
 construction and restoration. The reference covers the composition; the storage types
 beneath it are the executed ones at the grid's action count.
 
+The executed step is two functions: `Acorn.Handcrafted.Agent.choose` selects,
+and `Acorn.Handcrafted.Chosen.learn` completes the step from the value the first
+returned. `Acorn.Handcrafted.Agent.act_parts` states that they compose to the
+executed step, for every agent state and percept, in every world:
+
+```lean
+theorem Acorn.Handcrafted.Agent.act_parts {interface : Acorn.Features.Interface}
+  {profile : Acorn.Handcrafted.FeatureProfile} {config : Acorn.Features.Config}
+  {criterion : Acorn.Features.Criterion} {dimension : Acorn.Dimension}
+  {planning : Acorn.Features.PlanningSelection}
+  (state : Acorn.Handcrafted.Agent interface profile config criterion dimension planning)
+  (percept : Acorn.Features.Percept interface) :
+  state.act percept = ((state.choose percept).learn, (state.choose percept).decision)
+```
+
+A host releases the action after both parts or between them.
+`Acorn.Host.DecisionInput.chooseOwned_commit` states that one pass of the host
+protocol, whose world waits for each action, commits the same step either way.
+`Acorn.Handcrafted.Agent.choose_keeps` states that the first part writes neither
+the primitive controller nor a prediction demon, and
+`Acorn.Handcrafted.Chosen.learn_rng` that the second part draws nothing from the
+action generator.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine

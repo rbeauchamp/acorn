@@ -426,7 +426,10 @@ F-E left its feature-construction end inert until U3.
   to the grid world remain. Three are to its way of running. Two of those are
   outside the interface: the world waits for the agent, and a saved image is not an
   exact image of the agent (the option models and the off-policy questions start
-  afresh). One is carried by the frame: the host's achievement flag still ends an
+  afresh). The step itself is two functions, and a host can release the action
+  between them ([design](design.md#the-two-parts-of-a-step)); one pass of the host
+  protocol commits the same step either way (`DecisionInput.chooseOwned_commit`),
+  and no executing world runs on a wall clock. One is carried by the frame: the host's achievement flag still ends an
   option, as a field that the coder does not read (`frame_congr`); it is declared
   as departure [D8](learned-only-binding.md#d8--achievement-event--step-10). Two
   are inside the agent's own modules, which import no world: the lifetime

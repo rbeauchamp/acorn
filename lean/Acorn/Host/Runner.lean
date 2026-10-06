@@ -7,6 +7,7 @@ import Acorn.Host.Curriculum
 import Acorn.Host.Control
 import Acorn.Host.CheckpointDiagnostic
 import Acorn.FeatureConsumers
+import Acorn.Timing
 
 /-!
 # Native streaming runner shell
@@ -48,7 +49,8 @@ structure AgentSelection where
 
 /-- Native timing and refusal evidence attached at the actual observation boundary. -/
 structure CaptureMetrics where
-  /-- Duration of this learner call; terminal captures perform no learner call. -/
+  /-- Duration of this step's agent computation, both parts together; terminal
+  captures perform no agent computation. -/
   updateUs : UInt64
   /-- Duration of the preceding environment commit, initially zero. -/
   environmentUs : UInt64
@@ -197,13 +199,54 @@ def runAttemptSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : U
         let resources := { resources with environmentUs := elapsedMicroseconds beforeEnvironment afterEnvironment }
         runAttemptSteps callbacks observer context fuel (environment.record callbacks) resources
 
+/-- The act-then-learn loop: the first part, the world's transition on the released
+action, then the second part (PAR-19; the source is cited in `Acorn.Timing`).
+`DecisionInput.chooseOwned_commit` proves that the functions one pass composes commit
+the stage those of a pass of `runAttemptSteps` commit; the loops themselves are IO code
+under the reviewed native routes. The step frame is delivered
+after the second part; it holds the same pre-transition world and the same learned
+agent as the learn-then-act frame, and a world refusal ends the attempt before it. The
+reported agent duration is the sum of both parts, and the reported environment
+duration is the preceding transition's. -/
+def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext) :
+    Nat → Attempt config α goal cap → RunnerResources →
+      IO (Except RunnerError (RunState config α × GoalOutcome × RunnerResources))
+  | 0, attempt, resources => finishAttempt callbacks observer context attempt resources
+  | fuel + 1, attempt, resources => do
+    if attempt.finished then return ← finishAttempt callbacks observer context attempt resources
+    match attempt.sense with
+    | .error error => return .error (.world error)
+    | .ok none => finishAttempt callbacks observer context attempt resources
+    | .ok (some input) =>
+      let beforeChoice ← IO.monoNanosNow
+      let chosen ← IO.lazyPure fun _ => input.chooseOwned callbacks
+      let afterChoice ← IO.monoNanosNow
+      let committed ← IO.lazyPure fun _ => chosen.environment
+      match committed with
+      | .error error => return .error (.world error)
+      | .ok environment =>
+        let afterEnvironment ← IO.monoNanosNow
+        let learned ← IO.lazyPure fun _ => environment.learn callbacks
+        let afterLearning ← IO.monoNanosNow
+        let resources ← notifyObserver (observer.deliverStep
+          (fun _ => learned.selected.frame callbacks context)
+          (resources.capture (elapsedMicroseconds (beforeChoice + afterEnvironment)
+            (afterChoice + afterLearning)))) resources
+        let resources := { resources with
+          environmentUs := elapsedMicroseconds afterChoice afterEnvironment }
+        runReleasedSteps callbacks observer context fuel (learned.record callbacks) resources
+
 /-- Execute the admitted finite attempt through the same proved selection,
-world transition and bookkeeping, capturing only demanded step observations. -/
+world transition and bookkeeping, capturing only demanded step observations. The
+declared step order selects the loop. -/
 def runAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (observer : StreamObserver β) (context : GoalContext)
-    (initial : Attempt config α goal cap) (resources : RunnerResources) :
+    (callbacks : AgentCallbacks α β) (order : StepOrder) (observer : StreamObserver β)
+    (context : GoalContext) (initial : Attempt config α goal cap) (resources : RunnerResources) :
     IO (Except RunnerError (RunState config α × GoalOutcome × RunnerResources)) :=
-  runAttemptSteps callbacks observer context cap.toNat initial resources
+  match order with
+  | .learnThenAct => runAttemptSteps callbacks observer context cap.toNat initial resources
+  | .actThenLearn => runReleasedSteps callbacks observer context cap.toNat initial resources
 
 /-- The reason a successfully running campaign returned. -/
 inductive CampaignEnd where
@@ -351,7 +394,7 @@ run state is handed to the attempt, so nothing else refers to the agent while th
 runs and the attempt's first writes can reuse the agent's storage. That reuse is a
 property of the compiled code, not of these values. -/
 def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
-    {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks α β)
+    {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks α β) (order : StepOrder)
     (observer : StreamObserver β) (readStop : BaseIO Bool)
     (progress : CampaignProgress config α plan) :
     IO (CampaignProgress config α plan ⊕ Except RunnerError (CampaignResult config α)) := do
@@ -365,7 +408,7 @@ def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
     let (goal, tier) := curriculum[cursor.goal.val]'hg
     let context := cursor.context tier
     let started := Attempt.start run goal plan.stepCap
-    match ← runAttempt callbacks observer context started resources with
+    match ← runAttempt callbacks order observer context started resources with
     | .error error => return .inr (.error error)
     | .ok (next, outcome, observed) =>
       match addOutcomeSteps totalSteps outcome with
@@ -386,7 +429,8 @@ either the progress between attempts or the campaign's result, and each pass han
 progress to `campaignStep`: no return follows that call, so the loop keeps no second
 reference to the run state across an attempt. -/
 def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
-    (plan : CampaignPlan curriculum.size) (callbacks : AgentCallbacks α β) (observer : StreamObserver β)
+    (plan : CampaignPlan curriculum.size) (callbacks : AgentCallbacks α β) (order : StepOrder)
+    (observer : StreamObserver β)
     (initial : RunState config α) (checkpoint : Option (WritableCheckpoint × (α → System.FilePath → IO Unit)))
     (readStop : BaseIO Bool) (admission : CheckpointAdmission := .missing) :
     IO (Except RunnerError (CampaignResult config α)) := do
@@ -397,12 +441,13 @@ def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curr
   repeat
     match phase with
     | .inr result => return result
-    | .inl progress => phase ← campaignStep curriculum callbacks observer readStop progress
+    | .inl progress => phase ← campaignStep curriculum callbacks order observer readStop progress
 
 /-- Startup preserves refusal order and never constructs an agent before campaign admission.
 Unexpected loader errors retain the fresh agent and disable writes, like a refused image. -/
 def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection : AgentSelection)
     (spec : CampaignSpec) (buildAgent : AgentSelection → IO α) (callbacks : AgentCallbacks α β)
+    (order : StepOrder)
     (observer : StreamObserver β) (checkpoint : Option (CheckpointHooks α)) (readStop : BaseIO Bool) :
     IO (Except RunnerError (CampaignResult config α)) := do
   if !selection.profile.resumable && checkpoint.isSome then return .error (.campaign .nonresumableProfile)
@@ -432,7 +477,8 @@ def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection
           admission := status
         observer.onInitialized admission
         let initial : RunState config α := ⟨world, agent, {}, initialBehavior⟩
-        runAdmittedCampaign curriculum plan callbacks observer initial writable readStop admission
+        runAdmittedCampaign curriculum plan callbacks order observer initial writable readStop
+          admission
       catch error => return .error (.io error.toString)
 
 end Acorn.Host

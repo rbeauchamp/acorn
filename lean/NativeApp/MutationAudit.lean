@@ -87,7 +87,8 @@ def AuditArm.options (arm : AuditArm) : Except Cli.Error Cli.Streaming := do
     attempts := 2
     criterion := some (if arm = .differential then .differential else .discounted)
     checkpoint := none, checkpointEvery := 0, baseline := false, telemetry := false
-    csv := none, controlStdin := false, runId := 0, agentEpoch := 0, newAgentEpoch := 0, cleared := false }
+    csv := none, controlStdin := false, runId := 0, agentEpoch := 0, newAgentEpoch := 0, cleared := false
+    order := .learnThenAct }
 
 /-- The incumbent combines annealed rates with spatial subtasks. The deployed
 and differential arms retain the ordinary native construction. -/
@@ -121,7 +122,8 @@ def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
     let construction := AuditArm.annealed.construction options
     runCampaign options.common.world options.common.world.raw.seed (nativeSelection options)
       options.campaign (fun _ => IO.lazyPure fun _ => construction.initial)
-      Agent.callbacks { StreamObserver.none with onOutcome := outcome } none stop.requested
+      Agent.callbacks options.order { StreamObserver.none with onOutcome := outcome } none
+      stop.requested
 
 /-- Execute the fixed audit once; scientific capture may retain its actual receipt. -/
 def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO AuditReceipt := do

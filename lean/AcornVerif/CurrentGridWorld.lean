@@ -299,7 +299,7 @@ theorem executed_callback {profile : FeatureProfile} {features : Features.Config
           ((gridWorld config profile.taskMode).percept (some live))).1.val,
         ((executedAgent state).act state
           ((gridWorld config profile.taskMode).percept (some live))).2) := by
-  rw [percept_live profile.taskMode live observation seen]
+  rw [percept_live profile.taskMode live observation seen, Agent.callbacks_act]
   rfl
 
 /-- The uniform-random comparator from a stream, as a kernel agent: its memory is the

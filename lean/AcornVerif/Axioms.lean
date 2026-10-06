@@ -15,6 +15,7 @@ import AcornVerif.Resource.WordKernel
 import AcornVerif.ParameterBudget
 import AcornVerif.Checkpoint
 import AcornVerif.GridCorrespondence
+import AcornVerif.StepParts
 import AcornVerif.Energy
 import AcornVerif.Exploration
 import AcornVerif.MetaGradient
@@ -3676,5 +3677,51 @@ info: 'AcornVerif.CurrentOak.closeOption_reason' depends on axioms: [propext, Cl
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentOak.closeOption_reason
+
+/--
+info: 'Acorn.Handcrafted.Agent.act_parts' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.act_parts
+
+/--
+info: 'Acorn.Handcrafted.Agent.choose_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.choose_keeps
+
+/--
+info: 'Acorn.Handcrafted.Chosen.learn_rng' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Chosen.learn_rng
+
+/--
+info: 'Acorn.Host.DecisionInput.chooseOwned_commit' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.DecisionInput.chooseOwned_commit
+
+/-- info: 'AcornVerif.Kernel.memory_parts' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.memory_parts
+
+/-- info: 'AcornVerif.Kernel.Moving.loop_memory' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Moving.loop_memory
+
+/-- info: 'AcornVerif.Kernel.Moving.loop_waits' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Moving.loop_waits
+
+/-- info: 'AcornVerif.Kernel.Moving.interact_commutes' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Moving.interact_commutes
+
+/--
+info: 'AcornVerif.StepParts.executedParts_agent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.StepParts.executedParts_agent
 
 end AcornVerif

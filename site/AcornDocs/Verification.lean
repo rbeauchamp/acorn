@@ -169,6 +169,21 @@ decision as that reference:
 construction and restoration. The reference covers the composition; the storage types
 beneath it are the executed ones at the grid's action count.
 
+The executed step is two functions: {decl}`Acorn.Handcrafted.Agent.choose` selects,
+and {decl}`Acorn.Handcrafted.Chosen.learn` completes the step from the value the first
+returned. {decl}`Acorn.Handcrafted.Agent.act_parts` states that they compose to the
+executed step, for every agent state and percept, in every world:
+
+{statement Acorn.Handcrafted.Agent.act_parts}
+
+A host releases the action after both parts or between them.
+{decl}`Acorn.Host.DecisionInput.chooseOwned_commit` states that one pass of the host
+protocol, whose world waits for each action, commits the same step either way.
+{decl}`Acorn.Handcrafted.Agent.choose_keeps` states that the first part writes neither
+the primitive controller nor a prediction demon, and
+{decl}`Acorn.Handcrafted.Chosen.learn_rng` that the second part draws nothing from the
+action generator.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. {leanModule}`Acorn.Constants` owns the shared machine

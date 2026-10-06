@@ -85,9 +85,48 @@ The agent answers with one action, a number below the interface's action count
 The modules that compose the agent import no world: the boundary audit refuses a
 world-independent agent module that imports a host module. In every world one
 frame activates at most a number of features fixed by the interface and the
-feature configuration (`Agent.frame_length`). The timing of a step, the split of
-acting from learning, and an exact saved image are not part of the interface yet;
-the grid world waits for the agent.
+feature configuration (`Agent.frame_length`).
+
+### The two parts of a step
+
+A step has two parts ([definitions](../lean/Acorn/Handcrafted/StepParts.lean)).
+`Agent.choose` advances the clock, encodes the percept's frame and selects; its
+result holds the decision. `Chosen.learn` completes the step from that result:
+off-policy learning of the options that are not executing, primitive credit, the
+prediction demons, every option's questions and the tester. `Agent.act_parts`
+proves that the two compose to `Agent.act`, for every agent state and percept, in
+every world.
+
+A **step order** declares when a host releases the action to the world.
+Under `learn-then-act` both parts run first. Under `act-then-learn` the host
+releases the action after the first part, and the second part runs after the
+world's transition. Neither order reorders any computation of the agent: both run
+the same first part and then the same second part on its result, and the world's
+transition is no input of the second part. The decision is therefore the decision
+of the unsplit step in both orders (`Agent.choose_decision`). This is the
+reordering of Reactive SARSA
+([PAR-19](prior-art-review.md#par-19--reactive-step-order)), and it shortens the
+time between an observation and the action taken on it.
+
+The first part is not a pure read. It contains the assignment refresh and
+planning of a free boundary, a closing option's terminal credit, the settlement of
+a newly selected option, and the on-policy credit of the meta-controller and of
+the executing option. A cut before those writes would give the action values that
+are one step older; it is a different algorithm and is not built.
+`Agent.choose_keeps` states what the first part does not write: the primitive
+controller and the prediction demons. The reward of a percept reaches those two
+in the second part. The second part draws nothing from the action generator
+(`Chosen.learn_rng`); its tester draws from the feature generator's own stream.
+
+A world declares how its time relates to the agent's computation
+([`Timing`](../lean/Acorn/Timing.lean)): it waits for each action, or it runs on a
+wall clock with an action cycle and a latency. The value is a declaration: no
+definition reads it or checks it. The grid world's declaration is that it waits
+(`Grid.timing`). In the host protocol, whose world takes one transition for each
+action, one pass commits the same step in both orders, for every callback and
+input (`DecisionInput.chooseOwned_commit`). The native loops that call those
+functions are IO code under the reviewed native routes, not under a theorem. An
+exact saved image of the agent is not part of the interface yet.
 
 The agent adds its own prediction feedback words, one per prediction question, on
 consecutive channels from the one the interface declares. A frame cannot carry a
@@ -302,6 +341,7 @@ needs none for it: an infeasible goal is achieved by no agent.
 | Property | What is proved | Theorems |
 |---|---|---|
 | The grid instance is the executed world | The kernel world's state under a list of actions holds the world of the executed action fold, and is refused exactly when that fold is. A goal is feasible in the kernel world (`Kernel.Feasible`) exactly when the executed fold of some list of one to cap host actions ends in a world that reports the installed goal satisfied. From a host world with a goal installed, that is exactly when the goal is feasible in the sense of the certificate section (`CurrentCertificates.Feasible`), which an accepted replay certificate proves and a blocked certificate of mountains alone refutes. | `foldl_world`, `feasible_iff_replay`, `feasible_iff_certificate` |
+| The step has two parts in the closed loop | A two-part agent is a kernel agent given as a first part that selects and a second part that learns from what the first returned. The executed agent in that form is the executed kernel agent. A moving world also changes while the agent computes; it is a model that no executing world implements, and in it one interaction is defined under a declared order. From one state and memory, that definition takes the same action and keeps the same memory in both orders, and under learn-then-act the action lands on a state that has also moved during the second part; over a run the two orders can then diverge. Two statements are derived for the loop under either order and for every assignment of work to the parts. The memory before a time is the fold of the two parts over that order's own percepts before it, in order, so each percept is learned exactly once. When the world waits, the loop is the loop of the kernel, so the order changes no state, percept, memory or action. One interaction is also the same in both orders when the world's own change commutes with its transitions. | `executedParts_agent`, `memory_parts`, `Moving.interact_landing`, `Moving.landing_learn`, `Moving.interact_memory`, `Moving.loop_memory`, `Moving.loop_waits`, `Moving.interact_commutes` |
 | The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback returns that agent's action and next memory on the kernel world's percept. | `executedAgent`, `executed_callback` |
 | In one world, need is infeasibility | A clocked script is an agent whose memory is a step counter and whose action at a count is the corresponding action of a fixed sequence. It reads no percept, and its counter fits ⌈log₂ (cap + 1)⌉ bits: 12 bits at a cap of 3000. A goal is feasible from a start state exactly when the clocked script of some sequence achieves it. So, for every class of agents that admits the clocked scripts, no admitted agent achieves a goal exactly when the goal is infeasible. The experience-free agents within a memory width with room for the counter are such a class. | `feasible_iff_script`, `script_openLoop`, `script_memory_clog`, `script_fits_attempt`, `need_iff_infeasible`, `experienceFree_iff_infeasible`, `need_single_iff_infeasible` |
 | The comparator is open-loop | The uniform-random comparator's action and next stream are functions of its stream alone. Its action sequence is therefore the same in every world over the grid interface from every start state, and its action is the executed draw. | `comparator_openLoop`, `comparator_actions`, `comparator_action` |
@@ -602,11 +642,39 @@ Equal attempt caps do not imply equal executed steps or compute cost. Scientific
 execution still requires the separately authorized prospective protocol in
 [Contributing](../CONTRIBUTING.md#scientific-evidence).
 
+### Step order
+
+The core accepts `--step-order learn-then-act` (the default) or
+`--step-order act-then-learn`, independently of the research profile, criterion
+and planning selection. The streaming runner takes the world's transition after
+both [parts of a step](#the-two-parts-of-a-step) under the first and between them
+under the second. The grid world waits for the agent, and one pass commits the
+same step in both orders (`DecisionInput.chooseOwned_commit`), so the two orders
+are expected to produce the same actions, learned state, outcome rows and
+checksums. The pass is proved; the native loop around it is reviewed IO code.
+Two observations differ under `act-then-learn`: the reported agent duration is
+the sum of the two parts, measured around the world's transition, and a step's
+telemetry frame is delivered after that transition, so a step the world refuses
+delivers no frame.
+
+Startup diagnostics and the streaming campaign summary report the effective
+`step-order=learn-then-act` or `step-order=act-then-learn` after the planning
+selection, and CSV output has it in a comment line of its own after the planning
+comment. The order belongs to the current run. It does not change checkpoint
+admission, and a checkpoint does not record it: an image is written at an attempt
+boundary, where both orders hold the same agent, and an image written under one
+order loads under the other. A run with `--checkpoint` cannot also write the CSV
+comment, so its record of the order is the startup line and the campaign summary.
+The ANSI view runs
+both parts before each transition, reports `step-order=learn-then-act` and
+refuses `--step-order`.
+
 ### Viewer support
 
 The viewer's built-in launch accepts only `--research-profile ranked` and uses
-the discounted criterion with expectation planning. It does not accept the core's
-`--criterion` or `--planning` flags or the other four profiles. Use the terminal
+the discounted criterion with expectation planning and the `learn-then-act` step
+order. It does not accept the core's `--criterion`, `--planning` or `--step-order`
+flags or the other four profiles. Use the terminal
 command above to explore core configuration choices. The viewer's advanced
 `--cmd` option runs an operator-supplied command; it has different checkpoint
 ownership and disables the ordinary Clear operation.
@@ -626,6 +694,7 @@ these boundaries do not restart its learned weights.
 |---|---|
 | `--seed` | Seed for the generated world; default 42. |
 | `--planning` | `expectation` (default) or `none`; selects model-based planning updates. |
+| `--step-order` | `learn-then-act` (default) or `act-then-learn`; selects when the world receives the action of a [two-part step](#step-order). |
 | `--side` | Side length of the square world. |
 | `--steps` | Maximum environment steps per attempt. |
 | `--attempts` | Maximum attempts per goal. |
@@ -657,6 +726,7 @@ ends. A line that starts with `#` is a comment; a reader of the rows skips it.
 ```text
 index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
 # planning=<expectation or none>
+# step-order=<learn-then-act or act-then-learn>
 <one row per agent attempt>
 # baseline cycle=<cycle> index=<goal> attempt=<attempt> steps=<steps> achieved=<0 or 1> x=<x> y=<y>
 # seed=<seed> side=<side> weights=<count> total_steps=<steps> behavior=<hex> checksum=<hex> wall_ms=<ms> steps_per_sec=<rate> retire_count=<count> retire_last=<event> imprint_distinct_abs=<counts>
@@ -673,7 +743,8 @@ index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
 | demon_error, epsilon, mean_alpha | The learner's mean absolute prediction error, exploration rate and mean step size when the attempt ended. |
 | x, y | The body's position after the attempt's last step; x grows to the east and y to the south. |
 
-The comment after the header names the planning selection. The last line is a
+The two comments after the header name the planning selection and the step
+order. The last line is a
 footer of `key=value` fields for the whole run, including the action
 fingerprint (`behavior`), the agent checksum and the observed wall time.
 
@@ -765,6 +836,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-16](prior-art-review.md#par-16--floatlib-rounding-theory): FloatLib rounding theory, a proof dependency, [AcornVerif.FloatLibBridge](../lean/AcornVerif/FloatLibBridge.lean).
 - [PAR-17](prior-art-review.md#par-17--off-policy-option-learning): Off-policy option learning, [Acorn.Temporal](../lean/Acorn/Temporal.lean).
 - [PAR-18](prior-art-review.md#par-18--off-policy-questions): Off-policy questions, [Acorn.OffPolicy](../lean/Acorn/OffPolicy.lean).
+- [PAR-19](prior-art-review.md#par-19--reactive-step-order): Reactive step order, [Acorn.Timing](../lean/Acorn/Timing.lean) and [Acorn.Handcrafted.StepParts](../lean/Acorn/Handcrafted/StepParts.lean).
 
 ## Boundaries
 

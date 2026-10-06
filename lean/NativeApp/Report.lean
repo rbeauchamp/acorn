@@ -35,6 +35,11 @@ def numberText (value : Binary32) : String :=
 def planningProvenance (construction : AgentConstruction) : String :=
   s!"planning={construction.planning.name}"
 
+/-- Run provenance renders the effective step order in the spelling command admission
+accepts. -/
+def orderProvenance (order : StepOrder) : String :=
+  s!"step-order={order.name}"
+
 /-- One agent outcome: the first nine fields keep their order, and the body
 position at the end of the attempt follows them. -/
 def outcomeCsv (outcome : GoalOutcome) : String :=
@@ -109,7 +114,7 @@ protects even a not-yet-created checkpoint; exclusive creation also rejects
 existing files, symlinks and hard-link aliases without truncating them.
 Parent-directory stability and concurrent external renames remain OS assumptions. -/
 def openCsv (path : System.FilePath) (checkpoint : Option System.FilePath)
-    (construction : AgentConstruction) : IO IO.FS.Handle := do
+    (construction : AgentConstruction) (order : StepOrder) : IO IO.FS.Handle := do
   let destination ← destinationIdentity path
   if let some image := checkpoint then
     if destination == (← destinationIdentity image) then
@@ -117,6 +122,7 @@ def openCsv (path : System.FilePath) (checkpoint : Option System.FilePath)
   let handle ← IO.FS.Handle.mk destination .writeNew
   handle.putStr csvHeader
   handle.putStr s!"# {planningProvenance construction}\n"
+  handle.putStr s!"# {orderProvenance order}\n"
   return handle
 
 /-- All campaign reporting inputs are derived from the actual execution result. -/
@@ -137,7 +143,7 @@ def reportText (options : Cli.Streaming) {profile : FeatureProfile}
     toString skill.model.transition.ranked.occupied.length
   let common := options.common
   let rate := if elapsedMs == 0 then 0 else result.totalSteps.toNat * 1000 / elapsedMs
-  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance (nativeConstruction options)} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
+  let mut summary := s!"campaign seed={common.world.raw.seed} world={common.world.raw.side.val}x{common.world.raw.side.val} {planningProvenance (nativeConstruction options)} {orderProvenance options.order} weights=2^14 achieved {outcomes.achieved}/{outcomes.attempts}{if outcomes.saturated then " (counts saturated; lower bounds)" else ""} attempts over {result.totalSteps} steps in {elapsedMs}ms ({rate} steps/s)\n"
   summary := summary ++ s!"  recent attempt detail (last {outcomes.recent.values.length} retained):\n"
   for outcome in outcomes.recent.values do summary := summary ++ outcomeText outcome
   summary := summary ++ s!"  audit checksum: {checksum}\n  retire_count: {progress.replaced}\n  retire_last: {last}\n  imprint_distinct_abs: {String.intercalate " " census}\n  ranked_slots: {String.intercalate " " ranked}\n"

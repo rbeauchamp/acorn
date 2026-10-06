@@ -7,6 +7,7 @@ import Acorn.Handcrafted.Cumulants
 import Acorn.Handcrafted.PredictionControl
 import Acorn.Handcrafted.TemporalProfile
 import Acorn.Host.Terrain
+import Acorn.Timing
 
 /-!
 # The grid world as one instance of the interface
@@ -15,7 +16,8 @@ The composed agent of `Acorn.Handcrafted.Agent` imports no world. This module bi
 the grid world to its interface: the interface value, and the adapter that turns a
 host observation and the preceding result into a percept. The adapter is built from
 the executed host and channel definitions: D1's `sensorWords` and `observationPatch`,
-D5's `Cumulant.eval` and D2's `spatialPotentials`.
+D5's `Cumulant.eval` and D2's `spatialPotentials`. It also declares the grid world's
+timing discipline, `Grid.timing`.
 
 The theorems state what the instance feeds each consumer in terms of those executed
 definitions: the prediction cumulants are `evaluateCumulants cumulantOrder`, the
@@ -78,6 +80,11 @@ def wordBound : Nat := patchSide * patchSide * 3 + 2 + Acorn.FeatureConstants.ta
 ten host signals after the agent's reward question, nine actions, the word bound and
 prediction feedback channels from `0x50`. -/
 abbrev interface : Interface := ⟨patchShape, signalLayout, actions, wordBound, 0x50⟩
+
+/-- The grid world's timing discipline: the host steps the world once for each action,
+and the world waits for that action however long the agent computes. This is a
+declared value of the world; no definition reads it. -/
+def timing : Timing := .agentSynchronized
 
 /-- The agent's layout at the grid instance is the canonical eleven horizons. -/
 theorem interface_layout : interface.layout = demonLayout := rfl

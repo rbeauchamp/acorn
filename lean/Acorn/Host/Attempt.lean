@@ -14,13 +14,28 @@ No substitute learner or scripted policy is installed here. A step observes,
 calls the agent with the carried raw result, captures the pre-environment frame,
 executes the world, and records the environment result. Only current state is
 retained. Supervision has no parameter on this action-selection path.
+
+The agent's step has two parts: `choose` selects the action, and `learn` completes
+the step from the value `choose` returned with it. `AgentCallbacks.act` is both parts
+before the world's transition. `DecisionInput.chooseOwned` and
+`OwnedEnvironment.learn` put the world's transition between the parts. The world of
+this protocol takes one transition for each action and waits for it, so one pass
+releases the same action and commits the same step either way:
+`DecisionInput.chooseOwned_action` and `DecisionInput.chooseOwned_commit`. The
+callbacks carry no order; the runner that calls them selects it.
 -/
 namespace Acorn.Host
 
 /-- The full-agent owner supplies actual learning and accounting definitions. -/
 structure AgentCallbacks (α β : Type) where
-  /-- Learn from the carried result and select one legal world action. -/
-  act : α → Observation → RawStepResult → Action × α
+  /-- What the agent holds between the two parts of one step. -/
+  Chosen : Type
+  /-- First part: from the observation and the carried result, select one legal world
+  action, and return it with the value the second part completes the step from. -/
+  choose : α → Observation → RawStepResult → Action × Chosen
+  /-- Second part: complete the step from the value the first part returned. It
+  receives no other input. -/
+  learn : Chosen → α
   /-- Record the completed world transition after action selection. -/
   recordEnvironment : α → GoalFamily → Binary32 → α
   /-- Record the completed attempt after final observation. -/
@@ -29,6 +44,13 @@ structure AgentCallbacks (α β : Type) where
   capture : α → β
   /-- Terminal scalar observations. -/
   metrics : α → LearnerMetrics
+
+/-- One whole step before any world transition: the first part, then the second on the
+value the first returned. The result is the selected action and the learned agent. -/
+def AgentCallbacks.act {α β : Type} (callbacks : AgentCallbacks α β) (agent : α)
+    (observation : Observation) (carried : RawStepResult) : Action × α :=
+  let chosen := callbacks.choose agent observation carried
+  (chosen.1, callbacks.learn chosen.2)
 
 /-- One continual stream's current state survives every attempt boundary. -/
 structure RunState (config : WorldConfig) (α : Type) where
@@ -329,6 +351,62 @@ theorem SelectedStep.owned_commit {config : WorldConfig} {α β : Type} {goal : 
   unfold OwnedStep.environment PreparedStep.environment
   simp only [SelectedStep.owned, SelectedStep.capture]
   split <;> rfl
+
+/-- Selection for a host that releases the action between the two parts: run the first
+part only. The stage holds the chosen value where the stage of
+`DecisionInput.selectOwned` holds the learned agent, so the world can take its
+transition on the action before the second part runs. The old agent is consumed
+before the callback, as in `DecisionInput.selectOwned`. -/
+@[noinline] def DecisionInput.chooseOwned {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (input : DecisionInput config α goal cap) (callbacks : AgentCallbacks α β) :
+    OwnedStep config callbacks.Chosen goal cap :=
+  let ⟨⟨⟨world, agent, carried, behavior⟩, installed, steps, reward, lastAction⟩,
+    remaining, observation, sensed⟩ := input
+  let chosen := callbacks.choose agent observation carried
+  ⟨⟨⟨world, (), carried, behavior⟩, installed, steps, reward, lastAction⟩,
+    remaining, observation, sensed, chosen.1, chosen.2⟩
+
+/-- The second part, after the world's transition: complete the step from the chosen
+value. The transition, its result and the pre-action attempt are untouched. -/
+@[noinline] def OwnedEnvironment.learn {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks α β)
+    (environment : OwnedEnvironment config callbacks.Chosen goal cap) :
+    OwnedEnvironment config α goal cap :=
+  let ⟨⟨before, remaining, observation, sensed, action, chosen⟩, world, result, stepped⟩ :=
+    environment
+  ⟨⟨before, remaining, observation, sensed, action, callbacks.learn chosen⟩, world, result,
+    stepped⟩
+
+/-- **One pass commits the same step in both orders.** For every callback and input,
+taking the world's transition between the two parts and then learning gives the stage
+that both parts followed by the transition give, and the same refusal when the world
+refuses the action. The second part receives the value the first part returned on this
+pass's observation and carried result, and nothing else. The world of this protocol
+takes one transition for each action and waits for it; the equality is a statement
+about one pass in such a world. -/
+theorem DecisionInput.chooseOwned_commit {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (input : DecisionInput config α goal cap) (callbacks : AgentCallbacks α β) :
+    (input.chooseOwned callbacks).environment.map (OwnedEnvironment.learn callbacks) =
+      (input.selectOwned callbacks).environment := by
+  cases input with
+  | mk before remaining observation sensed =>
+    cases before with
+    | mk run installed steps reward lastAction =>
+      cases run
+      unfold OwnedStep.environment
+      simp only [DecisionInput.chooseOwned, DecisionInput.selectOwned, AgentCallbacks.act]
+      split <;> rfl
+
+/-- The action released between the two parts is the action of the whole step. -/
+theorem DecisionInput.chooseOwned_action {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (input : DecisionInput config α goal cap) (callbacks : AgentCallbacks α β) :
+    (input.chooseOwned callbacks).action = (input.selectOwned callbacks).action := by
+  cases input with
+  | mk before remaining observation sensed =>
+    cases before with
+    | mk run installed steps reward lastAction =>
+      cases run
+      rfl
 
 /-- Commit composes the same transition and bookkeeping owners used by native IO. -/
 def PreparedStep.commit {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
