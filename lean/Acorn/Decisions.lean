@@ -152,7 +152,8 @@ No kind says that a specification is the intended one, that every caller acts on
 or which value an accepting result carries. Exactness of the accepted value is stated by the
 theorems beside each definition.
 
-This module declares theorems and two specification predicates, and no executing definition.
+This module declares theorems and three specification predicates, and no executing
+definition.
 No executable and no other module imports it, so the registration attribute's module, which
 imports Lean's elaborator, is linked into no native entry point.
 -/
@@ -421,6 +422,18 @@ theorem ratio_admit : Regula.ExecutableContract Agreement.Ratio.admit (fun admit
 attribute [regula_decision] Agreement.Ratio.admit
 
 /-! ## Agent construction and checkpoint admission -/
+
+/-- A resumable profile, stated by its four discriminants: the profile whose state a
+checkpoint holds. -/
+def Resumable (profile : FeatureProfile) : Prop :=
+  profile.mode = .final ∧ profile.credit = .perStep ∧ profile.rate = .declared ∧
+    profile.subtasks = .learned
+
+/-- The executed resumable-profile test accepts exactly a resumable profile. -/
+private theorem resumable_iff (profile : FeatureProfile) :
+    profile.checkpointSupported = true ↔ Resumable profile :=
+  FeatureProfile.checkpoint_iff profile
+
 
 /-- Agent construction accepts exactly a nonzero tiling word, a bank of one to 65535 units
 and a capacity exponent below 32 (`AgentConstruction.admit_iff`). -/
@@ -1547,14 +1560,19 @@ theorem checkpoint_decode : Regula.ExecutableContract Checkpoint.decode (fun dec
       decode dimension (Checkpoint.encode dimension payload) = some payload) :=
   ⟨Checkpoint.roundtrip⟩
 
-/-- The checkpoint writer refuses every state of a profile that is not resumable
-(`Checkpoint.save_refuses`). `Checkpoint.save_supported` states that it writes every other
-state. -/
+/-- The checkpoint writer writes exactly the states of a resumable profile
+(`Checkpoint.save_supported`, `Checkpoint.save_refuses`). The specification names the four
+discriminants of the profile and no function that the writer calls. -/
 theorem checkpoint_save : Regula.ExecutableContract Checkpoint.saveBytes (fun save =>
     ∀ (construction : AgentConstruction) (state : construction.State),
-      construction.profile.checkpointSupported = false →
-        save construction state = .error .unsupportedPolicy) :=
-  ⟨Checkpoint.save_refuses⟩
+      (save construction state).isOk = true ↔ Resumable construction.profile) :=
+  ⟨fun construction state => by
+    rw [← resumable_iff]
+    cases supported : construction.profile.checkpointSupported with
+    | true => simp [Checkpoint.save_supported construction state supported, Except.isOk,
+        Except.toBool]
+    | false => simp [Checkpoint.save_refuses construction state supported, Except.isOk,
+        Except.toBool]⟩
 
 /-- A refused checkpoint leaves its receiver unchanged: when loading refuses a byte list,
 `Checkpoint.loadKeeping` returns the receiver it was given, with the refusal
@@ -1620,24 +1638,27 @@ theorem assignment_admit_using : Regula.ExecutableContract Assignment.admitUsing
       admit dimension config slot (Assignment.wordsUsing slot assignment) = some assignment) :=
   ⟨fun dimension _ => Assignment.wordsUsing_roundtrip dimension⟩
 
-/-- The raw controller step refuses every action index outside the action space
-(`Controller.stepRaw_refuses`).
-
-**Not claimed:** that it accepts every index inside the action space. -/
+/-- The raw controller step accepts exactly an action index inside the action space
+(`Controller.stepRaw_refuses` is the refusal direction). -/
 theorem controller_step_raw : Regula.ExecutableContract @Controller.stepRaw (fun step =>
     ∀ {config dimension actions} (controller : Controller config dimension actions)
       (features : SwiftTd.ActiveSet dimension) (raw : Nat) (reward : Binary32),
-      actions ≤ raw → step controller features raw reward = none) :=
-  ⟨Controller.stepRaw_refuses⟩
+      (step controller features raw reward).isSome = true ↔ raw < actions) :=
+  ⟨fun {_ _ actions} controller features raw reward => by
+    unfold Controller.stepRaw Action.admit
+    by_cases inside : raw < actions <;> simp [inside]⟩
 
-/-- Agent restoration refuses every image under a profile that is not resumable
-(`Agent.restore_refuses`). `Agent.restore_components` states what it installs otherwise. -/
+/-- Agent restoration accepts an image exactly under a resumable profile
+(`Agent.restore_refuses`, `Agent.restore_components`). The specification names the four
+discriminants of the profile and no function that restoration calls. -/
 theorem agent_restore : Regula.ExecutableContract @Agent.restore (fun restore =>
     ∀ {interface profile config criterion dimension planning}
       (state : Agent interface profile config criterion dimension planning)
       (image : AgentImage interface config criterion dimension),
-      profile.checkpointSupported = false → restore state image = none) :=
-  ⟨Agent.restore_refuses⟩
+      (restore state image).isSome = true ↔ Resumable profile) :=
+  ⟨fun {_ profile _ _ _ _} state image => by
+    rw [← resumable_iff]
+    cases supported : profile.checkpointSupported <;> simp [Agent.restore, supported]⟩
 
 /-- Profile admission refuses every feature image under a profile that is not resumable
 (`FeatureProfile.unsupported_refuses`).
@@ -1652,19 +1673,27 @@ theorem profile_admit : Regula.ExecutableContract @FeatureProfile.admit (fun adm
         admit profile config criterion dimension raw = none) :=
   ⟨FeatureProfile.unsupported_refuses⟩
 
-/-- The raw prediction-control step refuses every action index outside the primitive actions
-(`PredictionControl.raw_refusal`).
-
-**Not claimed:** that it accepts every primitive index. -/
+/-- The raw prediction-control step accepts exactly an action index inside the primitive
+actions (`PredictionControl.raw_refusal` is the refusal direction). -/
 theorem prediction_advance_raw :
     Regula.ExecutableContract @PredictionControl.advanceRaw (fun advance =>
       ∀ {profile criterion dimension}
         (state : PredictionControl Grid.interface profile criterion dimension)
         {config : Features.Config} (bank : Bank Host.patchShape config) (obs : Host.Observation)
         (reward : Binary32) (raw : Nat) (own : Bool),
-        Acorn.FeatureConstants.primitiveCount ≤ raw →
-          advance state bank obs reward raw own = none) :=
-  ⟨PredictionControl.raw_refusal⟩
+        (advance state bank obs reward raw own).isSome = true ↔
+          raw < Acorn.FeatureConstants.primitiveCount) :=
+  ⟨fun state _ bank obs reward raw own => by
+    show ((Action.admit Acorn.FeatureConstants.primitiveCount raw).map _).isSome = true ↔ _
+    cases admitted : Action.admit Acorn.FeatureConstants.primitiveCount raw with
+    | none =>
+      have outside := (Action.admit_none _ _).mp admitted
+      exact ⟨fun present => absurd present Bool.false_ne_true,
+        fun inside => absurd inside (Nat.not_lt.mpr outside)⟩
+    | some action =>
+      have inside : ¬Acorn.FeatureConstants.primitiveCount ≤ raw := fun outside =>
+        absurd ((Action.admit_none _ _).mpr outside) (by simp [admitted])
+      exact ⟨fun _ => Nat.lt_of_not_le inside, fun _ => rfl⟩⟩
 
 /-- The capture-follow test, for two captures with the same lifetime clock, is exactly: the
 next capture is terminal, the previous one is not, and the world clock advanced by one
@@ -1678,20 +1707,26 @@ theorem capture_follows : Regula.ExecutableContract Capture.follows (fun test =>
           next.world.toNat == previous.world.toNat + 1)) :=
   ⟨Capture.follows_equal_lifetime⟩
 
-/-- The clock-predicate evaluator accepts the agreement-order and snapshot-order programs,
-for equal leading clocks, only on the values the theorems state
-(`ClockProgram.agreementFollows_same`, `snapshotFollows_same`). The predicate's type depends
-on its arity, so the statement is an ordinary requirement.
+/-- The clock-predicate evaluator, on the agreement-order and snapshot-order programs with
+equal leading clocks, accepts only the values the theorems state
+(`ClockProgram.agreementFollows_same`, `snapshotFollows_same`), and it accepts the
+snapshot-order program whenever the same process and run are not terminal, share a cycle
+and resolved more attempts (`ClockProgram.snapshotFollows_goal`). The predicate's type
+depends on its arity, so the statement is an ordinary requirement.
 
 **Not claimed:** the verdict on other programs. -/
 theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval (fun eval =>
     (∀ values : Fin 6 → Nat, values 0 = values 3 →
       eval values ClockProgram.agreementFollows = true →
         values 5 = 0 ∧ (values 4 < values 1 ∨ (values 1 = values 4 ∧ values 2 = 1))) ∧
-      ∀ values : Fin 14 → Nat, values 0 = values 7 →
+      (∀ values : Fin 14 → Nat, values 0 = values 7 →
         eval values ClockProgram.snapshotFollows = true →
-          values 9 = 0 ∧ values 8 ≤ values 1) :=
-  ⟨⟨ClockProgram.agreementFollows_same, ClockProgram.snapshotFollows_same⟩⟩
+          values 9 = 0 ∧ values 8 ≤ values 1) ∧
+      ∀ values : Fin 14 → Nat, values 0 = values 7 → values 1 = values 8 → values 9 = 0 →
+        values 3 = values 10 → values 11 < values 4 →
+          eval values ClockProgram.snapshotFollows = true) :=
+  ⟨⟨ClockProgram.agreementFollows_same, ClockProgram.snapshotFollows_same,
+    ClockProgram.snapshotFollows_goal⟩⟩
 
 /-- A generation that does not own the identity leaves the lifecycle unchanged when its
 final checkpoint is refused (`Lifecycle.finalRefusal_stale`). The statement names
@@ -1777,24 +1812,32 @@ theorem channel_ratio : Regula.ExecutableContract @Agreement.Channel.ratio (fun 
       channel.fault = some fault → @ratio discount channel = none) :=
   ⟨fun _ => Agreement.Channel.fault_no_score⟩
 
-/-- Invalid goal accounting supplies no headline score
-(`GoalAchievement.State.invalid_no_headline`).
-
-**Not claimed:** which valid states supply a headline. -/
+/-- The headline score is present exactly for valid accounting over at least one goal
+(`GoalAchievement.State.invalid_no_headline` is one refusal direction). -/
 theorem goal_headline :
     Regula.ExecutableContract @GoalAchievement.State.headline (fun headline =>
       ∀ (goals attempts : Nat) (state : GoalAchievement.State goals attempts),
-        state.invalid = true → @headline goals attempts state = none) :=
-  ⟨fun _ _ => GoalAchievement.State.invalid_no_headline⟩
+        (@headline goals attempts state).isSome = true ↔ state.invalid = false ∧ goals ≠ 0) :=
+  ⟨fun goals attempts state => by
+    cases invalid : state.invalid <;> by_cases empty : goals = 0 <;>
+      simp [GoalAchievement.State.headline, invalid, empty]⟩
 
 /-- No control warning is published while the lifecycle is not idle
-(`controlWarning_active`).
+(`controlWarning_active`). An idle initial lifecycle publishes a warning for an abnormal exit
+and none without a cause, so neither a function that never warns nor one that always warns
+satisfies the statement.
 
-**Not claimed:** which idle states publish a warning. -/
+**Not claimed:** the exact set of idle states that publish a warning. -/
 theorem control_warning : Regula.ExecutableContract controlWarning (fun warning =>
-    ∀ (lifecycle : Host.Viewer.Lifecycle) (detail : ControlDetail),
-      (lifecycle.phaseValue != .idle) = true → warning lifecycle detail = none) :=
-  ⟨controlWarning_active⟩
+    (∀ (lifecycle : Host.Viewer.Lifecycle) (detail : ControlDetail),
+      (lifecycle.phaseValue != .idle) = true → warning lifecycle detail = none) ∧
+      (warning (Host.Viewer.Lifecycle.initial ⟨0, 0, 0⟩ .stopped)
+        { transition := .initialized, reason := "", clearDisabled := none, log := {},
+          abnormalExit := true }).isSome = true ∧
+      warning (Host.Viewer.Lifecycle.initial ⟨0, 0, 0⟩ .stopped)
+        { transition := .initialized, reason := "", clearDisabled := none, log := {} } =
+        none) :=
+  ⟨⟨controlWarning_active, by decide, by decide⟩⟩
 
 /-- An attempt is finished exactly at its step cap, or after at least one step whose carried
 result reports the goal done. -/
@@ -1861,17 +1904,18 @@ theorem buffer_offer : Regula.ExecutableContract @Buffer.offer (fun offer =>
   ⟨fun _ _ => Buffer.offer_iff⟩
 
 /-- The schema test accepts only a table whose every entry names a schema key with a fitting
-shape (`schemaCovers_sound`).
+shape (`schemaCovers_sound`), and it accepts the empty table against every schema.
 
-**Not claimed:** completeness. The test reads the table in schema order and refuses a
-fitting table that is listed in another order. -/
+**Not claimed:** completeness for a nonempty table. The test reads the table in schema order
+and refuses a fitting table that is listed in another order. -/
 theorem schema_covers : Regula.ExecutableContract @schemaCovers (fun covers =>
     ∀ (α : Type) (fits : String → α → TelemetryShape → Bool) (table : List (String × α))
       (schema : List (String × TelemetryShape)),
-      @covers α fits table schema = true →
+      (@covers α fits table schema = true →
         ∀ entry ∈ table, ∃ shape,
-          (entry.1, shape) ∈ schema ∧ fits entry.1 entry.2 shape = true) :=
-  ⟨fun _ => schemaCovers_sound⟩
+          (entry.1, shape) ∈ schema ∧ fits entry.1 entry.2 shape = true) ∧
+        @covers α fits [] schema = true) :=
+  ⟨fun _ fits table schema => ⟨schemaCovers_sound fits table schema, rfl⟩⟩
 
 /-- Replay checking returns a certificate exactly when the replay checker accepts the action
 list. The certificate's type carries that acceptance; `AcornVerif.Decisions.replay_certified`
