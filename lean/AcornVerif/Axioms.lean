@@ -3420,6 +3420,12 @@ info: 'AcornVerif.CurrentGridWorld.feasible_iff_replay' depends on axioms: [prop
 #print axioms AcornVerif.CurrentGridWorld.feasible_iff_replay
 
 /--
+info: 'AcornVerif.CurrentGridWorld.feasible_iff_certificate' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGridWorld.feasible_iff_certificate
+
+/--
 info: 'AcornVerif.CurrentGridWorld.comparator_openLoop' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in

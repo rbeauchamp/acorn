@@ -182,7 +182,7 @@ and the theorems in
 
 | Certificate | The checker accepts when | What acceptance proves | Theorems |
 |---|---|---|---|
-| Replay: an action list, for a start world, a goal and a cap | The list is nonempty and no longer than the cap, and replaying it through the executed step from the start world with the goal installed succeeds and ends in a world that satisfies the goal (`replayCertified`). | The goal is feasible from that start world within that cap (`Feasible`): some run of at least one and at most that many executed steps ends satisfying the goal, and its last step reports completion. For a reach goal the run ends with the body in the goal box; for a collect goal it ends holding the count. | `replay_feasible`, `feasible_done`, `reach_path`, `collect_path` |
+| Replay: an action list, for a start world, a goal and a cap | The list is nonempty and no longer than the cap, and replaying it through the executed step from the start world with the goal installed succeeds and ends in a world that satisfies the goal (`replayCertified`). | The goal is feasible from that start world within that cap (`CurrentCertificates.Feasible`): some run of at least one and at most that many executed steps ends satisfying the goal, and its last step reports completion. For a reach goal the run ends with the body in the goal box; for a collect goal it ends holding the count. | `replay_feasible`, `feasible_done`, `reach_path`, `collect_path` |
 | Blocked: a finite set of tiles, for a reach target and a start tile | The start tile is outside the set, every in-box tile of the goal box is in it, and each tile of the set is impassable or has all its in-box neighbors in the set (`regionBlocked`). Impassable means mountain, or mountain and water when the certificate is for a body without a boat. | From any world whose body is on the start tile, no run of steps and goal installations in any order puts the body in the goal box, so the reach goal is never satisfied. A set that counts water covers only the runs that end without a boat. A set of mountains alone makes the reach goal infeasible at every cap. Assumes each step succeeds. | `blocked_outside`, `blocked_unsatisfied`, `blocked_infeasible` |
 | Stance: a tile and a facing direction, for an item | The tile the stance faces has static terrain that yields the item, the stance tile is walkable, and the tile behind the stance is in the box and walkable (`stanceCertified`). | In every world, a paid move in the facing direction from the tile behind the stance puts the body on the stance facing the resource, and a paid harvest from the stance adds the item: three wood with an axe, one item otherwise. A wood stance needs its tree standing; stone and ore have no such condition, since no step depletes them. Assumes each step succeeds. | `stance_enter`, `stance_harvest`, `stance_approach` |
 
@@ -192,8 +192,11 @@ What these do not establish:
   below checks from the spawn of the generated world, before any step. A campaign
   begins a later goal's attempt from the world its earlier attempts left, which
   the certificate does not describe.
-- `Feasible` is a statement about runs of the executed world step. No theorem
-  here composes it with the attempt loop that an agent drives.
+- `CurrentCertificates.Feasible` is a statement about runs of the executed world
+  step. No theorem here composes it with the attempt loop that an agent drives.
+  For the grid world of the kernel, `feasible_iff_certificate` shows it
+  equivalent to `Kernel.Feasible`, the feasibility of
+  [the next section](#what-a-class-of-worlds-can-and-cannot-show).
 - A blocked certificate that counts water says nothing about a body that builds
   a boat.
 - A stance certificate does not show that the stance can be reached from the
@@ -266,14 +269,14 @@ percept into an action and its next memory, the shape of the executed decision.
 [The world-class layer](../lean/AcornVerif/WorldClass.lean) defines an attempt
 goal: a predicate on states with a step cap, met when some state at step 1 to
 the cap satisfies it. A goal is feasible from a start state when some action
-sequence meets it within the cap (`Feasible`), and an agent achieves it when the
-agent's own closed loop does. A class of worlds is a family of worlds with a
-start state each, and an agent solves a member when it achieves that member's
-goal from that member's start state. A class of agents is a predicate on agents,
-and an agent is admitted when it satisfies the predicate. A need bound of k for
-a class of agents says that every admitted agent solves at most k members of the
-class of worlds (`Need`). In one world a need of zero says that no admitted
-agent achieves the goal. [The grid
+sequence meets it within the cap (`Kernel.Feasible`), and an agent achieves it
+when the agent's own closed loop does. A class of worlds is a family of worlds
+with a start state each, and an agent solves a member when it achieves that
+member's goal from that member's start state. A class of agents is a predicate
+on agents, and an agent is admitted when it satisfies the predicate. A need
+bound of k for a class of agents says that every admitted agent solves at most k
+members of the class of worlds (`Need`). In one world a need of zero says that
+no admitted agent achieves the goal. [The grid
 instance](../lean/AcornVerif/CurrentGridWorld.lean) builds the grid world of the
 kernel from the executed step, observation and percept adapter. A step the host
 refuses leads to an absorbing refused state, where no goal is satisfied.
@@ -294,7 +297,7 @@ needs none for it: an infeasible goal is achieved by no agent.
 
 | Property | What is proved | Theorems |
 |---|---|---|
-| The grid instance is the executed world | The kernel world's state under a list of actions holds the world of the executed action fold, and is refused exactly when that fold is. A goal is feasible in the kernel world exactly when the executed fold of some list of one to cap host actions ends in a world that reports the installed goal satisfied. | `foldl_world`, `feasible_iff_replay` |
+| The grid instance is the executed world | The kernel world's state under a list of actions holds the world of the executed action fold, and is refused exactly when that fold is. A goal is feasible in the kernel world (`Kernel.Feasible`) exactly when the executed fold of some list of one to cap host actions ends in a world that reports the installed goal satisfied. From a host world with a goal installed, that is exactly when the goal is feasible in the sense of the certificate section (`CurrentCertificates.Feasible`), which an accepted replay certificate proves and a blocked certificate of mountains alone refutes. | `foldl_world`, `feasible_iff_replay`, `feasible_iff_certificate` |
 | The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback returns that agent's action and next memory on the kernel world's percept. | `executedAgent`, `executed_callback` |
 | In one world, need is infeasibility | A clocked script is an agent whose memory is a step counter and whose action at a count is the corresponding action of a fixed sequence. It reads no percept, and its counter fits ⌈log₂ (cap + 1)⌉ bits: 12 bits at a cap of 3000. A goal is feasible from a start state exactly when the clocked script of some sequence achieves it. So, for every class of agents that admits the clocked scripts, no admitted agent achieves a goal exactly when the goal is infeasible. The experience-free agents within a memory width with room for the counter are such a class. | `feasible_iff_script`, `script_openLoop`, `script_memory_clog`, `script_fits_attempt`, `need_iff_infeasible`, `experienceFree_iff_infeasible`, `need_single_iff_infeasible` |
 | The comparator is open-loop | The uniform-random comparator's action and next stream are functions of its stream alone. Its action sequence is therefore the same in every world over the grid interface from every start state, and its action is the executed draw. | `comparator_openLoop`, `comparator_actions`, `comparator_action` |

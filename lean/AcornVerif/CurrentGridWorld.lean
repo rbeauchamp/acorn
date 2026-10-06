@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Acorn.Host.AgentInterface
 import AcornVerif.Coverage
+import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCurriculum
 import AcornVerif.WorldClass
 import Mathlib.Data.Finset.Image
@@ -25,7 +26,10 @@ stops there instead.
 executed `World.advanceActions` fold, refusals included. `completion` is the installed
 goal's own completion flag as an attempt goal, and `feasible_iff_replay` shows that it
 is feasible exactly when some list of one to cap host actions, replayed by the executed
-fold, ends in a world that reports the goal satisfied.
+fold, ends in a world that reports the goal satisfied. `feasible_iff_certificate` shows
+that, from a host world with a goal installed, this kernel feasibility is
+`AcornVerif.CurrentCertificates.Feasible`: the notion an accepted replay certificate
+proves and a blocked certificate of mountains alone refutes.
 
 `executedAgent` is the executed agent's decision function as a kernel agent, and
 `executed_callback` shows that the host's callback returns that agent's action and
@@ -249,6 +253,28 @@ theorem feasible_iff_replay (mode : TaskFeatureMode) (live : Live config) (cap :
         have same : state.world = final := Option.some.inj bridge
         exact ⟨state, rfl, by rw [same]; exact done⟩
 
+/-- From a host world with a goal installed, the goal is feasible in the kernel world
+exactly when it is feasible in the sense of the certificate proofs: some run of one to
+`cap` executed steps ends in a world that satisfies it. The equivalence holds for every
+carried result. -/
+theorem feasible_iff_certificate (mode : TaskFeatureMode) (world : Host.World config)
+    (goal : Host.Goal) (carried : Host.RawStepResult) (cap : ℕ) :
+    Kernel.Feasible (completion config mode cap) (some ⟨world.setGoal goal, carried⟩) ↔
+      CurrentCertificates.Feasible world goal cap := by
+  rw [feasible_iff_replay]
+  constructor
+  · rintro ⟨actions, final, low, high, replay, done⟩
+    obtain ⟨trace, run, same⟩ := actions_trace (world.setGoal goal) final actions replay
+    have length : trace.length = actions.length := by
+      rw [← same, List.length_map]
+    exact ⟨trace, final, run, by omega, by omega, done⟩
+  · rintro ⟨trace, final, run, low, high, done⟩
+    refine ⟨trace.map (·.1), final, ?_, ?_, trace_actions run, done⟩
+    · rw [List.length_map]
+      exact low
+    · rw [List.length_map]
+      exact high
+
 /-! ## The executed agent and the comparator -/
 
 /-- The executed agent's decision function from a given agent state, as a kernel agent
@@ -419,100 +445,18 @@ theorem tile_injective : Function.Injective tile := by
       have sameY : firstY = secondY := vertical
       rw [sameX, sameY]
 
-/-- A checked translation lands exactly on the translated coordinates. -/
-theorem translate_exact (position candidate : Host.Position) (dx dy : Int)
-    (h : position.translate dx dy = some candidate) :
-    candidate.x.val = position.x.val + dx ∧ candidate.y.val = position.y.val + dy := by
-  unfold Host.Position.translate at h
-  cases horizontal : Host.Coordinate.checked (position.x.val + dx) with
-  | none => simp [horizontal] at h
-  | some x =>
-    cases vertical : Host.Coordinate.checked (position.y.val + dy) with
-    | none => simp [horizontal, vertical] at h
-    | some y =>
-      rw [horizontal, vertical] at h
-      cases Option.some.inj h
-      exact ⟨Host.Coordinate.checked_exact _ _ horizontal,
-        Host.Coordinate.checked_exact _ _ vertical⟩
-
-/-- A paid action leaves the body on its tile or moves it one tile along one axis. -/
-theorem performAction_near (world : Host.World config) (action : Host.Action)
-    (active : Host.ActionChange config) (h : Host.performAction world action = .ok active) :
-    Near (tile world.body.position.position) (tile active.body.position.position) := by
-  cases heading : action.direction with
-  | none =>
-    obtain ⟨performed, -⟩ := performAction_outcome world action active h
-    cases performed with
-    | unchanged same =>
-      rw [same]
-      exact Near.refl _
-    | moved direction candidate position picked moving admitted entered result =>
-      rw [heading] at moving
-      cases moving
-    | harvested item amount result =>
-      rw [result]
-      exact Near.refl _
-    | crafted tool inventory recipe result =>
-      rw [result]
-      exact Near.refl _
-    | ate meal result =>
-      rw [result]
-      exact Near.refl _
-  | some direction =>
-    unfold Host.performAction at h
-    simp only [heading] at h
-    cases translated :
-        world.body.position.position.translate direction.delta.fst direction.delta.snd with
-    | none => simp [translated] at h
-    | some candidate =>
-      simp only [translated] at h
-      cases admitted : Host.BoxPosition.checked config candidate.x.val candidate.y.val with
-      | none =>
-        simp only [admitted, pure, Except.pure, Except.ok.injEq] at h
-        subst h
-        exact Near.refl _
-      | some position =>
-        simp only [admitted] at h
-        cases entered : world.enterable candidate with
-        | error refusal => simp [entered, bind, Except.bind] at h
-        | ok allowed =>
-          cases allowed with
-          | false =>
-            simp only [entered, bind, Except.bind, pure, Except.pure, Bool.not_false, eq_self,
-              ↓reduceIte, Except.ok.injEq] at h
-            subst h
-            exact Near.refl _
-          | true =>
-            simp only [entered, bind, Except.bind, pure, Except.pure, Bool.not_true,
-              Bool.false_eq_true, ↓reduceIte, Except.ok.injEq] at h
-            subst h
-            obtain ⟨horizontal, vertical⟩ := translate_exact _ _ _ _ translated
-            change Near (tile world.body.position.position) (tile position.position)
-            rw [checked_position candidate position admitted]
-            change (candidate.x.val - world.body.position.position.x.val).natAbs +
-              (candidate.y.val - world.body.position.position.y.val).natAbs ≤ 1
-            cases direction <;> simp only [Host.Direction.delta] at horizontal vertical <;> omega
-
-/-- An action the body pays for or rests on leaves it on its tile or moves it one tile
-along one axis. -/
-theorem payAndAct_near (world : Host.World config) (action : Host.Action)
-    (active : Host.ActionChange config) (h : Host.payAndAct world action = .ok active) :
-    Near (tile world.body.position.position) (tile active.body.position.position) := by
-  unfold Host.payAndAct at h
-  split at h
-  · cases Except.ok.inj h
-    exact Near.refl _
-  · have near := performAction_near _ action active h
-    exact near
-
 /-- A successful world step leaves the body on its tile or moves it one tile along one
 axis. -/
 theorem step_near (world next : Host.World config) (action : Host.Action)
     (events : Host.StepResult) (h : world.step action = .ok (next, events)) :
     Near (tile world.body.position.position) (tile next.body.position.position) := by
-  obtain ⟨active, paid, body, -⟩ := step_active world next action events h
-  rw [body]
-  exact payAndAct_near world action active paid
+  rcases step_adjacent world next action events h with same | ⟨direction, -, moved, -, -⟩
+  · rw [same]
+    exact Near.refl _
+  · obtain ⟨horizontal, vertical⟩ := CurrentCertificates.translate_some _ _ _ _ moved
+    change (next.body.position.position.x.val - world.body.position.position.x.val).natAbs +
+      (next.body.position.position.y.val - world.body.position.position.y.val).natAbs ≤ 1
+    cases direction <;> simp only [Host.Direction.delta] at horizontal vertical <;> omega
 
 /-- A step of the dynamics without the goal moves the body at most one tile along one
 axis. -/
