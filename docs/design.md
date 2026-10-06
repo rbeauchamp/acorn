@@ -182,7 +182,7 @@ and the theorems in
 
 | Certificate | The checker accepts when | What acceptance proves | Theorems |
 |---|---|---|---|
-| Replay: an action list, for a start world, a goal and a cap | The list is nonempty and no longer than the cap, and replaying it through the executed step from the start world with the goal installed succeeds and ends in a world that satisfies the goal (`replayCertified`). | The goal is feasible from that start world within that cap (`Feasible`): some run of at least one and at most that many executed steps ends satisfying the goal, and its last step reports completion. For a reach goal the run ends with the body in the goal box; for a collect goal it ends holding the count. | `replay_feasible`, `feasible_done`, `reach_path`, `collect_path` |
+| Replay: an action list, for a start world, a goal and a cap | The list is nonempty and no longer than the cap, and replaying it through the executed step from the start world with the goal installed succeeds and ends in a world that satisfies the goal (`replayCertified`). | The goal is feasible from that start world within that cap (`CurrentCertificates.Feasible`): some run of at least one and at most that many executed steps ends satisfying the goal, and its last step reports completion. For a reach goal the run ends with the body in the goal box; for a collect goal it ends holding the count. | `replay_feasible`, `feasible_done`, `reach_path`, `collect_path` |
 | Blocked: a finite set of tiles, for a reach target and a start tile | The start tile is outside the set, every in-box tile of the goal box is in it, and each tile of the set is impassable or has all its in-box neighbors in the set (`regionBlocked`). Impassable means mountain, or mountain and water when the certificate is for a body without a boat. | From any world whose body is on the start tile, no run of steps and goal installations in any order puts the body in the goal box, so the reach goal is never satisfied. A set that counts water covers only the runs that end without a boat. A set of mountains alone makes the reach goal infeasible at every cap. Assumes each step succeeds. | `blocked_outside`, `blocked_unsatisfied`, `blocked_infeasible` |
 | Stance: a tile and a facing direction, for an item | The tile the stance faces has static terrain that yields the item, the stance tile is walkable, and the tile behind the stance is in the box and walkable (`stanceCertified`). | In every world, a paid move in the facing direction from the tile behind the stance puts the body on the stance facing the resource, and a paid harvest from the stance adds the item: three wood with an axe, one item otherwise. A wood stance needs its tree standing; stone and ore have no such condition, since no step depletes them. Assumes each step succeeds. | `stance_enter`, `stance_harvest`, `stance_approach` |
 
@@ -192,8 +192,11 @@ What these do not establish:
   below checks from the spawn of the generated world, before any step. A campaign
   begins a later goal's attempt from the world its earlier attempts left, which
   the certificate does not describe.
-- `Feasible` is a statement about runs of the executed world step. No theorem
-  here composes it with the attempt loop that an agent drives.
+- `CurrentCertificates.Feasible` is a statement about runs of the executed world
+  step. No theorem here composes it with the attempt loop that an agent drives.
+  For the grid world of the kernel, `feasible_iff_certificate` shows it
+  equivalent to `Kernel.Feasible`, the feasibility of
+  [the next section](#what-a-class-of-worlds-can-and-cannot-show).
 - A blocked certificate that counts water says nothing about a body that builds
   a boat.
 - A stance certificate does not show that the stance can be reached from the
@@ -252,6 +255,91 @@ estimate from a sample of seeds, never a certified fact; a certificate certifies
 its own seed. Running the tool at a seed is access to that seed's world: do not
 run it at the seeds of a registered study before that study has recorded its
 result, and record any such access in the study.
+
+### What a class of worlds can and cannot show
+
+The properties above concern one generated world. A claim that learning is
+needed is a claim about a class of worlds, and three modules state what such a
+claim can rest on. [The interaction kernel](../lean/AcornVerif/Kernel.lean)
+defines a world and an agent over the executing interface: an action is an index
+below the interface's count, a percept is the executed frame with the reward
+word of the preceding transition, a world is a deterministic state machine that
+delivers one percept at each state, and an agent turns its memory and one
+percept into an action and its next memory, the shape of the executed decision.
+[The world-class layer](../lean/AcornVerif/WorldClass.lean) defines an attempt
+goal: a predicate on states with a step cap, met when some state at step 1 to
+the cap satisfies it. A goal is feasible from a start state when some action
+sequence meets it within the cap (`Kernel.Feasible`), and an agent achieves it
+when the agent's own closed loop does. A class of worlds is a family of worlds
+with a start state each, and an agent solves a member when it achieves that
+member's goal from that member's start state. A class of agents is a predicate
+on agents, and an agent is admitted when it satisfies the predicate. A need
+bound of k for a class of agents says that every admitted agent solves at most k
+members of the class of worlds (`Need`). In one world a need of zero says that
+no admitted agent achieves the goal. [The grid
+instance](../lean/AcornVerif/CurrentGridWorld.lean) builds the grid world of the
+kernel from the executed step, observation and percept adapter. A step the host
+refuses leads to an absorbing refused state, where no goal is satisfied.
+
+Three kinds of agent are distinguished. An experience-free agent's memory
+advances without reading percepts, though its action may read the current one.
+An open-loop agent reads no percept at all. A reactive agent's action is a
+function of the latest percept alone.
+
+[Issue #69](https://github.com/rbeauchamp/acorn/issues/69) asks for need against
+frozen within-envelope agents, the uniform-random comparator included. That
+class is the experience-free agents within a memory width with room for the step
+counter (12 bits at a cap of 3000): what such an agent retains does not depend
+on what it has perceived. `experienceFree_iff_infeasible` covers it. The
+comparator is open-loop, so it is experience-free
+(`comparator_openLoop`). No width is proved for its stream, and the equivalence
+needs none for it: an infeasible goal is achieved by no agent.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| The grid instance is the executed world | The kernel world's state under a list of actions holds the world of the executed action fold, and is refused exactly when that fold is. A goal is feasible in the kernel world (`Kernel.Feasible`) exactly when the executed fold of some list of one to cap host actions ends in a world that reports the installed goal satisfied. From a host world with a goal installed, that is exactly when the goal is feasible in the sense of the certificate section (`CurrentCertificates.Feasible`), which an accepted replay certificate proves and a blocked certificate of mountains alone refutes. | `foldl_world`, `feasible_iff_replay`, `feasible_iff_certificate` |
+| The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback returns that agent's action and next memory on the kernel world's percept. | `executedAgent`, `executed_callback` |
+| In one world, need is infeasibility | A clocked script is an agent whose memory is a step counter and whose action at a count is the corresponding action of a fixed sequence. It reads no percept, and its counter fits ⌈log₂ (cap + 1)⌉ bits: 12 bits at a cap of 3000. A goal is feasible from a start state exactly when the clocked script of some sequence achieves it. So, for every class of agents that admits the clocked scripts, no admitted agent achieves a goal exactly when the goal is infeasible. The experience-free agents within a memory width with room for the counter are such a class. | `feasible_iff_script`, `script_openLoop`, `script_memory_clog`, `script_fits_attempt`, `need_iff_infeasible`, `experienceFree_iff_infeasible`, `need_single_iff_infeasible` |
+| The comparator is open-loop | The uniform-random comparator's action and next stream are functions of its stream alone. Its action sequence is therefore the same in every world over the grid interface from every start state, and its action is the executed draw. | `comparator_openLoop`, `comparator_actions`, `comparator_action` |
+| Against open-loop agents, need is coverage | An agent is blind on a class when its actions do not depend on the member until that member's goal is met; every open-loop agent is blind on every class. If each single action sequence meets the goal of at most k members, every blind agent solves at most k members, and for open-loop agents the two bounds are equivalent. | `openLoop_blind`, `need_of_covered`, `covered_iff_need` |
+| The dynamics do not read the goal | A world step without the installed goal succeeds exactly when the step with it does, and reaches the same world apart from the goal. From one world, the body follows the same walk under one action sequence whichever reach target is installed, and each step moves it at most one tile along one axis. | `step_physical`, `path_physical`, `step_near` |
+| Reach targets one action sequence can meet | A walk of n moves comes within three tiles of at most 49 + 7n lattice points. So from every host world, for every terrain, one action sequence meets the reach goal of at most 49 + 7n targets in n steps, and so does every agent that is blind on the class of targets, the comparator included. At a cap of 3000 steps that is 21049 targets. A far window of radius 120, which every side from 720 has, holds 57600 target tiles, so at least 36551 of them are outside every set of window targets one sequence meets: it meets under 36.6 percent. | `card_swept`, `reach_covered`, `reach_need`, `comparator_reach`, `far_window_unsolved`, `farRadius_large` |
+
+What these theorems do not establish:
+
+- **Need in one generated world.** In one world a goal is either infeasible or
+  achieved by a clocked script that learns nothing. Need against the comparator's
+  class can only be stated about a class of worlds, about what the agent is not
+  told. A reactive clocked script takes one action throughout
+  (`script_reactive_constant`), so a class of reactive agents admits only
+  constant scripts and the equivalence says nothing about it.
+- **A bound for agents that read the displacement.** The reach bound holds for
+  agents whose actions do not depend on the target until it is reached, and does
+  not apply to an agent whose actions read the displacement. Acorn's observation
+  gives the exact displacement to the target, and the frame carries it to the
+  agent, which makes that dependence possible. The executed agent is not shown
+  blind on the class of targets, so the theorem supplies no bound for it; that
+  its actions do depend on the target is not proved either. A fixed rule that
+  steps toward the target needs no experience. No theorem here gives a goal
+  whose solution the observation does not show.
+- **A bound over seeds.** The reach bound counts target positions for one host
+  world. The generator ties the target to the seed, so reading it as a fraction
+  of seeds assumes that the seed hash places targets independently of the walk
+  (assumed).
+- **A bound for the near window.** The near window has at most 6400 tiles, fewer
+  than 21049, so the count excludes no near target.
+- **That any reach goal is feasible.** The bound is an upper bound. It does not
+  show that a target can be reached.
+- **That the kernel loop is the host's run.** The grid instance covers one
+  attempt's steps from a state with its goal installed. Goal installation
+  between attempts and the host's accounting callbacks are outside it, no
+  theorem shows that the host's run and the kernel's closed loop take the same
+  actions, and where the host refuses to observe the kernel world delivers a
+  blank percept that no executed run delivers.
+- **Work and time.** The kernel has a memory axis and no axis for an agent's work
+  per step or for the time a decision takes.
+
+The counting argument is [the coverage proof](../lean/AcornVerif/Coverage.lean).
 
 ## Implementation scope
 
