@@ -127,15 +127,17 @@ terminal target reads the current value function) and `act` (selection). Of `per
 the coder is separated here; the prediction learners, whose outputs return as feedback
 words, and the tester are not.
 
-The tester is more than not separated: the signature has no place for what it reads. In
+The tester is more than not separated: `perceive` has no argument for what it reads. In
 `Oak.step` the next `Perception` is a function of the old perception and the percept
 only. The executed tester runs at the end of every learning decision (`Agent.retire`),
 and `Lifecycle.score` computes each unit's utility from the outgoing weights of its
 readers: the primitive controller, the meta-controller, the option policies, the option
 models and the prediction learners. That utility selects the unit to replace, so the
-next bank depends on the options, values and models. So the executed learning agent
-conforms only to an instance whose `Perception` carrier holds those learners. This is a
-second open structural choice beside the order of the step, and neither remedy is
+next bank depends on the options, values and models. In an instance whose `Perception`
+carrier holds the bank, the next bank must be a function of that carrier and the
+percept, so that carrier must also hold what the tester reads of the options, values
+and models. An instance that keeps the bank in another carrier is not excluded. This is
+a second open structural choice beside the order of the step, and neither remedy is
 selected: an arrow by which feature construction reads the use of features by the other
 boxes, or the tester's read declared as an arrow outside the picture (departure D7).
 

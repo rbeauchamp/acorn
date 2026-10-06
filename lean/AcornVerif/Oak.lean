@@ -85,9 +85,11 @@ tester reads more: `Lifecycle.score` computes each unit's utility from the outgo
 weights of its readers, which are the primitive controller, the meta-controller, the
 option policies, the option models and the prediction learners, and that utility
 selects the unit to replace. So the next bank depends on the options, values and
-models, and the executed learning agent conforms only to an instance whose `Perception`
-carrier holds those learners. Two remedies exist and neither is selected: an arrow by
-which feature construction reads the use of features by the other boxes, or the
+models. In an instance whose `Perception` carrier holds the bank, the next bank must be
+a function of that carrier and the percept, so that carrier must also hold what the
+tester reads of the options, values and models. An instance that keeps the bank in
+another carrier is not excluded. Two remedies exist and neither is selected: an arrow
+by which feature construction reads the use of features by the other boxes, or the
 tester's read declared as an arrow outside the picture (departure D7).
 -/
 

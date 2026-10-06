@@ -452,9 +452,11 @@ What these theorems do not establish:
   (`Lifecycle.score`): the primitive controller, the higher-level controller,
   the option policies, the option models and the prediction learners. That
   utility selects the unit to replace, so the next bank depends on the options,
-  values and models. So the executed learning agent conforms only to an instance
-  whose `Perception` type holds those learners. Either the signature gets an
-  arrow by which feature construction reads the use of features by the other
+  values and models. In an instance whose `Perception` type holds the bank, the
+  next bank must be a function of that type and the percept, so that type must
+  also hold what the tester reads of the options, values and models. An instance
+  that keeps the bank in another type is not excluded. Either the signature gets
+  an arrow by which feature construction reads the use of features by the other
   boxes, or the tester's read is declared as an arrow outside the picture
   (departure [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)).
   That second structural choice is open too.
