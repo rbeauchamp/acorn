@@ -37,7 +37,7 @@ a property of its accepted or refused results, or when the inputs it accepts fol
 unfolding its definition in this module. The property is the set of accepted or refused inputs
 where a theorem states one, and otherwise what an accepted or a refused result is; each
 contract's docstring says which. A contract states only what its theorem proves: a decision
-with one proved direction carries that direction alone. Five groups are registered.
+with one proved direction carries that direction alone. Six groups are registered.
 
 * Decisions of independent arguments carry a kind and the registration. A function of several
   arguments is decided on their product through `Function.uncurry`.
@@ -56,6 +56,10 @@ with one proved direction carries that direction alone. Five groups are register
   `Host.impassable` and `Host.walkableTile` that input is the generated terrain of one tile,
   and no theorem states the terrain of a tile. The proved statement is registered as a
   requirement with no kind, and the ownership audit requires it in the same way.
+* A function with a kind can carry a second statement beside it for what its kind does not
+  state: the value of an accepted result (`cli_value_found`), or the exact verdict on a part
+  of the inputs (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`). That
+  statement is a requirement with no kind, and the ownership audit requires it by name.
 
 A requirement with no kind is weaker than a kind. The Regula audit checks that its theorem is
 proved about the executing definition. It does not check a witness of either outcome, and it
@@ -926,6 +930,29 @@ theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelectio
 
 attribute [regula_decision] Host.Cli.planningSelection
 
+/-- The option reader refuses exactly when the first occurrence of the option is the last
+argument, so that no value stands after it. The specification is stated on the argument list.
+`cli_value_found` states which value an accepted result carries. -/
+theorem cli_value : Regula.ExecutableContract Host.Cli.value (fun value =>
+    Regula.Decides (·.isOk = true)
+      (fun input : List String × String => ¬FirstOption input.1 input.2 [])
+      (Function.uncurry value)) :=
+  ⟨.of_iff (fun input => value_accepts input.2 input.1) ⟨([], ""), by decide⟩
+    ⟨([""], ""), by decide⟩⟩
+
+attribute [regula_decision] Host.Cli.value
+
+/-- The option reader returns no value exactly for a list without the option, and it returns a
+value exactly when that value stands after the first occurrence of the option. A kind states
+the accepted inputs and not the value of a result, so this statement is a requirement with no
+kind beside the kind `cli_value`. -/
+theorem cli_value_found : Regula.ExecutableContract Host.Cli.value (fun value =>
+    ∀ (arguments : List String) (wanted : String),
+      (value arguments wanted = .ok none ↔ wanted ∉ arguments) ∧
+        ∀ text, value arguments wanted = .ok (some text) ↔
+          ∃ after, FirstOption arguments wanted (text :: after)) :=
+  ⟨fun arguments wanted => value_found wanted arguments⟩
+
 /-- Checkpoint-status parsing accepts exactly the five emitted status lines
 (`Host.CheckpointStatus.roundtrip`). -/
 theorem checkpoint_status_parse : Regula.ExecutableContract Host.CheckpointStatus.parse
@@ -1419,6 +1446,22 @@ theorem capture_follows_complete : Regula.ExecutableContract Capture.follows (fu
 
 attribute [regula_decision] Capture.follows
 
+/-- The capture-follow test, for two captures with the same lifetime clock, is exactly: the
+next capture is terminal, the previous one is not, and the world clock advanced by one
+(`Capture.follows_equal_lifetime`).
+
+The function is between fixed types and carries the complete kind above. This statement is a
+requirement with no kind beside it: it is the exact verdict on the pairs with equal lifetime
+clocks, and a kind states one set of accepted inputs over all pairs.
+
+**Not claimed:** its verdict when the lifetime clocks differ. -/
+theorem capture_follows : Regula.ExecutableContract Capture.follows (fun test =>
+    ∀ next previous : Capture, next.lifetime = previous.lifetime →
+      test next previous =
+        (next.terminal && !previous.terminal &&
+          next.world.toNat == previous.world.toNat + 1)) :=
+  ⟨Capture.follows_equal_lifetime⟩
+
 /-- The ownership test accepts exactly a tool whose own flag is set in the inventory. -/
 theorem inventory_owns : Regula.ExecutableContract Host.Inventory.owns (fun owns =>
     Regula.Decides (· = true)
@@ -1557,6 +1600,169 @@ theorem conversion_numbers : Regula.ExecutableContract BrowserConversion.numbers
     ⟨(.keep, .natural), by simp⟩⟩
 
 attribute [regula_decision] BrowserConversion.numbers
+
+/-- The identity test accepts exactly the generation of a live process, or the last reserved
+generation while no process is live (`Lifecycle.ownsIdentity_iff`). The specification
+`Lifecycle.OwnsIdentity` is stated on the stored phase and the generation allocator, beside
+those private fields, and it names no test. -/
+theorem owns_identity :
+    Regula.ExecutableContract Host.Viewer.Lifecycle.ownsIdentity (fun owns =>
+      Regula.Decides (· = true)
+        (fun input : Host.Viewer.Lifecycle × UInt64 => input.1.OwnsIdentity input.2)
+        (Function.uncurry owns)) :=
+  ⟨.of_iff (fun input => Host.Viewer.Lifecycle.ownsIdentity_iff input.1 input.2)
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped, 0), by decide⟩
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped, 1), by decide⟩⟩
+
+attribute [regula_decision] Host.Viewer.Lifecycle.ownsIdentity
+
+/-- Each column of the browser store fits each schema field of its own key. -/
+private theorem columns_fit : ∀ entry ∈ browserColumns, ∀ field ∈ browserSchema,
+    field.1 = entry.1 → BrowserColumn.fits entry.1 entry.2 field.2 = true := by
+  decide +kernel
+
+/-- The column test accepts every column of the browser store against the shape that the
+browser schema gives its key, and it refuses a flag column against a text shape.
+
+**Not claimed:** soundness. The test accepts columns that the store does not ship. -/
+theorem column_fits : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
+    Regula.DecidesCompletely (· = true)
+      (fun input : (String × BrowserColumn) × TelemetryShape =>
+        input.1 ∈ browserColumns ∧ (input.1.1, input.2) ∈ browserSchema)
+      (Function.uncurry (Function.uncurry fits))) :=
+  ⟨{ complete := fun input listed =>
+       columns_fit input.1 listed.1 (input.1.1, input.2) listed.2 rfl
+     refused := ⟨(("flag", ⟨"flag", .flag⟩), .text), by decide +kernel⟩ }⟩
+
+attribute [regula_decision] BrowserColumn.fits
+
+/-- A table lookup returns only an item that the table holds. -/
+private theorem lookup_listed {β : Type} : ∀ (table : List (String × β)) (key : String) (item : β),
+    table.lookup key = some item → ∃ name, (name, item) ∈ table
+  | [], _, _, found => by simp at found
+  | (name, value) :: rest, key, item, found => by
+    rw [List.lookup_cons] at found
+    split at found
+    · cases found
+      exact ⟨name, List.mem_cons_self⟩
+    · obtain ⟨other, member⟩ := lookup_listed rest key item found
+      exact ⟨other, List.mem_cons_of_mem _ member⟩
+
+/-- The representation of a field is a binary32 array exactly for a binary32 array shape: no
+override is defined for such a shape, and only such a shape has that default. -/
+private theorem conversion_float32 (key : String) (shape : TelemetryShape) :
+    browserConversion key shape = .float32 ↔ ∃ count, shape = .array count .binary32 := by
+  have default : shape.defaultConversion = .float32 ↔ ∃ count, shape = .array count .binary32 := by
+    cases shape with
+    | array count element => cases element <;> simp [TelemetryShape.defaultConversion]
+    | _ => simp [TelemetryShape.defaultConversion]
+  unfold browserConversion
+  cases found : browserOverrides.lookup key with
+  | none => exact default
+  | some conversion =>
+    obtain ⟨name, member⟩ := lookup_listed browserOverrides key conversion found
+    have listed : conversion = .unmeasured ∨ conversion = .absentIndex ∨
+        conversion = .absentIndices := by
+      simp only [browserOverrides, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false]
+        at member
+      rcases member with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp
+    show (if conversion.fits shape then conversion else shape.defaultConversion) = .float32 ↔ _
+    split
+    · rename_i fits
+      constructor
+      · intro same
+        rcases listed with rfl | rfl | rfl <;> cases same
+      · rintro ⟨count, rfl⟩
+        rcases listed with rfl | rfl | rfl <;> simp [BrowserConversion.fits] at fits
+    · exact default
+
+/-- The property test accepts exactly a plain property of any field and a doubled property of
+a field with a binary32 array shape (`browserAgreementView_live` and
+`browserGoalProgressView_live` state that it accepts the shipped views). The specification is
+stated on the reading and the shape, and it names no conversion. -/
+theorem property_fits : Regula.ExecutableContract BrowserProperty.fits (fun fits =>
+    Regula.Decides (· = true)
+      (fun input : (String × BrowserProperty) × TelemetryShape =>
+        input.1.2.reading = .value ∨ ∃ count, input.2 = .array count .binary32)
+      (Function.uncurry (Function.uncurry fits))) :=
+  ⟨decides
+    (fun ⟨⟨key, property⟩, shape⟩ => by
+      show BrowserProperty.fits key property shape = true ↔
+        (property.reading = .value ∨ ∃ count, shape = .array count .binary32)
+      unfold BrowserProperty.fits
+      cases property.reading with
+      | value => simp
+      | twice =>
+        simp only [reduceCtorEq, false_or]
+        rw [← conversion_float32 key shape]
+        cases browserConversion key shape <;> simp)
+    ⟨(("", ⟨"", .value⟩), .text), .inl rfl⟩
+    ⟨(("", ⟨"", .twice⟩), .text), by simp⟩⟩
+
+attribute [regula_decision] BrowserProperty.fits
+
+/-- The phase comparison refuses exactly the idle phase. -/
+private theorem phase_live (phase : Host.Viewer.Phase) :
+    (phase != .idle) = true ↔ phase ≠ .idle := by
+  cases phase with
+  | idle => exact ⟨fun differs => absurd differs (by decide), fun differs => absurd rfl differs⟩
+  | starting generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
+  | running generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
+  | stopping generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
+  | archiving => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
+
+/-- The status comparison accepts exactly a failed final save. -/
+private theorem status_failed (status : Option Host.CheckpointStatus) :
+    (status == some .failed) = true ↔ status = some .failed := by
+  cases status with
+  | none => exact ⟨fun same => absurd same (by decide), fun same => nomatch same⟩
+  | some value =>
+    cases value <;>
+      first
+      | exact ⟨fun _ => rfl, fun _ => rfl⟩
+      | exact ⟨fun same => absurd same (by decide), fun same => nomatch same⟩
+
+/-- A control warning is published exactly for an idle lifecycle whose process exited
+abnormally or whose final checkpoint save failed (`controlWarning_active` is the refusal while
+the lifecycle is not idle). -/
+theorem control_warning : Regula.ExecutableContract controlWarning (fun warning =>
+    Regula.Decides (·.isSome = true)
+      (fun input : Host.Viewer.Lifecycle × ControlDetail =>
+        input.1.phaseValue = .idle ∧
+          (input.2.abnormalExit = true ∨ input.2.log.checkpoint = some .failed))
+      (Function.uncurry warning)) :=
+  ⟨.of_iff
+    (fun ⟨lifecycle, detail⟩ => by
+      show (controlWarning lifecycle detail).isSome = true ↔
+        (lifecycle.phaseValue = .idle ∧
+          (detail.abnormalExit = true ∨ detail.log.checkpoint = some .failed))
+      unfold controlWarning
+      by_cases idle : lifecycle.phaseValue = .idle
+      · have settled : ¬(lifecycle.phaseValue != .idle) = true := fun differs =>
+          (phase_live _).mp differs idle
+        rw [ite_eq_right settled]
+        by_cases abnormal : detail.abnormalExit = true
+        · rw [ite_eq_left abnormal]
+          exact ⟨fun _ => ⟨idle, .inl abnormal⟩, fun _ => rfl⟩
+        · rw [ite_eq_right abnormal]
+          by_cases failed : detail.log.checkpoint = some .failed
+          · rw [ite_eq_left ((status_failed _).mpr failed)]
+            exact ⟨fun _ => ⟨idle, .inr failed⟩, fun _ => rfl⟩
+          · have test : ¬(detail.log.checkpoint == some .failed) = true := fun same =>
+              failed ((status_failed _).mp same)
+            rw [ite_eq_right test]
+            exact ⟨fun present => by simp at present,
+              fun cause => cause.2.elim (absurd · abnormal) (absurd · failed)⟩
+      · rw [ite_eq_left ((phase_live _).mpr idle)]
+        exact ⟨fun present => by simp at present, fun cause => absurd cause.1 idle⟩)
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped,
+        { transition := .initialized, reason := "", clearDisabled := none, log := {},
+          abnormalExit := true }), by decide⟩
+    ⟨(.initial ⟨0, 0, 0⟩ .stopped,
+        { transition := .initialized, reason := "", clearDisabled := none, log := {} }),
+      by decide⟩⟩
+
+attribute [regula_decision] controlWarning
 
 /-! ## Decision procedures
 
@@ -1885,18 +2091,6 @@ theorem prediction_advance_raw :
         absurd ((Action.admit_none _ _).mpr outside) (by simp [admitted])
       exact ⟨fun _ => Nat.lt_of_not_le inside, fun _ => rfl⟩⟩
 
-/-- The capture-follow test, for two captures with the same lifetime clock, is exactly: the
-next capture is terminal, the previous one is not, and the world clock advanced by one
-(`Capture.follows_equal_lifetime`).
-
-**Not claimed:** its verdict when the lifetime clocks differ. -/
-theorem capture_follows : Regula.ExecutableContract Capture.follows (fun test =>
-    ∀ next previous : Capture, next.lifetime = previous.lifetime →
-      test next previous =
-        (next.terminal && !previous.terminal &&
-          next.world.toNat == previous.world.toNat + 1)) :=
-  ⟨Capture.follows_equal_lifetime⟩
-
 /-- The clock-predicate evaluator, on the agreement-order and snapshot-order programs with
 equal leading clocks, accepts only the values the theorems state
 (`ClockProgram.agreementFollows_same`, `snapshotFollows_same`), and it accepts the
@@ -1917,127 +2111,6 @@ theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval 
           eval values ClockProgram.snapshotFollows = true) :=
   ⟨⟨ClockProgram.agreementFollows_same, ClockProgram.snapshotFollows_same,
     ClockProgram.snapshotFollows_goal⟩⟩
-
-/-- The identity test accepts exactly the generation of a live process, or the last reserved
-generation while no process is live (`Lifecycle.ownsIdentity_iff`). The specification
-`Lifecycle.OwnsIdentity` is stated on the stored phase and the generation allocator, beside
-those private fields, and it names no test. -/
-theorem owns_identity :
-    Regula.ExecutableContract Host.Viewer.Lifecycle.ownsIdentity (fun owns =>
-      Regula.Decides (· = true)
-        (fun input : Host.Viewer.Lifecycle × UInt64 => input.1.OwnsIdentity input.2)
-        (Function.uncurry owns)) :=
-  ⟨.of_iff (fun input => Host.Viewer.Lifecycle.ownsIdentity_iff input.1 input.2)
-    ⟨(.initial ⟨0, 0, 0⟩ .stopped, 0), by decide⟩
-    ⟨(.initial ⟨0, 0, 0⟩ .stopped, 1), by decide⟩⟩
-
-attribute [regula_decision] Host.Viewer.Lifecycle.ownsIdentity
-
-/-- Each column of the browser store fits each schema field of its own key. -/
-private theorem columns_fit : ∀ entry ∈ browserColumns, ∀ field ∈ browserSchema,
-    field.1 = entry.1 → BrowserColumn.fits entry.1 entry.2 field.2 = true := by
-  decide +kernel
-
-/-- The column test accepts every column of the browser store against the shape that the
-browser schema gives its key, and it refuses a flag column against a text shape.
-
-**Not claimed:** soundness. The test accepts columns that the store does not ship. -/
-theorem column_fits : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
-    Regula.DecidesCompletely (· = true)
-      (fun input : (String × BrowserColumn) × TelemetryShape =>
-        input.1 ∈ browserColumns ∧ (input.1.1, input.2) ∈ browserSchema)
-      (Function.uncurry (Function.uncurry fits))) :=
-  ⟨{ complete := fun input listed =>
-       columns_fit input.1 listed.1 (input.1.1, input.2) listed.2 rfl
-     refused := ⟨(("flag", ⟨"flag", .flag⟩), .text), by decide +kernel⟩ }⟩
-
-attribute [regula_decision] BrowserColumn.fits
-
-/-- A table lookup returns only an item that the table holds. -/
-private theorem lookup_listed {β : Type} : ∀ (table : List (String × β)) (key : String) (item : β),
-    table.lookup key = some item → ∃ name, (name, item) ∈ table
-  | [], _, _, found => by simp at found
-  | (name, value) :: rest, key, item, found => by
-    rw [List.lookup_cons] at found
-    split at found
-    · cases found
-      exact ⟨name, List.mem_cons_self⟩
-    · obtain ⟨other, member⟩ := lookup_listed rest key item found
-      exact ⟨other, List.mem_cons_of_mem _ member⟩
-
-/-- The representation of a field is a binary32 array exactly for a binary32 array shape: no
-override is defined for such a shape, and only such a shape has that default. -/
-private theorem conversion_float32 (key : String) (shape : TelemetryShape) :
-    browserConversion key shape = .float32 ↔ ∃ count, shape = .array count .binary32 := by
-  have default : shape.defaultConversion = .float32 ↔ ∃ count, shape = .array count .binary32 := by
-    cases shape with
-    | array count element => cases element <;> simp [TelemetryShape.defaultConversion]
-    | _ => simp [TelemetryShape.defaultConversion]
-  unfold browserConversion
-  cases found : browserOverrides.lookup key with
-  | none => exact default
-  | some conversion =>
-    obtain ⟨name, member⟩ := lookup_listed browserOverrides key conversion found
-    have listed : conversion = .unmeasured ∨ conversion = .absentIndex ∨
-        conversion = .absentIndices := by
-      simp only [browserOverrides, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false]
-        at member
-      rcases member with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp
-    show (if conversion.fits shape then conversion else shape.defaultConversion) = .float32 ↔ _
-    split
-    · rename_i fits
-      constructor
-      · intro same
-        rcases listed with rfl | rfl | rfl <;> cases same
-      · rintro ⟨count, rfl⟩
-        rcases listed with rfl | rfl | rfl <;> simp [BrowserConversion.fits] at fits
-    · exact default
-
-/-- The property test accepts exactly a plain property of any field and a doubled property of
-a field with a binary32 array shape (`browserAgreementView_live` and
-`browserGoalProgressView_live` state that it accepts the shipped views). The specification is
-stated on the reading and the shape, and it names no conversion. -/
-theorem property_fits : Regula.ExecutableContract BrowserProperty.fits (fun fits =>
-    Regula.Decides (· = true)
-      (fun input : (String × BrowserProperty) × TelemetryShape =>
-        input.1.2.reading = .value ∨ ∃ count, input.2 = .array count .binary32)
-      (Function.uncurry (Function.uncurry fits))) :=
-  ⟨decides
-    (fun ⟨⟨key, property⟩, shape⟩ => by
-      show BrowserProperty.fits key property shape = true ↔
-        (property.reading = .value ∨ ∃ count, shape = .array count .binary32)
-      unfold BrowserProperty.fits
-      cases property.reading with
-      | value => simp
-      | twice =>
-        simp only [reduceCtorEq, false_or]
-        rw [← conversion_float32 key shape]
-        cases browserConversion key shape <;> simp)
-    ⟨(("", ⟨"", .value⟩), .text), .inl rfl⟩
-    ⟨(("", ⟨"", .twice⟩), .text), by simp⟩⟩
-
-attribute [regula_decision] BrowserProperty.fits
-
-/-- The option reader refuses exactly when the first occurrence of the option is the last
-argument, so that no value stands after it. The specification is stated on the argument list.
-`cli_value_found` states which value an accepted result carries. -/
-theorem cli_value : Regula.ExecutableContract Host.Cli.value (fun value =>
-    Regula.Decides (·.isOk = true)
-      (fun input : List String × String => ¬FirstOption input.1 input.2 [])
-      (Function.uncurry value)) :=
-  ⟨.of_iff (fun input => value_accepts input.2 input.1) ⟨([], ""), by decide⟩
-    ⟨([""], ""), by decide⟩⟩
-
-attribute [regula_decision] Host.Cli.value
-
-/-- The option reader returns no value exactly for a list without the option, and it returns a
-value exactly when that value stands after the first occurrence of the option. -/
-theorem cli_value_found : Regula.ExecutableContract Host.Cli.value (fun value =>
-    ∀ (arguments : List String) (wanted : String),
-      (value arguments wanted = .ok none ↔ wanted ∉ arguments) ∧
-        ∀ text, value arguments wanted = .ok (some text) ↔
-          ∃ after, FirstOption arguments wanted (text :: after)) :=
-  ⟨fun arguments wanted => value_found wanted arguments⟩
 
 /-- A weight enters the ranking exactly when its signed word is positive, and an entering
 weight carries the bits of its own stored word as its key (`candidateOfWeight_key`). -/
@@ -2147,69 +2220,6 @@ theorem goal_headline :
   ⟨fun goals attempts state => by
     cases invalid : state.invalid <;> by_cases empty : goals = 0 <;>
       simp [GoalAchievement.State.headline, invalid, empty]⟩
-
-/-- The phase comparison refuses exactly the idle phase. -/
-private theorem phase_live (phase : Host.Viewer.Phase) :
-    (phase != .idle) = true ↔ phase ≠ .idle := by
-  cases phase with
-  | idle => exact ⟨fun differs => absurd differs (by decide), fun differs => absurd rfl differs⟩
-  | starting generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
-  | running generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
-  | stopping generation => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
-  | archiving => exact ⟨fun _ equal => (nomatch equal), fun _ => rfl⟩
-
-/-- The status comparison accepts exactly a failed final save. -/
-private theorem status_failed (status : Option Host.CheckpointStatus) :
-    (status == some .failed) = true ↔ status = some .failed := by
-  cases status with
-  | none => exact ⟨fun same => absurd same (by decide), fun same => nomatch same⟩
-  | some value =>
-    cases value <;>
-      first
-      | exact ⟨fun _ => rfl, fun _ => rfl⟩
-      | exact ⟨fun same => absurd same (by decide), fun same => nomatch same⟩
-
-/-- A control warning is published exactly for an idle lifecycle whose process exited
-abnormally or whose final checkpoint save failed (`controlWarning_active` is the refusal while
-the lifecycle is not idle). -/
-theorem control_warning : Regula.ExecutableContract controlWarning (fun warning =>
-    Regula.Decides (·.isSome = true)
-      (fun input : Host.Viewer.Lifecycle × ControlDetail =>
-        input.1.phaseValue = .idle ∧
-          (input.2.abnormalExit = true ∨ input.2.log.checkpoint = some .failed))
-      (Function.uncurry warning)) :=
-  ⟨.of_iff
-    (fun ⟨lifecycle, detail⟩ => by
-      show (controlWarning lifecycle detail).isSome = true ↔
-        (lifecycle.phaseValue = .idle ∧
-          (detail.abnormalExit = true ∨ detail.log.checkpoint = some .failed))
-      unfold controlWarning
-      by_cases idle : lifecycle.phaseValue = .idle
-      · have settled : ¬(lifecycle.phaseValue != .idle) = true := fun differs =>
-          (phase_live _).mp differs idle
-        rw [ite_eq_right settled]
-        by_cases abnormal : detail.abnormalExit = true
-        · rw [ite_eq_left abnormal]
-          exact ⟨fun _ => ⟨idle, .inl abnormal⟩, fun _ => rfl⟩
-        · rw [ite_eq_right abnormal]
-          by_cases failed : detail.log.checkpoint = some .failed
-          · rw [ite_eq_left ((status_failed _).mpr failed)]
-            exact ⟨fun _ => ⟨idle, .inr failed⟩, fun _ => rfl⟩
-          · have test : ¬(detail.log.checkpoint == some .failed) = true := fun same =>
-              failed ((status_failed _).mp same)
-            rw [ite_eq_right test]
-            exact ⟨fun present => by simp at present,
-              fun cause => cause.2.elim (absurd · abnormal) (absurd · failed)⟩
-      · rw [ite_eq_left ((phase_live _).mpr idle)]
-        exact ⟨fun present => by simp at present, fun cause => absurd cause.1 idle⟩)
-    ⟨(.initial ⟨0, 0, 0⟩ .stopped,
-        { transition := .initialized, reason := "", clearDisabled := none, log := {},
-          abnormalExit := true }), by decide⟩
-    ⟨(.initial ⟨0, 0, 0⟩ .stopped,
-        { transition := .initialized, reason := "", clearDisabled := none, log := {} }),
-      by decide⟩⟩
-
-attribute [regula_decision] controlWarning
 
 /-- An attempt is finished exactly at its step cap, or after at least one step whose carried
 result reports the goal done. -/
