@@ -357,31 +357,24 @@ definition. The facts for a derived comparison and for the proof library rest in
 part on a position and not on a recorded relationship: that a comparison is
 derived is inferred from the recorded declaration ranges, and the proof library
 is identified by its modules. The audit prints the count of each class and of
-each reason. A witness refuses a constant function: a contract with an accepted
-input is false of a function that refuses every input, and a contract with a
-refused input is false of a function that accepts every input. Each decision
-function with a contract has both. A two-way kind states that both outcomes
-occur, and it fixes the verdict at every input. Every other function, a function
-with a one-way kind included, has one accepted and one refused input as marked
-facts at the top level of a condition, about the function that the condition
-binds. The audit counts a marked fact only when its input does not depend on
-that function. The dependency relation is the one of the kernel: the audit
-follows the type of every constant that the input names, its value when it has
-one (a definition, a theorem and an opaque constant have one), and the parts of
-its inductive declaration. When a function has no accepted or no refused input,
-a contract carries the proof of that: the opposite fact for every input. The
-audit accepts no other reason for a missing input, and it refuses a function
-with neither. The audit also prints the form of each part of each requirement
-with no kind, and it infers nothing. A part has an exact form only in one of two
-exact shapes: it quantifies over exactly the inputs of the function, and its
-body is an equivalence between an equation about the result at those inputs and
-a proposition that does not name the function, or it is such an equation alone.
-Each other part that names the function is not classified. That says nothing
-about the strength of the part: the witnesses, and not the form, are what refuse
-a constant function. The inventory establishes that every such definition has been
-classified and that each computed fact holds. The inventory's own decision is a
-pure function with a theorem that it accepts exactly a definition in exactly one
-class. `Acorn.Decisions`
+each reason. A witness refuses a function that gives one verdict for every
+input: a contract with an accepted input is false of a function that refuses
+every input, and a contract with a refused input is false of a function that
+accepts every input. Each decision function with a contract has both. A two-way
+kind states that both outcomes occur, and it fixes the verdict at every input.
+Every other function, a function with a one-way kind included, has one accepted
+and one refused input as marked facts at the top level of a condition, about the
+function that the condition binds. A marked fact states that an input with that
+verdict exists. When a function has no accepted or no refused input, a contract
+carries the proof of that: the opposite fact for every input. The audit accepts
+no other reason for a missing input, and it refuses a function with neither. The
+audit does not examine how the input of a witness is built. A requirement with
+no kind is not examined by the Regula audit for witnesses or independence, and
+the ownership audit gives no judgment of its strength: it prints the contract
+and its function, and the reader reads the statement. The inventory establishes
+that every such definition has been classified and that each computed fact
+holds. The inventory's own decision is a pure function with a theorem that it
+accepts exactly a definition in exactly one class. `Acorn.Decisions`
 cannot register a function of another library, such as a NativeApp parser. No
 kind says that a specification is the intended one. `Acorn.Decisions` belongs to
 the Acorn library

@@ -68,18 +68,17 @@ such a statement says whether it gives the exact condition of acceptance, or whi
 accepted and a refused input it gives, and what it does not claim. The ownership audit prints
 how many implementations have a kind and how many have only such a requirement.
 
-A witness refuses a constant function. A two-way kind states that both outcomes occur and
-fixes the verdict at every input. Every other function has one accepted input and one refused
-input as marked facts, `Accepts` and `Refuses`, at the top level of a condition: in its
-statement with no kind, or, for a function with a one-way kind, in a contract beside the kind.
-The input of a marked fact does not depend on the decision function. The ownership audit
-follows the type and the value of every constant that the input names, the value of a theorem
-and of an opaque constant included. When a function has no accepted or no refused input, the
-marker `NoAccepted` or `NoRefused` carries the proof: the opposite fact for every input. The
-ownership audit accepts no other reason for a missing input, and it refuses a decision
-function whose contracts carry neither. It also prints the form of each part of each
-statement with no kind: a part has an exact form only in one of two exact shapes, and each
-other part is not classified, which says nothing about its strength.
+A witness refuses a function that gives one verdict for every input. A two-way kind states
+that both outcomes occur and fixes the verdict at every input. Every other function has one
+accepted input and one refused input as marked facts, `Accepts` and `Refuses`, at the top
+level of a condition: in its statement with no kind, or, for a function with a one-way kind,
+in a contract beside the kind. A marked fact states that an input with that verdict exists, so
+a function that gives the other verdict for every input does not satisfy the contract. When a
+function has no accepted or no refused input, the marker `NoAccepted` or `NoRefused` carries
+the proof: the opposite fact for every input. The ownership audit accepts no other reason for
+a missing input, and it refuses a decision function whose contracts carry neither. It does
+not examine how the input of a witness is built, and it gives no judgment of the strength of
+a statement with no kind: the reader reads the statement.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function

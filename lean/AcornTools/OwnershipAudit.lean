@@ -160,7 +160,7 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
         "incomplete or duplicate theorem-owner admission"
       counts.report
       AcornDecisionInventory.controls common
-      AcornDecisionInventory.check counts.decisions common
+      AcornDecisionInventory.check counts.decisions
       let cwd ← IO.Process.getCurrentDir
       try
         IO.Process.setCurrentDir ".."
