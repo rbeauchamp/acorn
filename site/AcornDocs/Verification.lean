@@ -358,12 +358,17 @@ part on a position and not on a recorded relationship: that a comparison is
 derived is inferred from the recorded declaration ranges, and the proof library
 is identified by its modules. The audit prints the count of each class and of
 each reason. Each decision function with a contract has a closed accepted input
-and a closed refused input in a contract, or a named obstruction for the one
-that is missing; the audit refuses a function with neither and prints the
-obstructions by reason. A kind carries its witnesses in its type. A requirement
+and a closed refused input in a contract. When a function has no accepted or no
+refused input, a contract carries the proof of that: the opposite fact for every
+input. The audit accepts no other reason for a missing input, and it refuses a
+function with neither. A kind carries its witnesses in its type. A requirement
 with no kind carries one as a marked fact at the top level of its condition,
-about the function that the condition binds, at an input that does not name that
-function. The audit also prints the requirements with no kind whose every claim
+about the function that the condition binds. The audit counts the fact only when
+no constant of its input reaches that function through definition bodies. The
+audit also prints the form of each requirement with no kind, with its contract
+and its function: an equivalence, another unconditional claim, a conditional
+statement, or not recognized. It gives a form only from a structure that it
+reads completely. A statement is conditional when every claim about the function
 is below a hypothesis about the function: a function that never satisfies the
 hypothesis satisfies such a statement, so its closed witness is its only
 protection. The inventory establishes that every such definition has been

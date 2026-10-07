@@ -21,12 +21,12 @@ legality of every stored lifetime total rests on the real-valued bounds of
 about runs of the executed world step, proved in `CurrentCertificates`.
 
 No certificate checker is complete: each contract below states what an accepted certificate
-establishes, and a refused certificate establishes nothing. The blocked checker is a function
-between fixed types and carries the sound kind. The replay and stance checkers take an
-argument whose type depends on the configuration, so their statements are requirements with
-no kind. A requirement with no kind is weaker than a kind: the Regula audit checks that its
-theorem is proved about the executing definition, and it does not check a witness of either
-outcome or that the statement is independent of the implementation.
+establishes, and a refused certificate establishes nothing. The blocked checker and the
+walkable test are functions between fixed types and carry the sound kind. The replay and
+stance checkers take an argument whose type depends on the configuration, so their statements
+are requirements with no kind. A requirement with no kind is weaker than a kind: the Regula
+audit checks that its theorem is proved about the executing definition, and it does not check
+a witness of either outcome or that the statement is independent of the implementation.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here for the same reason: their theorems are
@@ -51,14 +51,13 @@ def Accepts.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ac
 function at one input. -/
 def Refuses.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ¬accepts result
 
-/-- A named obstruction: no closed accepted input of the function is registered, for the
-stated reason. The ownership audit prints the reason, and it refuses a decision function that
-has neither a closed accepted input nor this marker in a contract. -/
-def NoAccepted (_reason : String) : Prop := True
+/-- A proved obstruction: the function accepts no input. The proposition states that the
+function refuses every input, with the marker `Refuses` at exactly the quantified inputs. -/
+def NoAccepted (total : Prop) : Prop := total
 
-/-- A named obstruction: no closed refused input of the function is registered, for the stated
-reason. -/
-def NoRefused (_reason : String) : Prop := True
+/-- A proved obstruction: the function refuses no input. The proposition states that the
+function accepts every input, with the marker `Accepts` at exactly the quantified inputs. -/
+def NoRefused (total : Prop) : Prop := total
 
 /-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
 def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
@@ -89,6 +88,44 @@ def rawSaved (seed : UInt64) : RawFeatureImage Grid.actions tiny.dimension demon
 
 /-- The position of the one tile of the world `quiet`. -/
 def origin : Host.Position := ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩
+
+/-- A world configuration of one tile with a deer capacity of one. -/
+def herd : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 1, .zero⟩, by decide, by decide⟩
+
+/-- The empty world of that configuration with one deer at the lowest coordinate and the zero
+generator: its wander step overflows before it reads a terrain. -/
+def edge : Host.World herd :=
+  { Host.World.empty herd with
+    deer := ⟨#[⟨⟨0, by decide⟩, ⟨-(2 ^ 63), by decide⟩⟩], by decide⟩
+    rng := Rng.Xoshiro256.zero }
+
+/-- A world configuration whose box reaches the last coordinate, with a noise scale of one.
+The kernel evaluates the terrain of its tiles, so they are the inputs of the witnesses that
+read a terrain. At the noise scale of zero of `quiet`, the kernel does not reduce a terrain
+read to a result. -/
+def wide : Host.WorldConfig :=
+  ⟨⟨0, ⟨2 ^ 63 - 1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+
+/-- The position with the last horizontal coordinate. The terrain generator refuses it with a
+coordinate overflow, and the kernel evaluates that refusal. -/
+def last : Host.Position := ⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩
+
+/-- A world of the wide configuration whose body is on the last tile of the first row and
+faces east, toward the position `last`. -/
+def brink : Host.World wide :=
+  { Host.World.empty wide with
+    body := ⟨⟨⟨2 ^ 63 - 2, by decide⟩, ⟨0, by decide⟩⟩, .east,
+      Host.Energy.new FeatureConstants.energyMax, ⟨0, 0, 0, 0, false, false⟩⟩ }
+
+/-- A world of the wide configuration whose body is on the first tile of the second row and
+faces east. The body may enter the tile to its east, so a move to the east succeeds. -/
+def walker : Host.World wide :=
+  { Host.World.empty wide with
+    body := ⟨⟨⟨0, by decide⟩, ⟨1, by decide⟩⟩, .east,
+      Host.Energy.new FeatureConstants.energyMax, ⟨0, 0, 0, 0, false, false⟩⟩ }
+
+/-- The tile to the east of the body of `walker`. -/
+def ahead : Host.BoxPosition wide := ⟨⟨1, by decide⟩, ⟨1, by decide⟩⟩
 
 /-- Total admission accepts the words of every stored total of the receiving quantity and
 returns that total (`CurrentCheckpoint.sum_roundtrip`). The result type depends on the
@@ -268,9 +305,8 @@ tree standing. It refuses every stance of a box with one tile, because no tile o
 behind the stance. The stance's type depends on the configuration, so the statement has no
 kind.
 
-**Not claimed:** completeness, an accepted input, or that a step succeeds: a successful step is
-a hypothesis. An acceptance fact needs the generated terrain of the tiles at the stance; no
-theorem supplies one. -/
+**Not claimed:** completeness, or that a step succeeds: a successful step is a hypothesis. The
+accepted input is a stance of the wide world, whose terrain the kernel evaluates. -/
 theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun check =>
     (∀ (config : Host.WorldConfig) (stance : Host.BoxPosition config)
       (direction : Host.Direction) (item : Host.Item),
@@ -295,8 +331,8 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
             stance.position.y.val = approach.position.y.val + direction.delta.2 ∧
             ∀ world : Host.World config, world.enterable approach.position = .ok true) ∧
         (config.side = 1 → check config stance direction item = false)) ∧
-      NoAccepted
-        "terrain: the input needs the terrain of a generated tile" ∧
+      Accepts (· = true)
+        (check wide ⟨⟨7, by decide⟩, ⟨3, by decide⟩⟩ .east .wood) ∧
       Refuses (· = true)
         (check quiet ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩ .north .wood)) :=
   ⟨⟨(fun config stance direction item =>
@@ -311,7 +347,7 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
         exact ⟨approach, column, row, fun world =>
           CurrentCertificates.walkable_enterable world approach.position walkable⟩⟩,
       fun single => single_refused single stance direction item⟩),
-    trivial,
+    by unfold Accepts; decide +kernel,
     by unfold Refuses; rw [single_refused (config := quiet) (by decide)]; exact Bool.false_ne_true⟩⟩
 
 /-- Replay checking returns a certificate only for an action list that shows its goal reached
@@ -363,8 +399,7 @@ paid harvest yields the item (`CurrentCertificates.stance_harvest`), and it refu
 stance of a box with one tile. The statement names the harvest relation and not the Boolean
 checker.
 
-**Not claimed:** an accepted input. It needs the generated terrain of the tiles at the stance;
-no theorem supplies one. -/
+The accepted input is a stance of the wide world, whose terrain the kernel evaluates. -/
 theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (fun check =>
     (∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
       (direction : Host.Direction),
@@ -375,8 +410,8 @@ theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (f
           world.step .harvest = .ok (next, events) → events.exhausted = false →
             events.harvested = some item) ∧
         (config.side = 1 → check config item stance direction = none)) ∧
-      NoAccepted
-        "terrain: the input needs the terrain of a generated tile" ∧
+      Accepts (·.isSome = true)
+        (check wide .wood ⟨⟨7, by decide⟩, ⟨3, by decide⟩⟩ .east) ∧
       Refuses (·.isSome = true)
         (check quiet .wood ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩ .north)) :=
   ⟨⟨(fun config item stance direction =>
@@ -391,29 +426,24 @@ theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (f
         stepped paid).1,
     fun single => by
       simp [Host.StanceCertificate.check, single_refused single stance direction item]⟩),
-    trivial,
+    by unfold Accepts; decide +kernel,
     by
       unfold Refuses
       simp [Host.StanceCertificate.check, single_refused (config := quiet) (by decide)]⟩⟩
 
 /-- The walkable test accepts only a tile that is enterable in every world of the
-configuration, with or without a boat (`CurrentCertificates.walkable_enterable`).
-
-The function is between fixed types, but the sound kind carries an input the function
-accepts, which is the generated terrain of one tile, and no theorem states the terrain of a
-tile. The statement is therefore a requirement with no kind.
+configuration, with or without a boat (`CurrentCertificates.walkable_enterable`). The accepted
+input is a tile of the wide world.
 
 **Not claimed:** completeness. The test refuses water, which a body with a boat enters. -/
 theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test =>
-    (∀ (config : Host.WorldConfig) (tile : Host.Position), test config tile = true →
-      ∀ world : Host.World config, world.enterable tile = .ok true) ∧
-      NoAccepted
-        "terrain: the input needs the terrain of a generated tile" ∧
-      NoRefused
-        "terrain: the input needs the terrain of a generated tile") :=
-  ⟨⟨(fun _ tile accepted world => CurrentCertificates.walkable_enterable world tile accepted),
-    trivial,
-    trivial⟩⟩
+    Regula.DecidesSoundly (· = true)
+      (fun input : Host.WorldConfig × Host.Position =>
+        ∀ world : Host.World input.1, world.enterable input.2 = .ok true)
+      (Function.uncurry test)) :=
+  ⟨{ sound := fun input accepted world =>
+       CurrentCertificates.walkable_enterable world input.2 accepted
+     accepted := ⟨(wide, ⟨⟨0, by decide⟩, ⟨1, by decide⟩⟩), by decide +kernel⟩ }⟩
 
 /-! ## Checkpoint admissions
 
@@ -630,13 +660,13 @@ theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun e
       @enterable config world position =
         (Host.terrain position config.raw.seed config.raw.baseScale).map
           (fun base => CurrentStep.passable base world.body.inventory.boat)) ∧
-      NoAccepted
-        "terrain: the input needs the terrain of a generated tile" ∧
-      NoRefused
-        "terrain: the input needs the terrain of a generated tile") :=
+      Accepts (·.isOk = true)
+        (@enterable wide (Host.World.empty wide) origin) ∧
+      Refuses (·.isOk = true)
+        (@enterable wide (Host.World.empty wide) last)) :=
   ⟨⟨(fun _ => CurrentStep.enterable_static),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- The world's completion flag, for each family of installed goal, is exactly: the body in
 the goal box, the inventory holding the count, the time since installation reaching the
@@ -686,13 +716,13 @@ theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (
       @advance config world actions = .ok final ↔
         ∃ trace, CurrentStep.Trace world trace final ∧ trace.map (·.1) = actions) ∧
       Accepts (·.isOk = true) (@advance quiet (Host.World.empty quiet) [.wait])) ∧
-      NoRefused
-        "terrain: a refusal is a refusal of the terrain generator") :=
+      Refuses (·.isOk = true)
+        (@advance herd edge [.wait])) :=
   ⟨⟨(⟨fun _ world final actions =>
       ⟨CurrentStep.actions_trace world final actions,
         fun ⟨_, run, same⟩ => same ▸ CurrentStep.trace_actions run⟩,
     by unfold Accepts; decide +kernel⟩),
-    trivial⟩⟩
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- What the readers of the terrain do with its result: enterability is the terrain result
 mapped through static passability with the body's boat, so a terrain refusal is the only
@@ -703,8 +733,8 @@ The statement names `Host.World.enterable` and `Host.World.step`, which are defi
 the terrain. It is a statement about those readers, and it is not independent of the terrain
 generator.
 
-**Not claimed:** the terrain of any tile, an accepted input or a refused input. The terrain
-is the result of binary32 noise arithmetic, and no theorem states the terrain of a tile. -/
+**Not claimed:** the kind of any tile. The witnesses state only that the generator accepts
+the origin at a noise scale of one and refuses the last coordinate. -/
 theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
     (∀ (config : Host.WorldConfig),
       (∀ (world : Host.World config) (position : Host.Position),
@@ -718,29 +748,29 @@ theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
                 .ok .mountain ∧
               (terrain next.body.position.position config.raw.seed config.raw.baseScale =
                   .ok .water → world.body.inventory.boat = true)) ∧
-      NoAccepted
-        "terrain: the input needs the terrain of a generated tile" ∧
-      NoRefused
-        "terrain: the input needs the terrain of a generated tile") :=
+      Accepts (·.isOk = true)
+        (terrain origin 0 ⟨0x3f800000⟩) ∧
+      Refuses (·.isOk = true)
+        (terrain last 0 ⟨0x3f800000⟩)) :=
   ⟨⟨(fun _ => ⟨CurrentStep.enterable_static, CurrentStep.step_terrain⟩),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
 with the same refusal. The terrain generator is the subject of the claim. The world's type
 depends on the configuration, so the statement has no kind.
 
-**Not claimed:** the kind of an accepted tile, an accepted input or a refused input.
-`CurrentStep.enterable_static` states what an entry reads from it. -/
+**Not claimed:** the kind of an accepted tile. `CurrentStep.enterable_static` states what an
+entry reads from it. -/
 theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
     (∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position)
       (refusal : Host.WorldError),
       @tileKind config world position = .error refusal ↔
         Host.terrain position config.raw.seed config.raw.baseScale = .error refusal) ∧
-      NoAccepted
-        "terrain: the input needs the terrain of a generated tile" ∧
-      NoRefused
-        "terrain: the input needs the terrain of a generated tile") :=
+      Accepts (·.isOk = true)
+        (@tileKind wide (Host.World.empty wide) origin) ∧
+      Refuses (·.isOk = true)
+        (@tileKind wide (Host.World.empty wide) last)) :=
   ⟨⟨(fun config world position refusal => by
     unfold Host.World.tileKind
     cases Host.terrain position config.raw.seed config.raw.baseScale with
@@ -749,8 +779,8 @@ theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind
       simp only [bind, Except.bind, pure, Except.pure, reduceCtorEq, iff_false]
       repeat' split
       all_goals simp),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- A paid action that succeeds either found the energy short, rested and set the exhausted
 flag, or spent the cost of the action with the exhausted flag clear
@@ -769,34 +799,49 @@ theorem pay_and_act : Regula.ExecutableContract @Host.payAndAct (fun pay =>
           (∃ energy, world.body.energy.spend (action.energyCost night) = some energy ∧
             active.events.exhausted = false)) ∧
       Accepts (·.isOk = true) (@pay quiet (Host.World.empty quiet) .wait) ∧
-      NoRefused "terrain: a refusal is a refusal of the terrain generator") :=
+      Refuses (·.isOk = true) (@pay wide brink .harvest)) :=
   ⟨⟨fun _ world action active paid => by
       obtain ⟨night, short | ⟨energy, spent, -, awake⟩⟩ :=
         CurrentStep.payAndAct_outcome world action active paid
       · exact ⟨night, .inl short⟩
       · exact ⟨night, .inr ⟨energy, spent, awake⟩⟩,
-    by unfold Accepts; decide +kernel, trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
+
+/-- The hypotheses of the movement claim, apart from the success of the action: the action
+heads in the direction, the position is the tile next to the body in that direction, and the
+body may enter it. The tile and the move are stated by coordinate equations and constructors.
+Enterability is the executed test of the world, which is the subject of that hypothesis. -/
+def Moves {config : Host.WorldConfig} (world : Host.World config) (action : Host.Action)
+    (direction : Host.Direction) (position : Host.BoxPosition config) : Prop :=
+  Heads action direction ∧
+    position.position.x.val = world.body.position.position.x.val + direction.delta.1 ∧
+    position.position.y.val = world.body.position.position.y.val + direction.delta.2 ∧
+    world.enterable position.position = .ok true
 
 /-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
 body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
-tile and the move are stated by coordinate equations and constructors. Enterability is the
-executed test of the world, which is the subject of that hypothesis. The world's type depends
-on the configuration, so the statement has no kind. -/
+hypotheses are the predicate `Moves`. The world's type depends on the configuration, so the
+statement has no kind.
+
+The accepted input is a successful movement: the body of `walker` moves east to the tile
+`ahead`. The fact `Moves walker .east .east ahead` states that this input satisfies each
+hypothesis of the claim, with the same predicate, so the claim is not vacuous. -/
 theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perform =>
     (∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
       (direction : Host.Direction) (position : Host.BoxPosition config)
-      (active : Host.ActionChange config), Heads action direction →
-      position.position.x.val = world.body.position.position.x.val + direction.delta.1 →
-      position.position.y.val = world.body.position.position.y.val + direction.delta.2 →
-      world.enterable position.position = .ok true →
+      (active : Host.ActionChange config), Moves world action direction position →
       @perform config world action = .ok active →
         active.body.position = position ∧ active.body.facing = direction) ∧
-      Accepts (·.isOk = true) (@perform quiet (Host.World.empty quiet) .wait) ∧
-      NoRefused "terrain: a refusal is a refusal of the terrain generator") :=
-  ⟨⟨fun _ world action direction position active heads column row enter performed =>
+      Moves walker .east .east ahead ∧
+      Accepts (·.isOk = true) (@perform wide walker .east) ∧
+      Refuses (·.isOk = true) (@perform wide brink .harvest)) :=
+  ⟨⟨fun _ world action direction position active ⟨heads, column, row, enter⟩ performed =>
       CurrentCertificates.perform_move world action direction position (heads_direction heads)
         (CurrentCertificates.translate_of_eq _ _ _ _ column row) enter active performed,
-    by unfold Accepts; decide +kernel, trivial⟩⟩
+    ⟨.inr (.inr (.inl ⟨rfl, rfl⟩)), by decide, by decide, by decide +kernel⟩,
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-! ## Learner admissions -/
 
@@ -934,6 +979,11 @@ theorem precision_admit_accepted : Regula.ExecutableContract Agreement.precision
 theorem region_blocked_refused : Regula.ExecutableContract Host.regionBlocked (fun check =>
     Refuses (· = true)
       (check quiet true ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ [origin] origin)) :=
+  ⟨by unfold Refuses; decide +kernel⟩
+
+/-- The walkable test refuses the last coordinate, whose terrain the generator refuses. -/
+theorem terrain_walkable_refused : Regula.ExecutableContract Host.walkableTile (fun test =>
+    Refuses (· = true) (test wide last)) :=
   ⟨by unfold Refuses; decide +kernel⟩
 
 /-- Rank selection returns no index for an empty histogram. -/

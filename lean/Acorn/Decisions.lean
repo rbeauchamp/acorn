@@ -68,9 +68,11 @@ such a statement says whether it gives the exact condition of acceptance, or whi
 accepted and a refused input it gives, and what it does not claim. The ownership audit prints
 how many implementations have a kind and how many have only such a requirement. A statement
 carries one closed accepted input and one closed refused input with the markers `Accepts`
-and `Refuses`, at the top level of its condition, or a named obstruction for the one that is
-missing, with the markers `NoAccepted` and `NoRefused`. The ownership audit refuses a decision
-function whose contracts carry neither, and it prints the obstructions.
+and `Refuses`, at the top level of its condition. No constant of such an input reaches the
+decision function through a definition. When a function has no accepted or no refused input,
+the marker `NoAccepted` or `NoRefused` carries the proof: the opposite fact for every input.
+The ownership audit accepts no other reason for a missing input, it refuses a decision
+function whose contracts carry neither, and it prints the form of each statement.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function
@@ -209,14 +211,13 @@ def Accepts.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ac
 function at one input. -/
 def Refuses.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ¬accepts result
 
-/-- A named obstruction: no closed accepted input of the function is registered, for the
-stated reason. The ownership audit prints the reason, and it refuses a decision function that
-has neither a closed accepted input nor this marker in a contract. -/
-def NoAccepted (_reason : String) : Prop := True
+/-- A proved obstruction: the function accepts no input. The proposition states that the
+function refuses every input, with the marker `Refuses` at exactly the quantified inputs. -/
+def NoAccepted (total : Prop) : Prop := total
 
-/-- A named obstruction: no closed refused input of the function is registered, for the stated
-reason. -/
-def NoRefused (_reason : String) : Prop := True
+/-- A proved obstruction: the function refuses no input. The proposition states that the
+function accepts every input, with the marker `Accepts` at exactly the quantified inputs. -/
+def NoRefused (total : Prop) : Prop := total
 
 /-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
 def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
@@ -264,6 +265,77 @@ def plan : Host.CampaignPlan 1 :=
 /-- A writer with a period of two, at phase zero. -/
 def writer : Host.WritableCheckpoint :=
   (Host.WritableCheckpoint.admit "checkpoint" 2 .loaded).get (by decide)
+
+/-- A world configuration of one tile with a deer capacity of one. -/
+def herd : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 1, .zero⟩, by decide, by decide⟩
+
+/-- The empty world of that configuration with one deer at the lowest coordinate and the zero
+generator: its wander step overflows before it reads a terrain. -/
+def edge : Host.World herd :=
+  { Host.World.empty herd with
+    deer := ⟨#[⟨⟨0, by decide⟩, ⟨-(2 ^ 63), by decide⟩⟩], by decide⟩
+    rng := Rng.Xoshiro256.zero }
+
+/-- A world configuration whose box reaches the last coordinate, with a noise scale of one.
+The kernel evaluates the terrain of its tiles, so they are the inputs of the witnesses that
+read a terrain. At the noise scale of zero of `quiet`, the kernel does not reduce a terrain
+read to a result. -/
+def wide : Host.WorldConfig :=
+  ⟨⟨0, ⟨2 ^ 63 - 1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+
+/-- The position with the last horizontal coordinate. The terrain generator refuses it with a
+coordinate overflow, and the kernel evaluates that refusal. -/
+def last : Host.Position := ⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩
+
+/-- The ensemble of the initial state in which each skill holds the unit `only`. -/
+def crowd :=
+  { young.consumers with
+    skills := young.consumers.skills.map fun (skill : Skill _ _ _ _ _) =>
+      { skill with interest := .learned held } }
+
+/-- The construction with two units. -/
+def pair : AgentConstruction :=
+  { tiny with config := { tiny.config with units := ⟨2, by decide, by decide⟩ } }
+
+/-- The lifecycle of the initial state of `pair` with utility zero for the first unit and
+utility one for the second. -/
+def ranked :=
+  { pair.initial.control.runtime.lifecycle with
+    representation :=
+      pair.initial.control.runtime.lifecycle.representation.rescore fun unit _ =>
+        if unit.val = 0 then Utility.zero else ⟨⟨0x3f800000⟩, by decide⟩ }
+
+/-- A policy snapshot of one action with zero values and no exploration. -/
+def still : PolicySnapshot ⟨1, by decide⟩ := ⟨Vector.replicate _ .zero, SwiftTd.ExploreRate.never⟩
+
+/-- A word differs from the word with its lowest bit flipped. -/
+private theorem flipped (word : UInt32) : word ^^^ 1 ≠ word := by
+  intro same
+  have cancel : (word ^^^ 1) ^^^ word = word ^^^ word := by rw [same]
+  rw [UInt32.xor_comm word 1, UInt32.xor_assoc, UInt32.xor_self, UInt32.xor_zero] at cancel
+  exact absurd cancel (by decide)
+
+/-- A temporal decision with zero vectors that started and ended no option. -/
+def calm : TemporalDecision Grid.actions :=
+  { source := .primitive, action := ⟨0, by decide⟩, values := Vector.replicate _ .zero
+    probabilities := Vector.replicate _ .zero, explored := false
+    metaValues := Vector.replicate _ .zero, metaDecision := none, started := none
+    ended := none }
+
+/-- A weight array of one slot that holds the word of one. -/
+def warm : WeightArray (.discounted .g99) small :=
+  Vector.replicate _ ((Weight.admit (.discounted .g99) ⟨0x3f800000⟩).get (by decide))
+
+/-- A weight array of one slot that holds zero. -/
+def cold : WeightArray (.discounted .g99) small :=
+  Vector.replicate _ ((Weight.admit (.discounted .g99) .zero).get (by decide))
+
+/-- An observation with zero tiles, no task and an empty inventory. -/
+def blank : Host.Observation :=
+  ⟨Vector.replicate _ (Vector.replicate _ ⟨0, 0, 0⟩), 0, 0, .none, ⟨0, 0, 0, 0, false, false⟩⟩
+
+/-- A run at the empty world of one tile with no agent state. -/
+def run : Host.RunState quiet Unit := ⟨Host.World.empty quiet, (), {}, 0⟩
 
 /-- An admission that is one test with a computed value accepts exactly when the tested
 condition holds. -/
@@ -1156,28 +1228,28 @@ theorem region_covers : Regula.ExecutableContract Host.covered (fun test =>
 attribute [regula_decision] Host.covered
 
 /-- The impassable test accepts exactly a tile whose static terrain is a mountain, or water
-when the certificate is for a body without a boat. It refuses a terrain refusal.
-
-The function is between fixed types, but each kind carries an accepted or a refused input of
-the function, which is the generated terrain of one tile, and no theorem states the terrain of
-a tile. The statement is therefore a requirement with no kind. -/
+when the certificate is for a body without a boat. It refuses a terrain refusal. The terrain
+generator is the subject of the claim: the specification names `Host.terrain`, which the test
+reads. The accepted input is a tile of the wide world for a body without a boat, and the
+refused input is the last coordinate, whose terrain the generator refuses. -/
 theorem tile_impassable : Regula.ExecutableContract Host.impassable (fun test =>
-    (∀ (config : Host.WorldConfig) (boat : Bool) (tile : Host.Position),
-      test config boat tile = true ↔
-        Host.terrain tile config.raw.seed config.raw.baseScale = .ok .mountain ∨
-          (Host.terrain tile config.raw.seed config.raw.baseScale = .ok .water ∧
-            boat = false)) ∧
-      NoAccepted
-        "terrain: the input needs the terrain of a generated tile" ∧
-      NoRefused
-        "terrain: the input needs the terrain of a generated tile") :=
-  ⟨⟨(fun config boat tile => by
-    unfold Host.impassable
-    cases Host.terrain tile config.raw.seed config.raw.baseScale with
-    | error refusal => simp
-    | ok kind => cases kind <;> simp),
-    trivial,
-    trivial⟩⟩
+    Regula.Decides (· = true)
+      (fun input : (Host.WorldConfig × Bool) × Host.Position =>
+        Host.terrain input.2 input.1.1.raw.seed input.1.1.raw.baseScale = .ok .mountain ∨
+          (Host.terrain input.2 input.1.1.raw.seed input.1.1.raw.baseScale = .ok .water ∧
+            input.1.2 = false))
+      (Function.uncurry (Function.uncurry test))) :=
+  ⟨.of_iff
+    (fun ⟨⟨config, boat⟩, tile⟩ => by
+      show Host.impassable config boat tile = true ↔ _
+      unfold Host.impassable
+      cases Host.terrain tile config.raw.seed config.raw.baseScale with
+      | error refusal => simp
+      | ok kind => cases kind <;> simp)
+    ⟨((wide, false), ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩), by decide +kernel⟩
+    ⟨((wide, true), last), by decide +kernel⟩⟩
+
+attribute [regula_decision] Host.impassable
 
 /-! ## Viewer protocol admission -/
 
@@ -1961,14 +2033,16 @@ theorem action_admit : Regula.ExecutableContract Action.admit (fun admit =>
 
 /-- Rail admission accepts every configuration (`rails_admission_total`). -/
 theorem rails_admit : Regula.ExecutableContract StepSizeRails.admit (fun admit =>
-    (∀ config : Acorn.Config, admit config ≠ none) ∧
+    (∀ config : Acorn.Config, (admit config).isSome = true) ∧
       Accepts (·.isSome = true)
         (admit ⟨.demon, .differential⟩) ∧
       NoRefused
-        "no refused input exists: the admission is total") :=
-  ⟨⟨(rails_admission_total),
+        (∀ config : Acorn.Config, Accepts (·.isSome = true) (admit config))) :=
+  ⟨⟨(fun config => Option.isSome_iff_ne_none.mpr (rails_admission_total config)),
     by unfold Accepts; decide +kernel,
-    trivial⟩⟩
+    fun config => by
+      unfold Accepts
+      exact Option.isSome_iff_ne_none.mpr (rails_admission_total config)⟩⟩
 
 /-- Squared-discrepancy admission accepts exactly two finite words whose squared discrepancy
 is within the squared envelope, and an admitted sample is that exact squared discrepancy
@@ -2284,12 +2358,12 @@ theorem less_useful : Regula.ExecutableContract @Features.Lifecycle.lessUseful (
       test state unit other = true ↔
         state.progress.units[unit.val].utility.value.key <
           state.progress.units[other.val].utility.value.key) ∧
-      NoAccepted
-        "no closed state with two units of different stored utility was built" ∧
+      Accepts (· = true)
+        (test ranked ⟨0, by decide⟩ ⟨1, by decide⟩) ∧
       Refuses (· = true)
         (test young only only)) :=
   ⟨⟨(Features.Lifecycle.lessUseful_iff),
-    trivial,
+    by unfold Accepts; decide +kernel,
     by unfold Refuses; decide +kernel⟩⟩
 
 /-- The consistency test accepts exactly a behaviour whose reported masses are the frozen
@@ -2297,13 +2371,19 @@ policy's (`PolicySnapshot.consistent_iff`). -/
 theorem snapshot_consistent : Regula.ExecutableContract @PolicySnapshot.consistent (fun test =>
     (∀ {count} (snapshot : PolicySnapshot count) (behaviour : Vector Binary32 count.word.toNat),
       test snapshot behaviour = true ↔ snapshot.probabilities = behaviour) ∧
-      NoAccepted
-        "no closed policy snapshot was built" ∧
-      NoRefused
-        "no closed policy snapshot was built") :=
+      Accepts (· = true)
+        (test still still.probabilities) ∧
+      Refuses (· = true)
+        (test still (still.probabilities.map fun word => ⟨word.bits ^^^ 1⟩))) :=
   ⟨⟨(PolicySnapshot.consistent_iff),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; exact (PolicySnapshot.consistent_iff still _).mpr rfl,
+    by
+      unfold Refuses
+      intro same
+      have equal := (PolicySnapshot.consistent_iff still _).mp same
+      have first := congrArg (fun vector => (vector[0]'(by decide)).bits) equal
+      simp only [Vector.getElem_map] at first
+      exact flipped _ first.symm⟩⟩
 
 /-- Identity-or-refusal restoration accepts the words of every assignment under the receiving
 slot function and returns that assignment (`Assignment.wordsUsing_roundtrip`).
@@ -2380,10 +2460,12 @@ theorem prediction_advance_raw :
         (reward : Binary32) (raw : Nat) (own : Bool),
         (advance state bank obs reward raw own).isSome = true ↔
           raw < Acorn.FeatureConstants.primitiveCount) ∧
-      NoAccepted
-        "no closed prediction state with its bank was built" ∧
-      NoRefused
-        "no closed prediction state with its bank was built") :=
+      Accepts (·.isSome = true)
+        (advance tiny.initial.control.predictionView young.representation.bank blank .zero 0
+          false) ∧
+      Refuses (·.isSome = true)
+        (advance tiny.initial.control.predictionView young.representation.bank blank .zero
+          Acorn.FeatureConstants.primitiveCount false)) :=
   ⟨⟨(fun state _ bank obs reward raw own => by
     show ((Action.admit Acorn.FeatureConstants.primitiveCount raw).map _).isSome = true ↔ _
     cases admitted : Action.admit Acorn.FeatureConstants.primitiveCount raw with
@@ -2395,8 +2477,8 @@ theorem prediction_advance_raw :
       have inside : ¬Acorn.FeatureConstants.primitiveCount ≤ raw := fun outside =>
         absurd ((Action.admit_none _ _).mpr outside) (by simp [admitted])
       exact ⟨fun _ => Nat.lt_of_not_le inside, fun _ => rfl⟩),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- The clock-predicate evaluator, on the agreement-order and snapshot-order programs with
 equal leading clocks, accepts only the values the theorems state
@@ -2436,15 +2518,15 @@ theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun 
         ∀ candidate : Candidate config, @admit dimension config weights unit = some candidate →
           candidate.key =
             (weights.get (unitFeature dimension config candidate.unit)).value.bits.toNat) ∧
-      NoAccepted
-        "no closed weight array was built" ∧
-      NoRefused
-        "no closed weight array was built") :=
+      Accepts (·.isSome = true)
+        (@admit small tiny.config warm only) ∧
+      Refuses (·.isSome = true)
+        (@admit small tiny.config cold only)) :=
   ⟨⟨(fun dimension config weights unit =>
     ⟨@dite_isSome _ _ (Binary32.positiveDecidable _) _,
       candidateOfWeight_key dimension config weights unit⟩),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- A unit can be replaced: it is older than the maturity threshold and, away from a free
 boundary, it is the objective of no skill. Stated on the stored birth step, the clock and the
@@ -2569,13 +2651,13 @@ theorem attempt_finished : Regula.ExecutableContract @Host.Attempt.finished (fun
       (attempt : Host.Attempt config α goal cap),
       finished attempt = true ↔ attempt.steps.val = cap.toNat ∨
         (attempt.steps.val ≠ 0 ∧ attempt.run.carried.events.done = true)) ∧
-      NoAccepted
-        "no closed attempt was built" ∧
-      NoRefused
-        "no closed attempt was built") :=
+      Accepts (· = true)
+        (finished (Host.Attempt.start run (.survive 1) 0)) ∧
+      Refuses (· = true)
+        (finished (Host.Attempt.start run (.survive 1) 1))) :=
   ⟨⟨(fun attempt => by simp [Host.Attempt.finished]),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- A boundary decision closes the campaign exactly when it is complete or stopped. -/
 theorem boundary_closing :
@@ -2744,10 +2826,10 @@ theorem world_step : Regula.ExecutableContract @Host.World.step (fun step =>
       (events : Host.StepResult), @step config world action = .ok (next, events) →
         next.time = world.time + 1) ∧
       Accepts (·.isOk = true) (@step quiet (Host.World.empty quiet) .wait)) ∧
-      NoRefused
-        "terrain: a refusal is a refusal of the terrain generator") :=
+      Refuses (·.isOk = true)
+        (@step herd edge .wait)) :=
   ⟨⟨(⟨fun _ => Host.World.step_clock, by unfold Accepts; decide +kernel⟩),
-    trivial⟩⟩
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- A unit is mature exactly when its birth step plus the maturity threshold is before the
 clock. -/
@@ -2801,13 +2883,13 @@ theorem ensemble_holds : Regula.ExecutableContract @Ensemble.holds (fun holds =>
       holds ensemble unit = true ↔
         ∃ skill ∈ ensemble.skills.toList, ∃ bonus,
           skill.interest.held = .selected unit bonus) ∧
-      NoAccepted
-        "no closed ensemble in which a skill holds a unit was built" ∧
+      Accepts (· = true)
+        (holds crowd only) ∧
       Refuses (· = true)
         (holds young.consumers only)) :=
   ⟨⟨(fun ensemble unit => by
     simp only [Ensemble.holds, List.any_eq_true, holds_selected]),
-    trivial,
+    by unfold Accepts; decide +kernel,
     by unfold Refuses; decide +kernel⟩⟩
 
 /-- One preference step keeps its choice for a unit that cannot be replaced. For a unit that
@@ -2885,17 +2967,18 @@ theorem episode_end : Regula.ExecutableContract @TemporalDecision.episodeEnd (fu
             (ending.reason.val = 0 ↔ event.reason = .goal) ∧
             (ending.reason.val = 1 ↔ event.reason = .duration) ∧
             (ending.reason.val = 2 ↔ event.reason = .interrupted)) ∧
-      NoAccepted
-        "no closed temporal decision was built" ∧
-      NoRefused
-        "no closed temporal decision was built") :=
+      Accepts (·.isSome = true)
+        (episodeEnd ({ calm with ended := some ⟨⟨0, by decide⟩, ⟨0, by decide⟩, .goal⟩ } :
+          TemporalDecision Grid.actions)) ∧
+      Refuses (·.isSome = true)
+        (episodeEnd calm)) :=
   ⟨⟨(fun decision =>
     ⟨by simp [TemporalDecision.episodeEnd], fun event ended => by
       simp only [TemporalDecision.episodeEnd, ended, Option.map_some]
       refine ⟨_, rfl, rfl, rfl, ?_⟩
       cases event.reason <;> simp⟩),
-    trivial,
-    trivial⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- The feature of an objective is absent for the neutral objective and is the unit feature of
 a selected one. `unitFeature` is the slot map, which the lookup reads. The objective's type

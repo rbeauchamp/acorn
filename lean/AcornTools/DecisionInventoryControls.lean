@@ -21,9 +21,11 @@ marker would decide wrongly. The ownership audit checks them through
   definition included;
 * a witness marker counts only as a closed fact at the top level of a condition, with a
   standard acceptance predicate, about the function that the condition binds, with an input
-  that does not name that function;
+  that does not name that function and does not reach it through a definition;
 * a kind counts only when it is stated about the function that the condition binds;
-* a statement whose every claim is below a hypothesis about the function is `conditional`.
+* a proof that every input is accepted states the fact at exactly the quantified inputs;
+* a statement whose every claim is below a hypothesis about the function is `conditional`,
+  and a statement in a structure that the audit does not read completely is not recognized.
 
 They are read by that check and by nothing else.
 -/
@@ -105,5 +107,29 @@ def guarded : (Nat → Bool) → Prop := fun test => ∀ count, test count = tru
 
 /-- An equivalence about the function that the condition binds. -/
 def exact : (Nat → Bool) → Prop := fun test => ∀ count, test count = true ↔ count = 0
+
+/-- A value that a definition builds from the written function `T.match_37`. -/
+def chosen : Nat := if T.match_37 0 then 0 else 1
+
+/-- A marker at an input that a definition builds from the decided function: its input
+reaches that function, so it is not counted. -/
+def viaDefinition : (Nat → Bool) → Prop := fun test => Accepts (· = true) (test chosen)
+
+/-- A fact for every input of the function: it proves that no input is refused. -/
+def everyAccepted : (Nat → Bool) → Prop := fun test => ∀ count, Accepts (· = true) (test count)
+
+/-- A fact at one input below a quantifier: it is not a fact for every input. -/
+def someAccepted : (Nat → Bool) → Prop := fun test => ∀ _count : Nat, Accepts (· = true) (test 0)
+
+/-- A fact for every input that satisfies a hypothesis: it is not a fact for every input. -/
+def guardedAccepted : (Nat → Bool) → Prop :=
+  fun test => ∀ count, count = 0 → Accepts (· = true) (test count)
+
+/-- An equivalence whose side is a conditional claim: its form is not recognized. -/
+def veiled : (Nat → Bool) → Prop := fun test => (∀ count, test count = true → count = 0) ↔ True
+
+/-- A conditional claim inside a disjunction: its form is not recognized. -/
+def wrapped : (Nat → Bool) → Prop :=
+  fun test => (∀ count, test count = true → count = 0) ∨ False
 
 end AcornDecisionInventory.Control
