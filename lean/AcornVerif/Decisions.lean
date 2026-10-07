@@ -36,9 +36,12 @@ The round trips of the composed checkpoint admissions, the goal completion predi
 translation and precision derivation are stated here for the same reason: their theorems are
 in this library. Each contract states only what its theorem proves.
 
-No specification here names a test that its function runs: `Acorn.Decisions` states the rule
-and lists the propositions that take the place of the tests. The specification of
-`exp_saturation` names the strict order `Binary32.Less`.
+No specification of a contract with a kind here names a test that its function runs:
+`Acorn.Decisions` states the rule and lists the propositions that take the place of the tests.
+The specification of `exp_saturation` names the strict order `Binary32.Less`. Regula's RG1009
+does not examine a statement with no kind, and two such statements here name the test
+`Host.Inventory.owns`, which their functions run: `goal_satisfied`, and `replay_certified`
+through `Achieved`.
 
 Regula counts only a contract of the function's own library toward a decision registration,
 so the functions below carry no registration. The ownership audit requires each contract by

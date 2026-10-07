@@ -1893,6 +1893,9 @@ attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidab
   Binary32.instDecidableFinite Binary64.instDecidableFinite Interval32.instDecidableContains
   Features.instDecidableRecent Features.instDecidableDominates Lifetime.instDecidableLegalSum
   Checkpoint.instDecidableValid Checkpoint.instDecidableOptionsValid
+  Binary32.instDecidableNegative Binary32.instDecidableIsNaN Binary32.instDecidableLess
+  Binary64.instDecidableIsNaN Binary64.instDecidableLess Host.instDecidableWalkable
+  Host.instDecidableOwns Host.instDecidableInBox
 
 /-! ## Decisions with a dependent type
 

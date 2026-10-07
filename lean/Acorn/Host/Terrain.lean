@@ -332,27 +332,6 @@ def classifyTerrain (position : Position) (seed : UInt64) (elevation moisture : 
     then .ore else .stone
   else .mountain
 
-/-- The band and dither decision, with the word comparison in the place of the order that it
-decides. -/
-theorem classifyTerrain_eq_less (position : Position) (seed : UInt64)
-    (elevation moisture : Binary32) :
-    classifyTerrain position seed elevation moisture =
-      if elevation.less ⟨Acorn.Constants.band030Bits⟩ then .water
-      else if elevation.less ⟨Acorn.Constants.band0335Bits⟩ then .sand
-      else if elevation.less ⟨Acorn.Constants.band060Bits⟩ then .grass
-      else if elevation.less ⟨Acorn.Constants.band072Bits⟩ then
-        if (⟨Acorn.Constants.moist040Bits⟩ : Binary32).less moisture &&
-            Rng.hash2 (coordinateWord position.x) (coordinateWord position.y) (seed ^^^ 7) % 100
-              < 60
-        then .tree else .forest
-      else if elevation.less ⟨Acorn.Constants.band080Bits⟩ then
-        if Rng.hash2 (coordinateWord position.x) (coordinateWord position.y) (seed ^^^ 9) % 100
-            < 10
-        then .ore else .stone
-      else .mountain := by
-  unfold classifyTerrain
-  simp only [← Binary32.less_iff, Bool.decide_eq_true]
-
 /-- Complete current terrain generation, with explicit signed-overflow refusal. -/
 def terrain (position : Position) (seed : UInt64) (baseScale : Binary32) :
     Except WorldError TileKind := do

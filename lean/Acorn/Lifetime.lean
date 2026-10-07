@@ -99,18 +99,6 @@ def sumUpdate (quantity : Quantity) (count : UInt64) (sum : Binary64) (value : B
   let bound := maximumSum quantity count
   (count, if bound.Less sum then bound else sum)
 
-/-- The update, with the word comparison in the place of the order that it decides. -/
-theorem sumUpdate_eq_less (quantity : Quantity) (count : UInt64) (sum : Binary64)
-    (value : Binary32) :
-    sumUpdate quantity count sum value =
-      (let count := addCount count 1
-       let value := quantity.range.saturate value
-       let sum := sum.add (Conversion.widen value)
-       let bound := maximumSum quantity count
-       (count, if bound.less sum then bound else sum)) := by
-  unfold sumUpdate
-  simp only [← Binary64.less_iff]
-
 /-- Every total comes from legal durable admission or the exact current write.
 This provenance is erased; it is not a retained observation history. -/
 inductive SumAdmitted (quantity : Quantity) : UInt64 → Binary64 → Prop where
