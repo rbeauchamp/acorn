@@ -12,7 +12,7 @@ open Lean
 /-- Reviewed verification/bootstrap modules are explicit trust boundaries. New
 root tools do not acquire an exemption merely by living outside `Acorn`. -/
 def toolingModules : Array Name := #[`AcornTools, `Bootstrap, `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.ModuleInventory,
-  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.DecisionInventory, `AcornTools.DecisionInventoryControls, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
+  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
 
 /-- Lean sources below `root`, named relative to it. `skipped` lists the entries of `root`
 itself that are generated, dependency or Lake configuration files. Traversal and metadata
@@ -55,12 +55,13 @@ def projectModules : IO (Array Name) := do
 /-- The registration leaf of the executing library: Regula executable contracts about the
 executing definitions, and their decision registrations. It belongs to the `Acorn` library
 because Regula decides a registered function against the contracts of the function's own
-library. It declares no executing definition, and no module may import it. -/
+library. No module may import it, so no entry point links what it declares: specification
+predicates, one decision procedure for such a predicate and two closed values. -/
 def decisionRegistry : Name := `Acorn.Decisions
 
 /-- Every current native module needs an actual object and compiler trace, even
 when no executable imports its library root. The decision registry is no native module:
-it states contracts and is linked into no entry point. -/
+no module imports it, so it is linked into no entry point. -/
 def nativeModule (owner : Name) : Bool :=
   owner != decisionRegistry && ((`Acorn).isPrefixOf owner || (`NativeApp).isPrefixOf owner)
 

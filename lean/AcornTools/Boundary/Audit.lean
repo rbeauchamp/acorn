@@ -24,7 +24,8 @@ open Lean
 def compositionRoots : Array Name := #[`Acorn, `Acorn.SwiftTdDriver, `Acorn.FeatureDriver, `Acorn.WorldDriver, `Acorn.ControlDriver, `Acorn.TemporalDriver, `Acorn.AgentDriver]
 
 /-- The registration leaf of the executing library states contracts about executing
-definitions and declares none. It has its own import and command admission below. -/
+definitions. No module imports it, so no entry point links what it declares. It has its own
+import and command admission below. -/
 def registry (name : Name) : Bool := name == AcornModuleInventory.decisionRegistry
 
 /-- Executing application sources and their shared constant leaf. -/

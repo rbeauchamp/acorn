@@ -143,12 +143,7 @@ Lake runs with `--wfail`, so any warning, including a header-time warning such
 as a deprecated import, fails the build. Source/compiled admission checks
 imports, capability owners, artifact origins and native routes. Every project theorem is checked for axiom
 dependencies; only {splice}`proseList (AcornTheoremCount.admittedAxioms.toList.map toString)` are admitted. The theorem inventory reports the
-checked declarations. Every proof passes through the kernel. The same walk of the
-compiled environment applies the [decision inventory](#regula-audit): every
-definition of the claimed libraries with a verdict-shaped result is in exactly
-one of three classes: a structure field or a function with a `Decidable` result,
-the implementation of a registered contract, or an entry of the exclusion table
-with the reason it carries no contract.
+checked declarations. Every proof passes through the kernel.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
@@ -304,83 +299,28 @@ proves which inputs it accepts or refuses, or a property of an accepted or a
 refused result, that statement is registered as a requirement with no kind, and
 the ownership audit requires the contract by name. A decision that takes its
 element type as an argument has no kind either and is registered in the same
-way. A requirement with no kind is weaker than a kind: the Regula audit checks
-that its theorem is proved about the executing definition, and it does not check
-a witness of either outcome or that the statement is independent of the
-implementation. The ownership audit prints how many implementations have a kind
-and how many have only such a requirement. A contract states only what its
-theorem proves.
+way. A requirement with no kind is a statement that the Regula audit does not
+examine: that audit checks only that its theorem is proved about the executing
+definition. Such a statement can fix one direction only, and no statement of a
+registry shows that both outcomes occur for its function. Kinds for these
+functions are remaining work of
+[issue 67](https://github.com/rbeauchamp/acorn/issues/67). A contract states only
+what its theorem proves.
 
-Regula's audit does not find a decision function that is not registered. The
-ownership audit closes that gap with a decision inventory,
-`lean/AcornTools/DecisionInventory.lean`. A definition is verdict-shaped when
-its result type, after its arguments, is `Bool`, `Option`, `Except` or
-`Decidable`. The audit reads every verdict-shaped definition of the claimed
-libraries from the compiled environment and requires each to be in exactly one
-class: a structure field or a function with a `Decidable` result; the
-implementation of a contract of a decision registry; or an entry of the
-inventory's exclusion table, which gives the shape of the definition's type, as
-the audit computes it, and one reason from a closed list. A definition in no
-class or in two fails verification, and so does a table entry that is not valid
-on its own. A new verdict-shaped definition therefore cannot arrive unlisted,
-and a contract cannot be removed without an entry in the table. The domain is
-every definition or opaque constant with a verdict-shaped type, private ones,
-instances and field defaults included. A constant leaves the domain only as a
-recursion companion of a parent declaration: the parent has equation data of a
-recursion compiler in the environment, the name is the one that compiler derives
-from the parent, and the companion has the parent's signature or is applied by
-the parent's body. Neither a name nor a flag nor the source range that Lean
-records decides.
-
-The audit computes the fact behind each reason and refuses an entry whose fact
-is false. The reasons of a first group include the fact that no written theorem
-of the maintained libraries names the definition in its statement: no such
-theorem, which is the absence of a direct reference and nothing more; that, and
-its body applies a registered decision; that, and it belongs to the certificate
-search module and each caller outside that module applies a registered decision.
-The reasons of a second group are other computed facts and do not include it:
-the definition is the comparison of a derived instance, inside the declaration
-of the type it compares; it is the default value of a structure field that is
-not a function; it belongs to the proof library. A written theorem can name a
-definition with a reason of the second group, and the audit prints, for each
-reason, how many of its entries a written theorem names. The last reason is for
-a definition that a written theorem names and that has no contract. Its entry
-gives one such theorem, which the audit checks. The audit also computes, for
-every excluded definition, whether the implementation of a registered decision
-reaches it through definition bodies. A definition that a written theorem names
-and a registered decision reaches has a contract. A definition that no written
-theorem names and a registered decision reaches is in a list of the inventory,
-and a theorem states the size of that list: it has no contract of its own, and
-the contract of the decision that reaches it is the evidence. The inventory
-makes no statement about what a caller does with the result of an excluded
-definition. The facts for a derived comparison and for the proof library rest in
-part on a position and not on a recorded relationship: that a comparison is
-derived is inferred from the recorded declaration ranges, and the proof library
-is identified by its modules. The audit prints the count of each class and of
-each reason. A witness refuses a function that gives one verdict for every
-input: a contract with an accepted input is false of a function that refuses
-every input, and a contract with a refused input is false of a function that
-accepts every input. Each decision function with a contract has both. A two-way
-kind states that both outcomes occur, and it fixes the verdict at every input.
-Every other function, a function with a one-way kind included, has one accepted
-and one refused input as marked facts at the top level of a condition, about the
-function that the condition binds. A marked fact states that an input with that
-verdict exists. When a function has no accepted or no refused input, a contract
-carries the proof of that: the opposite fact for every input. The audit accepts
-no other reason for a missing input, and it refuses a function with neither. The
-audit does not examine how the input of a witness is built. A requirement with
-no kind is not examined by the Regula audit for witnesses or independence, and
-the ownership audit gives no judgment of its strength: it prints the contract
-and its function, and the reader reads the statement. The inventory establishes
-that every such definition has been classified and that each computed fact
-holds. The inventory's own decision is a pure function with a theorem that it
-accepts exactly a definition in exactly one class. `Acorn.Decisions`
+Regula's audit does not find a decision function that is not registered, and no
+check of Acorn does. The module documentation of `lean/Acorn/Decisions.lean`
+lists the groups of definitions with a `Bool`, `Option`, `Except` or `Decidable`
+result that carry no contract, with the reason for each group. That list has no
+check of completeness: a new definition with such a result can arrive with no
+contract and no entry. A report of the definitions with no contract is work of
+Regula ([issue 115](https://github.com/rbeauchamp/regula/issues/115)).
+`Acorn.Decisions`
 cannot register a function of another library, such as a NativeApp parser. No
 kind says that a specification is the intended one. `Acorn.Decisions` belongs to
 the Acorn library
 because Regula decides a registered function against the contracts of the
 function's own library. It is the only module that imports Regula's decision
-attribute. It declares no executing definition and no module imports it; the
+attribute. No module imports it, so no entry point links what it declares; the
 boundary audit admits it with the proof sources and refuses an import of it.
 `AcornVerif.Decisions` states the contracts whose proofs need the proof library.
 Regula does not count them toward a registration, so their functions are not
