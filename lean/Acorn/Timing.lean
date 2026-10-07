@@ -64,11 +64,9 @@ action in force, and its action is released at an instant. An action is in force
 the instant it is released at. For that step, a fault holds exactly from the deadline to
 the release (`Pace.step_fault`), the preceding action is in force at every instant of
 the fault (`Pace.step_holds`), and no instant has a fault exactly when the release meets
-the deadline (`Pace.step_faultless`). `Pace.overdue` counts the cycles that begin in
-fault (`Pace.step_overdue`, `Pace.overdue_cycles`), and it is zero exactly when the
-deadline is met (`Pace.overdue_met`). So a missed deadline is a fault of the protocol
-during which the preceding action holds, and the late action is still released: the
-outcome has no case that drops it.
+the deadline (`Pace.step_faultless`). So in one step a missed deadline is a fault of the
+protocol during which the preceding action holds, and the chosen action is in force after
+its release, however late the release is (`Pace.step_action`).
 
 When the earlier of two actions is released at or after the start of its percept's
 cycle and the later one meets its deadline, for percepts `span` cycles apart, the later
@@ -231,12 +229,13 @@ structure Instant where
 def Pace.boundary (pace : Pace) (origin : Instant) (index : Nat) : Instant :=
   ⟨origin.nanoseconds + index * pace.cycle⟩
 
-/-- The cycle an instant falls in. An instant before the origin falls in cycle zero. -/
+/-- The cycle an instant falls in: the instant a cycle starts at falls in that cycle
+(`Pace.index_boundary`). An instant before the origin falls in cycle zero. -/
 def Pace.index (pace : Pace) (origin now : Instant) : Nat :=
   (now.nanoseconds - origin.nanoseconds) / pace.cycle
 
 /-- Deadline of the action of the percept of a cycle: the start of the cycle `latency`
-cycles later. -/
+cycles later, which is later than the start of the percept's cycle (`Pace.deadline_lt`). -/
 def Pace.deadline (pace : Pace) (origin : Instant) (index : Nat) : Instant :=
   pace.boundary origin (index + pace.latency)
 
@@ -244,12 +243,6 @@ def Pace.deadline (pace : Pace) (origin : Instant) (index : Nat) : Instant :=
 cycle: it is released before the deadline. -/
 def Pace.meets (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) : Bool :=
   decide (released.nanoseconds < (pace.deadline origin index).nanoseconds)
-
-/-- How many cycles, from the one a deadline starts, have started at or before the
-instant the action is released at. They are the cycles that begin in fault
-(`Pace.step_overdue`), and there is none for a release that meets the deadline. -/
-def Pace.overdue (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) : Nat :=
-  pace.index origin released + 1 - (index + pace.latency)
 
 /-- The start of a cycle in nanoseconds: the origin plus that many cycles. -/
 theorem Pace.boundary_nanoseconds (pace : Pace) (origin : Instant) (index : Nat) :
@@ -348,19 +341,6 @@ theorem Pace.meets_begun (pace : Pace) (origin : Instant) (index : Nat) (release
     rw [pace.boundary_nanoseconds origin (index + pace.latency)] at first
     exact first
 
-/-- **The cycles behind a deadline.** For every pace, origin, cycle and release: a cycle
-that is not before the one the deadline starts has started at or before the release
-exactly when it is one of the first `overdue` of them. -/
-theorem Pace.overdue_cycles (pace : Pace) (origin : Instant) (index : Nat) (released : Instant)
-    (later : Nat) (due : index + pace.latency ≤ later) :
-    (pace.boundary origin later).nanoseconds ≤ released.nanoseconds ↔
-      later < index + pace.latency + pace.overdue origin index released := by
-  have started := pace.boundary_le origin later released
-  have early := pace.index_early origin released
-  have positive := pace.causal
-  unfold Pace.overdue
-  omega
-
 /-- **The later of two releases, when it meets its deadline.** For every pace, origin,
 cycle and number of cycles between two percepts: when the earlier action is released at
 or after the start of its percept's cycle, and the later one meets its deadline, the
@@ -377,14 +357,6 @@ theorem Pace.met_gap (pace : Pace) (origin : Instant) (index span : Nat)
       index * pace.cycle + (span + pace.latency) * pace.cycle := by
     rw [Nat.add_assoc, Nat.add_mul]
   rw [pace.boundary_nanoseconds origin index] at sensed
-  omega
-
-/-- **No cycle behind a deadline exactly when it is met.** -/
-theorem Pace.overdue_met (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) :
-    pace.overdue origin index released = 0 ↔ pace.meets origin index released = true := by
-  have first := pace.overdue_cycles origin index released (index + pace.latency) (Nat.le_refl _)
-  rw [pace.meets_iff origin index released]
-  rw [pace.boundary_nanoseconds origin (index + pace.latency)] at first
   omega
 
 /-! ## The fault of a missed deadline -/
@@ -404,13 +376,6 @@ variable {α : Type}
 def Standing.action : Standing α → Option α
   | .idle action => action
   | .awaiting prior _ => prior
-
-/-- The percept of a cycle is sensed: its action is awaited and the action in force stays. -/
-def Standing.sense (standing : Standing α) (index : Nat) : Standing α :=
-  .awaiting standing.action index
-
-/-- An action is released: it is in force and no percept awaits. -/
-def Standing.released (chosen : α) : Standing α := .idle (some chosen)
 
 /-- What holds at an instant: the action in force, and whether a deadline has passed with
 its action not released. -/
@@ -434,8 +399,8 @@ def Pace.outcome (pace : Pace) (origin : Instant) (standing : Standing α) (now 
 force after the instant it is released at, so the percept still awaits at that instant. -/
 def Standing.during (prior : Option α) (index : Nat) (released : Instant) (chosen : α)
     (now : Instant) : Standing α :=
-  if now.nanoseconds ≤ released.nanoseconds then (Standing.idle prior).sense index
-  else .released chosen
+  if now.nanoseconds ≤ released.nanoseconds then .awaiting prior index
+  else .idle (some chosen)
 
 /-- Time alone changes no action: at every instant the action of the outcome is the
 action in force of the standing. -/
@@ -538,27 +503,5 @@ theorem Pace.step_faultless (pace : Pace) (origin : Instant) (prior : Option α)
     have clear := last.mp (none released)
     refine verdict.mpr ?_
     omega
-
-/-- **The cycles that begin in fault are the overdue ones.** For every step and cycle:
-a fault holds at the start of a cycle exactly when the cycle is one of the first
-`overdue` from the one the deadline starts. -/
-theorem Pace.step_overdue (pace : Pace) (origin : Instant) (prior : Option α) (index : Nat)
-    (released : Instant) (chosen : α) (later : Nat) :
-    (pace.outcome origin (Standing.during prior index released chosen
-        (pace.boundary origin later)) (pace.boundary origin later)).fault = true ↔
-      index + pace.latency ≤ later ∧
-        later < index + pace.latency + pace.overdue origin index released := by
-  rw [pace.step_fault origin prior index released chosen (pace.boundary origin later)]
-  have order : (pace.deadline origin index).nanoseconds ≤
-      (pace.boundary origin later).nanoseconds ↔ index + pace.latency ≤ later := by
-    rw [pace.deadline_nanoseconds origin index,
-      pace.boundary_nanoseconds origin later, Nat.add_le_add_iff_left]
-    exact Nat.mul_le_mul_right_iff pace.running
-  constructor
-  · intro ⟨due, begun⟩
-    exact ⟨order.mp due,
-      (pace.overdue_cycles origin index released later (order.mp due)).mp begun⟩
-  · intro ⟨due, counted⟩
-    exact ⟨order.mpr due, (pace.overdue_cycles origin index released later due).mpr counted⟩
 
 end Acorn

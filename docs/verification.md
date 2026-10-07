@@ -289,10 +289,9 @@ theorem Acorn.Pace.step_fault {α : Type} (pace : Acorn.Pace) (origin : Acorn.In
 ```
 
 `Acorn.Pace.step_faultless` states that no instant has a fault exactly when the
-release meets the deadline, and `Acorn.Pace.step_overdue` which cycles begin in
-fault. An instant is a natural number of nanoseconds, so this arithmetic is exact. The
-statements are about these functions: no executing loop keeps a standing or reads a cycle
-or a latency, and no executing world declares a wall clock.
+release meets the deadline. An instant is a natural number of nanoseconds, so this
+arithmetic is exact. The statements are about these functions: no executing loop keeps a
+standing or reads a cycle or a latency, and no executing world declares a wall clock.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting

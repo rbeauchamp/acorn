@@ -312,15 +312,12 @@ action in force and its action is released at some instant
 - at every instant of the fault the preceding action is in force
   (`Pace.step_holds`), and after the release the chosen one is (`Pace.step_action`);
 - no instant has a fault exactly when the release meets the deadline
-  (`Pace.step_faultless`);
-- the cycles that begin in fault are the first `Pace.overdue` cycles from the one the
-  deadline starts (`Pace.step_overdue`), and that count is zero exactly when the
-  deadline is met (`Pace.overdue_met`).
+  (`Pace.step_faultless`).
 
-The outcome has no case that drops an action: a late action is released late. With a
-cycle of 200 ms, a latency of one cycle and the action of cycle 0 released at 250 ms,
-the fault holds from 200 ms to 250 ms with the preceding action in force, one cycle
-begins in fault, and the chosen action is in force after 250 ms.
+These hold for every instant of release, so in that step a late action is in force
+after its late release. With a cycle of 200 ms, a latency of one cycle and the action
+of cycle 0 released at 250 ms, the fault holds from 200 ms to 250 ms with the
+preceding action in force, and the chosen action is in force after 250 ms.
 
 When the earlier of two actions is released at or after the start of its percept's
 cycle and the later one meets its deadline, for percepts `span` cycles apart, the
