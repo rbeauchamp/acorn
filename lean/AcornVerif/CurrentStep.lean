@@ -463,6 +463,7 @@ theorem enterable_static {config : WorldConfig} (world : World config) (position
       (terrain position config.raw.seed config.raw.baseScale).map
         (fun base => passable base world.body.inventory.boat) := by
   unfold World.enterable World.tileKind
+  simp only [TileKind.decide_walkable]
   cases terrain position config.raw.seed config.raw.baseScale with
   | error refusal => rfl
   | ok base =>

@@ -28,7 +28,7 @@ theorem magnitudeUnits_exact (value : Binary32) :
 
 /-- Signed executable coordinates agree with the common proved signed field owner. -/
 theorem units_exact (value : Binary32) : units value = signedFieldUnits 23 value.key := by
-  rw [Binary32.key, signedFieldUnits_sign]
+  rw [Binary32.key_eq_negative, signedFieldUnits_sign]
   rfl
 
 /-- Every finite operand has exactly its executed integer coordinate at the binary32 scale. -/

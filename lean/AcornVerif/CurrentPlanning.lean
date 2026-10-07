@@ -907,7 +907,8 @@ theorem project_numeric (raw : Binary32) (finite : raw.Finite) :
   have high := numerical32_less Discount.g99.horizon raw top finite
   have bounds := horizon_bounds
   change numerical32 (raw.saturate .zero Discount.g99.horizon) = _
-  unfold Binary32.saturate clamp horizon
+  rw [Binary32.saturate_eq_less]
+  unfold clamp horizon
   rw [Binary32.finite_not_nan raw finite, low, high, zero_numeric]
   simp only [Bool.false_or, decide_eq_true_eq]
   split

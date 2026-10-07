@@ -64,7 +64,7 @@ theorem numericallyEqual_eq_key (left right : Binary32) :
   congr 1
   apply Bool.eq_iff_iff.mpr
   simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq]
-  unfold key
+  simp only [key_eq_negative]
   split <;> split <;> simp_all [magnitude, ← UInt32.toNat_inj] <;> omega
 
 /-- IEEE non-strict order uses reversed strict word order after NaN exclusion. -/
@@ -93,7 +93,7 @@ def isZero (value : Binary32) : Bool := value.bits &&& 0x7fffffff == 0
 theorem isZero_eq_key (value : Binary32) : value.isZero = decide (value.key = 0) := by
   apply Bool.eq_iff_iff.mpr
   simp only [isZero, beq_iff_eq, decide_eq_true_eq, ← UInt32.toNat_inj]
-  unfold key
+  simp only [key_eq_negative]
   split <;> simp_all [magnitude] <;> omega
 
 /-- Sign clearing on raw storage, the `f32::abs` word. -/

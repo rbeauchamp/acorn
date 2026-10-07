@@ -38,8 +38,8 @@ name the gap instead of inventing a diagnosis or citation. Write each Regula
 rule ID as a link to that rule's page for the Regula release the statement is
 about, by default the one pinned in `lean/lakefile.lean`:
 `[RG3002](https://rbeauchamp.github.io/regula/v/<version>/rules/RG3002/)`,
-where `<version>` is the release tag without its leading `v` (`v0.9.0` gives
-`/v/0.9.0/rules/RG3002/`). In a file that does not render Markdown, put the
+where `<version>` is the release tag without its leading `v` (`v0.10.0` gives
+`/v/0.10.0/rules/RG3002/`). In a file that does not render Markdown, put the
 plain URL after the ID.
 
 Define the outcome, scope, remaining design decisions, relevant owners and

@@ -514,7 +514,7 @@ theorem key_unit_cases (value : Binary32) (lo : 0 ≤ value.key) (hi : value.key
   have hw := value.bits.toNat_lt
   by_cases hs : value.negative = true
   · have hmag : value.magnitude = 0 := by
-      simp only [Binary32.key, hs, ↓reduceIte] at lo
+      simp only [Binary32.key_eq_negative, hs, ↓reduceIte] at lo
       omega
     by_cases hz : value.bits.toNat = 0
     · exact Or.inl (by omega)
@@ -532,7 +532,7 @@ theorem key_unit_cases (value : Binary32) (lo : 0 ≤ value.key) (hi : value.key
       have high : value.bits.toNat &&& 2^31 = 0 := congrArg UInt32.toNat hn
       rw [high, Nat.or_zero] at hjoin
       exact hjoin
-    simp [Binary32.key, hs] at hi
+    simp [Binary32.key_eq_negative, hs] at hi
     exact Or.inl (by omega)
 
 /-- The public power returns a finite value in the signed unit interval for every admitted base and UInt32 exponent. -/
@@ -559,7 +559,7 @@ theorem pow_unit (value : Binary32) (exponent : UInt32)
           simp [Nat.testBit_lt_two_pow hsmall]
         · simp [Ne.symm he]
       simp [high]
-    simp only [Binary32.Finite, Binary32.key, hn, Bool.false_eq_true, ↓reduceIte, hm]
+    simp only [Binary32.Finite, Binary32.key_eq_negative, hn, Bool.false_eq_true, ↓reduceIte, hm]
     omega
   · have hv : value = ⟨0x80000000⟩ := by cases value; simp_all
     rw [hv, pow_negative_zero]

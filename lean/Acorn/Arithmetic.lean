@@ -110,20 +110,53 @@ def less (left right : Binary64) : Bool :=
 encoding, including unordered NaNs and the two equal zero encodings. -/
 theorem less_eq_key (left right : Binary64) :
     left.less right = (!left.isNaN && !right.isNaN && decide (left.key < right.key)) := by
+  have order (a b : Binary64) :
+      a.bits &&& 0x7fffffffffffffff < b.bits &&& 0x7fffffffffffffff ↔
+        a.magnitude < b.magnitude :=
+    UInt64.lt_iff_toNat_lt
+  have zero (a : Binary64) : a.bits &&& 0x7fffffffffffffff = 0 ↔ a.magnitude = 0 := by
+    rw [← UInt64.toNat_inj]
+    exact Iff.rfl
   unfold less key
-  split <;> split <;> simp_all [magnitude, UInt64.lt_iff_toNat_lt]
+  change (!left.isNaN && !right.isNaN &&
+    (if left.bits &&& 0x8000000000000000 != 0 then
+      if right.bits &&& 0x8000000000000000 != 0 then
+        decide (right.bits &&& 0x7fffffffffffffff < left.bits &&& 0x7fffffffffffffff)
+      else (left.bits &&& 0x7fffffffffffffff != 0 || right.bits &&& 0x7fffffffffffffff != 0)
+    else if right.bits &&& 0x8000000000000000 != 0 then false
+    else decide (left.bits &&& 0x7fffffffffffffff < right.bits &&& 0x7fffffffffffffff))) = _
   congr 1
-  apply Bool.eq_iff_iff.mpr
-  simp only [Bool.or_eq_true, bne_iff_ne, decide_eq_true_eq]
-  have lz : left.bits &&& 0x7fffffffffffffff = 0 ↔
-      left.bits.toNat &&& 0x7fffffffffffffff = 0 := by
-    rw [← UInt64.toNat_inj]; rfl
-  have rz : right.bits &&& 0x7fffffffffffffff = 0 ↔
-      right.bits.toNat &&& 0x7fffffffffffffff = 0 := by
-    rw [← UInt64.toNat_inj]; rfl
-  simp only [ne_eq, lz, rz]
-  omega
+  cases left.bits &&& 0x8000000000000000 != 0 <;>
+    cases right.bits &&& 0x8000000000000000 != 0 <;>
+    simp only [↓reduceIte, Bool.false_eq_true] <;> apply Bool.eq_iff_iff.mpr <;>
+    simp only [decide_eq_true_eq, Bool.or_eq_true, bne_iff_ne, ne_eq, order, zero,
+      Bool.false_eq_true, false_iff]
+  · constructor <;> intro _ <;> omega
+  · intro _
+    omega
+  · constructor
+    · intro _
+      omega
+    · intro below
+      by_cases none : left.magnitude = 0
+      · exact .inr (by omega)
+      · exact .inl none
+  · constructor <;> intro _ <;> omega
 
+/-- Strict numeric order of two words: neither is a NaN, and the signed keys are in strict
+order. The two zero encodings have one key, so neither is below the other. -/
+def Less (left right : Binary64) : Prop := ¬left.IsNaN ∧ ¬right.IsNaN ∧ left.key < right.key
+
+/-- Strict word comparison accepts exactly the pairs in strict numeric order. -/
+theorem less_iff (left right : Binary64) : left.less right = true ↔ left.Less right := by
+  rw [less_eq_key]
+  simp only [Less, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq, ← isNaN_iff,
+    Bool.not_eq_true, and_assoc]
+
+/-- Strict word comparison decides the strict numeric order, so a function that decides `Less`
+runs that comparison. -/
+instance (left right : Binary64) : Decidable (left.Less right) :=
+  decidable_of_iff _ (less_iff left right)
 
 /-- One Horner step has a separate multiply followed by a separate addition. -/
 def hornerStep (argument accumulator coefficient : Binary64) : Binary64 :=

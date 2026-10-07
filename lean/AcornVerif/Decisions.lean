@@ -36,6 +36,10 @@ The round trips of the composed checkpoint admissions, the goal completion predi
 translation and precision derivation are stated here for the same reason: their theorems are
 in this library. Each contract states only what its theorem proves.
 
+No specification here names a test that its function runs: `Acorn.Decisions` states the rule
+and lists the propositions that take the place of the tests. The specification of
+`exp_saturation` names the strict order `Binary32.Less`.
+
 Regula counts only a contract of the function's own library toward a decision registration,
 so the functions below carry no registration. The ownership audit requires each contract by
 name instead, with a statement that still refers to the executing definition.
@@ -483,18 +487,22 @@ theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
 
 /-- The exponential classifier sends a word to reduction, with no saturated result, exactly
 when the word is finite and strictly between the underflow and the overflow thresholds
-(`CurrentExponential.expSaturation_ends`). -/
+(`CurrentExponential.expSaturation_ends`). The strict order is the proposition
+`Binary32.Less`, which names no test, and `Binary32.less_iff` connects it with the word
+comparison that the classifier runs. -/
 theorem exp_saturation : Regula.ExecutableContract Portable.expSaturation
     (Regula.Decides (· = none)
       (fun value : Binary32 => value.Finite ∧
-        (Binary32.mk Acorn.Constants.expUnderflowBits).less value = true ∧
-          value.less ⟨Acorn.Constants.expOverflowBits⟩ = true)) :=
+        (Binary32.mk Acorn.Constants.expUnderflowBits).Less value ∧
+          value.Less ⟨Acorn.Constants.expOverflowBits⟩)) :=
   ⟨{ sound := fun value admitted => by
        have ends := CurrentExponential.expSaturation_ends value
        rw [admitted] at ends
-       exact ends
+       exact ⟨ends.1, (Binary32.less_iff _ _).mp ends.2.1, (Binary32.less_iff _ _).mp ends.2.2⟩
      accepted := ⟨.zero, by decide⟩
      complete := fun value ⟨finite, above, below⟩ => by
+       have above := (Binary32.less_iff _ _).mpr above
+       have below := (Binary32.less_iff _ _).mpr below
        have ends := CurrentExponential.expSaturation_ends value
        cases saturated : Portable.expSaturation value with
        | none => rfl

@@ -390,7 +390,7 @@ subnormal scale. -/
 theorem numerical32_key_units (value : Binary32) (finite : value.Finite) :
     numerical32 value = (signedFieldUnits 23 value.key : ℚ) * (2 : ℚ) ^ ( - 149 : Int) := by
   rw [numerical32_fieldUnits value finite,model_word32_sign]
-  unfold Binary32.key
+  rw [Binary32.key_eq_negative]
   rw [signedFieldUnits_sign]
   change _ = (if value.bits &&& 0x80000000 != 0 then -(fieldUnits 23 value.magnitude:Int)
     else fieldUnits 23 value.magnitude)*(2:ℚ)^(-149:Int)

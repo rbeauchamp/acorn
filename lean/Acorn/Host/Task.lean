@@ -92,6 +92,20 @@ def Inventory.add (inventory : Inventory) (item : Item) (amount : UInt32) : Inve
 def Inventory.owns (inventory : Inventory) : Craftable → Bool
   | .axe => inventory.axe | .boat => inventory.boat
 
+/-- A tool is owned: the tool is the axe and the flag of the axe is set, or it is the boat and
+the flag of the boat is set. -/
+def Inventory.Owns (inventory : Inventory) (tool : Craftable) : Prop :=
+  (tool = .axe ∧ inventory.axe = true) ∨ (tool = .boat ∧ inventory.boat = true)
+
+/-- The ownership test accepts exactly an owned tool. -/
+theorem Inventory.owns_iff (inventory : Inventory) (tool : Craftable) :
+    inventory.owns tool = true ↔ inventory.Owns tool := by
+  cases tool <;> simp [Inventory.owns, Inventory.Owns]
+
+/-- The ownership test decides `Owns`. -/
+instance (inventory : Inventory) (tool : Craftable) : Decidable (inventory.Owns tool) :=
+  decidable_of_iff _ (inventory.owns_iff tool)
+
 /-- Refusal records preserve the existing ordered recipe checks. -/
 inductive CraftError where
   /-- The requested tool is already in the inventory. -/

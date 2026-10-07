@@ -390,6 +390,25 @@ functions are remaining work of
 [issue 67](https://github.com/rbeauchamp/acorn/issues/67). A contract states only
 what its theorem proves.
 
+A kind compares a function with its specification as the two are defined now.
+Where the two call one test, a defect of that test changes the two sides
+together, and the proof of the kind can stay valid.
+[RG1009](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) therefore
+refuses a contract with a kind whose specification reaches a function with a
+result of `Bool`, outside Lean's own library, that the function or the acceptance
+predicate also reaches. It reads the specification at any depth. Acorn states
+each such condition as a proposition, with a theorem that connects the test with
+it: `Binary32.Negative` for the sign bit, `Binary32.IsNaN` and `Binary64.IsNaN`,
+the strict orders `Binary32.Less` and `Binary64.Less`, `Host.TileKind.Walkable`,
+`Host.Inventory.Owns` and `Host.InBox`. A function that a specification reaches,
+such as the signed key `Binary32.key`, decides the proposition through an
+instance that runs the test, so the executed comparison is the same one. The
+rule compares names: it does not find a copy of a test under a second name, and
+it refuses nothing for a shared function with another result, such as
+`Binary32.key` or `Host.terrain`. Those functions stay a matter of review, and
+the account of the audit lists them for each contract. The module documentation
+of `lean/Acorn/Decisions.lean` names each proposition with its theorem.
+
 Regula's audit does not find a decision function that is not registered, and no
 check of Acorn does. The module documentation of `lean/Acorn/Decisions.lean`
 lists the groups of definitions with a `Bool`, `Option`, `Except` or `Decidable`
@@ -450,30 +469,30 @@ Ordinary verification still refuses the words `axiom`, `sorry`, `unsafe`,
 partial and `native_decide` in every executing and proof source, through source
 admission, and a proof hole through the build, where a warning is an error.
 
-*Project axioms.* [RG1001](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1001/) refuses an axiom declared in a module of Acorn,
+*Project axioms.* [RG1001](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1001/) refuses an axiom declared in a module of Acorn,
 AcornVerif, NativeApp or Bootstrap. The tools make no such check. A check over
 the compiled declarations of the project modules covers Acorn, AcornVerif and
 NativeApp, so Regula is stronger: it covers Bootstrap as well.
 
-*Axioms that a declaration depends on.* [RG1003](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1003/) refuses a declaration of
+*Axioms that a declaration depends on.* [RG1003](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1003/) refuses a declaration of
 those four libraries with a transitive axiom outside propext, Quot.sound and
-Classical.choice. [RG1005](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1005/) refuses one whose axioms exceed the claim of its
+Classical.choice. [RG1005](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1005/) refuses one whose axioms exceed the claim of its
 library, which is the standard-logical profile for each. Both rules examine every
 declaration: theorems, definitions and instances. The tools make no such check.
 A check over theorems examines fewer declarations, so Regula is stronger. The
 proof module AcornVerif.Axioms still pins the exact axiom sets of selected
 theorems in the build.
 
-*Proof holes and compiler-trusting proofs.* [RG1002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1002/) refuses a declaration
+*Proof holes and compiler-trusting proofs.* [RG1002](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1002/) refuses a declaration
 that depends on Lean's proof-hole axiom, directly or through an import.
-[RG1004](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1004/) refuses a declaration that depends on a native proof: the axiom
+[RG1004](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1004/) refuses a declaration that depends on a native proof: the axiom
 that `native_decide` or a related tactic adds, or one of Lean's three
 compiler-trust axioms. Both rules read the transitive axiom set, which holds
 every such axiom that a declaration names. The tools make no such check. A check
 of the constants that a declaration names directly refuses fewer declarations,
 so Regula is stronger.
 
-*Unsafe and partial declarations.* [RG1006](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1006/) refuses an unsafe or partial
+*Unsafe and partial declarations.* [RG1006](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1006/) refuses an unsafe or partial
 declaration in a module of the four libraries, in both execution modes. It
 admits the partial helper that Lean generates for a terminating recursive
 definition only when Lean's recursion compiler regenerates the definition from
@@ -488,12 +507,12 @@ paragraph refuses that pair in Acorn, AcornVerif and NativeApp.
 *Native replacements: the tools refuse more.* The theorem inventory refuses each
 declaration of a module of Acorn, AcornVerif or NativeApp that carries a
 replacement attribute or an extern attribute, whatever reaches it and whatever
-is proved about it. [RG3002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG3002/) refuses, in the libraries that claim checked
+is proved about it. [RG3002](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG3002/) refuses, in the libraries that claim checked
 mode (Acorn, NativeApp and Bootstrap), a replacement or an extern outside the
 Lean toolchain that an execution root reaches and that has no kernel-checked
 equality with its reference. A root is each computable, safe definition of the
 library that has no internal name and is not a proposition, used or not, and an
-extern never has that equality. [RG3001](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG3001/) refuses an execution path that the audit cannot resolve,
+extern never has that equality. [RG3001](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG3001/) refuses an execution path that the audit cannot resolve,
 in both modes. Three inputs pass Regula and not the inventory: a replacement or
 an extern in AcornVerif, which claims report mode; a replacement in Acorn or
 NativeApp with a proved equality to its reference; and a declaration with either
@@ -512,8 +531,8 @@ module on the way, and requires that the entry reaches each definition that
 only a tool executable reaches passes the audit, and no rule requires that a
 root reaches a definition.
 
-*Module inventory: the tools refuse more for tool modules.* [RG2002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2002/)
-refuses a root library that the manifest does not classify. [RG2004](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2004/)
+*Module inventory: the tools refuse more for tool modules.* [RG2002](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG2002/)
+refuses a root library that the manifest does not classify. [RG2004](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG2004/)
 refuses a module of the package outside exactly one classified library, and a
 module that a claimed module imports and that no claimed target has. Lake's glob
 decides which library has a source. A new source below Acorn, AcornVerif or
@@ -531,7 +550,7 @@ for a module that no library has.
 Lake executable whose target name and root module are not a pair of
 `executables`, and a listed pair that Lake does not have. It also requires that
 a module declares `main` exactly when it is the root module of an executable or
-is Bootstrap, the interpreted build launcher. [RG2002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2002/) refuses an
+is Bootstrap, the interpreted build launcher. [RG2002](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG2002/) refuses an
 executable that the manifest does not classify, a manifest name that is no Lake
 target, and an executable that is not classified with the library of its root.
 The manifest holds the names and no root: an exchange of the root modules of two

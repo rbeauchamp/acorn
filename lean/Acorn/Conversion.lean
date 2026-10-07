@@ -2128,7 +2128,7 @@ theorem trunc64_i64 (value : Binary64)
 before admitting the finite magnitude shifts. NaNs select zero. -/
 def toI64Word (value : Binary64) : Int64 :=
   let negative := value.bits &&& 0x8000000000000000 != 0
-  if value.isNaN then (0 : UInt64).toInt64
+  if value.IsNaN then (0 : UInt64).toInt64
   else if (value.bits >>> 52 &&& 0x7ff) ≥ (1086 : UInt64) then
     if negative then (0x8000000000000000 : UInt64).toInt64 else (0x7fffffffffffffff : UInt64).toInt64
   else if (value.bits >>> 52 &&& 0x7ff) < (1023 : UInt64) then (0 : UInt64).toInt64
@@ -2147,14 +2147,14 @@ theorem toI64_eq_signedCast (value : Binary64) : toI64 value = signedCast 63 val
   have fraction := fraction64_bound value.bits
   change value.magnitude = e.toNat*2^52+_ at fields
   by_cases nan : value.isNaN = true
-  · simp only [toI64, toI64Word, signedCast, nan, ↓reduceIte]
+  · simp only [toI64, toI64Word, ← Binary64.isNaN_iff, signedCast, nan, ↓reduceIte]
     rfl
   have notnan : value.isNaN = false := Bool.eq_false_iff.mpr nan
   have nm : ¬value.magnitude > 0x7ff0000000000000 := by
     exact of_decide_eq_false notnan
   by_cases inf : value.magnitude = 0x7ff0000000000000
   · have elarge : e ≥ (1086 : UInt64) := by change 1086 ≤ e.toNat; omega
-    simp only [toI64, toI64Word, notnan, Bool.false_eq_true, ↓reduceIte,
+    simp only [toI64, toI64Word, ← Binary64.isNaN_iff, notnan, Bool.false_eq_true, ↓reduceIte,
       signedCast, inf, BEq.rfl]
     change Int64.toInt (if e ≥ 1086 then _ else _) = _
     rw [ite_eq_left elarge]
@@ -2162,7 +2162,7 @@ theorem toI64_eq_signedCast (value : Binary64) : toI64 value = signedCast 63 val
     all_goals simp only [neg, Bool.false_eq_true, ↓reduceIte]; rfl
   have finite : value.Finite := by unfold Binary64.Finite; omega
   rw [signedCast_finite _ value finite]
-  simp only [toI64, toI64Word, notnan, Bool.false_eq_true, ↓reduceIte]
+  simp only [toI64, toI64Word, ← Binary64.isNaN_iff, notnan, Bool.false_eq_true, ↓reduceIte]
   change Int64.toInt (if e ≥ 1086 then _ else if e < 1023 then _ else _) = _
   by_cases large : e ≥ (1086 : UInt64)
   · rw [ite_eq_left large]

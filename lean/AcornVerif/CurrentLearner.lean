@@ -66,7 +66,7 @@ theorem zero_pruned (word threshold : Binary32) (zero : word.isZero = true)
   have hn : word.isNaN = false := by
     have hz := zero_key word zero
     have hm : word.magnitude = 0 := by
-      unfold Binary32.key at hz
+      simp only [Binary32.key_eq_negative] at hz
       split at hz <;> omega
     simp [Binary32.isNaN_eq_magnitude, hm]
   simp [Binary32.lessOrEqual_eq_key, hn, ordered, zero_key word zero, nonnegative]

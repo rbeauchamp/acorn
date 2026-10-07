@@ -77,8 +77,8 @@ guards below pin the exact dependency sets of selected named theorems.
 `#guard_msgs` makes it a build failure: if an `axiom` is introduced, or an
 import starts dragging one in, the message printed by `#print axioms` changes
 and this file stops compiling. These retained exact-set guards complement
-Regula's RG1003 (https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1003/) and
-RG1005 (https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1005/), which read
+Regula's RG1003 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1003/) and
+RG1005 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1005/), which read
 compiler module ownership and check the transitive axioms of every public,
 private and generated declaration against the same three names. New declarations
 cannot bypass that audit through namespace aliases or source formatting.
@@ -158,15 +158,15 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 #guard_msgs in
 #print axioms Acorn.Binary32.finite_not_nan
 
-/-- info: 'Acorn.Binary32.less_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Binary32.less_finite' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Binary32.less_finite
 
-/-- info: 'Acorn.Interval32.interval_admit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Interval32.interval_admit_exact' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.interval_admit_exact
 
-/-- info: 'Acorn.Interval32.interval_admit_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Interval32.interval_admit_refuses' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.interval_admit_refuses
 
@@ -174,23 +174,23 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 #guard_msgs in
 #print axioms Acorn.Interval32.finite_between
 
-/-- info: 'Acorn.Interval32.saturate_contains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Interval32.saturate_contains' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.saturate_contains
 
-/-- info: 'Acorn.Interval32.saturate_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Interval32.saturate_identity' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.saturate_identity
 
-/-- info: 'Acorn.Interval32.saturate_idempotent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Interval32.saturate_idempotent' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.saturate_idempotent
 
-/-- info: 'Acorn.Bounded32.admit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Bounded32.admit_exact' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Bounded32.admit_exact
 
-/-- info: 'Acorn.Bounded32.admit_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Bounded32.admit_refuses' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Bounded32.admit_refuses
 
@@ -698,15 +698,15 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Refresh.unchanged_credit_exact
 
-/-- info: 'Acorn.Symmetric32.symmetric_project_contains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Symmetric32.symmetric_project_contains' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Symmetric32.symmetric_project_contains
 
-/-- info: 'Acorn.Symmetric32.symmetric_project_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Symmetric32.symmetric_project_identity' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Symmetric32.symmetric_project_identity
 
-/-- info: 'Acorn.Symmetric32.symmetric_project_idempotent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Symmetric32.symmetric_project_idempotent' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Symmetric32.symmetric_project_idempotent
 
@@ -1574,7 +1574,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentExponential.expScale_finite
 
-/-- info: 'AcornVerif.CurrentExponential.expSaturation_ends' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentExponential.expSaturation_ends' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentExponential.expSaturation_ends
 
@@ -2868,7 +2868,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.clear_observers
 
-/-- info: 'AcornVerif.CurrentLearner.exploration_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentLearner.exploration_legal' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.exploration_legal
 
@@ -3292,7 +3292,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentBackupBounds.option_td_error_termination_conditional
 
-/-- info: 'Acorn.Binary64.less_eq_key' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Acorn.Binary64.less_eq_key' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Binary64.less_eq_key
 
@@ -3895,7 +3895,7 @@ info: 'AcornVerif.CurrentCheckpoint.relabeled_unloaded' depends on axioms: [prop
 #print axioms AcornVerif.CurrentCheckpoint.relabeled_unloaded
 
 /--
-info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_order
@@ -3997,13 +3997,13 @@ info: 'Acorn.Host.Cli.stepOrder_iff' depends on axioms: [propext, Classical.choi
 #print axioms Acorn.Host.Cli.stepOrder_iff
 
 /--
-info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_iff
 
 /--
-info: 'Acorn.Checkpoint.admitHeader_checks' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Acorn.Checkpoint.admitHeader_checks' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_checks
