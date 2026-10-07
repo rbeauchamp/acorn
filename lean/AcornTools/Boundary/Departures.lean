@@ -63,7 +63,7 @@ private def require (legal : Bool) (message : String) : IO Unit :=
 
 /-- Compiler metadata supplies the complete constructor and public/private type
 inventory. Documents must name every module in every declared departure it uses.
-`maintained` are the discovered sources, which hold every quarantine module. -/
+`maintained` are the governed discovered sources, which hold every quarantine module. -/
 def check (env : Environment) (maintained : Array Name) : IO Unit := do
   let departures : List Departure := [.featureChannels, .spatialPotentials,
     .explorationDuration, .learnerParameters, .cumulants, .explorationRate, .featureTester,
