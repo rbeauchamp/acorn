@@ -64,4 +64,18 @@ def tokenByOpaque (tag : Bool) : (box tag).val :=
 sealed type. -/
 def tokenByPack (tag : Bool) : (carrier : Type) × carrier := ⟨Token tag, ⟨0⟩⟩
 
+/-- A second sealed structure of this module, which holds a token. It is not one of the
+types that the control run names. -/
+structure Wrap (tag : Bool) where
+  private mk ::
+  /-- The token inside. -/
+  token : Token tag
+
+/-- A definition that nests the token's constructor in the constructor of the wrapper. Its
+body is an alias of the wrapper's constructor, so it is sealed for that reason too. -/
+def wrap (tag : Bool) (value : Nat) : Wrap tag := ⟨⟨value⟩⟩
+
+/-- A definition that references no constructor: it calls `wrap`. -/
+def exposed (tag : Bool) (value : Nat) : Wrap tag := wrap tag value
+
 end AcornSealedControl

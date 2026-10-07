@@ -726,8 +726,9 @@ a mix of orders inside this project. The audit reads the compiled declarations
 and refuses a definition, outside the modules that own it, that references a
 sealed constant: a constructor of one of these types, an alias of a constructor
 (found by its body), the callbacks of a construction, or a definition of an
-owning module that references a sealed constant and is not in the declared
-interface. The interface is the list `AcornOwnership.interface` of the
+owning module that references a sealed constant, or a definition that
+references such a one, to a least set with no exception, unless it is in the
+declared interface. The interface is the list `AcornOwnership.interface` of the
 definitions of the owning modules that every module may use. Each entry names a
 theorem whose statement names it, or has a line that says why no statement
 exists. The audit reads no type and infers no entry.

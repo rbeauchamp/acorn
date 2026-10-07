@@ -304,8 +304,10 @@ def interface : Array (Name × Option Name × String) := #[
     "Consumer. It takes a state of a construction and returns bytes, whose header holds the stored word of that construction's order."),
   (`Acorn.Handcrafted.Chosen._sizeOf_inst, none,
     "Generated. No statement exists for it. It is the size measure that Lean generates for the chosen value: a function from the value to a number, which gives no value. The generated measure of the construction's chosen value, in another module, references it."),
-  (`NativeApp.runAnsiDemo, none,
-    "Plain result. No statement exists for it. It runs the ANSI view of a construction of the default order that it makes itself, and it returns an exit code: no value of a sealed type leaves it. The command dispatch of the core references it.")
+  (`Acorn.Handcrafted.AgentConstruction.execute, some `AcornVerif.CurrentAgent.native_prefix,
+    "Maker. The finite prefix from cold initialization, for a construction that holds the proof of the default order: the theorem states that the result is the agent's own prefix path from the cold initial state."),
+  (`NativeApp.runCore, none,
+    "Plain result. No statement exists for it. It is the command dispatch of the core: it runs a campaign, an audit or the ANSI view of a construction that it makes itself, and it returns an exit code. No value of a sealed type leaves it. The entry module references it.")
 ]
 
 /-- Required native entry dependencies after proof erasure. These are routing

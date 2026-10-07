@@ -138,9 +138,9 @@ refuses a facet-qualified build key in the root package's Lake configuration.
 Ownership admission also reads the compiled declarations for sealed constants,
 the constants that make a value of a type whose maker is a claim of this
 project: a private constructor of a project type, a constructor in the sealed
-table, an alias of such a constructor (found by its body), and a definition of
-an owning module that references a sealed constant and is not in the declared
-interface. No definition of a project module outside the permitted modules
+table, an alias of such a constructor (found by its body), and each member of
+the least set of the declarations of the owning modules that reference a sealed
+constant or a member of the set, unless it is in the declared interface. No definition of a project module outside the permitted modules
 references a sealed constant. The interface is a declared list of the
 definitions of the owning modules that every module may use; each entry names
 a theorem whose statement names it, or has a line that says why no statement
@@ -148,7 +148,7 @@ exists. The audit reads no type and infers no entry. A private constructor
 does not stop a tactic, and Lean generates a public alias of a public
 constructor, so this check is the enforcement. Its trusted base is the owning
 modules, that list and the audit tool, and it covers the modules of this
-project only. Ten control declarations in the audit make a sealed value
+project only. Eleven control declarations in the audit make a sealed value
 outside its module. The audit requires that the complete rule reports each
 for its intended constant, and that the rule without the computed parts
 reports only the two that use a constructor.
