@@ -140,7 +140,8 @@ part has three:
   (`TemporalControl.atBoundary`, `TemporalControl.closeOption`);
 - the on-policy credit of the meta decision forms its error and stores its lag
   from that same value (`TemporalControl.learnMeta`, `Controller.policyStep`);
-  the next paragraph gives the consequence of the lag.
+  the paragraph below that begins "The deferred planning has a consequence"
+  gives the consequence of the lag.
 
 The second part has one: the off-policy learning of every option that is not
 executing compares against a stopping estimate that is read from the snapshot
