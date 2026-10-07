@@ -127,15 +127,14 @@ no dependence on one another run at once: the two source admissions with Lake's 
 inventory before the build, and every admission of the finished build after it. -/
 def verify : IO Unit := do
   lake #["build", "lean-boundary-audit"]
-  discard AcornOwnershipAudit.sources
+  let modules ← AcornOwnershipAudit.sources
   let waiting ← IO.mkRef #[]
   together [
-    do waiting.set (← AcornOwnershipAudit.inventory).2,
+    do waiting.set (← AcornOwnershipAudit.inventory modules).2,
     run ".lake/build/bin/lean-boundary-audit" #["source"] (whole := true),
     run ".lake/build/bin/lean-boundary-audit" #["proof-source"] (whole := true)]
   IO.println "ownership: source modules and Lake entries admitted"
   (← IO.getStdout).flush
-  let modules ← AcornModuleInventory.allModules
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
   -- Lake of Lean v4.34.0). A request for an executable's root module resolves to that

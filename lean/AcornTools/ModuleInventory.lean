@@ -39,9 +39,14 @@ def modulesUnder (root : System.FilePath) (skipped : Array String) : IO (Array N
 
 /-- Discover all maintained Lean sources of this package, including root tools and new
 directories. Only the package's generated/dependency directories and Lake configuration
-are excluded. -/
-def allModules : IO (Array Name) :=
-  modulesUnder "." #[".lake", "lake-packages", ".git", ".DS_Store", "lakefile.lean"]
+are excluded. `package` is the package directory, for a caller that runs outside it. -/
+def allModules (package : System.FilePath := ".") : IO (Array Name) :=
+  modulesUnder package #[".lake", "lake-packages", ".git", ".DS_Store", "lakefile.lean"]
+
+/-- The libraries whose modules Lake's globs assign and the Regula audit examines. A source
+below one of these roots needs no entry in a written list. -/
+def libraryModule (name : Name) : Bool :=
+  #[`Acorn, `AcornVerif, `NativeApp].any (·.isPrefixOf name)
 
 /-- Discover the Lean sources of the documentation site, the separate Lake package in
 `site/`. Its Lake outputs and the rendered pages are excluded. -/

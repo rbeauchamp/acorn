@@ -10,8 +10,9 @@ import AcornTools.Corpus.Audit
 /-! # Compiler-linked ownership admission
 
 Source discovery, Lake's evaluated executable configuration, and compiled
-declaration ownership must agree. Required proof anchors name statements about
-the actual executing definitions; their types must still refer to those owners.
+declaration ownership must agree. The maintained modules are the discovered
+sources. Required proof anchors name statements about the actual executing
+definitions; their types must still refer to those owners.
 This is coverage/routing admission, not an inference that names prove semantics.
 Types, proof terms, the runtime boundary and review supply the semantic evidence.
 -/
@@ -27,8 +28,10 @@ def ownerOf (env : Environment) (name : Name) : IO Name := do
   return imported.module
 
 /-- Follow actual compiler IR calls and closures, excluding erased proof/type references.
-External compiler/library primitives end traversal and remain trusted. -/
-def executionClosure (env : Environment) (imports : NameSet) : IO NameSet := do
+External compiler/library primitives end traversal and remain trusted. `maintained` are the
+discovered sources. -/
+def executionClosure (env : Environment) (maintained : Array Name) (imports : NameSet) :
+    IO NameSet := do
   let mut pending := #[`main]
   let mut seen : NameSet := {}
   while !pending.isEmpty do
@@ -38,7 +41,7 @@ def executionClosure (env : Environment) (imports : NameSet) : IO NameSet := do
     seen := seen.insert name
     let owner ← ownerOf env name
     require (imports.contains owner) s!"{name}: IR reference outside entry import closure: {owner}"
-    unless AcornOwnership.modules.contains owner do continue
+    unless maintained.contains owner do continue
     let some declaration := IR.findEnvDecl env name
       | throw (IO.userError s!"{owner}: missing compiler IR for {name}")
     require (!declaration.isExtern) s!"{owner}: external replacement for {name}"
@@ -47,17 +50,19 @@ def executionClosure (env : Environment) (imports : NameSet) : IO NameSet := do
   return seen
 
 /-- Every declared entry must reach its own reviewed executing owners. -/
-def entryContract (env : Environment) (owner : Name) (imports : NameSet) : IO Unit := do
+def entryContract (env : Environment) (maintained : Array Name) (owner : Name)
+    (imports : NameSet) : IO Unit := do
   let contracts := AcornOwnership.entryUses.filter (·.1 == owner)
   require (contracts.size == 1) s!"{owner}: missing or duplicate entry contract"
   let some (_, required) := contracts[0]? | throw (IO.userError "entry contract disappeared")
   require (!required.isEmpty) s!"{owner}: empty execution contract"
-  let reachable ← executionClosure env imports
+  let reachable ← executionClosure env maintained imports
   let missing := required.filter (!reachable.contains ·)
   require missing.isEmpty s!"{owner}: native main no longer reaches {missing}"
 
 /-- The required theorem's checked statement must still name its executable definition. -/
-def anchor (env : Environment) (proofOwner theoremName implementation : Name) : IO Unit := do
+def anchor (env : Environment) (maintained : Array Name)
+    (proofOwner theoremName implementation : Name) : IO Unit := do
   let some (.thmInfo theoremInfo) := env.find? theoremName
     | throw (IO.userError s!"missing required theorem {theoremName}")
   require ((← ownerOf env theoremName) == proofOwner) s!"{theoremName}: wrong proof owner"
@@ -65,7 +70,7 @@ def anchor (env : Environment) (proofOwner theoremName implementation : Name) : 
     | throw (IO.userError s!"{theoremName}: missing execution owner {implementation}")
   require (!implementationInfo.isUnsafe && !implementationInfo.isPartial)
     s!"{implementation}: unreviewed execution replacement"
-  require (AcornOwnership.modules.contains (← ownerOf env implementation))
+  require (maintained.contains (← ownerOf env implementation))
     s!"{implementation}: execution owner is not maintained"
   require (theoremInfo.type.getUsedConstantsAsSet.contains implementation)
     s!"{theoremName}: statement no longer refers to {implementation}"
@@ -91,12 +96,13 @@ def importClosure (env : Environment) (root : Name) : IO NameSet := do
 isolated. Lean itself constructs every environment and rejects conflicting
 constants. Regions remain alive until this bounded audit process exits;
 no sibling environment may free shared regions. Ordinary sibling maps are
-released, while the common environment also serves axiom/document admission.
+released, while the common environment also serves the theorem inventory and
+document admission.
 Complete mode initializes the same reviewed non-entry scope used by corpus
 admission, after source admission; standalone ownership needs no extensions. -/
 unsafe def compiled (complete : Bool := false) : IO Unit := do
   let modules ← sources
-  let entries ← targets
+  let entries ← targets modules
   initSearchPath (← findSysroot)
   for owner in modules do
     let path : System.FilePath := ".lake/build/lib/lean" / (owner.toString.replace "." "/" ++ ".olean")
@@ -131,9 +137,9 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
         if isEntry then
           require ((getModuleDoc? env owner).any (·.any (·.doc.any (!·.isWhitespace : Char → Bool))))
             s!"{owner}: executable root lacks a module docstring"
-          entryContract env owner (← importClosure env owner)
+          entryContract env modules owner (← importClosure env owner)
         for (proofOwner, theoremName, implementation) in AcornOwnership.anchors do
-          if proofOwner == owner then anchor env proofOwner theoremName implementation
+          if proofOwner == owner then anchor env modules proofOwner theoremName implementation
       if isEntry then
         let imports := #[{ module := owner, importAll := true, isMeta := true : Import }]
         let (_, state) ← (importModulesCore imports).run base
@@ -167,8 +173,7 @@ unsafe def main (args : List String) : IO UInt32 := do
   try
     match args with
     | ["source"] =>
-      discard AcornOwnershipAudit.sources
-      discard AcornOwnershipAudit.targets
+      discard (AcornOwnershipAudit.targets (← AcornOwnershipAudit.sources))
       IO.println "ownership: source modules and Lake entries admitted"
     | ["compiled"] => AcornOwnershipAudit.compiled
     | ["complete"] => AcornOwnershipAudit.compiled true

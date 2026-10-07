@@ -161,7 +161,7 @@ unsafe def check (documentsOnly : Bool := false)
     pure (path, ← IO.FS.readFile path)
   AcornBrowserAudit.check
   AcornPinAudit.check documents
-  AcornDocument.check documents (env? := env?)
+  AcornDocument.check documents (← AcornModuleInventory.allModules "lean") (env? := env?)
   IO.println (if documentsOnly then "corpus: document references and prior-art qualifications admitted"
     else "corpus: language, document references and prior-art qualifications admitted")
 

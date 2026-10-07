@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import VersoManual
 import AcornSite
+import AcornTools.Boundary.Audit
 import Acorn.Constants
 import Acorn.Host.Checkpoint.Admission
 import AcornVerif.CurrentConstants
@@ -131,8 +132,9 @@ run as a pass. Run the complete command to check all verification owners.
 tag := "compiler-and-execution-boundary"
 %%%
 
-The complete discovered module inventory must equal the explicitly admitted
-ownership inventory. Every retained native target is built and checked against
+Every discovered Lean source must be a module of the libraries Acorn, AcornVerif or
+NativeApp, which Lake's globs assign and the [Regula audit](#regula-audit) examines,
+or a listed tool module. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
 a maintained module with a non-empty module docstring. Ownership admission
 refuses a facet-qualified build key in the root package's Lake configuration.
@@ -141,9 +143,10 @@ pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
 Lake runs with `--wfail`, so any warning, including a header-time warning such
 as a deprecated import, fails the build. Source/compiled admission checks
-imports, capability owners, artifact origins and native routes. Every project theorem is checked for axiom
-dependencies; only {splice}`proseList (AcornTheoremCount.admittedAxioms.toList.map toString)` are admitted. The theorem inventory reports the
-checked declarations. Every proof passes through the kernel.
+imports, capability owners, artifact origins and native routes. The Regula audit, not
+ordinary verification, checks the axioms that each declaration of the claimed
+libraries depends on. The theorem inventory counts the theorem declarations and
+refuses a native replacement. Every proof passes through the kernel.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
@@ -223,8 +226,8 @@ reviewed build/gate tools, cryptographic tools and OS remain trusted boundaries.
 tag := "build-and-source-inventory"
 %%%
 
-The build tools check one explicit source inventory, including every shared
-application/proof owner and native entry. Runtime `--research-profile` selects
+The build tools discover every Lean source below lean and check explicit
+inventories of the tool modules and of the native entries. Runtime `--research-profile` selects
 agent mechanisms; it does not change verification. Resource, route and compiler
 flag admission, browser byte generation, corpus and declaration checks always
 run. Missing files fail admission.
@@ -240,8 +243,8 @@ repository permissions, no secrets, no privileged pull-request trigger, and
 pinned action revisions. Both jobs must pass on the exact proposed head before
 merge.
 
-Ordinary verification shares a compiler environment for ownership, theorem/axiom
-and document-symbol admission. Executable entries retain isolated `main` owners
+Ordinary verification shares a compiler environment for ownership, the theorem
+inventory and document-symbol admission. Executable entries retain isolated `main` owners
 and reuse loaded dependency regions. Each IR reference must belong to that
 entry's actual compiled import closure; data loaded for another entry cannot
 satisfy this check. Shared regions live only for the audit process, and no prior
@@ -371,11 +374,126 @@ license lines.
 
 The audit is a second required check and is not part of `./scripts/verify.sh`.
 It compiles the claimed modules again and replays them in the kernel, which does
-not fit beside the ordinary checks inside the 360-second deadline. No Acorn gate
-is retired. Boundary, ownership, native-route, corpus and theorem-axiom
-admission remain required, and they overlap Regula's hole, axiom and
-unsafe/partial rules as independent implementations. An accepted audit covers
-Regula's mechanical rules for the claimed surfaces; it does not replace review.
+not fit beside the ordinary checks inside the 360-second deadline. CI requires
+the job of the audit beside the job of ordinary verification before a merge. An
+accepted audit covers Regula's mechanical rules for the claimed surfaces; it does
+not replace review.
+
+## What Regula checks in place of Acorn's tools
+%%%
+tag := "regula-scope"
+%%%
+
+Acorn's tools under `lean/AcornTools` are outside the claim, so no proof covers
+them. They check a compiled declaration or the Lake configuration only where no
+Regula rule refuses at least the same inputs for the same libraries. Each
+paragraph below takes one property: the rule of the pinned Regula release, the
+libraries that the rule covers under `lean/foundation_manifest.json`, and what
+the tools check. Where the tools refuse more, the paragraph gives an input that
+shows it, and that check stays.
+
+Ordinary verification alone therefore does not refuse a project axiom, a
+dependency on an axiom outside propext, Quot.sound and Classical.choice, a
+compiler-trusting proof, or a compiled unsafe or partial declaration. The Regula
+audit refuses each of them, and its CI job is required. Run
+`./scripts/lean.sh lint` for it before proposing a change to a Lean source.
+Ordinary verification still refuses the words `axiom`, `sorry`, `unsafe`,
+partial and `native_decide` in every executing and proof source, through source
+admission, and a proof hole through the build, where a warning is an error.
+
+*Project axioms.* [RG1001](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1001/) refuses an axiom declared in a module of Acorn,
+AcornVerif, NativeApp or Bootstrap. The tools make no such check. A check over
+the compiled declarations of the project modules covers Acorn, AcornVerif and
+NativeApp, so Regula is stronger: it covers Bootstrap as well.
+
+*Axioms that a declaration depends on.* [RG1003](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1003/) refuses a declaration of
+those four libraries with a transitive axiom outside propext, Quot.sound and
+Classical.choice. [RG1005](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1005/) refuses one whose axioms exceed the claim of its
+library, which is the standard-logical profile for each. Both rules examine every
+declaration: theorems, definitions and instances. The tools make no such check.
+A check over theorems examines fewer declarations, so Regula is stronger. The
+proof module AcornVerif.Axioms still pins the exact axiom sets of selected
+theorems in the build.
+
+*Proof holes and compiler-trusting proofs.* [RG1002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1002/) refuses a declaration
+that depends on Lean's proof-hole axiom, directly or through an import.
+[RG1004](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1004/) refuses a declaration that depends on a native proof: the axiom
+that `native_decide` or a related tactic adds, or one of Lean's three
+compiler-trust axioms. Both rules read the transitive axiom set, which holds
+every such axiom that a declaration names. The tools make no such check. A check
+of the constants that a declaration names directly refuses fewer declarations,
+so Regula is stronger.
+
+*Unsafe and partial declarations.* [RG1006](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1006/) refuses an unsafe or partial
+declaration in a module of the four libraries, in both execution modes. It
+admits the partial helper that Lean generates for a terminating recursive
+definition only when Lean's recursion compiler regenerates the definition from
+the helper and the kernel checks the recursion equation, with the definition
+safe and in the helper's module. The tools make no such check. Admission of that
+helper by its name and its parent admits every helper that the rule admits, so
+Regula is stronger. The rule has one more exception: an unsafe constructor-index
+wrapper of an inductive type, admitted only when the constructor-index function
+of the type names the wrapper as its replacement. The check of the next
+paragraph refuses that pair in Acorn, AcornVerif and NativeApp.
+
+*Native replacements: the tools refuse more.* The theorem inventory refuses each
+declaration of a module of Acorn, AcornVerif or NativeApp that carries a
+replacement attribute or an extern attribute, whatever reaches it and whatever
+is proved about it. [RG3002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG3002/) refuses, in the libraries that claim checked
+mode (Acorn, NativeApp and Bootstrap), a replacement or an extern outside the
+Lean toolchain that an execution root reaches and that has no kernel-checked
+equality with its reference. A root is each computable, safe definition of the
+library that has no internal name and is not a proposition, used or not, and an
+extern never has that equality. [RG3001](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG3001/) refuses an execution path that the audit cannot resolve,
+in both modes. Three inputs pass Regula and not the inventory: a replacement or
+an extern in AcornVerif, which claims report mode; a replacement in Acorn or
+NativeApp with a proved equality to its reference; and a declaration with either
+attribute that is no root and that no root reaches. Source admission refuses
+both attributes as words in every executing and proof source, so the inventory
+adds the declarations that elaboration generates. This check runs once, in the
+theorem inventory. A copy in the compiled boundary admission would repeat the
+same predicate for a subset of the same modules in the same command,
+`./scripts/verify.sh`.
+
+*Reach of each entry: the tools refuse more.* The ownership audit follows the
+compiler's intermediate code from the entry point of each executable, the tool
+executables among them. It refuses an extern or a proof hole in a maintained
+module on the way, and requires that the entry reaches each definition that
+`entryUses` lists for it. Regula examines no excluded target, so an extern that
+only a tool executable reaches passes the audit, and no rule requires that a
+root reaches a definition.
+
+*Module inventory: the tools refuse more for tool modules.* [RG2002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2002/)
+refuses a root library that the manifest does not classify. [RG2004](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2004/)
+refuses a module of the package outside exactly one classified library, and a
+module that a claimed module imports and that no claimed target has. Lake's glob
+decides which library has a source. A new source below Acorn, AcornVerif or
+NativeApp is therefore a module of that library, the audit examines it under the
+library's claim, and Acorn's boundary predicates class it by its name. The
+tools keep no written list of these modules. Two inputs pass Regula and not the tools. A new source below
+`lean/AcornTools` is a module of an excluded library, which no rule examines:
+ownership admission requires each discovered source outside the three libraries
+to be an entry of `toolingModules`, and each entry to be a source. A source
+below lean that no library has is invisible to the audit unless a claimed module
+imports it: the same requirement refuses it, and Lake refuses the build request
+for a module that no library has.
+
+*Executable inventory: the tools refuse more.* Ownership admission refuses a
+Lake executable whose target name and root module are not a pair of
+`executables`, and a listed pair that Lake does not have. It also requires that
+a module declares `main` exactly when it is the root module of an executable or
+is Bootstrap, the interpreted build launcher. [RG2002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2002/) refuses an
+executable that the manifest does not classify, a manifest name that is no Lake
+target, and an executable that is not classified with the library of its root.
+The manifest holds the names and no root: an exchange of the root modules of two
+executables of one library changes nothing that the rule reads. The list is also
+the Lean owner of the executable names that the build order and this document
+read.
+
+Regula has no rule for the import layers of the learned-only boundary, the
+capability owners, source syntax admission, the departures register, native
+admission, the corpus checks or the required proof links. Those checks are
+Acorn's own.
 
 # Documentation site
 %%%

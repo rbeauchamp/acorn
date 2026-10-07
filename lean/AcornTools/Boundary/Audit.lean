@@ -4,15 +4,19 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornTools.ModuleInventory
+import AcornTools.Ownership
 import AcornTools.Boundary.Departures
 
 /-!
 # Admission of the current Lean execution boundary
 
 Source is parsed with the pinned compiler's trusted parser environment before
-project extensions are loaded. Current modules cannot define parser/elaborator
-extensions or native replacements. Compiled metadata then checks actual module
+project extensions are loaded. Current sources cannot define parser/elaborator
+extensions or spell a native replacement. Compiled metadata then checks actual module
 ownership, including private/generated declarations and transitive imports.
+The Regula audit of the claimed libraries, not this tool, checks compiled declarations
+for project axioms, proof holes, compiler-trusting proofs and `unsafe` or `partial`
+definitions; the theorem inventory refuses a compiled native replacement.
 
 This verification tool and the pinned Lean/Init toolchain are trusted. The gate
 does not prove compiler correctness or the truth of a provenance declaration.
@@ -289,11 +293,6 @@ def declarationOwner (env : Environment) (name : Name) : IO Name := do
     | throw (IO.userError s!"Lean boundary: declaration {name} has an invalid owning module")
   return imported.module
 
-/-- Native reflection and admitted proof holes cannot hide behind a generated name. -/
-def forbiddenConstant (name : Name) : Bool :=
-  name == `sorryAx || name == `Lean.ofReduceBool || name == `Lean.ofReduceNat ||
-    name == `Lean.trustCompiler
-
 /-- Read the complete serialized import graph from a metadata-only environment.
 Every artifact must resolve to an admitted source or canonical Init/Std module.
 The graph remains inside the environment's lifetime; no second copy of the
@@ -328,27 +327,14 @@ def checkImports (imports : NameMap (Array Name)) (owner : Name) : IO Unit := do
     pending := pending ++ dependencies
 
 /-- Dispatch each declaration to its compiler-recorded owner in one environment
-traversal. Every selected owner receives the same declaration predicates. -/
+traversal. Every selected owner receives the same declaration predicates: the capability
+owner and the import layer of each constant a declaration references. -/
 def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := do
   let selected := owners.foldl (fun selected owner => selected.insert owner) ({} : NameSet)
   for (name, info) in env.constants do
     let owner ← declarationOwner env name
     if !selected.contains owner then continue
-    if let .axiomInfo _ := info then reject owner s!"project axiom {name}"
-    if info.isUnsafe || info.isPartial then
-      -- The pinned elaborator creates partial execution companions for safe
-      -- structural recursion. Source admission forbids spelling this suffix.
-      let some parent := Compiler.isUnsafeRecName? name
-        | reject owner s!"unsafe or partial declaration {name}"
-      let some parentInfo := env.find? parent
-        | reject owner s!"orphan recursive companion {name}"
-      unless info.isPartial && !parentInfo.isUnsafe && !parentInfo.isPartial &&
-          (← declarationOwner env parent) == owner do
-        reject owner s!"unreviewed recursive companion {name}"
-    if (Compiler.getImplementedBy? env name).isSome || (getExternAttrData? env name).isSome then
-      reject owner s!"custom native implementation for {name}"
     for dependency in info.getUsedConstantsAsSet do
-      if forbiddenConstant dependency then reject owner s!"{name} uses {dependency}"
       unless capabilityAllowed owner dependency do
         reject owner s!"{name} uses unowned native capability {dependency}"
       let dependencyOwner ← declarationOwner env dependency
@@ -357,9 +343,8 @@ def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := d
 
 /-- Check compiled declarations and their real referenced owners. The gate admits the
 sources before the build, and `command` admits them again after this check.
-Pinned Lean's parametric attribute queries read imported module entries directly
-once declaration ownership is established. No project extension initialization
-is needed. Scoped imports release each environment after all its checks; only
+The checks read declarations and module metadata alone, so no project extension
+is initialized. Scoped imports release each environment after all its checks; only
 names selected from the original source inventory escape the shared callback. -/
 unsafe def compiled (owners : Array Name) : IO Unit := do
   let library ← getLibDir (← findSysroot)
@@ -376,7 +361,7 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
   let included ← withImportModules (shared.map fun owner => { module := owner }) {} fun common => do
     let included := owners.filter fun owner => (common.getModuleIdx? owner).isSome
     inspect common included
-    AcornDepartureAudit.check common
+    AcornDepartureAudit.check common owners
     pure included
   for owner in owners do
     if included.contains owner then continue

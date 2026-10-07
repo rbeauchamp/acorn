@@ -8,102 +8,18 @@ import Init
 /-! # Maintained ownership obligations
 
 The executable inventory is compared with Lake's evaluated configuration and
-compiled module owners. The module inventory is a closed admission boundary:
-new files need an explicit ownership decision, including new tools or proof
-modules. This routing information does not assert semantic completeness.
-Runtime sources receive source/compiled boundary admission; every project
-proof receives dependent-axiom auditing. Tooling is the explicit trust boundary
-listed in `AcornTools.ModuleInventory`, never an application escape hatch.
+compiled module owners. A module of the libraries `Acorn`, `AcornVerif` and
+`NativeApp` has no entry here: Lake's glob assigns each source below a library
+root to that library, and the Regula audit examines every module of a claimed
+library. Each other source is a tool listed in `AcornTools.ModuleInventory` or a
+module of the documentation site listed below. This routing information does not
+assert semantic completeness. Runtime sources receive source/compiled boundary
+admission; the Regula audit checks the axioms of every project declaration.
+Tooling is the explicit trust boundary listed in `AcornTools.ModuleInventory`,
+never an application escape hatch.
 -/
 namespace AcornOwnership
 open Lean
-
-/-- All reviewed maintained modules; filesystem discovery rejects missing or extra owners. -/
-def modules : Array Name := #[
-  `AcornTools,
-  `Acorn, `Acorn.Constants, `Acorn.Admission, `Acorn.AgentDriver, `Acorn.Decisions,
-  `Acorn.Arithmetic, `Acorn.Average, `Acorn.Control,
-  `Acorn.ControlDriver, `Acorn.Conversion, `Acorn.Demon,
-  `Acorn.Encoding, `Acorn.Exploration, `Acorn.FeatureConstants,
-  `Acorn.FeatureConsumers, `Acorn.FeatureDriver, `Acorn.FeatureHistory,
-  `Acorn.FeatureLifecycle, `Acorn.FeatureModelInput, `Acorn.FeatureRanking,
-  `Acorn.FeatureReferences, `Acorn.FeatureRefresh, `Acorn.FeatureRestore,
-  `Acorn.Features, `Acorn.Handcrafted.Agent, `Acorn.Handcrafted.AgentAlignment,
-  `Acorn.Handcrafted.AgentEpisodes, `Acorn.Handcrafted.Cumulants, `Acorn.Handcrafted.FeatureProfile,
-  `Acorn.Handcrafted.GridWorld, `Acorn.Handcrafted.Observation, `Acorn.Handcrafted.PredictionControl,
-  `Acorn.Handcrafted.Signals, `Acorn.Handcrafted.StepParts, `Acorn.Handcrafted.TemporalControl, `Acorn.Handcrafted.TemporalProfile, `Acorn.Host.AgentAdmission, `Acorn.Host.AgentArguments,
-  `Acorn.Host.AgentAudit, `Acorn.Host.AgentDiagnostics, `Acorn.Host.AgentInterface, `Acorn.Host.AgentPrefix,
-  `Acorn.Host.AuditPins, `Acorn.Host.Ansi, `Acorn.Host.Attempt, `Acorn.Host.Baseline,
-  `Acorn.Host.Campaign, `Acorn.Host.Certificate, `Acorn.Host.CertificateDriver,
-  `Acorn.Host.CertificateSearch, `Acorn.Host.Checkpoint.Admission, `Acorn.Host.Checkpoint.Codec,
-  `Acorn.Host.Checkpoint.Frame, `Acorn.Host.Checkpoint.IO, `Acorn.Host.Checkpoint.Schema,
-  `Acorn.Host.Checkpoint.Size, `Acorn.Host.Checkpoint.Snapshot, `Acorn.Host.CheckpointDiagnostic,
-  `Acorn.Host.CheckpointDriver, `Acorn.Host.Cli, `Acorn.Host.Control,
-  `Acorn.Host.Curriculum, `Acorn.Host.Endurance, `Acorn.Host.Geometry,
-  `Acorn.Host.Metrics, `Acorn.Host.Observation, `Acorn.Host.Runner,
-  `Acorn.Host.Task, `Acorn.Host.TemporalProfile, `Acorn.Host.Terrain,
-  `Acorn.Host.Viewer.Admission, `Acorn.Host.Viewer.AgentTelemetry, `Acorn.Host.Viewer.Broadcast,
-  `Acorn.Host.Viewer.BrowserKernel, `Acorn.Host.Viewer.BrowserMath, `Acorn.Host.Viewer.BrowserNat,
-  `Acorn.Host.Viewer.BrowserRecord, `Acorn.Host.Viewer.BrowserSchema, `Acorn.Host.Viewer.BrowserStore,
-  `Acorn.Host.Viewer.Buffer, `Acorn.Host.Viewer.ClockProgram, `Acorn.Host.Viewer.ControlRequest,
-  `Acorn.Host.Viewer.ControlTelemetry, `Acorn.Host.Viewer.CoreTelemetry, `Acorn.Host.Viewer.FeatureTelemetry, `Acorn.Host.Viewer.GoalProtocol, `Acorn.Host.Viewer.GoalAchievement,
-  `Acorn.Host.Viewer.HttpServer, `Acorn.Host.Viewer.IdentityHandshake, `Acorn.Host.Viewer.Lifecycle,
-  `Acorn.Host.Viewer.LifetimeTelemetry, `Acorn.Host.Viewer.Line, `Acorn.Host.Viewer.LogPump,
-  `Acorn.Host.Viewer.MapCodec, `Acorn.Host.Viewer.NativeContext, `Acorn.Host.Viewer.NativeCore,
-  `Acorn.Host.Viewer.Options, `Acorn.Host.Viewer.PersistedState, `Acorn.Host.Viewer.PipePump,
-  `Acorn.Host.Viewer.ProcessOwner, `Acorn.Host.Viewer.Retry, `Acorn.Host.Viewer.RunDirectory,
-  `Acorn.Host.Viewer.Sensed, `Acorn.Host.Viewer.SupervisedProcess, `Acorn.Host.Viewer.Supervisor,
-  `Acorn.Host.Viewer.TelemetryValue, `Acorn.Host.Viewer.Wire, `Acorn.Host.Viewer.WireNumber,
-  `Acorn.Host.Viewer.WorldMemory, `Acorn.Host.Viewer.WorldTelemetry, `Acorn.Host.WorldDynamics,
-  `Acorn.Host.WorldGeneration, `Acorn.Host.WorldObservation, `Acorn.Host.WorldState,
-  `Acorn.Agreement, `Acorn.Interface, `Acorn.Lifetime, `Acorn.Models, `Acorn.OffPolicy, `Acorn.Options,
-  `Acorn.Planning, `Acorn.Policy, `Acorn.Portable,
-  `Acorn.Provenance, `Acorn.RankedFeatures, `Acorn.Rng, `Acorn.Rounding,
-  `Acorn.Sarsa, `Acorn.Shuffle, `Acorn.SignalValues, `Acorn.State,
-  `Acorn.SwiftTd, `Acorn.SwiftTdDriver, `Acorn.Temporal,
-  `Acorn.TemporalDriver, `Acorn.Timing, `Acorn.Word, `Acorn.WorldDriver,
-  `Acorn.Json,
-  `AcornVerif,
-  `AcornVerif.AgreementLifecycle, `AcornVerif.AgreementInterpretation, `AcornVerif.AgreementPrecision,
-  `AcornVerif.AgreementReturn, `AcornVerif.AgreementTelemetryPrecision, `AcornVerif.CurrentAgreement,
-  `AcornVerif.AverageReward,
-  `AcornVerif.Axioms, `AcornVerif.ParameterBudget, `AcornVerif.Checkpoint,
-  `AcornVerif.CurrentAccounting, `AcornVerif.CurrentOak, `AcornVerif.Oak,
-  `AcornVerif.CurrentBackupBounds, `AcornVerif.CurrentConstants, `AcornVerif.CurrentRetirement, `AcornVerif.CurrentRetirementRounding,
-  `AcornVerif.CurrentAgent, `AcornVerif.CurrentArithmetic, `AcornVerif.CurrentCertificates,
-  `AcornVerif.CurrentCheckpoint,
-  `AcornVerif.CurrentControl, `AcornVerif.CurrentCurriculum, `AcornVerif.CurrentDivision,
-  `AcornVerif.Decisions,
-  `AcornVerif.CurrentExponential,
-  `AcornVerif.CurrentFeatureConsumers, `AcornVerif.CurrentFloat, `AcornVerif.CurrentFloor,
-  `AcornVerif.CurrentGoals, `AcornVerif.CurrentGridWorld,
-  `AcornVerif.CurrentIntervals, `AcornVerif.CurrentLearner, `AcornVerif.CurrentLearnerArithmetic,
-  `AcornVerif.CurrentLifetime, `AcornVerif.CurrentLifetimeArithmetic, `AcornVerif.CurrentLogarithm,
-  `AcornVerif.CurrentModelArithmetic, `AcornVerif.CurrentModels, `AcornVerif.CurrentOffPolicy,
-  `AcornVerif.CurrentOperations,
-  `AcornVerif.CurrentOrder, `AcornVerif.CurrentPlanning, `AcornVerif.CurrentPolicyMean,
-  `AcornVerif.CurrentPortable,
-  `AcornVerif.CurrentPower,
-  `AcornVerif.CurrentPrediction, `AcornVerif.CurrentReduction, `AcornVerif.CurrentRng,
-  `AcornVerif.CurrentRunner, `AcornVerif.CurrentSeries, `AcornVerif.CurrentSpawn,
-  `AcornVerif.CurrentState, `AcornVerif.CurrentStep,
-  `AcornVerif.CurrentTemporal, `AcornVerif.CurrentWorld, `AcornVerif.Endurance,
-  `AcornVerif.Coverage, `AcornVerif.FloatLibBridge, `AcornVerif.GridCorrespondence,
-  `AcornVerif.Kernel,
-  `AcornVerif.Energy, `AcornVerif.Exploration, `AcornVerif.Extragradient,
-  `AcornVerif.ModelConstants, `AcornVerif.MetaGradient, `AcornVerif.Options,
-  `AcornVerif.Projection,
-  `AcornVerif.Retirement, `AcornVerif.Rng, `AcornVerif.StepParts, `AcornVerif.StepSize,
-  `AcornVerif.TemporalSupport,
-  `AcornVerif.Traces, `AcornVerif.WorldClass, `AcornVerif.WorldGoals, `Bootstrap,
-  `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Gate, `AcornTools.ModuleInventory,
-  `NativeApp, `NativeApp.Assets, `NativeApp.BrowserKernel,
-  `NativeApp.Build, `NativeApp.Core, `NativeApp.Main, `NativeApp.Report, `NativeApp.MutationAudit,
-  `Acorn.Host.Viewer.NativeResources, `AcornTools.Native.Audit,
-  `AcornVerif.Resource.WordKernel,
-  `AcornTools.Native.Resources, `AcornTools.Native.Routes, `NativeApp.Viewer, `AcornTools.Ownership,
-  `AcornTools.OwnershipAudit, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount
-]
 
 /-- The reviewed modules of the documentation site, the separate Lake package in `site/`;
 filesystem discovery rejects missing or extra owners. The site is documentation tooling over
