@@ -114,7 +114,7 @@ protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need
 no permanent receipt. Optional diagnostics are not ordinary acceptance substitutes.
 
-- Every maintained source belongs to a library that the Regula manifest classifies
+- Every maintained source belongs to a library that the Regula manifest claims
   or to one explicit ownership inventory.
 - Shared specification and analysis definitions remain where proofs use them.
 - A missing file fails verification; it never selects a smaller suite.
