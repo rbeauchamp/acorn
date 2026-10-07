@@ -165,6 +165,8 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Microduck.Bridge.next),
   (`Acorn.Host.Microduck.Bridge, `Acorn.Host.Microduck.Bridge.ends_covers,
     `Acorn.Host.Microduck.Bridge.ends),
+  (`Acorn.Host.Microduck.Bridge, `Acorn.Host.Microduck.Bridge.ends_bounded,
+    `Acorn.Host.Microduck.Bridge.ends),
   (`Acorn.Host.Microduck.Bridge, `Acorn.Host.Microduck.Bridge.release_named,
     `Acorn.Host.Microduck.Bridge.release),
   (`Acorn.Host.Microduck.Bridge, `Acorn.Host.Microduck.Bridge.tick_keeps,

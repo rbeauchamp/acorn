@@ -297,7 +297,8 @@ the percept of that cycle is `Pace.deadline origin index`, the start of the cycl
 released at: true exactly when the release falls in a cycle before the one the
 deadline starts (`Pace.meets_index`), which is when no cycle from that one on has
 begun at the release (`Pace.meets_begun`). `Pace.first` is the first cycle that
-starts at or after an instant (`Pace.first_starts`, `Pace.first_least`).
+starts at or after an instant (`Pace.first_starts`, `Pace.first_least`), and less
+than one cycle after an instant that is not before the origin (`Pace.first_within`).
 
 **A missed deadline is a fault during which the preceding action holds, until it
 lapses.** A `Force` is an action in force, with the instant from which the world's
@@ -636,9 +637,11 @@ motors. This is not a departure from the
 at an action of the declared interface, and what executes an action belongs to the
 world, as the grid world's step function does. Acorn authors none of these networks.
 What it authors is on its own side of the boundary: the finite table of intents,
-which is the interface's action set, with the commands of each action, its length in
-cycles and the rule that keeps a velocity alive. The classification has three
-consequences, which limit every result obtained in this world:
+which is the interface's action set, with the commands of each action, its declared
+duration and the rule that keeps a velocity alive. The table has no count of cycles
+for an action: `Action.next` computes the cycle of the next percept from the instant
+of the release. The classification has three consequences, which limit every result
+obtained in this world:
 
 - a primitive action is a pretrained behaviour of up to three seconds;
 - nothing below an intent is learned: gait, balance and each skill are the world's;
@@ -721,6 +724,15 @@ cycle 0 and the next release at 2 s, the next percept is of cycle 1, its deadlin
 400 ms and the hold ends at 800 ms: the fault names forward from 400 ms and
 standing still from 800 ms.
 
+The bound is a time under one hypothesis, that the release is not before the start
+of its percept's cycle:
+`(pace.boundary origin bridge.index).nanoseconds ≤ bridge.released.nanoseconds`.
+The hold then ends no later than the release plus the action's declared duration,
+the transit allowance and `1 + latency + grace` cycles (`Bridge.ends_bounded`):
+810 ms after the release of a velocity with the declared numbers. The hypothesis is
+what a host owes: the state takes the cycle of the percept as an argument and does
+not check it against the instant of the release.
+
 What the bridge sends and what the deadline rule names agree after a release:
 
 - at every instant after the instant of a release and before the end of its hold,
@@ -743,8 +755,16 @@ the preceding action there, and the bridge has sent the new velocity.
 The force names what the bridge keeps in force and not what the body does. The last
 send of a velocity can be just before the end of the hold. Under the assumptions
 below the daemon receives it at most the transit allowance later and holds it for
-its expiry, so the body can move for less than the expiry plus the transit allowance
-after the force names the default: less than 510 ms with the declared numbers.
+its expiry, so it replaces the last velocity it received by zero less than the expiry
+plus the transit allowance after the end of the hold: 510 ms with the declared
+numbers.
+
+The observed run saw more than the assumed expiry. The daemon checks the age of an
+intent once per 20 ms control tick, so the replacement came 503 to 520 ms after the
+last send, and the gait was back at standing 83 and 85 ms after the replacement. How
+long the body moves after a lapse is UNKNOWN beyond those observations: it is a
+property of the daemon's smoothing of a command and of the body, and no assumption
+below states it.
 
 The declared numbers are a resend age of 100 ms, a grace of two cycles and a transit
 allowance of 10 ms, with an allowed gap of 50 ms between two readings of the clock.

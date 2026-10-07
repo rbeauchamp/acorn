@@ -11,8 +11,9 @@ import Acorn.Timing
 The Microduck is a small biped whose control daemon takes intents from a client and
 never a joint command: a velocity, or a skill by name. Networks inside the daemon
 execute them. This module is the agent's side of that boundary, as a closed table: ten
-actions, the intent of each, the commands a release sends and the number of cycles an
-action lasts.
+actions, the intent of each, the commands a release sends and a declared duration for
+each. The table has no count of cycles for an action: `Action.next` computes the cycle of
+the next percept from the instant of the release.
 
 The magnitudes and the durations are declared from one observed run of the vendor's
 simulator, whose record of commands, skills and timing is at

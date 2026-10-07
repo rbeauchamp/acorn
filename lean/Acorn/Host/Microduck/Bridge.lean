@@ -41,6 +41,14 @@ hold as its lapse, and the world's declared default, `Declared.rest`, is the act
 stands still. During a fault the action in force is the preceding action up to the end
 of the hold and the default from it (`Bridge.fault_named`).
 
+The bound is a time under one hypothesis, that the release is not before the start of
+its percept's cycle:
+`(pace.boundary origin bridge.index).nanoseconds ≤ bridge.released.nanoseconds`. The
+hold then ends no later than the release plus the action's declared duration, the
+transit allowance and `1 + latency + grace` cycles (`Bridge.ends_bounded`). The
+hypothesis is what a host owes: the state takes the cycle of the percept as an argument
+and does not check it against the instant of the release.
+
 What the bridge sends and what the deadline rule names agree after a release. At every
 instant after the instant of a release and before the end of its hold, the outcome of
 the step names the released action (`Bridge.release_named`), whose velocity is the first
@@ -60,8 +68,14 @@ reading (`Bridge.Fresh.age`).
 The force names what the bridge keeps in force, not what the body does. The last send of
 a velocity can be just before the end of the hold. Under the assumptions below the
 daemon receives it at most the transit allowance later and holds it for its expiry, so
-the body can move for less than the expiry plus the transit allowance after the force
-names the default: less than 510 ms with the declared numbers.
+it replaces the last velocity it received by zero less than the expiry plus the transit
+allowance after the end of the hold: 510 ms with the declared numbers.
+
+The observed run saw more than the assumed expiry. The daemon checks the age of an
+intent once per 20 ms control tick, so the replacement came 503 to 520 ms after the last
+send, and the gait was back at standing 83 and 85 ms after the replacement. How long the
+body moves after a lapse is UNKNOWN beyond those observations: it is a property of the
+daemon's smoothing of a command and of the body, and no assumption below states it.
 
 ## What became of an action
 
@@ -213,6 +227,45 @@ theorem Bridge.ends_covers (pace : Pace) (keep : Keep) (origin : Instant) (bridg
   have verdict := (pace.meets_iff origin _ second).mp met
   have held := bridge.ends_held pace keep origin
   have due := pace.deadline_nanoseconds origin (bridge.next pace keep origin)
+  omega
+
+/-- **The hold ends a bounded time after the release.** For every pace, keeping, origin
+and state whose release is not before the start of its percept's cycle: the hold ends no
+later than the release plus the action's declared duration, the transit allowance and
+`1 + latency + grace` cycles. The hypothesis is a host's obligation: `Bridge.release`
+takes the cycle as an argument and does not check it against the instant. -/
+theorem Bridge.ends_bounded (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (sensed : (pace.boundary origin bridge.index).nanoseconds ≤ bridge.released.nanoseconds) :
+    (bridge.ends pace keep origin).nanoseconds ≤
+      bridge.released.nanoseconds + bridge.action.duration + keep.transit +
+        (1 + pace.latency + keep.grace) * pace.cycle := by
+  rw [pace.boundary_nanoseconds origin bridge.index] at sensed
+  have started : origin.nanoseconds ≤
+      bridge.released.nanoseconds + bridge.action.duration + keep.transit := by
+    omega
+  have within : origin.nanoseconds +
+      pace.first origin
+        ⟨bridge.released.nanoseconds + bridge.action.duration + keep.transit⟩ * pace.cycle <
+      bridge.released.nanoseconds + bridge.action.duration + keep.transit + pace.cycle :=
+    pace.first_within origin
+      ⟨bridge.released.nanoseconds + bridge.action.duration + keep.transit⟩ started
+  have reach : origin.nanoseconds + bridge.next pace keep origin * pace.cycle ≤
+      bridge.released.nanoseconds + bridge.action.duration + keep.transit + pace.cycle := by
+    unfold Bridge.next Action.next
+    rcases Nat.le_total (bridge.index + 1) (pace.first origin
+      ⟨bridge.released.nanoseconds + bridge.action.duration + keep.transit⟩) with later | sooner
+    · rw [Nat.max_eq_right later]
+      omega
+    · rw [Nat.max_eq_left sooner, Nat.add_mul, Nat.one_mul]
+      omega
+  have split : (bridge.next pace keep origin + pace.latency + keep.grace) * pace.cycle =
+      bridge.next pace keep origin * pace.cycle + (pace.latency + keep.grace) * pace.cycle := by
+    rw [Nat.add_assoc, Nat.add_mul]
+  have whole : (1 + pace.latency + keep.grace) * pace.cycle =
+      pace.cycle + (pace.latency + keep.grace) * pace.cycle := by
+    rw [Nat.add_assoc, Nat.add_mul, Nat.one_mul]
+  unfold Bridge.ends
+  rw [pace.boundary_nanoseconds]
   omega
 
 /-- The velocity is fresh at the instant of its release. -/

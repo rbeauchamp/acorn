@@ -51,7 +51,8 @@ is the verdict on the instant an action is released at: true exactly when the re
 falls in a cycle before the one the deadline starts (`Pace.meets_index`), which is when
 no cycle from that one on has begun at the release (`Pace.meets_begun`). `Pace.first` is
 the first cycle that starts at or after an instant (`Pace.first_starts`,
-`Pace.first_least`).
+`Pace.first_least`), and less than one cycle after an instant that is not before the
+origin (`Pace.first_within`).
 
 ## The fault of a missed deadline
 
@@ -369,7 +370,8 @@ theorem Pace.met_gap (pace : Pace) (origin : Instant) (index span : Nat)
   omega
 
 /-- The first cycle that starts at or after an instant (`Pace.first_starts`,
-`Pace.first_least`). -/
+`Pace.first_least`). For an instant that is not before the origin, it starts less than
+one cycle after the instant (`Pace.first_within`). -/
 def Pace.first (pace : Pace) (origin now : Instant) : Nat :=
   (now.nanoseconds - origin.nanoseconds + pace.cycle - 1) / pace.cycle
 
@@ -394,6 +396,19 @@ theorem Pace.first_least (pace : Pace) (origin now : Instant) (index : Nat)
   unfold Pace.first
   apply Nat.le_of_lt_succ
   rw [Nat.div_lt_iff_lt_mul running, Nat.succ_mul]
+  omega
+
+/-- **The cycle `first` names starts less than one cycle after the instant.** For every
+pace, origin and instant that is not before the origin. -/
+theorem Pace.first_within (pace : Pace) (origin now : Instant)
+    (started : origin.nanoseconds ≤ now.nanoseconds) :
+    (pace.boundary origin (pace.first origin now)).nanoseconds <
+      now.nanoseconds + pace.cycle := by
+  have running := pace.running
+  have upper := Nat.div_mul_le_self
+    (now.nanoseconds - origin.nanoseconds + pace.cycle - 1) pace.cycle
+  rw [pace.boundary_nanoseconds origin (pace.first origin now)]
+  unfold Pace.first
   omega
 
 /-! ## The fault of a missed deadline -/
