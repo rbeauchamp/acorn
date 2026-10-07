@@ -6,6 +6,7 @@ Authors: acorn contributors
 import AcornVerif.CurrentDivision
 import FloatLib.Floats.Formats.BinaryInterchange.Analysis.StandardModel
 import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel
+import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel.MulDiv
 import FloatLib.Floats.Formats.BinaryInterchange.Format.Catalog
 import FloatLib.Floats.Formats.BinaryInterchange.DirectedSemantics.Rational.RoundingSemantics.Executable
 import FloatLib.Floats.Formats.Flocq.Theory.Analysis.Ulp
@@ -17,25 +18,24 @@ Acorn's binary32 and binary64 arithmetic is Lean core's `Float32` and `Float`
 applied to raw words, and `AcornVerif.CurrentArithmetic` reads those words
 through the pinned Lean 4.34.1 model `Float.Model.UnpackedFloat`. FloatLib
 (R. J. George, W. Adkisson and A. Anandkumar, *FloatLib*, 2026,
-https://github.com/lean-dojo/FloatLib, commit `1e83f09`) proves real-valued
+https://github.com/lean-dojo/FloatLib, commit `7fc7538`) proves real-valued
 statements about that same model. This module is the only importer of
 FloatLib. It connects the executing Acorn definitions to FloatLib's by proof,
 so FloatLib's theorems apply to them; no executable definition changes.
 
 The representation map views the same bits as FloatLib's `Model`. Both sides
 unpack them with Lean core's decoder, so the map agrees with `decoded64` and
-`decoded32` by definition. The operation theorems instantiate, from
-`FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean`,
-`toReal_ofModel_add_finite_eq_roundAt`, `toReal_ofModel_mul_finite_eq_roundAt`
-and `toReal_ofModel_div_finite_eq_roundAt`. The multiplication and division
-theorems there assume an exponent inequality for Lean core's
-`roundWithAccuracy`; `model_product_exponent_ready` supplies it for canonically
-unpacked operands and `model_divCore_ready` for every pair of nonzero finite
-operands. The division theorem there also assumes a nonzero provisional
-quotient. Lean core's division core returns a zero provisional quotient with a
-nonzero remainder when the exact quotient lies below the exponent it selects,
-as in the least positive subnormal divided by 1.5. `roundWithAccuracy_zero_roundAt`
-proves that case from the residual accuracy record, so the division statements
+`decoded32` by definition. The operation theorems instantiate
+`toReal_ofModel_add_finite_eq_roundAt` and `toReal_ofModel_mul_finite_eq_roundAt`
+from `FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean`, and
+`toReal_ofModel_div_finite_eq_roundAt_of_isFinite` from `LeanModel/MulDiv.lean`
+beside it. The multiplication theorem assumes an exponent inequality for Lean
+core's `roundWithAccuracy`; `model_product_exponent_ready` supplies it for
+canonically unpacked operands. The division theorem assumes an IEEE format,
+nonzero finite operands and a finite result, and nothing else. It covers the
+zero provisional quotient that Lean core's division core returns, with a
+nonzero remainder, when the exact quotient lies below the exponent it selects,
+as in the least positive subnormal divided by 1.5. So the division statements
 here carry no magnitude hypothesis.
 
 The first consumers follow. The half-unit division bound uses the half-ulp
@@ -50,37 +50,6 @@ Each statement concerns finite operands and a finite result: `roundAt` rounds
 on a grid with no upper exponent bound, and exceptional words have no real
 value. Native primitive and compiler correspondence remain the arithmetic
 layer's declared trust boundary.
-
-## FloatLib notice
-
-Two proofs in this module adapt proof text from
-`FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean` at FloatLib
-commit `1e83f09ed8c41a953cf8f93d26c210778177b94a`. `fraction_accuracy` adapts the
-private `accuracyRepresents_accuracyOfFraction`. The zero-quotient branch of
-`div_roundAt` adapts the scaling tail of `toReal_ofModel_div_finite_eq_roundAt`.
-FloatLib's licence notice covers that text:
-
-MIT License
-
-Copyright (c) 2026 FloatLib
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 -/
 
 open Acorn
@@ -89,8 +58,7 @@ open Float.Model.UnpackedFloat
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOperations AcornVerif.CurrentDivision
 open FloatLib.Floats.Formats.BinaryInterchange
 open FloatLib.Floats.Formats.BinaryInterchange.Model
-open FloatLib.Floats.Formats (Flocq.bpow Flocq.cexp Flocq.magnitude Flocq.scaledMantissa
-  Flocq.fltExp Flocq.magnitude_le_of_abs_lt_bpow Flocq.bpow_le_bpow_iff Flocq.round Flocq.toReal)
+open FloatLib.Floats.Formats (Flocq.bpow)
 open FloatLib.Floats.Formats.Flocq (ulp ulp_abs ulp_bpow ulp_mono_pos error_bound_ulp
   nearestEven MonotoneExp)
 
@@ -229,150 +197,11 @@ theorem sub_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
   exact add_roundAt fmt ieee left _ leftFinite (neg_isFinite right rightFinite) leftNormal
     leftFits (model_neg_normalized _ right rightNormal) (neg_fits _ right rightFits) finite
 
-/-- The floor and remainder of a natural quotient carry Lean core's accuracy
-record of the real quotient. FloatLib proves the same statement as the private
-`accuracyRepresents_accuracyOfFraction` in `Arithmetic/LeanModel.lean`, which no
-importer can name. This proof is adapted from that one under the FloatLib notice
-in the module documentation: the case analysis on the remainder comparison is
-FloatLib's, and the quotient split is derived here from Euclidean division. -/
-theorem fraction_accuracy (numerator denominator : Nat) (positive : 0 < denominator) :
-    accuracyRepresents (numerator / denominator)
-      (accuracyOfFraction (numerator % denominator) denominator)
-      ((numerator : ℝ) / denominator) := by
-  have denominatorPositive : (0 : ℝ) < denominator := by exact_mod_cast positive
-  have euclid : (numerator : ℝ) =
-      (denominator : ℝ) * (numerator / denominator : Nat) + (numerator % denominator : Nat) := by
-    exact_mod_cast (Nat.div_add_mod numerator denominator).symm
-  have split : (numerator : ℝ) / denominator =
-      ((numerator / denominator : Nat) : ℝ) +
-        ((numerator % denominator : Nat) : ℝ) / denominator := by
-    rw [add_div' _ _ _ denominatorPositive.ne']
-    congr 1
-    linarith
-  have below : ((numerator % denominator : Nat) : ℝ) < denominator := by
-    exact_mod_cast Nat.mod_lt numerator positive
-  unfold accuracyOfFraction
-  rw [split]
-  split_ifs with exact
-  · simp [accuracyRepresents, exact]
-  have remainderPositive : (0 : ℝ) < (numerator % denominator : Nat) := by
-    exact_mod_cast Nat.pos_of_ne_zero exact
-  rcases order : compare (2 * (numerator % denominator)) denominator with _ | _ | _
-  · rw [Nat.compare_eq_lt] at order
-    have real : (2 : ℝ) * (numerator % denominator : Nat) < denominator := by exact_mod_cast order
-    exact ⟨by linarith [div_pos remainderPositive denominatorPositive],
-      by linarith [(div_lt_iff₀ denominatorPositive).mpr (by linarith :
-        ((numerator % denominator : Nat) : ℝ) < 1 / 2 * denominator)]⟩
-  · rw [Nat.compare_eq_eq] at order
-    have real : (2 : ℝ) * (numerator % denominator : Nat) = denominator := by exact_mod_cast order
-    change _ = _ + 1 / 2
-    rw [← real, mul_comm, ← div_div, div_self remainderPositive.ne']
-  · rw [Nat.compare_eq_gt] at order
-    have real : (denominator : ℝ) < 2 * (numerator % denominator : Nat) := by exact_mod_cast order
-    exact ⟨by linarith [(lt_div_iff₀ denominatorPositive).mpr (by linarith :
-        1 / 2 * (denominator : ℝ) < (numerator % denominator : Nat))],
-      by linarith [(div_lt_one denominatorPositive).mpr below]⟩
-
-/-- Lean core's `roundWithAccuracy` on a zero provisional significand at or
-below the format's least exponent rounds the represented positive real once to
-nearest-even. That real lies below the least positive subnormal, so the result
-is zero or the least subnormal, and it is finite without a further hypothesis.
-FloatLib's `toReal_ofModel_roundWithAccuracy_eq_roundAt` assumes a nonzero
-significand; this is the remaining case, on the same nearest-even lemma for
-the shifted significand. -/
-theorem roundWithAccuracy_zero_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
-    (sign : Sign) (exponent : Int) (accuracy : Accuracy) (value : ℝ)
-    (positive : 0 < value) (represents : accuracyRepresents 0 accuracy value)
-    (floor : exponent ≤ fmt.toModel.minExponent) :
-    toReal (ofModel fmt (roundWithAccuracy fmt.toModel sign 0 exponent accuracy)) =
-      roundAt fmt ((if modelSignBit sign then (-1 : ℝ) else 1) *
-        (value * Flocq.bpow FloatLib.Numerics.binaryRadix exponent)) := by
-  rw [toModel_minExponent] at floor
-  have target : fmt.toModel.targetExponent (Float.Model.totalExponent 0 exponent) =
-      FloatFormat.ieeeMinSubnormalExponent fmt := by
-    apply targetExponent_eq_minSubnormal_of_lt_minNormal
-    have width := fmt.fracWidth_pos
-    unfold FloatFormat.ieeeMinSubnormalExponent at floor
-    unfold FloatFormat.ieeeMinNormalExponent
-    simp only [Nat.log2_zero, Int.ofNat_eq_natCast, Nat.cast_zero] at floor ⊢
-    omega
-  have ready : exponent ≤
-      fmt.toModel.targetExponent (Float.Model.totalExponent 0 exponent) := by
-    rw [target]
-    exact floor
-  have below : value < 1 := by
-    simpa using (accuracyRepresents_bounds represents).2
-  obtain ⟨rounded, roundedDef⟩ : ∃ rounded : Nat, rounded =
-      (shiftToTargetExponent fmt.toModel 0 exponent accuracy).1.roundedMantissa := ⟨_, rfl⟩
-  have nearest : Int.ofNat rounded = nearestEven (value *
-      Flocq.bpow FloatLib.Numerics.binaryRadix
-        (exponent - FloatFormat.ieeeMinSubnormalExponent fmt)) := by
-    rw [roundedDef, ← target]
-    exact roundedMantissa_shiftToTargetExponent_eq_nearestEven fmt 0 exponent accuracy value
-      represents ready
-  have unit : Flocq.bpow FloatLib.Numerics.binaryRadix
-      (exponent - FloatFormat.ieeeMinSubnormalExponent fmt) ≤ 1 := by
-    have order := (Flocq.bpow_le_bpow_iff FloatLib.Numerics.binaryRadix
-      (exponent - FloatFormat.ieeeMinSubnormalExponent fmt) 0).mpr (by omega)
-    simpa [Flocq.bpow] using order
-  have unitPositive := Flocq.bpow.pos FloatLib.Numerics.binaryRadix
-    (exponent - FloatFormat.ieeeMinSubnormalExponent fmt)
-  have small : rounded ≤ pow2 fmt.fracWidth := by
-    have scaled : value * Flocq.bpow FloatLib.Numerics.binaryRadix
-        (exponent - FloatFormat.ieeeMinSubnormalExponent fmt) ≤ ((1 : Nat) : ℝ) := by
-      rw [Nat.cast_one]
-      nlinarith
-    have one : rounded ≤ 1 :=
-      Int.ofNat_le.mp (nearest.trans_le (nearestEven_le_natCast_of_le scaled))
-    exact one.trans (by rw [pow2_eq_two_pow]; exact Nat.one_le_two_pow)
-  have exactPositive : 0 < value * Flocq.bpow FloatLib.Numerics.binaryRadix exponent :=
-    mul_pos positive (Flocq.bpow.pos _ _)
-  have canonical : Flocq.cexp FloatLib.Numerics.binaryRadix (fexpOf fmt)
-      (value * Flocq.bpow FloatLib.Numerics.binaryRadix exponent) =
-      FloatFormat.ieeeMinSubnormalExponent fmt := by
-    have magnitude : Flocq.magnitude FloatLib.Numerics.binaryRadix
-        (value * Flocq.bpow FloatLib.Numerics.binaryRadix exponent) ≤
-        FloatFormat.ieeeMinSubnormalExponent fmt := by
-      apply Flocq.magnitude_le_of_abs_lt_bpow _ _ _ exactPositive.ne'
-      rw [abs_of_pos exactPositive]
-      have order := (Flocq.bpow_le_bpow_iff FloatLib.Numerics.binaryRadix exponent
-        (FloatFormat.ieeeMinSubnormalExponent fmt)).mpr floor
-      have power := Flocq.bpow.pos FloatLib.Numerics.binaryRadix exponent
-      nlinarith
-    simp only [Flocq.cexp, fexpOf, Flocq.fltExp,
-      FloatFormat.minSubnormalExponent_eq_ieee fmt ieee]
-    apply max_eq_right
-    omega
-  have positiveRound : roundAt fmt
-      (value * Flocq.bpow FloatLib.Numerics.binaryRadix exponent) =
-      (rounded : ℝ) * Flocq.bpow FloatLib.Numerics.binaryRadix
-        (FloatFormat.ieeeMinSubnormalExponent fmt) := by
-    unfold roundAt Flocq.round Flocq.toReal
-    rw [Flocq.scaledMantissa, canonical, mul_assoc, ← Flocq.bpow.add_exp, ← sub_eq_add_neg,
-      ← nearest]
-    norm_num
-  have signed : roundAt fmt ((if modelSignBit sign then (-1 : ℝ) else 1) *
-      (value * Flocq.bpow FloatLib.Numerics.binaryRadix exponent)) =
-      (if modelSignBit sign then (-1 : ℝ) else 1) * ((rounded : ℝ) *
-        Flocq.bpow FloatLib.Numerics.binaryRadix (FloatFormat.ieeeMinSubnormalExponent fmt)) := by
-    cases sign <;> simp [modelSignBit, positiveRound, roundAt_neg]
-  rw [signed, roundWithAccuracy_eq_finishRoundedMantissa,
-    shiftToTargetExponent_eq_of_le_targetExponent fmt 0 exponent accuracy ready]
-  rw [shiftToTargetExponent_eq_of_le_targetExponent fmt 0 exponent accuracy ready] at roundedDef
-  dsimp only at roundedDef ⊢
-  rw [← roundedDef, target]
-  exact toReal_ofModel_finishRoundedMantissa_minSubnormal fmt ieee sign rounded small
-
 /-- Lean core's unpacked division of finite operands by a nonzero divisor,
 when its packed result is finite, is the exact real quotient rounded once to
-nearest-even. A nonzero provisional quotient is FloatLib's
-`toReal_ofModel_div_finite_eq_roundAt`; a zero provisional quotient with a
-nonzero dividend is `roundWithAccuracy_zero_roundAt` on the remainder's
-accuracy record. That branch then identifies the scaled quotient with the
-quotient of the operands' real values by the closing steps of FloatLib's proof
-of `toReal_ofModel_div_finite_eq_roundAt`: the target exponent, shift and
-numerator definitions, the scaling identity and the sign cases are adapted from
-it under the FloatLib notice in the module documentation. -/
+nearest-even. Two nonzero operands are FloatLib's
+`toReal_ofModel_div_finite_eq_roundAt_of_isFinite`, which includes a zero
+provisional quotient. -/
 theorem div_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (left right : UnpackedFloat) (leftFinite : left.isFinite = true)
     (rightFinite : right.isFinite = true) (nonzero : unpackedValue right ≠ 0)
@@ -391,62 +220,8 @@ theorem div_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
       simp only [UnpackedFloat.div, unpackedToReal_zero, zero_div, roundAt_zero]
       exact toReal_ofModel_zero _ ieee _
     | finite sign mantissa exponent positive =>
-      let target := min (exponent - exponent') (fmt.toModel.targetExponent
-        (Float.Model.totalExponent mantissa exponent -
-          Float.Model.totalExponent mantissa' exponent'))
-      let shift := (exponent - exponent' - target).toNat
-      let numerator := mantissa <<< shift
-      let accuracy := accuracyOfFraction (numerator % mantissa') mantissa'
-      have ready := model_divCore_ready fmt.toModel mantissa mantissa' exponent exponent'
-        positive positive'
-      change (if numerator / mantissa' = 0 then target ≤ fmt.toModel.minExponent
-        else target ≤ fmt.toModel.targetExponent
-          (Float.Model.totalExponent (numerator / mantissa') target)) at ready
-      by_cases significant : numerator / mantissa' = 0
-      · rw [ite_eq_left significant] at ready
-        have represents := fraction_accuracy numerator mantissa' positive'
-        rw [significant] at represents
-        have numeratorPositive : 0 < numerator := by
-          dsimp only [numerator]
-          rw [Nat.shiftLeft_eq]
-          positivity
-        have valuePositive : (0 : ℝ) < (numerator : ℝ) / mantissa' :=
-          div_pos (by exact_mod_cast numeratorPositive) (by exact_mod_cast positive')
-        have rounded := roundWithAccuracy_zero_roundAt fmt ieee (sign / sign') target accuracy
-          _ valuePositive represents ready
-        change toReal (ofModel fmt (roundWithAccuracy fmt.toModel (sign / sign')
-          (numerator / mantissa') target accuracy)) = _
-        rw [significant, rounded]
-        congr 1
-        have targetLe : target ≤ exponent - exponent' := min_le_left _ _
-        have shiftEq : (shift : Int) = exponent - exponent' - target :=
-          Int.toNat_of_nonneg (sub_nonneg.mpr targetLe)
-        have numeratorEq : (numerator : ℝ) =
-            (mantissa : ℝ) * Flocq.bpow FloatLib.Numerics.binaryRadix (shift : Int) := by
-          dsimp only [numerator]
-          rw [Nat.shiftLeft_eq, Nat.cast_mul, Nat.cast_pow]
-          simp [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
-        have scale : ((numerator : ℝ) / mantissa') *
-            Flocq.bpow FloatLib.Numerics.binaryRadix target =
-            ((mantissa : ℝ) * Flocq.bpow FloatLib.Numerics.binaryRadix exponent) /
-              ((mantissa' : ℝ) * Flocq.bpow FloatLib.Numerics.binaryRadix exponent') := by
-          have divisor : (mantissa' : ℝ) ≠ 0 := by exact_mod_cast positive'.ne'
-          have power : Flocq.bpow FloatLib.Numerics.binaryRadix exponent' ≠ 0 :=
-            Flocq.bpow.ne_zero _ _
-          rw [numeratorEq, div_mul_eq_mul_div, mul_assoc, ← Flocq.bpow.add_exp,
-            show (shift : Int) + target = exponent - exponent' by omega, Flocq.bpow.sub_exp]
-          field_simp
-        rw [scale]
-        cases sign <;> cases sign' <;>
-          simp [unpackedToReal_finite, modelSignBit, neg_div, div_neg,
-            show Sign.negative / Sign.negative = Sign.positive from rfl,
-            show Sign.negative / Sign.positive = Sign.negative from rfl,
-            show Sign.positive / Sign.negative = Sign.negative from rfl,
-            show Sign.positive / Sign.positive = Sign.positive from rfl]
-      · rw [ite_eq_right significant] at ready
-        exact toReal_ofModel_div_finite_eq_roundAt fmt ieee sign sign' mantissa mantissa'
-          exponent exponent' positive positive' significant ready finite
-
+      exact toReal_ofModel_div_finite_eq_roundAt_of_isFinite fmt ieee sign sign' mantissa
+        mantissa' exponent exponent' positive positive' finite
 
 /-! ## Binary64 -/
 
