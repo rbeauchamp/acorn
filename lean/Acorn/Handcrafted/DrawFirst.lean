@@ -270,12 +270,13 @@ theorem TemporalControl.creditOption_eq (state : TemporalControl interface profi
 
 /-- The settlement, the start and the first credit of a selected option whose first
 action is already drawn: the skill writes of the option branch of
-`TemporalControl.dispatchMeta`, with no draw and no occupancy write. The stopping
-estimate, the value function and the rate source are read from the state it is given,
-which the meta credit has already written. The state is consumed and the option taken
-out of the table before it is updated, and `TemporalControl.startOption_eq` proves the
-result equal to the listed composition; storage reuse is a performance expectation, not
-a proved property (see `detachedUpdate`). -/
+`TemporalControl.dispatchMeta`, with no draw and no occupancy write. The value function
+and the rate source are read from the state it is given, which the meta credit has
+already written, and the stopping estimate is supplied by the caller from the recorded
+meta decision. The state is consumed and the option taken out of the table before it is
+updated, and `TemporalControl.startOption_eq` proves the result equal to the listed
+composition; storage reuse is a performance expectation, not a proved property (see
+`detachedUpdate`). -/
 def TemporalControl.startOption (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (start : StartDraw interface) (goal : Bool) (estimate reward : Binary32) :

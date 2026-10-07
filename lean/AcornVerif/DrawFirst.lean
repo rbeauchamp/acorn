@@ -976,8 +976,8 @@ theorem closeOption_owe (state : TemporalControl interface profile config criter
     rw [oweReward_idle _ _ idle, oweReward_idle _ _ idle]
 
 /-- The owed reward, a retained terminal credit and the meta credit keep each option's
-objective, the generator and the option rate source: they write a policy, a model, the
-meta-controller and the meta span. -/
+objective and the generator: they write a policy, a model, the meta-controller and the
+meta span. -/
 theorem credited_reads (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (retained : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
