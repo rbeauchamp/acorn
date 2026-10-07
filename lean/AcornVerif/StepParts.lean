@@ -47,10 +47,11 @@ the kernel. `Moving.interact_commutes`: one interaction is the same at both posi
 when the world's own change commutes with its transitions.
 
 The `Moving` world is a model. No executing world implements it, and the grid world
-waits for the agent. The statement about the executed loops is
-`Acorn.Host.runReleasedSteps_complete`. The work of each part is an arbitrary function
-here, so the statements hold for every assignment of work; none is a measurement, and
-no theorem here bounds the work of the executed parts.
+waits for the agent, which its interface declares (`Grid.interface_timing`). The
+statement about the executed loops is `Acorn.Host.runReleasedSteps_complete`. The work
+of each part is an arbitrary function here, so the statements hold for every assignment
+of work; none is a measurement, and no theorem here bounds the work of the executed
+parts.
 -/
 
 namespace AcornVerif.Kernel

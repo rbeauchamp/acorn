@@ -75,12 +75,19 @@ context, and six inventory words. -/
 def wordBound : Nat := patchSide * patchSide * 3 + 2 + Acorn.FeatureConstants.taskContextWords + 6
 
 /-- The grid world's interface: the window and task context as the symbol array, the
-ten host signals after the agent's reward question, nine actions, the word bound and
-prediction feedback channels from `0x50`. -/
-abbrev interface : Interface := ⟨patchShape, signalLayout, actions, wordBound, 0x50⟩
+ten host signals after the agent's reward question, nine actions, the word bound,
+prediction feedback channels from `0x50`, and the timing of a world that waits for each
+action. -/
+abbrev interface : Interface :=
+  ⟨patchShape, signalLayout, actions, wordBound, 0x50, .synchronized⟩
 
 /-- The agent's layout at the grid instance is the canonical eleven horizons. -/
 theorem interface_layout : interface.layout = demonLayout := rfl
+
+/-- The grid world declares that it waits for each action. The attempt loops of
+`Acorn.Host.Runner` take each transition as one call of the world's step function, which
+is the discipline of this declaration. -/
+theorem interface_timing : interface.timing = .synchronized := rfl
 
 /-- Every grid observation stays within the declared word bound, in both task modes. -/
 theorem sensorWords_length (obs : Observation) (mode : TaskFeatureMode) :

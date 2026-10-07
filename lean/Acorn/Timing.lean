@@ -9,7 +9,8 @@ Authors: acorn contributors
 
 A step of the agent has two parts. The first selects the action. The second completes
 the step from the value the first returned. `StepOrder` declares which of three orders
-an agent and its host run.
+an agent and its host run. `Timing` is what a world declares about its own time; the
+section "The time a world declares" describes it.
 
 Under `learnThenAct` both parts run before the world receives the action, and the
 first part plans at a free boundary before it draws. Under `planAfterAct` the host
@@ -35,6 +36,53 @@ before the update; the source has no planning. Moving planning after the action 
 schedule, declared in PAR-19. Drawing the first action of an option before the credit
 that the same percept causes is the source's order of choice and update applied to that
 option's learner, and is declared with its other consequences in PAR-20.
+
+## The time a world declares
+
+A world declares its `Timing`. A `synchronized` world takes one transition for each
+action and waits for it. A `wallClock` world moves while the agent computes, and declares
+a `Pace`: the length of one action cycle, and the latency, a positive number of cycles.
+
+The functions of a `Pace` give the two numbers their meaning. They take an origin, an
+`Instant` of a host's monotonic clock. Cycle `index` starts at
+`Pace.boundary origin index`. The deadline of the action of the percept of that cycle is
+`Pace.deadline origin index`, the start of the cycle `latency` cycles later. `Pace.meets`
+is the verdict on the instant an action is released at: true exactly when the release
+falls in a cycle before the one the deadline starts (`Pace.meets_index`), which is when
+no cycle from that one on has begun at the release (`Pace.meets_begun`).
+
+## The fault of a missed deadline
+
+A `Standing` is what a host of a wall-clock world holds between two events: the action
+in force and the percept, if any, whose action is not released yet. `Pace.outcome` gives
+what holds at an instant for a standing: the action in force, and whether a fault holds.
+A fault holds exactly while a percept awaits its action at or after its deadline
+(`Pace.outcome_fault`), and time alone changes no action (`Pace.outcome_action`).
+
+`Standing.during` is the standing through one step: a percept is sensed with a preceding
+action in force, and its action is released at an instant. An action is in force after
+the instant it is released at. For that step, a fault holds exactly from the deadline to
+the release (`Pace.step_fault`), the preceding action is in force at every instant of
+the fault (`Pace.step_holds`), and no instant has a fault exactly when the release meets
+the deadline (`Pace.step_faultless`). So in one step a missed deadline is a fault of the
+protocol during which the preceding action holds, and the chosen action is in force after
+its release, however late the release is (`Pace.step_action`).
+
+When the earlier of two actions is released at or after the start of its percept's
+cycle and the later one meets its deadline, for percepts `span` cycles apart, the later
+release is less than `span + latency` cycles after the earlier one (`Pace.met_gap`):
+`latency + 1` cycles for two consecutive percepts.
+
+An instant is a natural number of nanoseconds, as the runtime's monotonic clock returns
+it (`IO.monoNanosNow`), so this arithmetic is exact and has no word bound. An instant and
+a count of cycles are different types, so neither takes the other's place in a function
+of this section.
+
+The statements are about these functions. No executing loop keeps a `Standing` or reads
+a `Pace`, and the one executing world, the grid world, declares `synchronized`. A host
+loop of a wall-clock world is to compute its verdicts with `Pace.outcome`; that loop is
+not built (https://github.com/rbeauchamp/acorn/issues/95), and nothing here states that
+a world keeps in force the action that a standing names.
 -/
 namespace Acorn
 
@@ -148,5 +196,312 @@ theorem StepOrder.parse_accepted (text : String) (order : StepOrder) :
 /-- An order whose host loop releases the action between the two parts of a step: every
 order but the default. A host loop that releases takes the callbacks of such an order. -/
 def StepOrder.Releases (order : StepOrder) : Prop := order ≠ .learnThenAct
+
+/-! ## The time a world declares -/
+
+/-- The wall-clock declaration of a world: the length of one action cycle and the number
+of cycles an action may take. Both are positive, so a value of this type declares a
+cycle that has a length and a deadline that follows its percept. -/
+structure Pace where
+  /-- Nanoseconds of one action cycle. -/
+  cycle : Nat
+  /-- Whole cycles from the start of a percept's cycle to the deadline of its action. -/
+  latency : Nat
+  /-- A cycle has a length. -/
+  running : 0 < cycle
+  /-- A deadline is later than the start of its percept's cycle. -/
+  causal : 0 < latency
+
+/-- The timing discipline of a world. -/
+inductive Timing where
+  /-- The world takes one transition for each action and waits for it. -/
+  | synchronized
+  /-- The world moves on a wall clock, with the declared cycle and latency. -/
+  | wallClock (pace : Pace)
+
+/-- A reading of a host's monotonic clock. It is a type of its own, so a count of cycles
+cannot stand where an instant is expected. -/
+structure Instant where
+  /-- Nanoseconds from the clock's own zero. -/
+  nanoseconds : Nat
+
+/-- Start of a cycle, for a host whose cycle zero starts at `origin`. -/
+def Pace.boundary (pace : Pace) (origin : Instant) (index : Nat) : Instant :=
+  ⟨origin.nanoseconds + index * pace.cycle⟩
+
+/-- The cycle an instant falls in: the instant a cycle starts at falls in that cycle
+(`Pace.index_boundary`). An instant before the origin falls in cycle zero. -/
+def Pace.index (pace : Pace) (origin now : Instant) : Nat :=
+  (now.nanoseconds - origin.nanoseconds) / pace.cycle
+
+/-- Deadline of the action of the percept of a cycle: the start of the cycle `latency`
+cycles later, which is later than the start of the percept's cycle (`Pace.deadline_lt`). -/
+def Pace.deadline (pace : Pace) (origin : Instant) (index : Nat) : Instant :=
+  pace.boundary origin (index + pace.latency)
+
+/-- Whether an action released at an instant meets the deadline of the percept of a
+cycle: it is released before the deadline. -/
+def Pace.meets (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) : Bool :=
+  decide (released.nanoseconds < (pace.deadline origin index).nanoseconds)
+
+/-- The start of a cycle in nanoseconds: the origin plus that many cycles. -/
+theorem Pace.boundary_nanoseconds (pace : Pace) (origin : Instant) (index : Nat) :
+    (pace.boundary origin index).nanoseconds = origin.nanoseconds + index * pace.cycle := rfl
+
+/-- A later cycle starts later. -/
+theorem Pace.boundary_lt (pace : Pace) (origin : Instant) {index other : Nat}
+    (earlier : index < other) :
+    (pace.boundary origin index).nanoseconds < (pace.boundary origin other).nanoseconds :=
+  Nat.add_lt_add_left (Nat.mul_lt_mul_of_pos_right earlier pace.running) origin.nanoseconds
+
+/-- **A cycle has started at an instant exactly when the instant is not before the origin
+and the cycle is not after the instant's cycle.** For every pace, origin, cycle and
+instant. -/
+theorem Pace.boundary_le (pace : Pace) (origin : Instant) (index : Nat) (now : Instant) :
+    (pace.boundary origin index).nanoseconds ≤ now.nanoseconds ↔
+      origin.nanoseconds ≤ now.nanoseconds ∧ index ≤ pace.index origin now := by
+  rw [pace.boundary_nanoseconds origin index]
+  unfold Pace.index
+  rw [Nat.le_div_iff_mul_le pace.running]
+  omega
+
+/-- An instant before the origin falls in cycle zero. -/
+theorem Pace.index_early (pace : Pace) (origin now : Instant)
+    (before : now.nanoseconds < origin.nanoseconds) : pace.index origin now = 0 := by
+  unfold Pace.index
+  rw [Nat.sub_eq_zero_of_le (Nat.le_of_lt before)]
+  exact Nat.zero_div pace.cycle
+
+/-- The instant a cycle starts at falls in that cycle. -/
+theorem Pace.index_boundary (pace : Pace) (origin : Instant) (index : Nat) :
+    pace.index origin (pace.boundary origin index) = index := by
+  unfold Pace.index
+  rw [pace.boundary_nanoseconds origin index, Nat.add_sub_cancel_left]
+  exact Nat.mul_div_cancel index pace.running
+
+/-- **An instant at or after the origin falls in exactly the cycle that has started and
+whose successor has not.** -/
+theorem Pace.index_iff (pace : Pace) (origin now : Instant) (index : Nat)
+    (started : origin.nanoseconds ≤ now.nanoseconds) :
+    pace.index origin now = index ↔
+      (pace.boundary origin index).nanoseconds ≤ now.nanoseconds ∧
+        now.nanoseconds < (pace.boundary origin (index + 1)).nanoseconds := by
+  have here := pace.boundary_le origin index now
+  have next := pace.boundary_le origin (index + 1) now
+  omega
+
+/-- The deadline in nanoseconds: the origin plus `index + latency` cycles. -/
+theorem Pace.deadline_nanoseconds (pace : Pace) (origin : Instant) (index : Nat) :
+    (pace.deadline origin index).nanoseconds =
+      origin.nanoseconds + (index + pace.latency) * pace.cycle := rfl
+
+/-- The deadline of a percept is later than the start of its cycle. -/
+theorem Pace.deadline_lt (pace : Pace) (origin : Instant) (index : Nat) :
+    (pace.boundary origin index).nanoseconds < (pace.deadline origin index).nanoseconds :=
+  pace.boundary_lt origin (Nat.lt_add_of_pos_right pace.causal)
+
+/-- **The verdict on the declared numbers.** For every pace, origin, cycle and release:
+the deadline is met exactly when the release is earlier than the origin plus
+`index + latency` cycles. -/
+theorem Pace.meets_iff (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) :
+    pace.meets origin index released = true ↔
+      released.nanoseconds < origin.nanoseconds + (index + pace.latency) * pace.cycle :=
+  decide_eq_true_iff
+
+/-- **The verdict through the cycle of the release.** For every pace, origin, cycle and
+release: the deadline is met exactly when the release falls in a cycle before the one the
+deadline starts. The verdict computes the start of that cycle and compares; this
+statement is through `Pace.index`, which divides. -/
+theorem Pace.meets_index (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) :
+    pace.meets origin index released = true ↔
+      pace.index origin released < index + pace.latency := by
+  have started := pace.boundary_le origin (index + pace.latency) released
+  have early := pace.index_early origin released
+  have positive := pace.causal
+  rw [pace.boundary_nanoseconds origin (index + pace.latency)] at started
+  rw [pace.meets_iff origin index released]
+  omega
+
+/-- **The verdict through the cycles that have begun.** For every pace, origin, cycle and
+release: the deadline is met exactly when no cycle from the one the deadline starts has
+begun at the instant of the release. -/
+theorem Pace.meets_begun (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) :
+    pace.meets origin index released = true ↔
+      ∀ later, index + pace.latency ≤ later →
+        released.nanoseconds < (pace.boundary origin later).nanoseconds := by
+  rw [pace.meets_iff origin index released]
+  constructor
+  · intro met later due
+    have grows : (index + pace.latency) * pace.cycle ≤ later * pace.cycle :=
+      Nat.mul_le_mul_right pace.cycle due
+    rw [pace.boundary_nanoseconds origin later]
+    omega
+  · intro none
+    have first := none (index + pace.latency) (Nat.le_refl _)
+    rw [pace.boundary_nanoseconds origin (index + pace.latency)] at first
+    exact first
+
+/-- **The later of two releases, when it meets its deadline.** For every pace, origin,
+cycle and number of cycles between two percepts: when the earlier action is released at
+or after the start of its percept's cycle, and the later one meets its deadline, the
+later release is less than `span + latency` cycles after the earlier one. For two
+consecutive cycles the bound is `latency + 1` cycles. The statement has no hypothesis
+that the earlier release meets its own deadline, and it bounds one direction only. -/
+theorem Pace.met_gap (pace : Pace) (origin : Instant) (index span : Nat)
+    (first second : Instant)
+    (sensed : (pace.boundary origin index).nanoseconds ≤ first.nanoseconds)
+    (met : pace.meets origin (index + span) second = true) :
+    second.nanoseconds < first.nanoseconds + (span + pace.latency) * pace.cycle := by
+  have verdict := (pace.meets_iff origin (index + span) second).mp met
+  have split : (index + span + pace.latency) * pace.cycle =
+      index * pace.cycle + (span + pace.latency) * pace.cycle := by
+    rw [Nat.add_assoc, Nat.add_mul]
+  rw [pace.boundary_nanoseconds origin index] at sensed
+  omega
+
+/-! ## The fault of a missed deadline -/
+
+/-- What a host of a wall-clock world holds between two events, over the world's actions:
+the action in force and the percept, if any, whose action is not released yet. -/
+inductive Standing (α : Type) where
+  /-- No percept awaits its action. The action in force is the last one released, if any. -/
+  | idle (action : Option α)
+  /-- The percept of a cycle awaits its action. The action that was in force when the
+  percept was sensed stays in force. -/
+  | awaiting (prior : Option α) (index : Nat)
+
+variable {α : Type}
+
+/-- The action in force. -/
+def Standing.action : Standing α → Option α
+  | .idle action => action
+  | .awaiting prior _ => prior
+
+/-- What holds at an instant: the action in force, and whether a deadline has passed with
+its action not released. -/
+structure Standing.Outcome (α : Type) where
+  /-- The action in force. -/
+  action : Option α
+  /-- Whether a percept awaits its action at or after its deadline. -/
+  fault : Bool
+
+/-- What holds at an instant for a standing. While a percept awaits its action, the
+action that was in force stays in force, and a fault holds from the deadline on: at every
+instant at which a release would not meet the deadline. -/
+def Pace.outcome (pace : Pace) (origin : Instant) (standing : Standing α) (now : Instant) :
+    Standing.Outcome α :=
+  match standing with
+  | .idle action => ⟨action, false⟩
+  | .awaiting prior index => ⟨prior, !pace.meets origin index now⟩
+
+/-- The standing at an instant of one step: the percept of cycle `index` is sensed with
+`prior` in force, and its action `chosen` is released at `released`. An action is in
+force after the instant it is released at, so the percept still awaits at that instant. -/
+def Standing.during (prior : Option α) (index : Nat) (released : Instant) (chosen : α)
+    (now : Instant) : Standing α :=
+  if now.nanoseconds ≤ released.nanoseconds then .awaiting prior index
+  else .idle (some chosen)
+
+/-- Time alone changes no action: at every instant the action of the outcome is the
+action in force of the standing. -/
+theorem Pace.outcome_action (pace : Pace) (origin : Instant) (standing : Standing α)
+    (now : Instant) : (pace.outcome origin standing now).action = standing.action := by
+  cases standing <;> rfl
+
+/-- **A fault holds exactly while a percept awaits its action at or after its deadline.**
+For every pace, origin, standing and instant. -/
+theorem Pace.outcome_fault (pace : Pace) (origin : Instant) (standing : Standing α)
+    (now : Instant) :
+    (pace.outcome origin standing now).fault = true ↔
+      ∃ prior index, standing = .awaiting prior index ∧
+        (pace.deadline origin index).nanoseconds ≤ now.nanoseconds := by
+  cases standing with
+  | idle action =>
+    constructor
+    · intro fault
+      cases fault
+    · intro ⟨_, _, same, _⟩
+      cases same
+  | awaiting prior index =>
+    simp only [Pace.outcome, Pace.meets, Bool.not_eq_true', decide_eq_false_iff_not, Nat.not_lt]
+    constructor
+    · intro late
+      exact ⟨prior, index, rfl, late⟩
+    · intro ⟨_, _, same, late⟩
+      cases same
+      exact late
+
+/-- **A missed deadline is a fault from the deadline to the release.** For every pace,
+origin, preceding action, cycle, release, chosen action and instant: in one step a fault
+holds exactly at the instants that are not before the deadline and not after the
+release. -/
+theorem Pace.step_fault (pace : Pace) (origin : Instant) (prior : Option α) (index : Nat)
+    (released : Instant) (chosen : α) (now : Instant) :
+    (pace.outcome origin (Standing.during prior index released chosen now) now).fault = true ↔
+      (pace.deadline origin index).nanoseconds ≤ now.nanoseconds ∧
+        now.nanoseconds ≤ released.nanoseconds := by
+  rw [pace.outcome_fault origin]
+  unfold Standing.during
+  split
+  · rename_i awaited
+    constructor
+    · intro ⟨_, _, same, late⟩
+      cases same
+      exact ⟨late, awaited⟩
+    · intro ⟨late, _⟩
+      exact ⟨prior, index, rfl, late⟩
+  · rename_i passed
+    constructor
+    · intro ⟨_, _, same, _⟩
+      cases same
+    · intro ⟨_, awaited⟩
+      exact absurd awaited passed
+
+/-- **The action in force through one step.** Up to the instant of the release the
+preceding action is in force, and after it the chosen one. -/
+theorem Pace.step_action (pace : Pace) (origin : Instant) (prior : Option α) (index : Nat)
+    (released : Instant) (chosen : α) (now : Instant) :
+    (pace.outcome origin (Standing.during prior index released chosen now) now).action =
+      if now.nanoseconds ≤ released.nanoseconds then prior else some chosen := by
+  rw [pace.outcome_action origin]
+  unfold Standing.during
+  split <;> rfl
+
+/-- **During a fault the preceding action holds.** For every instant of one step at which
+a fault holds, the action in force is the one that was in force when the percept was
+sensed. -/
+theorem Pace.step_holds (pace : Pace) (origin : Instant) (prior : Option α) (index : Nat)
+    (released : Instant) (chosen : α) (now : Instant)
+    (fault : (pace.outcome origin (Standing.during prior index released chosen now) now).fault =
+      true) :
+    (pace.outcome origin (Standing.during prior index released chosen now) now).action =
+      prior := by
+  rw [pace.step_action origin prior index released chosen now]
+  split
+  · rfl
+  · rename_i passed
+    exact absurd ((pace.step_fault origin prior index released chosen now).mp fault).2 passed
+
+/-- **A step has no instant of fault exactly when its release meets the deadline.** -/
+theorem Pace.step_faultless (pace : Pace) (origin : Instant) (prior : Option α) (index : Nat)
+    (released : Instant) (chosen : α) :
+    pace.meets origin index released = true ↔
+      ∀ now, (pace.outcome origin (Standing.during prior index released chosen now) now).fault =
+        false := by
+  have verdict := pace.meets_iff origin index released
+  have due := pace.deadline_nanoseconds origin index
+  constructor
+  · intro met now
+    have early := verdict.mp met
+    have none := not_congr (pace.step_fault origin prior index released chosen now)
+    rw [Bool.not_eq_true] at none
+    refine none.mpr ?_
+    omega
+  · intro none
+    have last := not_congr (pace.step_fault origin prior index released chosen released)
+    rw [Bool.not_eq_true] at last
+    have clear := last.mp (none released)
+    refine verdict.mpr ?_
+    omega
 
 end Acorn

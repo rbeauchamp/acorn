@@ -269,6 +269,30 @@ theorem Acorn.Host.runAttempt_complete {order : Acorn.StepOrder} {config : Acorn
   Acorn.Host.AttemptAgrees (Acorn.Host.Attempt.complete callbacks context cap.toNat initial) value
 ```
 
+A world declares its timing in its interface: it waits for each action, or it moves on
+a wall clock with a declared cycle and a latency in cycles.
+`Acorn.Handcrafted.Grid.interface_timing` states that the grid world declares that
+it waits. For a wall-clock declaration, `Acorn.Pace.meets_index` states the verdict
+on the instant an action is released at: the deadline is met exactly when the release
+falls in a cycle before the one the deadline starts. `Acorn.Pace.outcome` gives, for
+what a host holds and an instant, the action in force and whether a fault holds.
+`Acorn.Pace.step_fault` states that in one step a fault holds exactly from the
+deadline to the release, and `Acorn.Pace.step_holds` that the preceding action is
+in force at every instant of the fault:
+
+```lean
+theorem Acorn.Pace.step_fault {α : Type} (pace : Acorn.Pace) (origin : Acorn.Instant) (prior : Option α)
+  (index : ℕ) (released : Acorn.Instant) (chosen : α) (now : Acorn.Instant) :
+  (pace.outcome origin (Acorn.Standing.during prior index released chosen now) now).fault = true ↔
+    (pace.deadline origin index).nanoseconds ≤ now.nanoseconds ∧
+      now.nanoseconds ≤ released.nanoseconds
+```
+
+`Acorn.Pace.step_faultless` states that no instant has a fault exactly when the
+release meets the deadline. An instant is a natural number of nanoseconds, so this
+arithmetic is exact. The statements are about these functions: no executing loop keeps a
+standing or reads a cycle or a latency, and no executing world declares a wall clock.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine

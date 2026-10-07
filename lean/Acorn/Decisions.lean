@@ -985,6 +985,25 @@ theorem step_order : Regula.ExecutableContract Host.Cli.stepOrder
 
 attribute [regula_decision] Host.Cli.stepOrder
 
+/-- The deadline verdict of a wall-clock world accepts exactly the releases that fall in a
+cycle before the one the deadline starts: the cycles that have begun at the instant of the
+release are all before cycle `index + latency` (`Pace.meets_index`). The inputs are a pace,
+an origin, the cycle of the percept and the instant of the release. The specification is
+stated through `Pace.index`, the cycle an instant falls in, whose meaning `Pace.index_iff`
+fixes by the cycles that have started. The verdict does not call it: the verdict computes the
+start of the deadline's cycle and compares, and `Pace.boundary_le` relates the two. The
+specification states nothing about a clock or about the instant a host reads it at. -/
+theorem pace_meets : Regula.ExecutableContract Pace.meets (fun meets =>
+    Regula.Decides (· = true)
+      (fun input : ((Pace × Instant) × Nat) × Instant =>
+        input.1.1.1.index input.1.1.2 input.2 < input.1.2 + input.1.1.1.latency)
+      (Function.uncurry (Function.uncurry (Function.uncurry meets)))) :=
+  ⟨decides (fun input => Pace.meets_index input.1.1.1 input.1.1.2 input.1.2 input.2)
+    ⟨(((⟨1, 1, by decide, by decide⟩, ⟨0⟩), 0), ⟨0⟩), by decide⟩
+    ⟨(((⟨1, 1, by decide, by decide⟩, ⟨0⟩), 0), ⟨1⟩), by decide⟩⟩
+
+attribute [regula_decision] Pace.meets
+
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification
 `Host.Cli.Ends` is stated on the argument list. `cli_value_found` states which value an

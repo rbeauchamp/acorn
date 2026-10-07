@@ -140,8 +140,8 @@ def TemporalControl.serveDraw (state : TemporalControl interface profile config 
       servedProbabilities action, true, metaValues, none, none, interrupted.2⟩)
   | .idle | .option _ _ => none
 
-/-- The event a closing option's terminal credit records. It reads the closing record
-only. -/
+/-- The event a closing option's terminal credit records
+(`AcornVerif.DrawFirst.closeOption_closing`). It reads the closing record only. -/
 def closingEvent (closing : Closing interface.actions config criterion dimension interface.layout
     (EndingPayload (profile.mode != .frozen))) : EndEvent :=
   ⟨closing.slot, closing.activation.activation.age, closing.activation.reason⟩
