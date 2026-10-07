@@ -2044,14 +2044,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.FloatLibBridge.sub_roundAt
 
-/-- info: 'AcornVerif.FloatLibBridge.fraction_accuracy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.fraction_accuracy
-
-/-- info: 'AcornVerif.FloatLibBridge.roundWithAccuracy_zero_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.roundWithAccuracy_zero_roundAt
-
 /-- info: 'AcornVerif.FloatLibBridge.div_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.FloatLibBridge.div_roundAt
