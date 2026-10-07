@@ -735,7 +735,7 @@ theorem dispatchMeta_start (state : TemporalControl interface profile config cri
     withSkill_twice]
   rfl
 
-/-! ## One form of the dispatch for both orders
+/-! ## One form of both executed dispatches
 
 `dispatchForm` writes the dispatch once, as a specification. It names a `Dispatch` mode
 and reads it in two places and nowhere else. `selectWithOperations_form` and

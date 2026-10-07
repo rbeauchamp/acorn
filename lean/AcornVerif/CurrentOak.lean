@@ -95,6 +95,15 @@ Selection (`TemporalControl.selectWithOperations`) also takes the event: it cons
 executing option's stopping decision and hands the event to
 `TemporalControl.atBoundary`. No such theorem covers those two.
 
+Under the step order `actThenLearn` the draw-first dispatch (`TemporalControl.drawFirst`)
+takes the event as selection does, to consult the executing option's stopping decision,
+and no such theorem covers it either. The owed writes of that order
+(`TemporalControl.settle`) hand the event to the start of the selected option and read it
+nowhere else (`settle_unstarted`, `TemporalControl.settle_started`). That start has the
+statement of the seven, for one option and for the option table: where the outcome of the
+stored trajectory's stopping decision agrees under two events, the results agree
+(`startTemporal_event`, `startOption_event`).
+
 These are statements about results, and they do not exclude every read of the event.
 Where a decision continues the event is clear, because a set event forces the ending.
 A read of the event there sees one value and changes no result, so it leaves every
