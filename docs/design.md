@@ -129,12 +129,41 @@ a step calls is the definition of selection; `TemporalControl.select_keeps` and
 it.
 
 The meta draw is the one draw that reads the meta-controller, and the order
-changes what it reads. The order changes a second read through it. The settlement
-of an option that starts, and under the differential criterion the terminal
-credit of the option that closes, are computed from the frozen snapshot of the
-drawn meta decision. So the first action of an option that starts can read
-different weights under the two orders, also when the meta draw selects the same
-option.
+changes what it reads. The decision keeps the frozen snapshot that the draw was
+made from, and the order changes every later read of that snapshot. The first
+part has three:
+
+- the settlement of an option that starts takes its stopping estimate from the
+  snapshot (`TemporalControl.dispatchMeta`, `Skill.settleTemporal`);
+- under the differential criterion, the terminal credit of the option that
+  closes takes the snapshot's value of the drawn meta action
+  (`TemporalControl.atBoundary`, `TemporalControl.closeOption`);
+- the on-policy credit of the meta decision forms its error and stores its lag
+  from that same value (`TemporalControl.learnMeta`, `Controller.policyStep`);
+  the next paragraph gives the consequence of the lag.
+
+The second part has one: the off-policy learning of every option that is not
+executing compares against a stopping estimate that is read from the snapshot
+(`TemporalControl.stoppingEstimate`, `TemporalControl.followOptions`,
+`Skill.followTemporal`). The decision also reports the snapshot's values and
+probabilities to an observer (`Agent.observe`). Two closings in the first part
+read the meta-controller itself, as the current value function, which under
+`plan-after-act` holds no planning of this frame: the model of the option that
+closes under the differential criterion (`Skill.endTemporal`) and the model of a
+stored trajectory that the settlement stops (`Skill.stopFollowing`).
+`TemporalControl.takeoverValue` uses the same stopping estimate on a served step
+only. That step records no meta decision (`TemporalControl.serve_undrawn`), so
+the estimate is read from the decision's own meta values and the current rate,
+and the two orders are one step there (`Agent.actOrdered_undrawn`).
+
+So the first action of an option that starts can read different weights under
+the two orders, also when the meta draw selects the same option. For an option
+that is not executing, the stopping decision of its stored trajectory and the
+stopping value that a stop credits to its policy (`Skill.stopFollowing`) can
+differ under the two orders at a frame that records a meta decision. No theorem
+states the difference of one of these reads: each follows from the definitions
+named, with the two statements of the snapshot (`TemporalControl.atBoundary_meta`,
+`TemporalControl.atBoundary_unplanned`).
 
 The deferred planning has a consequence for the next credit of the
 meta-controller. The on-policy credit of a decision stores the value of the drawn
