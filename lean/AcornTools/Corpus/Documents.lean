@@ -66,6 +66,10 @@ private def externalSymbols : List String := [
   "Float32",
   "Int",
   "Nat",
+  "Bool",
+  "Option",
+  "Except",
+  "Decidable",
   "Classical",
   "Quot",
   "propext",
@@ -253,9 +257,16 @@ private def pathClaim (span : String) : IO Unit := do
         unless count ≤ ((← IO.FS.readFile path).splitOn "\n").length do
           throw (IO.userError "line anchor exceeds file")
 
-private def listed (entries : List String) (name : String) : Bool :=
-  entries.any fun entry => name == entry || name.startsWith (entry ++ ".") ||
-    name.startsWith (entry ++ "::")
+/-- Whether a name is one of the external symbols. Admission is equality with a listed name,
+so a listed name admits no other name of its namespace: every qualified external name a
+document uses is listed in full. -/
+def external (name : String) : Bool :=
+  (externalSymbols.map (·.replace "::" ".")).contains name
+
+/-- An admitted external name is one of the listed symbols. -/
+theorem external_listed (name : String) (admitted : external name = true) :
+    name ∈ externalSymbols.map (·.replace "::" ".") := by
+  simpa [external] using admitted
 
 private def symbol (span : String) : Option String := do
   guard (span.toList.all (fun c => c.toNat < 128))
@@ -341,7 +352,7 @@ unsafe def symbols (selection : Array Name := AcornOwnership.modules) : IO (Std.
 
 private def resolves (names : Std.HashSet String) (name : String) : Bool :=
   let name := name.replace "::" "."
-  listed (externalSymbols.map (·.replace "::" ".")) name ||
+  external name ||
     (proseTokens ++ keywords ++ standardMacros).contains name || names.contains name ||
     (name.endsWith "_*" && names.toArray.any (fun candidate =>
       candidate.startsWith (name.dropEnd 1).toString))

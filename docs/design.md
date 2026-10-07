@@ -313,6 +313,8 @@ certificate proves its row below, and a rejected or missing one proves nothing.
 The checkers are in [the certificate module](../lean/Acorn/Host/Certificate.lean)
 and the theorems in
 [the certificate proofs](../lean/AcornVerif/CurrentCertificates.lean).
+[AcornVerif.Decisions](../lean/AcornVerif/Decisions.lean) registers each checker
+as a Regula contract that states what its acceptance establishes.
 
 | Certificate | The checker accepts when | What acceptance proves | Theorems |
 |---|---|---|---|
@@ -993,6 +995,14 @@ updated values must satisfy the same admission as initial construction. Learned
 code cannot import host/handcrafted owners except at explicit composition roots.
 A provenance witness declares an origin; review must assess whether it is honest.
 The viewer receives telemetry and requests lifecycle stop only.
+[Acorn.Decisions](../lean/Acorn/Decisions.lean) registers the admissions, parsers
+and validity tests of the executing library for which a property of the accepted
+or refused result is proved, with what each proof establishes; the
+[Regula audit](verification.md#regula-audit) requires a contract of every
+registered function whose result type is not `Decidable`. The module
+documentation of that registry lists the groups of definitions with a `Bool`,
+`Option`, `Except` or `Decidable` result that carry no contract; no check keeps
+that list complete.
 
 Core calls select an explicit research profile. The [prior-art register](prior-art-review.md#current-default-qualification)
 records qualification decisions. Each proof states its hypotheses, including

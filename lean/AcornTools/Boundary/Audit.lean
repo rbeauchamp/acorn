@@ -23,9 +23,14 @@ open Lean
 /-- Explicit composition roots may join learned and declared code. -/
 def compositionRoots : Array Name := #[`Acorn, `Acorn.SwiftTdDriver, `Acorn.FeatureDriver, `Acorn.WorldDriver, `Acorn.ControlDriver, `Acorn.TemporalDriver, `Acorn.AgentDriver]
 
+/-- The registration leaf of the executing library states contracts about executing
+definitions. No module imports it, so no entry point links what it declares. It has its own
+import and command admission below. -/
+def registry (name : Name) : Bool := name == AcornModuleInventory.decisionRegistry
+
 /-- Executing application sources and their shared constant leaf. -/
-def governed (name : Name) : Bool := (`Acorn).isPrefixOf name ||
-  (`NativeApp).isPrefixOf name
+def governed (name : Name) : Bool := ((`Acorn).isPrefixOf name ||
+  (`NativeApp).isPrefixOf name) && !registry name
 
 /-- Mathematical proofs have separate import admission. -/
 def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name
@@ -52,6 +57,10 @@ it is listed as a grid owner. -/
 def worldIndependent (name : Name) : Bool :=
   (`Acorn.Handcrafted).isPrefixOf name && !gridOwners.contains name
 
+/-- The proof module that states Regula contracts whose proofs need the proof library. It
+alone among the proof modules imports Regula's contract type. -/
+def proofContracts : Name := `AcornVerif.Decisions
+
 /-- The single proof module that imports the pinned FloatLib dependency. Other proof
 modules reach FloatLib's theorems through it; no executing module can. -/
 def floatLibBridge : Name := `AcornVerif.FloatLibBridge
@@ -72,14 +81,22 @@ A world-independent declared module reaches learned modules and its own kind onl
 the composed agent cannot name a host or grid type, directly or through an import.
 Proof imports name their actual dependencies; Mathlib and FloatLib umbrella imports
 needlessly load an entire library or tactic collection into each compiler process.
-FloatLib modules are admitted for the bridge alone. -/
+FloatLib modules are admitted for the bridge alone, and Regula's contract type for the proof
+module that states contracts. The decision registry imports
+executing modules and Regula's two registration interfaces, the contract type and the
+decision attribute. No module imports the registry, so the attribute's module, which
+imports Lean's elaborator, enters no executable's or proof's import closure. -/
 def importAllowed (owner imported : Name) : Bool :=
   if (`Init).isPrefixOf imported then true
+  else if registry imported then false
+  else if registry owner then
+    (`Acorn).isPrefixOf imported || #[`Regula.Contract, `Regula.Decision].contains imported
   else if generatorOnly owner && generatorExcluded imported then false
   else if proofOwner owner then
     !#[`Mathlib, `Mathlib.Tactic, `FloatLib].contains imported &&
       (#[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported) ||
-        (owner == floatLibBridge && (`FloatLib).isPrefixOf imported))
+        (owner == floatLibBridge && (`FloatLib).isPrefixOf imported) ||
+        (owner == proofContracts && imported == `Regula.Contract))
   else if nativeBootstrap owner then
     (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
   else if owner == `Acorn.Constants then false
@@ -96,6 +113,10 @@ def reject {α : Type} (owner : Name) (reason : String) : IO α :=
 
 /-- A small reviewed attribute domain has no native replacement or metaprogram registration. -/
 def allowedAttributes : Array Name := #[`simp, `inline, `noinline, `reducible, `irreducible]
+
+/-- Regula's decision registration, admitted in the decision registry alone. It adds the
+requirement of a decision contract to the registered function and changes no definition. -/
+def decisionAttribute : Name := `regula_decision
 
 /-- These options change proof resource limits, never kernel checking or parser admission. -/
 def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiation.threshold]
@@ -145,7 +166,8 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
       unless nodeSyntax[1].isOfKind ``Parser.Attr.simple do
         reject owner s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
       let attributeName := nodeSyntax[1][0].getId
-      unless allowedAttributes.contains attributeName do
+      unless allowedAttributes.contains attributeName ||
+          (registry owner && attributeName == decisionAttribute) do
         reject owner s!"unreviewed attribute {attributeName}"
       unless nodeSyntax[1][1].getArgs.isEmpty do
         reject owner s!"attribute arguments require review: {attributeName}"
@@ -174,6 +196,14 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
     inspectCommand owner nested
     inspectSyntax owner command
   else if proofOwner owner && kind == ``Parser.Command.printAxioms then
+    inspectSyntax owner command
+  else if registry owner && kind == ``Parser.Command.attribute then
+    -- `attribute [regula_decision] f`: every listed item applies an attribute, and that
+    -- attribute is the decision registration. Erasing an attribute is refused.
+    for item in command[2].getSepArgs do
+      unless item.isOfKind ``Parser.Term.attrInstance &&
+          item[1].isOfKind ``Parser.Attr.simple && item[1][0].getId == decisionAttribute do
+        reject owner "the registry's attribute command may only register decisions"
     inspectSyntax owner command
   else if #[``Parser.Command.declaration, ``Parser.Command.namespace, ``Parser.Command.end,
       ``Parser.Command.section, ``Parser.Command.open, ``Parser.Command.variable,
@@ -361,8 +391,9 @@ unsafe def command (args : List String) : IO UInt32 := do
     return 1
   Lean.initSearchPath (← Lean.findSysroot)
   let proofs := args == ["proof-source"]
+  -- The decision registry states contracts, so it is admitted with the proof sources.
   let owners := (← AcornModuleInventory.projectModules).filter
-    (if proofs then proofOwner else governed)
+    (if proofs then fun name => proofOwner name || registry name else governed)
   -- Compiled admission goes first. Source admission keeps its parser environment mapped
   -- until exit, and a module that is already mapped cannot be mapped again: it is read
   -- and relocated in full by every later environment that imports it.

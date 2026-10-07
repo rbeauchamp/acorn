@@ -57,13 +57,14 @@ jobs:
         # Regula's lint driver and audit worker are compiled here, so both jobs
         # provision the same dependency cache.
         run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
-      - name: Provision the FloatLib modules the proof bridge imports
+      - name: Provision the FloatLib and Regula modules the project imports
         working-directory: lean
         # FloatLib publishes no build cache. This step compiles the modules that
-        # AcornVerif.FloatLibBridge imports, so verification never compiles a
+        # AcornVerif.FloatLibBridge imports and the Regula interface modules that
+        # the decision registries import, so verification never compiles a
         # dependency inside its deadline. On an exact cache hit it has nothing to
         # build.
-        run: lake build floatlibBridge
+        run: lake build floatlibBridge regulaInterface
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before project verification
@@ -157,13 +158,14 @@ jobs:
         # Regula's lint driver and audit worker are compiled here, so both jobs
         # provision the same dependency cache.
         run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
-      - name: Provision the FloatLib modules the proof bridge imports
+      - name: Provision the FloatLib and Regula modules the project imports
         working-directory: lean
         # FloatLib publishes no build cache. This step compiles the modules that
-        # AcornVerif.FloatLibBridge imports, so verification never compiles a
+        # AcornVerif.FloatLibBridge imports and the Regula interface modules that
+        # the decision registries import, so verification never compiles a
         # dependency inside its deadline. On an exact cache hit it has nothing to
         # build.
-        run: lake build floatlibBridge
+        run: lake build floatlibBridge regulaInterface
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before the audit

@@ -45,7 +45,7 @@ prerequisites and provisions the pinned Lean, Mathlib and FloatLib dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this builds nothing, writes only the
 launcher's own override file and asks Lake whether the FloatLib modules the proof
-bridge imports are current.
+bridge imports and the Regula modules the decision registries import are current.
 The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
@@ -69,11 +69,12 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge)` from the
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface)` from the
 repository root to provision the pinned toolchain/dependencies; the build compiles
 only Mathlib modules absent from the upstream cache, plus Regula's lint driver
 and audit worker. FloatLib publishes no cache, so the same command compiles the
-FloatLib modules that the proof bridge imports.
+FloatLib modules that the proof bridge imports, and the two Regula interface modules
+that the decision registries import.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
@@ -280,7 +281,8 @@ the bootstrap's path overrides or its no-cache and warnings-as-failures flags.
 Those invocations resolve dependencies through the Git lock in
 `lean/lake-manifest.json`. The bootstrap checks no dependency's revision: it
 admits each by the presence of its files, and the FloatLib modules the proof
-bridge imports by Lake's build traces. Lake therefore fetches a dependency whose
+bridge imports and the Regula modules the decision registries import by Lake's
+build traces. Lake therefore fetches a dependency whose
 checkout is not at the locked revision.
 
 The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
@@ -309,6 +311,55 @@ functions reach the same Mathlib-owned boundaries; the boundary audit refuses a
 FloatLib import by any executing module. The compiler, native runtime, operating
 system and spawned processes stay trusted in both modes. AcornTools is excluded
 with the {splice}`numberWord toolExecutables.length` tool executables; it is the reviewed tooling trust boundary.
+
+`lean/Acorn/Decisions.lean` registers the library's decision functions for which
+a property of the accepted or refused result is proved. A decision function is
+an admission, parser or validity test: its result accepts or refuses an input.
+A registration of a function between fixed types is a Regula executable contract
+about the executing definition itself, with the kind its proof establishes. A
+two-way kind states that the function accepts exactly the inputs that satisfy
+the written specification, with one accepted and one refused input as witnesses.
+Regula's decision attribute makes the contract a requirement of the function, so
+the audit fails when a contract is removed while its function stays registered.
+A decision procedure whose result type is `Decidable` carries both directions in
+its type and is registered with no contract. An admission with an argument or
+result type that depends on an earlier argument has no kind. Neither has a
+function between fixed types for which no theorem states a set of the inputs
+that it accepts. Where a theorem
+proves which inputs it accepts or refuses, or a property of an accepted or a
+refused result, that statement is registered as a requirement with no kind, and
+the ownership audit requires the contract by name. A decision that takes its
+element type as an argument has no kind either and is registered in the same
+way. A requirement with no kind is a statement that the Regula audit does not
+examine: that audit checks only that its theorem is proved about the executing
+definition. Such a statement can fix one direction only, and no statement of a
+registry shows that both outcomes occur for its function. Kinds for these
+functions are remaining work of
+[issue 67](https://github.com/rbeauchamp/acorn/issues/67). A contract states only
+what its theorem proves.
+
+Regula's audit does not find a decision function that is not registered, and no
+check of Acorn does. The module documentation of `lean/Acorn/Decisions.lean`
+lists the groups of definitions with a `Bool`, `Option`, `Except` or `Decidable`
+result that carry no contract, with the reason for each group. That list has no
+check of completeness: a new definition with such a result can arrive with no
+contract and no entry. A report of the definitions with no contract is work of
+Regula ([issue 115](https://github.com/rbeauchamp/regula/issues/115)).
+`Acorn.Decisions`
+cannot register a function of another library, such as a NativeApp parser. No
+kind says that a specification is the intended one. `Acorn.Decisions` belongs to
+the Acorn library
+because Regula decides a registered function against the contracts of the
+function's own library. It is the only module that imports Regula's decision
+attribute. No module imports it, so no entry point links what it declares; the
+boundary audit admits it with the proof sources and refuses an import of it.
+`AcornVerif.Decisions` states the contracts whose proofs need the proof library.
+Regula does not count them toward a registration, so their functions are not
+registered, and the ownership audit requires each contract by name. Among them
+are the certificate checkers. No checker is complete, so each contract states
+what an accepted certificate establishes: the blocked checker carries the sound
+kind, and the replay and stance checkers, whose arguments have a dependent type,
+a requirement with no kind.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

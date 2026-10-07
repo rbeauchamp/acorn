@@ -207,6 +207,34 @@ drain in idle phase. This does not confer observation-forwarding rights. -/
 def Lifecycle.ownsIdentity (state : Lifecycle) (generation : UInt64) : Bool :=
   state.phase.accepts generation || (state.phase == .idle && state.lastGeneration == generation)
 
+/-- The generations that own identity attribution, stated on the stored phase and the
+generation allocator: the generation of a live process, or the last reserved generation while
+no process is live. -/
+def Lifecycle.OwnsIdentity (state : Lifecycle) (generation : UInt64) : Prop :=
+  state.phase = .running generation ∨ state.phase = .stopping generation ∨
+    (state.phase = .idle ∧ state.lastGeneration = generation)
+
+/-- The identity test accepts exactly the generations that own identity attribution. -/
+theorem Lifecycle.ownsIdentity_iff (state : Lifecycle) (generation : UInt64) :
+    state.ownsIdentity generation = true ↔ state.OwnsIdentity generation := by
+  unfold ownsIdentity OwnsIdentity
+  cases state.phase with
+  | idle =>
+    have idle : (Phase.idle == Phase.idle) = true := rfl
+    simp [Phase.accepts, idle]
+  | starting current =>
+    have live : (Phase.starting current == Phase.idle) = false := rfl
+    simp [Phase.accepts, live]
+  | running current =>
+    have live : (Phase.running current == Phase.idle) = false := rfl
+    simp [Phase.accepts, live]
+  | stopping current =>
+    have live : (Phase.stopping current == Phase.idle) = false := rfl
+    simp [Phase.accepts, live]
+  | archiving =>
+    have closed : (Phase.archiving == Phase.idle) = false := rfl
+    simp [Phase.accepts, closed]
+
 /-- Final stderr attribution may record refusal only while the generation still owns identity. -/
 def Lifecycle.refuseFinalCheckpoint (state : Lifecycle) (generation : UInt64) : Lifecycle :=
   if state.ownsIdentity generation then { state with checkpointRefused := true } else state
