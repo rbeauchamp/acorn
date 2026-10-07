@@ -10,7 +10,7 @@ Authors: acorn contributors
 A step of the agent has two parts. The first selects the action. The second completes
 the step from the value the first returned. `StepOrder` declares which of three orders
 an agent and its host run. `Timing` is what a world declares about its own time; the
-last section of this comment describes it.
+section "The time a world declares" describes it.
 
 Under `learnThenAct` both parts run before the world receives the action, and the
 first part plans at a free boundary before it draws. Under `planAfterAct` the host
