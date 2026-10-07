@@ -134,9 +134,11 @@ def executables : Array (String × Name) := #[
   ("acorn-gates", `AcornTools.Gate)
 ]
 
-/-- Required composition statements must retain their actual execution references.
-These are critical entry/transition obligations, not a quota or a claim that
-all mathematical properties are exhausted by the inventory. -/
+/-- Required statements about executing definitions must retain their actual execution
+references. The entries are the critical entry and transition obligations, the decision
+contracts of `Acorn.Decisions` and `AcornVerif.Decisions` that no `@[regula_decision]`
+registration requires, and the theorem `AcornDocument.external_listed`. The list is not a
+quota or a claim that all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Host.AgentAdmission, `Acorn.Handcrafted.AgentConstruction.admit_iff,
     `Acorn.Handcrafted.AgentConstruction.admit),
