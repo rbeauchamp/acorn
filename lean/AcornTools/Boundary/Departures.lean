@@ -42,6 +42,8 @@ def modules : List (Name × List Departure) :=
      .learnerParameters, .cumulants, .explorationRate, .achievementEvent]),
    (`Acorn.Handcrafted.AgentAlignment, [.spatialPotentials, .achievementEvent]),
    (`Acorn.Handcrafted.AgentEpisodes, [.spatialPotentials, .achievementEvent]),
+   (`Acorn.Handcrafted.DrawFirst, [.spatialPotentials, .explorationDuration,
+     .learnerParameters, .explorationRate, .achievementEvent]),
    (`Acorn.Handcrafted.Agent, [.featureChannels, .spatialPotentials, .explorationDuration,
      .learnerParameters, .cumulants, .explorationRate, .featureTester, .achievementEvent]),
    (`Acorn.Handcrafted.StepParts, [.featureChannels, .spatialPotentials, .explorationDuration,
@@ -56,7 +58,8 @@ def types : List Name :=
    `Acorn.Handcrafted.SubtaskPolicy, `Acorn.Handcrafted.FeatureProfile,
    `Acorn.Handcrafted.PredictionControl, `Acorn.Handcrafted.RateState,
    `Acorn.Handcrafted.TemporalControl, `Acorn.Handcrafted.EpisodeTrace,
-   `Acorn.Handcrafted.Agent, `Acorn.Handcrafted.AgentImage, `Acorn.Handcrafted.Chosen]
+   `Acorn.Handcrafted.Agent, `Acorn.Handcrafted.AgentImage, `Acorn.Handcrafted.Chosen,
+   `Acorn.Handcrafted.StartDraw, `Acorn.Handcrafted.Owed]
 
 private def require (legal : Bool) (message : String) : IO Unit :=
   unless legal do throw (IO.userError s!"departure ownership: {message}")

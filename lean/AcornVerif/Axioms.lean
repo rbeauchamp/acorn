@@ -16,6 +16,7 @@ import AcornVerif.ParameterBudget
 import AcornVerif.Checkpoint
 import AcornVerif.GridCorrespondence
 import AcornVerif.StepParts
+import AcornVerif.DrawFirst
 import AcornVerif.Energy
 import AcornVerif.Exploration
 import AcornVerif.MetaGradient
@@ -3732,6 +3733,120 @@ info: 'Acorn.Handcrafted.Agent.actOrdered_undrawn' depends on axioms: [propext, 
 -/
 #guard_msgs in
 #print axioms Acorn.Handcrafted.Agent.actOrdered_undrawn
+
+/--
+info: 'Acorn.Features.Skill.optionStep_credit' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Features.Skill.optionStep_credit
+
+/--
+info: 'Acorn.Features.Skill.stepTemporal_credit' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Features.Skill.stepTemporal_credit
+
+/--
+info: 'Acorn.Features.Skill.startTemporal_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Features.Skill.startTemporal_step
+
+/--
+info: 'Acorn.Handcrafted.TemporalControl.settle_framed' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.TemporalControl.settle_framed
+
+/--
+info: 'Acorn.Handcrafted.TemporalControl.drawFirst_total' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.TemporalControl.drawFirst_total
+
+/--
+info: 'Acorn.Handcrafted.TemporalControl.drawFirst_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.TemporalControl.drawFirst_keeps
+
+/--
+info: 'Acorn.Handcrafted.Agent.choose_reward' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.choose_reward
+
+/--
+info: 'Acorn.Handcrafted.Agent.choose_drawn' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.choose_drawn
+
+/--
+info: 'AcornVerif.DrawFirst.selectWithOperations_settle' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.selectWithOperations_settle
+
+/--
+info: 'AcornVerif.DrawFirst.actThenLearn_planAfterAct' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.actThenLearn_planAfterAct
+
+/--
+info: 'AcornVerif.DrawFirst.drawBoundary_start' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.drawBoundary_start
+
+/--
+info: 'AcornVerif.DrawFirst.dispatchMeta_start' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.dispatchMeta_start
+
+/--
+info: 'AcornVerif.DrawFirst.drawBoundary_meta' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.drawBoundary_meta
+
+/--
+info: 'AcornVerif.DrawFirst.drawBoundary_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.drawBoundary_unplanned
+
+/--
+info: 'AcornVerif.DrawFirst.drawFirst_assigns' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.drawFirst_assigns
+
+/--
+info: 'Acorn.Handcrafted.TemporalControl.settle_started' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.TemporalControl.settle_started
+
+/--
+info: 'AcornVerif.CurrentOak.startTemporal_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.startTemporal_event
+
+/--
+info: 'AcornVerif.CurrentOak.startOption_event' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.startOption_event
+
+/--
+info: 'AcornVerif.CurrentOak.settle_unstarted' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentOak.settle_unstarted
 
 /--
 info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classical.choice, Quot.sound]

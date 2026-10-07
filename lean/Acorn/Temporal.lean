@@ -201,8 +201,8 @@ structure PlanningResult (criterion : Criterion) (dimension : Dimension) where
   recent : RecentFeatures dimension
 
 /-- Required planning interface at a free boundary. Selection calls it before the meta
-snapshot; the step order that plans after the action calls it on the selected state. The
-last argument is the meta-controller's exploration rate, the rate of the nominal
+snapshot; a step order that plans after the action calls it on the selected state, after
+the writes that order owes. The last argument is the meta-controller's exploration rate, the rate of the nominal
 policy the backed-up value reads. -/
 abbrev PlanBoundary (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) :=
@@ -497,6 +497,34 @@ theorem Skill.stepTemporal_policy {config : Config} {criterion : Criterion} {dim
       (skill.optionStep activation next reward gain rng).2 := by
   rw [Skill.stepTemporal_eq]
   split <;> exact ⟨rfl, rfl⟩
+
+/-- A start whose first action is already drawn keeps the objective whose potential was
+supplied, on every settling branch and in both modes. -/
+theorem Skill.startTemporal_interest {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate)
+    (learning : Bool) (drawn : PersistentDecision actions) :
+    (skill.startTemporal models value features potential goal estimate rate reward gain learning
+      drawn).interest = skill.interest := by
+  unfold Skill.startTemporal
+  dsimp only
+  rw [Skill.creditTemporal_interest]
+  have settled : (skill.settleTemporal models value features potential goal estimate rate reward
+      gain learning).interest = skill.interest := by
+    unfold Skill.settleTemporal
+    split
+    · unfold Skill.settleFollowing
+      cases skill.following with
+      | none => rfl
+      | some following =>
+        dsimp only
+        split <;> rfl
+    · rfl
+  rw [← settled]
+  cases learning <;> rfl
 
 /-- Following never replaces the objective whose potential was supplied. -/
 theorem Skill.startFollowing_interest {config : Config} {criterion : Criterion}

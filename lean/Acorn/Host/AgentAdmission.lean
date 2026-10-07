@@ -11,7 +11,7 @@ import Acorn.Timing
 
 Public construction admits the complete nonzero tiling word and bank-size
 domain, every power-of-two feature capacity below the UInt32 limit, all current
-profile discriminants, either criterion, either planning selection and either step order. Native
+profile discriminants, either criterion, either planning selection and every step order. Native
 allocation remains a runtime boundary; structural admission is not an allocation
 or infinite-run liveness promise.
 -/

@@ -427,8 +427,10 @@ F-E left its feature-construction end inert until U3.
   to the grid world remain. Three are to its way of running. Two of those are
   outside the interface: the world waits for the agent, and a saved image is not an
   exact image of the agent (the option models and the off-policy questions start
-  afresh). The step itself is two functions, and under the `plan-after-act` step
-  order a host releases the action between them, with planning after the action
+  afresh). The step itself is two functions, and under the `plan-after-act` and
+  `act-then-learn` step orders a host releases the action between them, with
+  planning after the action and, under `act-then-learn`, every write that reads the
+  reward after it as well
   ([design](design.md#the-two-parts-of-a-step)); every value that either native
   loop returns agrees with one pure fold of whole steps, in its run state and
   outcome or in its refusal with the learned stage of a refused pass

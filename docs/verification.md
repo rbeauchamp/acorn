@@ -190,13 +190,48 @@ theorem Acorn.Handcrafted.Agent.act_parts {interface : Acorn.Features.Interface}
   state.act percept = state.actOrdered Acorn.StepOrder.learnThenAct percept
 ```
 
-Under the other order planning follows the action.
+Under the order that plans after the action,
 `Acorn.Handcrafted.TemporalControl.atBoundary_unplanned` states that the meta
-draw of a free dispatch then reads the meta-controller before that frame's planning,
+draw of a free dispatch reads the meta-controller before that frame's planning,
 and `Acorn.Handcrafted.Agent.actOrdered_undrawn` that a step whose decision
-records no meta decision is the executed step under both orders.
-`Acorn.Handcrafted.Agent.choose_keeps` states that the first part writes neither
-the primitive controller nor a prediction demon, and
+records no meta decision is the executed step under that order and the default one.
+
+Under the order that acts before it learns, the first part makes every draw and takes
+no reward word. `Acorn.Handcrafted.Agent.choose_reward` states that two percepts
+with one frame give the same temporal state, decision and record of owed writes,
+whatever their reward words. The frame carries the achievement event, which the first
+part reads, so the statement does not make the action independent of that event.
+`AcornVerif.DrawFirst.actThenLearn_planAfterAct` states that
+this step is the step that plans after the action wherever the decision starts no
+option and no option closes at a free dispatch under the discounted criterion:
+
+```lean
+theorem AcornVerif.DrawFirst.actThenLearn_planAfterAct {interface : Acorn.Features.Interface}
+  {profile : Acorn.Handcrafted.FeatureProfile} {config : Acorn.Features.Config}
+  {criterion : Acorn.Features.Criterion} {dimension : Acorn.Dimension}
+  {planning : Acorn.Features.PlanningSelection}
+  (state : Acorn.Handcrafted.Agent interface profile config criterion dimension planning)
+  (percept : Acorn.Features.Percept interface)
+  (unstarted : (state.choose Acorn.StepOrder.actThenLearn percept).decision.started = none)
+  (uncrossed :
+    criterion = Acorn.Features.Criterion.discounted →
+      (state.choose Acorn.StepOrder.actThenLearn percept).decision.metaDecision.isSome = true →
+        (state.choose Acorn.StepOrder.actThenLearn percept).decision.ended = none) :
+  state.actOrdered Acorn.StepOrder.actThenLearn percept =
+    state.actOrdered Acorn.StepOrder.planAfterAct percept
+```
+
+`AcornVerif.DrawFirst.drawBoundary_start` and
+`AcornVerif.DrawFirst.dispatchMeta_start` state what the first action of an
+option that starts reads in each case. The second also states that selection makes the
+writes of the start with `Acorn.Handcrafted.TemporalControl.startOption`, and
+`Acorn.Handcrafted.TemporalControl.settle_started` that the owed writes make them
+with the same function. `AcornVerif.DrawFirst.drawBoundary_unplanned` states what
+the meta draw of this order reads, and `AcornVerif.DrawFirst.drawFirst_assigns`
+that the assignment refresh precedes its draws.
+
+Under every order `Acorn.Handcrafted.Agent.choose_keeps` states that the first
+part writes neither the primitive controller nor a prediction demon, and
 `Acorn.Handcrafted.Chosen.learn_rng` that the second part draws nothing from the
 action generator.
 

@@ -13,7 +13,8 @@ observation into a percept (`Grid.percept`) and, under the default step order, r
 two parts of `Agent.act` on it (`Agent.callbacks_act`). This module states the same
 agent the other way round, as a composition that reads the host observation itself,
 and proves the two equal. Every statement here about the host's step is about the
-callbacks of the default order; the step of `plan-after-act` has no frozen reference.
+callbacks of the default order; the steps of `plan-after-act` and of `act-then-learn`
+have no frozen reference.
 
 The definitions under `Direct` are a frozen reference. Each is the definition of the
 same name at commit `d3bc6e0`, before the agent took an interface. Its computational

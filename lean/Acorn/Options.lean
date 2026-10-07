@@ -332,6 +332,13 @@ theorem Skill.begin_first (skill : Skill actions config criterion dimension disc
         (skill.beginOption features potential learning rate).2.2 =
       OptionActivation.first learning potential := rfl
 
+/-- Under a fixed rate source the frozen policy has that rate, whatever the learner's
+trajectory state: the rate of a first action drawn before the invocation reset is the
+rate of one drawn after it. -/
+theorem Skill.frozenPolicy_fixed (skill : Skill actions config criterion dimension discounts)
+    (features : SwiftTd.ActiveSet dimension) (rate : SwiftTd.ExploreRate) :
+    (skill.frozenPolicy features (.fixed rate)).epsilon = rate := rfl
+
 /-- A continuing decision freezes the frozen policy of the deciding skill. -/
 theorem Skill.decide_frozen (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)

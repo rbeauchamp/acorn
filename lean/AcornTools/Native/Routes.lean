@@ -154,11 +154,28 @@ def routes : Array (String × String × Array String) := #[
   ("Handcrafted/Agent", "lp_acorn_Acorn_Handcrafted_Agent_words___redArg", #["lp_acorn_Acorn_Features_PredictionCache_words___redArg", "lp_acorn_Acorn_Handcrafted_feedbackWords"]),
   ("Handcrafted/Agent", "lp_acorn_Acorn_Handcrafted_Agent_frame___redArg", #["lp_acorn_Acorn_Handcrafted_Agent_words___redArg", "lp_acorn_Acorn_Features_FeatureRuntime_encodeCurrent___redArg"]),
   ("Host/AgentInterface", "lp_acorn_Acorn_Handcrafted_Agent_callbacks___lam__0", #["lp_acorn_Acorn_Handcrafted_FeatureProfile_taskMode", "lp_acorn_Acorn_Handcrafted_Grid_percept", "lp_acorn_Acorn_Handcrafted_Agent_choose", "lp_acorn_Acorn_Host_Action_fromIndex"]),
-  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_Agent_choose", #["lp_acorn_Acorn_Handcrafted_Agent_advanceClock___redArg", "lp_acorn_Acorn_Handcrafted_Agent_frame___redArg", "lp_acorn_Acorn_Handcrafted_firstPlanning", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedSelect___redArg"]),
+  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_Agent_choose", #["lp_acorn_Acorn_Handcrafted_Agent_chooseDrawn___redArg", "lp_acorn_Acorn_Handcrafted_Agent_chooseSelected___redArg"]),
+  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_Agent_chooseSelected___redArg", #["lp_acorn_Acorn_Handcrafted_Agent_advanceClock___redArg", "lp_acorn_Acorn_Handcrafted_Agent_frame___redArg", "lp_acorn_Acorn_Handcrafted_firstPlanning", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedSelect___redArg"]),
+  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_Agent_chooseDrawn___redArg", #["lp_acorn_Acorn_Handcrafted_Agent_advanceClock___redArg", "lp_acorn_Acorn_Handcrafted_Agent_frame___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedDraw___redArg"]),
+  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedDraw___redArg", #["lp_acorn_Acorn_Features_modelOperations", "lp_acorn_Acorn_Features_Frame_declared___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_drawFirst"]),
   ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedSelect___redArg", #["lp_acorn_Acorn_Features_Frame_declared___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_select"]),
   ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_Chosen_learn", #["lp_acorn_Acorn_Handcrafted_Chosen_learned", "lp_acorn_Acorn_Handcrafted_Agent_retire___redArg"]),
   ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_Chosen_learned", #["lp_acorn_Acorn_Handcrafted_TemporalControl_deferred", "lp_acorn_Acorn_Handcrafted_TemporalControl_learn"]),
-  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_deferred", #["lp_acorn_Acorn_Handcrafted_TemporalControl_planAfter"]),
+  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_deferred", #["lp_acorn_Acorn_Handcrafted_TemporalControl_planAfter", "lp_acorn_Acorn_Features_modelOperations", "lp_acorn_Acorn_Handcrafted_TemporalControl_settle___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_planAfter"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_drawFirst", #["lp_acorn_Acorn_Handcrafted_TemporalControl_prepareDraw___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_serveDraw___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_choosePrimitive___redArg", "lp_acorn_Acorn_Features_Interest_potential", "lp_acorn_Acorn_Features_Skill_decideOption___redArg", "lp_acorn_Acorn_Features_PolicySnapshot_drawPersistent", "lp_acorn_Acorn_Features_OptionActivation_advance___redArg", "lp_acorn_Acorn_Features_Occupancy_afterOption___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_drawBoundary", "lp_acorn_Acorn_Handcrafted_TemporalControl_drawBoundary"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_drawBoundary", #["lp_acorn_Acorn_Handcrafted_TemporalControl_refreshFree", "lp_acorn_Acorn_Handcrafted_TemporalControl_planFree___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_drawMeta___redArg", "lp_acorn_Acorn_Features_PolicyDecision_continuation___redArg", "lp_acorn_Acorn_Handcrafted_skillOfMeta", "lp_acorn_Acorn_Handcrafted_TemporalControl_choosePrimitive___redArg", "lp_acorn_Acorn_Features_Interest_potential", "lp_acorn_Acorn_Features_Skill_frozenPolicy___redArg", "lp_acorn_Acorn_Features_PolicySnapshot_drawPersistent", "lp_acorn_Acorn_Features_OptionActivation_first___redArg", "lp_acorn_Acorn_Features_Occupancy_afterOption___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_serveDraw___redArg", #["lp_acorn_Acorn_Features_ExploratoryRun_serve___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_interrupt___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_prepareDraw___redArg", #["lp_acorn_Acorn_Handcrafted_RateState_advance___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_oweReward___redArg", #["lp_acorn_Acorn_Features_CreditGap_accumulate", "lp_acorn_Acorn_Handcrafted_TemporalControl_withGap___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_settle___redArg", #["lp_acorn_Acorn_Handcrafted_TemporalControl_oweReward___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_skipMeta___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_oweReward___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_creditOption___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_skipMeta___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_oweReward___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_closeOption___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_learnMeta___redArg", "lp_acorn_Acorn_Features_comparisonValue", "lp_acorn_Acorn_Handcrafted_TemporalControl_startOption___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_creditOption___redArg", #["lp_acorn_Acorn_Features_detachedUpdate___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_creditOption___redArg___lam__0", #["lp_acorn_Acorn_Features_Skill_creditTemporal___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_startOption___redArg", #["lp_acorn_Acorn_Handcrafted_TemporalControl_valueFunction___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_skillRate___redArg", "lp_acorn_Acorn_Features_detachedUpdate___redArg"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_startOption___redArg___lam__0", #["lp_acorn_Acorn_Features_Skill_startTemporal___redArg"]),
+  ("Temporal", "lp_acorn_Acorn_Features_Skill_startTemporal___redArg", #["lp_acorn_Acorn_Features_Skill_settleTemporal___redArg", "lp_acorn_Acorn_Features_Skill_beginTemporal___redArg", "lp_acorn_Acorn_Features_Skill_creditTemporal___redArg"]),
+  ("Temporal", "lp_acorn_Acorn_Features_Skill_creditTemporal___redArg", #["lp_acorn_Acorn_Features_Skill_optionCredit___redArg"]),
+  ("Options", "lp_acorn_Acorn_Features_Skill_optionCredit___redArg", #["lp_acorn_Acorn_Features_Criterion_center", "lp_acorn_Acorn_Features_shapedCumulant", "lp_acorn_Acorn_Features_Controller_persistentStep"]),
+  ("Options", "lp_acorn_Acorn_Features_Skill_frozenPolicy___redArg", #["lp_acorn_Acorn_Features_ConsumerRate_resolve", "lp_acorn_Acorn_Features_Controller_snapshot___redArg"]),
   ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_planAfter", #["lp_acorn_Acorn_Handcrafted_TemporalControl_planFree___redArg"]),
   ("Host/AgentPrefix", "lp_acorn_Acorn_Handcrafted_Agent_input", #["lp_acorn_Acorn_Handcrafted_FeatureProfile_taskMode", "lp_acorn_Acorn_Handcrafted_Grid_percept", "lp_acorn_Acorn_Handcrafted_Agent_act"]),
   ("Handcrafted/PredictionControl", "lp_acorn_Acorn_Handcrafted_PredictionControl_advance", #["lp_acorn_Acorn_Handcrafted_signalValues", "lp_acorn_Acorn_Handcrafted_PredictionControl_advanceWith"]),
@@ -287,6 +304,8 @@ def closures : Array (String × String × Array String) := #[
     "lp_acorn_Acorn_Host_StreamObserver_deliverStep___boxed"]),
   ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_planAfter", #[
     "lp_acorn_Acorn_Features_planningBoundary___boxed"]),
+  ("Handcrafted/StepParts", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedDraw___redArg", #[
+    "lp_acorn_Acorn_Features_planningBoundary___boxed"]),
   ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks", #[
     "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks___lam__0",
     "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks___lam__1"]),
@@ -300,6 +319,10 @@ def closures : Array (String × String × Array String) := #[
     "lp_acorn_Acorn_Features_Controller_creditStep___lam__0___boxed"]),
   ("Handcrafted/TemporalControl", "lp_acorn_Acorn_Handcrafted_TemporalControl_stepOption___redArg", #[
     "lp_acorn_Acorn_Handcrafted_TemporalControl_stepOption___redArg___lam__0___boxed"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_creditOption___redArg", #[
+    "lp_acorn_Acorn_Handcrafted_TemporalControl_creditOption___redArg___lam__0___boxed"]),
+  ("Handcrafted/DrawFirst", "lp_acorn_Acorn_Handcrafted_TemporalControl_startOption___redArg", #[
+    "lp_acorn_Acorn_Handcrafted_TemporalControl_startOption___redArg___lam__0___boxed"]),
   ("Handcrafted/TemporalControl", "lp_acorn_Acorn_Handcrafted_TemporalControl_closeOption___redArg", #[
     "lp_acorn_Acorn_Handcrafted_TemporalControl_closeOption___redArg___lam__0___boxed"]),
   ("Handcrafted/TemporalControl", "lp_acorn_Acorn_Handcrafted_TemporalControl_dispatchMeta", #[

@@ -851,9 +851,9 @@ def TemporalControl.takeoverValue (state : TemporalControl interface profile con
   else none
 
 /-- Close the meta-controller's span at an interruption. The owed span covers the
-interrupted option's own actions and nothing of the run: selection accumulated this
-frame's reward, which the option's last action earned, and the first served step did
-not advance the deferred clock. The span is credited toward the supplied continuation
+interrupted option's own actions and nothing of the run: selection, or the owed writes of
+a step order that draws first, accumulated this frame's reward, which the option's last
+action earned, and the first served step did not advance the deferred clock. The span is credited toward the supplied continuation
 with the error `learnMeta` forms, and every meta trace is then released, so the rewards
 of the served steps are credited to no meta action when the next decision is learned.
 The state is consumed before the controller is credited, and `closeSpan_eq` proves the
@@ -922,8 +922,9 @@ def TemporalControl.step (state : TemporalControl interface profile config crite
 
 /-- The part of one local transition that follows selection: off-policy learning of
 every option that is not executing, the closing of an interrupted option's meta span,
-then credit and feedback. Its inputs are the state and decision selection returned and
-the frame and reward selection read. The decision is an input; it draws no action. -/
+then credit and feedback. Its inputs are the state and decision the first part of the
+step returned, after the writes its order owes, and the frame and reward of the percept.
+The decision is an input; it draws no action. -/
 def TemporalControl.learn (selected : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32) (goal : Bool)
     (decision : TemporalDecision interface.actions) :
