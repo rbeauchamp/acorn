@@ -1281,11 +1281,12 @@ theorem Agent.choose_reward (state : Agent interface profile config criterion di
         (state.choose .actThenLearn ⟨frame, second⟩).owed :=
   ⟨rfl, rfl, rfl⟩
 
-/-- **The two orders differ at a free dispatch only.** For every agent state and percept
-whose decision under planning after the action records no meta decision, the whole
-step of that order is the executed step: the same next agent and the same decision.
-Every free dispatch records a meta decision (`TemporalControl.atBoundary_meta`), so the
-steps on which the orders can differ are those with a free dispatch. -/
+/-- **`planAfterAct` can differ from the default order at a free dispatch only.** For every
+agent state and percept whose decision under planning after the action records no meta
+decision, the whole step of that order is the executed step: the same next agent and the
+same decision. Every free dispatch records a meta decision
+(`TemporalControl.atBoundary_meta`), so the steps on which those two orders can differ are
+those with a free dispatch. -/
 theorem Agent.actOrdered_undrawn
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface)

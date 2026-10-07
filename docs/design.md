@@ -839,19 +839,19 @@ admitted by the loader of the other order (`CurrentCheckpoint.relabeled_loaded`)
 `CurrentCheckpoint.saved_admitted_order` is about bytes that a save of this
 project wrote.
 
-Theorems say what a value under the other index gives. A state gives the agent's
+Theorems say what a value under another index gives. A state gives the agent's
 step of that index's order on the same learner state
 (`AgentConstruction.callbacks_act`), and a save that writes that index's word
 (`CurrentCheckpoint.saved_header`). Two callback records with the same whole step
 and the same host functions, at any two indices, give the same pure fold
 (`CurrentRunner.complete_parts`), and a value that either loop returns agrees
 with that fold in its run state, its outcome and its refusal. So a record that
-is copied under the other index returns those three values unchanged. The
+is copied under another index returns those three values unchanged. The
 resource counters that a loop also returns, which hold measured durations, and
 the observer's effects are outside these statements. That the copy changes the
 time of the world's transition is read from the two loops; it is argued and not
 machine-checked. For a profile that has a resumable image, the durable data of
-an image, put under a construction of the other order, is the image that this
+an image, put under a construction of another order, is the image that this
 construction's loader returns for the first construction's payload with the
 order word replaced (`CurrentCheckpoint.relabeled_payload`,
 `CurrentCheckpoint.relabeled_admitted`, `CurrentCheckpoint.relabeled_loaded`).

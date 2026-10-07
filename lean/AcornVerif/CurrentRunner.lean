@@ -486,7 +486,7 @@ same value.
 What follows from it, with the two loop theorems. A value that either native loop returns
 agrees with this fold in its run state, its outcome and its refusal
 (`runAttemptSteps_complete`, `runReleasedSteps_complete`, through `AttemptAgrees`). So a
-record that is copied under the other index, and run by the loop of that index, returns
+record that is copied under another index, and run by the loop of that index, returns
 the run state, the outcome and the refusal that the record itself returns from its own
 loop. The statement is about the world of this protocol, which takes one transition for
 each action and waits for it.
