@@ -112,12 +112,20 @@ report of the definitions that have no contract is work of Regula
 * A theorem names the definition and no contract states it. These are transitions of the
   world, of the attempt and campaign runners, of the temporal controller and of the agent
   prefix, and selections and predicates of the feature library. This module makes no
-  statement about what a caller does with the result of such a definition.
+  statement about what a caller does with the result of such a definition. Three decisions
+  of the step order are in this group, each with theorems for both of its directions beside
+  it: `StepOrder.parse` (`StepOrder.parse_spelled`, `StepOrder.parse_refused`),
+  `Host.Cli.stepOrderValue` (`Host.Cli.stepOrderValue_iff`, `Host.Cli.stepOrderValue_refused`)
+  and `Host.Cli.stepOrder` (`Host.Cli.stepOrder_iff`, `Host.Cli.stepOrder_refused`). Their
+  registration is follow-up work.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. Where no theorem names it, it has no contract of its
-own, and the contract of the decision that applies it is the evidence.
+the end of this module states those. One definition is the exception:
+`AgentConstruction.State.restore`, which `Checkpoint.load` applies, is the restoration of the
+agent on the admitted image (`AgentConstruction.State.restore_agent`), and the restoration of
+the agent has the contract `agent_restore`. Where no theorem names an applied definition, it
+has no contract of its own, and the contract of the decision that applies it is the evidence.
 
 What the list does not hold:
 
@@ -471,21 +479,23 @@ private theorem resumable_iff (profile : FeatureProfile) :
 
 
 /-- Agent construction accepts exactly a nonzero tiling word, a bank of one to 65535 units
-and a capacity exponent below 32 (`AgentConstruction.admit_iff`). -/
+and a capacity exponent below 32, under each step order (`AgentConstruction.admit_iff`). -/
 theorem agent_construction_admit :
     Regula.ExecutableContract AgentConstruction.admit (fun admit =>
       Regula.Decides (·.isSome = true)
-        (fun input : (((((FeatureProfile × Criterion) × PlanningSelection) × UInt64) × UInt64) ×
-            Nat) × Nat =>
+        (fun input : ((((((FeatureProfile × Criterion) × PlanningSelection) × StepOrder) ×
+            UInt64) × UInt64) × Nat) × Nat =>
           0 < input.1.1.2.toNat ∧ 0 < input.1.2 ∧ input.1.2 ≤ 65535 ∧ input.2 < 32)
         (Function.uncurry (Function.uncurry (Function.uncurry (Function.uncurry
-          (Function.uncurry (Function.uncurry admit))))))) :=
+          (Function.uncurry (Function.uncurry (Function.uncurry admit)))))))) :=
   ⟨decides
-    (fun input => AgentConstruction.admit_iff input.1.1.1.1.1.1 input.1.1.1.1.1.2
-      input.1.1.1.1.2 input.1.1.1.2 input.1.1.2 input.1.2 input.2)
-    ⟨((((((⟨.final, .perStep, .declared, .learned⟩, .discounted), .expectation), 0), 1), 1), 0),
+    (fun input => AgentConstruction.admit_iff input.1.1.1.1.1.1.1 input.1.1.1.1.1.1.2
+      input.1.1.1.1.1.2 input.1.1.1.1.2 input.1.1.1.2 input.1.1.2 input.1.2 input.2)
+    ⟨(((((((⟨.final, .perStep, .declared, .learned⟩, .discounted), .expectation),
+        .learnThenAct), 0), 1), 1), 0),
       by decide⟩
-    ⟨((((((⟨.final, .perStep, .declared, .learned⟩, .discounted), .expectation), 0), 0), 1), 0),
+    ⟨(((((((⟨.final, .perStep, .declared, .learned⟩, .discounted), .expectation),
+        .learnThenAct), 0), 0), 1), 0),
       by decide⟩⟩
 
 attribute [regula_decision] AgentConstruction.admit
@@ -510,66 +520,46 @@ theorem goal_admit : Regula.ExecutableContract Checkpoint.admitGoal
 
 attribute [regula_decision] Checkpoint.admitGoal
 
-/-- The specification of header admission, over a receiving construction and a header: the
-header's generation, criterion, shape, seed and representation are the receiver's, the
-receiver's profile is resumable and marked so, and the reward rate lies in its interval. -/
+/-- The specification of header admission, over a receiving construction and a header: some
+reward rate meets every condition of `Checkpoint.HeaderAdmitted`. That structure states the
+header's generation, criterion, reward rate, shape, seed, representation and step order on
+the stored words and the typed values, and it calls no function that the admission
+executes. -/
 def HeaderMatches (input : AgentConstruction × Checkpoint.Header) : Prop :=
-  input.2.version = Checkpoint.formatVersion ∧
-    input.2.criterion = input.1.criterion.tag.toUInt32 ∧
-    rewardRange.Contains input.2.gain ∧
-    input.2.capacity = input.1.dimension.capacity.toUInt32 ∧
-    input.2.learners = Checkpoint.primaryCount.toUInt32 ∧
-    input.2.seed = input.1.config.seed ∧
-    Resumable input.1.profile ∧
-    input.2.supported = 1 ∧
-    input.2.tilings = input.1.config.tilings ∧
-    input.2.units.toNat = input.1.config.units.count
+  ∃ gain : RewardRate, Checkpoint.HeaderAdmitted input.1 input.2 gain
 
-/-- Header admission returns a reward rate exactly for a header that matches its receiver. -/
+/-- Header admission returns a reward rate exactly for a header that matches its receiver
+(`Checkpoint.admitHeader_iff`). -/
 private theorem admitHeader_isOk (construction : AgentConstruction) (header : Checkpoint.Header) :
     (Checkpoint.admitHeader construction header).isOk = true ↔
       HeaderMatches (construction, header) := by
   unfold HeaderMatches
-  rw [← resumable_iff]
-  by_cases version : header.version = Checkpoint.formatVersion
-  case neg => simp [Checkpoint.admitHeader, Except.isOk, Except.toBool, bind, Except.bind, version]
-  by_cases criterion : header.criterion = construction.criterion.tag.toUInt32
-  case neg =>
-    simp [Checkpoint.admitHeader, Except.isOk, Except.toBool, bind, Except.bind, pure,
-      Except.pure, version, criterion]
-  by_cases gain : rewardRange.Contains header.gain
-  case neg =>
-    have refused : RewardRate.admit header.gain = none :=
-      (Bounded32.admit_refuses rewardRange header.gain).mpr gain
-    simp [Checkpoint.admitHeader, Except.isOk, Except.toBool, version, criterion, gain, refused]
-  have admitted : RewardRate.admit header.gain = some ⟨header.gain, gain⟩ := by
-    simp [RewardRate.admit, Bounded32.admit, gain]
-  by_cases capacity : header.capacity = construction.dimension.capacity.toUInt32 <;>
-    by_cases learners : header.learners = Checkpoint.primaryCount.toUInt32 <;>
-    by_cases seed : header.seed = construction.config.seed <;>
-    by_cases supported : construction.profile.checkpointSupported = true <;>
-    by_cases flag : header.supported = 1 <;>
-    by_cases tilings : header.tilings = construction.config.tilings <;>
-    by_cases units : header.units.toNat = construction.config.units.count <;>
-    simp [Checkpoint.admitHeader, Except.isOk, Except.toBool, bind, Except.bind, pure,
-      Except.pure, version, criterion, gain, admitted, capacity, learners, seed, supported, flag,
-      tilings, units]
+  constructor
+  · intro accepted
+    cases admitted : Checkpoint.admitHeader construction header with
+    | error refusal =>
+      rw [admitted] at accepted
+      exact absurd accepted Bool.false_ne_true
+    | ok gain => exact ⟨gain, (Checkpoint.admitHeader_iff construction header gain).mp admitted⟩
+  · rintro ⟨gain, specified⟩
+    rw [(Checkpoint.admitHeader_iff construction header gain).mpr specified]
+    rfl
 
 /-- Header admission accepts exactly the headers that name the receiving construction's
-generation, criterion, shape, seed, resumable profile and representation, with a reward rate
-in its interval. -/
+generation, criterion, shape, seed, resumable profile, representation and step order, with a
+reward rate in its interval (`Checkpoint.admitHeader_iff`). -/
 theorem header_admit : Regula.ExecutableContract Checkpoint.admitHeader (fun admit =>
     Regula.Decides (·.isOk = true) HeaderMatches (Function.uncurry admit)) :=
   ⟨decides (fun input => admitHeader_isOk input.1 input.2)
-    ⟨(AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation,
+    ⟨(AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation .learnThenAct,
         ⟨Checkpoint.formatVersion, Acorn.FeatureConstants.defaultWeightSpace.toUInt32,
           Checkpoint.primaryCount.toUInt32, 0, 0, 0, .zero,
           Acorn.FeatureConstants.defaultTilings.toUInt64,
-          Acorn.FeatureConstants.defaultImprintUnits.toUInt32, 1⟩),
-      by unfold HeaderMatches; decide⟩
-    ⟨(AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation,
-        ⟨Checkpoint.formatVersion + 1, 0, 0, 0, 0, 0, .zero, 0, 0, 0⟩),
-      fun matched => absurd matched.1 (by decide)⟩⟩
+          Acorn.FeatureConstants.defaultImprintUnits.toUInt32, 1, 0⟩),
+      (admitHeader_isOk _ _).mp (by decide)⟩
+    ⟨(AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation .learnThenAct,
+        ⟨Checkpoint.formatVersion + 1, 0, 0, 0, 0, 0, .zero, 0, 0, 0, 0⟩),
+      fun ⟨_, specified⟩ => absurd specified.version (by decide)⟩⟩
 
 attribute [regula_decision] Checkpoint.admitHeader
 
@@ -2054,8 +2044,8 @@ theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
     cases Checkpoint.loadCandidate construction bytes with
     | error refusal => rfl
     | ok image =>
-      simp [bind, Except.bind, Agent.restore_refuses receiver image unsupported, Except.isOk,
-        Except.toBool]
+      simp [bind, Except.bind, AgentConstruction.State.restore,
+        Agent.restore_refuses receiver.agent image.image unsupported, Except.isOk, Except.toBool]
       rfl⟩
 
 /-- The holding test accepts exactly an objective whose identity is the given unit

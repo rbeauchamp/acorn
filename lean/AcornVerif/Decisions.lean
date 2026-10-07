@@ -390,9 +390,7 @@ and returns that image (`CurrentCheckpoint.image_roundtrip`).
 
 **Not claimed:** that every accepted payload is the payload of an image. -/
 theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
-    ∀ (construction : AgentConstruction)
-      (image : AgentImage Grid.interface construction.config construction.criterion
-        construction.dimension),
+    ∀ (construction : AgentConstruction) (image : construction.Image),
       construction.profile.checkpointSupported = true →
         admit construction (imagePayload construction image) = .ok image) :=
   ⟨CurrentCheckpoint.image_roundtrip⟩
@@ -402,9 +400,7 @@ construction and returns that image (`CurrentCheckpoint.candidate_roundtrip`).
 
 **Not claimed:** that every accepted byte list is such an encoding. -/
 theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
-    ∀ (construction : AgentConstruction)
-      (image : AgentImage Grid.interface construction.config construction.criterion
-        construction.dimension),
+    ∀ (construction : AgentConstruction) (image : construction.Image),
       construction.profile.checkpointSupported = true →
         load construction (encode construction.dimension (imagePayload construction image)) =
           .ok image) :=
