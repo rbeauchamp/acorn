@@ -56,7 +56,7 @@ symbol array the feature generator samples; which prediction signals the world
 supplies and at which horizons; how many primitive actions it accepts; and how many
 words one observation carries at most. Everything the agent stores is sized by these.
 The interface also declares the first channel of the agent's prediction feedback
-words.
+words, and the world's [timing](#the-time-a-world-declares).
 
 Each step the world delivers one **percept**: a **frame** and the reward of the
 preceding transition. A frame has three parts, one for each kind of learner input:
@@ -67,8 +67,8 @@ preceding transition. A frame has three parts, one for each kind of learner inpu
   sample. Every interface declares its shape and every frame fills it. The
   interface design's requirement R1, that a world may supply no symbol array, is
   deferred until an instance needs it and its feature-construction semantics is
-  decided; [issue #70](https://github.com/rbeauchamp/acorn/issues/70) tracks the
-  interface work. A world with only words can lay those words' codes over symbol
+  decided; [issue #95](https://github.com/rbeauchamp/acorn/issues/95) tracks it,
+  with the first instance that may need it. A world with only words can lay those words' codes over symbol
   positions, as the grid world does with its task context;
 - **signals**, one number per prediction question the world declares.
 
@@ -277,10 +277,43 @@ observer's own effects, the terminal frame, the resource counters and the
 reported durations are outside them. A campaign reports the error of a refusal
 and returns no agent, in every order.
 
+### The time a world declares
+
+A world declares its **timing** in its interface
+([`Timing`](../lean/Acorn/Timing.lean)). A `synchronized` world takes one transition
+for each action and waits for it. A `wallClock` world moves while the agent
+computes, and declares the length of one **action cycle** and a **latency**, a
+positive number of cycles. The grid world declares `synchronized`
+(`Grid.interface_timing`), and its attempt loops take each transition as one call
+of the world's step function.
+
+For a wall-clock world the two numbers get their meaning from functions of the
+declaration, of an origin and of instants. An instant is a reading of a host's
+monotonic clock in nanoseconds, a natural number, so the arithmetic is exact; it is a
+type of its own, so a count of cycles cannot stand where an instant is expected.
+Cycle `index` starts at `Pace.boundary origin index`. The deadline of the action of
+the percept of that cycle is `Pace.deadline origin index`, the start of the cycle
+`latency` cycles later. `Pace.meets` is the verdict on the instant an action is
+released at: true exactly when the release is earlier than the origin plus
+`index + latency` cycles (`Pace.meets_iff`). `Pace.overdue` counts the cycles, from the
+one the deadline starts, that have started at or before the release
+(`Pace.overdue_cycles`), and it is zero exactly when the deadline is met
+(`Pace.overdue_met`). When the earlier of two actions is released at or after the start
+of its percept's cycle and the later one meets its deadline, for percepts `span`
+cycles apart, the later release is less than `span + latency` cycles after the
+earlier one (`Pace.met_gap`).
+
+These are statements about the functions. No executing loop reads a cycle or a
+latency, and no executing world declares a wall clock. So they do not state what a
+host does: that it senses a percept at the start of a cycle, that it releases a late
+action late and drops none, or which action is in force during the cycles that
+`Pace.overdue` counts. Those belong to the host loop below.
+
 Operation in real time needs three more parts, and none is built:
 
-- the timing discipline of a world, with a world on a wall clock and a missed
-  deadline as a protocol fault;
+- a host loop for a world on a wall clock, which reads the declared timing and
+  counts a missed deadline as a fault
+  ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
 - a bound of the work of each part of a step;
 - the exact save and restore of the agent. An exact saved image of the agent is
   not part of the interface yet.
@@ -298,7 +331,7 @@ feature slot, as any two hashed words can.
 The grid world is one instance of the interface
 ([`Grid.interface`](../lean/Acorn/Handcrafted/GridWorld.lean)): a symbol array of
 131 positions, ten signals after the agent's own reward question, nine actions, at
-most 381 words and feedback channels from `0x50`. Its adapter builds each percept
+most 381 words, feedback channels from `0x50` and the timing `synchronized`. Its adapter builds each percept
 from the host's observation and the preceding result. `Agent.grid_inputs` in
 [the host binding](../lean/Acorn/Host/AgentInterface.lean) states, for every
 agent state, observation and reward word, that the coder's words and symbols, the

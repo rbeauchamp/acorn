@@ -415,8 +415,8 @@ F-E left its feature-construction end inert until U3.
   interface, not against the grid world
   ([design](design.md#the-interface-between-the-agent-and-a-world)). A world fixes
   the shape of its symbol array, the horizons of its prediction signals, an action
-  count, a word bound and the first channel of the agent's prediction feedback
-  words, and delivers one percept per step: a frame and the reward of the preceding
+  count, a word bound, the first channel of the agent's prediction feedback
+  words and its timing, and delivers one percept per step: a frame and the reward of the preceding
   transition. The grid world is one instance
   (`Grid.interface`), and `Agent.grid_inputs` states what that instance feeds each
   learner in terms of the host's own channel, signal and potential definitions. The
@@ -424,10 +424,13 @@ F-E left its feature-construction end inert until U3.
   host's step under the default step order, construction and restoration equal to a
   frozen composition over host observations (`act_eq`, `callback_eq`, `initial_eq`,
   `restore_eq`). Five bindings
-  to the grid world remain. Three are to its way of running. Two of those are
-  outside the interface: the world waits for the agent, and a saved image is not an
-  exact image of the agent (the option models and the off-policy questions start
-  afresh). The step itself is two functions, and under the `plan-after-act` and
+  to the grid world remain. Three are to its way of running. One of those is
+  outside the interface: a saved image is not an exact image of the agent (the
+  option models and the off-policy questions start afresh). One is a declaration
+  with no second case in execution: the grid world declares that it waits for the
+  agent (`Grid.interface_timing`), an interface can declare a wall clock with a
+  cycle and a latency ([design](design.md#the-time-a-world-declares)), and no
+  host loop reads such a declaration. The step itself is two functions, and under the `plan-after-act` and
   `act-then-learn` step orders a host releases the action between them, with
   planning after the action and, under `act-then-learn`, every write that reads the
   reward after it as well

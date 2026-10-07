@@ -5,16 +5,22 @@ Authors: acorn contributors
 -/
 import Acorn.Options
 import Acorn.SignalValues
+import Acorn.Timing
 
 /-!
 # The interface between the agent and a world
 
-A world fixes five things for the agent: the shape of the symbol array the feature
+A world fixes six things for the agent: the shape of the symbol array the feature
 generator samples; which signals it supplies as prediction targets and at which
 horizons; how many primitive actions it accepts; how many words a frame carries at
-most; and the first channel of the agent's prediction feedback words. Everything the
-agent stores is indexed by this value, so one agent definition serves every world.
-The interface names no world's types.
+most; the first channel of the agent's prediction feedback words; and its timing.
+Everything the agent stores is indexed by this value, so one agent definition serves
+every world. The interface names no world's types.
+
+The timing is a declaration for the host: whether the world waits for each action, or
+moves on a wall clock with a declared cycle and latency (`Acorn.Timing`). It is part of
+the value that indexes the agent's types, so the agents of two worlds that differ in
+their timing alone have different types.
 
 Each step the world hands the agent one percept: a frame and the reward of the
 preceding transition. Nothing else reaches a learner. The agent answers with one
@@ -43,6 +49,9 @@ structure Interface where
   /-- First channel of the agent's own prediction feedback words. The channel of each
   question is this word plus the question's position in the layout. -/
   feedback : UInt64
+  /-- Whether the world waits for each action or moves on a wall clock, with its cycle
+  and latency. -/
+  timing : Timing
 
 /-- The agent's prediction layout: its own question about reward, at the horizon the
 subtask ranking reads, then one question per signal of the world. -/

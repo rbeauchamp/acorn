@@ -269,6 +269,26 @@ theorem Acorn.Host.runAttempt_complete {order : Acorn.StepOrder} {config : Acorn
   Acorn.Host.AttemptAgrees (Acorn.Host.Attempt.complete callbacks context cap.toNat initial) value
 ```
 
+A world declares its timing in its interface: it waits for each action, or it moves on
+a wall clock with a declared cycle and a latency in cycles.
+`Acorn.Handcrafted.Grid.interface_timing` states that the grid world declares that
+it waits. For a wall-clock declaration, `Acorn.Pace.meets_iff` states the verdict
+on the instant an action is released at, on the declared numbers alone, and
+`Acorn.Pace.overdue_met` that no cycle from the deadline has started at a release
+exactly when the release meets the deadline. `Acorn.Pace.overdue_cycles` states which
+cycles have started at or before a release:
+
+```lean
+theorem Acorn.Pace.overdue_cycles (pace : Acorn.Pace) (origin : Acorn.Instant) (index : ℕ)
+  (released : Acorn.Instant) (later : ℕ) (due : index + pace.latency ≤ later) :
+  (pace.boundary origin later).nanoseconds ≤ released.nanoseconds ↔
+    later < index + pace.latency + pace.overdue origin index released
+```
+
+An instant is a natural number of nanoseconds, so this arithmetic is exact. The statements
+are about these functions: no executing loop reads a cycle or a latency, no executing
+world declares a wall clock, and nothing here states what a host does at a deadline.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine

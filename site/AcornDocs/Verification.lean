@@ -235,6 +235,21 @@ counters are outside the agreement:
 
 {statement Acorn.Host.runAttempt_complete}
 
+A world declares its timing in its interface: it waits for each action, or it moves on
+a wall clock with a declared cycle and a latency in cycles.
+{decl}`Acorn.Handcrafted.Grid.interface_timing` states that the grid world declares that
+it waits. For a wall-clock declaration, {decl}`Acorn.Pace.meets_iff` states the verdict
+on the instant an action is released at, on the declared numbers alone, and
+{decl}`Acorn.Pace.overdue_met` that no cycle from the deadline has started at a release
+exactly when the release meets the deadline. {decl}`Acorn.Pace.overdue_cycles` states which
+cycles have started at or before a release:
+
+{statement Acorn.Pace.overdue_cycles}
+
+An instant is a natural number of nanoseconds, so this arithmetic is exact. The statements
+are about these functions: no executing loop reads a cycle or a latency, no executing
+world declares a wall clock, and nothing here states what a host does at a deadline.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. {leanModule}`Acorn.Constants` owns the shared machine

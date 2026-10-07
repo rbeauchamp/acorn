@@ -9,7 +9,8 @@ Authors: acorn contributors
 
 A step of the agent has two parts. The first selects the action. The second completes
 the step from the value the first returned. `StepOrder` declares which of three orders
-an agent and its host run.
+an agent and its host run. `Timing` is what a world declares about its own time; the
+last section of this comment describes it.
 
 Under `learnThenAct` both parts run before the world receives the action, and the
 first part plans at a free boundary before it draws. Under `planAfterAct` the host
@@ -35,6 +36,37 @@ before the update; the source has no planning. Moving planning after the action 
 schedule, declared in PAR-19. Drawing the first action of an option before the credit
 that the same percept causes is the source's order of choice and update applied to that
 option's learner, and is declared with its other consequences in PAR-20.
+
+## The time a world declares
+
+A world declares its `Timing`. A `synchronized` world takes one transition for each
+action and waits for it. A `wallClock` world moves while the agent computes, and declares
+a `Pace`: the length of one action cycle, and the latency, a positive number of cycles.
+
+The functions of a `Pace` give the two numbers their meaning. They take an origin, an
+`Instant` of a host's monotonic clock. Cycle `index` starts at
+`Pace.boundary origin index`. The deadline of the action of the percept of that cycle is
+`Pace.deadline origin index`, the start of the cycle `latency` cycles later. `Pace.meets`
+is the verdict on the instant an action is released at: true exactly when the release is
+before the deadline (`Pace.meets_iff`). `Pace.overdue` counts the cycles, from the one the
+deadline starts, that have started at or before the release (`Pace.overdue_cycles`), and it
+is zero exactly when the deadline is met (`Pace.overdue_met`). When the earlier of two
+actions is released at or after the start of its percept's cycle and the later one meets
+its deadline, for percepts `span` cycles apart, the later release is less than
+`span + latency` cycles after the earlier one (`Pace.met_gap`): `latency + 1` cycles for
+two consecutive percepts.
+
+An instant is a natural number of nanoseconds, as the runtime's monotonic clock returns
+it (`IO.monoNanosNow`), so this arithmetic is exact and has no word bound. An instant and
+a count of cycles are different types, so neither takes the other's place in a function
+of this section.
+
+The statements are about these functions. No executing loop reads a `Pace`, and the one
+executing world, the grid world, declares `synchronized`. So nothing here states what a
+host does: that it senses a percept at the start of a cycle, that it releases a late
+action late and drops none, or which action is in force during the cycles that
+`Pace.overdue` counts. Those belong to the host loop of a wall-clock world, which is not
+built (https://github.com/rbeauchamp/acorn/issues/95).
 -/
 namespace Acorn
 
@@ -148,5 +180,151 @@ theorem StepOrder.parse_accepted (text : String) (order : StepOrder) :
 /-- An order whose host loop releases the action between the two parts of a step: every
 order but the default. A host loop that releases takes the callbacks of such an order. -/
 def StepOrder.Releases (order : StepOrder) : Prop := order ≠ .learnThenAct
+
+/-! ## The time a world declares -/
+
+/-- The wall-clock declaration of a world: the length of one action cycle and the number
+of cycles an action may take. Both are positive, so a value of this type declares a
+cycle that has a length and a deadline that follows its percept. -/
+structure Pace where
+  /-- Nanoseconds of one action cycle. -/
+  cycle : Nat
+  /-- Whole cycles from the start of a percept's cycle to the deadline of its action. -/
+  latency : Nat
+  /-- A cycle has a length. -/
+  running : 0 < cycle
+  /-- A deadline is later than the start of its percept's cycle. -/
+  causal : 0 < latency
+
+/-- The timing discipline of a world. -/
+inductive Timing where
+  /-- The world takes one transition for each action and waits for it. -/
+  | synchronized
+  /-- The world moves on a wall clock, with the declared cycle and latency. -/
+  | wallClock (pace : Pace)
+
+/-- A reading of a host's monotonic clock. It is a type of its own, so a count of cycles
+cannot stand where an instant is expected. -/
+structure Instant where
+  /-- Nanoseconds from the clock's own zero. -/
+  nanoseconds : Nat
+
+/-- Start of a cycle, for a host whose cycle zero starts at `origin`. -/
+def Pace.boundary (pace : Pace) (origin : Instant) (index : Nat) : Instant :=
+  ⟨origin.nanoseconds + index * pace.cycle⟩
+
+/-- The cycle an instant falls in. An instant before the origin falls in cycle zero. -/
+def Pace.index (pace : Pace) (origin now : Instant) : Nat :=
+  (now.nanoseconds - origin.nanoseconds) / pace.cycle
+
+/-- Deadline of the action of the percept of a cycle: the start of the cycle `latency`
+cycles later. -/
+def Pace.deadline (pace : Pace) (origin : Instant) (index : Nat) : Instant :=
+  pace.boundary origin (index + pace.latency)
+
+/-- Whether an action released at an instant meets the deadline of the percept of a
+cycle: it is released before the deadline. -/
+def Pace.meets (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) : Bool :=
+  decide (released.nanoseconds < (pace.deadline origin index).nanoseconds)
+
+/-- How many cycles, from the one a deadline starts, have started at or before the
+instant the action is released at. It is zero for a release that meets the deadline. -/
+def Pace.overdue (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) : Nat :=
+  pace.index origin released + 1 - (index + pace.latency)
+
+/-- The start of a cycle in nanoseconds: the origin plus that many cycles. -/
+theorem Pace.boundary_nanoseconds (pace : Pace) (origin : Instant) (index : Nat) :
+    (pace.boundary origin index).nanoseconds = origin.nanoseconds + index * pace.cycle := rfl
+
+/-- A later cycle starts later. -/
+theorem Pace.boundary_lt (pace : Pace) (origin : Instant) {index other : Nat}
+    (earlier : index < other) :
+    (pace.boundary origin index).nanoseconds < (pace.boundary origin other).nanoseconds :=
+  Nat.add_lt_add_left (Nat.mul_lt_mul_of_pos_right earlier pace.running) origin.nanoseconds
+
+/-- **A cycle has started at an instant exactly when the instant is not before the origin
+and the cycle is not after the instant's cycle.** For every pace, origin, cycle and
+instant. -/
+theorem Pace.boundary_le (pace : Pace) (origin : Instant) (index : Nat) (now : Instant) :
+    (pace.boundary origin index).nanoseconds ≤ now.nanoseconds ↔
+      origin.nanoseconds ≤ now.nanoseconds ∧ index ≤ pace.index origin now := by
+  rw [pace.boundary_nanoseconds origin index]
+  unfold Pace.index
+  rw [Nat.le_div_iff_mul_le pace.running]
+  omega
+
+/-- The instant a cycle starts at falls in that cycle. -/
+theorem Pace.index_boundary (pace : Pace) (origin : Instant) (index : Nat) :
+    pace.index origin (pace.boundary origin index) = index := by
+  unfold Pace.index
+  rw [pace.boundary_nanoseconds origin index, Nat.add_sub_cancel_left]
+  exact Nat.mul_div_cancel index pace.running
+
+/-- **An instant at or after the origin falls in exactly the cycle that has started and
+whose successor has not.** -/
+theorem Pace.index_iff (pace : Pace) (origin now : Instant) (index : Nat)
+    (started : origin.nanoseconds ≤ now.nanoseconds) :
+    pace.index origin now = index ↔
+      (pace.boundary origin index).nanoseconds ≤ now.nanoseconds ∧
+        now.nanoseconds < (pace.boundary origin (index + 1)).nanoseconds := by
+  have here := pace.boundary_le origin index now
+  have next := pace.boundary_le origin (index + 1) now
+  omega
+
+/-- The deadline of a percept is later than the start of its cycle. -/
+theorem Pace.deadline_lt (pace : Pace) (origin : Instant) (index : Nat) :
+    (pace.boundary origin index).nanoseconds < (pace.deadline origin index).nanoseconds :=
+  pace.boundary_lt origin (Nat.lt_add_of_pos_right pace.causal)
+
+/-- **The verdict on the declared numbers.** For every pace, origin, cycle and release:
+the deadline is met exactly when the release is earlier than the origin plus
+`index + latency` cycles. -/
+theorem Pace.meets_iff (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) :
+    pace.meets origin index released = true ↔
+      released.nanoseconds < origin.nanoseconds + (index + pace.latency) * pace.cycle :=
+  decide_eq_true_iff
+
+/-- **The cycles behind a deadline.** For every pace, origin, cycle and release: a cycle
+that is not before the one the deadline starts has started at or before the release
+exactly when it is one of the first `overdue` of them. -/
+theorem Pace.overdue_cycles (pace : Pace) (origin : Instant) (index : Nat) (released : Instant)
+    (later : Nat) (due : index + pace.latency ≤ later) :
+    (pace.boundary origin later).nanoseconds ≤ released.nanoseconds ↔
+      later < index + pace.latency + pace.overdue origin index released := by
+  have started := pace.boundary_le origin later released
+  have early : released.nanoseconds < origin.nanoseconds → pace.index origin released = 0 := by
+    intro before
+    unfold Pace.index
+    rw [Nat.sub_eq_zero_of_le (Nat.le_of_lt before)]
+    exact Nat.zero_div pace.cycle
+  have positive := pace.causal
+  unfold Pace.overdue
+  omega
+
+/-- **The later of two releases, when it meets its deadline.** For every pace, origin,
+cycle and number of cycles between two percepts: when the earlier action is released at
+or after the start of its percept's cycle, and the later one meets its deadline, the
+later release is less than `span + latency` cycles after the earlier one. For two
+consecutive cycles the bound is `latency + 1` cycles. The statement has no hypothesis
+that the earlier release meets its own deadline, and it bounds one direction only. -/
+theorem Pace.met_gap (pace : Pace) (origin : Instant) (index span : Nat)
+    (first second : Instant)
+    (sensed : (pace.boundary origin index).nanoseconds ≤ first.nanoseconds)
+    (met : pace.meets origin (index + span) second = true) :
+    second.nanoseconds < first.nanoseconds + (span + pace.latency) * pace.cycle := by
+  have verdict := (pace.meets_iff origin (index + span) second).mp met
+  have split : (index + span + pace.latency) * pace.cycle =
+      index * pace.cycle + (span + pace.latency) * pace.cycle := by
+    rw [Nat.add_assoc, Nat.add_mul]
+  rw [pace.boundary_nanoseconds origin index] at sensed
+  omega
+
+/-- **No cycle behind a deadline exactly when it is met.** -/
+theorem Pace.overdue_met (pace : Pace) (origin : Instant) (index : Nat) (released : Instant) :
+    pace.overdue origin index released = 0 ↔ pace.meets origin index released = true := by
+  have first := pace.overdue_cycles origin index released (index + pace.latency) (Nat.le_refl _)
+  rw [pace.meets_iff origin index released]
+  rw [pace.boundary_nanoseconds origin (index + pace.latency)] at first
+  omega
 
 end Acorn

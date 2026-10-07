@@ -194,7 +194,8 @@ def OptionActivation.advance (activation : OptionActivation mode)
 frozen values for a decision that is already drawn. It draws nothing and reads the
 decision's action only, so a caller can make the draw before the reward arrives and
 credit it afterwards. `Skill.optionStep_credit` proves that `optionStep` is its draw
-followed by this credit. -/
+followed by this credit, and `Skill.optionCredit_frozen` that the credit of a frozen
+activation writes nothing, whatever was drawn. -/
 def Skill.optionCredit (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
     (next : OptionContinuation actions dimension activation) (drawn : PersistentDecision actions)
     (reward : Binary32) (gain : RewardRate) : Skill actions config criterion dimension discounts :=
@@ -206,7 +207,7 @@ def Skill.optionCredit (skill : Skill actions config criterion dimension discoun
 /-- The frozen policy of a skill at a frame, read from its learner as it stands: the
 values there and the rate its source resolves to. No trajectory state is cleared and
 nothing is written. It is the snapshot a continuing decision freezes
-(`Skill.decide_policy`). -/
+(`Skill.decide_frozen`). -/
 def Skill.frozenPolicy (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (rate : ConsumerRate) : PolicySnapshot actions :=
   skill.policy.snapshot (count := actions) features
