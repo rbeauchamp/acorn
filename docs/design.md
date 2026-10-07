@@ -823,13 +823,14 @@ by accident. No check stops a module of this project from making such a value. A
 private constructor stops the constructor notation and the constructor name in
 another module and does not stop a tactic; the constructors of the image and of
 the callback record are public. The checkpoint file has a checksum word and is
-not authenticated. An edit of its order word together with the checksum of the
-edited bytes is admitted by the loader of the other order
-(`CurrentCheckpoint.relabeled_loaded`). An edit of the order word alone was
-refused as corrupt by the checksum word in the one run that tried it (observed
-in the validation of the change that added the word, at commit 2bd2dd9; no
-theorem states it). `CurrentCheckpoint.saved_admitted_order` is about bytes that
-a save of this project wrote.
+not authenticated. An edit of its order word alone, to the word of another
+order, is refused by the loader of every construction of the file's dimension:
+the stored words of two orders differ in one byte, and the checksum separates
+two byte strings that differ in one byte (`CurrentCheckpoint.relabeled_unloaded`,
+`Rng.fnv_byte`). The same edit together with the checksum of the edited bytes is
+admitted by the loader of the other order (`CurrentCheckpoint.relabeled_loaded`).
+`CurrentCheckpoint.saved_admitted_order` is about bytes that a save of this
+project wrote.
 
 Theorems say what a value under the other index gives. A state gives the agent's
 step of that index's order on the same learner state

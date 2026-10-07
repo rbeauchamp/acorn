@@ -3849,6 +3849,30 @@ info: 'AcornVerif.CurrentOak.settle_unstarted' depends on axioms: [propext, Clas
 #print axioms AcornVerif.CurrentOak.settle_unstarted
 
 /--
+info: 'Acorn.Rng.fnv_byte' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Rng.fnv_byte
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.order_edit_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.order_edit_refused
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.order_edit_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.order_edit_unloaded
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.relabeled_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.relabeled_unloaded
+
+/--
 info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in

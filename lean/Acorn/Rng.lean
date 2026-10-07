@@ -232,6 +232,33 @@ theorem fnv_append (first second : List UInt8) :
     fnv (first ++ second) = second.foldl fnvStep (fnv first) := by
   simp [fnv, List.foldl_append]
 
+/-- The checksum of a suffix is injective in the state it starts from. -/
+theorem fnv_fold_injective (bytes : List UInt8) (left right : UInt64)
+    (same : bytes.foldl fnvStep left = bytes.foldl fnvStep right) : left = right := by
+  induction bytes generalizing left right with
+  | nil => exact same
+  | cons byte rest ih => exact fnvStep_injective byte left right (ih _ _ same)
+
+/-- One checksum step from one state separates two bytes. -/
+theorem fnvStep_byte (state : UInt64) (first second : UInt8)
+    (same : fnvStep state first = fnvStep state second) : first = second := by
+  have product := Word.multiplier_injective 0x00000100000001b3 0xce965057aff6957b
+    (by decide) (state ^^^ first.toUInt64) (state ^^^ second.toUInt64) same
+  rw [UInt64.xor_comm state, UInt64.xor_comm state] at product
+  have words := Word.xor_word_injective first.toUInt64 second.toUInt64 state product
+  have bytes := congrArg UInt64.toUInt8 words
+  simpa using bytes
+
+/-- **The checksum separates two byte strings that differ in one byte.** For every
+prefix, suffix and two bytes: when the two strings have one checksum, the two bytes are
+equal. The step is a bijection of the state for each byte and separates two bytes from
+one state. A change of several bytes is outside the statement. -/
+theorem fnv_byte (before after : List UInt8) (first second : UInt8)
+    (same : fnv (before ++ first :: after) = fnv (before ++ second :: after)) :
+    first = second := by
+  rw [fnv_append, fnv_append, List.foldl_cons, List.foldl_cons] at same
+  exact fnvStep_byte _ first second (fnv_fold_injective after _ _ same)
+
 /-- The actual state rotation is injective on all words. -/
 theorem state_rotation_injective (left right : UInt64)
     (h : rotateLeft left 45 = rotateLeft right 45) : left = right := by
