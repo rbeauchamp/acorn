@@ -19,9 +19,11 @@ correspondence with the agent's attempt and its completion.
 namespace AcornVerif.CurrentRunner
 open Acorn Acorn.Host
 
+variable {order : StepOrder}
+
 /-- Every successful commit consumes exactly one of the prepared remaining steps. -/
 theorem commit_steps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks α β)
+    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
     next.steps.val = prepared.before.steps.val + 1 := by
   unfold PreparedStep.commit PreparedStep.environment at h
@@ -32,7 +34,7 @@ theorem commit_steps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
 
 /-- The world phase of a prepared commit advances exactly one physical clock tick. -/
 theorem commit_clock {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks α β)
+    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
     next.run.world.time = prepared.before.run.world.time + 1 := by
   unfold PreparedStep.commit PreparedStep.environment at h
@@ -182,7 +184,7 @@ theorem sense_none {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt6
 /-- A successful commit ran the world's transition on the prepared action, kept
 its result as the carried result and counted one step. -/
 theorem commit_world {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks α β)
+    (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
     prepared.before.run.world.step prepared.action = .ok (next.run.world, next.run.carried.events) ∧
       next.steps.val = prepared.before.steps.val + 1 := by
@@ -196,7 +198,7 @@ theorem commit_world {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
 /-- An agent tick that acted belonged to an unfinished attempt below its cap, ran
 the world's transition on the frame's action and counted one step. -/
 theorem tick_acted {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (frame : StepFrame β)
     (h : attempt.tick callbacks context = .ok (next, some frame)) :
     attempt.finished = false ∧ attempt.steps.val < cap.toNat ∧
@@ -222,7 +224,7 @@ theorem tick_acted {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UI
 
 /-- An agent tick that took no action left a finished attempt unchanged. -/
 theorem tick_idle {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap)
     (h : attempt.tick callbacks context = .ok (next, none)) :
     attempt.finished = true ∧ next = attempt := by
@@ -246,7 +248,7 @@ same action from a corresponding state, the comparator's tick takes that step
 too and the states correspond again, for every agent callback. The comparator's
 stream advances by exactly that draw. -/
 theorem tick_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (frame : StepFrame β)
     (state : BaselineAttempt config cap) (related : Corresponds attempt state)
     (acted : attempt.tick callbacks context = .ok (next, some frame))
@@ -273,7 +275,7 @@ theorem tick_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {ca
 /-- Stop correspondence. When the agent's tick takes no action, the comparator's
 tick from a corresponding state takes none either. -/
 theorem idle_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (state : BaselineAttempt config cap)
     (related : Corresponds attempt state)
     (idle : attempt.tick callbacks context = .ok (next, none)) : state.tick = .ok state := by
@@ -294,7 +296,7 @@ theorem idle_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {ca
 the comparator's row from a corresponding state report the same steps,
 completion flag and position, and both arms carry the same world onward. -/
 theorem outcome_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt : Attempt config α goal cap) (state : BaselineAttempt config cap)
     (related : Corresponds attempt state) (taken : attempt.steps.val ≠ 0)
     (run : RunState config α) (outcome : GoalOutcome) (frame : StepFrame β)
@@ -459,5 +461,87 @@ theorem baseline_finishes (config : WorldConfig) (seed : UInt64) (spec : Campaig
       simp only [UInt64.toNat_zero]
       omega
     · simp [CampaignPlan.initial, populated]
+
+/-- Two callback records, at any two indices, with the same whole step and the same host
+functions. A copy of a record under another index is one case. -/
+structure SameParts {other : StepOrder} {α β : Type} (first : AgentCallbacks order α β)
+    (second : AgentCallbacks other α β) : Prop where
+  /-- The whole step, the first part and then the second, is the same function. -/
+  whole : ∀ agent observation carried,
+    first.act agent observation carried = second.act agent observation carried
+  /-- The environment bookkeeping is the same function. -/
+  environment : first.recordEnvironment = second.recordEnvironment
+  /-- The attempt bookkeeping is the same function. -/
+  attempt : first.recordAttempt = second.recordAttempt
+  /-- The observer snapshot is the same function. -/
+  capture : first.capture = second.capture
+  /-- The terminal observations are the same function. -/
+  metrics : first.metrics = second.metrics
+
+/-- **The pure fold reads the whole step and the host functions, and not the index.**
+For every two callback records with the same whole step and the same host functions, at
+any two indices, and every context, fuel and attempt, the fold `Attempt.complete` is the
+same value.
+
+What follows from it, with the two loop theorems. A value that either native loop returns
+agrees with this fold in its run state, its outcome and its refusal
+(`runAttemptSteps_complete`, `runReleasedSteps_complete`, through `AttemptAgrees`). So a
+record that is copied under the other index, and run by the loop of that index, returns
+the run state, the outcome and the refusal that the record itself returns from its own
+loop. The statement is about the world of this protocol, which takes one transition for
+each action and waits for it.
+
+What is outside it. The loops also return resource counters, which hold a measured
+duration around clock reads that the two loops place differently, and they deliver frames
+to an observer. `AttemptAgrees` does not compare the counters, and no statement here is
+about the observer's effects or about the time of the world's transition. That a copied
+record changes that time, the reported durations and the order of the frame delivery is
+read from the two loop definitions; it is argued and not machine-checked. -/
+theorem complete_parts {other : StepOrder} {config : WorldConfig} {α β : Type} {goal : Goal}
+    {cap : UInt64} (first : AgentCallbacks order α β) (second : AgentCallbacks other α β)
+    (same : SameParts first second) (context : GoalContext) (fuel : Nat)
+    (attempt : Attempt config α goal cap) :
+    attempt.complete first context fuel = attempt.complete second context fuel := by
+  have selected : ∀ input : DecisionInput config α goal cap,
+      input.selectOwned first = input.selectOwned second := by
+    intro input
+    cases input with
+    | mk before remaining observation sensed =>
+      cases before with
+      | mk run installed steps reward lastAction =>
+        cases run
+        simp only [DecisionInput.selectOwned, same.whole]
+  have closed : ∀ current : Attempt config α goal cap,
+      current.close first context = current.close second context := by
+    intro current
+    simp only [Attempt.close, Attempt.finish, captureFrame, same.attempt, same.capture,
+      same.metrics]
+  have recorded : ∀ environment : OwnedEnvironment config α goal cap,
+      environment.record first = environment.record second := by
+    intro environment
+    simp only [OwnedEnvironment.record, same.environment]
+  induction fuel generalizing attempt with
+  | zero =>
+    unfold Attempt.complete
+    exact closed attempt
+  | succ fuel ih =>
+    unfold Attempt.complete
+    rw [closed attempt]
+    split
+    · rfl
+    · cases attempt.sense with
+      | error refusal => rfl
+      | ok found =>
+        cases found with
+        | none => rfl
+        | some input =>
+          dsimp only
+          rw [selected input]
+          cases (input.selectOwned second).release with
+          | refused error learned => rfl
+          | accepted environment =>
+            dsimp only
+            rw [recorded environment]
+            exact ih _
 
 end AcornVerif.CurrentRunner

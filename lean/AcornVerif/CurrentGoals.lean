@@ -33,6 +33,8 @@ namespace AcornVerif.CurrentGoals
 open Acorn Acorn.Host
 open AcornVerif.CurrentStep
 
+variable {order : StepOrder}
+
 /-- A word built from a count below 2^64 is zero exactly when the count is. -/
 theorem toUInt64_eq_zero (count : Nat) (bound : count < 2 ^ 64) :
     count.toUInt64 = 0 ↔ count = 0 := by
@@ -274,7 +276,7 @@ theorem start_clocked {config : WorldConfig} {α : Type} (run : RunState config 
 /-- A tick that acts keeps the attempt's clock at its step count, for every agent
 callback, while the clock has room for one more tick. -/
 theorem tick_clocked {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (frame : StepFrame β)
     (h : attempt.tick callbacks context = .ok (next, some frame)) (clocked : Clocked attempt)
     (room : attempt.run.world.time.toNat + 1 < 2 ^ 64) : Clocked next := by
@@ -291,7 +293,7 @@ that acts under a survive goal reports completion exactly when the attempt's ste
 has reached the required duration. A tick acts only below the cap, so this is a per-tick
 statement: it does not show that an attempt reaches that step count. -/
 theorem survive_tick {config : WorldConfig} {α β : Type} {required cap : UInt64}
-    (callbacks : AgentCallbacks α β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α (.survive required) cap) (frame : StepFrame β)
     (h : attempt.tick callbacks context = .ok (next, some frame)) (clocked : Clocked attempt)
     (room : attempt.run.world.time.toNat + 1 < 2 ^ 64) :

@@ -9,9 +9,11 @@ import Acorn.Host.AgentPrefix
 # The grid agent composed directly over host observations
 
 The executed agent meets the grid world through its interface: the host turns each
-observation into a percept (`Grid.percept`) and calls `Agent.act`. This module states
-the same agent the other way round, as a composition that reads the host observation
-itself, and proves the two equal.
+observation into a percept (`Grid.percept`) and, under the default step order, runs the
+two parts of `Agent.act` on it (`Agent.callbacks_act`). This module states the same
+agent the other way round, as a composition that reads the host observation itself,
+and proves the two equal. Every statement here about the host's step is about the
+callbacks of the default order; the step of `plan-after-act` has no frozen reference.
 
 The definitions under `Direct` are a frozen reference. Each is the definition of the
 same name at commit `d3bc6e0`, before the agent took an interface. Its computational
@@ -19,8 +21,8 @@ body is kept word for word, apart from naming the other frozen definitions it ca
 and only its proof arguments are restated:
 `TemporalControl.initial`, `TemporalControl.finish`, `TemporalControl.step`,
 `TemporalControl.alignedStep`, `Agent.initial`, `Agent.frame`, `Agent.act`,
-`Agent.install`, `Agent.restore`, `PredictionControl.advance` and the `act` field of
-`Agent.callbacks`. Only their state types are written at the grid instance, because
+`Agent.install`, `Agent.restore`, `PredictionControl.advance` and the whole step of
+`Agent.callbacks`, which was its `act` field at that commit. Only their state types are written at the grid instance, because
 the stored types now carry the interface. No executing module imports this one.
 
 The theorems are equalities for every agent state, observation, reward word and
@@ -290,11 +292,12 @@ theorem act_eq (state : Agent Grid.interface profile config criterion dimension 
   rw [replaced, installed, frame_units state.advanceClock obs goal]
   rfl
 
-/-- **The host's step.** The action the host executes and the agent it carries forward
-are the direct composition's, for every state, observation and raw result. -/
+/-- **The host's step under the default order.** The action the host executes and the
+agent it carries forward are the direct composition's, for every state, observation and
+raw result. -/
 theorem callback_eq (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (result : Host.RawStepResult) :
-    Agent.callbacks.act state obs result = Direct.callbackAct state obs result := by
+    (Agent.callbacks .learnThenAct).act state obs result = Direct.callbackAct state obs result := by
   rw [Agent.callbacks_act]
   simp only [Direct.callbackAct, act_eq]
 

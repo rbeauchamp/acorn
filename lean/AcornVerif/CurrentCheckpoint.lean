@@ -10,7 +10,7 @@ import AcornVerif.CurrentLearner
 /-!
 # Current checkpoint admission and installation laws
 
-These statements concern the actual format-17 parser, writer, legal-state
+These statements concern the actual format-18 parser, writer, legal-state
 constructors and full-agent restoration. The laws describe parsing, serialization
 and pure restoration. Native persistence relies on the filesystem and OS.
 -/
@@ -73,14 +73,13 @@ theorem lifetime_roundtrip (record : Durable demonLayout) (valid : OptionsValid 
   simp [valid]
 
 /-- The exact receiver identity and supported-profile header is admitted without normalization. -/
-theorem header_roundtrip (construction : AgentConstruction)
-    (image : AgentImage Grid.interface construction.config construction.criterion
-      construction.dimension)
+theorem header_roundtrip (construction : AgentConstruction) (image : construction.Image)
     (supported : construction.profile.checkpointSupported = true) :
-    admitHeader construction (imagePayload construction image).header = .ok image.gain := by
+    admitHeader construction (imagePayload construction image).header = .ok image.image.gain := by
   have units : construction.config.units.count.toUInt32.toNat = construction.config.units.count :=
     Nat.mod_eq_of_lt (by have := construction.config.units.bounded; omega)
-  have gain : RewardRate.admit image.gain.value = some image.gain := Bounded32.admit_self image.gain
+  have gain : RewardRate.admit image.image.gain.value = some image.image.gain :=
+    Bounded32.admit_self image.image.gain
   simp [admitHeader, imagePayload, supported, gain, units]
   rfl
 
@@ -113,20 +112,19 @@ theorem feature_roundtrip (construction : AgentConstruction)
   rw [vector_roundtrip _ _ (Assignment.words_roundtrip construction.dimension)]
   simp [(Assignment.distinct_iff _).mpr image.features.distinct]
 
-/-- Full admission preserves every typed image, including both signed-zero encodings. -/
-theorem image_roundtrip (construction : AgentConstruction)
-    (image : AgentImage Grid.interface construction.config construction.criterion
-      construction.dimension)
+/-- Full admission preserves every image of a construction, including both signed-zero
+encodings: the admission of the payload of an image is that image. -/
+theorem image_roundtrip (construction : AgentConstruction) (image : construction.Image)
     (supported : construction.profile.checkpointSupported = true) :
     admitPayload construction (imagePayload construction image) = .ok image := by
   unfold admitPayload
   rw [header_roundtrip construction image supported]
   simp only [bind, Except.bind]
-  have lifetime := lifetime_roundtrip image.lifetime image.episodes
+  have lifetime := lifetime_roundtrip image.image.lifetime image.image.episodes
   simp only [imagePayload, pure, Except.pure]
-  have feature := feature_roundtrip construction image
+  have feature := feature_roundtrip construction image.image
   rw [feature, lifetime]
-  simp [image.episodes]
+  simp [image.image.episodes]
 
 /-- Every raw primary weight passes through the receiving rule at its exact index. -/
 theorem restored_weight {config : Acorn.Config} {dimension : Dimension}
@@ -191,25 +189,23 @@ theorem encoded_header (dimension : Dimension) (payload : Payload dimension) :
 
 /-- All encoded payloads contain the minimum magic, header and checksum framing. -/
 theorem encoded_minimum (dimension : Dimension) (payload : Payload dimension) :
-    68 ≤ (encode dimension payload).length := by
+    72 ≤ (encode dimension payload).length := by
   rw [encoded_size]
   simp only [payloadBytes]
   omega
 
-/-- The actual complete-candidate loader round-trips every admitted typed image. -/
-theorem candidate_roundtrip (construction : AgentConstruction)
-    (image : AgentImage Grid.interface construction.config construction.criterion
-      construction.dimension)
+/-- The actual complete-candidate loader round-trips every image of a construction. -/
+theorem candidate_roundtrip (construction : AgentConstruction) (image : construction.Image)
     (supported : construction.profile.checkpointSupported = true) :
-    loadCandidate construction (encode construction.dimension (imagePayload construction image)) =
-      .ok image := by
+    loadCandidate construction
+        (encode construction.dimension (imagePayload construction image)) = .ok image := by
   have large := encoded_minimum construction.dimension (imagePayload construction image)
   obtain ⟨rest, header⟩ := encoded_header construction.dimension (imagePayload construction image)
   have magicOk : (encode construction.dimension (imagePayload construction image)).take
     magic.length = magic := by
     simp [Checkpoint.encode, List.append_assoc]
   unfold loadCandidate
-  simp only [show ¬(encode construction.dimension (imagePayload construction image)).length < 68
+  simp only [show ¬(encode construction.dimension (imagePayload construction image)).length < 72
     by omega,
     decide_false, magicOk, bne_self_eq_false, Bool.false_or, Bool.false_eq_true, ↓reduceIte, header]
   rw [header_roundtrip construction image supported]
@@ -220,18 +216,118 @@ theorem candidate_roundtrip (construction : AgentConstruction)
 existing cold restoration, without requiring equality of their transient state. -/
 theorem save_load (construction : AgentConstruction) (source receiver : construction.State)
     (supported : construction.profile.checkpointSupported = true) :
-    ∃ restored, receiver.restore (snapshotImage construction source) = some restored ∧
+    ∃ restored : construction.State,
+      receiver.agent.restore (snapshotImage construction source).image = some restored.agent ∧
       load construction receiver (encode construction.dimension (snapshot construction source)) =
         .ok restored := by
-  have existsRestore : ∃ restored, receiver.restore (snapshotImage construction source) = some
-    restored := by
+  have existsRestore : ∃ next,
+      receiver.agent.restore (snapshotImage construction source).image = some next := by
     simp [Agent.restore, supported]
-  obtain ⟨restored, restore⟩ := existsRestore
-  refine ⟨restored, restore, ?_⟩
+  obtain ⟨next, restore⟩ := existsRestore
+  have candidate := candidate_roundtrip construction (snapshotImage construction source) supported
+  have typed := receiver.restore_agent (snapshotImage construction source)
+  rw [restore] at typed
   unfold load snapshot
-  rw [candidate_roundtrip construction (snapshotImage construction source) supported]
-  simp only [bind, Except.bind]
-  rw [restore]
-  rfl
+  rw [candidate]
+  cases restored : receiver.restore (snapshotImage construction source) with
+  | none =>
+    rw [restored] at typed
+    cases typed
+  | some state =>
+    rw [restored] at typed
+    refine ⟨state, ?_, ?_⟩
+    · rw [restore]
+      exact (congrArg some (Option.some.inj typed)).symm
+    · simp only [bind, Except.bind, restored]
+      rfl
+
+/-- **A save writes the order word of the state's own construction.** For every
+construction, state and byte list: when `saveBytes` returns the bytes, the header codec
+reads from them a header whose order word is the stored word of the construction's order
+(`StepOrder.Stored`). `saveBytes` takes the state of a construction and no order word;
+`Store.save` writes these bytes. -/
+theorem saved_header (construction : AgentConstruction) (state : construction.State)
+    (bytes : List UInt8) (saved : saveBytes construction state = .ok bytes) :
+    ∃ header rest, headerCodec.decode (bytes.drop magic.length) = some (header, rest) ∧
+      StepOrder.Stored header.order construction.order := by
+  unfold saveBytes at saved
+  split at saved
+  · cases saved
+    obtain ⟨rest, decoded⟩ := encoded_header construction.dimension (snapshot construction state)
+    exact ⟨_, rest, decoded, (StepOrder.tag_stored _ _).mp rfl⟩
+  · cases saved
+
+/-- **Bytes that one construction saved are admitted by a second only under the same
+order.** For every two constructions, every state of the first, byte list and image of
+the second: when the first saves the bytes and the loader of the second admits them, the
+two step orders are equal. The statement is about bytes that a save of this project
+wrote; a file is not authenticated, so an edit of its order word is outside it. -/
+theorem saved_admitted_order (saver receiver : AgentConstruction) (state : saver.State)
+    (bytes : List UInt8) (image : receiver.Image)
+    (saved : saveBytes saver state = .ok bytes)
+    (loaded : loadCandidate receiver bytes = .ok image) : receiver.order = saver.order := by
+  obtain ⟨written, rest, wrote, stamped⟩ := saved_header saver state bytes saved
+  obtain ⟨read, tail, gain, decoded, admitted⟩ := loadCandidate_header receiver bytes image loaded
+  rw [wrote] at decoded
+  cases decoded
+  exact StepOrder.stored_injective _ _ _ admitted.order stamped
+
+/-- **A relabel of an image in memory is an edit of the order word.** For every profile,
+criterion, planning selection, feature configuration and dimension, every two step
+orders and every image of the construction of the first order: the payload of the same
+durable data as an image of the construction of the second order is the payload of the
+image with its order word replaced by the word of the second order, and with no other
+change. The statement names the public constructor of the image, which every module can
+apply. -/
+theorem relabeled_payload (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
+    (first second : StepOrder)
+    (image : (AgentConstruction.mk profile criterion planning first config dimension).Image) :
+    imagePayload ⟨profile, criterion, planning, second, config, dimension⟩ ⟨image.image⟩ =
+      { imagePayload ⟨profile, criterion, planning, first, config, dimension⟩ image with
+        header := { (imagePayload ⟨profile, criterion, planning, first, config, dimension⟩
+          image).header with order := second.tag } } := rfl
+
+/-- **The second construction admits that edited payload, and returns the relabeled
+image.** For the same arguments and a profile that has a resumable image: the admission
+of the payload with the replaced order word, by the construction of the second order,
+returns the image with the same durable data. So a relabeled image in memory is the value
+that the second construction gets from the first construction's payload after an edit of
+the order word. No predicate on the durable data separates the two. The statement is for
+a profile that has a resumable image; for another profile no payload is admitted. -/
+theorem relabeled_admitted (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
+    (first second : StepOrder)
+    (image : (AgentConstruction.mk profile criterion planning first config dimension).Image)
+    (supported : profile.checkpointSupported = true) :
+    admitPayload ⟨profile, criterion, planning, second, config, dimension⟩
+        { imagePayload ⟨profile, criterion, planning, first, config, dimension⟩ image with
+          header := { (imagePayload ⟨profile, criterion, planning, first, config, dimension⟩
+            image).header with order := second.tag } } =
+      .ok ⟨image.image⟩ := by
+  rw [← relabeled_payload profile criterion planning config dimension first second image]
+  exact image_roundtrip ⟨profile, criterion, planning, second, config, dimension⟩
+    ⟨image.image⟩ supported
+
+/-- **The loader of the second construction admits the bytes of that edited payload.**
+For the same arguments and a profile that has a resumable image: the complete-candidate
+loader of the construction of the second order, on the encoding of the payload with the
+replaced order word, returns the image with the same durable data. The encoding has the
+checksum of the edited payload: a checkpoint file is not authenticated, so a writer that
+replaces the order word can write that checksum. -/
+theorem relabeled_loaded (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
+    (first second : StepOrder)
+    (image : (AgentConstruction.mk profile criterion planning first config dimension).Image)
+    (supported : profile.checkpointSupported = true) :
+    loadCandidate ⟨profile, criterion, planning, second, config, dimension⟩
+        (encode dimension
+          { imagePayload ⟨profile, criterion, planning, first, config, dimension⟩ image with
+            header := { (imagePayload ⟨profile, criterion, planning, first, config, dimension⟩
+              image).header with order := second.tag } }) =
+      .ok ⟨image.image⟩ := by
+  rw [← relabeled_payload profile criterion planning config dimension first second image]
+  exact candidate_roundtrip ⟨profile, criterion, planning, second, config, dimension⟩
+    ⟨image.image⟩ supported
 
 end AcornVerif.CurrentCheckpoint

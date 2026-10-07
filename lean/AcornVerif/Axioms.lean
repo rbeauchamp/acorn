@@ -15,6 +15,7 @@ import AcornVerif.Resource.WordKernel
 import AcornVerif.ParameterBudget
 import AcornVerif.Checkpoint
 import AcornVerif.GridCorrespondence
+import AcornVerif.StepParts
 import AcornVerif.Energy
 import AcornVerif.Exploration
 import AcornVerif.MetaGradient
@@ -3676,5 +3677,227 @@ info: 'AcornVerif.CurrentOak.closeOption_reason' depends on axioms: [propext, Cl
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentOak.closeOption_reason
+
+/--
+info: 'Acorn.Handcrafted.Agent.act_parts' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.act_parts
+
+/--
+info: 'Acorn.Handcrafted.Agent.choose_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.choose_keeps
+
+/--
+info: 'Acorn.Handcrafted.Chosen.learn_rng' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Chosen.learn_rng
+
+/--
+info: 'Acorn.Host.DecisionInput.chooseOwned_release' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.DecisionInput.chooseOwned_release
+
+/--
+info: 'Acorn.Host.runAttemptSteps_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.runAttemptSteps_complete
+
+/--
+info: 'Acorn.Host.runReleasedSteps_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.runReleasedSteps_complete
+
+/--
+info: 'Acorn.Host.Attempt.complete_learned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Attempt.complete_learned
+
+/--
+info: 'Acorn.Handcrafted.TemporalControl.atBoundary_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.TemporalControl.atBoundary_unplanned
+
+/--
+info: 'Acorn.Handcrafted.Agent.actOrdered_undrawn' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.actOrdered_undrawn
+
+/--
+info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.admitHeader_order
+
+/--
+info: 'Acorn.Checkpoint.loadCandidate_header' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.loadCandidate_header
+
+/--
+info: 'Acorn.Checkpoint.load_candidate' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.load_candidate
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.saved_header' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.saved_header
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.saved_admitted_order' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.saved_admitted_order
+
+/--
+info: 'Acorn.Host.campaignStep_attempt' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.campaignStep_attempt
+
+/--
+info: 'AcornVerif.CurrentRunner.complete_parts' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.complete_parts
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.relabeled_payload' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.relabeled_payload
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.relabeled_admitted' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.relabeled_admitted
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.relabeled_loaded' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.relabeled_loaded
+
+/--
+info: 'Acorn.Handcrafted.AgentConstruction.callbacks_act' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.AgentConstruction.callbacks_act
+
+/--
+info: 'Acorn.Handcrafted.DefaultConstruction.runPrefix_agent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.DefaultConstruction.runPrefix_agent
+
+/--
+info: 'Acorn.StepOrder.parse_spelled' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.StepOrder.parse_spelled
+
+/--
+info: 'Acorn.StepOrder.parse_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.StepOrder.parse_refused
+
+/--
+info: 'Acorn.Host.Cli.stepOrderValue_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrderValue_iff
+
+/--
+info: 'Acorn.Host.Cli.stepOrderValue_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrderValue_refused
+
+/--
+info: 'Acorn.Host.Cli.stepOrder_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrder_iff
+
+/--
+info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.admitHeader_iff
+
+/--
+info: 'Acorn.Checkpoint.admitHeader_checks' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.admitHeader_checks
+
+/--
+info: 'Acorn.Host.Cli.value_absent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.value_absent
+
+/--
+info: 'Acorn.Host.Cli.value_follows' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.value_follows
+
+/--
+info: 'Acorn.Host.Cli.value_missing' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.value_missing
+
+/--
+info: 'Acorn.Host.Cli.stepOrder_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Host.Cli.stepOrder_refused
+
+/-- info: 'Acorn.StepOrder.tag_stored' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Acorn.StepOrder.tag_stored
+
+/-- info: 'Acorn.StepOrder.stored_injective' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms Acorn.StepOrder.stored_injective
+
+/-- info: 'AcornVerif.Kernel.memory_parts' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.memory_parts
+
+/-- info: 'AcornVerif.Kernel.Moving.loop_memory' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Moving.loop_memory
+
+/-- info: 'AcornVerif.Kernel.Moving.loop_waits' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Moving.loop_waits
+
+/-- info: 'AcornVerif.Kernel.Moving.interact_commutes' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Moving.interact_commutes
+
+/--
+info: 'AcornVerif.StepParts.executedParts_agent' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.StepParts.executedParts_agent
 
 end AcornVerif
