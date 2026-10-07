@@ -244,9 +244,11 @@ def sealedTypes : Array Name := #[
 
 /-- Constants with a public name that only the listed modules may reference in a
 definition. The audit computes the other sealed constants and has no row for them: every
-private constructor of a project type with its declaring module, and every site, a
-declaration that reaches a constructor of the sealed types or a row by references and
-that references a sealed constant, unless it is an entry of `interface`.
+private constructor of a project type with its declaring module, and every site. The
+reach is the declarations that reach a constructor of the sealed types or a row by
+references. A site is a declaration of the reach, not an entry of `interface`, to which
+the rule gives fewer than all modules: the intersection of the modules of the sealed
+constants that it references.
 
 - The constructor of the callback record: its declaring module, the agent's two parts
   (`Agent.callbacks`) and the construction's callbacks (`AgentConstruction.callbacks`).

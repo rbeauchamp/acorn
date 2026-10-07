@@ -727,12 +727,19 @@ and refuses a definition, outside the modules that own it, that references a
 sealed constant. One map gives each sealed constant its modules: a private
 constructor of a project type has its declaring module, and the constructor of
 the callback record, the constructor of the image and the callbacks of a
-construction have the modules of a table. One rule gives the others: a
-declaration that reaches a constructor of these types or a table row by
-references is a site, and it gets the intersection of the modules of every
-sealed constant that it references. A generated alias of a constructor and a
-caller of a site are sites by that rule. The interface is the list
-`AcornOwnership.interface` of the sites that every module may use. Each entry
+construction have the modules of a table. One rule gives the others. The reach
+is the least set of the declarations that reach a constructor of these types or
+a table row by references. A declaration of the reach that is not in the
+interface gets the intersection of the modules of every sealed constant that it
+references, and it is a site, a sealed constant, only when that is fewer than
+all modules. A generated alias of a constructor of these types or of a row, and
+a caller of a site, reference a sealed constant and are sites by that rule. A
+declaration of the reach that references only interface entries keeps all
+modules and is no site: the finite prefix from cold initialization is one. The
+start of the reach is these types and the rows; for another private constructor
+of the project the map holds the constructor only. The interface is the list
+`AcornOwnership.interface` of the declarations that every module may use, each
+of which would be a site without its entry. Each entry
 names a theorem whose statement names it, or has a line that says why no
 statement exists. The audit reads no type and infers no entry.
 

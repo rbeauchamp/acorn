@@ -41,9 +41,13 @@ all modules, the declaration is a sealed constant of the map, a site. No declara
 project module, other than a theorem, references a sealed constant from a module outside
 its modules.
 
-So a generated alias of a constructor, a definition that nests a constructor, and a
-caller of either are sites by one rule, with no test of a body or a name. A site that
-also references a private constructor of another type gets the modules of both. An
+The reach and the sites are two sets. A declaration of the reach is a site only when the
+rule gives it fewer than all modules: the finite prefix from cold initialization
+references two interface entries and nothing sealed, so it is in the reach and it is no
+site. A generated alias of a constructor of the five types or of a row, a definition that
+nests such a constructor, and a caller of either reference a sealed constant, so each is
+a site by the one rule, with no test of a body or a name. A site that also references a
+private constructor of another type gets the modules of both. An
 interface entry is open to every module; a declaration that references only entries and
 constants that are not sealed gets all modules, because every module could hold the same
 definition.
@@ -58,8 +62,9 @@ The audit reads no type and infers nothing: it does not decide that a definition
 value, carries one, or is harmless. A type can hide a sealed type from any reader of
 types (a type variable with an equality, a recursor, an abbreviation, a projection of an
 opaque constant, a value packed with its own type), and a reference cannot be hidden. So
-a site that other modules use is in the interface, with a theorem or with a line that
-says why no statement exists, and every other site is sealed.
+a declaration that other modules use, and that the rule would make a site, is in the
+interface, with a theorem or with a line that says why no statement exists. A site is
+sealed.
 
 The trusted base of the invariant is the owning modules (the modules of the designated
 constants of the five types), the interface list and this tool. The rule does not read
@@ -183,8 +188,8 @@ noncomputable def aliasCallbackControl {config : Acorn.Host.WorldConfig} {goal :
     observer context initial resources
 
 /-- Control of a site: a value of the sealed control type from the `Inhabited` instance of
-its owning module. It references no constructor and no constructor alias, and the
-instance has no constructor in its name: the instance is a site. -/
+its owning module. The control references no constructor; the instance does, and it has
+no constructor in its name: the instance is a site. -/
 def instanceControl : AcornSealedControl.Token true := default
 
 /-- Control of a site, a site whose result is a type variable that an equality identifies
@@ -208,13 +213,17 @@ def opaqueControl : AcornSealedControl.Token true :=
 takes the value out. -/
 def packControl : AcornSealedControl.Token true := (AcornSealedControl.tokenByPack true).2
 
-/-- Control of a site, a site behind a definition that is sealed for another reason: the
-caller reads the token out of a wrapper whose maker calls an alias of the wrapper's
-constructor. -/
+/-- Control of the closure of the reach: `exposed` references no constructor, it calls
+`wrap`, which nests the constructor of the token in the constructor of a wrapper. `wrap`
+is a site by its reference, and `exposed` is a site because it references `wrap`. The
+caller reads the token out of the wrapper. -/
 def wrapControl : AcornSealedControl.Token true := (AcornSealedControl.exposed true 0).token
 
-/-- Control of a site, a site that references two sealed constants with different modules:
-this module may reference one of them and gets a value of the other through the site. -/
+/-- Control of the intersection over every origin: `bundle` references the constructor of
+`Shared`, whose row permits this module, and the private constructor of `Secret`, which
+is of no type that the run names and permits its own module only. The universe of the
+control run holds this module, so the row keeps it and only the private constructor
+removes it. -/
 def bundleControl : AcornSealedControl.Secret := (AcornSealedControl.bundle 0).1
 
 /-- The sealed constants of one compiled environment. -/
@@ -379,10 +388,11 @@ def controls : Array (Name × Name) := #[
 
 /-- The complete rule must report each control of this module for its intended constant
 and nothing else in the module, and the designated constants alone must report the first
-two for their constructors and nothing else. The control type and its owning module are inputs
-of this run only. -/
+two for their constructors and nothing else. The control types, their owning module and
+this module are in the universe of this run only: with this module in it, a site keeps
+this module unless a sealed constant that it references removes it. -/
 def sealedControls (env : Environment) (projects : Array Name) : IO Unit := do
-  let scanned := projects.push `AcornTools.SealedControl
+  let scanned := projects.push `AcornTools.SealedControl |>.push `AcornTools.OwnershipAudit
   let types := AcornOwnership.sealedTypes ++
     #[``AcornSealedControl.Token, ``AcornSealedControl.Shared]
   let rows := AcornOwnership.sealedConstants.push

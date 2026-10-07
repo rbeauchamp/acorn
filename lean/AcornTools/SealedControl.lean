@@ -7,16 +7,15 @@ import Init
 
 /-! # A sealed type for the controls of the ownership audit
 
-The sealed-constant rule of `AcornTools.OwnershipAudit` seals each definition of an
-owning module that references a sealed constant, unless it is an entry of the declared
-interface. A control of that part needs such a definition inside an owning module, and
-no application module gets one. This module is the owner of a sealed type of its own and
-of six definitions that make a value of it. None has a constructor in its name, and five
-have a type that hides the sealed type from a reader of types: a type variable with an
-equality, a recursor on a list, abbreviations, a projection of an opaque constant, and a
-value packed with its own type. The rule reads no type, so each is sealed by its
-reference to the constructor. The audit adds this module and this type to the rule's
-inputs for its control run only; nothing else uses them.
+The sealed-constant rule of `AcornTools.OwnershipAudit` gives each declaration that
+reaches a constructor of a sealed type the modules of the sealed constants that it
+references. A control of that rule needs such a declaration inside an owning module, and
+no application module gets one. This module is the owner of types of its own and of the
+definitions below that make a value of them. None has a constructor in its name, five
+have a type that hides the sealed type from a reader of types, one reaches a constructor
+through a second definition, and one references two sealed constants with different
+modules. The rule reads no type. The audit adds this module and two of its types to the
+rule's inputs for its control run only; nothing else uses them.
 -/
 namespace AcornSealedControl
 
@@ -71,11 +70,12 @@ structure Wrap (tag : Bool) where
   /-- The token inside. -/
   token : Token tag
 
-/-- A definition that nests the token's constructor in the constructor of the wrapper. Its
-body is an alias of the wrapper's constructor, so it is sealed for that reason too. -/
+/-- A definition that nests the token's constructor in the constructor of the wrapper. It
+references the constructor of the token, so it is a site. -/
 def wrap (tag : Bool) (value : Nat) : Wrap tag := ⟨⟨value⟩⟩
 
-/-- A definition that references no constructor: it calls `wrap`. -/
+/-- A definition that references no constructor: it calls `wrap`, so it is in the reach
+through `wrap` and gets the modules of `wrap`. -/
 def exposed (tag : Bool) (value : Nat) : Wrap tag := wrap tag value
 
 /-- A third structure of this module, with a private constructor. It is not one of the

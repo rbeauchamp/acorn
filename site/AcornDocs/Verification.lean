@@ -139,10 +139,13 @@ Ownership admission also reads the compiled declarations for sealed constants,
 the constants that make a value of a type whose maker is a claim of this
 project. One map gives each its modules: a private constructor of a project
 type has its declaring module, and the rows of the sealed table have theirs.
-One rule gives the others: a declaration that reaches a constructor of the
-sealed types or a row by references gets the intersection of the modules of
-every sealed constant that it references, unless it is in the declared
-interface. No definition of a project module references a sealed constant
+One rule gives the others. The reach is the declarations that reach a
+constructor of the sealed types or a row by references. A declaration of the
+reach that is not in the declared interface gets the intersection of the
+modules of every sealed constant that it references, and it is a site, a
+sealed constant, only when that is fewer than all modules. For a private
+constructor of another type the map holds the constructor only. No definition
+of a project module references a sealed constant
 from a module outside its modules. The interface is a declared list of the
 declarations that every module may use; each entry names a theorem whose
 statement names it, or has a line that says why no statement exists. The
