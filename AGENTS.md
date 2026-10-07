@@ -101,7 +101,7 @@ Then run the complete command in the actual Git checkout:
 - No override, grace period, partial pass, missing check or cached acceptance
   substitutes for a pass.
 - Every discovered module and native entry retains compilation and
-  source/compiled/axiom/route admission.
+  source/compiled/route admission.
 - Mathlib and FloatLib umbrella imports are forbidden; import specific dependencies.
 - FloatLib is a proof dependency: only the proof bridge imports it, and no
   executing module may.
@@ -114,7 +114,8 @@ protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need
 no permanent receipt. Optional diagnostics are not ordinary acceptance substitutes.
 
-- Every maintained source belongs to one explicit ownership inventory.
+- Every maintained source belongs to a library that the Regula manifest classifies
+  or to one explicit ownership inventory.
 - Shared specification and analysis definitions remain where proofs use them.
 - A missing file fails verification; it never selects a smaller suite.
 - No release, repository creation, visibility change, external submission or

@@ -9,23 +9,25 @@ import AcornTools.Ownership
 /-!
 # Compiler-backed theorem inventory
 
-Audit every owned theorem's transitive axiom set against exactly `propext`,
-`Classical.choice` and `Quot.sound`, then count `.thmInfo` declarations by the module index recorded in compiled Lean
-environments. Source filenames discover the owned modules, including modules
-outside either library root's import closure; source text never decides whether
-a declaration is a theorem. Imported Lean and Mathlib theorems are excluded by
-their owning module, even if their declaration names resemble project names.
+Count `.thmInfo` declarations by the module index recorded in compiled Lean
+environments, and refuse a native replacement on any project declaration. Source
+filenames discover the owned modules, including modules outside either library
+root's import closure; source text never decides whether a declaration is a
+theorem. Imported Lean and Mathlib theorems are excluded by their owning module,
+even if their declaration names resemble project names.
 
 The inventory includes compiler-generated auxiliary theorem declarations and
 private theorems. Counts report this complete scope of compiled declarations.
+The axioms of each declaration, project axioms, and `unsafe` and `partial`
+declarations are checked by the Regula audit of the claimed libraries, not here.
+The replacement refusal stays: `AcornVerif` claims report execution, where
+Regula's RG3002 (https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG3002/)
+reports a replacement and does not refuse it.
 -/
 
 namespace AcornTheoremCount
 
 open Lean
-
-/-- The only axioms a project theorem may depend on. -/
-def admittedAxioms : Array Name := #[`propext, `Classical.choice, `Quot.sound]
 
 /-- Counts of compiled declarations whose owning module belongs to each project. -/
 structure Counts where
@@ -49,34 +51,17 @@ def Counts.report (counts : Counts) : IO Unit := do
   IO.println s!"theorem-count NativeApp={counts.application}"
   IO.println s!"theorem-count total={counts.verification + counts.current + counts.application}"
 
-/-- Count the selected owning modules in one compiled environment. -/
+/-- Count the selected owning modules in one compiled environment. A declaration of a
+selected module with `implemented_by` or `extern` is refused. -/
 def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
   let selected := owners.foldl (fun selected owner => selected.insert owner) ({} : NameSet)
   let mut counts : Counts := {}
   for (name, info) in env.constants do
     let owner ← AcornBoundaryAudit.declarationOwner env name
     if !selected.contains owner then continue
-    if info.isUnsafe || info.isPartial then
-      let some parent := Compiler.isUnsafeRecName? name
-        | throw (IO.userError s!"{owner}: unsafe or partial declaration {name}")
-      let some parentInfo := env.find? parent
-        | throw (IO.userError s!"{owner}: orphan recursive companion {name}")
-      unless info.isPartial && !parentInfo.isUnsafe && !parentInfo.isPartial &&
-          (← AcornBoundaryAudit.declarationOwner env parent) == owner do
-        throw (IO.userError s!"{owner}: unreviewed recursive companion {name}")
     if (Compiler.getImplementedBy? env name).isSome || (getExternAttrData? env name).isSome then
       throw (IO.userError s!"{owner}: native replacement for {name}")
-    for dependency in info.getUsedConstantsAsSet do
-      if AcornBoundaryAudit.forbiddenConstant dependency then
-        throw (IO.userError s!"{owner}: {name} uses {dependency}")
-    if let .axiomInfo _ := info then
-      throw (IO.userError s!"{owner}: project-owned axiom {name}")
     if let .thmInfo _ := info then
-      let axioms ← (collectAxioms name : CoreM (Array Name)).toIO'
-        { fileName := "theorem-count", fileMap := default } { env }
-      for axiomName in axioms do
-        unless admittedAxioms.contains axiomName do
-          throw (IO.userError s!"{owner}: {name} depends on unreviewed axiom {axiomName}")
       if (`AcornVerif).isPrefixOf owner then
         counts := { counts with verification := counts.verification + 1 }
       else if (`Acorn).isPrefixOf owner then

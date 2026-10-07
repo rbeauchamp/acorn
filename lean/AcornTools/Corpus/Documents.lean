@@ -330,7 +330,7 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
 /-- Load compiler declarations once, excluding executable `main` collisions.
 Only maintained module owners contribute names; imported libraries do not make
 an otherwise missing project declaration appear present. -/
-unsafe def symbols (selection : Array Name := AcornOwnership.modules) : IO (Std.HashSet String) := do
+unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   let package : System.FilePath := "lean"
   let setup ← IO.Process.output {
     cmd := "./scripts/lean.sh", args := #["env", "lean", "--print-prefix"] }
@@ -359,8 +359,7 @@ private def resolves (names : Std.HashSet String) (name : String) : Bool :=
 
 /-- Every applicable path and declaration claim is checked, reporting all stale
 references together; archive paths and external study citations are refused. -/
-unsafe def check (documents : Array (String × String))
-    (selection : Array Name := AcornOwnership.modules)
+unsafe def check (documents : Array (String × String)) (selection : Array Name)
     (env? : Option Environment := none) : IO Unit := do
   let names ← match env? with
     | some env => symbolsFrom env selection

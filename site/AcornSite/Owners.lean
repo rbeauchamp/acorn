@@ -6,12 +6,11 @@ Authors: acorn contributors
 import NativeApp.MutationAudit
 import AcornTools.ModuleInventory
 import AcornTools.Ownership
-import AcornTools.Theorems
 
 /-! # Values the documents splice from Acorn's Lean owners
 
 Each definition reads the declaration that owns a fact the documents state: the ownership
-inventory, the audit arms and their pins, and the admitted axioms. The documents splice
+inventory and the audit arms and their pins. The documents splice
 these values and hold no copy of them.
 -/
 

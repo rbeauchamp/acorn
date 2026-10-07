@@ -68,18 +68,19 @@ import AcornVerif.Endurance
 /-!
 # Axiom audit
 
-The complete theorem inventory admits only dependencies on `propext`,
-`Classical.choice` and `Quot.sound`. Source and compiled admission reject
-project-owned axioms and unchecked native proof replacements. The guards below
-pin the exact dependency sets of selected named theorems.
+The Regula audit of the claimed libraries admits only dependencies on `propext`,
+`Classical.choice` and `Quot.sound`, for every declaration, and refuses a
+project-owned axiom and a native proof. Source admission refuses the words. The
+guards below pin the exact dependency sets of selected named theorems.
 
 `#guard_msgs` makes it a build failure: if an `axiom` is introduced, or an
 import starts dragging one in, the message printed by `#print axioms` changes
 and this file stops compiling. These retained exact-set guards complement
-`theorem-count`, which uses compiler module ownership to audit every maintained
-public, private and generated theorem's transitive axioms against the same
-three-name allowlist. New declarations cannot bypass that inventory through
-namespace aliases or source formatting.
+Regula's RG1003 (https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1003/) and
+RG1005 (https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG1005/), which read
+compiler module ownership and check the transitive axioms of every public,
+private and generated declaration against the same three names. New declarations
+cannot bypass that audit through namespace aliases or source formatting.
 
 A `sorry` is caught by a different mechanism: `warningAsError := true` in
 `lakefile.lean` turns "declaration uses `sorry`" into a build failure before

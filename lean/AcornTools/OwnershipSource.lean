@@ -48,22 +48,25 @@ def siteSources : IO Unit := do
     require (shared.contains (name, url, revision))
       s!"site/lake-manifest.json does not lock {name} to {url} at {revision}"
 
-/-- Every discovered source has a reviewed role, and stale entries are refused. -/
+/-- Every discovered source is a module of a library that Regula examines or a listed tool
+module, and a stale tool entry is refused. -/
 def sources : IO (Array Name) := do
   siteSources
   let actual ← AcornModuleInventory.allModules
+  let tools := AcornModuleInventory.toolingModules
   require (actual.toList.eraseDups.length == actual.size) "duplicate discovered module"
-  require (AcornOwnership.modules.toList.eraseDups.length == AcornOwnership.modules.size)
-    "duplicate registered module"
+  require (tools.toList.eraseDups.length == tools.size) "duplicate registered module"
   for name in actual do
-    require (AcornOwnership.modules.contains name) s!"unowned maintained module {name}"
-  for name in AcornOwnership.modules do
+    require (AcornModuleInventory.libraryModule name || tools.contains name)
+      s!"unowned maintained module {name}"
+  for name in tools do
     require (actual.contains name) s!"stale module owner {name}"
   return actual
 
 /-- Read Lake's evaluated executable configuration through the offline bootstrap. The
-second component names the executables whose configuration lists another target in `needs`. -/
-def inventory : IO (Array (String × Name) × Array String) := do
+second component names the executables whose configuration lists another target in `needs`.
+`modules` are the discovered sources, which hold every executable root. -/
+def inventory (modules : Array Name) : IO (Array (String × Name) × Array String) := do
   let output ← IO.Process.output {
     cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
       "Bootstrap.lean", "script", "run", "acornTargets"] }
@@ -81,11 +84,11 @@ def inventory : IO (Array (String × Name) × Array String) := do
     require (AcornOwnership.executables.contains entry) s!"unowned Lake executable {entry}"
   for entry in AcornOwnership.executables do
     require (actual.contains entry) s!"stale executable owner {entry}"
-    require (AcornOwnership.modules.contains entry.2) s!"unmaintained executable root {entry}"
+    require (modules.contains entry.2) s!"unmaintained executable root {entry}"
   return (actual, waiting)
 
 /-- Lake's evaluated executables, admitted against the registered inventory. -/
-def targets : IO (Array (String × Name)) :=
-  return (← inventory).1
+def targets (modules : Array Name) : IO (Array (String × Name)) :=
+  return (← inventory modules).1
 
 end AcornOwnershipAudit

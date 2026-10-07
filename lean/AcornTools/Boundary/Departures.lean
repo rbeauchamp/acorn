@@ -5,7 +5,6 @@ Authors: acorn contributors
 -/
 import Lean
 import Acorn.Provenance
-import AcornTools.Ownership
 
 /-! # Closed departure ownership
 
@@ -63,8 +62,9 @@ private def require (legal : Bool) (message : String) : IO Unit :=
   unless legal do throw (IO.userError s!"departure ownership: {message}")
 
 /-- Compiler metadata supplies the complete constructor and public/private type
-inventory. Documents must name every module in every declared departure it uses. -/
-def check (env : Environment) : IO Unit := do
+inventory. Documents must name every module in every declared departure it uses.
+`maintained` are the discovered sources, which hold every quarantine module. -/
+def check (env : Environment) (maintained : Array Name) : IO Unit := do
   let departures : List Departure := [.featureChannels, .spatialPotentials,
     .explorationDuration, .learnerParameters, .cumulants, .explorationRate, .featureTester,
     .achievementEvent]
@@ -72,7 +72,7 @@ def check (env : Environment) : IO Unit := do
     | throw (IO.userError "departure type is not a compiled inductive")
   require (declaration.ctors.length == departures.length &&
     (departures.map key).eraseDups.length == departures.length) "closed departure domain differs"
-  let owners := AcornOwnership.modules.toList.filter (`Acorn.Handcrafted).isPrefixOf
+  let owners := maintained.toList.filter (`Acorn.Handcrafted).isPrefixOf
   require (owners.length == modules.length && owners.all (modules.map Prod.fst).contains &&
     (modules.map Prod.fst).eraseDups.length == modules.length) "quarantine module inventory differs"
   let mut actual := []
