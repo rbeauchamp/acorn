@@ -112,12 +112,11 @@ report of the definitions that have no contract is work of Regula
 * A theorem names the definition and no contract states it. These are transitions of the
   world, of the attempt and campaign runners, of the temporal controller and of the agent
   prefix, and selections and predicates of the feature library. This module makes no
-  statement about what a caller does with the result of such a definition. Three decisions
-  of the step order are in this group, each with theorems for both of its directions beside
-  it: `StepOrder.parse` (`StepOrder.parse_spelled`, `StepOrder.parse_refused`),
-  `Host.Cli.stepOrderValue` (`Host.Cli.stepOrderValue_iff`, `Host.Cli.stepOrderValue_refused`)
-  and `Host.Cli.stepOrder` (`Host.Cli.stepOrder_iff`, `Host.Cli.stepOrder_refused`). Their
-  registration is follow-up work of https://github.com/rbeauchamp/acorn/issues/90.
+  statement about what a caller does with the result of such a definition. The draw-first
+  dispatch of the step order `act-then-learn` (`Handcrafted.TemporalControl.drawFirst`) is in
+  this group, as selection is: it returns no state when a declared potential has no source,
+  and `Handcrafted.TemporalControl.drawFirst_total` states that it returns one from every
+  aligned state.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
@@ -899,6 +898,92 @@ theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelectio
     ⟨[], by decide⟩ ⟨["--planning"], by decide⟩⟩
 
 attribute [regula_decision] Host.Cli.planningSelection
+
+/-- Step-order parsing returns an order exactly for a text that spells one
+(`StepOrder.parse_spelled`). -/
+private theorem stepOrderParse_isSome (text : String) :
+    (StepOrder.parse text).isSome = true ↔ ∃ order, StepOrder.Spelled text order := by
+  constructor
+  · intro accepted
+    cases parsed : StepOrder.parse text with
+    | none =>
+      rw [parsed] at accepted
+      exact absurd accepted Bool.false_ne_true
+    | some order => exact ⟨order, (StepOrder.parse_spelled text order).mp parsed⟩
+  · rintro ⟨order, spelled⟩
+    rw [(StepOrder.parse_spelled text order).mpr spelled]
+    rfl
+
+/-- Step-order parsing accepts exactly the texts that spell one of the three step orders
+(`StepOrder.parse_spelled`, `StepOrder.parse_refused`). The specification, `StepOrder.Spelled`,
+is written on the three words and calls no function that the parser executes. -/
+theorem step_order_parse : Regula.ExecutableContract StepOrder.parse
+    (Regula.Decides (·.isSome = true) (fun text => ∃ order, StepOrder.Spelled text order)) :=
+  ⟨decides stepOrderParse_isSome ⟨"act-then-learn", .actThenLearn, .inr (.inr ⟨rfl, rfl⟩)⟩
+    ⟨"", fun specified => absurd ((stepOrderParse_isSome "").mpr specified) (by decide)⟩⟩
+
+attribute [regula_decision] StepOrder.parse
+
+/-- The command-line step-order value is accepted exactly when the shared parser accepts it. -/
+private theorem stepOrderValue_isOk (text : String) :
+    (Host.Cli.stepOrderValue text).isOk = (StepOrder.parse text).isSome := by
+  unfold Host.Cli.stepOrderValue
+  cases StepOrder.parse text <;> rfl
+
+/-- Command-line step-order admission accepts exactly the texts that spell one of the three
+step orders, through the shared parser and with no substitution
+(`Host.Cli.stepOrderValue_iff`, `Host.Cli.stepOrderValue_refused`). -/
+theorem step_order_value : Regula.ExecutableContract Host.Cli.stepOrderValue
+    (Regula.Decides (·.isOk = true) (fun text => ∃ order, StepOrder.Spelled text order)) :=
+  ⟨decides
+    (fun text => by
+      show (Host.Cli.stepOrderValue text).isOk = true ↔ _
+      rw [stepOrderValue_isOk]
+      exact step_order_parse.evidence.iff text)
+    step_order_parse.evidence.toDecidesSoundly.satisfiable
+    step_order_parse.evidence.toDecidesCompletely.refutable⟩
+
+attribute [regula_decision] Host.Cli.stepOrderValue
+
+/-- Step-order admission from an argument list returns an order exactly for a list without
+the option, or one whose first occurrence of the option is followed by a text that spells an
+order (`Host.Cli.stepOrder_iff`). -/
+private theorem stepOrder_isOk (arguments : List String) :
+    (Host.Cli.stepOrder arguments).isOk = true ↔
+      "--step-order" ∉ arguments ∨
+        ∃ text order, Host.Cli.Follows arguments "--step-order" text ∧
+          StepOrder.Spelled text order := by
+  constructor
+  · intro accepted
+    cases admitted : Host.Cli.stepOrder arguments with
+    | error refusal =>
+      rw [admitted] at accepted
+      exact absurd accepted Bool.false_ne_true
+    | ok order =>
+      rcases (Host.Cli.stepOrder_iff arguments order).mp admitted with ⟨absent, _⟩ |
+        ⟨text, follows, spelled⟩
+      · exact .inl absent
+      · exact .inr ⟨text, order, follows, spelled⟩
+  · rintro (absent | ⟨text, order, follows, spelled⟩)
+    · rw [(Host.Cli.stepOrder_iff arguments .learnThenAct).mpr (.inl ⟨absent, rfl⟩)]
+      rfl
+    · rw [(Host.Cli.stepOrder_iff arguments order).mpr (.inr ⟨text, follows, spelled⟩)]
+      rfl
+
+/-- Step-order admission from an argument list accepts exactly a list without the option, or
+one whose first occurrence of the option is followed by a text that spells one of the three
+step orders (`Host.Cli.stepOrder_iff`, `Host.Cli.stepOrder_refused`). A missing value is
+refused. The specification is stated on the argument list and names no reader. -/
+theorem step_order : Regula.ExecutableContract Host.Cli.stepOrder
+    (Regula.Decides (·.isOk = true) (fun arguments : List String =>
+      "--step-order" ∉ arguments ∨
+        ∃ text order, Host.Cli.Follows arguments "--step-order" text ∧
+          StepOrder.Spelled text order)) :=
+  ⟨decides stepOrder_isOk ⟨[], .inl (by decide)⟩
+    ⟨["--step-order"], fun specified =>
+      absurd ((stepOrder_isOk ["--step-order"]).mpr specified) (by decide)⟩⟩
+
+attribute [regula_decision] Host.Cli.stepOrder
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification

@@ -95,6 +95,15 @@ Selection (`TemporalControl.selectWithOperations`) also takes the event: it cons
 executing option's stopping decision and hands the event to
 `TemporalControl.atBoundary`. No such theorem covers those two.
 
+Under the step order `actThenLearn` the draw-first dispatch (`TemporalControl.drawFirst`)
+takes the event as selection does, to consult the executing option's stopping decision,
+and no such theorem covers it either. The owed writes of that order
+(`TemporalControl.settle`) hand the event to the start of the selected option and read it
+nowhere else (`settle_unstarted`, `TemporalControl.settle_started`). That start has the
+statement of the seven, for one option and for the option table: where the outcome of the
+stored trajectory's stopping decision agrees under two events, the results agree
+(`startTemporal_event`, `startOption_event`).
+
 These are statements about results, and they do not exclude every read of the event.
 Where a decision continues the event is clear, because a set event forces the ending.
 A read of the event there sees one value and changes no result, so it leaves every
@@ -920,6 +929,68 @@ theorem dispatchMeta_event
         (fun following held => same slot potential following chosen found held)
       simp only [bind, Option.bind]
       rw [settled]
+
+/-- Where the outcome of the stopping decision of the stored trajectory agrees under two
+achievement events, the start of an invocation whose first action is already drawn gives
+one result. The start reads the event in its settlement only. -/
+theorem startTemporal_event (skill : Skill actions config criterion dimension discounts)
+    (models : OptionModelOps criterion dimension) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (first second : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate)
+    (learning : Bool) (drawn : PersistentDecision actions)
+    (same : ∀ following, skill.following = some following →
+      continuation
+          (skill.decideOption following.activation features potential first estimate rate) =
+        continuation
+          (skill.decideOption following.activation features potential second estimate rate)) :
+    skill.startTemporal models value features potential first estimate rate reward gain learning
+        drawn =
+      skill.startTemporal models value features potential second estimate rate reward gain
+        learning drawn := by
+  unfold Skill.startTemporal
+  rw [settleTemporal_event skill models value features potential first second estimate rate
+    reward gain learning same]
+
+/-- Where the outcome of the stopping decision of the selected option's stored trajectory
+agrees under two achievement events, the start of that option from a recorded first action
+gives one state. -/
+theorem startOption_event
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (start : StartDraw interface) (first second : Bool) (estimate reward : Binary32)
+    (same : ∀ following,
+      (state.runtime.lifecycle.consumers.skills.get start.slot).following = some following →
+      continuation ((state.runtime.lifecycle.consumers.skills.get start.slot).decideOption
+          following.activation features start.potential first estimate state.skillRate) =
+        continuation ((state.runtime.lifecycle.consumers.skills.get start.slot).decideOption
+          following.activation features start.potential second estimate state.skillRate)) :
+    state.startOption models features start first estimate reward =
+      state.startOption models features start second estimate reward := by
+  rw [TemporalControl.startOption_eq, TemporalControl.startOption_eq,
+    startTemporal_event _ models state.valueFunction features start.potential first second
+      estimate state.skillRate reward state.average.rate (profile.mode != .frozen) start.drawn
+      same]
+
+/-- The owed writes of a draw-first selection read the achievement event at the start of
+a selected option only: for every other record they are one state under two events.
+`TemporalControl.settle_started` gives the remaining record as a call of
+`TemporalControl.startOption`, which `startOption_event` covers. -/
+theorem settle_unstarted
+    (state : TemporalControl interface profile config criterion dimension)
+    (owed : Owed interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (first second : Bool)
+    (unstarted : ∀ closing decision start, owed ≠ .boundary closing decision (some start)) :
+    state.settle owed models features reward first =
+      state.settle owed models features reward second := by
+  cases owed with
+  | settled => rfl
+  | served skip => rfl
+  | continuing slot activation next drawn => rfl
+  | boundary closing decision start =>
+    cases start with
+    | none => rfl
+    | some start => exact absurd rfl (unstarted closing decision start)
 
 /-- Where selection, the value an interrupted option's span closes toward and the
 off-policy learning of the options agree under two achievement events, the local

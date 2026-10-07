@@ -330,4 +330,126 @@ theorem relabeled_loaded (profile : FeatureProfile) (criterion : Criterion)
   exact candidate_roundtrip ⟨profile, criterion, planning, second, config, dimension⟩
     ⟨image.image⟩ supported
 
+/-- A stored word below 256 is its low byte and three zero bytes. -/
+theorem u32_small (word : UInt32) (small : word.toNat < 256) :
+    u32Codec.encode word = [UInt8.ofNat word.toNat, 0, 0, 0] := by
+  simp [u32Codec, Codec.iso, wordCodec, encodeNat, Nat.div_eq_of_lt small]
+
+/-- The signed bytes of a payload are one prefix and one suffix around the four bytes of
+its order word, whatever that word is. -/
+theorem order_bytes (dimension : Dimension) (payload : Payload dimension) :
+    ∃ before after, ∀ word : UInt32,
+      (payloadCodec dimension).encode
+          { payload with header := { payload.header with order := word } } =
+        before ++ u32Codec.encode word ++ after := by
+  refine ⟨u32Codec.encode payload.header.version ++ u32Codec.encode payload.header.capacity ++
+      u32Codec.encode payload.header.learners ++ u64Codec.encode payload.header.seed ++
+      u64Codec.encode payload.header.clock ++ u32Codec.encode payload.header.criterion ++
+      binary32Codec.encode payload.header.gain ++ u64Codec.encode payload.header.tilings ++
+      u32Codec.encode payload.header.units ++ u32Codec.encode payload.header.supported,
+    ((vectorCodec assignmentCodec Acorn.FeatureConstants.skillCount).pair
+      ((primaryCodec dimension).pair (lifetimeCodec.pair testerCodec))).encode
+        (payload.assignments, payload.primary, payload.lifetime, payload.tester), fun word => ?_⟩
+  simp only [payloadCodec, headerCodec, Codec.iso, Codec.pair, List.append_assoc]
+
+/-- **An edit of the order word alone does not decode.** For every dimension, payload
+and word that differs from the payload's order word, both below 256: the file bytes of
+the payload with the order word replaced and the checksum word of the original payload
+are refused by the frame decoder. The stored words of the step orders are below 256
+(`StepOrder.tag`), and two of them differ in one byte, which the checksum separates
+(`Rng.fnv_byte`). An edit that also writes the checksum of the edited bytes is outside
+this statement and is admitted (`relabeled_loaded`): the checksum detects a mutation and
+authenticates nothing. -/
+theorem order_edit_refused (dimension : Dimension) (payload : Payload dimension) (word : UInt32)
+    (differs : word ≠ payload.header.order) (small : word.toNat < 256)
+    (stored : payload.header.order.toNat < 256) :
+    decode dimension (magic ++ (payloadCodec dimension).encode
+        { payload with header := { payload.header with order := word } } ++
+      u64Codec.encode (Rng.fnv ((payloadCodec dimension).encode payload))) = none := by
+  have separated : Rng.fnv ((payloadCodec dimension).encode payload) ≠
+      Rng.fnv ((payloadCodec dimension).encode
+        { payload with header := { payload.header with order := word } }) := by
+    obtain ⟨before, after, bytes⟩ := order_bytes dimension payload
+    have original : (payloadCodec dimension).encode payload =
+        before ++ u32Codec.encode payload.header.order ++ after := bytes payload.header.order
+    intro same
+    rw [original, bytes word, u32_small _ stored, u32_small _ small] at same
+    simp only [List.append_assoc, List.cons_append, List.nil_append] at same
+    have low := congrArg UInt8.toNat (Rng.fnv_byte before _ _ _ same)
+    simp only [UInt8.toNat_ofNat'] at low
+    have words : word.toNat = payload.header.order.toNat := by omega
+    exact differs (UInt32.toNat_inj.mp words)
+  simp only [decode, List.append_assoc, List.take_left, List.drop_left]
+  rw [(payloadCodec dimension).roundtrip]
+  simp only [bind, Option.bind]
+  have checksum := u64Codec.roundtrip (Rng.fnv ((payloadCodec dimension).encode payload)) []
+  simp only [List.append_nil] at checksum
+  rw [checksum]
+  simp [List.length_append, separated]
+
+/-- A loaded candidate decoded as a complete frame. -/
+theorem loadCandidate_decoded (construction : AgentConstruction) (bytes : List UInt8)
+    (image : construction.Image) (loaded : loadCandidate construction bytes = .ok image) :
+    ∃ payload, decode construction.dimension bytes = some payload := by
+  unfold loadCandidate at loaded
+  simp only [bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at loaded
+  split at loaded
+  · cases loaded
+  · cases decoded : headerCodec.decode (bytes.drop magic.length) with
+    | none =>
+      rw [decoded] at loaded
+      cases loaded
+    | some found =>
+      rw [decoded] at loaded
+      dsimp only at loaded
+      cases admitted : admitHeader construction found.1 with
+      | error refusal =>
+        rw [admitted] at loaded
+        cases loaded
+      | ok gain =>
+        rw [admitted] at loaded
+        dsimp only at loaded
+        cases framed : decode construction.dimension bytes with
+        | none =>
+          rw [framed] at loaded
+          cases loaded
+        | some payload => exact ⟨payload, rfl⟩
+
+/-- **No loader admits an edit of the order word alone.** For every construction, every
+payload of its dimension and every word that differs from the payload's order word, both
+below 256: the loader of the construction returns no image for the file bytes of the
+payload with the order word replaced and the checksum word of the original payload. So a
+file whose order word alone was changed to the word of another order is refused by the
+loader of every order. -/
+theorem order_edit_unloaded (construction : AgentConstruction)
+    (payload : Payload construction.dimension) (word : UInt32)
+    (differs : word ≠ payload.header.order) (small : word.toNat < 256)
+    (stored : payload.header.order.toNat < 256) (image : construction.Image) :
+    loadCandidate construction (magic ++ (payloadCodec construction.dimension).encode
+        { payload with header := { payload.header with order := word } } ++
+      u64Codec.encode (Rng.fnv ((payloadCodec construction.dimension).encode payload))) ≠
+        .ok image := by
+  intro loaded
+  obtain ⟨decoded, framed⟩ := loadCandidate_decoded construction _ image loaded
+  rw [order_edit_refused construction.dimension payload word differs small stored] at framed
+  cases framed
+
+/-- **A file whose order word alone is replaced by the word of another order is refused.**
+For every receiving construction, every payload of its dimension whose order word is the
+stored word of one order, and every other order: the loader returns no image for the file
+bytes of the payload with the order word replaced by the word of the other order and the
+checksum word of the original payload. The receiving construction is arbitrary, so the
+loader of the other order refuses the file as well. -/
+theorem relabeled_unloaded (construction : AgentConstruction)
+    (payload : Payload construction.dimension) (saved replaced : StepOrder)
+    (word : payload.header.order = saved.tag) (other : replaced ≠ saved)
+    (image : construction.Image) :
+    loadCandidate construction (magic ++ (payloadCodec construction.dimension).encode
+        { payload with header := { payload.header with order := replaced.tag } } ++
+      u64Codec.encode (Rng.fnv ((payloadCodec construction.dimension).encode payload))) ≠
+        .ok image :=
+  order_edit_unloaded construction payload replaced.tag
+    (by rw [word]; exact fun same => other (StepOrder.tag_injective _ _ same))
+    replaced.tag_small (by rw [word]; exact saved.tag_small) image
+
 end AcornVerif.CurrentCheckpoint

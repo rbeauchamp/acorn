@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Handcrafted.Agent
+import Acorn.Handcrafted.DrawFirst
 import Acorn.Timing
 
 /-!
@@ -20,14 +21,24 @@ every option's questions, and the tester.
 Under `learnThenAct` the two parts compose to `Agent.act`, for every agent state and
 percept, in every world (`Agent.act_parts`). Under `planAfterAct` selection runs with
 no planning, and the planning of a free boundary is the first work of the second part
-(`TemporalControl.planAfter`). The two orders differ at a free dispatch only: a step
+(`TemporalControl.planAfter`). These two orders can differ at a free dispatch only: a step
 whose decision records no meta decision is the executed step under both
 (`Agent.actOrdered_undrawn`, from `TemporalControl.select_unplanned`). This is PAR-19;
 the source of the reordering is cited in `Acorn.Timing`.
 
-What each draw of the first part reads, in both orders unless an order is named. Each
-statement is about the operation that makes the draw; which operation a step calls is
-the definition of selection.
+Under `actThenLearn` the first part is not selection. It is the draw-first dispatch of
+`Acorn.Handcrafted.DrawFirst`, which makes every draw of the step and takes no reward
+word (`Agent.chooseDrawn`, `Agent.choose_reward`), and the chosen value holds the record of
+the writes that dispatch owes. The second part makes those writes from the reward
+(`TemporalControl.settle`), then plans as under `planAfterAct`, then learns. This is
+PAR-20. `AcornVerif.DrawFirst` states where this step is the step of `planAfterAct` and
+where it can differ.
+
+What each draw of the first part reads, under `learnThenAct` and `planAfterAct` unless
+an order is named. Each statement is about the operation that makes the draw; which
+operation a step calls is the definition of selection. Under `actThenLearn` the first
+four draws are made by the same operations, before the writes that selection makes
+after them, and the last is drawn from another policy, as its item says.
 
 - A served exploration step repeats the action of its run and consumes no draw
   (`TemporalControl.serve_frame`). The values its decision reports are read from the
@@ -47,12 +58,18 @@ the definition of selection.
   meta-controller before this frame's planning (`TemporalControl.atBoundary_unplanned`).
   It is the one draw that reads the meta-controller.
 - An option that starts draws its first action from its own policy after the terminal
-  credit and the settlement that this percept causes (`Skill.beginTemporal_policy`), in
-  both orders. The settlement, and under the differential criterion the terminal credit,
-  are computed from the frozen snapshot of the drawn meta decision, so this draw can
-  read different weights under the two orders as well. Moving those two writes after
-  the draw needs a draw and a credit that are separate functions of the option learner;
-  it is not built.
+  credit and the settlement that this percept causes (`Skill.beginTemporal_policy`),
+  under `learnThenAct` and `planAfterAct`. The settlement, and under the differential
+  criterion the terminal credit, are computed from the frozen snapshot of the drawn meta
+  decision, so this draw can read different weights under those two orders as well.
+  Under `actThenLearn` it draws from its frozen policy as the preceding step left it,
+  after the assignment refresh (`Skill.frozenPolicy`, `TemporalControl.drawBoundary`),
+  and those two writes follow the action.
+
+The next paragraph compares `learnThenAct` with `planAfterAct`. Under `actThenLearn` the
+meta draw reads what it reads under `planAfterAct`
+(`AcornVerif.DrawFirst.drawBoundary_unplanned`), and each write the paragraph places in
+the first part is in the second part, after the action.
 
 The decision keeps the frozen snapshot of the drawn meta decision, and the order changes
 every later read of it, because it changes the snapshot. The first part has three. The
@@ -79,12 +96,14 @@ one step there (`Agent.actOrdered_undrawn`). No theorem states the difference of
 these reads: each follows from the definitions named, with
 `TemporalControl.atBoundary_meta` and `TemporalControl.atBoundary_unplanned`.
 
-The assignment refresh precedes the draws in both orders. It reads no part of the
+The assignment refresh precedes the draws in every order. It reads no part of the
 percept: it is a function of the Demon-0 weights and the objectives the step started
-from (`TemporalControl.select_assigns`).
+from (`TemporalControl.select_assigns` for selection; `AcornVerif.DrawFirst.drawFirst_assigns`
+for the draw-first dispatch).
 
-The second part draws nothing from the action generator (`Chosen.learn_rng`). Its
-tester draws from the feature generator's own stream when it replaces a unit.
+The second part draws nothing from the action generator in any order
+(`Chosen.learn_rng`). Its tester draws from the feature generator's own stream when it
+replaces a unit.
 -/
 namespace Acorn.Handcrafted
 open Features
@@ -549,7 +568,7 @@ when both parts precede the action, none when planning follows the action. -/
 def firstPlanning (order : StepOrder) (planning : PlanningSelection) : PlanningSelection :=
   match order with
   | .learnThenAct => planning
-  | .planAfterAct => .none
+  | .planAfterAct | .actThenLearn => .none
 
 /-- Planning after the action: at a decision that drew a meta decision, which is a free
 dispatch, the boundary's configured planning on the selected state. Every other
@@ -569,56 +588,264 @@ def TemporalControl.planAfter
   else selected
 
 /-- The state the second part starts from under a step order: the selected state, with
-the deferred planning when planning follows the action. -/
+the deferred planning when planning follows the action. Under `actThenLearn` the first
+part made no write that reads the reward, so the second part first makes the owed
+writes of the record the first part returned (`TemporalControl.settle`), and then the
+deferred planning. The other orders owe nothing and read neither the record nor the
+reward here. -/
 def TemporalControl.deferred
     (selected : TemporalControl interface profile config criterion dimension)
     (order : StepOrder) (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+    (owed : Owed interface profile config criterion dimension) (reward : Binary32) (goal : Bool)
     (decision : TemporalDecision interface.actions) :
     TemporalControl interface profile config criterion dimension :=
   match order with
   | .learnThenAct => selected
   | .planAfterAct => selected.planAfter planning features decision
+  | .actThenLearn =>
+    (selected.settle owed (modelOperations criterion dimension) features reward goal).planAfter
+      planning features decision
 
-/-- Deferred planning writes the meta-controller and the planning references only: the
-lifetime record, the executing option and the action generator are the selected
-state's, under both orders. -/
+/-- The owed writes and deferred planning record no episode, move no activation and draw
+nothing: the lifetime record, the executing option and the action generator are the
+selected state's, under every order. -/
 theorem TemporalControl.deferred_frame
     (selected : TemporalControl interface profile config criterion dimension)
     (order : StepOrder) (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+    (owed : Owed interface profile config criterion dimension) (reward : Binary32) (goal : Bool)
     (decision : TemporalDecision interface.actions) :
-    (selected.deferred order planning features decision).lifetime = selected.lifetime ∧
-      (selected.deferred order planning features decision).activeSlot = selected.activeSlot ∧
-      (selected.deferred order planning features decision).runtime.references.rng =
-        selected.runtime.references.rng := by
+    (selected.deferred order planning features owed reward goal decision).lifetime =
+        selected.lifetime ∧
+      (selected.deferred order planning features owed reward goal decision).activeSlot =
+        selected.activeSlot ∧
+      (selected.deferred order planning features owed reward goal
+        decision).runtime.references.rng = selected.runtime.references.rng := by
   cases order
   · exact ⟨rfl, rfl, rfl⟩
   · unfold TemporalControl.deferred TemporalControl.planAfter
     dsimp only
     split <;> exact ⟨rfl, rfl, rfl⟩
+  · have settled := selected.settle_framed owed (modelOperations criterion dimension) features
+      reward goal
+    unfold TemporalControl.deferred TemporalControl.planAfter
+    dsimp only
+    split <;> exact ⟨settled.1, congrArg Occupancy.executing settled.2.1, settled.2.2⟩
 
-/-- Deferred planning keeps every declared option source matched. -/
+/-- The owed writes and deferred planning keep every declared option source matched. -/
 theorem TemporalControl.deferred_aligned
     (selected : TemporalControl interface profile config criterion dimension)
     (aligned : selected.Aligned) (order : StepOrder) (planning : PlanningSelection)
-    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions) :
-    (selected.deferred order planning features decision).Aligned := by
+    (features : SwiftTd.ActiveSet dimension)
+    (owed : Owed interface profile config criterion dimension) (reward : Binary32) (goal : Bool)
+    (decision : TemporalDecision interface.actions) :
+    (selected.deferred order planning features owed reward goal decision).Aligned := by
   cases order
   · exact aligned
   · unfold TemporalControl.deferred TemporalControl.planAfter
     dsimp only
     split <;> exact aligned
+  · have settled := selected.settle_aligned aligned owed (modelOperations criterion dimension)
+      features reward goal
+    unfold TemporalControl.deferred TemporalControl.planAfter
+    dsimp only
+    split <;> exact settled
 
-/-- Deferred planning writes neither the primitive controller nor a prediction demon. -/
+/-- The owed reward writes the meta span only. -/
+theorem TemporalControl.oweReward_keeps
+    (state origin : TemporalControl interface profile config criterion dimension)
+    (kept : state.Keeps origin) (reward : Binary32) : (state.oweReward reward).Keeps origin := by
+  unfold TemporalControl.oweReward
+  split <;> exact kept
+
+/-- The credit of a drawn decision writes the option table only. -/
+theorem TemporalControl.creditOption_keeps
+    (state origin : TemporalControl interface profile config criterion dimension)
+    (kept : state.Keeps origin) (models : OptionModelOps criterion dimension)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (next : OptionContinuation interface.actions dimension activation)
+    (drawn : PersistentDecision interface.actions) (reward : Binary32) :
+    (state.creditOption models slot activation next drawn reward).Keeps origin := by
+  rw [TemporalControl.creditOption_eq]
+  exact kept
+
+/-- The start of a selected option writes the option table only. -/
+theorem TemporalControl.startOption_keeps
+    (state origin : TemporalControl interface profile config criterion dimension)
+    (kept : state.Keeps origin) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (start : StartDraw interface) (goal : Bool)
+    (estimate reward : Binary32) :
+    (state.startOption models features start goal estimate reward).Keeps origin := by
+  rw [TemporalControl.startOption_eq]
+  exact kept
+
+/-- **What the owed writes do not write.** For every state, record, frame and reward
+word, the settled state holds the primitive controller and the prediction demons it
+was given. -/
+theorem TemporalControl.settle_keeps
+    (state origin : TemporalControl interface profile config criterion dimension)
+    (kept : state.Keeps origin) (owed : Owed interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) (goal : Bool) :
+    (state.settle owed models features reward goal).Keeps origin := by
+  have owedKept := state.oweReward_keeps origin kept reward
+  cases owed with
+  | settled => exact kept
+  | served skip =>
+    cases skip
+    · exact owedKept
+    · exact TemporalControl.skipMeta_keeps _ origin owedKept
+  | continuing slot activation next drawn =>
+    exact TemporalControl.skipMeta_keeps _ origin
+      ((state.oweReward reward).creditOption_keeps origin owedKept models slot activation next
+        drawn reward)
+  | boundary closing decision start =>
+    have closedKept : (match closing with
+        | none => state.oweReward reward
+        | some closing => ((state.oweReward reward).closeOption models features closing.1 reward
+            closing.2).1).Keeps origin := by
+      cases closing with
+      | none => exact owedKept
+      | some closing =>
+        exact (state.oweReward reward).closeOption_keeps origin owedKept models features
+          closing.1 reward closing.2
+    have learnedKept := TemporalControl.learnMeta_keeps _ origin closedKept features decision
+    cases start with
+    | none => exact learnedKept
+    | some start =>
+      exact TemporalControl.startOption_keeps _ origin learnedKept models features start goal _
+        reward
+
+/-- The owed writes and deferred planning write neither the primitive controller nor a
+prediction demon. -/
 theorem TemporalControl.deferred_keeps
     (selected origin : TemporalControl interface profile config criterion dimension)
     (kept : selected.Keeps origin) (order : StepOrder) (planning : PlanningSelection)
-    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions) :
-    (selected.deferred order planning features decision).Keeps origin := by
+    (features : SwiftTd.ActiveSet dimension)
+    (owed : Owed interface profile config criterion dimension) (reward : Binary32) (goal : Bool)
+    (decision : TemporalDecision interface.actions) :
+    (selected.deferred order planning features owed reward goal decision).Keeps origin := by
   cases order
   · exact kept
   · unfold TemporalControl.deferred TemporalControl.planAfter
     dsimp only
     split <;> exact kept
+  · have settled := selected.settle_keeps origin kept owed (modelOperations criterion dimension)
+      features reward goal
+    unfold TemporalControl.deferred TemporalControl.planAfter
+    dsimp only
+    split <;> exact settled
+
+/-! ## What a draw-first selection does not write -/
+
+/-- The reward-free preparation writes the rate schedule and the model caches. -/
+theorem TemporalControl.prepareDraw_keeps
+    (state origin : TemporalControl interface profile config criterion dimension)
+    (kept : state.Keeps origin) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) : (state.prepareDraw models features).Keeps origin := by
+  unfold TemporalControl.prepareDraw
+  dsimp only
+  split <;> exact kept
+
+/-- A served step that draws first writes occupancy, diagnostics and an interrupted
+option's trajectory link. -/
+theorem TemporalControl.serveDraw_keeps
+    (state next origin : TemporalControl interface profile config criterion dimension)
+    (kept : state.Keeps origin) (features : SwiftTd.ActiveSet dimension) (skip : Bool)
+    (decision : TemporalDecision interface.actions)
+    (served : state.serveDraw features = some (next, skip, decision)) : next.Keeps origin := by
+  unfold TemporalControl.serveDraw at served
+  split at served
+  · rename_i committed phase
+    cases hs : committed.run.serve with
+    | none => simp [hs, bind, Option.bind] at served
+    | some pair =>
+      simp only [hs, bind, Option.bind, pure, Option.some.injEq, Prod.mk.injEq] at served
+      rw [← served.1]
+      have base := state.interrupt_keeps origin kept committed.origin
+      split <;> exact base
+  · contradiction
+  · contradiction
+
+/-- A free dispatch that draws first writes neither the primitive controller nor a
+prediction demon. -/
+theorem TemporalControl.drawBoundary_keeps
+    (state origin : TemporalControl interface profile config criterion dimension)
+    (kept : state.Keeps origin)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (estimate : Binary32)
+    (next : TemporalControl interface profile config criterion dimension)
+    (owed : Owed interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions)
+    (executed : state.drawBoundary plan features declared closing estimate =
+      some (next, owed, decision)) : next.Keeps origin := by
+  unfold TemporalControl.drawBoundary at executed
+  have refreshedKept := state.refreshFree_keeps origin kept closing
+  generalize state.refreshFree closing = refreshed at executed refreshedKept
+  dsimp only at executed
+  have drawnKept : ((refreshed.1.planFree plan features).drawMeta features).1.Keeps origin :=
+    refreshedKept
+  generalize (refreshed.1.planFree plan features).drawMeta features = drawn at executed drawnKept
+  split at executed
+  · cases executed
+    exact drawnKept
+  · rename_i slot selected
+    cases potential : (drawn.1.runtime.lifecycle.consumers.skills.get slot).interest.potential
+        features declared with
+    | none => simp [potential, bind, Option.bind] at executed
+    | some value =>
+      simp only [potential, bind, Option.bind, pure, Option.some.injEq] at executed
+      cases executed
+      exact drawnKept
+
+/-- **What a draw-first selection does not write.** For every state, frame and
+selection branch, the state it returns holds the primitive controller and the
+prediction demons of the state it started from. -/
+theorem TemporalControl.drawFirst_keeps
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (next : TemporalControl interface profile config criterion dimension)
+    (owed : Owed interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions)
+    (executed : state.drawFirst models plan features declared goal = some (next, owed, decision)) :
+    next.Keeps state := by
+  unfold TemporalControl.drawFirst at executed
+  have preparedKept := state.prepareDraw_keeps state ⟨rfl, rfl⟩ models features
+  generalize state.prepareDraw models features = prepared at executed preparedKept
+  dsimp only at executed
+  revert executed
+  cases served : prepared.serveDraw features with
+  | some result =>
+    intro executed
+    cases executed
+    exact prepared.serveDraw_keeps result.1 state preparedKept features result.2.1 result.2.2 served
+  | none =>
+    intro executed
+    simp only at executed
+    split at executed
+    · cases executed
+      exact preparedKept
+    · split at executed
+      · exact (prepared.withPhase .idle).drawBoundary_keeps state preparedKept plan features
+          declared none .zero next owed decision executed
+      · exact (prepared.withPhase .idle).drawBoundary_keeps state preparedKept plan features
+          declared none .zero next owed decision executed
+      · rename_i slot activation phase
+        cases potential : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+            slot).interest.potential features declared with
+        | none => simp [potential, bind, Option.bind] at executed
+        | some value =>
+          simp only [potential, bind, Option.bind] at executed
+          split at executed
+          · simp only [pure, Option.some.injEq] at executed
+            cases executed
+            exact preparedKept
+          · exact (prepared.withPhase .idle).drawBoundary_keeps state preparedKept plan features
+              declared _ _ next owed decision executed
 
 /-! ## The two parts -/
 
@@ -674,21 +901,22 @@ theorem TemporalControl.learn_aligned
       observation.declared reward goal decision) _) features observation reward decision
 
 /-- The learning part keeps the episode accounting, from any state that holds the
-lifetime record and the executing option that selection returned. The planning
-parameter of that selection is arbitrary. -/
-theorem TemporalControl.learn_episodes
+lifetime record and the executing option of a selected state whose decision records the
+complete start and end transition of the step. Selection and the draw-first selection
+both return such a state (`TemporalControl.select_episodes`,
+`TemporalControl.drawFirst_episodes`). -/
+theorem TemporalControl.learn_traced
     (state selected middle : TemporalControl interface profile config criterion dimension)
-    (valid : state.Episodes) (models : OptionModelOps criterion dimension)
-    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
-    (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) (reward : Binary32)
-    (goal : Bool) (decision : TemporalDecision interface.actions)
-    (executed : state.selectWithOperations models plan features observation.declared reward goal =
-      some (selected, decision))
+    (valid : state.Episodes) (features : SwiftTd.ActiveSet dimension)
+    (observation : Frame interface) (reward : Binary32) (goal : Bool)
+    (decision : TemporalDecision interface.actions)
+    (trace : selected.lifetime = state.lifetime ∧
+      EpisodeTrace state.activeSlot (decision.ended.map (·.slot)) decision.started
+        selected.activeSlot)
+    (primitive : profile.usesHierarchy = false → selected.activeSlot = none)
     (lifetime : middle.lifetime = selected.lifetime)
     (active : middle.activeSlot = selected.activeSlot) :
     (middle.learn features observation reward goal decision).Episodes := by
-  have trace := state.select_episodes selected models plan features observation.declared reward
-    goal decision valid.2 executed
   have follow := middle.follow_episodes (modelOperations criterion dimension) features
     observation.declared reward goal decision
   unfold TemporalControl.learn
@@ -706,11 +934,65 @@ theorem TemporalControl.learn_episodes
       trace.1]
     apply trace.2.record_valid _ decision.episodeEnd _ valid.1
     simp [TemporalDecision.episodeEnd, Option.map_map, Function.comp_def]
-  · intro primitive
+  · intro hierarchy
     change spanned.activeSlot = none
     rw [closed.2, follow.2, active]
-    exact state.select_primitive selected models plan features observation.declared reward goal
-      decision primitive executed
+    exact primitive hierarchy
+
+/-- The learning part keeps the episode accounting, from any state that holds the
+lifetime record and the executing option that selection returned. The planning
+parameter of that selection is arbitrary. -/
+theorem TemporalControl.learn_episodes
+    (state selected middle : TemporalControl interface profile config criterion dimension)
+    (valid : state.Episodes) (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) (reward : Binary32)
+    (goal : Bool) (decision : TemporalDecision interface.actions)
+    (executed : state.selectWithOperations models plan features observation.declared reward goal =
+      some (selected, decision))
+    (lifetime : middle.lifetime = selected.lifetime)
+    (active : middle.activeSlot = selected.activeSlot) :
+    (middle.learn features observation reward goal decision).Episodes :=
+  state.learn_traced selected middle valid features observation reward goal decision
+    (state.select_episodes selected models plan features observation.declared reward goal decision
+      valid.2 executed)
+    (fun primitive => state.select_primitive selected models plan features observation.declared
+      reward goal decision primitive executed)
+    lifetime active
+
+/-- Draw-first selection with its totality proof. The proof closes the potential-source
+premise and is erased. It runs the no-planning boundary: planning follows the action. -/
+def TemporalControl.alignedDraw
+    (state : TemporalControl interface profile config criterion dimension)
+    (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension)
+    (observation : Frame interface) (goal : Bool) :
+    { result : TemporalControl interface profile config criterion dimension ×
+        Owed interface profile config criterion dimension × TemporalDecision interface.actions //
+      state.drawFirst (modelOperations criterion dimension) (planningBoundary .none) features
+        observation.declared goal = some result } :=
+  match executed : state.drawFirst (modelOperations criterion dimension) (planningBoundary .none)
+      features observation.declared goal with
+  | none => False.elim (by
+      obtain ⟨next, owed, decision, accepted, _⟩ := state.drawFirst_total aligned
+        (modelOperations criterion dimension) (planningBoundary .none) features observation goal
+      rw [executed] at accepted
+      contradiction)
+  | some result => ⟨result, rfl⟩
+
+/-- The state a draw-first selection returns from an aligned state is aligned. -/
+theorem TemporalControl.drawFirst_aligned
+    (state next : TemporalControl interface profile config criterion dimension)
+    (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension)
+    (observation : Frame interface) (goal : Bool)
+    (owed : Owed interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions)
+    (executed : state.drawFirst (modelOperations criterion dimension) (planningBoundary .none)
+      features observation.declared goal = some (next, owed, decision)) : next.Aligned := by
+  obtain ⟨other, due, chosen, accepted, valid⟩ := state.drawFirst_total aligned
+    (modelOperations criterion dimension) (planningBoundary .none) features observation goal
+  have same := Option.some.inj (executed.symm.trans accepted)
+  cases same
+  exact valid
 
 /-- A selected state and decision determine the completed local transition of the
 default order: the learning part on them. -/
@@ -730,14 +1012,16 @@ theorem TemporalControl.step_selected
       (chosen.1.learn features observation reward goal chosen.2, chosen.2)) executed)
 
 /-- What the agent holds between the two parts of one step: the step order, the
-percept, its encoding, the temporal state selection returned, and the decision. The
-decision's action is the action of the step. The two proofs state that the second part
-of this value is a legal agent; they are erased. The planning selection is carried as
-an index, so a chosen value returns to an agent of the type it came from. In this
-module `Agent.choose` is the one use of the constructor, so the order a chosen value
-holds is the order its selection ran under. The constructor is private, which stops the
-constructor notation and the constructor name outside this module and does not stop a
-tactic; no check stops a module of this project from making a chosen value. -/
+percept, its encoding, the temporal state the first part returned, the decision, and
+the writes the first part owes. The decision's action is the action of the step. The
+two proofs state that the second part of this value is a legal agent; they are erased.
+The planning selection is carried as an index, so a chosen value returns to an agent of
+the type it came from. In this module `Agent.chooseSelected` and `Agent.chooseDrawn` are
+the two uses of the constructor, and `Agent.choose` calls each for its own orders, so
+the order a chosen value holds is the order its first part ran under. The constructor is
+private, which stops the constructor notation and the constructor name outside this
+module and does not stop a tactic; no check stops a module of this project from making a
+chosen value. -/
 structure Chosen (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) (planning : PlanningSelection) where
   private mk ::
@@ -749,53 +1033,103 @@ structure Chosen (interface : Interface) (profile : FeatureProfile) (config : Fe
   features : SwiftTd.ActiveSet dimension
   /-- Outputs of the generated units on the same frame, for the tester. -/
   units : Vector Bool config.units.count
-  /-- Temporal state after selection. -/
+  /-- Temporal state after the first part. -/
   control : TemporalControl interface profile config criterion dimension
-  /-- The decision selection made. -/
+  /-- The decision the first part made. -/
   decision : TemporalDecision interface.actions
+  /-- The writes the first part owes; nothing, when the first part is selection. -/
+  owed : Owed interface profile config criterion dimension
   /-- The second part keeps every declared option source matched. -/
-  aligned : ((control.deferred order planning features decision).learn features percept.frame
-    percept.reward percept.frame.achieved decision).Aligned
+  aligned : ((control.deferred order planning features owed percept.reward percept.frame.achieved
+    decision).learn features percept.frame percept.reward percept.frame.achieved decision).Aligned
   /-- The second part keeps the episode accounting. -/
-  episodes : ((control.deferred order planning features decision).learn features percept.frame
-    percept.reward percept.frame.achieved decision).Episodes
+  episodes : ((control.deferred order planning features owed percept.reward
+    percept.frame.achieved decision).learn features percept.frame percept.reward
+    percept.frame.achieved decision).Episodes
 
-/-- The first part of the step under a step order, from one percept: advance the clock,
-encode the frame under the current bank and the stored predictions, and select with
-the planning that order places before the action. The result holds everything the
-second part reads. -/
-def Agent.choose (state : Agent interface profile config criterion dimension planning)
-    (order : StepOrder) (percept : Percept interface) :
+/-- The first part of the step of an order whose first part is selection, from one
+percept: advance the clock, encode the frame under the current bank and the stored
+predictions, and select with the planning that order places before the action. The
+result holds everything the second part reads, and owes nothing. The hypothesis is
+erased: it keeps selection from making a chosen value of `actThenLearn`, whose first
+part is the draw-first dispatch. -/
+def Agent.chooseSelected (state : Agent interface profile config criterion dimension planning)
+    (order : StepOrder) (_selects : order ≠ .actThenLearn) (percept : Percept interface) :
     Chosen interface profile config criterion dimension planning :=
   let prepared := state.advanceClock
   let frame := prepared.frame percept.frame
   let selected := prepared.control.alignedSelect prepared.aligned (firstPlanning order planning)
     frame.active percept.frame percept.reward percept.frame.achieved
-  have kept := selected.1.1.deferred_frame order planning frame.active selected.1.2
-  ⟨order, percept, frame.active, frame.units, selected.1.1, selected.1.2,
+  have kept := selected.1.1.deferred_frame order planning frame.active .settled percept.reward
+    percept.frame.achieved selected.1.2
+  ⟨order, percept, frame.active, frame.units, selected.1.1, selected.1.2, .settled,
     TemporalControl.learn_aligned _
       (selected.1.1.deferred_aligned
         (prepared.control.select_aligned selected.1.1 prepared.aligned
           (firstPlanning order planning) frame.active percept.frame percept.reward
           percept.frame.achieved selected.1.2 selected.2)
-        order planning frame.active selected.1.2)
+        order planning frame.active .settled percept.reward percept.frame.achieved selected.1.2)
       frame.active percept.frame percept.reward percept.frame.achieved selected.1.2,
     prepared.control.learn_episodes selected.1.1 _ prepared.episodes
       (modelOperations criterion dimension) (planningBoundary (firstPlanning order planning))
       frame.active percept.frame percept.reward percept.frame.achieved selected.1.2 selected.2
       kept.1 kept.2.1⟩
 
-/-- The agent of a chosen value after every update that follows selection, before the
-tester: the deferred planning of its order, then the learning part. -/
+/-- The first part of the step under `actThenLearn`, from one percept: advance the
+clock, encode the frame, and make every draw of the step with
+`TemporalControl.drawFirst`, which takes the frame and no reward. The result holds the
+record of the writes that the second part makes from the reward. -/
+def Agent.chooseDrawn (state : Agent interface profile config criterion dimension planning)
+    (percept : Percept interface) :
+    Chosen interface profile config criterion dimension planning :=
+  let prepared := state.advanceClock
+  let frame := prepared.frame percept.frame
+  let drawn := prepared.control.alignedDraw prepared.aligned frame.active percept.frame
+    percept.frame.achieved
+  have kept := drawn.1.1.deferred_frame .actThenLearn planning frame.active drawn.1.2.1
+    percept.reward percept.frame.achieved drawn.1.2.2
+  ⟨.actThenLearn, percept, frame.active, frame.units, drawn.1.1, drawn.1.2.2, drawn.1.2.1,
+    TemporalControl.learn_aligned _
+      (drawn.1.1.deferred_aligned
+        (prepared.control.drawFirst_aligned drawn.1.1 prepared.aligned frame.active percept.frame
+          percept.frame.achieved drawn.1.2.1 drawn.1.2.2 drawn.2)
+        .actThenLearn planning frame.active drawn.1.2.1 percept.reward percept.frame.achieved
+        drawn.1.2.2)
+      frame.active percept.frame percept.reward percept.frame.achieved drawn.1.2.2,
+    prepared.control.learn_traced drawn.1.1 _ prepared.episodes frame.active percept.frame
+      percept.reward percept.frame.achieved drawn.1.2.2
+      (prepared.control.drawFirst_episodes drawn.1.1 (modelOperations criterion dimension)
+        (planningBoundary .none) frame.active percept.frame.declared percept.frame.achieved
+        drawn.1.2.1 drawn.1.2.2 prepared.episodes.2 drawn.2)
+      (fun primitive => prepared.control.drawFirst_primitive drawn.1.1
+        (modelOperations criterion dimension) (planningBoundary .none) frame.active
+        percept.frame.declared percept.frame.achieved drawn.1.2.1 drawn.1.2.2 primitive drawn.2)
+      kept.1 kept.2.1⟩
+
+/-- The first part of the step under a step order. Under `actThenLearn` it makes the
+draws and owes the writes that read the reward; under the other orders it is selection
+with the planning that order places before the action. -/
+def Agent.choose (state : Agent interface profile config criterion dimension planning)
+    (order : StepOrder) (percept : Percept interface) :
+    Chosen interface profile config criterion dimension planning :=
+  match order with
+  | .actThenLearn => state.chooseDrawn percept
+  | .learnThenAct => state.chooseSelected .learnThenAct (by decide) percept
+  | .planAfterAct => state.chooseSelected .planAfterAct (by decide) percept
+
+/-- The agent of a chosen value after every update that follows the first part, before
+the tester: the owed writes and the deferred planning of its order, then the learning
+part. -/
 def Chosen.learned (chosen : Chosen interface profile config criterion dimension planning) :
     Agent interface profile config criterion dimension planning :=
-  ⟨(chosen.control.deferred chosen.order planning chosen.features chosen.decision).learn
+  ⟨(chosen.control.deferred chosen.order planning chosen.features chosen.owed
+    chosen.percept.reward chosen.percept.frame.achieved chosen.decision).learn
     chosen.features chosen.percept.frame chosen.percept.reward chosen.percept.frame.achieved
     chosen.decision, chosen.aligned, chosen.episodes⟩
 
-/-- The second part of the step: the planning its order places after the action, every
-update that follows selection, then the receiver-owned tester on the same frame's unit
-outputs. It reads the chosen value only. -/
+/-- The second part of the step: the writes its order owes, the planning its order
+places after the action, every update that follows selection, then the receiver-owned
+tester on the same frame's unit outputs. It reads the chosen value only. -/
 def Chosen.learn (chosen : Chosen interface profile config criterion dimension planning) :
     Agent interface profile config criterion dimension planning :=
   chosen.learned.retire chosen.units
@@ -823,11 +1157,12 @@ theorem Agent.retire_control
   congrArg (fun agent : Agent interface profile config criterion dimension planning =>
     agent.retire active) (Agent.ext_control same)
 
-/-- The first part selects with the executed selection, on the once-advanced clock, the
-encoding of the percept's frame and the planning its order places before the action; a
-chosen value holds exactly that result. -/
+/-- The first part of an order whose first part is selection selects with the executed
+selection, on the once-advanced clock, the encoding of the percept's frame and the
+planning its order places before the action; a chosen value holds exactly that result
+and owes nothing. -/
 theorem Agent.choose_selected (state : Agent interface profile config criterion dimension planning)
-    (order : StepOrder) (percept : Percept interface) :
+    (order : StepOrder) (selects : order ≠ .actThenLearn) (percept : Percept interface) :
     state.advanceClock.control.select (firstPlanning order planning)
         (state.advanceClock.frame percept.frame).active
         percept.frame.declared percept.reward percept.frame.achieved =
@@ -835,10 +1170,39 @@ theorem Agent.choose_selected (state : Agent interface profile config criterion 
     (state.choose order percept).order = order ∧
     (state.choose order percept).percept = percept ∧
     (state.choose order percept).features = (state.advanceClock.frame percept.frame).active ∧
-    (state.choose order percept).units = (state.advanceClock.frame percept.frame).units :=
-  ⟨(state.advanceClock.control.alignedSelect state.advanceClock.aligned
-    (firstPlanning order planning) (state.advanceClock.frame percept.frame).active percept.frame
-    percept.reward percept.frame.achieved).2, rfl, rfl, rfl, rfl⟩
+    (state.choose order percept).units = (state.advanceClock.frame percept.frame).units ∧
+    (state.choose order percept).owed = .settled := by
+  cases order with
+  | actThenLearn => exact absurd rfl selects
+  | learnThenAct =>
+    exact ⟨(state.advanceClock.control.alignedSelect state.advanceClock.aligned
+      (firstPlanning .learnThenAct planning) (state.advanceClock.frame percept.frame).active
+      percept.frame percept.reward percept.frame.achieved).2, rfl, rfl, rfl, rfl, rfl⟩
+  | planAfterAct =>
+    exact ⟨(state.advanceClock.control.alignedSelect state.advanceClock.aligned
+      (firstPlanning .planAfterAct planning) (state.advanceClock.frame percept.frame).active
+      percept.frame percept.reward percept.frame.achieved).2, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- The first part under `actThenLearn` is the executed draw-first selection, on the
+once-advanced clock and the encoding of the percept's frame, with the no-planning
+boundary; a chosen value holds exactly that result. The draw-first selection takes the
+frame's declared potentials and its achievement event, and no reward. -/
+theorem Agent.choose_drawn (state : Agent interface profile config criterion dimension planning)
+    (percept : Percept interface) :
+    state.advanceClock.control.drawFirst (modelOperations criterion dimension)
+        (planningBoundary .none) (state.advanceClock.frame percept.frame).active
+        percept.frame.declared percept.frame.achieved =
+      some ((state.choose .actThenLearn percept).control,
+        (state.choose .actThenLearn percept).owed,
+        (state.choose .actThenLearn percept).decision) ∧
+    (state.choose .actThenLearn percept).order = .actThenLearn ∧
+    (state.choose .actThenLearn percept).percept = percept ∧
+    (state.choose .actThenLearn percept).features =
+      (state.advanceClock.frame percept.frame).active ∧
+    (state.choose .actThenLearn percept).units = (state.advanceClock.frame percept.frame).units :=
+  ⟨(state.advanceClock.control.alignedDraw state.advanceClock.aligned
+    (state.advanceClock.frame percept.frame).active percept.frame percept.frame.achieved).2,
+    rfl, rfl, rfl, rfl⟩
 
 /-- **Under the default order the two parts compose to the step.** For every agent state
 and percept, in every world, the executed step returns the agent the second part
@@ -848,7 +1212,7 @@ theorem Agent.act_parts (state : Agent interface profile config criterion dimens
     state.act percept = state.actOrdered .learnThenAct percept := by
   have stepped := state.advanceClock.control.step_selected planning
     (state.advanceClock.frame percept.frame).active percept.frame percept.reward
-    percept.frame.achieved _ _ (state.choose_selected .learnThenAct percept).1
+    percept.frame.achieved _ _ (state.choose_selected .learnThenAct (by decide) percept).1
   let result := state.advanceClock.control.alignedStep state.advanceClock.aligned planning
     (state.advanceClock.frame percept.frame).active percept.frame percept.reward
     percept.frame.achieved
@@ -870,25 +1234,59 @@ theorem Agent.choose_decision (state : Agent interface profile config criterion 
     (state.choose .learnThenAct percept).decision = (state.act percept).2 :=
   (congrArg Prod.snd (state.act_parts percept)).symm
 
-/-- **What the first part does not write.** Under both orders, for every agent state and
+/-- **What the first part does not write.** Under every order, for every agent state and
 percept, the chosen value holds the primitive controller and the prediction demons the
 agent held before the percept. The decision is therefore made while the reward of
-this percept has reached neither. The first part does write the meta-controller and
-the options. -/
+this percept has reached neither. Under `learnThenAct` and `planAfterAct` the first part
+does write the meta-controller and the options; under `actThenLearn` it takes no reward
+word (`Agent.choose_reward`). -/
 theorem Agent.choose_keeps (state : Agent interface profile config criterion dimension planning)
     (order : StepOrder) (percept : Percept interface) :
-    (state.choose order percept).control.Keeps state.control :=
-  TemporalControl.select_keeps state.advanceClock.control (modelOperations criterion dimension)
-    (planningBoundary (firstPlanning order planning))
-    (state.advanceClock.frame percept.frame).active
-    percept.frame.declared percept.reward percept.frame.achieved _ _
-    (state.choose_selected order percept).1
+    (state.choose order percept).control.Keeps state.control := by
+  cases order with
+  | actThenLearn =>
+    exact TemporalControl.drawFirst_keeps state.advanceClock.control
+      (modelOperations criterion dimension) (planningBoundary .none)
+      (state.advanceClock.frame percept.frame).active percept.frame.declared
+      percept.frame.achieved _ _ _ (state.choose_drawn percept).1
+  | learnThenAct =>
+    exact TemporalControl.select_keeps state.advanceClock.control
+      (modelOperations criterion dimension) (planningBoundary (firstPlanning .learnThenAct planning))
+      (state.advanceClock.frame percept.frame).active
+      percept.frame.declared percept.reward percept.frame.achieved _ _
+      (state.choose_selected .learnThenAct (by decide) percept).1
+  | planAfterAct =>
+    exact TemporalControl.select_keeps state.advanceClock.control
+      (modelOperations criterion dimension) (planningBoundary (firstPlanning .planAfterAct planning))
+      (state.advanceClock.frame percept.frame).active
+      percept.frame.declared percept.reward percept.frame.achieved _ _
+      (state.choose_selected .planAfterAct (by decide) percept).1
 
-/-- **The two orders differ at a free dispatch only.** For every agent state and percept
-whose decision under planning after the action records no meta decision, the whole
-step of that order is the executed step: the same next agent and the same decision.
-Every free dispatch records a meta decision (`TemporalControl.atBoundary_meta`), so the
-steps on which the orders can differ are those with a free dispatch. -/
+/-- **Under `actThenLearn` the first part does not read the reward word.** For every
+agent state, frame and two reward words, the first part returns the same temporal state,
+the same decision and the same owed record. Each is a result of
+`TemporalControl.drawFirst`, which has no reward parameter. The statement varies the
+reward word and fixes the frame, and the frame carries the achievement event (D8), which
+the first part reads. In the grid world the reward word is a function of that event
+(`Host.StepResult.reward_completion`), so two percepts that world produces with one
+frame have one reward word: there the statement says that no learner write of the reward
+precedes a draw, and it does not say that the action is independent of the event. -/
+theorem Agent.choose_reward (state : Agent interface profile config criterion dimension planning)
+    (frame : Frame interface) (first second : Binary32) :
+    (state.choose .actThenLearn ⟨frame, first⟩).control =
+        (state.choose .actThenLearn ⟨frame, second⟩).control ∧
+      (state.choose .actThenLearn ⟨frame, first⟩).decision =
+        (state.choose .actThenLearn ⟨frame, second⟩).decision ∧
+      (state.choose .actThenLearn ⟨frame, first⟩).owed =
+        (state.choose .actThenLearn ⟨frame, second⟩).owed :=
+  ⟨rfl, rfl, rfl⟩
+
+/-- **`planAfterAct` can differ from the default order at a free dispatch only.** For every
+agent state and percept whose decision under planning after the action records no meta
+decision, the whole step of that order is the executed step: the same next agent and the
+same decision. Every free dispatch records a meta decision
+(`TemporalControl.atBoundary_meta`), so the steps on which those two orders can differ are
+those with a free dispatch. -/
 theorem Agent.actOrdered_undrawn
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface)
@@ -900,11 +1298,11 @@ theorem Agent.actOrdered_undrawn
       (state.advanceClock.frame percept.frame).active percept.frame.declared percept.reward
       percept.frame.achieved = some ((state.choose .learnThenAct percept).control,
         (state.choose .learnThenAct percept).decision) :=
-    (state.choose_selected .learnThenAct percept).1
+    (state.choose_selected .learnThenAct (by decide) percept).1
   have moved := state.advanceClock.control.select_unplanned
     (modelOperations criterion dimension) (planningBoundary .none) (planningBoundary planning)
     (state.advanceClock.frame percept.frame).active percept.frame.declared percept.reward
-    percept.frame.achieved _ _ (state.choose_selected .planAfterAct percept).1 undrawn
+    percept.frame.achieved _ _ (state.choose_selected .planAfterAct (by decide) percept).1 undrawn
   have same := Option.some.inj (moved.symm.trans before)
   have controls := congrArg Prod.fst same
   have decisions := congrArg Prod.snd same
@@ -982,16 +1380,18 @@ theorem Agent.retire_rng (state : Agent interface profile config criterion dimen
   · rfl
   · exact congrArg (·.rng) (state.control.runtime.retire_references active)
 
-/-- **The second part makes no action draw.** Under both orders, for every chosen value,
+/-- **The second part makes no action draw.** Under every order, for every chosen value,
 the agent the second part returns holds the action generator the first part left.
 Every draw of an action, of a meta action and of an exploration run is in the first
 part. The tester's replacement draws are from the feature generator's own stream. -/
 theorem Chosen.learn_rng (chosen : Chosen interface profile config criterion dimension planning) :
     chosen.learn.control.runtime.references.rng = chosen.control.runtime.references.rng :=
   ((chosen.learned.retire_rng chosen.units).trans
-    ((chosen.control.deferred chosen.order planning chosen.features chosen.decision).learn_rng
+    ((chosen.control.deferred chosen.order planning chosen.features chosen.owed
+      chosen.percept.reward chosen.percept.frame.achieved chosen.decision).learn_rng
       chosen.features chosen.percept.frame chosen.percept.reward chosen.percept.frame.achieved
       chosen.decision)).trans
-    (chosen.control.deferred_frame chosen.order planning chosen.features chosen.decision).2.2
+    (chosen.control.deferred_frame chosen.order planning chosen.features chosen.owed
+      chosen.percept.reward chosen.percept.frame.achieved chosen.decision).2.2
 
 end Acorn.Handcrafted

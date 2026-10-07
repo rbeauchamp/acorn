@@ -37,6 +37,7 @@ import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentCertificates
 import AcornVerif.Kernel
 import AcornVerif.StepParts
+import AcornVerif.DrawFirst
 import AcornVerif.WorldClass
 import AcornVerif.Coverage
 import AcornVerif.CurrentGridWorld

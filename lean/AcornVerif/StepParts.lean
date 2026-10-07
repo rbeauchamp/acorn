@@ -19,7 +19,10 @@ default order it is `CurrentGridWorld.executedAgent` (`executedParts_agent`), so
 have one closed loop in every world. Under `planAfterAct` it is the kernel agent of
 `Agent.actOrdered .planAfterAct`, whose first part runs no planning. No theorem here
 states that it equals or differs from the default one; the two take the same step
-wherever the decision records no meta decision (`Agent.actOrdered_undrawn`).
+wherever the decision records no meta decision (`Agent.actOrdered_undrawn`). Under
+`actThenLearn` it is the kernel agent of `Agent.actOrdered .actThenLearn`, whose first
+part takes no reward; `AcornVerif.DrawFirst` states where that step is the step of
+`planAfterAct`.
 
 The loop of the kernel has no position for the world's transition: its world takes one
 transition for each action and waits for it. `memory_parts` restates the kernel's

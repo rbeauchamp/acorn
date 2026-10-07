@@ -10,6 +10,7 @@ import Acorn.Constants
 import Acorn.Host.Checkpoint.Admission
 import AcornVerif.CurrentConstants
 import AcornVerif.GridCorrespondence
+import AcornVerif.DrawFirst
 
 open Verso.Genre Manual
 open AcornSite
@@ -182,13 +183,43 @@ world:
 
 {statement Acorn.Handcrafted.Agent.act_parts}
 
-Under the other order planning follows the action.
+Under the order that plans after the action,
 {decl}`Acorn.Handcrafted.TemporalControl.atBoundary_unplanned` states that the meta
-draw of a free dispatch then reads the meta-controller before that frame's planning,
+draw of a free dispatch reads the meta-controller before that frame's planning,
 and {decl}`Acorn.Handcrafted.Agent.actOrdered_undrawn` that a step whose decision
-records no meta decision is the executed step under both orders.
-{decl}`Acorn.Handcrafted.Agent.choose_keeps` states that the first part writes neither
-the primitive controller nor a prediction demon, and
+records no meta decision is the executed step under that order and the default one.
+
+Under the order that acts before it learns, the first part makes every draw and takes
+no reward word. {decl}`Acorn.Handcrafted.Agent.choose_reward` states that two percepts
+with one frame give the same temporal state, decision and record of owed writes,
+whatever their reward words. The frame carries the achievement event, which the first
+part reads, so the statement does not make the action independent of that event.
+{decl}`AcornVerif.DrawFirst.actThenLearn_planAfterAct` states that
+this step is the step that plans after the action wherever the decision starts no
+option and no option closes at a free dispatch under the discounted criterion:
+
+{statement AcornVerif.DrawFirst.actThenLearn_planAfterAct}
+
+{decl}`AcornVerif.DrawFirst.drawBoundary_start` and
+{decl}`AcornVerif.DrawFirst.dispatchMeta_start` state what the first action of an
+option that starts reads in each case. The second also states that selection makes the
+writes of the start with {decl}`Acorn.Handcrafted.TemporalControl.startOption`, and
+{decl}`Acorn.Handcrafted.TemporalControl.settle_started` that the owed writes make them
+with the same function. {decl}`AcornVerif.DrawFirst.drawBoundary_unplanned` states what
+the meta draw of this order reads, and {decl}`AcornVerif.DrawFirst.drawFirst_assigns`
+that the assignment refresh precedes its draws.
+{decl}`AcornVerif.DrawFirst.selectWithOperations_form` and
+{decl}`AcornVerif.DrawFirst.drawFirst_form` state, for every state, frame and reward word
+and on every branch, that selection and the draw-first dispatch followed by its owed
+writes are one specification, {decl}`AcornVerif.DrawFirst.dispatchForm`, in two modes.
+That specification reads its mode in two places, so those are the places where the two
+orders can differ. The first is the free dispatch, and
+{decl}`AcornVerif.DrawFirst.boundaryForm_frozen` states that in a frozen profile it gives
+one result in both modes, also when its meta draw starts an option. The other place is
+an option that closes under the discounted criterion.
+
+Under every order {decl}`Acorn.Handcrafted.Agent.choose_keeps` states that the first
+part writes neither the primitive controller nor a prediction demon, and
 {decl}`Acorn.Handcrafted.Chosen.learn_rng` that the second part draws nothing from the
 action generator.
 

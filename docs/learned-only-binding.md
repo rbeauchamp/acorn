@@ -40,7 +40,7 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 The ranked profile uses learned assignments; the spatial comparison uses authored potentials, which a world's frame carries and the grid world's adapter produces. F1–F3 describe the questions around model quality, planning and feature selection.
 
-Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.AgentAlignment`, `Acorn.Handcrafted.AgentEpisodes`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
+Loci: `Acorn.Handcrafted.Observation`, `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.DrawFirst`, `Acorn.Handcrafted.AgentAlignment`, `Acorn.Handcrafted.AgentEpisodes`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,
@@ -104,7 +104,7 @@ an executing option's draw begins interrupts the option.
   Closing toward the meta value of the state alone would credit the option with
   a stop its model does not make.
 
-Loci: `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
+Loci: `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.DrawFirst`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,
@@ -115,7 +115,7 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 Domain-general learner coefficients and numerical rails are prescribed; per-feature step sizes adapt during learning. The off-policy questions of [PAR-18](prior-art-review.md#par-18--off-policy-questions) adapt none: their step size is the smaller of the demons' initial step size and their rate budget divided by the transition's active slots. They learn from no transition in which either active set exceeds 2¹⁶ slots, the size their rounding analysis covers.
 
-Loci: `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
+Loci: `Acorn.Handcrafted.PredictionControl`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.DrawFirst`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,
@@ -183,7 +183,7 @@ its whole stream. These figures are evaluations of the model, not theorems. The 
 [PAR-10](prior-art-review.md#par-10--derived-exploration-rate) remains a
 research-only selection.
 
-Loci: `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
+Loci: `Acorn.Handcrafted.FeatureProfile`, `Acorn.Handcrafted.TemporalProfile`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.DrawFirst`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
 
 *Replacement:* Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,
@@ -229,9 +229,9 @@ reviewed contract; usefulness requires separate prospective qualification.
 
 A frame carries whether the preceding transition achieved the goal the world installed (`Frame.achieved`), and the grid world's adapter sets it from the host's step result. The event is the world's judgment of its own goal. It is not computed from the agent's features, so it is an arrow outside the [OaK picture](design.md#the-oak-picture-and-the-executed-agent).
 
-Inside an option's stopping decision the event does one thing: it forces the ending with the reason `goal`, before the duration and estimate checks (`Skill.decideOption`, `decideOption_event`, `Skill.goal_ends`). The executing option takes that decision. Seven operations take the event for an option that is not executing and consult that same decision: the settling and the off-policy learning of a stored trajectory, the value an interrupted option's span closes toward, and the dispatch of the selected option. For each, where the outcomes of the stopping decisions agree under two events, the results agree (`settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`, `followSlot_event`, `followOptions_event`, `takeoverValue_event`, `dispatchMeta_event`). These theorems are about results and do not exclude every read of the event: a read where a decision continues sees a clear event and changes no result. A profile without a hierarchy has no option, and its local transition does not read the event (`step_event_primitive`). No theorem follows the event through selection as one statement; [the design](design.md#the-oak-picture-and-the-executed-agent) gives the open statement. The coder does not read the event (`frame_congr`). The completion boundary, which credits the primitive action values, the prediction learners and the options' questions, is handed the frame and reads it through its signal values only (`finish_signals`), so it does not read the event either. `CurrentOak.achievement` names this departure in the field `departure`, which every extra arrow must have; the event itself is a bare flag of the frame, so that declaration is checked by review and not by a type.
+Inside an option's stopping decision the event does one thing: it forces the ending with the reason `goal`, before the duration and estimate checks (`Skill.decideOption`, `decideOption_event`, `Skill.goal_ends`). The executing option takes that decision. Seven operations take the event for an option that is not executing and consult that same decision: the settling and the off-policy learning of a stored trajectory, the value an interrupted option's span closes toward, and the dispatch of the selected option. For each, where the outcomes of the stopping decisions agree under two events, the results agree (`settleFollowing_event`, `settleTemporal_event`, `followTemporal_event`, `followSlot_event`, `followOptions_event`, `takeoverValue_event`, `dispatchMeta_event`). These theorems are about results and do not exclude every read of the event: a read where a decision continues sees a clear event and changes no result. A profile without a hierarchy has no option, and its local transition does not read the event (`step_event_primitive`). No theorem follows the event through selection as one statement; [the design](design.md#the-oak-picture-and-the-executed-agent) gives the open statement. Under the step order `act-then-learn` the draw-first dispatch (`TemporalControl.drawFirst`) takes the event as selection does, to consult the executing option's stopping decision in the first part of the step, and no theorem follows the event through it either. The owed writes of that order (`TemporalControl.settle`) hand the event to the start of the selected option and read it nowhere else (`settle_unstarted`, `TemporalControl.settle_started`); for that start, for one option and for the option table, where the outcome of the stored trajectory's stopping decision agrees under two events the results agree (`startTemporal_event`, `startOption_event`). In the grid world the reward word is a function of the event (`StepResult.reward_completion`), so the first part of that order, which takes no reward word, still reads what the reward is computed from. The coder does not read the event (`frame_congr`). The completion boundary, which credits the primitive action values, the prediction learners and the options' questions, is handed the frame and reads it through its signal values only (`finish_signals`), so it does not read the event either. `CurrentOak.achievement` names this departure in the field `departure`, which every extra arrow must have; the event itself is a bare flag of the frame, so that declaration is checked by review and not by a type.
 
-Loci: `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.AgentAlignment`, `Acorn.Handcrafted.AgentEpisodes`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
+Loci: `Acorn.Handcrafted.GridWorld`, `Acorn.Handcrafted.TemporalControl`, `Acorn.Handcrafted.DrawFirst`, `Acorn.Handcrafted.AgentAlignment`, `Acorn.Handcrafted.AgentEpisodes`, `Acorn.Handcrafted.Agent`, `Acorn.Handcrafted.StepParts`.
 
 *Replacement:* Deliver the event as a word of the frame, so that an option's stopping is learned from features, or derive it from the option's own subtask. Move the relevant decision into learned state or a justified
 derivation while preserving the continuing setting, semantic compatibility,

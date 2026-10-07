@@ -212,9 +212,12 @@ pass composes give the stage those of a pass of `runAttemptSteps` give, and
 `runReleasedSteps_complete` proves that the loop returns the pure fold
 `Attempt.complete`. The step frame is delivered after the second part; it holds the
 pre-transition world and the learned agent. The reported agent duration is the sum of
-both parts, and the reported environment duration is the preceding transition's. -/
+both parts, and the reported environment duration is the preceding transition's. The
+loop takes the callbacks of an order that releases (`StepOrder.Releases`), so the
+callbacks of the default order do not reach it. -/
 def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks .planAfterAct α β) (observer : StreamObserver β) (context : GoalContext) :
+    (callbacks : AgentCallbacks order α β) (releases : order.Releases)
+    (observer : StreamObserver β) (context : GoalContext) :
     Nat → Attempt config α goal cap → RunnerResources →
       IO (Except (Refusal config α goal cap) (RunState config α × GoalOutcome × RunnerResources))
   | 0, attempt, resources => finishAttempt callbacks observer context attempt resources
@@ -243,7 +246,8 @@ def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
           (resources.capture update)) resources
         let resources := { resources with
           environmentUs := elapsedMicroseconds afterChoice afterRelease }
-        runReleasedSteps callbacks observer context fuel (environment.record callbacks) resources
+        runReleasedSteps callbacks releases observer context fuel (environment.record callbacks)
+          resources
 
 /-- Execute the admitted finite attempt through the same proved selection,
 world transition and bookkeeping, capturing only demanded step observations. The
@@ -256,7 +260,11 @@ def runAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64
   | .learnThenAct, callbacks =>
     runAttemptSteps callbacks observer context cap.toNat initial resources
   | .planAfterAct, callbacks =>
-    runReleasedSteps callbacks observer context cap.toNat initial resources
+    runReleasedSteps callbacks (fun same => StepOrder.noConfusion same) observer context cap.toNat
+      initial resources
+  | .actThenLearn, callbacks =>
+    runReleasedSteps callbacks (fun same => StepOrder.noConfusion same) observer context cap.toNat
+      initial resources
 
 /-! ## The native loops compute the pure fold
 
@@ -409,11 +417,12 @@ that the fold reaches from the start in accepted passes (`Attempt.complete_learn
 the second part runs exactly once on a refused pass in this loop, as it does in the
 default one, and on every accepted pass the next attempt is the fold's. -/
 theorem runReleasedSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
-    (callbacks : AgentCallbacks .planAfterAct α β) (observer : StreamObserver β) (context : GoalContext)
+    (callbacks : AgentCallbacks order α β) (releases : order.Releases)
+    (observer : StreamObserver β) (context : GoalContext)
     (fuel : Nat) (attempt : Attempt config α goal cap) (resources : RunnerResources)
     (world after : Void IO.RealWorld)
     (value : Except (Refusal config α goal cap) (RunState config α × GoalOutcome × RunnerResources))
-    (returned : runReleasedSteps callbacks observer context fuel attempt resources world =
+    (returned : runReleasedSteps callbacks releases observer context fuel attempt resources world =
       .ok value after) :
     AttemptAgrees (attempt.complete callbacks context fuel) value := by
   induction fuel generalizing attempt resources world with
@@ -491,7 +500,10 @@ theorem runAttempt_complete {config : WorldConfig} {α β : Type} {goal : Goal} 
     exact runAttemptSteps_complete callbacks observer context cap.toNat initial resources world
       after value returned
   | planAfterAct =>
-    exact runReleasedSteps_complete callbacks observer context cap.toNat initial resources world
+    exact runReleasedSteps_complete callbacks _ observer context cap.toNat initial resources world
+      after value returned
+  | actThenLearn =>
+    exact runReleasedSteps_complete callbacks _ observer context cap.toNat initial resources world
       after value returned
 
 /-- The reason a successfully running campaign returned. -/
