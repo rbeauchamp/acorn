@@ -37,7 +37,7 @@ a property of its accepted or refused results, or when the inputs it accepts fol
 unfolding its definition in this module. The property is the set of accepted or refused inputs
 where a theorem states one, and otherwise what an accepted or a refused result is; each
 contract's docstring says which. A contract states only what its theorem proves: a decision
-with one proved direction carries that direction alone. Seven groups are registered.
+with one proved direction carries that direction alone. Six groups are registered.
 
 * Decisions of independent arguments carry a kind and the registration. A function of several
   arguments is decided on their product through `Function.uncurry`.
@@ -56,15 +56,12 @@ with one proved direction carries that direction alone. Seven groups are registe
   `AcornVerif.Decisions`, is about what the readers of its result do with it. The proved
   statement is registered as a requirement with no kind, and the ownership audit requires it
   in the same way.
-* A verdict with more than two results has no kind: a kind is stated about an acceptance.
-  `Host.Microduck.Action.outcome` gives one of four outcomes. Its statement, that the function
-  gives an outcome exactly when the specification `Host.Microduck.Action.Judged` holds of it,
-  is registered as a requirement with no kind, and the ownership audit requires it in the same
-  way.
 * A function with a kind can carry a second statement beside it for what its kind does not
-  state: the value of an accepted result (`cli_value_found`), or the exact verdict on a part
-  of the inputs (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`). That
-  statement is a requirement with no kind, and the ownership audit requires it by name.
+  state: the value of an accepted result (`cli_value_found`), the exact verdict on a part
+  of the inputs (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`), or which
+  of several accepted results an input has (`microduck_outcome_judged`, for a verdict of four
+  outcomes whose kind states only which inputs are not refused). That statement is a
+  requirement with no kind, and the ownership audit requires it by name.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
@@ -1010,17 +1007,39 @@ theorem pace_meets : Regula.ExecutableContract Pace.meets (fun meets =>
 
 attribute [regula_decision] Pace.meets
 
-/-- What became of a released Microduck action: for every action, stated posture, answer of
-the daemon, evidence and outcome, the function gives the outcome exactly when the
-specification `Host.Microduck.Action.Judged` holds of it
+/-- The outcome of a released Microduck action is not a refusal exactly when the daemon
+accepted the commands of the release (`Host.Microduck.Action.outcome_accepted`). The inputs
+are the action, the stated posture, the daemon's answer and the evidence. The specification
+is the answer, an input that the function reads by a match on its two constructors; it shares
+no test with the function's two comparisons, of the evidence and of the action's intent with
+the stated posture. What the kind adds to the definition is that neither of those produces a
+refusal or hides one. `microduck_outcome_judged` states which of the four outcomes a result
+is. -/
+theorem microduck_outcome :
+    Regula.ExecutableContract Host.Microduck.Action.outcome (fun outcome =>
+      Regula.Decides (· ≠ .refused)
+        (fun input : ((Host.Microduck.Action × Bool) × Host.Microduck.Reply) × Bool =>
+          input.1.2 = .accepted)
+        (Function.uncurry (Function.uncurry (Function.uncurry outcome)))) :=
+  ⟨decides
+    (fun input =>
+      Host.Microduck.Action.outcome_accepted input.1.1.1 input.1.1.2 input.1.2 input.2)
+    ⟨(((.still, false), .accepted), true), rfl⟩
+    ⟨(((.still, false), .refused), true), by decide⟩⟩
+
+attribute [regula_decision] Host.Microduck.Action.outcome
+
+/-- Which of its four outcomes a released Microduck action has: for every action, stated
+posture, answer of the daemon, evidence and outcome, the function gives the outcome exactly
+when the specification `Host.Microduck.Action.Judged` holds of it
 (`Host.Microduck.Action.outcome_judged`). The specification is a disjunction of propositions
 about the two facts and about the commands the release sent; where the function compares the
 action's intent with the stated posture, the specification says that the release of a posture
-action sent no toggle, through `Host.Microduck.Action.commands`. The result is one of four
-outcomes and not an acceptance, so this is a requirement with no kind. It states nothing about
-how sensing shows an action, which no definition gives yet, or about what a caller does with
-the outcome. -/
-theorem microduck_outcome :
+action sent no toggle, through `Host.Microduck.Action.commands`. A kind states the accepted
+inputs and not which accepted result an input has, so this statement is a requirement with no
+kind beside the kind `microduck_outcome`. It states nothing about how sensing shows an action,
+which no definition gives yet, or about what a caller does with the outcome. -/
+theorem microduck_outcome_judged :
     Regula.ExecutableContract Host.Microduck.Action.outcome (fun outcome =>
       ∀ (action : Host.Microduck.Action) (sitting : Bool) (reply : Host.Microduck.Reply)
         (shown : Bool) (result : Host.Microduck.Outcome),

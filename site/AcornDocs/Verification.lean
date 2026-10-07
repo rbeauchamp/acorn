@@ -268,11 +268,16 @@ release plus the action's declared duration and a transit allowance:
 {statement Acorn.Host.Microduck.Action.next_covers}
 
 That a host senses the next percept at that cycle and no earlier is an obligation of a
-host loop, which is not built. {decl}`Acorn.Host.Microduck.Bridge.ticks_named` states that
-over any list of readings of the clock every command sent is the velocity of the action
-that the bridge's force names at that reading, and
-{decl}`Acorn.Host.Microduck.Bridge.tick_lapsed` that from the end of the hold the force
-names the world's default and nothing is sent. {decl}`Acorn.Host.Microduck.Bridge.fault_named`
+host loop, which is not built. A bridge's state stores the record of its release, and the
+cycle of the next percept and the end of the hold are functions of that record, so
+{decl}`Acorn.Host.Microduck.Bridge.next_covers` holds of every state.
+{decl}`Acorn.Host.Microduck.Bridge.ticks_named` states that over any list of readings of
+the clock every command sent is the velocity of the action that the standing after the
+release names at that reading, and {decl}`Acorn.Host.Microduck.Bridge.tick_lapsed` that
+from the end of the hold that standing names the world's default and nothing is sent. At
+the instant of a release itself the deadline rule still names the preceding action, by its
+convention that an action is in force after the instant of its release.
+{decl}`Acorn.Host.Microduck.Bridge.fault_named`
 states the action in force during a fault: the preceding action up to the end of its
 hold, and the default from it. {decl}`Acorn.Host.Microduck.Bridge.tick_fresh` and
 {decl}`Acorn.Host.Microduck.Bridge.Fresh.age` bound the age of the last send of a
@@ -405,11 +410,9 @@ A decision procedure whose result type is `Decidable` carries both directions in
 its type and is registered with no contract. An admission with an argument or
 result type that depends on an earlier argument has no kind. Neither has a
 function between fixed types for which no theorem states a set of the inputs
-that it accepts, nor a verdict with more than two results, such as the outcome of a
-released Microduck action. Where a theorem
-proves which inputs it accepts or refuses, a property of an accepted or a
-refused result, or which result a verdict gives, that statement is registered as a
-requirement with no kind, and
+that it accepts. Where a theorem
+proves which inputs it accepts or refuses, or a property of an accepted or a
+refused result, that statement is registered as a requirement with no kind, and
 the ownership audit requires the contract by name. A decision that takes its
 element type as an argument has no kind either and is registered in the same
 way. A requirement with no kind is a statement that the Regula audit does not

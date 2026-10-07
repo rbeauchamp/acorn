@@ -320,12 +320,13 @@ force after the instant of its release):
   through the whole fault;
 - from the lapse of the preceding force, the fault has the world's default
   (`Pace.step_lapsed`);
-- after the release the chosen action is in force (`Pace.step_action`);
+- after the release the outcome follows the chosen force: its action until its lapse,
+  and the default from it (`Pace.step_action`);
 - no instant has a fault exactly when the release meets the deadline
   (`Pace.step_faultless`).
 
-These hold for every instant of release, so in that step a late action is in force
-after its late release. With a cycle of 200 ms, a latency of one cycle, the action
+These hold for every instant of release, so in that step the force of a late action
+is the one that counts after its late release. With a cycle of 200 ms, a latency of one cycle, the action
 of cycle 0 released at 250 ms and no lapse, the fault holds from 200 ms to 250 ms
 with the preceding action in force, and the chosen action is in force after 250 ms.
 
@@ -666,7 +667,7 @@ not. The durations are the observed lengths of the skills with a margin.
 **No percept falls inside a running skill.** The declared pace is an action cycle of
 200 ms and a latency of one cycle. The cycle of the percept after an action is
 computed from the instant the action is released at, whether that release was timely
-or late: `Action.next` is the first cycle that starts no earlier than the release
+or late: `Action.next` (`Bridge.next` for a bridge's state) is the first cycle that starts no earlier than the release
 plus the action's declared duration and a transit allowance, and it is after the
 action's own cycle. `Action.next_covers` states the first property with no
 hypothesis on the release, and `Action.next_least` that no earlier cycle after the
@@ -674,8 +675,8 @@ action's own has it. With the pick of cycle 0 released late, at 1 s, the next pe
 is of cycle 21, which starts at 4.2 s, after the 4.01 s at which the declared
 duration and the allowance have passed. A fixed number of cycles from the action's
 own percept would not do: counted from cycle 0 it can end inside the skill. A host
-owes that it senses the next percept at that cycle and no earlier. The bridge's
-state holds the cycle, and nothing in it refuses an earlier release.
+owes that it senses the next percept at that cycle and no earlier. Nothing in the
+bridge's state refuses an earlier release.
 
 **The commands.** `Command` is everything a bridge can send: enable the policy, one
 of the table's four velocities, one of five skills. It is a closed finite type. It
@@ -691,17 +692,21 @@ toggle. `sit` and `stand` are two actions, and a release takes the posture of th
 body as its caller states it: the toggle is sent exactly when the action asks for
 the other posture (`Action.commands_toggle`).
 
-**Keeping a velocity alive, for a bounded time.** A `Bridge` holds the action
-released last, the posture stated at that release, the instant its velocity was last
-sent at, the cycle of the next percept and the instant its hold ends. A release
-gives a state that depends on no earlier state (`Bridge.release_state`,
-`Bridge.release_next`). The hold ends a declared number of cycles, the grace, after
-the deadline of the next percept's action (`Bridge.release_held`), so a next release
-that meets its deadline is inside the hold (`Bridge.release_covers`). `Bridge.tick`
-is one reading of the clock between two releases: it sends the action's velocity
-again when that velocity is not zero, the last send has reached the declared resend
-age and the hold has not ended. A zero velocity is not sent again, because the
-daemon's expiry gives zero.
+**Keeping a velocity alive, for a bounded time.** A `Bridge` holds the record of the
+last release (the action, the stated posture, the cycle of the action's percept and
+the instant of the release) and the instant the action's velocity was last sent at.
+A release gives a state that depends on no earlier state (`Bridge.release_state`).
+The cycle of the next percept and the end of the hold are not stored: `Bridge.next`
+and `Bridge.ends` are functions of the release record, so no state holds a next
+cycle or an end that its release does not give, and `Bridge.next_covers` holds of
+every state. The hold ends a declared number of cycles, the grace, after the
+deadline of the next percept's action (`Bridge.ends_held`), so a next release that
+meets its deadline is inside the hold (`Bridge.ends_covers`). `Bridge.tick` is one
+reading of the clock between two releases: it sends the action's velocity again when
+that velocity is not zero, the last send has reached the declared resend age and the
+hold has not ended, and it changes nothing but the instant of the last send
+(`Bridge.tick_keeps`). A zero velocity is not sent again, because the daemon's
+expiry gives zero.
 
 **A longer fault ends the held action on purpose.** The daemon's expiry is the
 vendor's protection against a client that has stopped. A bridge that sent a velocity
@@ -716,24 +721,30 @@ cycle 0 and the next release at 2 s, the next percept is of cycle 1, its deadlin
 400 ms and the hold ends at 800 ms: the fault names forward from 400 ms and
 standing still from 800 ms.
 
-What the bridge sends and what the force names agree at every instant:
+What the bridge sends and what the deadline rule names agree after a release:
 
-- at the release the force names the action (`Bridge.release_named`), whose velocity
-  is the first command of the release;
+- at every instant after the instant of a release and before the end of its hold,
+  the outcome of the step names the released action (`Bridge.release_named`), whose
+  velocity is the first command of the release;
 - over any list of readings, in any order, every command sent is the velocity of the
-  action that the force names at that reading, and that velocity is not zero
-  (`Bridge.ticks_named`, `Bridge.ticks_sent`);
-- from the end of the hold the force names the default and a tick sends nothing
+  action that the standing after the release names at that reading, and that
+  velocity is not zero (`Bridge.ticks_named`, `Bridge.ticks_sent`);
+- from the end of the hold that standing names the default and a tick sends nothing
   (`Bridge.tick_lapsed`);
 - inside the hold, after a tick, the last send of a velocity that is not zero is
   younger than the resend age, and until the next reading it stays younger than the
   resend age plus the gap to that reading (`Bridge.tick_fresh`,
   `Bridge.release_fresh`, `Bridge.Fresh.age`).
 
-The force names what the bridge keeps in force and not what the body does: after
-the end of the hold the daemon still holds the last velocity it received until its
-own expiry, so the body can move for up to that long after the force names the
-default.
+At the instant of a release itself the two differ: the deadline rule counts an
+action as in force after the instant it is released at, so the outcome still names
+the preceding action there, and the bridge has sent the new velocity.
+
+The force names what the bridge keeps in force and not what the body does. The last
+send of a velocity can be just before the end of the hold. Under the assumptions
+below the daemon receives it at most the transit allowance later and holds it for
+its expiry, so the body can move for less than the expiry plus the transit allowance
+after the force names the default: less than 510 ms with the declared numbers.
 
 The declared numbers are a resend age of 100 ms, a grace of two cycles and a transit
 allowance of 10 ms, with an allowed gap of 50 ms between two readings of the clock.
@@ -759,7 +770,9 @@ stated posture, the daemon's answer and whether the body showed the action:
 for the stated posture still reports them. `Action.Judged` is the specification, in
 propositions about the two facts and about the commands the release sent, and
 `Action.outcome_judged` states that the function gives an outcome exactly when the
-specification holds of it; it is a registered contract. `Bridge.outcome` reads the
+specification holds of it. The outcome is a refusal exactly when the daemon refused
+(`Action.outcome_accepted`); that is its registered decision kind, and the four-case
+statement is registered beside it. `Bridge.outcome` reads the
 posture that the state holds from the release, so the commands and the outcome of
 one release read one posture (`Bridge.release_outcome`). A late release is not an
 outcome: it is the fault of [the deadline rule](#the-time-a-world-declares). How

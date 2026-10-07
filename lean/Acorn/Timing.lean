@@ -73,8 +73,9 @@ deadline (`Pace.step_faultless`). At every instant of the fault at which the pre
 force has not lapsed, the preceding action is in force (`Pace.step_holds`); a force with
 no lapse has lapsed at no instant, so in a world whose actions do not lapse the preceding
 action holds through the whole fault. From the lapse of the preceding force, the fault
-has the world's default (`Pace.step_lapsed`). The chosen action is in force after its
-release, however late the release is (`Pace.step_action`).
+has the world's default (`Pace.step_lapsed`). After the release, however late it is, the
+outcome follows the chosen force: its action until its lapse, and the default from it
+(`Pace.step_action`).
 
 When the earlier of two actions is released at or after the start of its percept's
 cycle and the later one meets its deadline, for percepts `span` cycles apart, the later

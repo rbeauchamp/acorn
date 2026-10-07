@@ -10,23 +10,26 @@ import Acorn.Host.Microduck.Action
 
 The control daemon replaces a velocity intent by zero when the intent is 500 ms old, so
 a client that wants a velocity to stay in force sends it again. A `Bridge` is what a
-bridge holds between two events: the action released last, the posture its caller
-stated at that release, the instant its velocity was last sent at, the cycle of the
-next percept, and the instant its hold ends.
+bridge holds between two events: the record of the last release (the action, the posture
+its caller stated, the cycle of the action's percept and the instant of the release) and
+the instant the action's velocity was last sent at.
 
 `Bridge.release` is the release of an action for the percept of a cycle. It gives the
 action's commands and a state that depends on no earlier state (`Bridge.release_state`).
-The cycle of the next percept is `Action.next` of the instant of the release, so for
-every release, timely or late, that cycle starts no earlier than the release plus the
-action's declared duration and the transit allowance (`Bridge.release_next`). The hold
-ends a declared number of cycles, the grace, after the deadline of the next percept's
-action (`Bridge.release_held`), so a next release that meets its deadline is inside the
-hold (`Bridge.release_covers`).
+The cycle of the next percept and the end of the hold are not stored: `Bridge.next` and
+`Bridge.ends` are functions of the release record, so no state holds a next cycle or an
+end that its release does not give. For every state, the cycle of the next percept is
+after the action's own and starts no earlier than the release plus the action's declared
+duration and the transit allowance, whether the release was timely or late
+(`Bridge.next_covers`). The hold ends a declared number of cycles, the grace, after the
+deadline of the next percept's action (`Bridge.ends_held`), so a next release that meets
+its deadline is inside the hold (`Bridge.ends_covers`).
 
 `Bridge.tick` is one reading of the clock between two releases. It sends the action's
 velocity again when that velocity is not zero, the hold has not ended and the last send
-has reached a declared age. A zero velocity is not sent again: the daemon's expiry gives
-zero by itself.
+has reached a declared age, and it changes nothing but the instant of the last send
+(`Bridge.tick_keeps`). A zero velocity is not sent again: the daemon's expiry gives zero
+by itself.
 
 ## The hold is bounded on purpose
 
@@ -38,19 +41,27 @@ hold as its lapse, and the world's declared default, `Declared.rest`, is the act
 stands still. During a fault the action in force is the preceding action up to the end
 of the hold and the default from it (`Bridge.fault_named`).
 
-What the bridge sends and what the force names agree at every instant. At the release
-the force names the action (`Bridge.release_named`), whose velocity is the first command
-of the release (`Action.commands_head`). Over any list of readings, in any order, every
-command sent is the velocity of the action that the force names at that reading
-(`Bridge.ticks_named`). From the end of the hold the force names the default and a tick
-sends nothing (`Bridge.tick_lapsed`). Inside the hold, after a tick, the last send of a
-velocity that is not zero is younger than the resend age (`Bridge.tick_fresh`, and
-`Bridge.release_fresh` at the release), and until the next reading it stays younger than
-the resend age plus the gap to that reading (`Bridge.Fresh.age`).
+What the bridge sends and what the deadline rule names agree after a release. At every
+instant after the instant of a release and before the end of its hold, the outcome of
+the step names the released action (`Bridge.release_named`), whose velocity is the first
+command of the release (`Action.commands_head`). Over any list of readings, in any
+order, every command sent is the velocity of the action that the standing after the
+release names at that reading (`Bridge.ticks_named`). From the end of the hold that
+standing names the default and a tick sends nothing (`Bridge.tick_lapsed`). At the
+instant of a release itself the two differ: the deadline rule counts an action as in
+force after the instant it is released at, so the outcome still names the preceding
+action there, and the bridge has sent the new velocity.
 
-The force names what the bridge keeps in force, not what the body does. After the end
-of the hold the daemon still holds the last velocity it received until its own expiry,
-so the body can move for up to that long after the force names the default.
+Inside the hold, after a tick, the last send of a velocity that is not zero is younger
+than the resend age (`Bridge.tick_fresh`, and `Bridge.release_fresh` at the release),
+and until the next reading it stays younger than the resend age plus the gap to that
+reading (`Bridge.Fresh.age`).
+
+The force names what the bridge keeps in force, not what the body does. The last send of
+a velocity can be just before the end of the hold. Under the assumptions below the
+daemon receives it at most the transit allowance later and holds it for its expiry, so
+the body can move for less than the expiry plus the transit allowance after the force
+names the default: less than 510 ms with the declared numbers.
 
 ## What became of an action
 
@@ -58,12 +69,13 @@ so the body can move for up to that long after the force names the default.
 code has to tell apart: `refused`, `unexecuted` (accepted, and the body did not show
 it), `unchanged` (accepted and shown, for a posture the body had, so no skill was sent)
 and `executed`. A refusal and a missing execution are read first, so an action that
-asks for the stated posture still reports them. `Action.Judged` is the specification, in
-propositions about the commands the release sent, and `Action.outcome_judged` states
-that the function gives an outcome exactly when the specification holds of it.
-`Bridge.outcome` reads the posture that the state holds from the release, so the
-commands and the outcome of one release read one posture. How sensing shows an action is
-not defined here: the outcome takes that fact as an input.
+asks for the stated posture still reports them. The outcome is a refusal exactly when
+the daemon refused (`Action.outcome_accepted`). `Action.Judged` is the specification of
+all four outcomes, in propositions about the commands the release sent, and
+`Action.outcome_judged` states that the function gives an outcome exactly when the
+specification holds of it. `Bridge.outcome` reads the posture that the state holds from
+the release, so the commands and the outcome of one release read one posture. How
+sensing shows an action is not defined here: the outcome takes that fact as an input.
 
 ## Assumptions
 
@@ -83,8 +95,8 @@ These are assumptions of the use of the statements, proved nowhere:
 
 No executing code keeps a `Bridge`: the functions here are pure, and the host loop that
 calls them is not built (https://github.com/rbeauchamp/acorn/issues/95). A host owes
-that it senses the next percept at the cycle the state names and no earlier; the state
-holds that cycle, and nothing in it refuses an earlier release.
+that it senses the next percept at the cycle `Bridge.next` gives and no earlier; nothing
+in the state refuses an earlier release.
 -/
 namespace Acorn.Host.Microduck
 
@@ -101,48 +113,57 @@ structure Keep where
   /-- A velocity is not sent again at the instant it was sent at. -/
   spaced : 0 < resend
 
-/-- What a bridge holds between two events. -/
+/-- What a bridge holds between two events: the record of the last release, and the
+instant its velocity was last sent at. -/
 structure Bridge where
   /-- The action released last. -/
   action : Action
   /-- The posture of the body as the caller stated it at that release. -/
   sitting : Bool
+  /-- The cycle of the percept the action was released for. -/
+  index : Nat
+  /-- The instant of the release. -/
+  released : Instant
   /-- The instant the action's velocity was last sent at. -/
   sent : Instant
-  /-- The cycle of the next percept. -/
-  next : Nat
-  /-- The instant from which the bridge sends that velocity no more. -/
-  ends : Instant
 
 /-- Release an action at an instant for the percept of a cycle, for the posture of the
 body as the caller states it: the state after the release, and the action's commands. -/
-def Bridge.release (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now : Instant) (sitting : Bool) (action : Action) : Bridge × List Command :=
-  (⟨action, sitting, now, action.next pace keep.transit origin index now,
-      pace.boundary origin
-        (action.next pace keep.transit origin index now + pace.latency + keep.grace)⟩,
-    action.commands sitting)
+def Bridge.release (index : Nat) (now : Instant) (sitting : Bool) (action : Action) :
+    Bridge × List Command :=
+  (⟨action, sitting, index, now, now⟩, action.commands sitting)
+
+/-- The cycle of the next percept, from the release record. -/
+def Bridge.next (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge) : Nat :=
+  bridge.action.next pace keep.transit origin bridge.index bridge.released
+
+/-- The instant from which the bridge sends the action's velocity no more: the start of
+the cycle `latency + grace` cycles after the next percept's. -/
+def Bridge.ends (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge) : Instant :=
+  pace.boundary origin (bridge.next pace keep origin + pace.latency + keep.grace)
 
 /-- One reading of the clock between two releases: send the action's velocity again when
 it is not zero, the hold has not ended and the last send is at least the resend age
 old. -/
-def Bridge.tick (keep : Keep) (bridge : Bridge) (now : Instant) : Bridge × Option Command :=
-  if bridge.action.velocity ≠ .zero ∧ now.nanoseconds < bridge.ends.nanoseconds ∧
+def Bridge.tick (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (now : Instant) : Bridge × Option Command :=
+  if bridge.action.velocity ≠ .zero ∧
+      now.nanoseconds < (bridge.ends pace keep origin).nanoseconds ∧
       bridge.sent.nanoseconds + keep.resend ≤ now.nanoseconds then
     ({ bridge with sent := now }, some (.move bridge.action.velocity))
   else (bridge, none)
 
 /-- The ticks of a list of readings, in the order of the list: the state after them, and
 each command sent with the reading it was sent at. -/
-def Bridge.ticks (keep : Keep) (bridge : Bridge) :
+def Bridge.ticks (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge) :
     List Instant → Bridge × List (Instant × Command)
   | [] => (bridge, [])
   | now :: rest =>
-    match (bridge.tick keep now).2 with
+    match (bridge.tick pace keep origin now).2 with
     | some command =>
-      (((bridge.tick keep now).1.ticks keep rest).1,
-        (now, command) :: ((bridge.tick keep now).1.ticks keep rest).2)
-    | none => (bridge.tick keep now).1.ticks keep rest
+      (((bridge.tick pace keep origin now).1.ticks pace keep origin rest).1,
+        (now, command) :: ((bridge.tick pace keep origin now).1.ticks pace keep origin rest).2)
+    | none => (bridge.tick pace keep origin now).1.ticks pace keep origin rest
 
 /-- The last send is younger than the resend age at an instant. -/
 def Bridge.Fresh (keep : Keep) (bridge : Bridge) (now : Instant) : Prop :=
@@ -150,99 +171,89 @@ def Bridge.Fresh (keep : Keep) (bridge : Bridge) (now : Instant) : Prop :=
 
 /-- The force of a state for the deadline rule: its action, which lapses at the end of
 the hold. -/
-def Bridge.force (bridge : Bridge) : Force Action := ⟨some bridge.action, some bridge.ends⟩
+def Bridge.force (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge) :
+    Force Action :=
+  ⟨some bridge.action, some (bridge.ends pace keep origin)⟩
 
-/-- **The state and the commands of a release.** For every pace, keeping, origin, cycle,
-instant, stated posture and action: the state holds the action, the stated posture, the
-instant of the release as the last send, the cycle of the next percept, and a hold that
-ends at the start of the cycle `latency + grace` cycles after that one; the commands are
-the action's. No earlier state is an input. -/
-theorem Bridge.release_state (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now : Instant) (sitting : Bool) (action : Action) :
-    (Bridge.release pace keep origin index now sitting action).1 =
-        ⟨action, sitting, now, action.next pace keep.transit origin index now,
-          pace.boundary origin
-            (action.next pace keep.transit origin index now + pace.latency + keep.grace)⟩ ∧
-      (Bridge.release pace keep origin index now sitting action).2 =
-        action.commands sitting :=
+/-- **The state and the commands of a release.** For every cycle, instant, stated posture
+and action: the state is the record of the release, with the instant of the release as
+the last send, and the commands are the action's. No earlier state is an input. -/
+theorem Bridge.release_state (index : Nat) (now : Instant) (sitting : Bool) (action : Action) :
+    (Bridge.release index now sitting action).1 = ⟨action, sitting, index, now, now⟩ ∧
+      (Bridge.release index now sitting action).2 = action.commands sitting :=
   ⟨rfl, rfl⟩
 
 /-- **No percept falls inside the declared duration of the released action.** For every
-release, timely or late: the cycle of the next percept is after the cycle of the action's
-own percept, and it starts no earlier than the release plus the action's declared
-duration and the transit allowance. -/
-theorem Bridge.release_next (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now : Instant) (sitting : Bool) (action : Action) :
-    index < (Bridge.release pace keep origin index now sitting action).1.next ∧
-      now.nanoseconds + action.duration + keep.transit ≤
-        (pace.boundary origin
-          (Bridge.release pace keep origin index now sitting action).1.next).nanoseconds :=
-  ⟨action.next_after pace keep.transit origin index now,
-    action.next_covers pace keep.transit origin index now⟩
+state, whether its release was timely or late: the cycle of the next percept is after
+the cycle of the action's own percept, and it starts no earlier than the release plus
+the action's declared duration and the transit allowance. -/
+theorem Bridge.next_covers (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge) :
+    bridge.index < bridge.next pace keep origin ∧
+      bridge.released.nanoseconds + bridge.action.duration + keep.transit ≤
+        (pace.boundary origin (bridge.next pace keep origin)).nanoseconds :=
+  ⟨bridge.action.next_after pace keep.transit origin bridge.index bridge.released,
+    bridge.action.next_covers pace keep.transit origin bridge.index bridge.released⟩
 
-/-- **The hold ends the grace after the next deadline.** For every release, the hold ends
+/-- **The hold ends the grace after the next deadline.** For every state, the hold ends
 `grace` cycles after the deadline of the action of the next percept. -/
-theorem Bridge.release_held (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now : Instant) (sitting : Bool) (action : Action) :
-    (Bridge.release pace keep origin index now sitting action).1.ends.nanoseconds =
-      (pace.deadline origin
-        (Bridge.release pace keep origin index now sitting action).1.next).nanoseconds +
-          keep.grace * pace.cycle := by
-  show (pace.boundary origin
-    (action.next pace keep.transit origin index now + pace.latency + keep.grace)).nanoseconds =
-      (pace.deadline origin (action.next pace keep.transit origin index now)).nanoseconds +
-        keep.grace * pace.cycle
+theorem Bridge.ends_held (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge) :
+    (bridge.ends pace keep origin).nanoseconds =
+      (pace.deadline origin (bridge.next pace keep origin)).nanoseconds +
+        keep.grace * pace.cycle := by
+  unfold Bridge.ends
   rw [pace.boundary_nanoseconds, pace.deadline_nanoseconds, Nat.add_mul, Nat.add_assoc]
 
-/-- **A release that meets its deadline arrives inside the hold.** For every release:
-when the action of the next percept meets its deadline, that next release is before the
-end of the hold. -/
-theorem Bridge.release_covers (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now second : Instant) (sitting : Bool) (action : Action)
-    (met : pace.meets origin
-      (Bridge.release pace keep origin index now sitting action).1.next second = true) :
-    second.nanoseconds <
-      (Bridge.release pace keep origin index now sitting action).1.ends.nanoseconds := by
+/-- **A release that meets its deadline arrives inside the hold.** For every state: when
+the action of the next percept meets its deadline, that next release is before the end
+of the hold. -/
+theorem Bridge.ends_covers (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (second : Instant)
+    (met : pace.meets origin (bridge.next pace keep origin) second = true) :
+    second.nanoseconds < (bridge.ends pace keep origin).nanoseconds := by
   have verdict := (pace.meets_iff origin _ second).mp met
-  have held := Bridge.release_held pace keep origin index now sitting action
-  have due := pace.deadline_nanoseconds origin
-    (Bridge.release pace keep origin index now sitting action).1.next
+  have held := bridge.ends_held pace keep origin
+  have due := pace.deadline_nanoseconds origin (bridge.next pace keep origin)
   omega
 
 /-- The velocity is fresh at the instant of its release. -/
-theorem Bridge.release_fresh (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now : Instant) (sitting : Bool) (action : Action) :
-    (Bridge.release pace keep origin index now sitting action).1.Fresh keep now :=
+theorem Bridge.release_fresh (keep : Keep) (index : Nat) (now : Instant) (sitting : Bool)
+    (action : Action) : (Bridge.release index now sitting action).1.Fresh keep now :=
   Nat.lt_add_of_pos_right keep.spaced
 
 /-- **A tick sends the action's velocity and no other command.** A command that a tick
 sends is the velocity of the state's action, which is not zero, at an instant before the
 end of the hold. -/
-theorem Bridge.tick_command (keep : Keep) (bridge : Bridge) (now : Instant) (command : Command)
-    (sent : (bridge.tick keep now).2 = some command) :
+theorem Bridge.tick_command (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (now : Instant) (command : Command)
+    (sent : (bridge.tick pace keep origin now).2 = some command) :
     command = .move bridge.action.velocity ∧ bridge.action.velocity ≠ .zero ∧
-      now.nanoseconds < bridge.ends.nanoseconds := by
+      now.nanoseconds < (bridge.ends pace keep origin).nanoseconds := by
   unfold Bridge.tick at sent
   split at sent
   · rename_i due
     exact ⟨(Option.some.inj sent).symm, due.1, due.2.1⟩
   · cases sent
 
-/-- **A tick keeps the action, the stated posture, the next cycle and the end of the
-hold.** -/
-theorem Bridge.tick_keeps (keep : Keep) (bridge : Bridge) (now : Instant) :
-    (bridge.tick keep now).1.action = bridge.action ∧
-      (bridge.tick keep now).1.sitting = bridge.sitting ∧
-      (bridge.tick keep now).1.next = bridge.next ∧
-      (bridge.tick keep now).1.ends = bridge.ends := by
+/-- **A tick keeps the release record.** A tick changes neither the action, nor the
+stated posture, nor the cycle, nor the instant of the release, so it changes neither the
+cycle of the next percept nor the end of the hold. -/
+theorem Bridge.tick_keeps (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (now : Instant) :
+    (bridge.tick pace keep origin now).1.action = bridge.action ∧
+      (bridge.tick pace keep origin now).1.sitting = bridge.sitting ∧
+      (bridge.tick pace keep origin now).1.next pace keep origin =
+        bridge.next pace keep origin ∧
+      (bridge.tick pace keep origin now).1.ends pace keep origin =
+        bridge.ends pace keep origin := by
   unfold Bridge.tick
   split <;> exact ⟨rfl, rfl, rfl, rfl⟩
 
 /-- **Nothing is sent from the end of the hold.** For every state and instant: a tick at
 or after the end of the hold sends nothing and changes nothing. -/
-theorem Bridge.tick_ended (keep : Keep) (bridge : Bridge) (now : Instant)
-    (ended : bridge.ends.nanoseconds ≤ now.nanoseconds) :
-    bridge.tick keep now = (bridge, none) := by
+theorem Bridge.tick_ended (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (now : Instant)
+    (ended : (bridge.ends pace keep origin).nanoseconds ≤ now.nanoseconds) :
+    bridge.tick pace keep origin now = (bridge, none) := by
   unfold Bridge.tick
   split
   · rename_i due
@@ -252,10 +263,10 @@ theorem Bridge.tick_ended (keep : Keep) (bridge : Bridge) (now : Instant)
 /-- **After a tick inside the hold a velocity that is not zero is fresh.** For every
 state whose action has a velocity that is not zero, and every instant before the end of
 the hold: after the tick, the last send is younger than the resend age. -/
-theorem Bridge.tick_fresh (keep : Keep) (bridge : Bridge) (now : Instant)
-    (moving : bridge.action.velocity ≠ .zero)
-    (inside : now.nanoseconds < bridge.ends.nanoseconds) :
-    (bridge.tick keep now).1.Fresh keep now := by
+theorem Bridge.tick_fresh (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (now : Instant) (moving : bridge.action.velocity ≠ .zero)
+    (inside : now.nanoseconds < (bridge.ends pace keep origin).nanoseconds) :
+    (bridge.tick pace keep origin now).1.Fresh keep now := by
   unfold Bridge.tick
   split
   · exact Nat.lt_add_of_pos_right keep.spaced
@@ -275,18 +286,21 @@ theorem Bridge.Fresh.age {keep : Keep} {bridge : Bridge} {now : Instant}
   unfold Bridge.Fresh at fresh
   omega
 
-/-- The ticks of a list of readings keep the action, the stated posture, the next cycle
-and the end of the hold. -/
-theorem Bridge.ticks_keeps (keep : Keep) (bridge : Bridge) (readings : List Instant) :
-    (bridge.ticks keep readings).1.action = bridge.action ∧
-      (bridge.ticks keep readings).1.sitting = bridge.sitting ∧
-      (bridge.ticks keep readings).1.next = bridge.next ∧
-      (bridge.ticks keep readings).1.ends = bridge.ends := by
+/-- The ticks of a list of readings keep the action, the stated posture, the cycle of
+the next percept and the end of the hold. -/
+theorem Bridge.ticks_keeps (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (readings : List Instant) :
+    (bridge.ticks pace keep origin readings).1.action = bridge.action ∧
+      (bridge.ticks pace keep origin readings).1.sitting = bridge.sitting ∧
+      (bridge.ticks pace keep origin readings).1.next pace keep origin =
+        bridge.next pace keep origin ∧
+      (bridge.ticks pace keep origin readings).1.ends pace keep origin =
+        bridge.ends pace keep origin := by
   induction readings generalizing bridge with
   | nil => exact ⟨rfl, rfl, rfl, rfl⟩
   | cons now rest ih =>
-    have kept := bridge.tick_keeps keep now
-    have later := ih (bridge.tick keep now).1
+    have kept := bridge.tick_keeps pace keep origin now
+    have later := ih (bridge.tick pace keep origin now).1
     unfold Bridge.ticks
     split
     · exact ⟨later.1.trans kept.1, later.2.1.trans kept.2.1, later.2.2.1.trans kept.2.2.1,
@@ -298,98 +312,118 @@ theorem Bridge.ticks_keeps (keep : Keep) (bridge : Bridge) (readings : List Inst
 hold.** For every state and list of readings, in any order: each command sent is the
 velocity of the state's action, that velocity is not zero, and the reading it is sent at
 is before the end of the state's hold. -/
-theorem Bridge.ticks_sent (keep : Keep) (bridge : Bridge) (readings : List Instant)
-    (entry : Instant × Command) (member : entry ∈ (bridge.ticks keep readings).2) :
+theorem Bridge.ticks_sent (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (readings : List Instant) (entry : Instant × Command)
+    (member : entry ∈ (bridge.ticks pace keep origin readings).2) :
     entry.2 = .move bridge.action.velocity ∧ bridge.action.velocity ≠ .zero ∧
-      entry.1.nanoseconds < bridge.ends.nanoseconds := by
+      entry.1.nanoseconds < (bridge.ends pace keep origin).nanoseconds := by
   induction readings generalizing bridge with
   | nil => cases member
   | cons now rest ih =>
-    have kept := bridge.tick_keeps keep now
+    have kept := bridge.tick_keeps pace keep origin now
     unfold Bridge.ticks at member
     split at member
     · rename_i command sent
       rcases List.mem_cons.mp member with rfl | later
-      · exact bridge.tick_command keep now command sent
-      · have found := ih (bridge.tick keep now).1 later
+      · exact bridge.tick_command pace keep origin now command sent
+      · have found := ih (bridge.tick pace keep origin now).1 later
         rw [kept.1, kept.2.2.2] at found
         exact found
-    · have found := ih (bridge.tick keep now).1 member
+    · have found := ih (bridge.tick pace keep origin now).1 member
       rw [kept.1, kept.2.2.2] at found
       exact found
 
-/-! ## What the bridge sends and what the force names -/
+/-! ## What the bridge sends and what the deadline rule names -/
 
 /-- **The force names the action before the end of the hold and the default from it.**
 For every state, default and instant. -/
-theorem Bridge.force_named (bridge : Bridge) (rest : Option Action) (now : Instant) :
-    bridge.force.named rest now =
-      if now.nanoseconds < bridge.ends.nanoseconds then some bridge.action else rest :=
-  bridge.force.named_lapse rest now bridge.ends rfl
+theorem Bridge.force_named (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (rest : Option Action) (now : Instant) :
+    (bridge.force pace keep origin).named rest now =
+      if now.nanoseconds < (bridge.ends pace keep origin).nanoseconds then some bridge.action
+      else rest :=
+  (bridge.force pace keep origin).named_lapse rest now (bridge.ends pace keep origin) rfl
 
-/-- **At its release the force names the action.** For every release and default. -/
-theorem Bridge.release_named (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now : Instant) (sitting : Bool) (action : Action) (rest : Option Action) :
-    (Bridge.release pace keep origin index now sitting action).1.force.named rest now =
-      some action := by
-  have covers := (Bridge.release_next pace keep origin index now sitting action).2
-  have held := Bridge.release_held pace keep origin index now sitting action
-  have later := pace.deadline_lt origin
-    (Bridge.release pace keep origin index now sitting action).1.next
-  have inside : now.nanoseconds <
-      (Bridge.release pace keep origin index now sitting action).1.ends.nanoseconds := by
-    omega
-  rw [Bridge.force_named]
+/-- **After its release, and before the end of its hold, the outcome names the released
+action.** For every step whose action is released at an instant with the force of that
+release's state, and every later instant before the end of the hold. At the instant of
+the release itself the outcome names what the preceding force names
+(`Pace.step_action`). -/
+theorem Bridge.release_named (pace : Pace) (keep : Keep) (origin : Instant)
+    (rest : Option Action) (prior : Force Action) (index : Nat) (now : Instant)
+    (sitting : Bool) (action : Action) (later : Instant)
+    (after : now.nanoseconds < later.nanoseconds)
+    (inside : later.nanoseconds <
+      ((Bridge.release index now sitting action).1.ends pace keep origin).nanoseconds) :
+    (pace.outcome origin rest (Standing.during prior index now
+      ((Bridge.release index now sitting action).1.force pace keep origin) later)
+        later).action = some action := by
+  rw [pace.step_action origin rest prior index now _ later]
   split
-  · rfl
-  · rename_i ended
-    exact absurd inside ended
+  · rename_i early
+    exact absurd early (Nat.not_le.mpr after)
+  · rw [Bridge.force_named]
+    split
+    · rfl
+    · rename_i ended
+      exact absurd inside ended
 
-/-- **Every command of a list of readings is the velocity of the action the force
+/-- **Every command of a list of readings is the velocity of the action the standing
 names.** For every state, default and list of readings, in any order: at the reading a
-command is sent at, the force names the state's action, and the command is that action's
-velocity. -/
-theorem Bridge.ticks_named (keep : Keep) (bridge : Bridge) (rest : Option Action)
-    (readings : List Instant) (entry : Instant × Command)
-    (member : entry ∈ (bridge.ticks keep readings).2) :
-    bridge.force.named rest entry.1 = some bridge.action ∧
+command is sent at, the outcome of the standing after the release names the state's
+action, and the command is that action's velocity. -/
+theorem Bridge.ticks_named (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (rest : Option Action) (readings : List Instant) (entry : Instant × Command)
+    (member : entry ∈ (bridge.ticks pace keep origin readings).2) :
+    (pace.outcome origin rest (Standing.idle (bridge.force pace keep origin))
+        entry.1).action = some bridge.action ∧
       entry.2 = .move bridge.action.velocity := by
-  have sent := bridge.ticks_sent keep readings entry member
+  have sent := bridge.ticks_sent pace keep origin readings entry member
+  rw [pace.outcome_action origin rest]
+  show (bridge.force pace keep origin).named rest entry.1 = some bridge.action ∧ _
   rw [Bridge.force_named]
   split
   · exact ⟨rfl, sent.1⟩
   · rename_i ended
     exact absurd sent.2.2 ended
 
-/-- **From the end of the hold the force names the default and nothing is sent.** For
+/-- **From the end of the hold the standing names the default and nothing is sent.** For
 every state, default and instant at or after the end of the hold. -/
-theorem Bridge.tick_lapsed (keep : Keep) (bridge : Bridge) (rest : Option Action)
-    (now : Instant) (ended : bridge.ends.nanoseconds ≤ now.nanoseconds) :
-    bridge.force.named rest now = rest ∧ bridge.tick keep now = (bridge, none) := by
+theorem Bridge.tick_lapsed (pace : Pace) (keep : Keep) (origin : Instant) (bridge : Bridge)
+    (rest : Option Action) (now : Instant)
+    (ended : (bridge.ends pace keep origin).nanoseconds ≤ now.nanoseconds) :
+    (pace.outcome origin rest (Standing.idle (bridge.force pace keep origin)) now).action =
+        rest ∧
+      bridge.tick pace keep origin now = (bridge, none) := by
+  rw [pace.outcome_action origin rest]
+  show (bridge.force pace keep origin).named rest now = rest ∧ _
   rw [Bridge.force_named]
   split
   · rename_i inside
     exact absurd inside (Nat.not_lt.mpr ended)
-  · exact ⟨rfl, bridge.tick_ended keep now ended⟩
+  · exact ⟨rfl, bridge.tick_ended pace keep origin now ended⟩
 
 /-- **During a fault: the preceding action up to the end of its hold, and the default
-from it.** For every pace, origin, default, state of the preceding release, cycle,
-release, chosen force and instant of one step at which a fault holds: the action in
-force is the state's action before the end of its hold, and the default from the end of
-the hold. -/
-theorem Bridge.fault_named (pace : Pace) (origin : Instant) (rest : Option Action)
-    (bridge : Bridge) (index : Nat) (released : Instant) (chosen : Force Action)
-    (now : Instant)
+from it.** For every pace, keeping, origin, default, state of the preceding release,
+cycle, release, chosen force and instant of one step at which a fault holds: the action
+in force is the state's action before the end of its hold, and the default from the end
+of the hold. -/
+theorem Bridge.fault_named (pace : Pace) (keep : Keep) (origin : Instant)
+    (rest : Option Action) (bridge : Bridge) (index : Nat) (released : Instant)
+    (chosen : Force Action) (now : Instant)
     (fault : (pace.outcome origin rest
-      (Standing.during bridge.force index released chosen now) now).fault = true) :
+      (Standing.during (bridge.force pace keep origin) index released chosen now)
+        now).fault = true) :
     (pace.outcome origin rest
-        (Standing.during bridge.force index released chosen now) now).action =
-      if now.nanoseconds < bridge.ends.nanoseconds then some bridge.action else rest := by
-  have awaited :=
-    ((pace.step_fault origin rest bridge.force index released chosen now).mp fault).2
-  rw [pace.step_action origin rest bridge.force index released chosen now]
+        (Standing.during (bridge.force pace keep origin) index released chosen now)
+          now).action =
+      if now.nanoseconds < (bridge.ends pace keep origin).nanoseconds then some bridge.action
+      else rest := by
+  have awaited := ((pace.step_fault origin rest (bridge.force pace keep origin) index
+    released chosen now).mp fault).2
+  rw [pace.step_action origin rest (bridge.force pace keep origin) index released chosen now]
   split
-  · exact bridge.force_named rest now
+  · exact bridge.force_named pace keep origin rest now
   · rename_i passed
     exact absurd awaited passed
 
@@ -459,14 +493,19 @@ theorem Action.outcome_judged (action : Action) (sitting : Bool) (reply : Reply)
   unfold Action.Judged Action.Postural
   cases action <;> cases sitting <;> cases reply <;> cases shown <;> cases outcome <;> decide
 
+/-- **The outcome is a refusal exactly when the daemon refused.** For every action,
+stated posture, answer and evidence: neither the posture nor the evidence produces a
+refusal or hides one. -/
+theorem Action.outcome_accepted (action : Action) (sitting : Bool) (reply : Reply)
+    (shown : Bool) : action.outcome sitting reply shown ≠ .refused ↔ reply = .accepted := by
+  cases action <;> cases sitting <;> cases reply <;> cases shown <;> decide
+
 /-- **The outcome of a release reads that release's commands.** For every release,
 answer, evidence and outcome: the outcome of the state of a release is the one the
 specification gives for the action and the posture of that same release. -/
-theorem Bridge.release_outcome (pace : Pace) (keep : Keep) (origin : Instant) (index : Nat)
-    (now : Instant) (sitting : Bool) (action : Action) (reply : Reply) (shown : Bool)
-    (outcome : Outcome) :
-    (Bridge.release pace keep origin index now sitting action).1.outcome reply shown =
-        outcome ↔
+theorem Bridge.release_outcome (index : Nat) (now : Instant) (sitting : Bool)
+    (action : Action) (reply : Reply) (shown : Bool) (outcome : Outcome) :
+    (Bridge.release index now sitting action).1.outcome reply shown = outcome ↔
       action.Judged sitting reply shown outcome :=
   action.outcome_judged sitting reply shown outcome
 
