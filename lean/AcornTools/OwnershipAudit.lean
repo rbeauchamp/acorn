@@ -23,31 +23,36 @@ A private constructor stops the constructor notation outside its module. It does
 a tactic: `by constructor` applies it anywhere. Lean also generates a public alias of a
 public constructor. So the audit reads the compiled declarations.
 
-The sealed constants of an environment, each with the modules that may reference it:
+The audit has one map and one rule.
 
-1. every private constructor of a type of a maintained project module, with its declaring
-   module;
-2. the rows of `AcornOwnership.sealedConstants`;
-3. every alias of a sealed constructor, found by its body: a definition whose body is the
-   constructor applied to a rearrangement of the definition's own parameters;
-4. every site that is not an entry of the interface.
+**The map** gives each sealed constant the modules that may reference it. The designated
+constants have their modules by declaration: every private constructor of a type of a
+maintained project module, with its declaring module, and each row of
+`AcornOwnership.sealedConstants`, with the modules of the row.
 
-**The tracked set** is the one definition behind part 4. The designated constants are
-the constructors of the types of `AcornOwnership.sealedTypes` and the table rows. An
-owning module is a module that may reference a designated constant. The tracked set is
-the least set that holds the designated constants and each declaration of an owning
-module, other than a theorem, that references a member of the set. A site is a tracked
-declaration that is not designated. There is no exception: a declaration that is sealed
-for another reason (an alias of any constructor, a private constructor of another type),
-a table row and an interface entry each propagate to the declarations that reference
-them, and every kind of declaration is read (for an inductive type, its type; its list of
-constructors is not a reference).
+**The reach** is the least set that holds the constructors of the types of
+`AcornOwnership.sealedTypes` and the table rows, and each declaration of the project,
+other than a theorem and a designated constant, that references a member of the set.
 
-The rule: no declaration of a project module outside the permitted modules, other than a
-theorem, references a sealed constant. The entries of `AcornOwnership.interface` are the
-sites that every module may use. A declaration of an owning module that references an
-entry is tracked, so it is sealed unless it is an entry too: the rule does not rely on an
-argument about what a caller of an entry can do.
+**The rule.** A declaration of the reach that is not an entry of
+`AcornOwnership.interface` gets the intersection of the modules of every sealed constant
+that it references, of every origin, to the greatest fixed point. When that is fewer than
+all modules, the declaration is a sealed constant of the map, a site. No declaration of a
+project module, other than a theorem, references a sealed constant from a module outside
+its modules.
+
+So a generated alias of a constructor, a definition that nests a constructor, and a
+caller of either are sites by one rule, with no test of a body or a name. A site that
+also references a private constructor of another type gets the modules of both. An
+interface entry is open to every module; a declaration that references only entries and
+constants that are not sealed gets all modules, because every module could hold the same
+definition.
+
+The reach starts at the constructors of the five types and the rows, and not at every
+private constructor. The other private constructors of the project are of types whose
+makers are public functions by design; a reach from them holds 561 declarations and
+needs 144 more interface entries in 23 modules. For those types the map holds the
+constructor only. Their generated aliases have private names.
 
 The audit reads no type and infers nothing: it does not decide that a definition makes a
 value, carries one, or is harmless. A type can hide a sealed type from any reader of
@@ -56,20 +61,22 @@ opaque constant, a value packed with its own type), and a reference cannot be hi
 a site that other modules use is in the interface, with a theorem or with a line that
 says why no statement exists, and every other site is sealed.
 
-The trusted base of the invariant is the owning modules, the interface list and this
-tool. The rule does not read the body of a definition of an owning module to decide if
-it keeps the claim of a sealed type: a change of an owning module or of the interface
-list is a change of the invariant and is reviewed as one. A theorem is exempt: compiled
+The trusted base of the invariant is the owning modules (the modules of the designated
+constants of the five types), the interface list and this tool. The rule does not read
+the body of a definition of an owning module to decide if it keeps the claim of a sealed
+type: a change of an owning module or of the interface list is a change of the invariant
+and is reviewed as one. A theorem is exempt: compiled
 code gets no value from a proof, and the equations that Lean derives for a definition are
 theorems of the module that first uses them. A `noncomputable` definition could take a
 sealed value out of a proof by choice; it is not executed. The rule is about this
 project's modules. It does not stop a definition in another project, and it says nothing
 about bytes in a file.
 
-Eleven control declarations below make a sealed value outside its module. The audit runs
+Twelve control declarations below make a sealed value outside its module. The audit runs
 the rule on this module two times. The complete rule must report each control for its
-intended constant and nothing else, and parts 1 and 2 alone must report exactly the first
-two. So each of the other nine is reported by part 3 or part 4 and by nothing else.
+intended constant and nothing else, and the designated constants alone must report
+exactly the first two. So each of the other ten is reported by the rule for sites and by
+nothing else.
 -/
 namespace AcornOwnershipAudit
 open Lean
@@ -126,7 +133,7 @@ def anchor (env : Environment) (proofOwner theoremName implementation : Name) : 
   require (theoremInfo.type.getUsedConstantsAsSet.contains implementation)
     s!"{theoremName}: statement no longer refers to {implementation}"
 
-/-- Control of part 1: a state of a construction from a learner state of no declared
+/-- Control of a designated constant, a private constructor: a state of a construction from a learner state of no declared
 history, made outside the module of the type with the `constructor` tactic. Nothing calls
 it; the audit requires that the rule reports it. -/
 def sealedControl (construction : Acorn.Handcrafted.AgentConstruction)
@@ -136,7 +143,7 @@ def sealedControl (construction : Acorn.Handcrafted.AgentConstruction)
   constructor
   exact agent
 
-/-- Control of part 2: the callback record of one step order copied under the index of
+/-- Control of a designated constant, a table row: the callback record of one step order copied under the index of
 the other with the constructor. Nothing calls it; the audit requires that the rule
 reports it. -/
 def tableControl {α β : Type} (callbacks : Acorn.Host.AgentCallbacks .planAfterAct α β) :
@@ -145,11 +152,11 @@ def tableControl {α β : Type} (callbacks : Acorn.Host.AgentCallbacks .planAfte
     recordEnvironment := callbacks.recordEnvironment, recordAttempt := callbacks.recordAttempt,
     capture := callbacks.capture, metrics := callbacks.metrics }
 
-/-- Control of part 3, the image route: the durable data of an image of one construction
+/-- Control of a site, the image route: the durable data of an image of one construction
 is made into an image of a construction of the other step order with the generated alias
 of the image's constructor, and the payload writer of that construction stamps it. It
-references no constructor and no other sealed constant, so parts 1 and 2 do not report
-it. The compiler has no code for the alias, so the definition is not compiled. -/
+references no constructor and no other designated constant, so the designated
+constants alone do not report it. The compiler has no code for the alias, so the definition is not compiled. -/
 noncomputable def aliasImageControl (profile : Acorn.Handcrafted.FeatureProfile)
     (criterion : Acorn.Features.Criterion) (planning : Acorn.Features.PlanningSelection)
     (config : Acorn.Features.Config) (dimension : Acorn.Dimension)
@@ -159,10 +166,10 @@ noncomputable def aliasImageControl (profile : Acorn.Handcrafted.FeatureProfile)
     (@Acorn.Handcrafted.AgentConstruction.Image.mk._flat_ctor
       ⟨profile, criterion, planning, .planAfterAct, config, dimension⟩ image.image)
 
-/-- Control of part 3, the callback route: the callback record of one step order is
+/-- Control of a site, the callback route: the callback record of one step order is
 copied under the index of the other with the generated alias of its constructor and
-given to the generic attempt runner. It references no constructor, so parts 1 and 2 do
-not report it. -/
+given to the generic attempt runner. It references no constructor, so the designated
+constants alone do not report it. -/
 noncomputable def aliasCallbackControl {config : Acorn.Host.WorldConfig} {goal : Acorn.Host.Goal}
     {cap : UInt64} {α β : Type} (callbacks : Acorn.Host.AgentCallbacks .planAfterAct α β)
     (observer : Acorn.Host.StreamObserver β) (context : Acorn.Host.GoalContext)
@@ -175,85 +182,57 @@ noncomputable def aliasCallbackControl {config : Acorn.Host.WorldConfig} {goal :
       callbacks.capture callbacks.metrics)
     observer context initial resources
 
-/-- Control of part 4: a value of the sealed control type from the `Inhabited` instance of
+/-- Control of a site: a value of the sealed control type from the `Inhabited` instance of
 its owning module. It references no constructor and no constructor alias, and the
 instance has no constructor in its name: the instance is a site. -/
 def instanceControl : AcornSealedControl.Token true := default
 
-/-- Control of part 4, a site whose result is a type variable that an equality identifies
+/-- Control of a site, a site whose result is a type variable that an equality identifies
 with the sealed type. -/
 def castControl : AcornSealedControl.Token true :=
   AcornSealedControl.tokenByCast true (AcornSealedControl.Token true) rfl
 
-/-- Control of part 4, a site whose result type a recursor computes. -/
+/-- Control of a site, a site whose result type a recursor computes. -/
 def recursorControl : AcornSealedControl.Token true := AcornSealedControl.tokenByRecursor true
 
-/-- Control of part 4, a site whose result type is behind abbreviations. -/
+/-- Control of a site, a site whose result type is behind abbreviations. -/
 def abbreviationControl : AcornSealedControl.Token true :=
   AcornSealedControl.tokenByAbbreviation true
 
-/-- Control of part 4, a site whose result type is a projection of an opaque constant: the
+/-- Control of a site, a site whose result type is a projection of an opaque constant: the
 caller gets the value with a cast along the proof that the constant holds. -/
 def opaqueControl : AcornSealedControl.Token true :=
   cast (AcornSealedControl.box true).property (AcornSealedControl.tokenByOpaque true)
 
-/-- Control of part 4, a site whose result packs the value with its own type: the caller
+/-- Control of a site, a site whose result packs the value with its own type: the caller
 takes the value out. -/
 def packControl : AcornSealedControl.Token true := (AcornSealedControl.tokenByPack true).2
 
-/-- Control of part 4, a site behind a definition that is sealed for another reason: the
+/-- Control of a site, a site behind a definition that is sealed for another reason: the
 caller reads the token out of a wrapper whose maker calls an alias of the wrapper's
 constructor. -/
 def wrapControl : AcornSealedControl.Token true := (AcornSealedControl.exposed true 0).token
 
-/-- Built from bound variables by constructors only, with a bound variable in each leaf. -/
-partial def rearranged (env : Environment) (e : Expr) : Bool :=
-  match e with
-  | .bvar _ => true
-  | .mdata _ body => rearranged env body
-  | .app .. =>
-    match e.getAppFn with
-    | .const name _ =>
-      match env.find? name with
-      | some (.ctorInfo info) =>
-        let fields := e.getAppArgs.extract info.numParams e.getAppNumArgs
-        !fields.isEmpty && fields.all (rearranged env)
-      | _ => false
-    | _ => false
-  | _ => false
-
-/-- The constructor that a definition is an alias of: its body is that constructor
-applied to a rearrangement of the definition's own parameters, and to nothing else. -/
-def aliasOf (env : Environment) (info : ConstantInfo) : Option Name :=
-  match info with
-  | .defnInfo definition => Id.run do
-    let mut body := definition.value
-    while body.isLambda do body := body.bindingBody!
-    let .const head _ := body.getAppFn | return none
-    let some (.ctorInfo constructor) := env.find? head | return none
-    let fields := body.getAppArgs.extract constructor.numParams body.getAppNumArgs
-    if body.getAppNumArgs == constructor.numParams + constructor.numFields &&
-        !fields.isEmpty && fields.all (rearranged env) then return some head else return none
-  | _ => none
+/-- Control of a site, a site that references two sealed constants with different modules:
+this module may reference one of them and gets a value of the other through the site. -/
+def bundleControl : AcornSealedControl.Secret := (AcornSealedControl.bundle 0).1
 
 /-- The sealed constants of one compiled environment. -/
 structure Sealing where
-  /-- Each sealed constant with the modules that may reference it in a definition. -/
+  /-- The map: each sealed constant with the modules that may reference it. -/
   permitted : NameMap (Array Name) := {}
-  /-- Each sealed constant with the part of the rule that found it. -/
+  /-- Each sealed constant with its origin: a private constructor, a table row or a site. -/
   found : Array (Name × String) := #[]
-  /-- The tracked set of the module documentation. -/
-  tracked : NameSet := {}
 
 /-- Add one sealed constant. -/
-def Sealing.add (sealing : Sealing) (name : Name) (part : String) (owners : Array Name) :
+def Sealing.add (sealing : Sealing) (name : Name) (origin : String) (owners : Array Name) :
     Sealing :=
-  { sealing with permitted := sealing.permitted.insert name owners,
-                 found := sealing.found.push (name, part) }
+  { permitted := sealing.permitted.insert name owners,
+    found := sealing.found.push (name, origin) }
 
-/-- The number of sealed constants that one part found. -/
-def Sealing.count (sealing : Sealing) (part : String) : Nat :=
-  (sealing.found.filter (·.2 == part)).size
+/-- The number of sealed constants of one origin. -/
+def Sealing.count (sealing : Sealing) (origin : String) : Nat :=
+  (sealing.found.filter (·.2 == origin)).size
 
 /-- What a declaration references. For an inductive type this is its type: the list of
 its constructors is not a reference, so a mention of a sealed type is no reference to its
@@ -263,64 +242,53 @@ def referencesOf (info : ConstantInfo) : NameSet :=
   | .inductInfo induct => induct.type.getUsedConstantsAsSet
   | _ => info.getUsedConstantsAsSet
 
-/-- The sealed constants of one compiled environment with the modules that may reference
-each. Parts 1 and 2 are the direct part; `derived` adds the constructor aliases found by
-body and the tracked set of `types`. No type is read. -/
+/-- The map of one compiled environment, by the one rule of the module documentation.
+`derived := false` gives the designated constants alone. `types` and `rows` are the
+tables; the control run adds its own. No type is read. -/
 def sealedIn (env : Environment) (projects : Array Name)
-    (types : Array Name := AcornOwnership.sealedTypes) (derived : Bool := true) :
+    (types : Array Name := AcornOwnership.sealedTypes) (derived : Bool := true)
+    (rows : Array (Name × Array Name) := AcornOwnership.sealedConstants) :
     IO Sealing := do
+  -- The designated constants.
   let mut sealing : Sealing := {}
   for (name, info) in env.constants do
     if let .ctorInfo constructor := info then
       if isPrivateName name then
         let owner ← ownerOf env constructor.induct
         if projects.contains owner then sealing := sealing.add name "private constructor" #[owner]
-  for (name, owners) in AcornOwnership.sealedConstants do
+  for (name, owners) in rows do
     if (env.find? name).isSome then sealing := sealing.add name "table row" owners
   unless derived do return sealing
-  for (name, info) in env.constants do
-    let some constructor := aliasOf env info | continue
-    let some owners := sealing.permitted.find? constructor | continue
-    if sealing.permitted.contains name then continue
-    unless projects.contains (← ownerOf env name) do continue
-    sealing := sealing.add name "constructor alias" owners
-  -- The designated constants and the owning modules.
-  let mut tracked : NameSet := {}
-  for type in types do
-    if let some (.inductInfo info) := env.find? type then
-      for constructor in info.ctors do tracked := tracked.insert constructor
-  for (name, _) in AcornOwnership.sealedConstants do
-    if (env.find? name).isSome then tracked := tracked.insert name
-  let mut owning : Array Name := #[]
-  for name in tracked do
-    for owner in sealing.permitted.find? name |>.getD #[] do
-      unless owning.contains owner do owning := owning.push owner
-  let designated := tracked
-  -- Every declaration of an owning module, other than a theorem, with what it references.
+  -- Every declaration of the project that is not a theorem and not designated.
   let mut candidates : Array (Name × NameSet) := #[]
   for (name, info) in env.constants do
     if let .thmInfo _ := info then continue
+    if sealing.permitted.contains name then continue
     let some index := env.getModuleIdxFor? name | continue
     let some imported := env.header.modules[index.toNat]? | continue
-    if owning.contains imported.module then candidates := candidates.push (name, referencesOf info)
-  -- The least set: add each candidate that references a member, until none is added.
+    if projects.contains imported.module then candidates := candidates.push (name, referencesOf info)
+  -- The reach: the least set from the constructors of the types and the rows.
+  let mut reach : NameSet := {}
+  for type in types do
+    if let some (.inductInfo info) := env.find? type then
+      for constructor in info.ctors do reach := reach.insert constructor
+  for (name, _) in rows do
+    if (env.find? name).isSome then reach := reach.insert name
   let mut changed := true
   while changed do
     changed := false
     for (name, references) in candidates do
-      if tracked.contains name then continue
-      if references.toList.any tracked.contains then
-        tracked := tracked.insert name
+      if reach.contains name then continue
+      if references.toList.any reach.contains then
+        reach := reach.insert name
         changed := true
-  -- A tracked declaration that is not an interface entry is sealed. A designated constant
-  -- keeps the modules of its declaration or of its row. The modules of each other one
-  -- are those that may reference every sealed member that it references, to a fixed
-  -- point.
+  -- The modules of each declaration of the reach that is not an interface entry: the
+  -- intersection over every sealed constant that it references, to the greatest fixed
+  -- point. A constant with no modules here is not sealed and takes nothing away.
   let entry (name : Name) : Bool := AcornOwnership.interface.any (·.1 == name)
   let mut modules : NameMap (Array Name) := {}
   for (name, _) in candidates do
-    if tracked.contains name && !entry name && !designated.contains name then
-      modules := modules.insert name (sealing.permitted.find? name |>.getD owning)
+    if reach.contains name && !entry name then modules := modules.insert name projects
   changed := true
   while changed do
     changed := false
@@ -328,18 +296,16 @@ def sealedIn (env : Environment) (projects : Array Name)
       let some current := modules.find? name | continue
       let mut narrowed := current
       for used in references do
-        if used == name || entry used || !tracked.contains used then continue
-        let allowed := (modules.find? used).getD (sealing.permitted.find? used |>.getD owning)
-        narrowed := narrowed.filter allowed.contains
+        if used == name then continue
+        if let some allowed := (modules.find? used) <|> (sealing.permitted.find? used) then
+          narrowed := narrowed.filter allowed.contains
       if narrowed.size != current.size then
         modules := modules.insert name narrowed
         changed := true
   for (name, _) in candidates do
     let some owners := modules.find? name | continue
-    if sealing.permitted.contains name then
-      sealing := { sealing with permitted := sealing.permitted.insert name owners }
-    else sealing := sealing.add name "site" owners
-  return { sealing with tracked := tracked }
+    if owners.size < projects.size then sealing := sealing.add name "site" owners
+  return sealing
 
 /-- Each declaration of the selected modules, other than a theorem, that references a
 sealed constant outside its permitted modules: the owner, the declaration, the constant. -/
@@ -366,8 +332,9 @@ def sealedAdmission (env : Environment) (sealing : Sealing) (selected : Array Na
 
 /-- The tables agree with the environment. Each type of `AcornOwnership.sealedTypes`
 exists and each of its constructors is sealed. Each table row names a compiled constant
-and maintained modules. Each interface entry is in the tracked set, so the list holds no
-entry that the rule does not need; it has its line; and a theorem that it names
+and maintained modules. Each interface entry references a sealed constant, a designated
+one or a site, so it is a site without its entry and the list holds no entry that the
+rule does not need; it has its line; and a theorem that it names
 exists and names the entry in its statement. -/
 def sealedRequired (env : Environment) (sealing : Sealing) (modules : Array Name) :
     IO Unit := do
@@ -383,8 +350,8 @@ def sealedRequired (env : Environment) (sealing : Sealing) (modules : Array Name
       require (modules.contains owner) s!"{name}: stale permitted module {owner}"
   for (entry, justification, line) in AcornOwnership.interface do
     let some info := env.find? entry | throw (IO.userError s!"stale interface entry {entry}")
-    require (sealing.tracked.contains entry && !(referencesOf info).isEmpty)
-      s!"{entry}: an interface entry that is not in the tracked set; remove it"
+    require ((referencesOf info).toList.any sealing.permitted.contains)
+      s!"{entry}: an interface entry that references no sealed constant, so it is open by the rule; remove it"
     require (!line.trimAscii.isEmpty) s!"{entry}: an interface entry with no line"
     match justification with
     | none => pure ()
@@ -407,20 +374,24 @@ def controls : Array (Name × Name) := #[
   (``abbreviationControl, ``AcornSealedControl.tokenByAbbreviation),
   (``opaqueControl, ``AcornSealedControl.tokenByOpaque),
   (``packControl, ``AcornSealedControl.tokenByPack),
-  (``wrapControl, ``AcornSealedControl.exposed)]
+  (``wrapControl, ``AcornSealedControl.exposed),
+  (``bundleControl, ``AcornSealedControl.bundle)]
 
 /-- The complete rule must report each control of this module for its intended constant
-and nothing else in the module, and the direct part alone must report the first two for
-their constructors and nothing else. The control type and its owning module are inputs
+and nothing else in the module, and the designated constants alone must report the first
+two for their constructors and nothing else. The control type and its owning module are inputs
 of this run only. -/
 def sealedControls (env : Environment) (projects : Array Name) : IO Unit := do
   let scanned := projects.push `AcornTools.SealedControl
-  let types := AcornOwnership.sealedTypes.push ``AcornSealedControl.Token
+  let types := AcornOwnership.sealedTypes ++
+    #[``AcornSealedControl.Token, ``AcornSealedControl.Shared]
+  let rows := AcornOwnership.sealedConstants.push
+    (``AcornSealedControl.Shared.mk, #[`AcornTools.SealedControl, `AcornTools.OwnershipAudit])
   let reported (sealing : Sealing) : IO (Array (Name × Name)) := do
     let found ← sealedViolations env sealing.permitted #[`AcornTools.OwnershipAudit]
     return found.map fun row => (row.2.1, privateToUserName row.2.2)
-  let complete ← reported (← sealedIn env scanned types)
-  let direct ← reported (← sealedIn env scanned types (derived := false))
+  let complete ← reported (← sealedIn env scanned types (rows := rows))
+  let direct ← reported (← sealedIn env scanned types (derived := false) (rows := rows))
   for (control, constant) in controls do
     require (complete.contains (control, constant))
       s!"the sealed-constant rule did not report {control} for {constant}; it reported {complete}"
@@ -433,7 +404,7 @@ def sealedControls (env : Environment) (projects : Array Name) : IO Unit := do
 /-- One line for each part of the rule, from the computed set. -/
 def Sealing.report (sealing : Sealing) : String :=
   let proved := (AcornOwnership.interface.filter (·.2.1.isSome)).size
-  s!"ownership: {sealing.found.size} sealed constants ({sealing.count "private constructor"} private constructors, {sealing.count "table row"} table rows, {sealing.count "constructor alias"} constructor aliases found by body, {sealing.count "site"} sites) and {AcornOwnership.interface.size} interface entries ({proved} with a theorem, {AcornOwnership.interface.size - proved} with a line only); no definition outside their modules references a sealed constant"
+  s!"ownership: {sealing.found.size} sealed constants ({sealing.count "private constructor"} private constructors, {sealing.count "table row"} table rows, {sealing.count "site"} sites) and {AcornOwnership.interface.size} interface entries ({proved} with a theorem, {AcornOwnership.interface.size - proved} with a line only); no definition outside their modules references a sealed constant"
 
 /-- Follow the entry's actual serialized import edges. Shared dependency data
 must never make a declaration outside this closure available to its IR check. -/
@@ -527,7 +498,7 @@ unsafe def compiled (complete : Bool := false) (listSealed : Bool := false) : IO
       require (entries.any (·.2 == owner)) s!"stale entry contract {owner}"
     IO.println s!"ownership: {modules.size} maintained modules, {entries.size} native entries, {AcornOwnership.anchors.size} required execution/proof links"
     IO.println sealing.report
-    IO.println s!"ownership: {controls.size} controls of the sealed-constant rule reported, each for its intended constant, 2 of them by the direct part alone"
+    IO.println s!"ownership: {controls.size} controls of the sealed-constant rule reported, each for its intended constant, 2 of them by the designated constants alone"
     if complete then
       require (projects.all counted.contains && counted.size == projects.size)
         "incomplete or duplicate theorem-owner admission"

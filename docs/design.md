@@ -724,14 +724,17 @@ image carry none. The order of a value is a fact about the code that made it, an
 no proof inside the value can state it. The index and the ownership audit prevent
 a mix of orders inside this project. The audit reads the compiled declarations
 and refuses a definition, outside the modules that own it, that references a
-sealed constant: a constructor of one of these types, an alias of a constructor
-(found by its body), the callbacks of a construction, or a definition of an
-owning module that references a sealed constant, or a definition that
-references such a one, to a least set with no exception, unless it is in the
-declared interface. The interface is the list `AcornOwnership.interface` of the
-definitions of the owning modules that every module may use. Each entry names a
-theorem whose statement names it, or has a line that says why no statement
-exists. The audit reads no type and infers no entry.
+sealed constant. One map gives each sealed constant its modules: a private
+constructor of a project type has its declaring module, and the constructor of
+the callback record, the constructor of the image and the callbacks of a
+construction have the modules of a table. One rule gives the others: a
+declaration that reaches a constructor of these types or a table row by
+references is a site, and it gets the intersection of the modules of every
+sealed constant that it references. A generated alias of a constructor and a
+caller of a site are sites by that rule. The interface is the list
+`AcornOwnership.interface` of the sites that every module may use. Each entry
+names a theorem whose statement names it, or has a line that says why no
+statement exists. The audit reads no type and infers no entry.
 
 The trusted base of this invariant is the owning modules, the interface list and
 the audit tool. The audit does not read the body of a definition of an owning

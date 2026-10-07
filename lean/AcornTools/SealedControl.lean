@@ -78,4 +78,22 @@ def wrap (tag : Bool) (value : Nat) : Wrap tag := ⟨⟨value⟩⟩
 /-- A definition that references no constructor: it calls `wrap`. -/
 def exposed (tag : Bool) (value : Nat) : Wrap tag := wrap tag value
 
+/-- A third structure of this module, with a private constructor. It is not one of the
+types that the control run names: only this module may reference its constructor. -/
+structure Secret where
+  private mk ::
+  /-- The content; no control reads it. -/
+  value : Nat
+
+/-- A type with a public constructor that the control run names, with a row that also
+permits the audit module. -/
+structure Shared where
+  /-- The content; no control reads it. -/
+  value : Nat
+
+/-- A definition that references two sealed constants with different modules: the
+constructor of `Shared`, which the audit module may reference, and the constructor of
+`Secret`, which it may not. -/
+def bundle (value : Nat) : Secret × Shared := (⟨value⟩, ⟨value⟩)
+
 end AcornSealedControl
