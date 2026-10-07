@@ -294,20 +294,44 @@ type of its own, so a count of cycles cannot stand where an instant is expected.
 Cycle `index` starts at `Pace.boundary origin index`. The deadline of the action of
 the percept of that cycle is `Pace.deadline origin index`, the start of the cycle
 `latency` cycles later. `Pace.meets` is the verdict on the instant an action is
-released at: true exactly when the release is earlier than the origin plus
-`index + latency` cycles (`Pace.meets_iff`). `Pace.overdue` counts the cycles, from the
-one the deadline starts, that have started at or before the release
-(`Pace.overdue_cycles`), and it is zero exactly when the deadline is met
-(`Pace.overdue_met`). When the earlier of two actions is released at or after the start
-of its percept's cycle and the later one meets its deadline, for percepts `span`
-cycles apart, the later release is less than `span + latency` cycles after the
-earlier one (`Pace.met_gap`).
+released at: true exactly when the release falls in a cycle before the one the
+deadline starts (`Pace.meets_index`), which is when no cycle from that one on has
+begun at the release (`Pace.meets_begun`).
 
-These are statements about the functions. No executing loop reads a cycle or a
-latency, and no executing world declares a wall clock. So they do not state what a
-host does: that it senses a percept at the start of a cycle, that it releases a late
-action late and drops none, or which action is in force during the cycles that
-`Pace.overdue` counts. Those belong to the host loop below.
+**A missed deadline is a fault during which the preceding action holds.** A
+`Standing` is what a host of a wall-clock world holds between two events: the action
+in force and the percept, if any, whose action is not released yet. `Pace.outcome`
+gives what holds at an instant for a standing: the action in force, and whether a
+fault holds. A fault holds exactly while a percept awaits its action at or after its
+deadline (`Pace.outcome_fault`), and time alone changes no action
+(`Pace.outcome_action`). For one step, in which a percept is sensed with a preceding
+action in force and its action is released at some instant
+(`Standing.during`; an action is in force after the instant of its release):
+
+- a fault holds exactly from the deadline to the release (`Pace.step_fault`);
+- at every instant of the fault the preceding action is in force
+  (`Pace.step_holds`), and after the release the chosen one is (`Pace.step_action`);
+- no instant has a fault exactly when the release meets the deadline
+  (`Pace.step_faultless`);
+- the cycles that begin in fault are the first `Pace.overdue` cycles from the one the
+  deadline starts (`Pace.step_overdue`), and that count is zero exactly when the
+  deadline is met (`Pace.overdue_met`).
+
+The outcome has no case that drops an action: a late action is released late. With a
+cycle of 200 ms, a latency of one cycle and the action of cycle 0 released at 250 ms,
+the fault holds from 200 ms to 250 ms with the preceding action in force, one cycle
+begins in fault, and the chosen action is in force after 250 ms.
+
+When the earlier of two actions is released at or after the start of its percept's
+cycle and the later one meets its deadline, for percepts `span` cycles apart, the
+later release is less than `span + latency` cycles after the earlier one
+(`Pace.met_gap`).
+
+These are statements about the functions. No executing loop keeps a standing or
+reads a cycle or a latency, and no executing world declares a wall clock. A host loop
+of a wall-clock world is to compute its verdicts with `Pace.outcome`; nothing here
+states that a host senses a percept at the start of a cycle, or that a world keeps in
+force the action that a standing names.
 
 Operation in real time needs three more parts, and none is built:
 
