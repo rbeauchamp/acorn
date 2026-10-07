@@ -497,7 +497,8 @@ for a module that no library has.
 **Executable inventory: the tools refuse more.** Ownership admission refuses a
 Lake executable whose target name and root module are not a pair of
 `executables`, and a listed pair that Lake does not have. It also requires that
-only the root module of an executable declares `main`. [RG2002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2002/) refuses an
+a module declares `main` exactly when it is the root module of an executable or
+is Bootstrap, the interpreted build launcher. [RG2002](https://rbeauchamp.github.io/regula/v/0.9.0/rules/RG2002/) refuses an
 executable that the manifest does not classify, a manifest name that is no Lake
 target, and an executable that is not classified with the library of its root.
 The manifest holds the names and no root: an exchange of the root modules of two
