@@ -10,9 +10,9 @@ import Acorn.Host.Checkpoint.IO
 # Native checkpoint consumer
 
 The diagnostic entry exercises the actual current agent, file writer, receiver
-admission and restoration. It admits every current construction through the
-shared native parser. It creates no study or scientific execution receipt;
-application CLI integration remains the final program's owner.
+admission and restoration. It admits every current construction of the default
+step order through the shared native parser. It creates no study or scientific
+execution receipt; application CLI integration remains the final program's owner.
 -/
 namespace Acorn.Host.CheckpointDriver
 open Features Handcrafted Checkpoint
