@@ -276,6 +276,32 @@ theorem Skill.stepTemporal_eq {config : Config} {criterion : Criterion} {dimensi
         else result.1
       (skill, result.2) := rfl
 
+/-- The credit half of `stepTemporal`: the policy credit of a decision that is already
+drawn, then the model's credit of the completed transition, which a first returned
+action does not have. It draws nothing. `Skill.stepTemporal_credit` proves that
+`stepTemporal` is its draw followed by this credit. -/
+def Skill.creditTemporal {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
+    (drawn : PersistentDecision actions) (reward : Binary32) (gain : RewardRate) :
+    Skill actions config criterion dimension discounts :=
+  let credited := skill.optionCredit activation next drawn reward gain
+  if activation.learning && activation.age.val > 0 then
+    { credited with model := models.step credited.model next.features activation.age reward }
+    else credited
+
+/-- **The temporal step is its draw followed by its credit.** For every skill, model
+interface, activation, continuation, reward word, gain and generator state. -/
+theorem Skill.stepTemporal_credit {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
+    (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
+    skill.stepTemporal models activation next reward gain rng =
+      (skill.creditTemporal models activation next (next.policy.drawPersistent rng).1 reward gain,
+        activation.advance next, next.policy.drawPersistent rng) := rfl
+
 /-- The policy is credited the terminal value with the objective's attained bonus and
 inverse potential coordinate. The model is closed at the terminal frame toward the
 features observed there and the current value function's nominal value of it. -/
@@ -413,6 +439,51 @@ def Skill.settleTemporal {config : Config} {criterion : Criterion} {dimension : 
   if learning then
     skill.settleFollowing models value features potential goal estimate rate reward gain
   else skill
+
+/-- The writes of an invocation start whose first action is already drawn, in the order
+of an ordinary start: settle the stored trajectory, start the invocation, then credit the
+drawn action against the started policy's own frozen values. The values the credit lags
+are therefore those of the weights it is applied to, as in an ordinary start; only the
+action comes from the caller. -/
+def Skill.startTemporal {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate)
+    (learning : Bool) (drawn : PersistentDecision actions) :
+    Skill actions config criterion dimension discounts :=
+  let begun := (skill.settleTemporal models value features potential goal estimate rate reward gain
+    learning).beginTemporal models features potential learning rate
+  begun.1.creditTemporal models begun.2.1 begun.2.2 drawn reward gain
+
+/-- **An ordinary start is `startTemporal` at the draw from the started policy.** For
+every skill and every input of a start: settling, starting and stepping, which draws the
+first action from the policy the start froze, returns the skill that `startTemporal`
+returns for that draw. A start whose first action was drawn earlier differs from it in
+the drawn decision alone. -/
+theorem Skill.startTemporal_step {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (reward : Binary32) (gain : RewardRate)
+    (learning : Bool) (rng : Rng.Xoshiro256) :
+    let begun := (skill.settleTemporal models value features potential goal estimate rate reward
+      gain learning).beginTemporal models features potential learning rate
+    (begun.1.stepTemporal models begun.2.1 begun.2.2 reward gain rng).1 =
+      skill.startTemporal models value features potential goal estimate rate reward gain learning
+        (begun.2.2.policy.drawPersistent rng).1 := rfl
+
+/-- The credit of a drawn decision keeps the objective whose potential was supplied. -/
+theorem Skill.creditTemporal_interest {config : Config} {criterion : Criterion}
+    {dimension : Dimension} {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
+    (drawn : PersistentDecision actions) (reward : Binary32) (gain : RewardRate) :
+    (skill.creditTemporal models activation next drawn reward gain).interest = skill.interest := by
+  simp only [Skill.creditTemporal]
+  split <;> simp only [Skill.optionCredit] <;> split <;> rfl
 
 /-- Model callbacks cannot rewrite the policy update or alter the returned action. -/
 theorem Skill.stepTemporal_policy {config : Config} {criterion : Criterion} {dimension : Dimension}

@@ -183,6 +183,41 @@ def Skill.optionStep (skill : Skill actions config criterion dimension discounts
     else skill
   (skill, ⟨activation.age.advance, next.potential⟩, drawn.1, drawn.2)
 
+/-- The activation an admitted step leaves: one more returned action, and the
+continuation's potential as the preceding coordinate. It reads no learner and no reward. -/
+def OptionActivation.advance (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) : OptionActivation mode :=
+  ⟨activation.age.advance, next.potential⟩
+
+/-- The credit half of `optionStep`: the complete Sarsa update of the continuation's
+frozen values for a decision that is already drawn. It draws nothing and reads the
+decision's action only, so a caller can make the draw before the reward arrives and
+credit it afterwards. `Skill.optionStep_credit` proves that `optionStep` is its draw
+followed by this credit. -/
+def Skill.optionCredit (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (drawn : PersistentDecision actions)
+    (reward : Binary32) (gain : RewardRate) : Skill actions config criterion dimension discounts :=
+  if activation.learning then
+    { skill with policy := (skill.policy.persistentStep next.features next.policy drawn
+        (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma next.potential activation.previous) 1) }
+    else skill
+
+/-- The frozen policy of a skill at a frame, read from its learner as it stands: the
+values there and the rate its source resolves to. No trajectory state is cleared and
+nothing is written. It is the snapshot a continuing decision freezes
+(`Skill.decide_policy`). -/
+def Skill.frozenPolicy (skill : Skill actions config criterion dimension discounts)
+    (features : SwiftTd.ActiveSet dimension) (rate : ConsumerRate) : PolicySnapshot actions :=
+  skill.policy.snapshot (count := actions) features
+    (rate.resolve fun _ => skill.policy.exploreRate (count := actions))
+
+/-- The activation of an invocation after its first returned action: age one, and the
+start potential as the preceding coordinate. It is the activation the first step of a
+started invocation leaves (`Skill.begin_first`), named for a caller that draws the first
+action before the invocation start is written. -/
+def OptionActivation.first (learning : Bool) (potential : Potential) : OptionActivation learning :=
+  ⟨ModelAge.advance ⟨0, by decide⟩, potential⟩
+
 /-- Close existing traces with the selected terminal continuation. No new action
 trace is inserted, and the model state is left to the model boundary owner. -/
 def Skill.terminateOption (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
@@ -261,6 +296,49 @@ theorem Skill.step_drawn (skill : Skill actions config criterion dimension disco
     (next : OptionContinuation actions dimension activation) (reward : Binary32) (gain : RewardRate)
     (rng : Rng.Xoshiro256) :
     (skill.optionStep activation next reward gain rng).2.2 = next.policy.drawPersistent rng := rfl
+
+/-- **The option step is its draw followed by its credit.** For every skill,
+activation, continuation, reward word, gain and generator state: the step returns the
+credit of the persistent draw from the continuation's frozen policy, the advanced
+activation, and that draw with the generator it left. -/
+theorem Skill.optionStep_credit (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (reward : Binary32) (gain : RewardRate)
+    (rng : Rng.Xoshiro256) :
+    skill.optionStep activation next reward gain rng =
+      (skill.optionCredit activation next (next.policy.drawPersistent rng).1 reward gain,
+        activation.advance next, next.policy.drawPersistent rng) := rfl
+
+/-- The credit of a drawn decision reads the decision's action only: two decisions
+with one action give one credited skill. -/
+theorem Skill.optionCredit_action (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (first second : PersistentDecision actions)
+    (reward : Binary32) (gain : RewardRate) (same : first.action = second.action) :
+    skill.optionCredit activation next first reward gain =
+      skill.optionCredit activation next second reward gain := by
+  simp only [Skill.optionCredit, Controller.persistentStep, same]
+
+/-- A frozen activation's credit writes nothing, whatever was drawn. -/
+theorem Skill.optionCredit_frozen (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (next : OptionContinuation actions dimension activation) (drawn : PersistentDecision actions)
+    (reward : Binary32) (gain : RewardRate) (frozen : activation.learning = false) :
+    skill.optionCredit activation next drawn reward gain = skill := by
+  simp [Skill.optionCredit, frozen]
+
+/-- The first step of a started invocation leaves the activation `OptionActivation.first`
+names, for every skill, frame, mode and rate source. -/
+theorem Skill.begin_first (skill : Skill actions config criterion dimension discounts)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
+    (skill.beginOption features potential learning rate).2.1.advance
+        (skill.beginOption features potential learning rate).2.2 =
+      OptionActivation.first learning potential := rfl
+
+/-- A continuing decision freezes the frozen policy of the deciding skill. -/
+theorem Skill.decide_frozen (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (next : OptionContinuation actions dimension activation)
+    (continuing : skill.decideOption activation features potential goal estimate rate = .continuing next) :
+    next.policy = skill.frozenPolicy features rate :=
+  skill.decide_policy activation features potential goal estimate rate next continuing
 
 /-- An invocation start freezes the started option's own policy at the start frame: its
 learner's values there and the rate its source resolves to. -/
