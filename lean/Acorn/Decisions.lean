@@ -117,7 +117,7 @@ report of the definitions that have no contract is work of Regula
   it: `StepOrder.parse` (`StepOrder.parse_spelled`, `StepOrder.parse_refused`),
   `Host.Cli.stepOrderValue` (`Host.Cli.stepOrderValue_iff`, `Host.Cli.stepOrderValue_refused`)
   and `Host.Cli.stepOrder` (`Host.Cli.stepOrder_iff`, `Host.Cli.stepOrder_refused`). Their
-  registration is follow-up work.
+  registration is follow-up work of https://github.com/rbeauchamp/acorn/issues/90.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
@@ -149,8 +149,8 @@ No kind says that a specification is the intended one, that every caller acts on
 or which value an accepting result carries. Exactness of the accepted value is stated by the
 theorems beside each definition.
 
-This module declares theorems, specification predicates, one `Decidable` instance and two
-closed values, `wide` and `last`, which are the inputs of the witnesses of one kind.
+This module declares theorems, specification predicates and two closed values, `wide` and
+`last`, which are the inputs of the witnesses of one kind.
 No executable and no other module imports it, so no entry point links those definitions, and
 the registration attribute's module, which imports Lean's elaborator, is linked into no
 native entry point.
@@ -469,10 +469,6 @@ def Resumable (profile : FeatureProfile) : Prop :=
     profile.subtasks = .learned
 
 /-- The executed resumable-profile test accepts exactly a resumable profile. -/
-instance (profile : FeatureProfile) : Decidable (Resumable profile) := by
-  unfold Resumable
-  infer_instance
-
 private theorem resumable_iff (profile : FeatureProfile) :
     profile.checkpointSupported = true ↔ Resumable profile :=
   FeatureProfile.checkpoint_iff profile
@@ -842,82 +838,19 @@ theorem planning_value : Regula.ExecutableContract Host.Cli.planningValue
 
 attribute [regula_decision] Host.Cli.planningValue
 
-/-- The first occurrence of an option in an argument list, stated on the list with no reader:
-the option stands after a prefix that does not hold it, and `rest` is what stands after it. -/
-def FirstOption (arguments : List String) (wanted : String) (rest : List String) : Prop :=
-  ∃ before, arguments = before ++ wanted :: rest ∧ wanted ∉ before
-
-private theorem firstOption_nil (wanted : String) (rest : List String) :
-    ¬FirstOption [] wanted rest := by
-  rintro ⟨before, parts, -⟩
-  cases before <;> cases parts
-
-private theorem firstOption_cons (name wanted : String) (tail rest : List String) :
-    FirstOption (name :: tail) wanted rest ↔
-      (name = wanted ∧ rest = tail) ∨ (name ≠ wanted ∧ FirstOption tail wanted rest) := by
-  constructor
-  · rintro ⟨before, parts, absent⟩
-    cases before with
-    | nil =>
-      injection parts with head same
-      exact .inl ⟨head, same.symm⟩
-    | cons first more =>
-      injection parts with head same
-      have differs : name ≠ wanted := fun equal =>
-        absent (by rw [← head, equal]; exact List.mem_cons_self)
-      exact .inr ⟨differs, more, same, fun member => absent (List.mem_cons_of_mem _ member)⟩
-  · rintro (⟨rfl, rfl⟩ | ⟨differs, before, rfl, absent⟩)
-    · exact ⟨[], rfl, List.not_mem_nil⟩
-    · refine ⟨name :: before, rfl, fun member => ?_⟩
-      rcases List.mem_cons.mp member with same | inside
-      · exact differs same.symm
-      · exact absent inside
-
 /-- The option reader accepts exactly when the first occurrence of the option is not the last
-argument. -/
-private theorem value_accepts (wanted : String) : ∀ arguments : List String,
-    (Host.Cli.value arguments wanted).isOk = true ↔ ¬FirstOption arguments wanted []
-  | [] => by simp [Host.Cli.value, Except.isOk, Except.toBool, firstOption_nil]
-  | name :: tail => by
-    rw [firstOption_cons]
-    by_cases same : name = wanted
-    · subst same
-      cases tail <;> simp [Host.Cli.value, Except.isOk, Except.toBool]
-    · have recursive := value_accepts wanted tail
-      simp only [Host.Cli.value, beq_iff_eq, same, ↓reduceIte, false_and, ne_eq, not_false_eq_true,
-        true_and, false_or]
-      exact recursive
-
-/-- The option reader returns no value exactly for a list without the option, and a value
-exactly when that value stands after the first occurrence of the option. -/
-private theorem value_found (wanted : String) : ∀ (arguments : List String),
-    (Host.Cli.value arguments wanted = .ok none ↔ wanted ∉ arguments) ∧
-      ∀ text, Host.Cli.value arguments wanted = .ok (some text) ↔
-        ∃ after, FirstOption arguments wanted (text :: after)
-  | [] => by simp [Host.Cli.value, firstOption_nil]
-  | name :: tail => by
-    by_cases same : name = wanted
-    · subst same
-      cases tail with
-      | nil => simp [Host.Cli.value, firstOption_cons, firstOption_nil]
-      | cons next more =>
-        refine ⟨by simp [Host.Cli.value], fun text => ?_⟩
-        simp only [Host.Cli.value, beq_self_eq_true, ↓reduceIte, Except.ok.injEq, Option.some.injEq,
-          firstOption_cons, true_and, ne_eq, not_true_eq_false, false_and, or_false,
-          List.cons.injEq]
-        constructor
-        · rintro rfl
-          exact ⟨more, rfl, rfl⟩
-        · rintro ⟨after, same, -⟩
-          exact same.symm
-    · obtain ⟨absent, present⟩ := value_found wanted tail
-      have differs : ¬wanted = name := fun equal => same equal.symm
-      refine ⟨?_, fun text => ?_⟩
-      · simp only [Host.Cli.value, beq_iff_eq, same, ↓reduceIte, List.mem_cons, differs, false_or]
-        exact absent
-      · simp only [Host.Cli.value, beq_iff_eq, same, ↓reduceIte, firstOption_cons, false_and,
-          ne_eq, not_false_eq_true, true_and, false_or]
-        exact present text
+argument (`Host.Cli.value_missing`). -/
+private theorem value_accepts (arguments : List String) (wanted : String) :
+    (Host.Cli.value arguments wanted).isOk = true ↔ ¬Host.Cli.Ends arguments wanted := by
+  cases found : Host.Cli.value arguments wanted with
+  | error refusal =>
+    have ends := ((Host.Cli.value_missing arguments wanted refusal).mp found).1
+    exact ⟨fun accepted => absurd accepted Bool.false_ne_true, fun follows => absurd ends follows⟩
+  | ok result =>
+    refine ⟨fun _ ends => ?_, fun _ => rfl⟩
+    have refused := (Host.Cli.value_missing arguments wanted (.missing wanted)).mpr ⟨ends, rfl⟩
+    rw [found] at refused
+    cases refused
 
 /-- Planning admission from an argument list accepts exactly a list without the option, or one
 whose first occurrence of the option has a canonical spelling after it
@@ -926,13 +859,13 @@ is refused. The specification is stated on the argument list and names no reader
 theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelection
     (Regula.Decides (·.isOk = true) (fun arguments : List String =>
       "--planning" ∉ arguments ∨
-        ∃ selection after,
-          FirstOption arguments "--planning" (PlanningSelection.name selection :: after))) :=
+        ∃ selection,
+          Host.Cli.Follows arguments "--planning" (PlanningSelection.name selection))) :=
   ⟨.of_iff
     (fun arguments => by
       show (Host.Cli.planningSelection arguments).isOk = true ↔ _
-      obtain ⟨absent, present⟩ := value_found "--planning" arguments
-      rw [← absent]
+      have present := Host.Cli.value_follows arguments "--planning"
+      rw [← Host.Cli.value_absent arguments "--planning"]
       cases found : Host.Cli.value arguments "--planning" with
       | error refusal =>
         have refused : (Host.Cli.planningSelection arguments).isOk = false := by
@@ -941,9 +874,9 @@ theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelectio
         constructor
         · intro accepted
           cases accepted
-        · rintro (absurd | ⟨selection, after, first⟩)
+        · rintro (absurd | ⟨selection, first⟩)
           · cases absurd
-          · have provided := (present _).mpr ⟨after, first⟩
+          · have provided := (present _).mpr first
             rw [found] at provided
             cases provided
       | ok text =>
@@ -955,11 +888,11 @@ theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelectio
           constructor
           · intro accepted
             obtain ⟨selection, written⟩ := (planning_parse.evidence.iff text).mp accepted
-            obtain ⟨after, first⟩ := (present text).mp found
-            exact .inr ⟨selection, after, written ▸ first⟩
-          · rintro (absurd | ⟨selection, after, first⟩)
+            have first := (present text).mp found
+            exact .inr ⟨selection, written ▸ first⟩
+          · rintro (absurd | ⟨selection, first⟩)
             · cases absurd
-            · have provided := (present _).mpr ⟨after, first⟩
+            · have provided := (present _).mpr first
               rw [found] at provided
               have written : text = PlanningSelection.name selection := by simpa using provided
               exact (planning_parse.evidence.iff text).mpr ⟨selection, written⟩)
@@ -968,27 +901,30 @@ theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelectio
 attribute [regula_decision] Host.Cli.planningSelection
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
-argument, so that no value stands after it. The specification is stated on the argument list.
-`cli_value_found` states which value an accepted result carries. -/
+argument, so that no value stands after it (`Host.Cli.value_missing`). The specification
+`Host.Cli.Ends` is stated on the argument list. `cli_value_found` states which value an
+accepted result carries. -/
 theorem cli_value : Regula.ExecutableContract Host.Cli.value (fun value =>
     Regula.Decides (·.isOk = true)
-      (fun input : List String × String => ¬FirstOption input.1 input.2 [])
+      (fun input : List String × String => ¬Host.Cli.Ends input.1 input.2)
       (Function.uncurry value)) :=
-  ⟨.of_iff (fun input => value_accepts input.2 input.1) ⟨([], ""), by decide⟩
+  ⟨.of_iff (fun input => value_accepts input.1 input.2) ⟨([], ""), by decide⟩
     ⟨([""], ""), by decide⟩⟩
 
 attribute [regula_decision] Host.Cli.value
 
 /-- The option reader returns no value exactly for a list without the option, and it returns a
-value exactly when that value stands after the first occurrence of the option. A kind states
-the accepted inputs and not the value of a result, so this statement is a requirement with no
-kind beside the kind `cli_value`. -/
+value exactly when that value stands after the first occurrence of the option
+(`Host.Cli.value_absent`, `Host.Cli.value_follows`). A kind states the accepted inputs and
+not the value of a result, so this statement is a requirement with no kind beside the kind
+`cli_value`. -/
 theorem cli_value_found : Regula.ExecutableContract Host.Cli.value (fun value =>
     ∀ (arguments : List String) (wanted : String),
       (value arguments wanted = .ok none ↔ wanted ∉ arguments) ∧
         ∀ text, value arguments wanted = .ok (some text) ↔
-          ∃ after, FirstOption arguments wanted (text :: after)) :=
-  ⟨fun arguments wanted => value_found wanted arguments⟩
+          Host.Cli.Follows arguments wanted text) :=
+  ⟨fun arguments wanted =>
+    ⟨Host.Cli.value_absent arguments wanted, Host.Cli.value_follows arguments wanted⟩⟩
 
 /-- Checkpoint-status parsing accepts exactly the five emitted status lines
 (`Host.CheckpointStatus.roundtrip`). -/

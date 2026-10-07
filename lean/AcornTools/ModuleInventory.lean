@@ -56,7 +56,7 @@ def projectModules : IO (Array Name) := do
 executing definitions, and their decision registrations. It belongs to the `Acorn` library
 because Regula decides a registered function against the contracts of the function's own
 library. No module may import it, so no entry point links what it declares: specification
-predicates, one decision procedure for such a predicate and two closed values. -/
+predicates and two closed values. -/
 def decisionRegistry : Name := `Acorn.Decisions
 
 /-- Every current native module needs an actual object and compiler trace, even
