@@ -318,7 +318,7 @@ require regula from git
 /-- Real-valued rounding theory about Lean core's float model. Only the proof
 library's bridge module imports it; no executable library does. -/
 require floatlib from git
-  "https://github.com/lean-dojo/FloatLib" @ "1e83f09ed8c41a953cf8f93d26c210778177b94a"
+  "https://github.com/lean-dojo/FloatLib" @ "7fc753899afed9562018fe09f336403b179eedbd"
 
 /-- The artifacts of every module of `library` that the given sources import, read from
 their own import lines so that each source stays the single owner of its imports. -/
