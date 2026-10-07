@@ -272,4 +272,41 @@ theorem saved_admitted_order (saver receiver : AgentConstruction) (state : saver
   cases decoded
   exact StepOrder.stored_injective _ _ _ admitted.order stamped
 
+/-- **A relabel of an image in memory is an edit of the order word.** For every profile,
+criterion, planning selection, feature configuration and dimension, every two step
+orders and every image of the construction of the first order: the payload of the same
+durable data as an image of the construction of the second order is the payload of the
+image with its order word replaced by the word of the second order, and with no other
+change. The statement names the constructor of the image, which a definition outside the
+owning modules cannot do; it says what such a definition would make. -/
+theorem relabeled_payload (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
+    (first second : StepOrder)
+    (image : (AgentConstruction.mk profile criterion planning first config dimension).Image) :
+    imagePayload ⟨profile, criterion, planning, second, config, dimension⟩ ⟨image.image⟩ =
+      { imagePayload ⟨profile, criterion, planning, first, config, dimension⟩ image with
+        header := { (imagePayload ⟨profile, criterion, planning, first, config, dimension⟩
+          image).header with order := second.tag } } := rfl
+
+/-- **The loader of the second construction admits that edited payload, and returns the
+relabeled image.** For the same arguments and a profile that has a resumable image: the
+admission of the payload with the replaced order word, by the construction of the second
+order, returns the image with the same durable data. So a relabeled image in memory is
+the value that the second construction gets from the first construction's payload after
+an edit of the order word, and the file is not authenticated. No predicate on the durable
+data separates the two. -/
+theorem relabeled_admitted (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
+    (first second : StepOrder)
+    (image : (AgentConstruction.mk profile criterion planning first config dimension).Image)
+    (supported : profile.checkpointSupported = true) :
+    admitPayload ⟨profile, criterion, planning, second, config, dimension⟩
+        { imagePayload ⟨profile, criterion, planning, first, config, dimension⟩ image with
+          header := { (imagePayload ⟨profile, criterion, planning, first, config, dimension⟩
+            image).header with order := second.tag } } =
+      .ok ⟨image.image⟩ := by
+  rw [← relabeled_payload profile criterion planning config dimension first second image]
+  exact image_roundtrip ⟨profile, criterion, planning, second, config, dimension⟩
+    ⟨image.image⟩ supported
+
 end AcornVerif.CurrentCheckpoint

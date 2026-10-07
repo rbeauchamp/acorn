@@ -3775,6 +3775,32 @@ info: 'Acorn.Handcrafted.AgentConstruction.runCampaign_callbacks' depends on axi
 #print axioms Acorn.Handcrafted.AgentConstruction.runCampaign_callbacks
 
 /--
+info: 'AcornVerif.CurrentRunner.complete_parts' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentRunner.complete_parts
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.relabeled_payload' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.relabeled_payload
+
+/--
+info: 'AcornVerif.CurrentCheckpoint.relabeled_admitted' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.relabeled_admitted
+
+/--
+info: 'Acorn.Handcrafted.AgentConstruction.State.censorObservations_agent' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.AgentConstruction.State.censorObservations_agent
+
+/--
 info: 'Acorn.Handcrafted.AgentConstruction.callbacks_act' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in

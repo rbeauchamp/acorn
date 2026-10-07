@@ -21,8 +21,7 @@ Types, proof terms, the runtime boundary and review supply the semantic evidence
 
 A private constructor stops the constructor notation outside its module. It does not stop
 a tactic: `by constructor` applies it anywhere. Lean also generates a public alias of a
-public constructor. So the audit reads the compiled declarations, and it finds the
-constants that make a sealed value by what they are, with no test of a name.
+public constructor. So the audit reads the compiled declarations.
 
 The sealed constants of an environment, each with the modules that may reference it:
 
@@ -31,36 +30,40 @@ The sealed constants of an environment, each with the modules that may reference
 2. the rows of `AcornOwnership.sealedConstants`;
 3. every alias of a sealed constructor, found by its body: a definition whose body is the
    constructor applied to a rearrangement of the definition's own parameters;
-4. every maker of a type of `AcornOwnership.sealedTypes`, found by its type (`gives`), in
-   the modules that may reference a sealed constant of those types. It gets the modules
-   of the constructors of the type it makes, unless it has a row or is an open maker
-   (`AcornOwnership.openMakers`, each with the theorem that justifies it).
+4. every site that is not free. A site is a definition, an opaque constant or a recursor
+   of an owning module (a module that may reference a sealed constant of the types of
+   `AcornOwnership.sealedTypes`) that references a sealed constant of those types. The
+   reference is exact; the audit decides nothing from a type here. A sealed site makes
+   the definitions that reference it sites, so this part is a closure.
 
 The rule: no declaration of a project module outside the permitted modules, other than a
-theorem, references a sealed constant. A definition of another module then gets a sealed
-value only from an open maker, or from a function that takes a sealed value with the same
-arguments, so part 4 reads the owning modules only.
+theorem, references a sealed constant. The entries of `AcornOwnership.interface` are the
+sites that every module may use; the audit infers none of them.
 
-`gives` is a test of position, not of mention. A value of a sealed type gives one, unless
-a binder before it has a sealed type with equal arguments (the snapshot of a state does
-not make an image; a function from a state of one construction to a state of another
-does). A structure gives what a field gives: an `Option`, an `Except`, a product or an
-`Inhabited` instance of a sealed type gives one, and a `SizeOf` instance or a record of
-functions that take the value first does not. A constructor of a type that is not sealed
-is no maker: it holds what its caller gave it. A field projection is no maker.
+A site is free, and not sealed, only when `examine` proves that its type holds no sealed
+type: the type, reduced by Lean's own `whnf` with its binders as local variables, is
+fully resolved, and no sealed type occurs anywhere in it, in a binder, in the result or in
+a field of a project type that occurs in it. A type variable, a recursor, matcher,
+projection, cast or definition that does not reduce, and the end of the budget are "not
+resolved", and a site that is not resolved is not free. An opaque type of the core
+library is resolved when its arguments are. The test reads no position: a
+sealed type in an argument of an argument gives a value to the code of the caller, so
+every occurrence counts.
 
-Limits. The rule classifies a function of an owning module by its type and does not read
-its body: the owning modules stay the reviewed makers. A theorem is exempt: compiled code
-gets no value from a proof, and the equations that Lean derives for a definition are
+The trusted base of the invariant is the owning modules, the interface list and this
+tool. The rule does not read the body of a definition of an owning module to decide if
+it keeps the claim of a sealed type: a change of an owning module or of the interface
+list is a change of the invariant and is reviewed as one. A theorem is exempt: compiled
+code gets no value from a proof, and the equations that Lean derives for a definition are
 theorems of the module that first uses them. A `noncomputable` definition could take a
 sealed value out of a proof by choice; it is not executed. The rule is about this
 project's modules. It does not stop a definition in another project, and it says nothing
 about bytes in a file.
 
-Five control declarations below make a sealed value outside its module. The audit runs
-the rule on this module two times and requires that the complete rule reports exactly the
-five and that parts 1 and 2 alone report exactly the first two. So each of the other
-three is reported by part 3 or part 4 and by nothing else.
+Eight control declarations below make a sealed value outside its module. The audit runs
+the rule on this module two times. The complete rule must report each control for its
+intended constant and nothing else, and parts 1 and 2 alone must report exactly the first
+two. So each of the other six is reported by part 3 or part 4 and by nothing else.
 -/
 namespace AcornOwnershipAudit
 open Lean
@@ -136,21 +139,19 @@ def tableControl {α β : Type} (callbacks : Acorn.Host.AgentCallbacks .planAfte
     recordEnvironment := callbacks.recordEnvironment, recordAttempt := callbacks.recordAttempt,
     capture := callbacks.capture, metrics := callbacks.metrics }
 
-/-- Control of part 3, the image route: the snapshot of a state of one construction is
-made into an image of a construction of the other step order with the generated alias of
-the image's constructor, and the payload writer of that construction stamps it. It
-references no constructor, so parts 1 and 2 do not report it. The compiler has no code
-for the alias, so the definition is not compiled. -/
+/-- Control of part 3, the image route: the durable data of an image of one construction
+is made into an image of a construction of the other step order with the generated alias
+of the image's constructor, and the payload writer of that construction stamps it. It
+references no constructor and no other sealed constant, so parts 1 and 2 do not report
+it. The compiler has no code for the alias, so the definition is not compiled. -/
 noncomputable def aliasImageControl (profile : Acorn.Handcrafted.FeatureProfile)
     (criterion : Acorn.Features.Criterion) (planning : Acorn.Features.PlanningSelection)
     (config : Acorn.Features.Config) (dimension : Acorn.Dimension)
-    (state : (Acorn.Handcrafted.AgentConstruction.mk profile criterion planning .learnThenAct
-      config dimension).State) : Acorn.Checkpoint.Payload dimension :=
+    (image : (Acorn.Handcrafted.AgentConstruction.mk profile criterion planning .learnThenAct
+      config dimension).Image) : Acorn.Checkpoint.Payload dimension :=
   Acorn.Checkpoint.imagePayload ⟨profile, criterion, planning, .planAfterAct, config, dimension⟩
     (@Acorn.Handcrafted.AgentConstruction.Image.mk._flat_ctor
-      ⟨profile, criterion, planning, .planAfterAct, config, dimension⟩
-      (Acorn.Checkpoint.snapshotImage ⟨profile, criterion, planning, .learnThenAct, config,
-        dimension⟩ state).image)
+      ⟨profile, criterion, planning, .planAfterAct, config, dimension⟩ image.image)
 
 /-- Control of part 3, the callback route: the callback record of one step order is
 copied under the index of the other with the generated alias of its constructor and
@@ -170,124 +171,24 @@ noncomputable def aliasCallbackControl {config : Acorn.Host.WorldConfig} {goal :
 
 /-- Control of part 4: a value of the sealed control type from the `Inhabited` instance of
 its owning module. It references no constructor and no constructor alias, and the
-instance has no constructor in its name: the rule finds the instance by its type. -/
+instance has no constructor in its name: the instance is a site, and its type holds the
+sealed type. -/
 def instanceControl : AcornSealedControl.Token true := default
 
-/-- The applications of the given types in an expression: the type and its arguments. -/
-partial def sealedMentions (types : Array Name) (e : Expr) : Array (Name × Array Expr) :=
-  match e with
-  | .const name _ => if types.contains name then #[(name, #[])] else #[]
-  | .app .. =>
-    let args := e.getAppArgs
-    let inner := args.foldl (fun found arg => found ++ sealedMentions types arg) #[]
-    match e.getAppFn with
-    | .const name _ => if types.contains name then #[(name, args)] ++ inner else inner
-    | head => sealedMentions types head ++ inner
-  | .lam _ domain body _ | .forallE _ domain body _ =>
-    sealedMentions types domain ++ sealedMentions types body
-  | .letE _ type value body _ =>
-    sealedMentions types type ++ sealedMentions types value ++ sealedMentions types body
-  | .mdata _ body | .proj _ _ body => sealedMentions types body
-  | _ => #[]
+/-- Control of part 4, a result that is a type variable: the site's type names no sealed
+type in its result, and an equality identifies the variable with the sealed type. The
+type is not resolved, so the site is not free. -/
+def castControl : AcornSealedControl.Token true :=
+  AcornSealedControl.tokenByCast true (AcornSealedControl.Token true) rfl
 
-/-- The declared type ends in `Prop`: its values are proofs. -/
-def typeInProp (type : Expr) : Bool := Id.run do
-  let mut current := type
-  while current.isForall do current := current.bindingBody!
-  return current.isProp
+/-- Control of part 4, a result type that a recursor computes: Lean's own reduction, with
+the actual list, gives the sealed type. -/
+def recursorControl : AcornSealedControl.Token true := AcornSealedControl.tokenByRecursor true
 
-/-- The types of `types` that a holder of a value of `type` gets a value of, when no
-binder before it supplied a value of a sealed type with the same arguments. `guards` are
-the argument lists of the sealed binders passed so far, and `visited` the applied
-inductive types on the path. A type that a recursor computes gives what the type of one
-of its branches gives. Another type that this function cannot reduce counts as giving
-each type it mentions. -/
-partial def gives (env : Environment) (types : Array Name) (guards : Array (Array Expr))
-    (visited : Array Expr) (depth : Nat) (type : Expr) : Array Name :=
-  let unguarded (found : Array (Name × Array Expr)) : Array Name :=
-    found.foldl (fun made (name, args) =>
-      if guards.any (· == args) || made.contains name then made else made.push name) #[]
-  if depth > 96 then unguarded (sealedMentions types type) else
-  let type := type.headBeta
-  match type with
-  | .mdata _ body => gives env types guards visited depth body
-  | .sort _ => #[]
-  | .forallE _ domain body _ =>
-    let guards := match domain.getAppFn with
-      | .const name _ => if types.contains name then guards.push domain.getAppArgs else guards
-      | _ => guards
-    gives env types guards visited (depth + 1)
-      (body.instantiate1 (.fvar ⟨Name.mkNum `binder depth⟩))
-  | _ =>
-    match type.getAppFn with
-    | .const name levels =>
-      let args := type.getAppArgs
-      if types.contains name then unguarded #[(name, args)]
-      else match env.find? name with
-        | some (.defnInfo info) =>
-          gives env types guards visited (depth + 1)
-            ((info.value.instantiateLevelParams info.levelParams levels).beta args)
-        | some (.inductInfo info) =>
-          if typeInProp info.type || visited.contains type then #[] else Id.run do
-            let visited := visited.push type
-            let mut made : Array Name := #[]
-            let mut used := false
-            for constructor in info.ctors do
-              let some (.ctorInfo constructorInfo) := env.find? constructor | continue
-              let mut current :=
-                constructorInfo.type.instantiateLevelParams constructorInfo.levelParams levels
-              for index in [:info.numParams] do
-                if current.isForall then
-                  current := current.bindingBody!.instantiate1 (args.getD index (.sort .zero))
-              let mut counter := 0
-              while current.isForall do
-                let field := current.bindingDomain!
-                let proof := match field.getAppFn with
-                  | .const head _ => match env.find? head with
-                    | some (.inductInfo fieldInfo) => typeInProp fieldInfo.type
-                    | _ => false
-                  | _ => false
-                unless proof || (sealedMentions types field).isEmpty do used := true
-                for name in gives env types guards visited (depth + 1) field do
-                  unless made.contains name do made := made.push name
-                current := current.bindingBody!.instantiate1
-                  (.fvar ⟨Name.mkNum (Name.mkNum `field depth) counter⟩)
-                counter := counter + 1
-            -- A parameter that no data field uses is the mark of an opaque container.
-            unless used do
-              for name in unguarded (sealedMentions types type) do
-                unless made.contains name do made := made.push name
-            return made
-        | some (.recInfo info) =>
-          -- A type that a recursor computes from a value that is not known is one of the
-          -- types of its branches.
-          let minors := args.extract (info.numParams + info.numMotives)
-            (info.numParams + info.numMotives + info.numMinors)
-          minors.foldl (fun made minor => Id.run do
-            let mut body := minor
-            let mut counter := 0
-            while body.isLambda do
-              body := body.bindingBody!.instantiate1
-                (.fvar ⟨Name.mkNum (Name.mkNum `branch depth) (made.size * 64 + counter)⟩)
-              counter := counter + 1
-            let mut made := made
-            for name in gives env types guards visited (depth + 1) body do
-              unless made.contains name do made := made.push name
-            return made) #[]
-        | _ => unguarded (sealedMentions types type)
-    | _ => unguarded (sealedMentions types type)
-
-/-- A field projection: `fun parameters self => self.i`. It returns a part of a value
-that exists. -/
-def isProjection (info : ConstantInfo) : Bool :=
-  match info with
-  | .defnInfo definition => Id.run do
-    let mut body := definition.value
-    while body.isLambda do body := body.bindingBody!
-    return match body with
-      | .proj _ _ (.bvar 0) => true
-      | _ => false
-  | _ => false
+/-- Control of part 4, a result type behind abbreviations: Lean's own reduction unfolds
+them. -/
+def abbreviationControl : AcornSealedControl.Token true :=
+  AcornSealedControl.tokenByAbbreviation true
 
 /-- Built from bound variables by constructors only, with a bound variable in each leaf. -/
 partial def rearranged (env : Environment) (e : Expr) : Bool :=
@@ -319,36 +220,125 @@ def aliasOf (env : Environment) (info : ConstantInfo) : Option Name :=
         !fields.isEmpty && fields.all (rearranged env) then return some head else return none
   | _ => none
 
+/-- The work done and the applied project types that are under examination. -/
+structure ExamineState where
+  /-- Types examined so far, against the budget. -/
+  steps : Nat := 0
+  /-- Applied project types on the way; a type that holds itself adds nothing. -/
+  visited : Std.HashSet Expr := {}
+
+/-- Why a type is not proved free of the sealed types, or `none` when it is proved free:
+it is fully resolved, and no sealed type occurs in it, in a binder, in the result, in an
+argument, or in a field of a project type that occurs in it. Every reduction is Lean's
+own `whnf`. A form that this function does not know is a reason, so it fails closed. -/
+partial def examine (env : Environment) (types projects : Array Name) (budget : Nat)
+    (type : Expr) : StateRefT ExamineState MetaM (Option String) := do
+  modify fun state => { state with steps := state.steps + 1 }
+  if (← get).steps > budget then return some "the budget of the analysis ended"
+  if ← Meta.isProp type then return none
+  Meta.forallTelescopeReducing type fun binders result => do
+    let result ← Meta.whnf result
+    let argument (arg : Expr) : StateRefT ExamineState MetaM (Option String) := do
+      let kind ← Meta.whnf (← Meta.inferType arg)
+      if ← Meta.isProp kind then return none
+      if ← Meta.forallTelescopeReducing kind fun _ sort => pure sort.isSort then
+        Meta.lambdaTelescope arg fun _ body => examine env types projects budget body
+      else
+        match arg.find? fun sub => match sub with
+            | .const name _ => types.contains name
+            | _ => false with
+        | some sub => return some s!"a value that names {sub}"
+        | none => return none
+    let verdict ← match result.getAppFn with
+      | .sort _ => pure none
+      | .const name levels =>
+        if types.contains name then pure (some s!"the sealed type {name}")
+        else match env.find? name with
+          | some (.inductInfo info) => do
+            let args := result.getAppArgs
+            let mut reason : Option String := none
+            for arg in args do
+              if reason.isNone then reason ← argument arg
+            let owner := match env.getModuleIdxFor? name with
+              | some index => (env.header.modules[index.toNat]?.map (·.module)).getD .anonymous
+              | none => .anonymous
+            if reason.isNone && projects.contains owner && !(← get).visited.contains result then
+              modify fun state => { state with visited := state.visited.insert result }
+              for constructor in info.ctors do
+                let some (.ctorInfo constructorInfo) := env.find? constructor | continue
+                let fields ← Meta.instantiateForall
+                  (constructorInfo.type.instantiateLevelParams constructorInfo.levelParams levels)
+                  (args.extract 0 info.numParams)
+                let found ← Meta.forallTelescope fields fun locals _ => do
+                  let mut found : Option String := none
+                  for field in locals do
+                    if found.isNone then
+                      found ← examine env types projects budget (← Meta.inferType field)
+                  return found
+                if reason.isNone then reason := found
+            pure reason
+          | some (.opaqueInfo _) | some (.axiomInfo _) | some (.quotInfo _) => do
+            let mut reason : Option String := none
+            for arg in result.getAppArgs do
+              if reason.isNone then reason ← argument arg
+            pure reason
+          | _ => pure (some s!"not resolved: {name} does not reduce")
+      | .fvar _ => pure (some "not resolved: a type variable")
+      | .proj _ _ base =>
+        -- The carrier of an opaque type of the core library is a projection of an opaque
+        -- constant. It holds what its arguments let it hold.
+        match base.getAppFn with
+        | .const name _ =>
+          match env.find? name with
+          | some (.opaqueInfo _) | some (.axiomInfo _) => do
+            let mut reason : Option String := none
+            for arg in base.getAppArgs ++ result.getAppArgs do
+              if reason.isNone then reason ← argument arg
+            pure reason
+          | _ => pure (some s!"not resolved: a projection of {name}")
+        | _ => pure (some "not resolved: a projection")
+      | other => pure (some s!"not resolved: a type of the form {other.ctorName}")
+    if verdict.isSome then return verdict
+    for binder in binders do
+      if let some reason ← examine env types projects budget (← Meta.inferType binder) then
+        return some reason
+    return none
+
+/-- Why the type of a site is not proved free of the sealed types; `none` when it is. An
+error of the reduction is a reason. -/
+def notFree (env : Environment) (types projects : Array Name) (type : Expr)
+    (budget : Nat := 50000) : IO (Option String) := do
+  -- A sealed type that the type names as written is a reason with no reduction.
+  if let some (.const name _) := type.find? fun sub => match sub with
+      | .const name _ => types.contains name
+      | _ => false then
+    return some s!"the sealed type {name}"
+  let action : MetaM (Option String) :=
+    try (examine env types projects budget type).run' {}
+    catch error => return some s!"the reduction failed: {← error.toMessageData.toString}"
+  action.run'.toIO' { fileName := "ownership-audit", fileMap := default } { env }
+
 /-- The sealed constants of one compiled environment. -/
 structure Sealing where
   /-- Each sealed constant with the modules that may reference it in a definition. -/
   permitted : NameMap (Array Name) := {}
-  /-- Each sealed constant with the part of the rule that found it and those modules. -/
-  found : Array (Name × String × Array Name) := #[]
+  /-- Each sealed constant with the part of the rule that found it, those modules, and for
+  a site the reason that its type is not free. -/
+  found : Array (Name × String × Array Name × String) := #[]
 
 /-- Add one sealed constant. -/
-def Sealing.add (sealing : Sealing) (name : Name) (part : String) (owners : Array Name) :
-    Sealing :=
+def Sealing.add (sealing : Sealing) (name : Name) (part : String) (owners : Array Name)
+    (reason : String := "") : Sealing :=
   { permitted := sealing.permitted.insert name owners,
-    found := sealing.found.push (name, part, owners) }
+    found := sealing.found.push (name, part, owners, reason) }
 
 /-- The number of sealed constants that one part found. -/
 def Sealing.count (sealing : Sealing) (part : String) : Nat :=
   (sealing.found.filter (·.2.1 == part)).size
 
-/-- The modules that may reference a constructor of a type. -/
-def typeOwners (env : Environment) (sealing : Sealing) (type : Name) : Array Name :=
-  match env.find? type with
-  | some (.inductInfo info) =>
-    info.ctors.foldl (fun owners constructor =>
-      (sealing.permitted.find? constructor |>.getD #[]).foldl
-        (fun owners owner => if owners.contains owner then owners else owners.push owner) owners)
-      #[]
-  | _ => #[]
-
 /-- The sealed constants of one compiled environment with the modules that may reference
 each. Parts 1 and 2 are the direct part; `derived` adds the constructor aliases found by
-body and the makers of `types` found by type. -/
+body and the sites of `types` that are not free, to a fixed point. -/
 def sealedIn (env : Environment) (projects : Array Name)
     (types : Array Name := AcornOwnership.sealedTypes) (derived : Bool := true) :
     IO Sealing := do
@@ -367,29 +357,48 @@ def sealedIn (env : Environment) (projects : Array Name)
     if sealing.permitted.contains name then continue
     unless projects.contains (← ownerOf env name) do continue
     sealing := sealing.add name "constructor alias" owners
-  let mut owning : Array Name := #[]
+  -- The sealed constants of the declared types, and the modules that may reference them.
+  let mut declared : NameSet := {}
   for type in types do
-    for owner in typeOwners env sealing type do
+    if let some (.inductInfo info) := env.find? type then
+      for constructor in info.ctors do declared := declared.insert constructor
+  for (name, _) in AcornOwnership.sealedConstants do declared := declared.insert name
+  for (name, part, _, _) in sealing.found do
+    if part == "constructor alias" then
+      if let some info := env.find? name then
+        if let some constructor := aliasOf env info then
+          if declared.contains constructor then declared := declared.insert name
+  let mut owning : Array Name := #[]
+  for name in declared do
+    for owner in sealing.permitted.find? name |>.getD #[] do
       unless owning.contains owner do owning := owning.push owner
-  for (name, owners) in AcornOwnership.sealedConstants do
-    if (env.find? name).isSome then
-      for owner in owners do
-        unless owning.contains owner do owning := owning.push owner
+  let mut candidates : Array (Name × ConstantInfo) := #[]
   for (name, info) in env.constants do
     match info with
-    | .defnInfo _ | .opaqueInfo _ => pure ()
+    | .defnInfo _ | .opaqueInfo _ | .recInfo _ => pure ()
     | _ => continue
     let some index := env.getModuleIdxFor? name | continue
     let some imported := env.header.modules[index.toNat]? | continue
-    unless owning.contains imported.module do continue
-    if sealing.permitted.contains name || AcornOwnership.openMakers.any (·.1 == name) then continue
-    if isProjection info then continue
-    let made := gives env types #[] #[] 0 info.type
-    let some first := made[0]? | continue
-    let owners := (made.extract 1 made.size).foldl
-      (fun owners other => owners.filter (typeOwners env sealing other).contains)
-      (typeOwners env sealing first)
-    sealing := sealing.add name "maker" owners
+    if owning.contains imported.module then candidates := candidates.push (name, info)
+  let mut free : NameSet := {}
+  let mut changed := true
+  while changed do
+    changed := false
+    for (name, info) in candidates do
+      if sealing.permitted.contains name || free.contains name then continue
+      if AcornOwnership.interface.any (·.1 == name) then continue
+      let referenced := info.getUsedConstantsAsSet.toList.filter declared.contains
+      let some first := referenced.head? | continue
+      match ← notFree env types projects info.type with
+      | none => free := free.insert name
+      | some reason =>
+        let owners := referenced.tail.foldl
+          (fun owners other =>
+            owners.filter (sealing.permitted.find? other |>.getD #[]).contains)
+          (sealing.permitted.find? first |>.getD #[])
+        sealing := sealing.add name "site" owners reason
+        declared := declared.insert name
+        changed := true
   return sealing
 
 /-- Each declaration of the selected modules, other than a theorem, that references a
@@ -409,18 +418,18 @@ def sealedViolations (env : Environment) (permitted : NameMap (Array Name))
         unless owners.contains owner do found := found.push (owner, name, used)
   return found
 
-/-- No selected project module makes a sealed value outside the permitted modules. -/
+/-- No selected project module references a sealed constant outside its permitted modules. -/
 def sealedAdmission (env : Environment) (sealing : Sealing) (selected : Array Name) :
     IO Unit := do
   for (owner, name, used) in ← sealedViolations env sealing.permitted selected do
-    throw (IO.userError s!"{owner}: {name} references the sealed constant {privateToUserName used}; only {sealing.permitted.find? used |>.getD #[]} may")
+    throw (IO.userError s!"{owner}: {name} references the sealed constant {privateToUserName used}; only {sealing.permitted.find? used |>.getD #[]} may. If every module may use it, it needs an entry in AcornOwnership.interface with its theorem")
 
 /-- The tables agree with the environment. Each type of `AcornOwnership.sealedTypes`
 exists and each of its constructors is sealed. Each table row names a compiled constant
-and maintained modules. Each sealed constant is owned by one of its own permitted
-modules, so a computed maker in a module that has only a row fails closed. Each open
-maker is a maker by its type, and its theorem exists and names it. -/
-def sealedRequired (env : Environment) (sealing : Sealing) (modules : Array Name) :
+and maintained modules. Each interface entry is a site whose type is not free, so the
+list holds no entry that the rule does not need; its theorem exists and names it, or it
+has its line. -/
+def sealedRequired (env : Environment) (sealing : Sealing) (projects modules : Array Name) :
     IO Unit := do
   for type in AcornOwnership.sealedTypes do
     let some (.inductInfo info) := env.find? type
@@ -432,40 +441,70 @@ def sealedRequired (env : Environment) (sealing : Sealing) (modules : Array Name
     require ((env.find? name).isSome) s!"stale sealed constant {name}"
     for owner in owners do
       require (modules.contains owner) s!"{name}: stale permitted module {owner}"
-  for (name, part, owners) in sealing.found do
-    require (owners.contains (← ownerOf env name))
-      s!"{privateToUserName name}: this {part} is not owned by a module that may reference it ({owners}); give it a row or make it an open maker"
-  for (maker, justification) in AcornOwnership.openMakers do
-    let some info := env.find? maker | throw (IO.userError s!"stale open maker {maker}")
-    require (!(gives env AcornOwnership.sealedTypes #[] #[] 0 info.type).isEmpty)
-      s!"{maker}: an open maker that makes no sealed type by its type"
-    let some (.thmInfo theoremInfo) := env.find? justification
-      | throw (IO.userError s!"{maker}: missing theorem {justification}")
-    require (theoremInfo.type.getUsedConstantsAsSet.contains maker)
-      s!"{justification}: its statement does not name the open maker {maker}"
+  for (entry, justification, line) in AcornOwnership.interface do
+    let some info := env.find? entry | throw (IO.userError s!"stale interface entry {entry}")
+    require (info.getUsedConstantsAsSet.toList.any sealing.permitted.contains)
+      s!"{entry}: an interface entry that references no sealed constant; remove it"
+    require ((← notFree env AcornOwnership.sealedTypes projects info.type).isSome)
+      s!"{entry}: an interface entry whose type holds no sealed type; remove it"
+    require (!line.trimAscii.isEmpty) s!"{entry}: an interface entry with no line"
+    match justification with
+    | none => pure ()
+    | some name =>
+      let some (.thmInfo theoremInfo) := env.find? name
+        | throw (IO.userError s!"{entry}: missing theorem {name}")
+      require (theoremInfo.type.getUsedConstantsAsSet.contains entry)
+        s!"{name}: its statement does not name the interface entry {entry}"
 
-/-- The complete rule must report the five controls of this module and nothing else in
-it, and the direct part alone must report the first two and nothing else. The control
-type and its owning module are inputs of this run only. -/
+/-- The controls of this module, each with the sealed constant that it must be reported
+for. The first two reference a constructor; the others do not. -/
+def controls : Array (Name × Name) := #[
+  (``sealedControl, `Acorn.Handcrafted.AgentConstruction.State.mk),
+  (``tableControl, `Acorn.Host.AgentCallbacks.mk),
+  (``aliasImageControl, `Acorn.Handcrafted.AgentConstruction.Image.mk._flat_ctor),
+  (``aliasCallbackControl, `Acorn.Host.AgentCallbacks.mk._flat_ctor),
+  (``instanceControl, ``AcornSealedControl.defaultToken),
+  (``castControl, ``AcornSealedControl.tokenByCast),
+  (``recursorControl, ``AcornSealedControl.tokenByRecursor),
+  (``abbreviationControl, ``AcornSealedControl.tokenByAbbreviation)]
+
+/-- The complete rule must report each control of this module for its intended constant
+and nothing else in the module, and the direct part alone must report the first two for
+their constructors and nothing else. A type with no budget left must not be free. The
+control type and its owning module are inputs of this run only. -/
 def sealedControls (env : Environment) (projects : Array Name) : IO Unit := do
-  let controls := projects.push `AcornTools.SealedControl
+  let scanned := projects.push `AcornTools.SealedControl
   let types := AcornOwnership.sealedTypes.push ``AcornSealedControl.Token
-  let reported (sealing : Sealing) : IO (Array Name) := do
+  let reported (sealing : Sealing) : IO (Array (Name × Name)) := do
     let found ← sealedViolations env sealing.permitted #[`AcornTools.OwnershipAudit]
-    return found.foldl (fun names row =>
-      if names.contains row.2.1 then names else names.push row.2.1) #[]
-  let complete ← reported (← sealedIn env controls types)
-  let direct ← reported (← sealedIn env controls types (derived := false))
-  let expected := #[``sealedControl, ``tableControl, ``aliasImageControl,
-    ``aliasCallbackControl, ``instanceControl]
-  require (expected.all complete.contains && complete.all expected.contains)
-    s!"the sealed-constant rule must report exactly its 5 controls; it reported {complete}"
-  require (direct.size == 2 && direct.contains ``sealedControl && direct.contains ``tableControl)
-    s!"the direct part of the sealed-constant rule must report exactly the 2 direct controls; it reported {direct}"
+    return found.map fun row => (row.2.1, privateToUserName row.2.2)
+  let sealing ← sealedIn env scanned types
+  let complete ← reported sealing
+  let direct ← reported (← sealedIn env scanned types (derived := false))
+  -- Each site of the control module is sealed for the reason that it stands for: the
+  -- result that is a type variable is not resolved, and the two others reduce to the
+  -- sealed type.
+  for (site, start) in #[(``AcornSealedControl.tokenByCast, "not resolved: a type variable"),
+      (``AcornSealedControl.tokenByRecursor, "the sealed type"),
+      (``AcornSealedControl.tokenByAbbreviation, "the sealed type"),
+      (``AcornSealedControl.defaultToken, "the sealed type")] do
+    require (sealing.found.any fun row => row.1 == site && row.2.1 == "site" &&
+        row.2.2.2.startsWith start)
+      s!"the control site {site} is not sealed for the reason '{start}': {sealing.found.filter (·.1 == site) |>.map (·.2.2.2)}"
+  for (control, constant) in controls do
+    require (complete.contains (control, constant))
+      s!"the sealed-constant rule did not report {control} for {constant}; it reported {complete}"
+  for (control, constant) in complete do
+    require (controls.contains (control, constant))
+      s!"the sealed-constant rule reported {control} for {constant}, which is no control"
+  require (direct.size == 2 && (controls.extract 0 2).all direct.contains)
+    s!"the direct part of the sealed-constant rule must report exactly the 2 direct controls for their constructors; it reported {direct}"
+  require ((← notFree env types scanned (.const ``Nat []) (budget := 0)).isSome)
+    "a type is free with no budget left"
 
 /-- One line for each part of the rule, from the computed set. -/
 def Sealing.report (sealing : Sealing) : String :=
-  s!"ownership: {sealing.found.size} sealed constants ({sealing.count "private constructor"} private constructors, {sealing.count "table row"} table rows, {sealing.count "constructor alias"} constructor aliases found by body, {sealing.count "maker"} makers found by type) and {AcornOwnership.openMakers.size} open makers; no definition outside their modules references a sealed constant"
+  s!"ownership: {sealing.found.size} sealed constants ({sealing.count "private constructor"} private constructors, {sealing.count "table row"} table rows, {sealing.count "constructor alias"} constructor aliases found by body, {sealing.count "site"} sites that are not free) and {AcornOwnership.interface.size} interface entries; no definition outside their modules references a sealed constant"
 
 /-- Follow the entry's actual serialized import edges. Shared dependency data
 must never make a declaration outside this closure available to its IR check. -/
@@ -515,12 +554,12 @@ unsafe def compiled (complete : Bool := false) (listSealed : Bool := false) : IO
     let included := projects.filter fun owner => (common.getModuleIdx? owner).isSome
     let sealing ← sealedIn common projects
     if listSealed then
-      for (name, part, owners) in sealing.found.qsort (fun a b => a.2.1 < b.2.1 ||
+      for (name, part, owners, reason) in sealing.found.qsort (fun a b => a.2.1 < b.2.1 ||
           (a.2.1 == b.2.1 && (privateToUserName a.1).toString < (privateToUserName b.1).toString)) do
-        IO.println s!"sealed {part}: {privateToUserName name} <- {owners}"
-      for (maker, justification) in AcornOwnership.openMakers do
-        IO.println s!"open maker: {maker} ({justification})"
-    sealedRequired common sealing modules
+        IO.println s!"sealed {part}: {privateToUserName name} <- {owners}{if reason.isEmpty then "" else s!" ({reason})"}"
+      for (entry, justification, line) in AcornOwnership.interface do
+        IO.println s!"interface entry: {entry} ({justification.getD .anonymous}) {line}"
+    sealedRequired common sealing projects modules
     sealedAdmission common sealing included
     let mut counts : AcornTheoremCount.Counts := {}
     if complete then counts ← AcornTheoremCount.countEnvironment common included
@@ -559,7 +598,7 @@ unsafe def compiled (complete : Bool := false) (listSealed : Bool := false) : IO
       require (entries.any (·.2 == owner)) s!"stale entry contract {owner}"
     IO.println s!"ownership: {modules.size} maintained modules, {entries.size} native entries, {AcornOwnership.anchors.size} required execution/proof links"
     IO.println sealing.report
-    IO.println "ownership: 5 controls of the sealed-constant rule reported, 2 of them by the direct part alone"
+    IO.println s!"ownership: {controls.size} controls of the sealed-constant rule reported, each for its intended constant, 2 of them by the direct part alone"
     if complete then
       require (projects.all counted.contains && counted.size == projects.size)
         "incomplete or duplicate theorem-owner admission"

@@ -720,19 +720,33 @@ bytes only when the order word in their own header is the receiver's
 `CurrentCheckpoint.saved_admitted_order`).
 
 These types hold no proof of an order, because the learner state and the durable
-image carry none. The index and the ownership audit prevent a mix of orders
-inside this project. The audit reads the compiled declarations and refuses a
-definition, outside the modules that own it, that references a constant which
-makes a value of one of these types: a constructor, an alias of a constructor
-(found by its body), another maker (found by its type), or the callbacks of a
-construction. Four makers are open to every module, each with a theorem
-(`AcornOwnership.openMakers`): cold initialization, the finite prefix of a
-construction of the default order, the campaign of a construction, and the first
-part of the agent's step. The audit classifies a function of an owning module by
-its type and does not read its body, so those modules stay the reviewed makers.
-The index and the audit do not stop a definition outside the project that builds
-one of these structures directly. They do not stop an edit of the order word in
-a checkpoint file, because the file is not authenticated.
+image carry none. The order of a value is a fact about the code that made it, and
+no proof inside the value can state it. The index and the ownership audit prevent
+a mix of orders inside this project. The audit reads the compiled declarations
+and refuses a definition, outside the modules that own it, that references a
+sealed constant: a constructor of one of these types, an alias of a constructor
+(found by its body), the callbacks of a construction, or a definition of an
+owning module that references a sealed constant and whose type is not proved free
+of these types. The definitions of the owning modules that every module may use
+are a declared list, `AcornOwnership.interface`, each with the theorem that says
+where its value comes from.
+
+The trusted base of this invariant is the owning modules, the interface list and
+the audit tool. The audit does not read the body of a definition of an owning
+module to decide if it keeps the claim, so a change of an owning module or of the
+interface list is a change of the invariant and is reviewed as one. The index
+and the audit do not stop a definition outside the project that builds one of
+these structures directly. They do not stop an edit of the order word in a
+checkpoint file, because the file is not authenticated.
+
+Two theorems say what a mix would be. A callback record that is copied under the
+other index returns, from the loop of that index, the run state, the outcome and
+the refusal of the record itself (`CurrentRunner.complete_parts` with the two
+loop theorems): the copy changes the time of the world's transition and no
+returned value. The durable data of an image, put under a construction of the
+other order, is the image that this construction admits from the first
+construction's payload after an edit of the order word
+(`CurrentCheckpoint.relabeled_payload`, `CurrentCheckpoint.relabeled_admitted`).
 
 Under `learn-then-act` the runner takes the world's
 transition after both parts. Under `plan-after-act` it takes the transition

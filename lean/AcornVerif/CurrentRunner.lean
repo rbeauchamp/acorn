@@ -462,4 +462,77 @@ theorem baseline_finishes (config : WorldConfig) (seed : UInt64) (spec : Campaig
       omega
     · simp [CampaignPlan.initial, populated]
 
+/-- Two callback records, at any two indices, with the same whole step and the same host
+functions. A copy of a record under another index is one case. -/
+structure SameParts {other : StepOrder} {α β : Type} (first : AgentCallbacks order α β)
+    (second : AgentCallbacks other α β) : Prop where
+  /-- The whole step, the first part and then the second, is the same function. -/
+  whole : ∀ agent observation carried,
+    first.act agent observation carried = second.act agent observation carried
+  /-- The environment bookkeeping is the same function. -/
+  environment : first.recordEnvironment = second.recordEnvironment
+  /-- The attempt bookkeeping is the same function. -/
+  attempt : first.recordAttempt = second.recordAttempt
+  /-- The observer snapshot is the same function. -/
+  capture : first.capture = second.capture
+  /-- The terminal observations are the same function. -/
+  metrics : first.metrics = second.metrics
+
+/-- **The pure fold reads the whole step and the host functions, and not the index.**
+For every two callback records with the same whole step and the same host functions, at
+any two indices, and every context, fuel and attempt, the fold `Attempt.complete` is the
+same value. Both native loops return what this fold returns (`runAttemptSteps_complete`,
+`runReleasedSteps_complete`). So a record that is copied under the other index, and run
+by the loop of that index, returns the run state, the outcome and the refusal of the
+record itself: the copy changes the time of the world's transition, the reported
+durations and the order of the frame delivery, and no returned value. The world of this
+protocol takes one transition for each action and waits for it; the statement is about
+that world. -/
+theorem complete_parts {other : StepOrder} {config : WorldConfig} {α β : Type} {goal : Goal}
+    {cap : UInt64} (first : AgentCallbacks order α β) (second : AgentCallbacks other α β)
+    (same : SameParts first second) (context : GoalContext) (fuel : Nat)
+    (attempt : Attempt config α goal cap) :
+    attempt.complete first context fuel = attempt.complete second context fuel := by
+  have selected : ∀ input : DecisionInput config α goal cap,
+      input.selectOwned first = input.selectOwned second := by
+    intro input
+    cases input with
+    | mk before remaining observation sensed =>
+      cases before with
+      | mk run installed steps reward lastAction =>
+        cases run
+        simp only [DecisionInput.selectOwned, same.whole]
+  have closed : ∀ current : Attempt config α goal cap,
+      current.close first context = current.close second context := by
+    intro current
+    simp only [Attempt.close, Attempt.finish, captureFrame, same.attempt, same.capture,
+      same.metrics]
+  have recorded : ∀ environment : OwnedEnvironment config α goal cap,
+      environment.record first = environment.record second := by
+    intro environment
+    simp only [OwnedEnvironment.record, same.environment]
+  induction fuel generalizing attempt with
+  | zero =>
+    unfold Attempt.complete
+    exact closed attempt
+  | succ fuel ih =>
+    unfold Attempt.complete
+    rw [closed attempt]
+    split
+    · rfl
+    · cases attempt.sense with
+      | error refusal => rfl
+      | ok found =>
+        cases found with
+        | none => rfl
+        | some input =>
+          dsimp only
+          rw [selected input]
+          cases (input.selectOwned second).release with
+          | refused error learned => rfl
+          | accepted environment =>
+            dsimp only
+            rw [recorded environment]
+            exact ih _
+
 end AcornVerif.CurrentRunner

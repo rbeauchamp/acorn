@@ -236,9 +236,7 @@ def anchors : Array (Name × Name × Name) := #[
 the state, the image and the chosen value of one construction are of that construction's
 step order, and a callback record is of the order in its index. The constructor of each
 must be sealed: private, or a row of `sealedConstants`. A change of visibility that
-removes one from the rule fails the audit. The audit also finds every maker of these
-types by its type, in the modules that may reference a sealed constant, and seals it
-unless it is an open maker. -/
+removes one from the rule fails the audit. -/
 def sealedTypes : Array Name := #[
   `Acorn.Handcrafted.AgentConstruction.State, `Acorn.Handcrafted.AgentConstruction.Image,
   `Acorn.Handcrafted.AgentConstruction.Chosen, `Acorn.Handcrafted.Chosen,
@@ -247,8 +245,8 @@ def sealedTypes : Array Name := #[
 /-- Constants with a public name that only the listed modules may reference in a
 definition. The audit computes the other sealed constants and has no row for them: every
 private constructor of a project type with its declaring module, every alias of a sealed
-constructor (found by its body), and every maker of a sealed type (found by its type)
-with the modules of that type's constructors.
+constructor (found by its body), and every definition of an owning module that references
+a sealed constant and whose type is not proved free of the sealed types.
 
 - The constructor of the callback record: its declaring module, the agent's two parts
   (`Agent.callbacks`) and the construction's callbacks (`AgentConstruction.callbacks`).
@@ -268,24 +266,41 @@ def sealedConstants : Array (Name × Array Name) := #[
     #[`Acorn.Host.AgentAdmission, `NativeApp.Core])
 ]
 
-/-- Makers of a sealed type that every module may call, each with the theorem that says
-why its value is of the order its type claims. The audit requires that each is a maker by
-its type and that the statement of the theorem names it.
+/-- The interface of the owning modules: the definitions that reference a sealed constant
+and that every module may use. The audit infers none of them; this list is the reviewed
+decision, and a change of it is a change of the invariant.
 
-- Cold initialization: no step is taken, so the state is the agent's initial state.
-- The finite prefix from cold initialization, for a construction that holds the proof of
-  the default order: the fold is the agent's own prefix, whose step is `Agent.act`.
-- The campaign of a construction: the host campaign over the construction's own cold
-  initialization and callbacks.
-- The first part of the agent's step: the chosen value holds the order it was selected
-  under. -/
-def openMakers : Array (Name × Name) := #[
+No statement "this value has the order of its construction" exists for a state or an
+image, because neither holds an order: the order is a fact about the code that made the
+value. Each entry thus names the theorem that says where its value comes from, with one
+line on what that theorem states. An entry with no theorem says so in its line.
+
+The audit requires that each entry is such a definition, that its theorem exists and
+names it, and that an entry with no theorem has its line. -/
+def interface : Array (Name × Option Name × String) := #[
   (`Acorn.Handcrafted.AgentConstruction.initial,
-    `Acorn.Handcrafted.AgentConstruction.initial_agent),
-  (`Acorn.Handcrafted.AgentConstruction.execute, `AcornVerif.CurrentAgent.native_prefix),
+    some `Acorn.Handcrafted.AgentConstruction.initial_agent,
+    "Maker. The state is the agent's cold initial state: no step is in its history."),
   (`Acorn.Handcrafted.AgentConstruction.runCampaign,
-    `Acorn.Handcrafted.AgentConstruction.runCampaign_callbacks),
-  (`Acorn.Handcrafted.Agent.choose, `Acorn.Handcrafted.Agent.choose_selected)
+    some `Acorn.Handcrafted.AgentConstruction.runCampaign_callbacks,
+    "Maker. The campaign is the host campaign over the construction's cold initial state and its own callbacks, whose whole step is the agent's step of the construction's order (`AgentConstruction.callbacks_act`)."),
+  (`Acorn.Handcrafted.Agent.choose, some `Acorn.Handcrafted.Agent.choose_selected,
+    "Maker. The chosen value holds the order that the first part selected under: this is a statement of the order, because this value stores one."),
+  (`Acorn.Handcrafted.AgentConstruction.State.restore,
+    some `Acorn.Handcrafted.AgentConstruction.State.restore_agent,
+    "Carrier. It takes a state and an image of one construction, and the result is the agent's own restore of that image on that state."),
+  (`Acorn.Handcrafted.AgentConstruction.State.censorObservations,
+    some `Acorn.Handcrafted.AgentConstruction.State.censorObservations_agent,
+    "Carrier. It takes a state of a construction, and the result is the agent's own censoring of that state: no step is taken."),
+  (`Acorn.Handcrafted.DefaultConstruction.runPrefix,
+    some `Acorn.Handcrafted.DefaultConstruction.runPrefix_agent,
+    "Carrier. It takes a state of a construction that holds the proof of the default order, and the result is the agent's own prefix fold, whose step is the step of that order."),
+  (`Acorn.Checkpoint.load, some `Acorn.Checkpoint.load_candidate,
+    "Carrier. It takes a state of a construction, and the result is that state restored from a candidate that the same construction admitted from the bytes (`Checkpoint.loadCandidate_header`)."),
+  (`Acorn.Checkpoint.saveBytes, some `AcornVerif.CurrentCheckpoint.saved_header,
+    "Consumer. It takes a state of a construction and returns bytes, whose header holds the stored word of that construction's order."),
+  (`Acorn.Handcrafted.Chosen._sizeOf_inst, none,
+    "Generated. No statement exists for it. It is the size measure that Lean generates for the chosen value: a function from the value to a number, which gives no value. The generated measure of the construction's chosen value, in another module, references it.")
 ]
 
 /-- Required native entry dependencies after proof erasure. These are routing

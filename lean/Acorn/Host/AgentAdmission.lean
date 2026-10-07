@@ -141,6 +141,11 @@ def AgentConstruction.State.censorObservations {construction : AgentConstruction
     (state : construction.State) : construction.State :=
   ⟨state.agent.censorObservations⟩
 
+/-- Censoring is the agent's own censoring of the same learner state. -/
+theorem AgentConstruction.State.censorObservations_agent {construction : AgentConstruction}
+    (state : construction.State) :
+    state.censorObservations.agent = state.agent.censorObservations := rfl
+
 /-- What the agent of one construction holds between the two parts of a step. The first
 part of `AgentConstruction.callbacks` is its one maker. -/
 structure AgentConstruction.Chosen (construction : AgentConstruction) where
