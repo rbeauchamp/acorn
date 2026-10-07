@@ -75,8 +75,9 @@ inductive OptionEnd where
   | interrupted
   deriving DecidableEq
 
-/-- Trajectory state is created only by begin, updated by an admitted step, or
-resumed from the off-policy trajectory a skill stores. -/
+/-- Trajectory state is created only by begin or as `OptionActivation.first`, the
+activation that begin followed by the first step leaves (`Skill.begin_first`); it is
+updated by an admitted step, or resumed from the off-policy trajectory a skill stores. -/
 structure OptionActivation (mode : Bool) where
   private mk ::
   /-- Number of option actions already returned, bounded at storage. -/

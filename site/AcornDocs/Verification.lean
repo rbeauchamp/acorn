@@ -213,8 +213,10 @@ that the assignment refresh precedes its draws.
 and on every branch, that selection and the draw-first dispatch followed by its owed
 writes are one specification, {decl}`AcornVerif.DrawFirst.dispatchForm`, in two modes.
 That specification reads its mode in two places, so those are the places where the two
-orders can differ; {decl}`AcornVerif.DrawFirst.boundaryForm_frozen` states that they do
-not differ there in a frozen profile.
+orders can differ. The first is the free dispatch, and
+{decl}`AcornVerif.DrawFirst.boundaryForm_frozen` states that in a frozen profile it gives
+one result in both modes, also when its meta draw starts an option. The other place is
+an option that closes under the discounted criterion.
 
 Under every order {decl}`Acorn.Handcrafted.Agent.choose_keeps` states that the first
 part writes neither the primitive controller nor a prediction demon, and
