@@ -432,20 +432,27 @@ A kind compares a function with its specification as the two are defined now.
 Where the two call one test, a defect of that test changes the two sides
 together, and the proof of the kind can stay valid.
 [RG1009](https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) therefore
-refuses a contract with a kind whose specification reaches a function with a
-result of `Bool`, outside Lean's own library, that the function or the acceptance
-predicate also reaches. It reads the specification at any depth. Acorn states
+refuses a contract with a kind whose specification reaches a test that the
+function or the acceptance predicate also reaches. A test is a function with a
+result of `Bool`, or a definition of an instance of BEq, Lean's class of
+equality tests, outside Lean's own library. The projection function of a
+structure field is no test, whatever the type of the field: it reads stored
+data. The rule reads the specification at any depth. Acorn states
 each such condition as a proposition, with a theorem that connects the test with
 it: `Binary32.Negative` for the sign bit, `Binary32.IsNaN` and `Binary64.IsNaN`,
 the strict orders `Binary32.Less` and `Binary64.Less`, `Host.TileKind.Walkable`,
 `Host.Inventory.Owns` and `Host.InBox`. A function that a specification reaches,
 such as the signed key `Binary32.key`, decides the proposition through an
 instance that runs the test, so the executed comparison is the same one. The
-rule compares names: it does not find a copy of a test under a second name, and
-it refuses nothing for a shared function with another result, such as
-`Binary32.key` or `Host.terrain`. Those functions stay a matter of review, and
-the account of the audit lists them for each contract. The module documentation
-of `lean/Acorn/Decisions.lean` names each proposition with its theorem.
+rule compares names: it does not find a copy of a test under a second name. It
+refuses nothing for a projection function, so `inventory_craft` is not refused
+for the fields `Host.Inventory.axe` and `Host.Inventory.boat`, which its
+specification and its function both read. It refuses nothing for a shared
+function with another result than those two, such as `Binary32.key` or
+`Host.terrain`. Those functions stay a matter of review, and the account of
+the audit lists them for each contract; it does not list a projection function.
+The module documentation of `lean/Acorn/Decisions.lean` names each proposition
+with its theorem.
 
 Regula's audit does not find a decision function that is not registered, and no
 check of Acorn does. The module documentation of `lean/Acorn/Decisions.lean`

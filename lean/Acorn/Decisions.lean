@@ -81,9 +81,13 @@ two-way kind.
 A kind compares a function with its specification as the two are defined now. Where the two
 call one test, a defect of that test changes the two sides together, and the proof of the kind
 can stay valid. Regula's RG1009 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/)
-therefore refuses a contract with a kind whose specification reaches a function with a result
-of `Bool`, outside Lean's own library, that the function or the acceptance predicate also
-reaches. It reads the specification at any depth.
+therefore refuses a contract with a kind whose specification reaches a test that the function
+or the acceptance predicate also reaches. A test is a function with a result of `Bool`, or a
+definition with a result of `BEq`, outside Lean's own library. The projection function of a
+structure field is no test, whatever the type of the field: it reads stored data. So
+`inventory_craft` is not refused for the fields `Host.Inventory.axe` and `Host.Inventory.boat`,
+which `Host.Inventory.Owns` and `Host.Inventory.craft` both read. The rule reads the
+specification at any depth.
 
 Each such condition is a proposition, with a theorem that connects the test with it:
 
@@ -104,10 +108,11 @@ instance of each proposition runs its test, so the executed comparison is the sa
 specification that would name a test names the proposition: `inventory_craft` and
 `region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
 
-The rule compares names, and it refuses nothing for a shared function with another result,
-such as `Binary32.key`, `Binary32.magnitude` or `Host.terrain`: no type tells a function that
-a specification is about from one that prepares its input. Those functions stay a matter of
-review, and the account of the Regula audit lists them for each contract.
+The rule compares names. It refuses nothing for a shared function with a result that is
+neither `Bool` nor `BEq`, such as `Binary32.key`, `Binary32.magnitude` or `Host.terrain`: no
+type tells a function that a specification is about from one that prepares its input. Those
+functions stay a matter of review, and the account of the Regula audit lists them for each
+contract. The account does not list a projection function.
 
 ## What is not registered
 
