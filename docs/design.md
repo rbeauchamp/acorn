@@ -726,10 +726,11 @@ a mix of orders inside this project. The audit reads the compiled declarations
 and refuses a definition, outside the modules that own it, that references a
 sealed constant: a constructor of one of these types, an alias of a constructor
 (found by its body), the callbacks of a construction, or a definition of an
-owning module that references a sealed constant and whose type is not proved free
-of these types. The definitions of the owning modules that every module may use
-are a declared list, `AcornOwnership.interface`, each with the theorem that says
-where its value comes from.
+owning module that references a sealed constant and is not in the declared
+interface. The interface is the list `AcornOwnership.interface` of the
+definitions of the owning modules that every module may use. Each entry names a
+theorem whose statement names it, or has a line that says why no statement
+exists. The audit reads no type and infers no entry.
 
 The trusted base of this invariant is the owning modules, the interface list and
 the audit tool. The audit does not read the body of a definition of an owning
@@ -739,14 +740,19 @@ and the audit do not stop a definition outside the project that builds one of
 these structures directly. They do not stop an edit of the order word in a
 checkpoint file, because the file is not authenticated.
 
-Two theorems say what a mix would be. A callback record that is copied under the
-other index returns, from the loop of that index, the run state, the outcome and
-the refusal of the record itself (`CurrentRunner.complete_parts` with the two
-loop theorems): the copy changes the time of the world's transition and no
-returned value. The durable data of an image, put under a construction of the
-other order, is the image that this construction admits from the first
-construction's payload after an edit of the order word
-(`CurrentCheckpoint.relabeled_payload`, `CurrentCheckpoint.relabeled_admitted`).
+Theorems say what a mix would be. Two callback records with the same whole step
+and the same host functions, at any two indices, give the same pure fold
+(`CurrentRunner.complete_parts`), and a value that either loop returns agrees
+with that fold in its run state, its outcome and its refusal. So a record that
+is copied under the other index returns those three values unchanged. The
+resource counters that a loop also returns, which hold measured durations, and
+the observer's effects are outside these statements. That the copy changes the
+time of the world's transition is read from the two loops; it is argued and not
+machine-checked. For a profile that has a resumable image, the durable data of
+an image, put under a construction of the other order, is the image that this
+construction's loader returns for the first construction's payload with the
+order word replaced (`CurrentCheckpoint.relabeled_payload`,
+`CurrentCheckpoint.relabeled_admitted`, `CurrentCheckpoint.relabeled_loaded`).
 
 Under `learn-then-act` the runner takes the world's
 transition after both parts. Under `plan-after-act` it takes the transition

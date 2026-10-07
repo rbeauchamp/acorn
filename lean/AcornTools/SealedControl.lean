@@ -8,12 +8,15 @@ import Init
 /-! # A sealed type for the controls of the ownership audit
 
 The sealed-constant rule of `AcornTools.OwnershipAudit` seals each definition of an
-owning module that references a sealed constant, unless its type is proved free of every
-sealed type. A control of that part needs such a definition inside an owning module, and
+owning module that references a sealed constant, unless it is an entry of the declared
+interface. A control of that part needs such a definition inside an owning module, and
 no application module gets one. This module is the owner of a sealed type of its own and
-of four definitions that make a value of it. None has a constructor in its name, and
-three have a type that hides the sealed type. The audit adds this module and this type to
-the rule's inputs for its control run only; nothing else uses them.
+of six definitions that make a value of it. None has a constructor in its name, and five
+have a type that hides the sealed type from a reader of types: a type variable with an
+equality, a recursor on a list, abbreviations, a projection of an opaque constant, and a
+value packed with its own type. The rule reads no type, so each is sealed by its
+reference to the constructor. The audit adds this module and this type to the rule's
+inputs for its control run only; nothing else uses them.
 -/
 namespace AcornSealedControl
 
@@ -47,5 +50,18 @@ def tokenByRecursor (tag : Bool) :
 
 /-- A maker whose result type is the sealed type behind abbreviations. -/
 def tokenByAbbreviation (tag : Bool) : HiddenTwice tag := (⟨0⟩ : Token tag)
+
+/-- An opaque constant that holds the sealed type behind abbreviations, with the proof
+that it does. -/
+opaque box (tag : Bool) : { carrier : Type // carrier = HiddenTwice tag } := ⟨HiddenTwice tag, rfl⟩
+
+/-- A maker whose result type is a projection of an opaque constant. No reduction shows
+the sealed type. -/
+def tokenByOpaque (tag : Bool) : (box tag).val :=
+  cast (box tag).property.symm (⟨0⟩ : Token tag)
+
+/-- A maker whose result packs the value with its own type: the result type names no
+sealed type. -/
+def tokenByPack (tag : Bool) : (carrier : Type) × carrier := ⟨Token tag, ⟨0⟩⟩
 
 end AcornSealedControl

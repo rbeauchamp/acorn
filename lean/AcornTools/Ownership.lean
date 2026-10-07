@@ -246,7 +246,7 @@ def sealedTypes : Array Name := #[
 definition. The audit computes the other sealed constants and has no row for them: every
 private constructor of a project type with its declaring module, every alias of a sealed
 constructor (found by its body), and every definition of an owning module that references
-a sealed constant and whose type is not proved free of the sealed types.
+a sealed constant and is not an entry of `interface`.
 
 - The constructor of the callback record: its declaring module, the agent's two parts
   (`Agent.callbacks`) and the construction's callbacks (`AgentConstruction.callbacks`).
@@ -267,16 +267,19 @@ def sealedConstants : Array (Name × Array Name) := #[
 ]
 
 /-- The interface of the owning modules: the definitions that reference a sealed constant
-and that every module may use. The audit infers none of them; this list is the reviewed
-decision, and a change of it is a change of the invariant.
+and that every module may use. Every other such definition is sealed. The audit infers no
+entry and reads no type; this list is the reviewed decision, and a change of it is a
+change of the invariant.
 
 No statement "this value has the order of its construction" exists for a state or an
 image, because neither holds an order: the order is a fact about the code that made the
-value. Each entry thus names the theorem that says where its value comes from, with one
-line on what that theorem states. An entry with no theorem says so in its line.
+value. Each entry thus has one of two things. It names a theorem whose statement names
+the entry and says where its value comes from, with one line on what that theorem states.
+Or it has no theorem, and its line says why no statement exists and what the entry gives
+to its caller.
 
-The audit requires that each entry is such a definition, that its theorem exists and
-names it, and that an entry with no theorem has its line. -/
+The audit requires that each entry references a sealed constant, that a named theorem
+exists and names the entry, and that each entry has its line. -/
 def interface : Array (Name × Option Name × String) := #[
   (`Acorn.Handcrafted.AgentConstruction.initial,
     some `Acorn.Handcrafted.AgentConstruction.initial_agent,
@@ -300,7 +303,9 @@ def interface : Array (Name × Option Name × String) := #[
   (`Acorn.Checkpoint.saveBytes, some `AcornVerif.CurrentCheckpoint.saved_header,
     "Consumer. It takes a state of a construction and returns bytes, whose header holds the stored word of that construction's order."),
   (`Acorn.Handcrafted.Chosen._sizeOf_inst, none,
-    "Generated. No statement exists for it. It is the size measure that Lean generates for the chosen value: a function from the value to a number, which gives no value. The generated measure of the construction's chosen value, in another module, references it.")
+    "Generated. No statement exists for it. It is the size measure that Lean generates for the chosen value: a function from the value to a number, which gives no value. The generated measure of the construction's chosen value, in another module, references it."),
+  (`NativeApp.runAnsiDemo, none,
+    "Plain result. No statement exists for it. It runs the ANSI view of a construction of the default order that it makes itself, and it returns an exit code: no value of a sealed type leaves it. The command dispatch of the core references it.")
 ]
 
 /-- Required native entry dependencies after proof erasure. These are routing

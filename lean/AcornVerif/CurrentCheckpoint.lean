@@ -288,13 +288,13 @@ theorem relabeled_payload (profile : FeatureProfile) (criterion : Criterion)
         header := { (imagePayload ⟨profile, criterion, planning, first, config, dimension⟩
           image).header with order := second.tag } } := rfl
 
-/-- **The loader of the second construction admits that edited payload, and returns the
-relabeled image.** For the same arguments and a profile that has a resumable image: the
-admission of the payload with the replaced order word, by the construction of the second
-order, returns the image with the same durable data. So a relabeled image in memory is
-the value that the second construction gets from the first construction's payload after
-an edit of the order word, and the file is not authenticated. No predicate on the durable
-data separates the two. -/
+/-- **The second construction admits that edited payload, and returns the relabeled
+image.** For the same arguments and a profile that has a resumable image: the admission
+of the payload with the replaced order word, by the construction of the second order,
+returns the image with the same durable data. So a relabeled image in memory is the value
+that the second construction gets from the first construction's payload after an edit of
+the order word. No predicate on the durable data separates the two. The statement is for
+a profile that has a resumable image; for another profile no payload is admitted. -/
 theorem relabeled_admitted (profile : FeatureProfile) (criterion : Criterion)
     (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
     (first second : StepOrder)
@@ -307,6 +307,27 @@ theorem relabeled_admitted (profile : FeatureProfile) (criterion : Criterion)
       .ok ⟨image.image⟩ := by
   rw [← relabeled_payload profile criterion planning config dimension first second image]
   exact image_roundtrip ⟨profile, criterion, planning, second, config, dimension⟩
+    ⟨image.image⟩ supported
+
+/-- **The loader of the second construction admits the bytes of that edited payload.**
+For the same arguments and a profile that has a resumable image: the complete-candidate
+loader of the construction of the second order, on the encoding of the payload with the
+replaced order word, returns the image with the same durable data. The encoding has the
+checksum of the edited payload: a checkpoint file is not authenticated, so a writer that
+replaces the order word can write that checksum. -/
+theorem relabeled_loaded (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
+    (first second : StepOrder)
+    (image : (AgentConstruction.mk profile criterion planning first config dimension).Image)
+    (supported : profile.checkpointSupported = true) :
+    loadCandidate ⟨profile, criterion, planning, second, config, dimension⟩
+        (encode dimension
+          { imagePayload ⟨profile, criterion, planning, first, config, dimension⟩ image with
+            header := { (imagePayload ⟨profile, criterion, planning, first, config, dimension⟩
+              image).header with order := second.tag } }) =
+      .ok ⟨image.image⟩ := by
+  rw [← relabeled_payload profile criterion planning config dimension first second image]
+  exact candidate_roundtrip ⟨profile, criterion, planning, second, config, dimension⟩
     ⟨image.image⟩ supported
 
 end AcornVerif.CurrentCheckpoint

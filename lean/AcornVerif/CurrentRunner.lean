@@ -481,13 +481,22 @@ structure SameParts {other : StepOrder} {α β : Type} (first : AgentCallbacks o
 /-- **The pure fold reads the whole step and the host functions, and not the index.**
 For every two callback records with the same whole step and the same host functions, at
 any two indices, and every context, fuel and attempt, the fold `Attempt.complete` is the
-same value. Both native loops return what this fold returns (`runAttemptSteps_complete`,
-`runReleasedSteps_complete`). So a record that is copied under the other index, and run
-by the loop of that index, returns the run state, the outcome and the refusal of the
-record itself: the copy changes the time of the world's transition, the reported
-durations and the order of the frame delivery, and no returned value. The world of this
-protocol takes one transition for each action and waits for it; the statement is about
-that world. -/
+same value.
+
+What follows from it, with the two loop theorems. A value that either native loop returns
+agrees with this fold in its run state, its outcome and its refusal
+(`runAttemptSteps_complete`, `runReleasedSteps_complete`, through `AttemptAgrees`). So a
+record that is copied under the other index, and run by the loop of that index, returns
+the run state, the outcome and the refusal that the record itself returns from its own
+loop. The statement is about the world of this protocol, which takes one transition for
+each action and waits for it.
+
+What is outside it. The loops also return resource counters, which hold a measured
+duration around clock reads that the two loops place differently, and they deliver frames
+to an observer. `AttemptAgrees` does not compare the counters, and no statement here is
+about the observer's effects or about the time of the world's transition. That a copied
+record changes that time, the reported durations and the order of the frame delivery is
+read from the two loop definitions; it is argued and not machine-checked. -/
 theorem complete_parts {other : StepOrder} {config : WorldConfig} {α β : Type} {goal : Goal}
     {cap : UInt64} (first : AgentCallbacks order α β) (second : AgentCallbacks other α β)
     (same : SameParts first second) (context : GoalContext) (fuel : Nat)

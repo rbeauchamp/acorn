@@ -139,19 +139,19 @@ Ownership admission also reads the compiled declarations for sealed constants,
 the constants that make a value of a type whose maker is a claim of this
 project: a private constructor of a project type, a constructor in the sealed
 table, an alias of such a constructor (found by its body), and a definition of
-an owning module that references a sealed constant, unless its type is proved
-free of the sealed types by the compiler's own reduction. A type that does not
-resolve is not free. No definition of a project module outside the permitted
-modules references a sealed constant. The definitions of the owning modules
-that every module may use are a declared list with a theorem for each; the
-audit infers none. A private constructor does not stop a tactic, and Lean
-generates a public alias of a public constructor, so this check is the
-enforcement. Its trusted base is the owning modules, that list and the audit
-tool, and it covers the modules of this project only. Eight control
-declarations in the audit make a sealed value outside its module. The audit
-requires that the complete rule reports each for its intended constant, and
-that the rule without the computed parts reports only the two that use a
-constructor.
+an owning module that references a sealed constant and is not in the declared
+interface. No definition of a project module outside the permitted modules
+references a sealed constant. The interface is a declared list of the
+definitions of the owning modules that every module may use; each entry names
+a theorem whose statement names it, or has a line that says why no statement
+exists. The audit reads no type and infers no entry. A private constructor
+does not stop a tactic, and Lean generates a public alias of a public
+constructor, so this check is the enforcement. Its trusted base is the owning
+modules, that list and the audit tool, and it covers the modules of this
+project only. Ten control declarations in the audit make a sealed value
+outside its module. The audit requires that the complete rule reports each
+for its intended constant, and that the rule without the computed parts
+reports only the two that use a constructor.
 The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
 pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and

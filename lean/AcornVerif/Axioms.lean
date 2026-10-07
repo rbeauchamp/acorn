@@ -3793,6 +3793,12 @@ info: 'AcornVerif.CurrentCheckpoint.relabeled_admitted' depends on axioms: [prop
 #print axioms AcornVerif.CurrentCheckpoint.relabeled_admitted
 
 /--
+info: 'AcornVerif.CurrentCheckpoint.relabeled_loaded' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.relabeled_loaded
+
+/--
 info: 'Acorn.Handcrafted.AgentConstruction.State.censorObservations_agent' depends on axioms: [propext,
  Classical.choice,
  Quot.sound]
