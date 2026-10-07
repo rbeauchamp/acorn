@@ -76,28 +76,46 @@ name, a flag or a count of written binders would decide wrongly.
 
 ## Witnesses
 
-Each decision function with a contract has a closed accepted input and a closed refused input
-in a contract, or an obstruction for the one that is missing. The audit refuses a function
-with neither. A kind carries its witnesses in its type, and it counts only when it is stated
-about the function that its condition binds (`kindAbout`). A requirement with no kind carries
-a witness as a marked fact (`acceptanceMarkers`, `refusalMarkers`) at the top level of its
-condition, with a standard acceptance predicate, about the function that the condition binds
-(`witnessInputs`). Such a fact is below no quantifier and no hypothesis. The audit counts it
-only when no constant of its input reaches the decision function through definition bodies
-(`reaches`), so the input is not built from the decided function, also not through a
-definition.
+A witness refuses a constant function: a contract with an accepted input is false of a
+function that refuses every input, and a contract with a refused input is false of a function
+that accepts every input. Each decision function with a contract has both, or a proof that
+the one that is missing does not exist. The audit refuses a function with neither.
+
+A two-way kind about the function that its condition binds (`kindAbout`) counts for both
+sides. Its type states that the function accepts exactly the inputs that satisfy the
+specification (`Regula.Decides.iff`), so it fixes the verdict at every input, and it states
+that both outcomes occur. Its type names no input: the input of a witness is inside a proof,
+which the kernel does not tell from any other proof of the same proposition. A one-way kind
+fixes one direction only, so it does not count as a witness here. Each other witness is a
+marked fact (`acceptanceMarkers`, `refusalMarkers`) at the top level of a condition, with a
+standard acceptance predicate, about the function that the condition binds (`witnessInputs`).
+Such a fact is below no quantifier and no hypothesis, and it names its input.
+
+The audit examines the input of every marked fact with one function (`reaches`), and it
+counts the fact only when the input does not depend on the decision function. The dependency
+relation is the one of the kernel (`dependencies`): a constant depends on the constants of its
+type, on the constants of its value when it has one (a definition, a theorem and an opaque
+constant have one), and on the parts of its inductive declaration. `dependencies` matches on
+every constructor of `ConstantInfo`, so no kind of constant is left unread. The walk stays
+inside the libraries of this repository (`own`), because no other library imports them. A
+constant of these libraries that the walk cannot find counts as a dependency on the function.
+The audit reads the dependencies of the constants that a witness input reaches (`closure`).
 
 An obstruction has one kind, and the audit accepts no other: a proved obstruction
 (`noAcceptedMarkers`, `noRefusedMarkers`) carries a proposition that states the opposite fact
 for every input of the function (`everyInput`), so the absence of the input is proved. No
 text and no limit of an evaluator stands in the place of a missing input.
 
-The audit prints the form of each statement with no kind (`Form`, `formOf`), with its contract
-and its decision function. A form is given only from a structure that the audit reads
-completely; every other statement is printed as not recognized. A statement is `conditional`
-when every claim about the function is below a hypothesis about the function. A function that
-never satisfies the hypothesis satisfies such a statement, so its closed witness is its only
-protection.
+## Forms
+
+The audit prints the form of each part of each statement with no kind (`Form`, `formsOf`).
+It infers nothing. A part has a strong form only when it has one of two exact shapes: it
+quantifies over exactly the inputs of the function, and its body is an equivalence between an
+equation about the result at those inputs and a proposition that does not name the function
+(`verdict`), or it is such an equation alone (`result`). Each other part that names the
+function outside a marker is `unclassified`. That word says nothing about the strength of the
+part: the theorem behind it can be exact, one-way or conditional. The witnesses, and not the
+form, are what refuse a constant function.
 
 This is a check that every such definition has been classified and that each computed fact
 holds. Whether a contract states the intended specification is review.
@@ -658,33 +676,29 @@ structure Candidate where
   /-- The constants its body names. -/
   uses : Array Name
 
-/-- The form of a statement with no kind, by the positions in which it names the bound
-implementation. A marker is not counted. A form is given only from a structure that
-`formOf` reads completely. -/
+/-- The form of one part of a statement with no kind. A strong form is given only to an exact
+shape that `leafForm` reads completely. Every other part that names the function outside a
+marker is `unclassified`, which says nothing about the strength of the part. -/
 inductive Form where
-  /-- An equivalence between a claim about the result of the function at an input and a
-  proposition that does not name the function, below no hypothesis that names the function. -/
-  | equivalence
-  /-- A claim about the result of the function at an input, below no hypothesis that names
-  the function. -/
-  | unconditional
-  /-- Every claim about the function is below a hypothesis that names the function. A
-  function that never gives the result that the hypotheses require satisfies such a
-  statement, so a closed witness is its only protection. -/
-  | conditional
-  /-- The statement names the function in a structure that this module does not read
-  completely. It is never counted as an equivalence or as an unconditional claim. -/
-  | unrecognized
+  /-- The part quantifies over exactly the inputs of the function, and its body is an
+  equivalence between an equation about the result at those inputs and a proposition that
+  does not name the function. It fixes, at every input, whether that equation holds. -/
+  | verdict
+  /-- The part quantifies over exactly the inputs of the function, and its body is an equation
+  between the result at those inputs, or its presence, and a term that does not name the
+  function. It fixes the result, or its presence, at every input. -/
+  | result
+  /-- Any other part that names the function outside a marker. -/
+  | unclassified
   deriving DecidableEq, Repr
 
 /-- The name of a form in the output of the audit. -/
 def Form.label : Form → String
-  | .equivalence => "equivalence" | .unconditional => "unconditional claim"
-  | .conditional => "conditional" | .unrecognized => "not recognized"
+  | .verdict => "exact verdict" | .result => "exact result" | .unclassified => "not classified"
 
-/-- One marked witness of a requirement with no kind: the contract, the decision function,
-the side, and the constants that its input names. The audit counts it only when no input
-reaches the decision function. -/
+/-- One marked witness: the contract, the decision function, the side, and the constants of
+this repository that its input names. The audit counts it only when no input depends on the
+decision function. -/
 structure Witness where
   /-- The contract that states the witness. -/
   contract : Name
@@ -692,30 +706,34 @@ structure Witness where
   implementation : Name
   /-- Whether the witness is an accepted input. A refused input otherwise. -/
   accepted : Bool
-  /-- The constants that the arguments of the function name. -/
+  /-- The constants of this repository that the arguments of the function name. -/
   inputs : Array Name
 
 /-- What the contracts of the registries state about one decision function. -/
 structure Registered where
   /-- One of its contracts is a decision kind. -/
   kind : Bool := false
-  /-- One of its contracts carries an input that the function accepts. -/
+  /-- One of its contracts is a two-way kind, or carries a marked accepted input that the
+  audit examined. -/
   accepted : Bool := false
-  /-- One of its contracts carries an input that the function refuses. -/
+  /-- One of its contracts is a two-way kind, or carries a marked refused input that the
+  audit examined. -/
   refused : Bool := false
   /-- One of its contracts proves that every input is refused, so no accepted input exists. -/
   neverAccepted : Bool := false
   /-- One of its contracts proves that every input is accepted, so no refused input exists. -/
   neverRefused : Bool := false
 
-/-- One statement with no kind: its contract, its decision function and its form. -/
+/-- One statement with no kind: its contract, its decision function and the form of each of
+its parts that names the function outside a marker. -/
 structure Statement where
   /-- The contract. -/
   contract : Name
   /-- The decision function. -/
   implementation : Name
-  /-- The form, or none for a statement that holds markers only. -/
-  form : Option Form
+  /-- The forms of the parts, in the order of the statement. None for a statement that holds
+  markers only. -/
+  forms : Array Form
 
 /-- What the walk has read so far. -/
 structure Observed where
@@ -914,13 +932,53 @@ def conjuncts : Expr → Array Expr
   | .app (.app (.const ``And _) left) right => conjuncts left ++ conjuncts right
   | proposition => #[proposition]
 
-/-- The inputs of the witnesses of a requirement with no kind, for one of the two marker
-sets: for each conjunct at the top level of the condition whose head is a marker, whose
-predicate is a standard one and whose result is an application of the bound implementation to
-arguments that do not name the bound variable, the constants that those arguments name. Such
-a conjunct is below no quantifier and no hypothesis. Whether an input reaches the decision
-function through a definition is decided later, from the bodies of all definitions
-(`reaches`). -/
+/-- The constants that an expression names: its constants and the structures of its
+projections. -/
+def namesOf (expression : Expr) : Array Name :=
+  let found : NameSet := runST fun σ => do
+    let visit : StateT NameSet (ST σ) Unit := expression.forEach' fun part => do
+      match part with
+      | .const name _ => modify (·.insert name)
+      | .proj name _ _ => modify (·.insert name)
+      | _ => pure ()
+      return true
+    return (← visit.run {}).2
+  found.foldl (fun all name => all.push name) #[]
+
+/-- The constants that a constant depends on, as the kernel reads it: those of its type,
+those of its value when it has one, and the parts of its inductive declaration. The match is
+over every constructor of `ConstantInfo`, so no kind of constant is left unread. The value of
+an opaque constant and the value of a theorem are read. -/
+def dependencies (info : ConstantInfo) : Array Name :=
+  let type := namesOf info.type
+  match info with
+  | .axiomInfo _ | .quotInfo _ => type
+  | .defnInfo value => type ++ namesOf value.value ++ value.all.toArray
+  | .thmInfo value => type ++ namesOf value.value ++ value.all.toArray
+  | .opaqueInfo value => type ++ namesOf value.value ++ value.all.toArray
+  | .inductInfo value =>
+    type ++ value.ctors.toArray ++ value.all.toArray ++ #[mkRecName value.name]
+  | .ctorInfo value => type.push value.induct
+  | .recInfo value =>
+    value.rules.foldl (fun all rule => all ++ namesOf rule.rhs) (type ++ value.all.toArray)
+
+/-- The roots of the module names of the libraries of this repository. No other library
+imports one of them, so a constant of another library depends on no constant of these. -/
+def ownRoots : Array Name := #[`Acorn, `AcornVerif, `NativeApp, `Bootstrap, `AcornTools]
+
+/-- Whether a constant belongs to a library of this repository. A constant with no recorded
+module counts as one. -/
+def own (env : Environment) (name : Name) : Bool :=
+  match (env.getModuleIdxFor? name).bind fun index => env.header.moduleNames[index.toNat]? with
+  | some module => ownRoots.contains module.getRoot
+  | none => true
+
+/-- The inputs of the marked witnesses of a condition, for one of the two marker sets: for
+each conjunct at the top level of the condition whose head is a marker, whose predicate is a
+standard one and whose result is an application of the bound implementation to arguments that
+do not name the bound variable, the constants that those arguments name. Such a conjunct is
+below no quantifier and no hypothesis. Whether an input depends on the decision function is
+decided later, from the dependencies of all constants (`reaches`). -/
 def witnessInputs (markers : Array Name) : Expr → Array (Array Name)
   | .lam _ _ body _ =>
     (conjuncts body).filterMap fun fact =>
@@ -929,18 +987,42 @@ def witnessInputs (markers : Array Name) : Expr → Array (Array Name)
         | #[_, predicate, result] =>
           if standardAccepts predicate && result.getAppFn == .bvar 0 &&
               result.getAppArgs.all fun argument => !argument.hasLooseBVar 0 then
-            some (result.getAppArgs.foldl (fun all argument => all ++ argument.getUsedConstants) #[])
+            some (result.getAppArgs.foldl (fun all argument => all ++ namesOf argument) #[])
           else none
         | _ => none
       else none
   | _ => #[]
 
-/-- Whether one of the start constants reaches the target through definition bodies: it is the
-target, or its body names a constant that reaches the target. `uses` gives the constants that
-the body of a constant names. The walk enters each constant once; when the fuel ends before
-the walk does, the answer is that the target is reached, which refuses the input. -/
-def reaches (uses : Name → Array Name) (target : Name) (start : Array Name) (fuel : Nat) :
-    Bool := Id.run do
+/-- The dependencies of every constant of this repository that one of the start constants
+reaches, read from an environment that holds them. A constant that the environment does not
+hold gets no entry, so `reaches` refuses an input that reaches it. Each constant is entered at
+most once, so the walk ends within the number of constants of the environment. -/
+def closure (env : Environment) (start : Array Name) : NameMap (Array Name) := Id.run do
+  let mut table : NameMap (Array Name) := {}
+  let mut seen : NameSet := {}
+  let mut pending := start
+  for _ in [0:env.constants.fold (fun count _ _ => count + 1) 1] do
+    let mut next : Array Name := #[]
+    for name in pending do
+      if seen.contains name then continue
+      seen := seen.insert name
+      let some info := env.find? name | continue
+      let used := (dependencies info).filter (own env)
+      table := table.insert name used
+      for other in used do
+        unless seen.contains other do next := next.push other
+    if next.isEmpty then break
+    pending := next
+  return table
+
+/-- Whether one of the start constants depends on the target: it is the target, or one of
+its dependencies depends on the target. `uses` gives the dependencies of a constant of this
+repository, and none for a constant that the audit did not read. The answer for such a
+constant is that the target is reached, which refuses the input. The walk enters each
+constant once; when the fuel ends before the walk does, the answer is also that the target is
+reached. -/
+def reaches (uses : Name → Option (Array Name)) (target : Name) (start : Array Name)
+    (fuel : Nat) : Bool := Id.run do
   let mut seen : NameSet := {}
   let mut pending := start
   for _ in [0:fuel] do
@@ -949,8 +1031,9 @@ def reaches (uses : Name → Array Name) (target : Name) (start : Array Name) (f
       if name == target then return true
       if seen.contains name then continue
       seen := seen.insert name
-      for used in uses name do
-        unless seen.contains used do next := next.push used
+      let some used := uses name | return true
+      for other in used do
+        unless seen.contains other do next := next.push other
     if next.isEmpty then return false
     pending := next
   return true
@@ -969,17 +1052,23 @@ def quantified : Nat → Expr → Nat × Expr
   | count, .forallE _ _ body _ => quantified (count + 1) body
   | count, body => (count, body)
 
+/-- Whether a term is the function applied to exactly the quantified variables, each once
+and in order. The function is the loose variable `count`, below `count` quantifiers. A
+hypothesis would be one more quantifier that is not an argument, so no quantifier is a
+hypothesis, and each domain is the type of an argument of the function. -/
+def atInputs (count : Nat) (term : Expr) : Bool :=
+  count != 0 && term.getAppFn == .bvar count &&
+    term.getAppArgs == (Array.range count).reverse.map Expr.bvar
+
 /-- Whether a proposition states a marked fact for every input of the bound function: a
 telescope of quantifiers whose body applies one of the markers, with a standard predicate, to
 the function at exactly the quantified variables, each once and in order. A hypothesis would
 be one more quantifier that is not an argument, so no hypothesis restricts the inputs. -/
 def everyInput (markers : Array Name) (claim : Expr) : Bool :=
   let (count, body) := quantified 0 claim
-  count != 0 && (body.getAppFn.constName?).any markers.contains &&
+  (body.getAppFn.constName?).any markers.contains &&
     (match body.getAppArgs with
-      | #[_, predicate, result] =>
-        standardAccepts predicate && result.getAppFn == .bvar count &&
-          result.getAppArgs == (Array.range count).reverse.map Expr.bvar
+      | #[_, predicate, result] => standardAccepts predicate && atInputs count result
       | _ => false)
 
 /-- Whether a requirement with no kind carries a proved obstruction with one of the given
@@ -1019,14 +1108,15 @@ def kindAbout (condition : Expr) : Option Name :=
     | some kind => if kinds.contains kind then some kind else none
     | none => none
 
-/-- What one contract condition states, apart from the witnesses of a requirement with no
-kind, whose inputs are examined later. A two-way kind carries both witnesses in its type, a
-sound kind the accepted one and a complete kind the refused one. -/
+/-- What one contract condition states, apart from its marked witnesses, whose inputs are
+examined later. A two-way kind fixes the verdict at every input (`Regula.Decides.iff`) and
+states that both outcomes occur, so it counts for both sides. A one-way kind fixes one
+direction only, and the input of its witness is inside a proof, so it counts for no side: the
+function gets its two witnesses from marked facts. -/
 def registered (condition : Expr) : Registered :=
   match kindAbout condition with
   | some ``Regula.Decides => { kind := true, accepted := true, refused := true }
-  | some ``Regula.DecidesSoundly => { kind := true, accepted := true }
-  | some ``Regula.DecidesCompletely => { kind := true, refused := true }
+  | some ``Regula.DecidesSoundly | some ``Regula.DecidesCompletely => { kind := true }
   | _ =>
     { neverAccepted := proved noAcceptedMarkers refusalMarkers condition
       neverRefused := proved noRefusedMarkers acceptanceMarkers condition }
@@ -1036,64 +1126,50 @@ obstruction and not a part of the statement. -/
 def markers : Array Name :=
   acceptanceMarkers ++ refusalMarkers ++ noAcceptedMarkers ++ noRefusedMarkers
 
-/-- The form of a conjunction is the strongest form of its parts, where a form that is not
-recognized is above `conditional` and below a recognized claim: a statement is
-`conditional` only when every part of it is. -/
-def Form.join : Form → Form → Form
-  | .equivalence, _ | _, .equivalence => .equivalence
-  | .unconditional, _ | _, .unconditional => .unconditional
-  | .unrecognized, _ | _, .unrecognized => .unrecognized
-  | .conditional, .conditional => .conditional
-
-/-- A claim about the result of the function at an input: an equation one of whose sides is
-an application of the bound function, or `Option.isSome` or `Except.isOk` of such an
-application, to arguments that do not name the function, and whose other side does not name
-the function. -/
-def resultClaim (bound : Nat) (proposition : Expr) : Bool :=
+/-- An equation between the result of the function at exactly the quantified inputs, or
+`Option.isSome` or `Except.isOk` of that result, and a term that does not name the function. -/
+def equationAtInputs (count : Nat) (proposition : Expr) : Bool :=
+  let result (side : Expr) : Bool :=
+    atInputs count
+      (if side.isAppOfArity ``Option.isSome 2 || side.isAppOfArity ``Except.isOk 3 then
+        side.appArg! else side)
   match proposition.eq? with
   | some (_, left, right) =>
-    let result (side : Expr) : Bool :=
-      let applied :=
-        if side.isAppOf ``Option.isSome || side.isAppOf ``Except.isOk then side.appArg! else side
-      applied.getAppFn == .bvar bound &&
-        applied.getAppArgs.all fun argument => !argument.hasLooseBVar bound
-    (result left && !right.hasLooseBVar bound) || (result right && !left.hasLooseBVar bound)
+    (result left && !right.hasLooseBVar count) || (result right && !left.hasLooseBVar count)
   | none => false
 
-/-- The form of a proposition in which the implementation is the loose variable `bound`.
-A hypothesis or a binder type that names the implementation makes everything below it
-conditional. An equivalence is recognized only between a claim about the result and a
-proposition that does not name the implementation; a claim is recognized only as an equation
-about the result, its negation, or an existential statement whose body is recognized. Every
-other proposition that names the implementation is `unrecognized`. `none` when the
-proposition names the implementation only inside a marker, or not at all. -/
-def formOf (bound : Nat) : Expr → Option Form
-  | .forallE _ domain body _ =>
-    if domain.hasLooseBVar bound then some .conditional else formOf (bound + 1) body
-  | .app (.app (.const ``And _) left) right =>
-    match formOf bound left, formOf bound right with
-    | some first, some second => some (first.join second)
-    | some first, none | none, some first => some first
-    | none, none => none
-  | .app (.app (.const ``Exists _) _) (.lam _ _ body _) => formOf (bound + 1) body
-  | proposition =>
-    if (proposition.getAppFn.constName?).any markers.contains then none
-    else if !proposition.hasLooseBVar bound then none
-    else match proposition.iff? with
-      | some (left, right) =>
-        if (resultClaim bound left && !right.hasLooseBVar bound) ||
-            (resultClaim bound right && !left.hasLooseBVar bound) then some .equivalence
-        else some .unrecognized
-      | none =>
-        if resultClaim bound proposition then some .unconditional
-        else match proposition.not? with
-          | some inner => if resultClaim bound inner then some .unconditional else some .unrecognized
-          | none => some .unrecognized
+/-- The form of a leaf that names the function, below `count` quantifiers. The two strong
+forms are the two exact shapes; nothing else has a strong form. -/
+def leafForm (count : Nat) (leaf : Expr) : Form :=
+  match leaf.iff? with
+  | some (left, right) =>
+    if (equationAtInputs count left && !right.hasLooseBVar count) ||
+        (equationAtInputs count right && !left.hasLooseBVar count) then .verdict
+    else .unclassified
+  | none => if equationAtInputs count leaf then .result else .unclassified
 
-/-- The form of a contract condition with no kind. -/
-def conditionForm : Expr → Option Form
-  | .lam _ _ body _ => formOf 0 body
-  | _ => none
+/-- The forms of the leaves of a proposition that name the function, which is the loose
+variable `count`. The walk reads a quantifier and a conjunction and nothing more. A quantifier
+distributes over a conjunction, so each leaf is a statement below the quantifiers above it,
+and `leafForm` requires that those quantifiers are exactly the inputs of the function. A
+quantifier whose domain names the function is a hypothesis about the function: the
+proposition is then one part that is not classified. A leaf that does not name the function
+makes no claim about it. A marker has no special reading here, so a marker below a quantifier
+is a part that is not classified. -/
+def formsOf (count : Nat) : Expr → Array Form
+  | .forallE _ domain body _ =>
+    if domain.hasLooseBVar count then #[.unclassified] else formsOf (count + 1) body
+  | .app (.app (.const ``And _) left) right => formsOf count left ++ formsOf count right
+  | leaf => if leaf.hasLooseBVar count then #[leafForm count leaf] else #[]
+
+/-- The forms of the parts of a contract condition with no kind. A conjunct at the top level
+whose head is a marker is a witness or an obstruction and not a part. -/
+def conditionForms : Expr → Array Form
+  | .lam _ _ body _ =>
+    (conjuncts body).foldl (fun all part =>
+      if (part.getAppFn.constName?).any markers.contains then all
+      else all ++ formsOf 0 part) #[]
+  | _ => #[]
 
 /-- Evaluate a computation of the elaborator's reduction engine on a compiled environment. -/
 def reduce {α : Type} (env : Environment) (computation : MetaM α) : IO α := do
@@ -1120,10 +1196,10 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
       let stated := ((observed.contracts.find? implementation).getD {}).add (registered condition)
       if (kindAbout condition).isSome then
         return { observed with contracts := observed.contracts.insert implementation stated }
-      let statement : Statement := ⟨name, implementation, conditionForm condition⟩
+      let statement : Statement := ⟨name, implementation, conditionForms condition⟩
       let facts (markers : Array Name) (accepted : Bool) : Array Witness :=
         (witnessInputs markers condition).map fun inputs =>
-          ⟨name, implementation, accepted, inputs⟩
+          ⟨name, implementation, accepted, inputs.filter (own env)⟩
       return { observed with
         contracts := observed.contracts.insert implementation stated
         statements := observed.statements.push statement
@@ -1179,8 +1255,9 @@ def reachable (observed : Observed) : NameSet := Id.run do
   return seen
 
 /-- Validate the table and apply the inventory decision to every observed definition. All
-failures are reported together. -/
-def check (observed : Observed) : IO Unit := do
+failures are reported together. `env` is the environment that holds the registries, from
+which the dependencies of the witness inputs are read. -/
+def check (observed : Observed) (env : Environment) : IO Unit := do
   let reached := reachable observed
   let mut failures : Array String := #[]
   let mut candidates : NameMap Candidate := {}
@@ -1252,28 +1329,31 @@ def check (observed : Observed) : IO Unit := do
         s!"(its type is {repr candidate.shape})")
     else if classes.structural && classes.contract then
       failures := failures.push s!"{candidate.name} is structural and has a contract"
-  -- A marked witness counts only when no input of it reaches the decision function.
-  let uses (name : Name) : Array Name := (observed.bodies.find? name).getD #[]
+  -- A marked witness counts only when no input of it depends on the decision function. This
+  -- is the one place that examines the input of a witness.
+  let depends := closure env (observed.witnesses.foldl (fun all witness =>
+    all ++ witness.inputs) #[])
   let mut functions := observed.contracts
   for witness in observed.witnesses do
-    if reaches uses witness.implementation witness.inputs (observed.bodies.size + 1) then
-      failures := failures.push (s!"{witness.contract}: an input of a witness reaches the " ++
-        s!"decision function {witness.implementation} through a definition")
+    if reaches depends.find? witness.implementation witness.inputs (depends.size + 1) then
+      failures := failures.push (s!"{witness.contract}: an input of a witness depends on the " ++
+        s!"decision function {witness.implementation}, or on a constant that the audit did " ++
+        "not read")
     else
       let stated := (functions.find? witness.implementation).getD {}
       functions := functions.insert witness.implementation
         (if witness.accepted then { stated with accepted := true }
           else { stated with refused := true })
-  -- Each decision function has a closed accepted input or a proof that none exists, and a
-  -- closed refused input or a proof that none exists.
+  -- Each decision function has a two-way kind, or a marked accepted input or a proof that
+  -- none exists, and a marked refused input or a proof that none exists.
   let stated := functions.foldl (fun all name stated => all.push (name, stated)) #[]
   for (name, stated) in stated do
     unless stated.accepted || stated.neverAccepted do
-      failures := failures.push (s!"{name}: no contract carries a closed accepted input or a " ++
-        "proof that every input is refused")
+      failures := failures.push (s!"{name}: no contract is a two-way kind, carries a marked " ++
+        "accepted input or proves that every input is refused")
     unless stated.refused || stated.neverRefused do
-      failures := failures.push (s!"{name}: no contract carries a closed refused input or a " ++
-        "proof that every input is accepted")
+      failures := failures.push (s!"{name}: no contract is a two-way kind, carries a marked " ++
+        "refused input or proves that every input is accepted")
   unless failures.isEmpty do
     for failure in failures do IO.eprintln s!"decision inventory: {failure}"
     throw (IO.userError s!"{failures.size} decision inventory failures")
@@ -1296,24 +1376,30 @@ def check (observed : Observed) : IO Unit := do
     ((stated.filter fun (_, stated) => select stated).map (·.1.toString)).qsort (· < ·) |>.toList
   let empty := names fun stated => !stated.accepted
   let total := names fun stated => !stated.refused
+  let fixed := (stated.filter fun (name, _) =>
+    (observed.contracts.find? name).any fun declared => declared.accepted && declared.refused).size
   IO.println (s!"decision witnesses: {stated.size} decision functions with a contract; " ++
-    s!"{empty.length} with no closed accepted input, each with a proof that every input is " ++
-    s!"refused: {empty}; " ++
-    s!"{total.length} with no closed refused input, each with a proof that every input is " ++
+    s!"{fixed} with a two-way kind, which fixes the verdict at every input; " ++
+    s!"{observed.witnesses.size} marked inputs examined, none depends on its function; " ++
+    s!"{empty.length} functions with no accepted input, each with a proof that every input " ++
+    s!"is refused: {empty}; " ++
+    s!"{total.length} with no refused input, each with a proof that every input is " ++
     s!"accepted: {total}")
-  -- The form of each statement with no kind.
+  -- The form of each part of each statement with no kind.
   let ordered := observed.statements.qsort fun left right =>
     left.contract.toString < right.contract.toString
+  let exact (form : Form) : Bool := form != .unclassified
   for statement in ordered do
-    let form := (statement.form.map Form.label).getD "markers only"
-    IO.println s!"decision statement {statement.contract} of {statement.implementation}: {form}"
-  let count (wanted : Option Form) : Nat :=
-    (observed.statements.filter fun statement => statement.form == wanted).size
+    let forms := if statement.forms.isEmpty then "markers only"
+      else "; ".intercalate (statement.forms.map Form.label).toList
+    IO.println s!"decision statement {statement.contract} of {statement.implementation}: {forms}"
+  let count (select : Array Form → Bool) : Nat :=
+    (observed.statements.filter fun statement => select statement.forms).size
   IO.println (s!"decision statements with no kind: {observed.statements.size}; " ++
-    s!"{count (some .equivalence)} with an equivalence, " ++
-    s!"{count (some .unconditional)} with another unconditional claim, " ++
-    s!"{count (some .conditional)} conditional, {count (some .unrecognized)} not recognized " ++
-    s!"and {count none} with markers only")
+    s!"{count fun forms => !forms.isEmpty && forms.all exact} in which each part has an exact " ++
+    s!"form, {count fun forms => forms.any exact && !forms.all exact} with an exact part and " ++
+    s!"a part that is not classified, {count fun forms => !forms.isEmpty && !forms.any exact} " ++
+    s!"with no exact part and {count Array.isEmpty} with markers only")
 
 /-- The cases that a name, a flag or a count of written binders would decide wrongly, as
 written declarations of `AcornTools.DecisionInventoryControls`. The audit refuses to run
@@ -1358,35 +1444,47 @@ def controls (env : Environment) : IO Unit := do
   for name in #[`hypothetical, `quantified, `unconditional, `foreign, `selfBuilt] do
     unless (witnessInputs marker (← condition name)).isEmpty do
       throw (IO.userError s!"decision inventory: the marker of control {name} is counted")
-  -- An input that a definition builds from the decided function reaches that function.
-  let uses (name : Name) : Array Name :=
-    (((env.find? name).bind (·.value?)).map (·.getUsedConstants)).getD #[]
-  let viaDefinition ← condition `viaDefinition
-  match witnessInputs marker viaDefinition with
-  | #[inputs] =>
-    unless reaches uses (root ++ `T.match_37) inputs 1000 do
-      throw (IO.userError
-        "decision inventory: an input that a definition builds from the function is accepted")
-  | _ => throw (IO.userError "decision inventory: the control viaDefinition has no witness")
-  match witnessInputs marker (← condition `closedFact) with
-  | #[inputs] =>
-    if reaches uses (root ++ `T.match_37) inputs 1000 then
-      throw (IO.userError "decision inventory: a closed input is refused as a reaching one")
-  | _ => pure ()
+  -- An input that depends on the decided function is refused: through a definition, through
+  -- the value of an opaque constant, through the value of a theorem and through the type of a
+  -- constructor. A closed input is not refused.
+  let uses (name : Name) : Option (Array Name) :=
+    (env.find? name).map fun info => (dependencies info).filter (own env)
+  let dependent (name : Name) : IO Bool := do
+    match witnessInputs marker (← condition name) with
+    | #[inputs] =>
+      return reaches uses (root ++ `T.match_37) (inputs.filter (own env)) 1000
+    | _ => throw (IO.userError s!"decision inventory: the control {name} has no witness")
+  for name in #[`viaDefinition, `viaOpaque, `viaTheorem, `viaStructure] do
+    unless ← dependent name do
+      throw (IO.userError s!"decision inventory: the dependent input of control {name} is accepted")
+  if ← dependent `closedFact then
+    throw (IO.userError "decision inventory: a closed input is refused as a dependent one")
+  unless reaches (fun _ => none) (root ++ `T.match_37) #[root ++ `chosen] 1000 do
+    throw (IO.userError "decision inventory: a constant that the audit did not read is accepted")
   -- A proof that every input is accepted states the fact at exactly the quantified inputs.
   unless everyInput marker ((← condition `everyAccepted).bindingBody!) do
     throw (IO.userError "decision inventory: a statement for every input is not counted")
   for name in #[`someAccepted, `guardedAccepted] do
     if everyInput marker ((← condition name).bindingBody!) then
       throw (IO.userError s!"decision inventory: the control {name} counts as every input")
-  unless (kindAbout (← condition `ownKind)).isSome do
-    throw (IO.userError "decision inventory: a kind about the bound function is not counted")
+  -- A two-way kind about the bound function counts for both sides. A one-way kind and a kind
+  -- about another function count for no side.
+  let twoWay := registered (← condition `ownKind)
+  unless twoWay.kind && twoWay.accepted && twoWay.refused do
+    throw (IO.userError "decision inventory: a two-way kind about the bound function is not counted")
+  let oneWay := registered (← condition `soundKind)
+  unless oneWay.kind && !oneWay.accepted && !oneWay.refused do
+    throw (IO.userError "decision inventory: a one-way kind counts as a witness")
   if (kindAbout (← condition `foreignKind)).isSome then
     throw (IO.userError "decision inventory: a kind about another function is counted")
-  unless conditionForm (← condition `guarded) == some .conditional &&
-      conditionForm (← condition `exact) == some .equivalence &&
-      conditionForm (← condition `veiled) == some .unrecognized &&
-      conditionForm (← condition `wrapped) == some .unrecognized do
-    throw (IO.userError "decision inventory: the form of a control statement is wrong")
+  -- Only the two exact shapes have a strong form.
+  for (name, expected) in
+      [(`exact, #[Form.verdict]), (`total, #[.result]), (`below, #[.verdict]),
+        (`guarded, #[.unclassified]), (`veiled, #[.unclassified]), (`wrapped, #[.unclassified]),
+        (`mixed, #[.verdict, .unclassified]), (`falseGuard, #[.unclassified]),
+        (`emptyDomain, #[.unclassified]), (`hiddenDomain, #[.unclassified]),
+        (`extraInput, #[.unclassified]), (`markedBelow, #[.unclassified])] do
+    unless conditionForms (← condition name) == expected do
+      throw (IO.userError s!"decision inventory: the form of the control {name} is wrong")
 
 end AcornDecisionInventory

@@ -21,12 +21,13 @@ legality of every stored lifetime total rests on the real-valued bounds of
 about runs of the executed world step, proved in `CurrentCertificates`.
 
 No certificate checker is complete: each contract below states what an accepted certificate
-establishes, and a refused certificate establishes nothing. The blocked checker and the
-walkable test are functions between fixed types and carry the sound kind. The replay and
-stance checkers take an argument whose type depends on the configuration, so their statements
-are requirements with no kind. A requirement with no kind is weaker than a kind: the Regula
-audit checks that its theorem is proved about the executing definition, and it does not check
-a witness of either outcome or that the statement is independent of the implementation.
+establishes, and a refused certificate establishes nothing. The blocked checker is a function
+between fixed types and carries the sound kind. The replay and stance checkers take an
+argument whose type depends on the configuration, so their statements are requirements with
+no kind. The walkable test is not a certificate checker, and it carries the two-way kind. A
+requirement with no kind is weaker than a kind: the Regula audit checks that its theorem is
+proved about the executing definition, and it does not check a witness of either outcome or
+that the statement is independent of the implementation.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here for the same reason: their theorems are
@@ -431,19 +432,39 @@ theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (f
       unfold Refuses
       simp [Host.StanceCertificate.check, single_refused (config := quiet) (by decide)]⟩⟩
 
-/-- The walkable test accepts only a tile that is enterable in every world of the
-configuration, with or without a boat (`CurrentCertificates.walkable_enterable`). The accepted
-input is a tile of the wide world.
+/-- A tile that the body may enter in every world of a configuration is walkable: the empty
+world has no boat, so the terrain of the tile is not water. -/
+private theorem enterable_walkable {config : Host.WorldConfig} {tile : Host.Position}
+    (enterable : ∀ world : Host.World config, world.enterable tile = .ok true) :
+    Host.walkableTile config tile = true := by
+  have empty := enterable (Host.World.empty config)
+  rw [CurrentStep.enterable_static] at empty
+  unfold Host.walkableTile
+  cases located : Host.terrain tile config.raw.seed config.raw.baseScale with
+  | error refusal =>
+    rw [located] at empty
+    exact absurd empty (by simp [Except.map])
+  | ok kind =>
+    rw [located] at empty
+    cases kind <;>
+      simp_all [Except.map, CurrentStep.passable, Host.TileKind.walkable, Host.World.empty]
 
-**Not claimed:** completeness. The test refuses water, which a body with a boat enters. -/
+/-- The walkable test accepts exactly a tile that the body may enter in every world of the
+configuration, with or without a boat (`CurrentCertificates.walkable_enterable`, and
+`enterable_walkable` for the converse). Enterability is the executed test of the world, which
+is the subject of the claim. The accepted input is a tile of the wide world, and the refused
+input is the last coordinate, whose terrain the generator refuses. -/
 theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test =>
-    Regula.DecidesSoundly (· = true)
+    Regula.Decides (· = true)
       (fun input : Host.WorldConfig × Host.Position =>
         ∀ world : Host.World input.1, world.enterable input.2 = .ok true)
       (Function.uncurry test)) :=
-  ⟨{ sound := fun input accepted world =>
-       CurrentCertificates.walkable_enterable world input.2 accepted
-     accepted := ⟨(wide, ⟨⟨0, by decide⟩, ⟨1, by decide⟩⟩), by decide +kernel⟩ }⟩
+  ⟨.of_iff
+    (fun input =>
+      ⟨fun accepted world => CurrentCertificates.walkable_enterable world input.2 accepted,
+        enterable_walkable⟩)
+    ⟨(wide, ⟨⟨0, by decide⟩, ⟨1, by decide⟩⟩), by decide +kernel⟩
+    ⟨(wide, last), by decide +kernel⟩⟩
 
 /-! ## Checkpoint admissions
 
@@ -602,10 +623,13 @@ theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
         satisfied ((Host.Goal.craft tool).observe position inventory elapsed) =
           inventory.owns tool) ∧
       Accepts (· = true)
-        (satisfied ((Host.Goal.survive 0).observe origin ⟨0, 0, 0, 0, false, false⟩ 0))) :=
+        (satisfied ((Host.Goal.survive 0).observe origin ⟨0, 0, 0, 0, false, false⟩ 0)) ∧
+      Refuses (· = true)
+        (satisfied .none)) :=
   ⟨⟨(⟨CurrentGoals.reach_satisfied_iff, CurrentGoals.collect_satisfied_iff,
     CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied⟩),
-    by unfold Accepts; decide +kernel⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- The exponential classifier sends a word to reduction, with no saturated result, exactly
 when the word is finite and strictly between the underflow and the overflow thresholds
@@ -965,30 +989,37 @@ theorem precision_admit : Regula.ExecutableContract Agreement.precision (fun pre
 A sound kind carries an accepted input and a complete kind a refused one. Each statement below
 is the closed input of the other side. -/
 
-/-- Lifetime admission accepts the lifetime image of the initial state of a small agent. -/
-theorem lifetime_admit_accepted : Regula.ExecutableContract admitLifetime (fun admit =>
-    Accepts (·.isSome = true) (admit (Checkpoint.snapshot tiny tiny.initial).lifetime)) :=
-  ⟨by unfold Accepts; decide +kernel⟩
+/-- Lifetime admission accepts the lifetime words of the image of the initial state, and it
+refuses lifetime words whose reward sum is not legal. -/
+theorem lifetime_admit_witnesses : Regula.ExecutableContract admitLifetime (fun admit =>
+    Accepts (·.isSome = true) (admit (Checkpoint.snapshot tiny tiny.initial).lifetime) ∧
+      Refuses (·.isSome = true) (admit refusedLifetime)) :=
+  ⟨⟨by unfold Accepts; decide +kernel, by
+    unfold Refuses
+    have illegal : ¬LegalSum .reward 0 ⟨0x7ff8000000000000⟩ := by decide
+    simp [admitLifetime, admitSum, SumCount.admit, refusedLifetime, illegal]⟩⟩
 
-/-- Precision derivation accepts a zero power at no settlement steps. -/
-theorem precision_admit_accepted : Regula.ExecutableContract Agreement.precision (fun admit =>
-    Accepts (·.isSome = true) (admit .g99 0 .zero)) :=
-  ⟨by unfold Accepts; decide +kernel⟩
+/-- Precision derivation accepts the zero power, and it refuses a power that is not a
+number. -/
+theorem precision_admit_witnesses : Regula.ExecutableContract Agreement.precision (fun admit =>
+    Accepts (·.isSome = true) (admit .g99 0 .zero) ∧
+      Refuses (·.isSome = true) (admit .g99 0 ⟨0x7fc00000⟩)) :=
+  ⟨⟨by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
-/-- The blocked checker refuses a region that holds the start tile. -/
-theorem region_blocked_refused : Regula.ExecutableContract Host.regionBlocked (fun check =>
-    Refuses (· = true)
-      (check quiet true ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ [origin] origin)) :=
-  ⟨by unfold Refuses; decide +kernel⟩
+/-- The blocked checker accepts the empty region for a target outside the box of one tile,
+and it refuses a region that holds the start tile. -/
+theorem region_blocked_witnesses : Regula.ExecutableContract Host.regionBlocked (fun check =>
+    Accepts (· = true)
+      (check quiet true ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ [] origin) ∧
+      Refuses (· = true)
+        (check quiet true ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ [origin] origin)) :=
+  ⟨⟨by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
-/-- The walkable test refuses the last coordinate, whose terrain the generator refuses. -/
-theorem terrain_walkable_refused : Regula.ExecutableContract Host.walkableTile (fun test =>
-    Refuses (· = true) (test wide last)) :=
-  ⟨by unfold Refuses; decide +kernel⟩
-
-/-- Rank selection returns no index for an empty histogram. -/
-theorem rank_index_refused : Regula.ExecutableContract Host.Endurance.rankIndex (fun rank =>
-    Refuses (·.isSome = true) (rank 0 0 0 [])) :=
-  ⟨by unfold Refuses; decide +kernel⟩
+/-- Rank selection returns an index for a histogram with one bin when no rank is required,
+and it returns none for an empty histogram. -/
+theorem rank_index_witnesses : Regula.ExecutableContract Host.Endurance.rankIndex (fun rank =>
+    Accepts (·.isSome = true) (rank 0 1 0 [0]) ∧
+      Refuses (·.isSome = true) (rank 0 0 0 [])) :=
+  ⟨⟨by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
 end AcornVerif.Decisions

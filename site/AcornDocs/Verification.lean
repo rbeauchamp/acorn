@@ -298,8 +298,8 @@ the audit fails when a contract is removed while its function stays registered.
 A decision procedure whose result type is `Decidable` carries both directions in
 its type and is registered with no contract. An admission with an argument or
 result type that depends on an earlier argument has no kind. Neither has a
-function between fixed types for which no proof supplies the accepted or refused
-input that a kind carries. Where a theorem
+function between fixed types for which no theorem states a set of the inputs
+that it accepts. Where a theorem
 proves which inputs it accepts or refuses, or a property of an accepted or a
 refused result, that statement is registered as a requirement with no kind, and
 the ownership audit requires the contract by name. A decision that takes its
@@ -357,21 +357,28 @@ definition. The facts for a derived comparison and for the proof library rest in
 part on a position and not on a recorded relationship: that a comparison is
 derived is inferred from the recorded declaration ranges, and the proof library
 is identified by its modules. The audit prints the count of each class and of
-each reason. Each decision function with a contract has a closed accepted input
-and a closed refused input in a contract. When a function has no accepted or no
-refused input, a contract carries the proof of that: the opposite fact for every
-input. The audit accepts no other reason for a missing input, and it refuses a
-function with neither. A kind carries its witnesses in its type. A requirement
-with no kind carries one as a marked fact at the top level of its condition,
-about the function that the condition binds. The audit counts the fact only when
-no constant of its input reaches that function through definition bodies. The
-audit also prints the form of each requirement with no kind, with its contract
-and its function: an equivalence, another unconditional claim, a conditional
-statement, or not recognized. It gives a form only from a structure that it
-reads completely. A statement is conditional when every claim about the function
-is below a hypothesis about the function: a function that never satisfies the
-hypothesis satisfies such a statement, so its closed witness is its only
-protection. The inventory establishes that every such definition has been
+each reason. A witness refuses a constant function: a contract with an accepted
+input is false of a function that refuses every input, and a contract with a
+refused input is false of a function that accepts every input. Each decision
+function with a contract has both. A two-way kind states that both outcomes
+occur, and it fixes the verdict at every input. Every other function, a function
+with a one-way kind included, has one accepted and one refused input as marked
+facts at the top level of a condition, about the function that the condition
+binds. The audit counts a marked fact only when its input does not depend on
+that function. The dependency relation is the one of the kernel: the audit
+follows the type of every constant that the input names, its value when it has
+one (a definition, a theorem and an opaque constant have one), and the parts of
+its inductive declaration. When a function has no accepted or no refused input,
+a contract carries the proof of that: the opposite fact for every input. The
+audit accepts no other reason for a missing input, and it refuses a function
+with neither. The audit also prints the form of each part of each requirement
+with no kind, and it infers nothing. A part has an exact form only in one of two
+exact shapes: it quantifies over exactly the inputs of the function, and its
+body is an equivalence between an equation about the result at those inputs and
+a proposition that does not name the function, or it is such an equation alone.
+Each other part that names the function is not classified. That says nothing
+about the strength of the part: the witnesses, and not the form, are what refuse
+a constant function. The inventory establishes that every such definition has been
 classified and that each computed fact holds. The inventory's own decision is a
 pure function with a theorem that it accepts exactly a definition in exactly one
 class. `Acorn.Decisions`

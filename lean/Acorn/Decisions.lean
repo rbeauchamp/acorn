@@ -51,11 +51,11 @@ with one proved direction carries that direction alone. Six groups are registere
 * A decision that takes its element type as an argument, such as `Host.Viewer.Buffer.offer`,
   has no kind for the same reason, and its statement for every element type is registered in
   the same way.
-* A function between fixed types for which no proof supplies the witness of a kind has no kind
-  either. Each kind carries an input the function accepts or one it refuses. For
-  `Host.impassable` and `Host.walkableTile` that input is the generated terrain of one tile,
-  and no theorem states the terrain of a tile. The proved statement is registered as a
-  requirement with no kind, and the ownership audit requires it in the same way.
+* A function between fixed types has no kind when no theorem states a set of the inputs that
+  it accepts. `Host.terrain` is the one such function: its statement, in
+  `AcornVerif.Decisions`, is about what the readers of its result do with it. The proved
+  statement is registered as a requirement with no kind, and the ownership audit requires it
+  in the same way.
 * A function with a kind can carry a second statement beside it for what its kind does not
   state: the value of an accepted result (`cli_value_found`), or the exact verdict on a part
   of the inputs (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`). That
@@ -66,13 +66,20 @@ proved about the executing definition. It does not check a witness of either out
 does not check that the statement is independent of the implementation. Each docstring of
 such a statement says whether it gives the exact condition of acceptance, or which of an
 accepted and a refused input it gives, and what it does not claim. The ownership audit prints
-how many implementations have a kind and how many have only such a requirement. A statement
-carries one closed accepted input and one closed refused input with the markers `Accepts`
-and `Refuses`, at the top level of its condition. No constant of such an input reaches the
-decision function through a definition. When a function has no accepted or no refused input,
-the marker `NoAccepted` or `NoRefused` carries the proof: the opposite fact for every input.
-The ownership audit accepts no other reason for a missing input, it refuses a decision
-function whose contracts carry neither, and it prints the form of each statement.
+how many implementations have a kind and how many have only such a requirement.
+
+A witness refuses a constant function. A two-way kind states that both outcomes occur and
+fixes the verdict at every input. Every other function has one accepted input and one refused
+input as marked facts, `Accepts` and `Refuses`, at the top level of a condition: in its
+statement with no kind, or, for a function with a one-way kind, in a contract beside the kind.
+The input of a marked fact does not depend on the decision function. The ownership audit
+follows the type and the value of every constant that the input names, the value of a theorem
+and of an opaque constant included. When a function has no accepted or no refused input, the
+marker `NoAccepted` or `NoRefused` carries the proof: the opposite fact for every input. The
+ownership audit accepts no other reason for a missing input, and it refuses a decision
+function whose contracts carry neither. It also prints the form of each part of each
+statement with no kind: a part has an exact form only in one of two exact shapes, and each
+other part is not classified, which says nothing about its strength.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function
@@ -81,7 +88,8 @@ certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stan
 are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
 statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
 No checker is complete, so `Host.regionBlocked` carries the sound kind and the other two, whose
-arguments have a dependent type, a requirement with no kind.
+arguments have a dependent type, a requirement with no kind. `Host.walkableTile` carries the
+two-way kind.
 
 ## The complete record
 
@@ -1664,9 +1672,12 @@ theorem capture_follows : Regula.ExecutableContract Capture.follows (fun test =>
         (next.terminal && !previous.terminal &&
           next.world.toNat == previous.world.toNat + 1)) ∧
       Accepts (· = true)
-        (test ⟨0, 0, 0, 0, 1, true⟩ ⟨0, 0, 0, 0, 0, false⟩)) :=
+        (test ⟨0, 0, 0, 0, 1, true⟩ ⟨0, 0, 0, 0, 0, false⟩) ∧
+      Refuses (· = true)
+        (test ⟨0, 0, 0, 0, 0, false⟩ ⟨0, 0, 0, 0, 0, false⟩)) :=
   ⟨⟨(Capture.follows_equal_lifetime),
-    by unfold Accepts; decide +kernel⟩⟩
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- The ownership test accepts exactly a tool whose own flag is set in the inventory. -/
 theorem inventory_owns : Regula.ExecutableContract Host.Inventory.owns (fun owns =>
@@ -3025,20 +3036,26 @@ theorem next_ready : Regula.ExecutableContract @SwiftTd.nextReady (fun next =>
 A sound kind carries an accepted input and a complete kind a refused one. Each statement below
 is the closed input of the other side. -/
 
-/-- The capture order refuses a capture after itself. -/
-theorem capture_after_refused : Regula.ExecutableContract Capture.after (fun test =>
-    Refuses (· = true) (test ⟨0, 0, 0, 0, 0, false⟩ ⟨0, 0, 0, 0, 0, false⟩)) :=
-  ⟨by unfold Refuses; decide +kernel⟩
+/-- The capture order accepts one pair of different captures, and it refuses a capture after
+itself. -/
+theorem capture_after_witnesses : Regula.ExecutableContract Capture.after (fun test =>
+    Accepts (· = true) (test ⟨0, 0, 1, 0, 0, false⟩ ⟨0, 0, 0, 0, 0, false⟩) ∧
+      Refuses (· = true) (test ⟨0, 0, 0, 0, 0, false⟩ ⟨0, 0, 0, 0, 0, false⟩)) :=
+  ⟨⟨by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
-/-- The retry test refuses a retry state after three failures. -/
-theorem retry_ready_refused : Regula.ExecutableContract Retry.ready (fun test =>
-    Refuses (· = true)
-      (test (((Retry.initial.failed 0 false).failed 0 false).failed 0 false) 0)) :=
-  ⟨by unfold Refuses; decide +kernel⟩
+/-- The retry test accepts the initial retry state, and it refuses a retry state after three
+failures. -/
+theorem retry_ready_witnesses : Regula.ExecutableContract Retry.ready (fun test =>
+    Accepts (· = true) (test Retry.initial 0) ∧
+      Refuses (· = true)
+        (test (((Retry.initial.failed 0 false).failed 0 false).failed 0 false) 0)) :=
+  ⟨⟨by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
-/-- The column test accepts a text column against a text shape. -/
-theorem column_fits_accepted : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
-    Accepts (· = true) (fits "" ⟨"", .text⟩ .text)) :=
-  ⟨by unfold Accepts; decide +kernel⟩
+/-- The column test accepts a text column against a text shape, and it refuses a flag column
+against a text shape. -/
+theorem column_fits_witnesses : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
+    Accepts (· = true) (fits "" ⟨"", .text⟩ .text) ∧
+      Refuses (· = true) (fits "flag" ⟨"flag", .flag⟩ .text)) :=
+  ⟨⟨by unfold Accepts; decide +kernel, by unfold Refuses; decide +kernel⟩⟩
 
 end Acorn.Decisions
