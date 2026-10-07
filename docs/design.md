@@ -156,8 +156,8 @@ The two places:
   every order. The refresh has to precede the draws, and the credit reads the
   reward. The refresh retains the original owner of a slot that it replaces, and
   that owner takes no credit. Where the closing option is kept and the meta draw
-  selects it again, the state that `TemporalControl.startOption` is given differs
-  as well, by this difference.
+  selects it again, the state that `TemporalControl.startOption` is given can
+  differ as well, by this difference.
 
 What each draw of the first part reads, by the operation that makes it:
 
