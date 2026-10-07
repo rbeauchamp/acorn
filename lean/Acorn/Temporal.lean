@@ -460,8 +460,9 @@ def Skill.startTemporal {config : Config} {criterion : Criterion} {dimension : D
 /-- **An ordinary start is `startTemporal` at the draw from the started policy.** For
 every skill and every input of a start: settling, starting and stepping, which draws the
 first action from the policy the start froze, returns the skill that `startTemporal`
-returns for that draw. A start whose first action was drawn earlier differs from it in
-the drawn decision alone. -/
+returns for that draw. So, for the same skill and the same other inputs, a start whose
+first action is drawn earlier differs from it in the drawn decision alone. The statement
+does not say that two step orders give a start the same inputs. -/
 theorem Skill.startTemporal_step {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount}
     (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)

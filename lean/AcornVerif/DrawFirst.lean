@@ -11,7 +11,7 @@ import Acorn.Handcrafted.StepParts
 `TemporalControl.drawFirst` and `TemporalControl.settle` are the dispatch of
 `TemporalControl.selectWithOperations` with every draw before every write that reads
 the reward (`Acorn.Handcrafted.DrawFirst`). This module states where the two give one
-result and where they differ. Every statement is about the executed definitions.
+result and where they can differ. Every statement is about the executed definitions.
 
 **Where they agree** (`selectWithOperations_settle`). For every state, frame and reward
 word: when the draw-first decision starts no option, and no option closes at a free
@@ -43,7 +43,7 @@ in both modes, also when it starts an option.
   dispatch refreshes first, because the refresh precedes the draws, and credits the
   owner the refresh retained. The differential criterion has that order in both. Where
   the closing option is kept and the meta draw selects it again, the state that
-  `startOption` is given differs as well, by this difference.
+  `startOption` is given can differ as well, by this difference.
 
 What the draws that both make read is stated for the draw-first dispatch itself:
 `drawBoundary_meta` and `drawBoundary_unplanned` for the meta draw, and
@@ -480,7 +480,7 @@ theorem actThenLearn_planAfterAct
       percept.frame.achieved (state.choose .planAfterAct percept).decision
   rw [controls, decisions]
 
-/-! ## Where the two differ: the first action of an option that starts -/
+/-! ## Where the two can differ: the first action of an option that starts -/
 
 /-- **What the first action of an option reads when the draw is first.** For every free
 dispatch that draws first and whose decision starts an option: the option is the one

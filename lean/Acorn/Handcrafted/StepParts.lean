@@ -21,7 +21,7 @@ every option's questions, and the tester.
 Under `learnThenAct` the two parts compose to `Agent.act`, for every agent state and
 percept, in every world (`Agent.act_parts`). Under `planAfterAct` selection runs with
 no planning, and the planning of a free boundary is the first work of the second part
-(`TemporalControl.planAfter`). These two orders differ at a free dispatch only: a step
+(`TemporalControl.planAfter`). These two orders can differ at a free dispatch only: a step
 whose decision records no meta decision is the executed step under both
 (`Agent.actOrdered_undrawn`, from `TemporalControl.select_unplanned`). This is PAR-19;
 the source of the reordering is cited in `Acorn.Timing`.
@@ -32,13 +32,13 @@ word (`Agent.chooseDrawn`, `Agent.choose_reward`), and the chosen value holds th
 the writes that dispatch owes. The second part makes those writes from the reward
 (`TemporalControl.settle`), then plans as under `planAfterAct`, then learns. This is
 PAR-20. `AcornVerif.DrawFirst` states where this step is the step of `planAfterAct` and
-where it differs.
+where it can differ.
 
 What each draw of the first part reads, under `learnThenAct` and `planAfterAct` unless
 an order is named. Each statement is about the operation that makes the draw; which
 operation a step calls is the definition of selection. Under `actThenLearn` the first
 four draws are made by the same operations, before the writes that selection makes
-after them, and the last differs as its item says.
+after them, and the last is drawn from another policy, as its item says.
 
 - A served exploration step repeats the action of its run and consumes no draw
   (`TemporalControl.serve_frame`). The values its decision reports are read from the
@@ -1037,7 +1037,7 @@ structure Chosen (interface : Interface) (profile : FeatureProfile) (config : Fe
   control : TemporalControl interface profile config criterion dimension
   /-- The decision the first part made. -/
   decision : TemporalDecision interface.actions
-  /-- The writes the first part owes; nothing, when it was selection. -/
+  /-- The writes the first part owes; nothing, when the first part is selection. -/
   owed : Owed interface profile config criterion dimension
   /-- The second part keeps every declared option source matched. -/
   aligned : ((control.deferred order planning features owed percept.reward percept.frame.achieved
