@@ -404,7 +404,8 @@ fold.** For every callback, observer, fuel, attempt, resource record and world t
 value the loop returns agrees with the result of `Attempt.complete` (`AttemptAgrees`),
 on acceptance and on a refusal. On a refused action the loop returns the stage that the
 fold's refusal holds: the whole step of the callbacks, the first part and then the
-second, applied once to the refused pass's own input (`Attempt.complete_learned`). So
+second, applied once to the input that the attempt of the refused pass sensed, an attempt
+that the fold reaches from the start in accepted passes (`Attempt.complete_learned`). So
 the second part runs exactly once on a refused pass in this loop, as it does in the
 default one, and on every accepted pass the next attempt is the fold's. -/
 theorem runReleasedSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}

@@ -196,11 +196,12 @@ theorem path_safe {state finalState : Agent Grid.interface profile config criter
 edge. The prefix is that of a construction of the default step order: its action edge is
 `Agent.act`, and the statement is about the learner states and the agent's events. -/
 theorem native_prefix (admitted : DefaultConstruction)
-    (finalState : admitted.construction.State) (events : List admitted.construction.Input)
+    (finalState : admitted.construction.State)
+    (events : List (AgentInput admitted.construction.config admitted.construction.criterion
+      admitted.construction.dimension))
     (stopped : Bool)
     (executed : AgentConstruction.execute admitted events = .ok (finalState, stopped)) :
-    SafePath admitted.construction.initial.agent (events.map AgentConstruction.Input.raw)
-      finalState.agent stopped := by
+    SafePath admitted.construction.initial.agent events finalState.agent stopped := by
   have raw := admitted.runPrefix_agent admitted.construction.initial events
   have folded : admitted.runPrefix admitted.construction.initial events =
       .ok (finalState, stopped) := executed

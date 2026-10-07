@@ -68,8 +68,8 @@ def primaryImage {config : Features.Config} {criterion : Criterion} {dimension :
     ensemble.skills.map (fun skill => skill.policy.learners.map knowledge), demonImages ensemble.demons⟩
 
 /-- The complete checkpoint projection already carries valid history and numeric state.
-The result is an image of the construction of the state it reads: this is the one maker
-of an image from a state. -/
+The result is an image of the construction of the state it reads: this is where this
+project makes an image from a state. -/
 def snapshotImage (construction : AgentConstruction) (state : construction.State) :
     construction.Image :=
   let runtime := state.agent.control.runtime

@@ -28,13 +28,12 @@ the loop.
 
 A `Moving` world also changes while the agent computes, and there the position is a
 parameter. The model takes one two-part agent and a `Position` of the transition: after
-both parts, or between them. `Position.ofOrder` names the position of the host loop of
-each step order; the model takes no step order beside an agent.
-`Moving.interact` is the definition of one interaction. `Moving.landing_learn`,
-`Moving.interact_landing` and `Moving.interact_memory` unfold that definition for one
-interaction from one state and memory: the action and the memory kept are the same at
-both positions, and the state the action lands on is not. Over a run the two positions
-can therefore diverge in every later state, percept, memory and action.
+both parts, or between them. `Moving.interact` is the definition of one interaction.
+`Moving.landing_learn`, `Moving.interact_landing` and `Moving.interact_memory` unfold
+that definition for one interaction from one state and memory: the action and the memory
+kept are the same at both positions, and the state the action lands on is not. Over a
+run the two positions can therefore diverge in every later state, percept, memory and
+action.
 
 The derived statements are about the loop. `Moving.loop_memory`: at either position,
 for every assignment of work, the memory before a time is the fold of the first part
@@ -44,9 +43,8 @@ each percept is learned exactly once and in order, whether the world moves or wa
 the kernel. `Moving.interact_commutes`: one interaction is the same at both positions
 when the world's own change commutes with its transitions.
 
-The `Moving` world is a model. No executing world implements it: the grid world waits
-for the agent (`Acorn.Handcrafted.Grid.timing`, a declaration that nothing links to
-`Moving.Waits`). The statement about the executed loops is
+The `Moving` world is a model. No executing world implements it, and the grid world
+waits for the agent. The statement about the executed loops is
 `Acorn.Host.runReleasedSteps_complete`. The work of each part is an arbitrary function
 here, so the statements hold for every assignment of work; none is a measurement, and
 no theorem here bounds the work of the executed parts.
@@ -125,11 +123,6 @@ inductive Position where
   /-- The world takes its transition between the two parts. -/
   | betweenParts
 
-/-- The position at which a host loop of a step order takes the world's transition. -/
-def Position.ofOrder : StepOrder → Position
-  | .learnThenAct => .afterParts
-  | .planAfterAct => .betweenParts
-
 /-- A world that also changes while the agent computes. `elapse` is its change during
 one unit of agent work. -/
 structure Moving (interface : Interface) extends World interface where
@@ -141,8 +134,7 @@ def Moving.elapsed (world : Moving interface) : ℕ → world.State → world.St
   | 0, state => state
   | units + 1, state => world.elapsed units (world.elapse state)
 
-/-- The world waits for the agent: agent work changes nothing. This is the
-agent-synchronized discipline of `Acorn.Timing`. -/
+/-- The world waits for the agent: agent work changes nothing. -/
 def Moving.Waits (world : Moving interface) : Prop :=
   ∀ state, world.elapse state = state
 

@@ -32,9 +32,11 @@ variable {order : StepOrder}
 /-- The full-agent owner supplies actual learning and accounting definitions. The step
 order is an index of the type: a host loop takes the callbacks of the order whose
 position of the world's transition it implements. The index is a label, and no field
-depends on it: a record is of its order because of the code that made it. The ownership
-audit names the modules that may apply the constructor and refuses it elsewhere in this
-project. -/
+depends on it: a record is of its order because of the code that made it. The
+constructor is public, and no check stops a module of this project from making a record
+under another index. A record under another index with the same whole step and host
+functions returns the same run state, outcome and refusal
+(`AcornVerif.CurrentRunner.complete_parts`). -/
 structure AgentCallbacks (order : StepOrder) (α β : Type) where
   /-- What the agent holds between the two parts of one step. -/
   Chosen : Type
@@ -530,11 +532,29 @@ def Attempt.complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
         | .accepted environment =>
           Attempt.complete callbacks context fuel (environment.record callbacks)
 
-/-- **The stage a refused action leaves is the stage of one whole step.** For every
-callback, fuel and attempt: when the fold ends in a refusal that holds a stage, an
-attempt of the fold sensed an input, the stage is the whole step on that input, and
-the world refused the action of that step. A refusal that holds no stage is a refused
-observation. -/
+/-- The fold reaches one attempt from another in a number of accepted passes. Zero passes
+reach an attempt from itself. One more pass reaches from an attempt that is not finished
+and senses an input, when the world accepts the action of the whole step on that input:
+the rest is reached from the attempt that the accepted transition records. -/
+inductive Attempt.Reaches {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
+    (callbacks : AgentCallbacks order α β) :
+    Nat → Attempt config α goal cap → Attempt config α goal cap → Prop where
+  /-- Zero passes: an attempt reaches itself. -/
+  | same (attempt : Attempt config α goal cap) : Attempt.Reaches callbacks 0 attempt attempt
+  /-- One accepted pass, then the rest from the recorded attempt. -/
+  | pass (passes : Nat) (attempt reached : Attempt config α goal cap)
+      (input : DecisionInput config α goal cap) (environment : OwnedEnvironment config α goal cap)
+      (unfinished : attempt.finished = false) (sensed : attempt.sense = .ok (some input))
+      (accepted : (input.selectOwned callbacks).release = .accepted environment)
+      (rest : Attempt.Reaches callbacks passes (environment.record callbacks) reached) :
+      Attempt.Reaches callbacks (passes + 1) attempt reached
+
+/-- **The stage a refused action leaves is the stage of one whole step on the attempt the
+fold reached.** For every callback, fuel and attempt: when the fold ends in a refusal
+that holds a stage, the fold reaches an attempt from the start in fewer than `fuel`
+accepted passes (`Attempt.Reaches`), that attempt is not finished and senses an input,
+the stage is the whole step on that input, and the world refused the action of that
+step. A refusal that holds no stage is a refused observation. -/
 theorem Attempt.complete_learned {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (context : GoalContext) (fuel : Nat)
     (attempt : Attempt config α goal cap) (error : WorldError)
@@ -542,8 +562,11 @@ theorem Attempt.complete_learned {config : WorldConfig} {α β : Type} {goal : G
     (refused : (attempt.complete callbacks context fuel :
       Except (Refusal config α goal cap) (RunState config α × GoalOutcome × StepFrame β)) =
         .error ⟨error, some learned⟩) :
-    ∃ (reached : Attempt config α goal cap) (input : DecisionInput config α goal cap),
-      reached.sense = .ok (some input) ∧ learned = input.selectOwned callbacks ∧
+    ∃ (passes : Nat) (reached : Attempt config α goal cap)
+      (input : DecisionInput config α goal cap),
+      passes < fuel ∧ Attempt.Reaches callbacks passes attempt reached ∧
+        reached.finished = false ∧ reached.sense = .ok (some input) ∧
+        learned = input.selectOwned callbacks ∧
         (input.selectOwned callbacks).environment = .error error := by
   have closed : ∀ current : Attempt config α goal cap,
       (current.close callbacks context :
@@ -560,7 +583,8 @@ theorem Attempt.complete_learned {config : WorldConfig} {α β : Type} {goal : G
     unfold Attempt.complete at refused
     split at refused
     · exact (closed attempt refused).elim
-    · cases sensed : attempt.sense with
+    · rename_i unfinished
+      cases sensed : attempt.sense with
       | error other =>
         rw [sensed] at refused
         cases refused
@@ -586,13 +610,19 @@ theorem Attempt.complete_learned {config : WorldConfig} {α β : Type} {goal : G
               · cases answer
                 rfl
               · cases answer
-            refine ⟨attempt, input, sensed, ?_, ?_⟩
+            refine ⟨0, attempt, input, Nat.succ_pos fuel, .same attempt,
+              Bool.eq_false_iff.mpr unfinished, sensed, ?_, ?_⟩
             · exact (Option.some.inj stages).symm.trans kept
             · rw [← errors]
               exact transition.symm
           | accepted environment =>
             rw [answer] at refused
-            exact ih _ refused
+            obtain ⟨passes, reached, next, bound, reaches, continues, sensedNext, stage,
+              transition⟩ := ih _ refused
+            exact ⟨passes + 1, reached, next, Nat.succ_lt_succ bound,
+              .pass passes attempt reached input environment
+                (Bool.eq_false_iff.mpr unfinished) sensed answer reaches,
+              continues, sensedNext, stage, transition⟩
 
 /-- The stream that continues past an attempt boundary is the attempt's own run
 with the attempt recorded, for every callback: no outcome row is an input to it.

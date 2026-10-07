@@ -169,8 +169,10 @@ refusal: every value that either loop returns, from every world token, agrees
 with the fold in its run state and outcome, or in its refusal
 (`runAttemptSteps_complete`, `runReleasedSteps_complete`,
 `runAttempt_complete`). A refusal of an action holds the stage of the refused
-pass, and the agreement fixes it: it is the whole step of the callbacks, the
-first part and then the second, applied once to that pass's own input
+pass, and the agreement fixes it. The fold reaches the attempt of that pass from
+the start in accepted passes (`Attempt.Reaches`), that attempt is not finished
+and senses an input, and the stage is the whole step of the callbacks, the first
+part and then the second, applied once to that input
 (`Attempt.complete_learned`). A refusal of an observation holds no stage. So the
 second part runs exactly once on a refused pass in both loops. These are
 statements of partial correctness: they concern the values a loop returns, and
@@ -179,12 +181,13 @@ observer's own effects, the terminal frame, the resource counters and the
 reported durations are outside them. A campaign reports the error of a refusal
 and returns no agent, in both orders.
 
-A world declares how its time relates to the agent's computation
-([`Timing`](../lean/Acorn/Timing.lean)): it waits for each action, or it runs on a
-wall clock with an action cycle and a latency. The value is a declaration: no
-definition reads it or checks it. The grid world's declaration is that it waits
-(`Grid.timing`). An exact saved image of the agent is not part of the interface
-yet.
+Operation in real time needs three more parts, and none is built:
+
+- the timing discipline of a world, with a world on a wall clock and a missed
+  deadline as a protocol fault;
+- a bound of the work of each part of a step;
+- the exact save and restore of the agent. An exact saved image of the agent is
+  not part of the interface yet.
 
 The agent adds its own prediction feedback words, one per prediction question, on
 consecutive channels from the one the interface declares. A frame cannot carry a
@@ -721,37 +724,20 @@ bytes only when the order word in their own header is the receiver's
 
 These types hold no proof of an order, because the learner state and the durable
 image carry none. The order of a value is a fact about the code that made it, and
-no proof inside the value can state it. The index and the ownership audit prevent
-a mix of orders inside this project. The audit reads the compiled declarations
-and refuses a definition, outside the modules that own it, that references a
-sealed constant. One map gives each sealed constant its modules: a private
-constructor of a project type has its declaring module, and the constructor of
-the callback record, the constructor of the image and the callbacks of a
-construction have the modules of a table. One rule gives the others. The reach
-is the least set of the declarations that reach a constructor of these types or
-a table row by references. A declaration of the reach that is not in the
-interface gets the intersection of the modules of every sealed constant that it
-references, and it is a site, a sealed constant, only when that is fewer than
-all modules. A generated alias of a constructor of these types or of a row, and
-a caller of a site, reference a sealed constant and are sites by that rule. A
-declaration of the reach that references only interface entries keeps all
-modules and is no site: the finite prefix from cold initialization is one. The
-start of the reach is these types and the rows; for another private constructor
-of the project the map holds the constructor only. The interface is the list
-`AcornOwnership.interface` of the declarations that every module may use, each
-of which would be a site without its entry. Each entry
-names a theorem whose statement names it, or has a line that says why no
-statement exists. The audit reads no type and infers no entry.
+no proof inside the value can state it. The order is a type index: a state, an
+image and a chosen value have the type of one construction, and a callback
+record has its order as an index, so two values of different orders do not meet
+by accident. No check stops a module of this project from making such a value. A
+private constructor stops the constructor notation and the constructor name in
+another module and does not stop a tactic; the constructors of the image and of
+the callback record are public. The checkpoint file is not authenticated, so an
+edit of its order word is not detected: `CurrentCheckpoint.saved_admitted_order`
+is about bytes that a save of this project wrote.
 
-The trusted base of this invariant is the owning modules, the interface list and
-the audit tool. The audit does not read the body of a definition of an owning
-module to decide if it keeps the claim, so a change of an owning module or of the
-interface list is a change of the invariant and is reviewed as one. The index
-and the audit do not stop a definition outside the project that builds one of
-these structures directly. They do not stop an edit of the order word in a
-checkpoint file, because the file is not authenticated.
-
-Theorems say what a mix would be. Two callback records with the same whole step
+Theorems say what a value under the other index gives. A state gives the agent's
+step of that index's order on the same learner state
+(`AgentConstruction.callbacks_act`), and a save that writes that index's word
+(`CurrentCheckpoint.saved_header`). Two callback records with the same whole step
 and the same host functions, at any two indices, give the same pure fold
 (`CurrentRunner.complete_parts`), and a value that either loop returns agrees
 with that fold in its run state, its outcome and its refusal. So a record that

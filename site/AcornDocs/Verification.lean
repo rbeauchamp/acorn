@@ -135,28 +135,6 @@ ownership inventory. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
 a maintained module with a non-empty module docstring. Ownership admission
 refuses a facet-qualified build key in the root package's Lake configuration.
-Ownership admission also reads the compiled declarations for sealed constants,
-the constants that make a value of a type whose maker is a claim of this
-project. One map gives each its modules: a private constructor of a project
-type has its declaring module, and the rows of the sealed table have theirs.
-One rule gives the others. The reach is the declarations that reach a
-constructor of the sealed types or a row by references. A declaration of the
-reach that is not in the declared interface gets the intersection of the
-modules of every sealed constant that it references, and it is a site, a
-sealed constant, only when that is fewer than all modules. For a private
-constructor of another type the map holds the constructor only. No definition
-of a project module references a sealed constant
-from a module outside its modules. The interface is a declared list of the
-declarations that every module may use; each entry names a theorem whose
-statement names it, or has a line that says why no statement exists. The
-audit reads no type and infers no entry. A private constructor does not stop a
-tactic, and Lean generates a public alias of a public constructor, so this
-check is the enforcement. Its trusted base is the owning modules, that list
-and the audit tool, and it covers the modules of this project only. Twelve
-control declarations in the audit make a sealed value outside its module. The
-audit requires that the complete rule reports each for its intended constant,
-and that the designated constants alone report only the two that use a
-constructor.
 The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
 pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and

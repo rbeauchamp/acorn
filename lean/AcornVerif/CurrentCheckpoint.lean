@@ -277,8 +277,8 @@ criterion, planning selection, feature configuration and dimension, every two st
 orders and every image of the construction of the first order: the payload of the same
 durable data as an image of the construction of the second order is the payload of the
 image with its order word replaced by the word of the second order, and with no other
-change. The statement names the constructor of the image, which a definition outside the
-owning modules cannot do; it says what such a definition would make. -/
+change. The statement names the public constructor of the image, which every module can
+apply. -/
 theorem relabeled_payload (profile : FeatureProfile) (criterion : Criterion)
     (planning : PlanningSelection) (config : Features.Config) (dimension : Dimension)
     (first second : StepOrder)

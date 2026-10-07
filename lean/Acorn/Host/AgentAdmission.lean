@@ -89,14 +89,17 @@ def AgentConstruction.standard (seed : UInt64) (selection : Host.AgentSelection)
       ⟨Acorn.FeatureConstants.defaultImprintUnits, by decide, by decide⟩, declaredTester⟩,
     ⟨Acorn.FeatureConstants.defaultWeightSpace, by decide, ⟨14, rfl⟩, by decide⟩⟩
 
-/-- The agent of one construction. Every step of its history, from cold initialization
-or from an image admitted for the same construction, was taken under the construction's
-step order. The learner state it holds carries no order; that history is the claim of
-this type, and it is a claim about this project's code. The operations below are the
-makers of a state, and each of them keeps the construction. The constructor is private,
-which stops the constructor notation outside this module and does not stop a tactic. The
-ownership audit reads the compiled declarations and refuses a definition outside this
-module that applies the constructor. -/
+/-- The agent of one construction. The construction, and with it the step order, is an
+index of the type, so a state of one order and a state of another do not meet by
+accident. The learner state it holds carries no order: that every step of its history,
+from cold initialization or from an image admitted for the same construction, was taken
+under the construction's step order is a claim about the code that made the value. The
+operations below make a state, and each of them keeps the construction. No check stops a
+module of this project from making a state of another history: the constructor is
+private, which stops the constructor notation and the constructor name outside this
+module and does not stop a tactic. A state under another index gives the agent's step of
+that index's order on the same learner state (`AgentConstruction.callbacks_act`), and a
+save that writes that index's word (`AcornVerif.CurrentCheckpoint.saved_header`). -/
 structure AgentConstruction.State (construction : AgentConstruction) where
   private mk ::
   /-- The learner state, with all immutable construction choices in its type. -/
@@ -111,13 +114,16 @@ def AgentConstruction.initial (construction : AgentConstruction) : construction.
 theorem AgentConstruction.initial_agent (construction : AgentConstruction) :
     construction.initial.agent = Agent.initial _ _ _ _ _ _ := rfl
 
-/-- A durable image of one construction. It has two makers: the snapshot of a state of
-the construction (`Acorn.Checkpoint.snapshotImage`), and the admission of a decoded
-payload whose header holds the word of the construction's order
-(`Acorn.Checkpoint.admitPayload`). The durable image it holds carries no order, so the
-construction is a claim about this project's code: the ownership audit refuses a
-definition outside this module and the modules of the two makers that applies the
-constructor. -/
+/-- A durable image of one construction. The construction is an index of the type, so an
+image of one order and a state of another do not meet by accident. This project makes an
+image in two places: the snapshot of a state of the construction
+(`Acorn.Checkpoint.snapshotImage`), and the admission of a decoded payload whose header
+holds the word of the construction's order (`Acorn.Checkpoint.admitPayload`). The
+durable image it holds carries no order, and the constructor is public: every module can
+apply it to a durable image, and no check stops that. An image under another index is
+the payload of the first construction with the order word replaced, which the loader of
+the second construction admits with the same durable data
+(`AcornVerif.CurrentCheckpoint.relabeled_loaded`). -/
 structure AgentConstruction.Image (construction : AgentConstruction) where
   /-- The durable image. -/
   image : AgentImage Grid.interface construction.config construction.criterion
@@ -141,13 +147,8 @@ def AgentConstruction.State.censorObservations {construction : AgentConstruction
     (state : construction.State) : construction.State :=
   ⟨state.agent.censorObservations⟩
 
-/-- Censoring is the agent's own censoring of the same learner state. -/
-theorem AgentConstruction.State.censorObservations_agent {construction : AgentConstruction}
-    (state : construction.State) :
-    state.censorObservations.agent = state.agent.censorObservations := rfl
-
 /-- What the agent of one construction holds between the two parts of a step. The first
-part of `AgentConstruction.callbacks` is its one maker. -/
+part of `AgentConstruction.callbacks` makes it. -/
 structure AgentConstruction.Chosen (construction : AgentConstruction) where
   private mk ::
   /-- The chosen value of the agent, made under the construction's order. -/
@@ -158,8 +159,8 @@ structure AgentConstruction.Chosen (construction : AgentConstruction) where
 order, over the construction's own state type, with that order as the index a host loop
 reads. The step, the loop, the state that a checkpoint stamps and the image it admits
 all come from the one construction. A campaign does not take this record from a caller:
-`AgentConstruction.runCampaign` derives it. The ownership audit names the modules that
-reference this definition and the modules that apply the constructor of the record. -/
+`AgentConstruction.runCampaign` derives it. The constructor of the record is public, and
+no check stops a module of this project from making a record of this type. -/
 def AgentConstruction.callbacks (construction : AgentConstruction) :
     Host.AgentCallbacks construction.order construction.State
       (AgentObservation construction.config construction.dimension) :=
@@ -203,22 +204,6 @@ def AgentConstruction.runCampaign (construction : AgentConstruction) (config : H
   Host.runCampaign config seed selection spec (fun _ => IO.lazyPure fun _ => construction.initial)
     construction.callbacks observer checkpoint readStop
 
-/-- **The campaign of a construction is the host campaign over that construction's own
-cold initialization and callbacks.** For every construction and every other argument, the
-agent constructor that the host campaign receives returns the construction's cold initial
-state, and the callback record it receives is the construction's own. A caller of
-`AgentConstruction.runCampaign` supplies neither. -/
-theorem AgentConstruction.runCampaign_callbacks (construction : AgentConstruction)
-    (config : Host.WorldConfig) (seed : UInt64) (selection : Host.AgentSelection)
-    (spec : Host.CampaignSpec)
-    (observer : Host.StreamObserver
-      (AgentObservation construction.config construction.dimension))
-    (checkpoint : Option (Host.CheckpointHooks construction.State)) (readStop : BaseIO Bool) :
-    construction.runCampaign config seed selection spec observer checkpoint readStop =
-      Host.runCampaign config seed selection spec
-        (fun _ => IO.lazyPure fun _ => construction.initial) construction.callbacks observer
-        checkpoint readStop := rfl
-
 /-- A construction of the default step order. The finite-prefix transition folds
 `Agent.act`, which is the step of that order, so the prefix operations take this type
 only. -/
@@ -228,55 +213,33 @@ structure DefaultConstruction where
   /-- Its step order is the default one. -/
   default : construction.order = .learnThenAct
 
-/-- The prefix inputs of one construction. They are the agent's public events, with the
-restore event restricted to an image admitted for the same construction. -/
-inductive AgentConstruction.Input (construction : AgentConstruction) where
-  /-- One decision from the current external observation and previous environment result. -/
-  | act (observation : Host.Observation) (result : Host.RawStepResult)
-  /-- Account for the environment result after executing the chosen primitive. -/
-  | environment (family : Host.GoalFamily) (reward : Binary32)
-  /-- Complete an attempt, preserving the continuing stream. -/
-  | attempt (family : Host.GoalFamily) (cycle steps : UInt64) (achieved : Bool)
-  /-- Explicit fresh construction. -/
-  | clear
-  /-- Install an image admitted for this construction. -/
-  | restore (image : construction.Image)
-  /-- Host has reached an admitted stop boundary. -/
-  | stop
-
-/-- The agent's event of a construction's input. -/
-def AgentConstruction.Input.raw {construction : AgentConstruction} :
-    construction.Input →
-      AgentInput construction.config construction.criterion construction.dimension
-  | .act observation result => .act observation result
-  | .environment family reward => .environment family reward
-  | .attempt family cycle steps achieved => .attempt family cycle steps achieved
-  | .clear => .clear
-  | .restore image => .restore image.image
-  | .stop => .stop
-
 /-- Fold a finite prefix from a state of a default-order construction. The fold is
 `Agent.runPrefix`, whose action edge is `Agent.act`, so its type admits a construction
-of the default order and no other. -/
+of the default order and no other. The inputs are the agent's own events; the restore
+event holds a durable image with no construction. -/
 def DefaultConstruction.runPrefix (admitted : DefaultConstruction)
-    (state : admitted.construction.State) (inputs : List admitted.construction.Input) :
+    (state : admitted.construction.State)
+    (inputs : List (AgentInput admitted.construction.config admitted.construction.criterion
+      admitted.construction.dimension)) :
     Except AgentRefusal (admitted.construction.State × Bool) :=
-  (state.agent.runPrefix (inputs.map AgentConstruction.Input.raw)).map fun result =>
-    (⟨result.1⟩, result.2)
+  (state.agent.runPrefix inputs).map fun result => (⟨result.1⟩, result.2)
 
 /-- The prefix of a default-order construction is the agent's own prefix on the learner
-state and the agent's events. -/
+state and the same events. -/
 theorem DefaultConstruction.runPrefix_agent (admitted : DefaultConstruction)
-    (state : admitted.construction.State) (inputs : List admitted.construction.Input) :
+    (state : admitted.construction.State)
+    (inputs : List (AgentInput admitted.construction.config admitted.construction.criterion
+      admitted.construction.dimension)) :
     (admitted.runPrefix state inputs).map (fun result => (result.1.agent, result.2)) =
-      state.agent.runPrefix (inputs.map AgentConstruction.Input.raw) := by
+      state.agent.runPrefix inputs := by
   unfold DefaultConstruction.runPrefix
-  cases state.agent.runPrefix (inputs.map AgentConstruction.Input.raw) <;> rfl
+  cases state.agent.runPrefix inputs <;> rfl
 
 /-- The compiled finite-prefix fold from cold initialization, for a construction of the
-default order. -/
+default order. It takes the agent's own events. -/
 @[noinline] def AgentConstruction.execute (admitted : DefaultConstruction)
-    (inputs : List admitted.construction.Input) :
+    (inputs : List (AgentInput admitted.construction.config admitted.construction.criterion
+      admitted.construction.dimension)) :
     Except AgentRefusal (admitted.construction.State × Bool) :=
   admitted.runPrefix admitted.construction.initial inputs
 

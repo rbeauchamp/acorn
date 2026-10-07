@@ -101,8 +101,7 @@ def modules : Array Name := #[
   `Acorn.Host.Viewer.NativeResources, `AcornTools.Native.Audit,
   `AcornVerif.Resource.WordKernel,
   `AcornTools.Native.Resources, `AcornTools.Native.Routes, `NativeApp.Viewer, `AcornTools.Ownership,
-  `AcornTools.OwnershipAudit, `AcornTools.OwnershipSource, `AcornTools.SealedControl,
-  `AcornTools.Theorems, `AcornTools.TheoremCount
+  `AcornTools.OwnershipAudit, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount
 ]
 
 /-- The reviewed modules of the documentation site, the separate Lake package in `site/`;
@@ -230,88 +229,6 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.regionBlocked),
   (`AcornVerif.CurrentCertificates, `AcornVerif.CurrentCertificates.stance_harvest,
     `Acorn.Host.stanceCertified)
-]
-
-/-- Types whose values carry a claim about their makers that the type does not prove:
-the state, the image and the chosen value of one construction are of that construction's
-step order, and a callback record is of the order in its index. The constructor of each
-must be sealed: private, or a row of `sealedConstants`. A change of visibility that
-removes one from the rule fails the audit. -/
-def sealedTypes : Array Name := #[
-  `Acorn.Handcrafted.AgentConstruction.State, `Acorn.Handcrafted.AgentConstruction.Image,
-  `Acorn.Handcrafted.AgentConstruction.Chosen, `Acorn.Handcrafted.Chosen,
-  `Acorn.Host.AgentCallbacks]
-
-/-- Constants with a public name that only the listed modules may reference in a
-definition. The audit computes the other sealed constants and has no row for them: every
-private constructor of a project type with its declaring module, and every site. The
-reach is the declarations that reach a constructor of the sealed types or a row by
-references. A site is a declaration of the reach, not an entry of `interface`, to which
-the rule gives fewer than all modules: the intersection of the modules of the sealed
-constants that it references.
-
-- The constructor of the callback record: its declaring module, the agent's two parts
-  (`Agent.callbacks`) and the construction's callbacks (`AgentConstruction.callbacks`).
-- The constructor of the image of a construction: its declaring module and its two
-  makers, the admission of a payload and the snapshot of a state.
-- The callbacks of a construction: the module that defines them and derives them for a
-  campaign (`AgentConstruction.runCampaign`), and the ANSI entry, which makes its own
-  construction of the default order. No other module gets the two parts of a
-  construction, as a record or as functions. -/
-def sealedConstants : Array (Name × Array Name) := #[
-  (`Acorn.Host.AgentCallbacks.mk,
-    #[`Acorn.Host.Attempt, `Acorn.Host.AgentInterface, `Acorn.Host.AgentAdmission]),
-  (`Acorn.Handcrafted.AgentConstruction.Image.mk,
-    #[`Acorn.Host.AgentAdmission, `Acorn.Host.Checkpoint.Admission,
-      `Acorn.Host.Checkpoint.Snapshot]),
-  (`Acorn.Handcrafted.AgentConstruction.callbacks,
-    #[`Acorn.Host.AgentAdmission, `NativeApp.Core])
-]
-
-/-- The interface: the declarations that reference a sealed constant, a designated one
-or a site, and that every module may use. Without its entry each would be a site, with
-the modules of the sealed constants that it references. A declaration that references
-only entries is open by the rule and is no entry. The audit infers no entry and reads no
-type; this list is the reviewed decision, and a change of it is a change of the
-invariant.
-
-No statement "this value has the order of its construction" exists for a state or an
-image, because neither holds an order: the order is a fact about the code that made the
-value. Each entry thus has one of two things. It names a theorem whose statement names
-the entry and says where its value comes from, with one line on what that theorem states.
-Or it has no theorem, and its line says why no statement exists and what the entry gives
-to its caller.
-
-The audit requires that each entry references a sealed constant, that a named theorem
-exists and names the entry, and that each entry has its line. -/
-def interface : Array (Name × Option Name × String) := #[
-  (`Acorn.Handcrafted.AgentConstruction.initial,
-    some `Acorn.Handcrafted.AgentConstruction.initial_agent,
-    "Maker. The state is the agent's cold initial state: no step is in its history."),
-  (`Acorn.Handcrafted.AgentConstruction.runCampaign,
-    some `Acorn.Handcrafted.AgentConstruction.runCampaign_callbacks,
-    "Maker. The campaign is the host campaign over the construction's cold initial state and its own callbacks, whose whole step is the agent's step of the construction's order (`AgentConstruction.callbacks_act`)."),
-  (`Acorn.Handcrafted.Agent.choose, some `Acorn.Handcrafted.Agent.choose_selected,
-    "Maker. The chosen value holds the order that the first part selected under: this is a statement of the order, because this value stores one."),
-  (`Acorn.Handcrafted.AgentConstruction.State.restore,
-    some `Acorn.Handcrafted.AgentConstruction.State.restore_agent,
-    "Carrier. It takes a state and an image of one construction, and the result is the agent's own restore of that image on that state."),
-  (`Acorn.Handcrafted.AgentConstruction.State.censorObservations,
-    some `Acorn.Handcrafted.AgentConstruction.State.censorObservations_agent,
-    "Carrier. It takes a state of a construction, and the result is the agent's own censoring of that state: no step is taken."),
-  (`Acorn.Handcrafted.DefaultConstruction.runPrefix,
-    some `Acorn.Handcrafted.DefaultConstruction.runPrefix_agent,
-    "Carrier. It takes a state of a construction that holds the proof of the default order, and the result is the agent's own prefix fold, whose step is the step of that order."),
-  (`Acorn.Checkpoint.load, some `Acorn.Checkpoint.load_candidate,
-    "Carrier. It takes a state of a construction, and the result is that state restored from a candidate that the same construction admitted from the bytes (`Checkpoint.loadCandidate_header`)."),
-  (`Acorn.Checkpoint.saveBytes, some `AcornVerif.CurrentCheckpoint.saved_header,
-    "Consumer. It takes a state of a construction and returns bytes, whose header holds the stored word of that construction's order."),
-  (`Acorn.Handcrafted.Chosen._sizeOf_inst, none,
-    "Generated. No statement exists for it. It is the size measure that Lean generates for the chosen value: a function from the value to a number, which gives no value. The generated measure of the construction's chosen value, in another module, references it."),
-  (`Acorn.Checkpoint.Store.save, none,
-    "Consumer. No statement exists for it: it is file IO. It takes a state of a construction, writes the bytes of `saveBytes` through the private file stages of its module, and returns the agent clock. `CurrentCheckpoint.saved_header` states the order word of those bytes."),
-  (`NativeApp.runAnsiDemo, none,
-    "Plain result. No statement exists for it. It runs the ANSI view of a construction of the default order that it makes itself, and it returns an exit code: no value of a sealed type leaves it. The command dispatch of the core references it.")
 ]
 
 /-- Required native entry dependencies after proof erasure. These are routing

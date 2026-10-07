@@ -219,9 +219,9 @@ def admitLifetime (raw : LifetimeWords) : Option (Durable demonLayout) := do
   else none
 
 /-- Complete-candidate construction: no failed admission can install a field. This is
-the one maker of an image of a construction from bytes. The order word it compares with
-the receiving construction is the word of the payload's own header (`admitHeader`); it
-takes no order word beside the payload. -/
+where this project makes an image of a construction from bytes. The order word it
+compares with the receiving construction is the word of the payload's own header
+(`admitHeader`); it takes no order word beside the payload. -/
 @[noinline] def admitPayload (construction : AgentConstruction) (payload : Payload construction.dimension) :
     Except Error construction.Image := do
   let gain ← admitHeader construction payload.header

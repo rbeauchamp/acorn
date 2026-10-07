@@ -33,7 +33,8 @@ def profile (mode credit rate subtasks : String) : Option FeatureProfile := do
   return ⟨mode, credit, rate, subtasks⟩
 
 /-- Raw-word diagnostics provide observations, never a second policy or evaluator. -/
-def input (construction : AgentConstruction) (word : UInt64) : construction.Input :=
+def input (construction : AgentConstruction) (word : UInt64) :
+    AgentInput construction.config construction.criterion construction.dimension :=
   .act (⟨Vector.replicate _ (Vector.replicate _ ⟨word.toUInt8, 0, 0⟩),
       word.toUInt8, 0, .none, ⟨0, 0, 0, 0, false, false⟩⟩)
     { reward := ⟨word.toUInt32⟩, events := { done := word &&& 1 == 1 } }

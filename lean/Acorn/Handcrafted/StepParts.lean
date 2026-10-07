@@ -711,8 +711,8 @@ of this value is a legal agent; they are erased. The planning selection is carri
 an index, so a chosen value returns to an agent of the type it came from. In this
 module `Agent.choose` is the one use of the constructor, so the order a chosen value
 holds is the order its selection ran under. The constructor is private, which stops the
-constructor notation outside this module and does not stop a tactic; the ownership audit
-refuses a definition of another project module that applies it. -/
+constructor notation and the constructor name outside this module and does not stop a
+tactic; no check stops a module of this project from making a chosen value. -/
 structure Chosen (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) (planning : PlanningSelection) where
   private mk ::

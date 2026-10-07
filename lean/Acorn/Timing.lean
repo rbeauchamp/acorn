@@ -3,7 +3,6 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Word
 
 /-!
 # Time between an agent and a world
@@ -20,10 +19,6 @@ before that frame's planning. The name says what the order does and no more. An 
 that starts still draws its first action after the terminal credit and the settlement
 that this percept causes, so this order is not a complete "act, then learn".
 
-`Timing` names how a world's time relates to the agent's computation. It is a
-declared value of a world: no definition reads it, and nothing checks a declaration
-against the world that makes it.
-
 Releasing the action before the learning update is the reordering of Travnik,
 Mathewson, Sutton & Pilarski, *Reactive Reinforcement Learning in Asynchronous
 Environments*, Frontiers in Robotics and AI 5:79 (2018), section 3. Its Algorithm 1
@@ -34,17 +29,6 @@ no planning. Moving planning after the action is Acorn's own change of PAR-14's
 schedule, declared in PAR-19.
 -/
 namespace Acorn
-
-/-- The discipline a world declares for its time against the agent's computation. The
-constructors are names with declared numbers. No definition gives them a behaviour,
-and no type obliges a world to declare one. -/
-inductive Timing where
-  /-- The world takes one transition for each action, when the action arrives. -/
-  | agentSynchronized
-  /-- The world runs on a wall clock. `cycle` is the declared period between action
-  deadlines, in nanoseconds; `latency` is the declared number of cycles between an
-  action's deadline and its effect. -/
-  | wallClock (cycle : Word.Count) (latency : Nat)
 
 /-- The order of the agent's two step parts, planning and the world's transition. -/
 inductive StepOrder where
