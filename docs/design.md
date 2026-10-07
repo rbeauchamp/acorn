@@ -601,6 +601,142 @@ What these theorems do not establish:
 
 The counting argument is [the coverage proof](../lean/AcornVerif/Coverage.lean).
 
+### An embodied world: the Microduck
+
+The first world after the grid world is a small biped, Pollen Robotics' Microduck.
+Its simulator runs the control daemon and the client interface of the robot. That
+interface was observed in one run of the simulator; the record of its commands,
+skills and timing is in
+[a comment of issue 95](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895).
+A client sends **intents**, never a joint command: a velocity, or a skill by name.
+The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
+0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
+for the client. Two parts of this world are built, as pure definitions:
+[the action table](../lean/Acorn/Host/Microduck/Action.lean) and
+[the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean). No interface value,
+no frame, no host loop, no transport and no wire form of a command exist yet, so no
+code of Acorn reaches the simulator
+([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
+
+**The daemon's networks are the world's actuation interface.** Every intent is
+executed by a network inside the daemon, which holds the only write handle to the
+motors. This is not a departure from the
+[learned-only binding](learned-only-binding.md). The action path of that binding ends
+at an action of the declared interface, and what executes an action belongs to the
+world, as the grid world's step function does. Acorn authors none of these networks.
+What it authors is on its own side of the boundary: the finite table of intents,
+which is the interface's action set, with the commands of each action, its length in
+cycles and the rule that keeps a velocity alive. The classification has three
+consequences, which limit every result obtained in this world:
+
+- a primitive action is a pretrained behaviour of up to three seconds;
+- nothing below an intent is learned: gait, balance and each skill are the world's;
+- a result is a result about control over intents, and says nothing about learning
+  to walk.
+
+The daemon and the interface are the same in the simulator and on a robot. The
+networks need not be: the vendor's simulator script loads one walking network and
+one standing network, and the record says a stock robot defaults to another.
+
+**Ten actions.** Each has an intent: a velocity, a skill, or a posture. The magnitudes
+are the ones that moved the body in the observed run, with the networks of the
+simulator script; forward at 0.15 m/s and every backward command up to 0.3 m/s did
+not.
+
+| Action | Intent | Cycles at the declared pace |
+|---|---|---|
+| `still` | zero velocity | 1 |
+| `forward` | 0.3 m/s forward | 1 |
+| `turnLeft`, `turnRight` | 1.5 rad/s to the left, to the right | 1 |
+| `kickLeft`, `kickRight` | the kick skills | 4 |
+| `sit`, `stand` | the posture: sitting, standing | 7 |
+| `roll` | the forward roll | 8 |
+| `pick` | the pick from the ground | 16 |
+
+The declared pace is an action cycle of 200 ms and a latency of one cycle. An action
+lasts `Action.span` cycles: the latency, and the fewest cycles that cover its
+declared duration (`span_declared` for the table above). The latency is counted
+because a release that meets its deadline can be as late as the deadline:
+`Action.span_covers` states that the percept `span` cycles after the action's own
+is sensed no earlier than such a release plus the declared duration. The durations
+are the observed lengths of the skills with a margin (0.6 s for a kick, 1.2 s for a
+posture, 1.4 s for the roll, 3.0 s for the pick). A host owes that it senses the
+next percept no earlier; nothing in the bridge's state refuses an earlier release.
+
+**The commands.** `Command` is everything a bridge can send: enable the policy, one
+of the table's four velocities, one of five skills. It is a closed finite type. It
+has no constructor for cutting power, shutting down or rebooting, the enable command
+takes no argument, so no value asks to disable the policy, and no value carries a
+velocity outside the table (the daemon does not clamp a velocity). The wire form of
+a command is not defined: the function that renders one owes the method and the
+parameters of each constructor. The release of an action sends velocities and skills
+only (`Action.commands_powered`), so the enable command is the bridge's own. Every
+release sends a velocity first (`Action.commands_head`): a skill and a posture are
+released with the zero velocity. The daemon exposes sitting and standing as one
+toggle. `sit` and `stand` are two actions, and a release takes the posture of the
+body as its caller states it: the toggle is sent exactly when the action asks for
+the other posture (`Action.commands_toggle`).
+
+**Keeping a velocity alive, for a bounded time.** A `Bridge` holds the action
+released last, the posture stated at that release, the instant its velocity was last
+sent at and the instant its hold ends. A release gives a state that depends on no
+earlier state, with a hold of the action's span and a declared grace
+(`Bridge.release_state`). `Bridge.tick` is one reading of the clock between two
+releases: it sends the action's velocity again when that velocity is not zero, the
+last send has reached the declared resend age and the hold has not ended. A zero
+velocity is not sent again, because the daemon's expiry gives zero. For every state,
+instant and list of readings:
+
+- over any list of readings, every command sent is the action's velocity, at a
+  reading before the end of the hold (`Bridge.ticks_sent`); so from the end of the
+  hold nothing is sent (`Bridge.tick_ended`), and the bridge keeps no velocity alive
+  for an agent that releases nothing more;
+- inside the hold, after a tick, the last send of a velocity that is not zero is
+  younger than the resend age, and until the next reading it stays younger than the
+  resend age plus the gap to that reading (`Bridge.tick_fresh`,
+  `Bridge.release_fresh`, `Bridge.Fresh.age`);
+- when the grace is at least the latency, the first action is released at or after
+  the start of its percept's cycle, and the next action is for the percept `span`
+  cycles later and meets its deadline, that next release is before the end of the
+  first action's hold (`Bridge.release_covers`).
+
+The declared numbers are a resend age of 100 ms and a grace of two cycles, with an
+allowed gap of 50 ms between two readings and an allowed 10 ms from a send to the
+daemon's receipt. The three times sum to 160 ms, which is less than the daemon's
+500 ms, and the grace is at least the latency (`keep_declared`). The releases of two
+consecutive cycles that meet their deadlines are, with the allowed 10 ms, less than
+500 ms apart (`releases_declared`). That these numbers keep a velocity in force
+rests on assumptions that are proved nowhere:
+
+- the daemon's expiry of 500 ms, and that it ages a velocity from its receipt;
+- the 10 ms from the reading of the clock a send is stamped with to the receipt;
+- a reading of the clock at least every 50 ms, which needs a reader that runs while
+  the agent's step computes. That is a property of a host loop that is not built, and
+  of the operating system's scheduling;
+- that the posture a caller states is the body's. A wrong one sends the toggle the
+  wrong way.
+
+**What became of an action.** `Bridge.outcome` gives one of four outcomes from the
+state, the daemon's answer and whether the body showed the action: `unchanged` (the
+action asked for the stated posture, and no skill was sent), `refused`, `executed`
+and `unexecuted` (accepted, and the body did not show it). `Action.outcome_iff`
+states exactly when each is the result, and `Bridge.outcome_unsent` that `unchanged`
+is the outcome exactly of a posture action whose own release sent no toggle. The
+outcome reads the posture that the state holds from the release, so the commands
+and the outcome of one release read one posture. A late release is not an outcome:
+it is the fault of [the deadline rule](#the-time-a-world-declares). How sensing
+shows an action is not defined yet.
+
+UNKNOWN, because the observed run did not exercise them: how long sitting down
+takes (the run recorded the label of the sitting network and not the time the body
+took to rest, so `sit` is declared with the duration of `stand`); what a velocity,
+a kick, the roll or the pick does while the body sits; what a second toggle does
+while a toggle runs; whether a velocity sent as a request behaves as one sent as a
+notification at five to ten sends a second; and whether the table's magnitudes move
+a robot, whose networks can differ. The record cites a vendor design note that says
+an accepted command is queued and arbitrated by a fixed priority; that was read and
+not exercised.
+
 ### The OaK picture and the executed agent
 
 [Oak Lab's mission page](https://oaklab.ai/mission.html) draws the OaK

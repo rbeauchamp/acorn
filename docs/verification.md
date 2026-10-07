@@ -293,6 +293,31 @@ release meets the deadline. An instant is a natural number of nanoseconds, so th
 arithmetic is exact. The statements are about these functions: no executing loop keeps a
 standing or reads a cycle or a latency, and no executing world declares a wall clock.
 
+The Microduck world has an action table and a bridge's state, as pure definitions that no
+executing loop calls. The type of the commands a bridge can send is closed: enable, one of
+four velocities, one of five skills. `Acorn.Host.Microduck.Action.commands_powered`
+states that the release of an action never sends the enable command.
+`Acorn.Host.Microduck.Action.span_covers` states that the percept after an action
+is sensed after the action's declared duration. `Acorn.Host.Microduck.Bridge.tick_fresh`
+and `Acorn.Host.Microduck.Bridge.Fresh.age` bound the age of the last send of a
+velocity inside its hold, and `Acorn.Host.Microduck.Bridge.ticks_sent` states that
+over any list of readings of the clock every command is the action's velocity, sent before
+the end of the hold:
+
+```lean
+theorem Acorn.Host.Microduck.Bridge.ticks_sent (keep : Acorn.Host.Microduck.Keep)
+  (bridge : Acorn.Host.Microduck.Bridge) (readings : List Acorn.Instant)
+  (entry : Acorn.Instant × Acorn.Host.Microduck.Command)
+  (member : entry ∈ (Acorn.Host.Microduck.Bridge.ticks keep bridge readings).2) :
+  entry.2 = Acorn.Host.Microduck.Command.move bridge.action.velocity ∧
+    bridge.action.velocity ≠ Acorn.Host.Microduck.Velocity.zero ∧
+      entry.1.nanoseconds < bridge.ends.nanoseconds
+```
+
+Four things are assumptions of those statements' use and not theorems: the daemon's expiry
+of a velocity, the time from a send to the daemon's receipt, the gap between two readings
+of the host's clock, and that the posture a caller states is the body's.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine

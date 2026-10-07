@@ -11,6 +11,7 @@ import Acorn.Host.Checkpoint.Admission
 import AcornVerif.CurrentConstants
 import AcornVerif.GridCorrespondence
 import AcornVerif.DrawFirst
+import Acorn.Host.Microduck.Bridge
 
 open Verso.Genre Manual
 open AcornSite
@@ -252,6 +253,23 @@ in force at every instant of the fault:
 release meets the deadline. An instant is a natural number of nanoseconds, so this
 arithmetic is exact. The statements are about these functions: no executing loop keeps a
 standing or reads a cycle or a latency, and no executing world declares a wall clock.
+
+The Microduck world has an action table and a bridge's state, as pure definitions that no
+executing loop calls. The type of the commands a bridge can send is closed: enable, one of
+four velocities, one of five skills. {decl}`Acorn.Host.Microduck.Action.commands_powered`
+states that the release of an action never sends the enable command.
+{decl}`Acorn.Host.Microduck.Action.span_covers` states that the percept after an action
+is sensed after the action's declared duration. {decl}`Acorn.Host.Microduck.Bridge.tick_fresh`
+and {decl}`Acorn.Host.Microduck.Bridge.Fresh.age` bound the age of the last send of a
+velocity inside its hold, and {decl}`Acorn.Host.Microduck.Bridge.ticks_sent` states that
+over any list of readings of the clock every command is the action's velocity, sent before
+the end of the hold:
+
+{statement Acorn.Host.Microduck.Bridge.ticks_sent}
+
+Four things are assumptions of those statements' use and not theorems: the daemon's expiry
+of a velocity, the time from a send to the daemon's receipt, the gap between two readings
+of the host's clock, and that the posture a caller states is the body's.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
