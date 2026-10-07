@@ -37,7 +37,9 @@ the update of that iteration, and Algorithm 2 also takes it before the update. T
 source has no options, no assignment refresh and no planning; what this module does with
 them is Acorn's own and is declared in PAR-20.
 
-Two points differ from `select`, and no other (PAR-20):
+The dispatch can differ from `select` at two points, and at no other (PAR-20;
+`AcornVerif.DrawFirst` states both dispatches as one form that reads its mode at these
+two points):
 
 - An option that starts draws its first action from its own frozen policy as the
   preceding step left it, after the assignment refresh (`Skill.frozenPolicy`). `select`

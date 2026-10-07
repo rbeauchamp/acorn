@@ -229,6 +229,13 @@ writes of the start with `Acorn.Handcrafted.TemporalControl.startOption`, and
 with the same function. `AcornVerif.DrawFirst.drawBoundary_unplanned` states what
 the meta draw of this order reads, and `AcornVerif.DrawFirst.drawFirst_assigns`
 that the assignment refresh precedes its draws.
+`AcornVerif.DrawFirst.selectWithOperations_form` and
+`AcornVerif.DrawFirst.drawFirst_form` state, for every state, frame and reward word
+and on every branch, that selection and the draw-first dispatch followed by its owed
+writes are one specification, `AcornVerif.DrawFirst.dispatchForm`, in two modes.
+That specification reads its mode in two places, so those are the places where the two
+orders can differ; `AcornVerif.DrawFirst.boundaryForm_frozen` states that they do
+not differ there in a frozen profile.
 
 Under every order `Acorn.Handcrafted.Agent.choose_keeps` states that the first
 part writes neither the primitive controller nor a prediction demon, and

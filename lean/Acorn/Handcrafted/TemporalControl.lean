@@ -255,7 +255,9 @@ def TemporalControl.metaRate (state : TemporalControl interface profile config c
 def TemporalControl.controlRate (state : TemporalControl interface profile config criterion dimension) : SwiftTd.ExploreRate :=
   state.rate.controller (fun _ => state.primitiveRate) (fun _ => state.primitiveRate)
 
-/-- Options resolve their own rates only after a possible invocation reset. -/
+/-- The source of an option's rate. In selection an option that starts resolves its own
+rate after its invocation reset; the draw-first dispatch resolves it for the first action
+before that reset (`Skill.frozenPolicy`). -/
 def TemporalControl.skillRate (state : TemporalControl interface profile config criterion dimension) : ConsumerRate :=
   state.rate.skill (fun _ => state.primitiveRate)
 

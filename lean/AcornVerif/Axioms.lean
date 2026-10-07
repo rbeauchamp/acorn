@@ -3807,6 +3807,36 @@ info: 'AcornVerif.DrawFirst.dispatchMeta_start' depends on axioms: [propext, Cla
 #print axioms AcornVerif.DrawFirst.dispatchMeta_start
 
 /--
+info: 'AcornVerif.DrawFirst.atBoundary_form' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.atBoundary_form
+
+/--
+info: 'AcornVerif.DrawFirst.drawBoundary_form' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.drawBoundary_form
+
+/--
+info: 'AcornVerif.DrawFirst.selectWithOperations_form' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.selectWithOperations_form
+
+/--
+info: 'AcornVerif.DrawFirst.drawFirst_form' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.drawFirst_form
+
+/--
+info: 'AcornVerif.DrawFirst.boundaryForm_frozen' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.DrawFirst.boundaryForm_frozen
+
+/--
 info: 'AcornVerif.DrawFirst.drawBoundary_meta' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in

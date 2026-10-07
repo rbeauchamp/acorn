@@ -17,11 +17,18 @@ result and where they differ. Every statement is about the executed definitions.
 word: when the draw-first decision starts no option, and no option closes at a free
 dispatch under the discounted criterion, selection returns the settled state and the
 same decision. The proof moves each owed write past the draws, which read neither the
-meta span nor an option the write touches. `Agent.actThenLearn_planAfterAct` carries
+meta span nor an option the write touches. `actThenLearn_planAfterAct` carries
 it to the whole step: on such a percept the step under `actThenLearn` is the step
 under `planAfterAct`, with the same next agent and decision.
 
-**Where they differ.** The two excluded cases, and no other.
+**Where they can differ.** In the two excluded cases, and in no other. `dispatchForm`
+writes the dispatch once, as a specification with a mode, and reads the mode in two
+places. `selectWithOperations_form` proves that selection is the form in the mode
+`selection`, and `drawFirst_form` that the draw-first dispatch followed by the owed
+writes is the form in the mode `drawFirst`, for every state, frame and reward word and
+on every branch. The two need not differ at each instance of those cases:
+`boundaryForm_frozen` proves that in a frozen profile a free dispatch gives one result
+in both modes, also when it starts an option.
 
 - *An option starts.* Selection credits and starts the option and then draws
   (`dispatchMeta_start`): the first action is the persistent draw from the policy the
@@ -41,6 +48,35 @@ under `planAfterAct`, with the same next agent and decision.
 What the draws that both make read is stated for the draw-first dispatch itself:
 `drawBoundary_meta` and `drawBoundary_unplanned` for the meta draw, and
 `drawFirst_assigns` for the assignment refresh that precedes it.
+
+**Each pair whose order the two dispatches exchange.** A write that selection makes
+before a read and the draw-first path makes after it, or the reverse, is one of the two
+places above or is covered by a statement that the pair commutes.
+
+- The owed meta reward, which selection writes first, against the model caches
+  (`TemporalControl.prepareSelection_owe`), a served step (`serve_settle`), the stopping
+  decision and the draw of an executing option (in `selectWithOperations_form`), the
+  assignment refresh (`refreshFree_owe`), the planning selection runs (`planFree_owe`),
+  the meta draw (`drawMeta_owe`), the primitive draw (`choosePrimitive_owe`) and the
+  first draw of an option that starts (`credited_reads`, for the generator and the
+  objective; its policy is the first place).
+- The terminal credit of an option that closes, under the differential criterion,
+  against the primitive draw (`choosePrimitive_close`) and the first draw of an option
+  that starts (the first place).
+- The same credit under the discounted criterion, against the assignment refresh, the
+  planning, the meta draw and both later draws: the second place. No statement says
+  which of those reads the credit leaves unchanged.
+- The meta credit against the primitive draw (`choosePrimitive_learnMeta`) and the first
+  draw of an option that starts (the first place).
+- The settlement and the invocation start against the first draw of the started option:
+  the first place.
+- Occupancy and the generator after a draw, which the draw-first path writes before the
+  owed writes, against the owed reward (`oweReward_placed`), the terminal credit
+  (`closeOption_placed`), the meta credit (`learnMeta_placed`), the start
+  (`startOption_placed`, `settled_placed`) and the credit of a continuing option
+  (`stepOption_credit`).
+- The terminal credit against the owed reward, which the form applies in the other order
+  than selection does under the discounted criterion (`closeOption_owe`).
 
 The order of choice and update is that of J. B. Travnik, K. W. Mathewson, R. S. Sutton
 and P. M. Pilarski, *Reactive Reinforcement Learning in Asynchronous Environments*,

@@ -134,7 +134,14 @@ updates that follow selection in every order. This is a third step
 `plan-after-act`, with the same next agent and decision, on every percept whose
 decision starts no option, unless an option closes at a free dispatch under the
 discounted criterion (`AcornVerif.DrawFirst.actThenLearn_planAfterAct`). It
-differs in those two cases and in no other:
+can differ in those two cases and in no other. Both executed dispatches are one
+specification, `AcornVerif.DrawFirst.dispatchForm`, which reads its mode in two
+places, for every state, frame and reward word
+(`AcornVerif.DrawFirst.selectWithOperations_form`,
+`AcornVerif.DrawFirst.drawFirst_form`). The two orders need not differ at each
+instance of those cases: in a frozen profile a free dispatch that starts an
+option gives one result in both (`AcornVerif.DrawFirst.boundaryForm_frozen`).
+The two places:
 
 - An option that starts draws its first action from its own frozen policy as the
   preceding step left it, after the assignment refresh
@@ -880,7 +887,9 @@ comment. A checkpoint records the order in its header, and header admission
 succeeds only for an image whose order is the order of the receiving run
 (`admitHeader_order`). The decisions that admit an order each have an exact
 two-way statement against a specification that calls no function the decision
-executes. The parser and the value admission are stated against the spelling of
+executes, and each is a registered decision with a two-way kind
+(`Decisions.step_order_parse`, `Decisions.step_order_value`,
+`Decisions.step_order`, `Decisions.header_admit`). The parser and the value admission are stated against the spelling of
 an order (`StepOrder.parse_spelled`, `StepOrder.parse_refused`,
 `stepOrderValue_iff`). The command-line admission is stated on the argument list
 alone (`stepOrder_iff`, `stepOrder_refused`), and the option reader it calls has
