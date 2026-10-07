@@ -60,18 +60,23 @@ private def renderAnsi (provenance : String) {config : WorldConfig}
   IO.println s!"action={actionText frame.action} reward={binary32Text frame.result.reward}"
 
 /-- ANSI uses the same full-agent constructor as streaming with its admitted
-discounted criterion, and the distinct observation schedule owned by `runAnsi`. -/
+discounted criterion, and the distinct observation schedule owned by `runAnsi`. Its loop
+runs both parts of a step before the world's transition, so its order is
+learn-then-act; command admission refuses `--step-order` with `--view`. -/
 def runAnsiDemo (common : Cli.Common) (period : Acorn.Word.Count) : IO UInt32 := do
   let construction := Acorn.Handcrafted.AgentConstruction.standard common.world.raw.seed
-    ⟨common.profile, .discounted⟩ common.planning
+    ⟨common.profile, .discounted⟩ common.planning .learnThenAct
   IO.eprintln (planningProvenance construction)
+  IO.eprintln (orderProvenance construction.order)
   IO.print "\x1b[2J\x1b[H"
   let result ← runAnsi common period (fun _ => IO.lazyPure fun _ => construction.initial)
-    Acorn.Handcrafted.Agent.callbacks (renderAnsi (planningProvenance construction)) (fun index tier achieved steps =>
+    construction.callbacks
+    (renderAnsi s!"{planningProvenance construction} {orderProvenance construction.order}")
+    (fun index tier achieved steps =>
       IO.println s!"goal {index} (tier {tier}) {if achieved then "achieved" else "timed out"} in {steps} steps")
   match result with
   | .ok state =>
-    IO.println s!"agent state checksum: {hexWord (agentChecksum state.agent)}"
+    IO.println s!"agent state checksum: {hexWord (agentChecksum state.agent.agent)}"
     return 0
   | .error error => throw (IO.userError (runnerError error))
 
@@ -108,6 +113,7 @@ def runCore (arguments : List String) : IO UInt32 := do
   let options ← streamingOptions arguments
   let some build := buildIdentity | throw (IO.userError "embedded native build identity is invalid")
   IO.eprintln (planningProvenance (nativeConstruction options))
+  IO.eprintln (orderProvenance (nativeConstruction options).order)
   let stop ← StopFlag.new
   stop.withCommands options.controlStdin do
     let outcomes ← IO.mkRef ({} : OutcomeReport

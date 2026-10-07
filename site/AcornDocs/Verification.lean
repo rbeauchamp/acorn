@@ -170,6 +170,37 @@ decision as that reference:
 construction and restoration. The reference covers the composition; the storage types
 beneath it are the executed ones at the grid's action count.
 
+The executed step is two functions under a declared step order:
+{decl}`Acorn.Handcrafted.Agent.choose` selects, and
+{decl}`Acorn.Handcrafted.Chosen.learn` completes the step from the value the first
+returned. {decl}`Acorn.Handcrafted.Agent.act_parts` states that under the default
+order they compose to the executed step, for every agent state and percept, in every
+world:
+
+{statement Acorn.Handcrafted.Agent.act_parts}
+
+Under the other order planning follows the action.
+{decl}`Acorn.Handcrafted.TemporalControl.atBoundary_unplanned` states that the meta
+draw of a free dispatch then reads the meta-controller before that frame's planning,
+and {decl}`Acorn.Handcrafted.Agent.actOrdered_undrawn` that a step whose decision
+records no meta decision is the executed step under both orders.
+{decl}`Acorn.Handcrafted.Agent.choose_keeps` states that the first part writes neither
+the primitive controller nor a prediction demon, and
+{decl}`Acorn.Handcrafted.Chosen.learn_rng` that the second part draws nothing from the
+action generator.
+
+A host releases the action after both parts or between them.
+{decl}`Acorn.Host.DecisionInput.chooseOwned_release` states that one pass of the host
+protocol gives the same result either way, on acceptance and on a refusal.
+{decl}`Acorn.Host.runAttempt_complete` states that every value either native loop of
+an attempt returns agrees with one pure fold of whole steps,
+{decl}`Acorn.Host.Attempt.complete`, in its run state and outcome, or in its refusal
+with the learned stage of a refused pass ({decl}`Acorn.Host.AttemptAgrees`,
+{decl}`Acorn.Host.Attempt.complete_learned`). The terminal frame and the resource
+counters are outside the agreement:
+
+{statement Acorn.Host.runAttempt_complete}
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. {leanModule}`Acorn.Constants` owns the shared machine
@@ -423,7 +454,7 @@ tag := "checkpoint-admission"
 Format {splice}`toString Acorn.Checkpoint.formatVersion` preserves admitted learner state, generator and tester state and
 assignments for supported ranked profiles. Earlier
 formats are refused. Restore checks dimensions, identifiers,
-criterion and value domains before admitting state. An incompatible image is
+criterion, step order and value domains before admitting state. An incompatible image is
 refused and writes to that file are disabled. Stored learner state resumes; option
 models and each option's off-policy questions (PAR-18) are not stored and start
 afresh, and the world and transient process state restart. Filesystem persistence relies on the narrow

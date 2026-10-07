@@ -10,7 +10,9 @@ import Acorn.Host.AgentAdmission
 
 All current profile, criterion, planning, dimension and representation words
 are admitted before learner allocation. Native agent and checkpoint commands
-share this parser and the same raw-observation adapter.
+share this parser and the same raw-observation adapter. Both commands run the prefix
+fold of `Agent.act`, which is the default step order, so every construction they admit
+declares that order and they take no order word.
 -/
 namespace Acorn.Host.AgentArguments
 open Features Handcrafted
@@ -42,8 +44,10 @@ def word (text : String) : Option UInt64 := do
   let value ← text.toNat?
   if value < 2^64 then some value.toUInt64 else none
 
-/-- One admitted receiver context and its optional raw diagnostic input words. -/
-def admit (arguments : List String) : Option (AgentConstruction × List UInt64) := do
+/-- One admitted receiver context and its optional raw diagnostic input words. The
+context is a construction of the default step order: the native drivers fold
+`Agent.act`, the step of that order, and take no order word. -/
+def admit (arguments : List String) : Option (DefaultConstruction × List UInt64) := do
   match arguments with
   | seed :: exponent :: tilings :: units :: mode :: credit :: rate :: subtasks :: criterion :: planning :: words =>
     let profile ← profile mode credit rate subtasks
@@ -54,9 +58,13 @@ def admit (arguments : List String) : Option (AgentConstruction × List UInt64) 
     let tilings ← word tilings
     let units ← units.toNat?
     let exponent ← exponent.toNat?
-    let construction ← AgentConstruction.admit profile criterion planning seed tilings units exponent
-    let words ← words.mapM word
-    return (construction, words)
+    match admitted : AgentConstruction.admit profile criterion planning .learnThenAct seed
+        tilings units exponent with
+    | none => none
+    | some construction =>
+      let words ← words.mapM word
+      return (⟨construction, AgentConstruction.admit_order profile criterion planning
+        .learnThenAct seed tilings units exponent construction admitted⟩, words)
   | _ => none
 
 end Acorn.Host.AgentArguments

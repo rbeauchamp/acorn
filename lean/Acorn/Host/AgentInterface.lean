@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Handcrafted.Agent
+import Acorn.Handcrafted.StepParts
 import Acorn.Handcrafted.GridWorld
 import Acorn.Host.Runner
 import Acorn.Host.AgentDiagnostics
@@ -11,9 +11,10 @@ import Acorn.Host.AgentDiagnostics
 /-!
 # Current agent input and observation boundary
 
-The runner callbacks call the actual composed transition and lifetime owners at the
-grid world's interface instance: each grid observation and preceding raw result
-reaches the agent as one percept, and the chosen action index leaves as a host action.
+The runner callbacks call the two parts of the actual composed transition and the
+lifetime owners at the grid world's interface instance: each grid observation and
+preceding raw result reaches the agent as one percept, and the chosen action index
+leaves as a host action.
 Snapshots retain current immutable values only. Delivered telemetry and byte IO
 are separate interface owners; neither has a parameter on action selection.
 -/
@@ -103,27 +104,49 @@ structure AgentObservation (config : Features.Config) (dimension : Dimension) wh
     | .idle => 0,
     criterion, profile⟩
 
-/-- Full-agent callbacks bind every existing host protocol operation to its actual owner. -/
-def Agent.callbacks : Host.AgentCallbacks (Agent Grid.interface profile config criterion dimension planning)
-    (AgentObservation config dimension) where
-  act state observation result :=
-    let (next, decision) := state.act
+/-- Full-agent callbacks bind every existing host protocol operation to its actual
+owner, for one step order. The two parts of a step are the agent's own parts of that
+order, and the order is the index of the result, so a host loop of the other order
+does not take it. This is the composition over the learner state, which holds no order
+of its own; a host composes `AgentConstruction.callbacks`, whose state type is of one
+construction. -/
+def Agent.callbacks (order : StepOrder) :
+    Host.AgentCallbacks order (Agent Grid.interface profile config criterion dimension planning)
+      (AgentObservation config dimension) where
+  Chosen := Chosen Grid.interface profile config criterion dimension planning
+  choose state observation result :=
+    let chosen := state.choose order
       (Grid.percept profile.taskMode observation result.reward result.events.done)
-    (Host.Action.fromIndex decision.action.val, next)
+    (Host.Action.fromIndex chosen.decision.action.val, chosen)
+  learn := Chosen.learn
   recordEnvironment state family reward := state.recordEnvironment (familyIndex family) reward
   recordAttempt state family cycle steps achieved := state.recordAttempt (familyIndex family) cycle steps achieved
   capture := Agent.observe
   metrics := Agent.metrics
 
-/-- The host's step is the interface agent's step on the grid percept: the raw
-preceding reward and achievement event are passed unchanged, and the host action is
-the chosen index of the interface's action set. -/
+/-- Under the default order the host's whole step is the interface agent's step on the
+grid percept: the raw preceding reward and achievement event are passed unchanged, the
+host action is the chosen index of the interface's action set, and the two parts the
+host calls compose to the executed `Agent.act`. -/
 theorem Agent.callbacks_act (state : Agent Grid.interface profile config criterion dimension planning)
     (observation : Host.Observation) (result : Host.RawStepResult) :
-    Agent.callbacks.act state observation result =
+    (Agent.callbacks .learnThenAct).act state observation result =
       (Host.Action.fromIndex (state.act (Grid.percept profile.taskMode observation result.reward
           result.events.done)).2.action.val,
         (state.act (Grid.percept profile.taskMode observation result.reward
+          result.events.done)).1) := by
+  rw [Agent.act_parts]
+  rfl
+
+/-- Under every order the host's whole step is the agent's whole step of that order on
+the grid percept. -/
+theorem Agent.callbacks_ordered (order : StepOrder)
+    (state : Agent Grid.interface profile config criterion dimension planning)
+    (observation : Host.Observation) (result : Host.RawStepResult) :
+    (Agent.callbacks order).act state observation result =
+      (Host.Action.fromIndex (state.actOrdered order (Grid.percept profile.taskMode observation
+          result.reward result.events.done)).2.action.val,
+        (state.actOrdered order (Grid.percept profile.taskMode observation result.reward
           result.events.done)).1) := rfl
 
 /-- The words the grid agent's coder reads are the complete host word stream: the

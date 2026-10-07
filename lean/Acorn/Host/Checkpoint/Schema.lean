@@ -7,7 +7,7 @@ import Acorn.Host.Checkpoint.Codec
 import Acorn.Host.AgentAdmission
 
 /-!
-# Checkpoint format 17
+# Checkpoint format 18
 
 Field order, widths and fixed collection shapes define the serialized schema.
 Structural words remain untrusted until receiver-relative admission. Knowledge accepts all
@@ -16,7 +16,7 @@ binary32 words and is projected only by each receiving learner's closed rule.
 namespace Acorn.Checkpoint
 open Features Handcrafted
 
-/-- Exact format-17 header after the eight-byte magic. -/
+/-- Exact format-18 header after the eight-byte magic. -/
 structure Header where
   /-- Layout and semantic generation, independent of the magic suffix. -/
   version : UInt32
@@ -38,15 +38,19 @@ structure Header where
   units : UInt32
   /-- Exactly one denotes a resumable profile. -/
   supported : UInt32
+  /-- Step order the saving agent ran under: `StepOrder.tag`. -/
+  order : UInt32
 
 /-- The header's single ordered schema drives both writing and reading. -/
 def headerCodec : Codec Header :=
   (u32Codec.pair (u32Codec.pair (u32Codec.pair (u64Codec.pair (u64Codec.pair
-    (u32Codec.pair (binary32Codec.pair (u64Codec.pair (u32Codec.pair u32Codec))))))))).iso
-    (fun (version, capacity, learners, seed, clock, criterion, gain, tilings, units, supported) =>
-      ⟨version, capacity, learners, seed, clock, criterion, gain, tilings, units, supported⟩)
+    (u32Codec.pair (binary32Codec.pair (u64Codec.pair (u32Codec.pair
+      (u32Codec.pair u32Codec)))))))))).iso
+    (fun (version, capacity, learners, seed, clock, criterion, gain, tilings, units, supported,
+        order) =>
+      ⟨version, capacity, learners, seed, clock, criterion, gain, tilings, units, supported, order⟩)
     (fun h => (h.version, h.capacity, h.learners, h.seed, h.clock, h.criterion, h.gain,
-      h.tilings, h.units, h.supported)) (by intro h; rfl)
+      h.tilings, h.units, h.supported, h.order)) (by intro h; rfl)
 
 /-- Assignment words retain the exact saved target and bonus. -/
 def assignmentCodec : Codec AssignmentWords :=
@@ -94,7 +98,7 @@ abbrev GoalWords := UInt64 × UInt64 × UInt64
 /-- Attempts, successes, then completed-attempt steps. -/
 def goalCodec : Codec GoalWords := u64Codec.pair (u64Codec.pair u64Codec)
 
-/-- Raw fixed-size lifetime payload; column order is part of format 17. -/
+/-- Raw fixed-size lifetime payload; column order is part of format 18. -/
 structure LifetimeWords where
   /-- Overall reward count and sum. -/
   reward : SumWords

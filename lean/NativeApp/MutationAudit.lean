@@ -87,7 +87,8 @@ def AuditArm.options (arm : AuditArm) : Except Cli.Error Cli.Streaming := do
     attempts := 2
     criterion := some (if arm = .differential then .differential else .discounted)
     checkpoint := none, checkpointEvery := 0, baseline := false, telemetry := false
-    csv := none, controlStdin := false, runId := 0, agentEpoch := 0, newAgentEpoch := 0, cleared := false }
+    csv := none, controlStdin := false, runId := 0, agentEpoch := 0, newAgentEpoch := 0, cleared := false
+    order := .learnThenAct }
 
 /-- The incumbent combines annealed rates with spatial subtasks. The deployed
 and differential arms retain the ordinary native construction. -/
@@ -119,9 +120,9 @@ def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
   | .differential => runNativeCampaign options build syncProgram sink outcome stop
   | .annealed =>
     let construction := AuditArm.annealed.construction options
-    runCampaign options.common.world options.common.world.raw.seed (nativeSelection options)
-      options.campaign (fun _ => IO.lazyPure fun _ => construction.initial)
-      Agent.callbacks { StreamObserver.none with onOutcome := outcome } none stop.requested
+    construction.runCampaign options.common.world options.common.world.raw.seed
+      (nativeSelection options) options.campaign { StreamObserver.none with onOutcome := outcome }
+      none stop.requested
 
 /-- Execute the fixed audit once; scientific capture may retain its actual receipt. -/
 def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO AuditReceipt := do
@@ -140,11 +141,11 @@ def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO Aud
   | .ok result =>
     let elapsed := (← IO.monoMsNow) - started
     if printReport then IO.print (reportText options result (← outcomes.get) elapsed).1
-    let progress := result.run.agent.control.runtime.lifecycle.representation.progress
+    let progress := result.run.agent.agent.control.runtime.lifecycle.representation.progress
     let events := (progress.units.toList.zipIdx.filterMap fun (unit, index) =>
       if unit.birth == 0 then none else some (AuditRetirement.mk unit.birth index.toUInt32)).toArray
     return ⟨streamingAudit result.outcomes result.run.behavior result.totalSteps events,
-      agentChecksum result.run.agent⟩
+      agentChecksum result.run.agent.agent⟩
 
 /-- Success requires both retained words; the command line cannot replace either pin. -/
 def runMutationAudit (arguments : List String) : IO UInt32 := do

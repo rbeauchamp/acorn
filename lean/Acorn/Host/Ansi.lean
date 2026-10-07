@@ -47,7 +47,7 @@ structure AnsiFrame (config : WorldConfig) where
 
 /-- One ANSI action; the caller renders before advancing the sensor image. -/
 def AnsiState.tick {config : WorldConfig} {α β : Type} (state : AnsiState config α)
-    (callbacks : AgentCallbacks α β) (goalIndex : Nat) :
+    (callbacks : AgentCallbacks .learnThenAct α β) (goalIndex : Nat) :
     Except RunnerError (AnsiState config α × AnsiFrame config) := do
   let (action, agent) := callbacks.act state.agent state.observation state.carried
   let (world, result) ← (state.world.step action).mapError RunnerError.world
@@ -63,7 +63,7 @@ def AnsiState.refresh {config : WorldConfig} {α : Type} (state : AnsiState conf
 
 /-- A successful tick leaves the consumed sensor image unchanged until explicit refresh. -/
 theorem AnsiState.tick_observation {config : WorldConfig} {α β : Type}
-    (state next : AnsiState config α) (callbacks : AgentCallbacks α β) (index : Nat)
+    (state next : AnsiState config α) (callbacks : AgentCallbacks .learnThenAct α β) (index : Nat)
     (frame : AnsiFrame config) (h : state.tick callbacks index = .ok (next, frame)) :
     next.observation = state.observation := by
   unfold tick at h
@@ -80,7 +80,7 @@ theorem AnsiState.tick_observation {config : WorldConfig} {α β : Type}
 /-- Native ANSI execution with the actual agent and renderer supplied by their owners.
 A rendering error is an explicit IO failure; no control input changes action selection. -/
 def runAnsi {α β : Type} (common : Cli.Common) (period : Word.Count)
-    (buildAgent : AgentSelection → IO α) (callbacks : AgentCallbacks α β)
+    (buildAgent : AgentSelection → IO α) (callbacks : AgentCallbacks .learnThenAct α β)
     (render : AnsiFrame common.world → IO Unit)
     (endGoal : Nat → UInt8 → Bool → UInt64 → IO Unit) :
     IO (Except RunnerError (AnsiState common.world α)) := do

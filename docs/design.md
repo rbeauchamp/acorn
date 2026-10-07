@@ -85,9 +85,139 @@ The agent answers with one action, a number below the interface's action count
 The modules that compose the agent import no world: the boundary audit refuses a
 world-independent agent module that imports a host module. In every world one
 frame activates at most a number of features fixed by the interface and the
-feature configuration (`Agent.frame_length`). The timing of a step, the split of
-acting from learning, and an exact saved image are not part of the interface yet;
-the grid world waits for the agent.
+feature configuration (`Agent.frame_length`).
+
+### The two parts of a step
+
+A step has two parts ([definitions](../lean/Acorn/Handcrafted/StepParts.lean)).
+`Agent.choose` advances the clock, encodes the percept's frame and selects; its
+result holds the decision. `Chosen.learn` completes the step from that result:
+off-policy learning of the options that are not executing, primitive credit, the
+prediction demons, every option's questions and the tester. A **step order**
+([`StepOrder`](../lean/Acorn/Timing.lean)) is part of an agent's construction and
+selects one of two steps.
+
+Under `learn-then-act`, the default, both parts run before the world receives the
+action. `Agent.act_parts` proves that the two parts then compose to `Agent.act`,
+for every agent state and percept, in every world.
+
+Under `plan-after-act` the host releases the action after the first part, and the
+second part runs after the world's transition. Selection runs no planning, and
+the planning of a free boundary is the first work of the second part
+(`TemporalControl.planAfter`): the same planning function, on the meta-controller
+after that decision's on-policy credit. This is a different step
+([PAR-19](prior-art-review.md#par-19--planning-after-the-action)). It differs from
+the default at a free dispatch only: a step whose decision records no meta
+decision is the executed step, with the same next agent and the same decision
+(`Agent.actOrdered_undrawn`), and every free dispatch records one
+(`TemporalControl.atBoundary_meta`).
+
+What each draw of the first part reads, by the operation that makes it:
+
+| Draw | What it reads | Statement |
+|---|---|---|
+| A served exploration step | Its action repeats the action of its run and consumes no draw. The values the decision reports are read from the controllers | `TemporalControl.serve_frame` |
+| A primitive draw | The persistent draw from the primitive controller, with the weights the agent held before the percept and the exploration rate this step's schedule has advanced to | `TemporalControl.choosePrimitive_snapshot`, `TemporalControl.select_keeps` |
+| A continuing option | The option's own policy, frozen at the decision's frame from the option the agent held before the percept; selection writes no learner and no objective before it | `Skill.decide_policy`, `Skill.step_drawn`, `TemporalControl.prepare_lifecycle` |
+| The meta draw of a free dispatch, `learn-then-act` | The meta-controller after the assignment refresh and after this frame's planning | `TemporalControl.atBoundary_meta` |
+| The meta draw of a free dispatch, `plan-after-act` | The meta-controller after the assignment refresh and before this frame's planning | `TemporalControl.atBoundary_unplanned` |
+| The first action of an option that starts | The option's own policy after the terminal credit and the settlement that this percept causes | `Skill.beginTemporal_policy` |
+
+Each row names statements about the operation that makes the draw. Which operation
+a step calls is the definition of selection; `TemporalControl.select_keeps` and
+`TemporalControl.select_unplanned` are the statements here about every branch of
+it.
+
+The meta draw is the one draw that reads the meta-controller, and the order
+changes what it reads. The decision keeps the frozen snapshot that the draw was
+made from, and the order changes every later read of that snapshot. The first
+part has three:
+
+- the settlement of an option that starts takes its stopping estimate from the
+  snapshot (`TemporalControl.dispatchMeta`, `Skill.settleTemporal`);
+- under the differential criterion, the terminal credit of the option that
+  closes takes the snapshot's value of the drawn meta action
+  (`TemporalControl.atBoundary`, `TemporalControl.closeOption`);
+- the on-policy credit of the meta decision forms its error and stores its lag
+  from that same value (`TemporalControl.learnMeta`, `Controller.policyStep`);
+  the paragraph below that begins "The deferred planning has a consequence"
+  gives the consequence of the lag.
+
+The second part has one: the off-policy learning of every option that is not
+executing compares against a stopping estimate that is read from the snapshot
+(`TemporalControl.stoppingEstimate`, `TemporalControl.followOptions`,
+`Skill.followTemporal`). The decision also reports the snapshot's values and
+probabilities to an observer (`Agent.observe`). Two closings in the first part
+read the meta-controller itself, as the current value function, which under
+`plan-after-act` holds no planning of this frame: the model of the option that
+closes under the differential criterion (`Skill.endTemporal`) and the model of a
+stored trajectory that the settlement stops (`Skill.stopFollowing`).
+`TemporalControl.takeoverValue` uses the same stopping estimate on a served step
+only. That step records no meta decision (`TemporalControl.serve_undrawn`), so
+the estimate is read from the decision's own meta values and the current rate,
+and the two orders are one step there (`Agent.actOrdered_undrawn`).
+
+So the first action of an option that starts can read different weights under
+the two orders, also when the meta draw selects the same option. For an option
+that is not executing, the stopping decision of its stored trajectory and the
+stopping value that a stop credits to its policy (`Skill.stopFollowing`) can
+differ under the two orders at a frame that records a meta decision. No theorem
+states the difference of one of these reads: each follows from the definitions
+named, with the two statements of the snapshot (`TemporalControl.atBoundary_meta`,
+`TemporalControl.atBoundary_unplanned`).
+
+The deferred planning has a consequence for the next credit of the
+meta-controller. The on-policy credit of a decision stores the value of the drawn
+meta action, read from the decision's snapshot, as the controller's lag
+(`Controller.valuesStep_lag`). Planning writes weights and leaves the lag
+unchanged (`planning_lags`), and the next credit forms its error from the lag.
+Under `learn-then-act` this frame's planning precedes the snapshot the lag is
+read from. Under `plan-after-act` it follows, at the same feature vector, so the
+next credit's error is formed from a value that planning has since changed.
+
+The assignment refresh precedes the draws in both orders; with learned subtasks it
+is a function of the Demon-0 weights and the objectives the step started from, and
+of no part of the percept (`TemporalControl.select_assigns`). The first action of
+an option that starts still reads weights that this percept's reward has changed,
+so `plan-after-act` is not a complete "act, then learn": moving the terminal
+credit and the settlement after the action needs a draw and a credit that are
+separate functions of the option learner, and it is not built.
+
+In both orders the first part writes neither the primitive controller nor a
+prediction demon (`Agent.choose_keeps`), so the reward of a percept reaches those
+two in the second part. The second part draws nothing from the action generator
+(`Chosen.learn_rng`); its tester draws from the feature generator's own stream.
+
+The host protocol releases the action between the parts as one pass
+([definitions](../lean/Acorn/Host/Attempt.lean)). For every callback and input,
+that pass gives what both parts followed by the release give: on acceptance the
+same committed stage, and on a refusal the same refusal with the same learned
+stage (`DecisionInput.chooseOwned_release`). The two native loops of an attempt
+are proved against one pure fold, `Attempt.complete`, which applies the whole
+step of the callbacks once for each pass, in order, and ends at the first
+refusal: every value that either loop returns, from every world token, agrees
+with the fold in its run state and outcome, or in its refusal
+(`runAttemptSteps_complete`, `runReleasedSteps_complete`,
+`runAttempt_complete`). A refusal of an action holds the stage of the refused
+pass, and the agreement fixes it. The fold reaches the attempt of that pass from
+the start in accepted passes (`Attempt.Reaches`), that attempt is not finished
+and senses an input, and the stage is the whole step of the callbacks, the first
+part and then the second, applied once to that input
+(`Attempt.complete_learned`). A refusal of an observation holds no stage. So the
+second part runs exactly once on a refused pass in both loops. These are
+statements of partial correctness: they concern the values a loop returns, and
+they use no hypothesis on the clock or the observer. The order of effects, the
+observer's own effects, the terminal frame, the resource counters and the
+reported durations are outside them. A campaign reports the error of a refusal
+and returns no agent, in both orders.
+
+Operation in real time needs three more parts, and none is built:
+
+- the timing discipline of a world, with a world on a wall clock and a missed
+  deadline as a protocol fault;
+- a bound of the work of each part of a step;
+- the exact save and restore of the agent. An exact saved image of the agent is
+  not part of the interface yet.
 
 The agent adds its own prediction feedback words, one per prediction question, on
 consecutive channels from the one the interface declares. A frame cannot carry a
@@ -108,8 +238,8 @@ from the host's observation and the preceding result. `Agent.grid_inputs` in
 agent state, observation and reward word, that the coder's words and symbols, the
 prediction signals and the declared potentials the agent receives are exactly the
 values of the host's channel, signal and potential definitions, and
-`Agent.callbacks_act` that the host's step is the interface agent's step on that
-percept. `Grid.sensorWords_clear` discharges the feedback-channel condition for
+`Agent.callbacks_act` that under the default step order the host's step is the
+interface agent's step on that percept. `Grid.sensorWords_clear` discharges the feedback-channel condition for
 every grid frame.
 
 [The correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) compare the
@@ -304,7 +434,8 @@ needs none for it: an infeasible goal is achieved by no agent.
 | Property | What is proved | Theorems |
 |---|---|---|
 | The grid instance is the executed world | The kernel world's state under a list of actions holds the world of the executed action fold, and is refused exactly when that fold is. A goal is feasible in the kernel world (`Kernel.Feasible`) exactly when the executed fold of some list of one to cap host actions ends in a world that reports the installed goal satisfied. From a host world with a goal installed, that is exactly when the goal is feasible in the sense of the certificate section (`CurrentCertificates.Feasible`), which an accepted replay certificate proves and a blocked certificate of mountains alone refutes. | `foldl_world`, `feasible_iff_replay`, `feasible_iff_certificate` |
-| The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback returns that agent's action and next memory on the kernel world's percept. | `executedAgent`, `executed_callback` |
+| The step has two parts in the closed loop | A two-part agent is a kernel agent given as a first part that selects and a second part that learns from what the first returned. The executed agent of the default step order in that form is the executed kernel agent. The executed agent of `plan-after-act` in that form is the kernel agent of `Agent.actOrdered`; no theorem states that it equals or differs from the default one, and the two take the same step wherever the decision records no meta decision. A moving world also changes while the agent computes; it is a model that no executing world implements. The model takes one two-part agent and a position of the world's transition: after both parts, or between them. From one state and memory, one interaction takes the same action and keeps the same memory at both positions, and with the transition after both parts the action lands on a state that has also moved during the second part; over a run the two positions can then diverge. Two statements are derived for the loop at either position and for every assignment of work to the parts. The memory before a time is the fold of the two parts over that loop's own percepts before it, in order, so each percept is learned exactly once. When the world waits, the loop is the loop of the kernel, so the position changes no state, percept, memory or action. One interaction is also the same at both positions when the world's own change commutes with its transitions. | `executedParts_agent`, `memory_parts`, `Moving.interact_landing`, `Moving.landing_learn`, `Moving.interact_memory`, `Moving.loop_memory`, `Moving.loop_waits`, `Moving.interact_commutes` |
+| The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback of the default step order returns that agent's action and next memory on the kernel world's percept. The callback of `plan-after-act` is the two parts of that order on the grid percept (`Agent.callbacks_ordered`); no theorem links it to the kernel world's percept. | `executedAgent`, `executed_callback` |
 | In one world, need is infeasibility | A clocked script is an agent whose memory is a step counter and whose action at a count is the corresponding action of a fixed sequence. It reads no percept, and its counter fits ⌈log₂ (cap + 1)⌉ bits: 12 bits at a cap of 3000. A goal is feasible from a start state exactly when the clocked script of some sequence achieves it. So, for every class of agents that admits the clocked scripts, no admitted agent achieves a goal exactly when the goal is infeasible. The experience-free agents within a memory width with room for the counter are such a class. | `feasible_iff_script`, `script_openLoop`, `script_memory_clog`, `script_fits_attempt`, `need_iff_infeasible`, `experienceFree_iff_infeasible`, `need_single_iff_infeasible` |
 | The comparator is open-loop | The uniform-random comparator's action and next stream are functions of its stream alone. Its action sequence is therefore the same in every world over the grid interface from every start state, and its action is the executed draw. | `comparator_openLoop`, `comparator_actions`, `comparator_action` |
 | Against open-loop agents, need is coverage | An agent is blind on a class when its actions do not depend on the member until that member's goal is met; every open-loop agent is blind on every class. If each single action sequence meets the goal of at most k members, every blind agent solves at most k members, and for open-loop agents the two bounds are equivalent. | `openLoop_blind`, `need_of_covered`, `covered_iff_need` |
@@ -442,9 +573,12 @@ What these theorems do not establish:
   and the tester are not.
 - **That the executed step has the order of the signature.** `Oak.toAgent` runs
   each arrow once per percept: learn from the transition, plan, then act. At a
-  free boundary the executed step plans first, then draws an action, and credits
-  the transition into the frame after the draw; under the discounted criterion it
-  also credits an ending option before it plans. Either the step is changed to
+  free boundary the executed step of the default step order plans first, then
+  draws an action, and credits the transition into the frame after the draw;
+  under the discounted criterion it also credits an ending option before it
+  plans. Under `plan-after-act` it draws first and plans after the action
+  ([step order](#step-order)), which is not the signature's order either. Either
+  the step is changed to
   the signature's order as a declared mode, or the composition of the arrows
   takes the step's schedule as a parameter. That choice is open.
 - **That feature construction reads the old perception and the percept only.**
@@ -604,11 +738,93 @@ Equal attempt caps do not imply equal executed steps or compute cost. Scientific
 execution still requires the separately authorized prospective protocol in
 [Contributing](../CONTRIBUTING.md#scientific-evidence).
 
+### Step order
+
+The core accepts `--step-order learn-then-act` (the default) or
+`--step-order plan-after-act`, independently of the research profile, criterion
+and planning selection. The order is part of the agent's construction: it selects
+the [step](#the-two-parts-of-a-step) the agent runs and the loop the streaming
+runner uses, together. The callbacks a host loop takes have the order as a type
+index, and the state of an agent and the image of a checkpoint are types of
+one construction (`AgentConstruction.callbacks`, `AgentConstruction.State`,
+`AgentConstruction.Image`). A campaign takes the construction and derives the
+callbacks itself (`AgentConstruction.runCampaign`). A save takes a state of a
+construction and writes the order word of that construction, and a load admits
+bytes only when the order word in their own header is the receiver's
+(`CurrentCheckpoint.saved_header`, `Checkpoint.loadCandidate_header`,
+`CurrentCheckpoint.saved_admitted_order`).
+
+These types hold no proof of an order, because the learner state and the durable
+image carry none. The order of a value is a fact about the code that made it, and
+no proof inside the value can state it. The order is a type index: a state, an
+image and a chosen value have the type of one construction, and a callback
+record has its order as an index, so two values of different orders do not meet
+by accident. No check stops a module of this project from making such a value. A
+private constructor stops the constructor notation and the constructor name in
+another module and does not stop a tactic; the constructors of the image and of
+the callback record are public. The checkpoint file is not authenticated, so an
+edit of its order word is not detected: `CurrentCheckpoint.saved_admitted_order`
+is about bytes that a save of this project wrote.
+
+Theorems say what a value under the other index gives. A state gives the agent's
+step of that index's order on the same learner state
+(`AgentConstruction.callbacks_act`), and a save that writes that index's word
+(`CurrentCheckpoint.saved_header`). Two callback records with the same whole step
+and the same host functions, at any two indices, give the same pure fold
+(`CurrentRunner.complete_parts`), and a value that either loop returns agrees
+with that fold in its run state, its outcome and its refusal. So a record that
+is copied under the other index returns those three values unchanged. The
+resource counters that a loop also returns, which hold measured durations, and
+the observer's effects are outside these statements. That the copy changes the
+time of the world's transition is read from the two loops; it is argued and not
+machine-checked. For a profile that has a resumable image, the durable data of
+an image, put under a construction of the other order, is the image that this
+construction's loader returns for the first construction's payload with the
+order word replaced (`CurrentCheckpoint.relabeled_payload`,
+`CurrentCheckpoint.relabeled_admitted`, `CurrentCheckpoint.relabeled_loaded`).
+
+Under `learn-then-act` the runner takes the world's
+transition after both parts. Under `plan-after-act` it takes the transition
+between them, and the planning of a free boundary follows the action.
+
+With `--planning none` the deferred planning writes no learner and no rate source
+(`TemporalControl.planFree_none`). With expectation planning the meta draw of a
+free dispatch reads a meta-controller that this frame's planning has not yet
+changed, so the two orders can give different actions, learned state, outcome
+rows and checksums from the first free dispatch. No recorded result or audit pin
+covers `plan-after-act`.
+
+Two observations also differ under `plan-after-act`: the reported agent duration
+is the sum of the two parts, measured around the world's transition, and a step's
+telemetry frame is delivered after that transition. When the world refuses an
+action, the second part still runs and the frame is delivered before the loop
+returns the refusal. A refusal ends the campaign and returns no agent in either
+order, so no checkpoint follows it.
+
+Startup diagnostics and the streaming campaign summary report the effective
+`step-order=learn-then-act` or `step-order=plan-after-act` after the planning
+selection, and CSV output has it in a comment line of its own after the planning
+comment. A checkpoint records the order in its header, and header admission
+succeeds only for an image whose order is the order of the receiving run
+(`admitHeader_order`). The decisions that admit an order each have an exact
+two-way statement against a specification that calls no function the decision
+executes. The parser and the value admission are stated against the spelling of
+an order (`StepOrder.parse_spelled`, `StepOrder.parse_refused`,
+`stepOrderValue_iff`). The command-line admission is stated on the argument list
+alone (`stepOrder_iff`, `stepOrder_refused`), and the option reader it calls has
+its own contract on that list (`Cli.value_absent`, `Cli.value_follows`,
+`Cli.value_missing`). Header admission is stated on the stored words and the
+returned typed values (`admitHeader_iff` against `HeaderAdmitted`, with
+`StepOrder.tag_stored` for the order word). The ANSI view runs
+both parts before each transition, reports `step-order=learn-then-act` and
+refuses `--step-order`.
+
 ### Viewer support
 
 The viewer's built-in launch accepts only `--research-profile ranked` and uses
-the discounted criterion with expectation planning. It does not accept the core's
-`--criterion` or `--planning` flags or the other four profiles. Use the terminal
+the discounted criterion with expectation planning and the `learn-then-act` step
+order. It does not accept the core's `--criterion`, `--planning` or `--step-order`
+flags or the other four profiles. Use the terminal
 command above to explore core configuration choices. The viewer's advanced
 `--cmd` option runs an operator-supplied command; it has different checkpoint
 ownership and disables the ordinary Clear operation.
@@ -628,6 +844,7 @@ these boundaries do not restart its learned weights.
 |---|---|
 | `--seed` | Seed for the generated world; default 42. |
 | `--planning` | `expectation` (default) or `none`; selects model-based planning updates. |
+| `--step-order` | `learn-then-act` (default) or `plan-after-act`; selects the [step order](#step-order) of the agent and its host loop. |
 | `--side` | Side length of the square world. |
 | `--steps` | Maximum environment steps per attempt. |
 | `--attempts` | Maximum attempts per goal. |
@@ -659,6 +876,7 @@ ends. A line that starts with `#` is a comment; a reader of the rows skips it.
 ```text
 index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
 # planning=<expectation or none>
+# step-order=<learn-then-act or plan-after-act>
 <one row per agent attempt>
 # baseline cycle=<cycle> index=<goal> attempt=<attempt> steps=<steps> achieved=<0 or 1> x=<x> y=<y>
 # seed=<seed> side=<side> weights=<count> total_steps=<steps> behavior=<hex> checksum=<hex> wall_ms=<ms> steps_per_sec=<rate> retire_count=<count> retire_last=<event> imprint_distinct_abs=<counts>
@@ -675,7 +893,8 @@ index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
 | demon_error, epsilon, mean_alpha | The learner's mean absolute prediction error, exploration rate and mean step size when the attempt ended. |
 | x, y | The body's position after the attempt's last step; x grows to the east and y to the south. |
 
-The comment after the header names the planning selection. The last line is a
+The two comments after the header name the planning selection and the step
+order. The last line is a
 footer of `key=value` fields for the whole run, including the action
 fingerprint (`behavior`), the agent checksum and the observed wall time.
 
@@ -767,6 +986,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-16](prior-art-review.md#par-16--floatlib-rounding-theory): FloatLib rounding theory, a proof dependency, [AcornVerif.FloatLibBridge](../lean/AcornVerif/FloatLibBridge.lean).
 - [PAR-17](prior-art-review.md#par-17--off-policy-option-learning): Off-policy option learning, [Acorn.Temporal](../lean/Acorn/Temporal.lean).
 - [PAR-18](prior-art-review.md#par-18--off-policy-questions): Off-policy questions, [Acorn.OffPolicy](../lean/Acorn/OffPolicy.lean).
+- [PAR-19](prior-art-review.md#par-19--planning-after-the-action): Planning after the action, [Acorn.Timing](../lean/Acorn/Timing.lean) and [Acorn.Handcrafted.StepParts](../lean/Acorn/Handcrafted/StepParts.lean).
 
 ## Boundaries
 

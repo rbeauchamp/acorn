@@ -83,7 +83,8 @@ theorem invariant (state : Agent Grid.interface profile config criterion dimensi
 
 /-- The actual cold constructor satisfies the complete state invariant in every admitted
   configuration. -/
-theorem initialization (construction : AgentConstruction) : Invariant construction.initial :=
+theorem initialization (construction : AgentConstruction) :
+    Invariant construction.initial.agent :=
   invariant _
 
 /-- Per-edge observations constrain actual action execution and non-action isolation. -/
@@ -191,14 +192,22 @@ theorem path_safe {state finalState : Agent Grid.interface profile config criter
     exact .continued state next finalState event rest stopped (invariant state)
       (edge_contract state next event false step) step ih
 
-/-- Native prefix execution has the same complete safety and observation contract at every edge.
--/
-theorem native_prefix (construction : AgentConstruction) (finalState : construction.State)
-    (events : List (AgentInput construction.config construction.criterion
-      construction.dimension))
-    (stopped : Bool) (executed : construction.execute events = .ok (finalState, stopped)) :
-    SafePath construction.initial events finalState stopped :=
-  path_safe (construction.initial.prefix_path finalState events stopped executed)
+/-- Native prefix execution has the same complete safety and observation contract at every
+edge. The prefix is that of a construction of the default step order: its action edge is
+`Agent.act`, and the statement is about the learner states and the agent's events. -/
+theorem native_prefix (admitted : DefaultConstruction)
+    (finalState : admitted.construction.State)
+    (events : List (AgentInput admitted.construction.config admitted.construction.criterion
+      admitted.construction.dimension))
+    (stopped : Bool)
+    (executed : AgentConstruction.execute admitted events = .ok (finalState, stopped)) :
+    SafePath admitted.construction.initial.agent events finalState.agent stopped := by
+  have raw := admitted.runPrefix_agent admitted.construction.initial events
+  have folded : admitted.runPrefix admitted.construction.initial events =
+      .ok (finalState, stopped) := executed
+  rw [folded] at raw
+  exact path_safe (admitted.construction.initial.agent.prefix_path finalState.agent _ stopped
+    raw.symm)
 
 /-- Aggregate learner eligibility storage is bounded by current readers and capacity,
   independently of experience length. -/
