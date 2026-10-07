@@ -144,13 +144,20 @@ def closingEvent (closing : Closing interface.actions config criterion dimension
     (EndingPayload (profile.mode != .frozen))) : EndEvent :=
   ⟨closing.slot, closing.activation.activation.age, closing.activation.reason⟩
 
+/-- The terminal value of an option that closes at a free dispatch: the value of the
+drawn meta action under the differential criterion, and the supplied estimate under the
+discounted one. -/
+def terminalValue (criterion : Criterion) (decision : PolicyDecision metaCount)
+    (estimate : Binary32) : Binary32 :=
+  match criterion with
+  | .differential => decision.continuation
+  | .discounted => estimate
+
 /-- A free dispatch that draws before it credits: refresh the assignments and the
 models, run the supplied planning, draw the meta action, then draw the primitive action
 or the first action of the selected option from that option's frozen policy. It writes
 the refresh, occupancy and the generator, and it owes the terminal credit, the meta
-credit and the start. The terminal value of a closing option is the drawn meta action's
-value under the differential criterion and the supplied estimate under the discounted
-one. -/
+credit and the start. The terminal value of a closing option is `terminalValue`. -/
 def TemporalControl.drawBoundary (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
@@ -162,9 +169,7 @@ def TemporalControl.drawBoundary (state : TemporalControl interface profile conf
   let drawn := (refreshed.1.planFree plan features).drawMeta features
   let decision := drawn.2
   let state := drawn.1
-  let terminal := match criterion with
-    | .differential => decision.continuation
-    | .discounted => estimate
+  let terminal := terminalValue criterion decision estimate
   let ended := refreshed.2.map closingEvent
   let owed := refreshed.2.map fun closing => (closing, terminal)
   match skillOfMeta decision.action with

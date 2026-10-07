@@ -699,4 +699,653 @@ theorem dispatchMeta_start (state : TemporalControl interface profile config cri
     withSkill_twice]
   rfl
 
+/-! ## One form of the dispatch for both orders
+
+`dispatchForm` writes the dispatch once, as a specification. It names a `Dispatch` mode
+and reads it in two places and nowhere else. `selectWithOperations_form` and
+`drawFirst_form` prove, for every state, frame and reward word and with no hypothesis on
+the branch, that selection is the form in the mode `selection` and that the draw-first
+dispatch followed by the owed writes is the form in the mode `drawFirst`. So the two
+places are the complete list of the differences between the two executed dispatches. -/
+
+/-- The two executed dispatches that `dispatchForm` describes. -/
+inductive Dispatch where
+  /-- `TemporalControl.selectWithOperations`. -/
+  | selection
+  /-- `TemporalControl.drawFirst` followed by `TemporalControl.settle`. -/
+  | drawFirst
+
+/-- Whether the terminal value of a closing option is the value of the sampled next
+meta action: under the differential criterion it is, and under the discounted one it is
+the nominal estimate that the stopping decision read. -/
+def sampled : Criterion → Bool
+  | .differential => true
+  | .discounted => false
+
+/-- A temporal state with occupancy and the action generator of a draw written. -/
+def placed (state : TemporalControl interface profile config criterion dimension)
+    (phase : Occupancy (OptionActivation (profile.mode != .frozen))
+      (CommittedRun interface.actions (profile.mode != .frozen)))
+    (rng : Rng.Xoshiro256) : TemporalControl interface profile config criterion dimension :=
+  let state := state.withPhase phase
+  { state with runtime := { state.runtime with references :=
+    { state.runtime.references with rng := rng } } }
+
+/-- The free dispatch as one composition: the assignment refresh, the supplied planning,
+the meta draw, the owed reward, the terminal credit of a retained closing at the supplied
+terminal value, the meta credit, and then the primitive choice or the start of the
+selected option. The mode is read in one place: the policy that the first action of an
+option that starts is drawn from. Under `selection` it is the policy that the start
+freezes, after the settlement and the invocation reset of the credited state. Under
+`drawFirst` it is the frozen policy of that option in the state the meta draw left,
+before the owed reward, the terminal credit and the meta credit. -/
+def boundaryForm (mode : Dispatch)
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (ended : Option EndEvent) (terminal : PolicyDecision metaCount → Binary32) :
+    Option (TemporalControl interface profile config criterion dimension ×
+      TemporalDecision interface.actions) :=
+  let fresh := state.refreshFree closing
+  let met := (fresh.1.planFree plan features).drawMeta features
+  let owing := met.1.oweReward reward
+  let credited := match fresh.2 with
+    | none => owing
+    | some retained => (owing.closeOption models features retained reward (terminal met.2)).1
+  let event := match fresh.2 with
+    | none => ended
+    | some retained => some (closingEvent retained)
+  let learned := credited.learnMeta features met.2
+  match skillOfMeta met.2.action with
+  | none => some (learned.choosePrimitive features met.2.snapshot.values (some met.2) event)
+  | some slot =>
+    match (learned.runtime.lifecycle.consumers.skills.get slot).interest.potential features
+        declared with
+    | none => none
+    | some potential =>
+      let estimate := comparisonValue criterion met.2.snapshot
+      let policy := match mode with
+        | .selection =>
+          (((learned.runtime.lifecycle.consumers.skills.get slot).settleTemporal models
+            learned.valueFunction features potential goal estimate learned.skillRate reward
+            learned.average.rate (profile.mode != EvaluationMode.frozen)).beginTemporal models
+              features potential (profile.mode != EvaluationMode.frozen) learned.skillRate).2.2.policy
+        | .drawFirst =>
+          (met.1.runtime.lifecycle.consumers.skills.get slot).frozenPolicy features met.1.skillRate
+      let first := policy.drawPersistent learned.runtime.references.rng
+      some (placed (learned.startOption models features ⟨slot, potential, first.1⟩ goal estimate
+            reward)
+          (Occupancy.afterOption slot
+            (OptionActivation.first (profile.mode != .frozen) potential) first.1.run) first.2,
+        ⟨.option slot, first.1.action, policy.values, first.1.probabilities, first.1.explored,
+          met.2.snapshot.values, some met.2, some slot, event⟩)
+
+/-- The whole dispatch as one composition, with the branch priority of selection. The
+mode is read in two places. The first is inside `boundaryForm`: the policy that the first
+action of an option that starts is drawn from. The second is here, where an executing
+option ends and the terminal value is not sampled, which is the discounted criterion
+(`sampled`): under `selection` the terminal credit is applied to the state before the
+free dispatch, which then refreshes; under `drawFirst` the closing activation is passed
+into the free dispatch, which refreshes first and credits the retained owner. The
+terminal value is the same estimate in both. -/
+def dispatchForm (mode : Dispatch)
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) :
+    Option (TemporalControl interface profile config criterion dimension ×
+      TemporalDecision interface.actions) :=
+  let prepared := state.prepareDraw models features
+  match prepared.serveDraw features with
+  | some result =>
+    some (result.1.settle (.served result.2.1) models features reward goal, result.2.2)
+  | none =>
+    if !profile.usesHierarchy then
+      some ((prepared.withPhase .idle).choosePrimitive features (Vector.replicate _ .zero) none
+        none)
+    else
+      let free := prepared.withPhase .idle
+      match prepared.runtime.references.phase with
+      | .idle | .exploring _ =>
+        boundaryForm mode free models plan features declared reward goal none none
+          (·.continuation)
+      | .option slot activation =>
+        match (free.runtime.lifecycle.consumers.skills.get slot).interest.potential features
+            declared with
+        | none => none
+        | some potential =>
+          let metaPolicy := free.runtime.lifecycle.consumers.metaController.snapshot
+            (count := metaCount) features free.metaRate
+          let estimate := comparisonValue criterion metaPolicy
+          match (free.runtime.lifecycle.consumers.skills.get slot).decideOption activation features
+              potential goal estimate free.skillRate with
+          | .continuing next =>
+            let drawn := next.policy.drawPersistent free.runtime.references.rng
+            some ((placed free.withoutPlanning
+                  (Occupancy.afterOption slot (activation.advance next) drawn.1.run)
+                  drawn.2).settle (.continuing slot activation next drawn.1) models features
+                reward goal,
+              ⟨.option slot, drawn.1.action, next.policy.values, drawn.1.probabilities,
+                drawn.1.explored, metaPolicy.values, none, none, none⟩)
+          | .ending reason =>
+            let closing : Closing interface.actions config criterion dimension interface.layout
+                (EndingPayload (profile.mode != .frozen)) :=
+              ⟨slot, ⟨activation, potential, reason⟩, none⟩
+            if sampled criterion then
+              boundaryForm mode free models plan features declared reward goal (some closing)
+                none (·.continuation)
+            else
+              match mode with
+              | .selection =>
+                boundaryForm mode (free.closeOption models features closing reward estimate).1
+                  models plan features declared reward goal none (some (closingEvent closing))
+                  (·.continuation)
+              | .drawFirst =>
+                boundaryForm mode free models plan features declared reward goal (some closing)
+                  none (fun _ => estimate)
+
+/-! ### The writes of a draw commute with the owed writes -/
+
+/-- The owed reward commutes with the writes of a draw. -/
+theorem oweReward_placed (state : TemporalControl interface profile config criterion dimension)
+    (phase : Occupancy (OptionActivation (profile.mode != .frozen))
+      (CommittedRun interface.actions (profile.mode != .frozen)))
+    (rng : Rng.Xoshiro256) (reward : Binary32) :
+    (placed state phase rng).oweReward reward = placed (state.oweReward reward) phase rng := by
+  unfold TemporalControl.oweReward
+  split <;> rfl
+
+/-- Terminal credit commutes with the writes of a draw. -/
+theorem closeOption_placed (state : TemporalControl interface profile config criterion dimension)
+    (phase : Occupancy (OptionActivation (profile.mode != .frozen))
+      (CommittedRun interface.actions (profile.mode != .frozen)))
+    (rng : Rng.Xoshiro256) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
+    (reward terminal : Binary32) :
+    ((placed state phase rng).closeOption models features closing reward terminal).1 =
+      placed (state.closeOption models features closing reward terminal).1 phase rng := by
+  simp only [TemporalControl.closeOption_eq]
+  cases closing.oldOwner <;> rfl
+
+/-- Meta credit commutes with the writes of a draw. -/
+theorem learnMeta_placed (state : TemporalControl interface profile config criterion dimension)
+    (phase : Occupancy (OptionActivation (profile.mode != .frozen))
+      (CommittedRun interface.actions (profile.mode != .frozen)))
+    (rng : Rng.Xoshiro256) (features : SwiftTd.ActiveSet dimension)
+    (decision : PolicyDecision metaCount) :
+    (placed state phase rng).learnMeta features decision =
+      placed (state.learnMeta features decision) phase rng := by
+  simp only [TemporalControl.learnMeta_eq]
+  split <;> rfl
+
+/-- The start of a selected option commutes with the writes of a draw. -/
+theorem startOption_placed (state : TemporalControl interface profile config criterion dimension)
+    (phase : Occupancy (OptionActivation (profile.mode != .frozen))
+      (CommittedRun interface.actions (profile.mode != .frozen)))
+    (rng : Rng.Xoshiro256) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (start : StartDraw interface) (goal : Bool)
+    (estimate reward : Binary32) :
+    (placed state phase rng).startOption models features start goal estimate reward =
+      placed (state.startOption models features start goal estimate reward) phase rng := by
+  simp only [TemporalControl.startOption_eq]
+  rfl
+
+/-- The owed writes of a start commute with the writes of a draw: the owed reward, a
+retained terminal credit, the meta credit and the start of the option give the same state
+whether occupancy and the generator were written before them or after. -/
+theorem settled_placed (state : TemporalControl interface profile config criterion dimension)
+    (phase : Occupancy (OptionActivation (profile.mode != .frozen))
+      (CommittedRun interface.actions (profile.mode != .frozen)))
+    (rng : Rng.Xoshiro256) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
+    (retained : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (reward terminal : Binary32) (decision : PolicyDecision metaCount)
+    (start : StartDraw interface) (goal : Bool) (estimate : Binary32) :
+    ((match retained with
+        | none => (placed state phase rng).oweReward reward
+        | some closing => (((placed state phase rng).oweReward reward).closeOption models features
+            closing reward terminal).1).learnMeta features decision).startOption models features
+        start goal estimate reward =
+      placed (((match retained with
+        | none => state.oweReward reward
+        | some closing => ((state.oweReward reward).closeOption models features closing reward
+            terminal).1).learnMeta features decision).startOption models features start goal
+        estimate reward) phase rng := by
+  cases retained with
+  | none =>
+    dsimp only
+    rw [oweReward_placed, learnMeta_placed, startOption_placed]
+  | some closing =>
+    dsimp only
+    rw [oweReward_placed, closeOption_placed, learnMeta_placed, startOption_placed]
+
+/-- Terminal credit commutes with the owed reward. -/
+theorem closeOption_owe (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
+    (reward terminal owed : Binary32) :
+    ((state.oweReward owed).closeOption models features closing reward terminal).1 =
+      (state.closeOption models features closing reward terminal).1.oweReward owed := by
+  by_cases learning : (profile.usesHierarchy && profile.mode != .frozen) = true
+  · rw [oweReward_learning _ _ learning, oweReward_learning _ _ learning]
+    simp only [TemporalControl.closeOption_eq]
+    cases closing.oldOwner <;> rfl
+  · have idle : (profile.usesHierarchy && profile.mode != .frozen) = false := by
+      simpa using learning
+    rw [oweReward_idle _ _ idle, oweReward_idle _ _ idle]
+
+/-- The owed reward, a retained terminal credit and the meta credit keep each option's
+objective, the generator and the option rate source: they write a policy, a model, the
+meta-controller and the meta span. -/
+theorem credited_reads (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (retained : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (reward terminal : Binary32) (decision : PolicyDecision metaCount)
+    (slot : Fin Acorn.FeatureConstants.skillCount) :
+    let credited := match retained with
+      | none => state.oweReward reward
+      | some closing => ((state.oweReward reward).closeOption models features closing reward
+          terminal).1
+    ((credited.learnMeta features decision).runtime.lifecycle.consumers.skills.get slot).interest =
+        (state.runtime.lifecycle.consumers.skills.get slot).interest ∧
+      (credited.learnMeta features decision).runtime.references.rng =
+        state.runtime.references.rng := by
+  have owed : ((state.oweReward reward).runtime.lifecycle.consumers.skills.get slot).interest =
+        (state.runtime.lifecycle.consumers.skills.get slot).interest ∧
+      (state.oweReward reward).runtime.references.rng = state.runtime.references.rng := by
+    unfold TemporalControl.oweReward
+    split <;> exact ⟨rfl, rfl⟩
+  cases retained with
+  | none =>
+    exact ⟨((state.oweReward reward).learnMeta_interest features decision slot).trans owed.1,
+      ((state.oweReward reward).learnMeta_framed (state.oweReward reward) ⟨rfl, rfl, rfl⟩
+        features decision).2.2.trans owed.2⟩
+  | some closing =>
+    exact ⟨((TemporalControl.learnMeta_interest _ features decision slot).trans
+        ((state.oweReward reward).closeOption_interest models features closing reward terminal
+          slot).1).trans owed.1,
+      ((TemporalControl.learnMeta_framed _ _
+        ((state.oweReward reward).closeOption_framed (state.oweReward reward) ⟨rfl, rfl, rfl⟩
+          models features closing reward terminal) features decision).2.2).trans owed.2⟩
+
+/-! ### Each executed free dispatch is the form -/
+
+/-- **The free dispatch of selection is the form in the mode `selection`.** For every
+state, frame, reward word, closing activation and carried event. -/
+theorem atBoundary_form (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (ended : Option EndEvent) :
+    (state.oweReward reward).atBoundary models plan features declared reward goal closing ended =
+      boundaryForm .selection state models plan features declared reward goal closing ended
+        (·.continuation) := by
+  unfold TemporalControl.atBoundary boundaryForm
+  rw [refreshFree_owe]
+  dsimp only
+  rw [planFree_owe, drawMeta_owe]
+  generalize state.refreshFree closing = fresh
+  generalize (fresh.1.planFree plan features).drawMeta features = met
+  dsimp only
+  cases retained : fresh.2 with
+  | none =>
+    dsimp only
+    cases selected : skillOfMeta met.2.action with
+    | none => simp only [TemporalControl.dispatchMeta_eq, selected, pure]
+    | some slot =>
+      cases admitted : (((met.1.oweReward reward).learnMeta features met.2).runtime.lifecycle.consumers.skills.get
+          slot).interest.potential features declared with
+      | none => simp only [TemporalControl.dispatchMeta_eq, selected, admitted, bind, Option.bind]
+      | some potential =>
+        rw [dispatchMeta_start (met.1.oweReward reward) models features declared reward goal met.2
+          ended slot potential selected admitted]
+        simp only [admitted]
+        rfl
+  | some owner =>
+    dsimp only
+    cases selected : skillOfMeta met.2.action with
+    | none => simp only [TemporalControl.dispatchMeta_eq, selected, pure]; rfl
+    | some slot =>
+      cases admitted : ((((met.1.oweReward reward).closeOption models features owner reward
+          met.2.continuation).1.learnMeta features met.2).runtime.lifecycle.consumers.skills.get
+          slot).interest.potential features declared with
+      | none => simp only [TemporalControl.dispatchMeta_eq, selected, admitted, bind, Option.bind]
+      | some potential =>
+        rw [dispatchMeta_start _ models features declared reward goal met.2 _ slot potential
+          selected admitted]
+        simp only [admitted]
+        rfl
+
+/-- **The draw-first free dispatch followed by the owed writes is the form in the mode
+`drawFirst`.** For every state, frame, reward word, closing activation and estimate. The
+terminal value of a retained closing is the drawn meta action's value under the
+differential criterion and the supplied estimate under the discounted one. -/
+theorem drawBoundary_form (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (estimate : Binary32) :
+    (state.drawBoundary plan features declared closing estimate).map (fun result =>
+        (result.1.settle result.2.1 models features reward goal, result.2.2)) =
+      boundaryForm .drawFirst state models plan features declared reward goal closing none
+        (fun met => terminalValue criterion met estimate) := by
+  unfold TemporalControl.drawBoundary boundaryForm
+  dsimp only
+  generalize state.refreshFree closing = fresh
+  generalize (fresh.1.planFree plan features).drawMeta features = met
+  have reads := credited_reads met.1 models features fresh.2 reward
+    (terminalValue criterion met.2 estimate) met.2
+  cases selected : skillOfMeta met.2.action with
+  | none =>
+    dsimp only
+    cases retained : fresh.2 with
+    | none =>
+      simp only [Option.map_some, Option.map_none, TemporalControl.settle]
+      rw [choosePrimitive_learnMeta, choosePrimitive_owe]
+    | some owner =>
+      simp only [Option.map_some, TemporalControl.settle]
+      rw [choosePrimitive_learnMeta, choosePrimitive_close, choosePrimitive_owe]
+  | some slot =>
+    dsimp only
+    have same := reads slot
+    dsimp only at same
+    rw [same.1]
+    cases admitted : (met.1.runtime.lifecycle.consumers.skills.get slot).interest.potential features
+        declared with
+    | none => simp only [bind, Option.bind, Option.map_none]
+    | some potential =>
+      simp only [bind, Option.bind, pure, Option.map_some, TemporalControl.settle_started]
+      rw [same.2]
+      cases retained : fresh.2 with
+      | none =>
+        exact congrArg some (Prod.ext
+          (settled_placed met.1 _ _ models features none reward .zero met.2 _ goal _) rfl)
+      | some owner =>
+        exact congrArg some (Prod.ext
+          (settled_placed met.1 _ _ models features (some owner) reward _ met.2 _ goal _) rfl)
+
+/-- The form of a free dispatch with no closing activation does not read the terminal
+value: the refresh retains no closing where none is supplied. -/
+theorem boundaryForm_terminal (mode : Dispatch)
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) (ended : Option EndEvent) (first second : PolicyDecision metaCount → Binary32) :
+    boundaryForm mode state models plan features declared reward goal none ended first =
+      boundaryForm mode state models plan features declared reward goal none ended second := by
+  have retained : (state.refreshFree none).2 = none :=
+    Option.map_eq_none_iff.mp (state.refresh_episode_slot none)
+  unfold boundaryForm
+  dsimp only
+  rw [retained]
+
+/-! ### Each executed dispatch is the form -/
+
+/-- **Selection is the form in the mode `selection`.** For every state, model interface,
+planning function, frame and reward word, on every branch. -/
+theorem selectWithOperations_form
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) :
+    state.selectWithOperations models plan features declared reward goal =
+      dispatchForm .selection state models plan features declared reward goal := by
+  unfold TemporalControl.selectWithOperations dispatchForm
+  rw [TemporalControl.prepareSelection_owe]
+  generalize state.prepareDraw models features = prepared
+  dsimp only
+  rw [serve_settle prepared models features reward goal]
+  have phase : (prepared.oweReward reward).runtime.references.phase =
+      prepared.runtime.references.phase := by
+    unfold TemporalControl.oweReward
+    split <;> rfl
+  have idled : (prepared.oweReward reward).withPhase .idle =
+      (prepared.withPhase .idle).oweReward reward := by
+    unfold TemporalControl.oweReward
+    split <;> rfl
+  cases served : prepared.serveDraw features with
+  | some result => rfl
+  | none =>
+    simp only [Option.map_none]
+    by_cases hierarchy : profile.usesHierarchy = true
+    · simp only [hierarchy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      rw [phase, idled]
+      cases occupancy : prepared.runtime.references.phase with
+      | idle =>
+        exact atBoundary_form (prepared.withPhase .idle) models plan features declared reward goal
+          none none
+      | exploring committed =>
+        exact atBoundary_form (prepared.withPhase .idle) models plan features declared reward goal
+          none none
+      | option slot activation =>
+        dsimp only
+        have reads : ((prepared.withPhase .idle).oweReward reward).runtime.lifecycle =
+              (prepared.withPhase .idle).runtime.lifecycle ∧
+            ((prepared.withPhase .idle).oweReward reward).metaRate =
+              (prepared.withPhase .idle).metaRate ∧
+            ((prepared.withPhase .idle).oweReward reward).skillRate =
+              (prepared.withPhase .idle).skillRate := by
+          unfold TemporalControl.oweReward
+          split <;> exact ⟨rfl, rfl, rfl⟩
+        rw [reads.1, reads.2.1, reads.2.2]
+        cases potential : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+            slot).interest.potential features declared with
+        | none => simp only [bind, Option.bind]
+        | some value =>
+          simp only [bind, Option.bind]
+          cases choice : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+              slot).decideOption activation features value goal
+              (comparisonValue criterion
+                ((prepared.withPhase .idle).runtime.lifecycle.consumers.metaController.snapshot
+                  (count := metaCount) features (prepared.withPhase .idle).metaRate))
+              (prepared.withPhase .idle).skillRate with
+          | continuing continuation =>
+            simp only [pure, Option.some.injEq]
+            rw [stepOption_credit]
+            by_cases learning : (profile.usesHierarchy && profile.mode != .frozen) = true
+            · simp only [TemporalControl.settle, TemporalControl.skipMeta, learning, ↓reduceIte,
+                oweReward_learning _ _ learning, TemporalControl.creditOption_eq]
+              rfl
+            · have idle : (profile.usesHierarchy && profile.mode != .frozen) = false := by
+                simpa using learning
+              simp only [TemporalControl.settle, TemporalControl.skipMeta, idle,
+                Bool.false_eq_true, ↓reduceIte, oweReward_idle _ _ idle,
+                TemporalControl.creditOption_eq]
+              rfl
+          | ending reason =>
+            dsimp only
+            cases criterion with
+            | differential =>
+              simp only [sampled, ↓reduceIte]
+              exact atBoundary_form (prepared.withPhase .idle) models plan features declared
+                reward goal _ none
+            | discounted =>
+              simp only [sampled, Bool.false_eq_true, ↓reduceIte]
+              rw [closeOption_owe]
+              exact atBoundary_form _ models plan features declared reward goal none _
+    · have primitive : profile.usesHierarchy = false := by simpa using hierarchy
+      have idle : (profile.usesHierarchy && profile.mode != .frozen) = false := by
+        simp [primitive]
+      simp only [primitive, Bool.not_false, ↓reduceIte]
+      rw [oweReward_idle _ _ idle]
+      rfl
+
+/-- **The draw-first dispatch followed by the owed writes is the form in the mode
+`drawFirst`.** For every state, model interface, planning function, frame and reward
+word, on every branch. -/
+theorem drawFirst_form
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) :
+    (state.drawFirst models plan features declared goal).map (fun result =>
+        (result.1.settle result.2.1 models features reward goal, result.2.2)) =
+      dispatchForm .drawFirst state models plan features declared reward goal := by
+  unfold TemporalControl.drawFirst dispatchForm
+  generalize state.prepareDraw models features = prepared
+  dsimp only
+  cases served : prepared.serveDraw features with
+  | some result => rfl
+  | none =>
+    simp only
+    by_cases hierarchy : profile.usesHierarchy = true
+    · simp only [hierarchy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      cases occupancy : prepared.runtime.references.phase with
+      | idle =>
+        dsimp only
+        rw [drawBoundary_form (prepared.withPhase .idle) models plan features declared reward goal
+          none .zero]
+        exact boundaryForm_terminal _ _ models plan features declared reward goal none _ _
+      | exploring committed =>
+        dsimp only
+        rw [drawBoundary_form (prepared.withPhase .idle) models plan features declared reward goal
+          none .zero]
+        exact boundaryForm_terminal _ _ models plan features declared reward goal none _ _
+      | option slot activation =>
+        dsimp only
+        cases potential : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+            slot).interest.potential features declared with
+        | none => simp only [bind, Option.bind, Option.map_none]
+        | some value =>
+          simp only [bind, Option.bind]
+          cases choice : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+              slot).decideOption activation features value goal
+              (comparisonValue criterion
+                ((prepared.withPhase .idle).runtime.lifecycle.consumers.metaController.snapshot
+                  (count := metaCount) features (prepared.withPhase .idle).metaRate))
+              (prepared.withPhase .idle).skillRate with
+          | continuing continuation => rfl
+          | ending reason =>
+            dsimp only
+            rw [drawBoundary_form (prepared.withPhase .idle) models plan features declared reward
+              goal _ _]
+            cases criterion with
+            | differential =>
+              simp only [sampled, ↓reduceIte]
+              rfl
+            | discounted =>
+              simp only [sampled, Bool.false_eq_true, ↓reduceIte]
+              rfl
+    · have primitive : profile.usesHierarchy = false := by simpa using hierarchy
+      simp only [primitive, Bool.not_false, ↓reduceIte]
+      rfl
+
+/-! ### The two places do not always differ -/
+
+/-- In a frozen profile terminal credit writes nothing: the closing option is written
+back as it was. -/
+theorem closeOption_frozen (state : TemporalControl interface profile config criterion dimension)
+    (frozen : profile.mode = .frozen) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
+    (reward terminal : Binary32) :
+    (state.closeOption models features closing reward terminal).1 = state := by
+  obtain ⟨mode, credit, rate, subtasks⟩ := profile
+  cases frozen
+  rw [TemporalControl.closeOption_eq]
+  dsimp only
+  cases closing.oldOwner with
+  | some owner => rfl
+  | none =>
+    cases state with
+    | mk runtime credit creditMatches average rate lifetime =>
+      cases runtime with
+      | mk lifecycle references =>
+        cases lifecycle with
+        | mk representation consumers =>
+          cases consumers with
+          | mk control metaController skills demons =>
+            have kept : skills.set closing.slot.val (skills.get closing.slot) closing.slot.isLt =
+                skills := by
+              apply Vector.ext
+              intro position inside
+              by_cases here : closing.slot.val = position
+              · subst here
+                simp only [Vector.getElem_set_self]
+                rfl
+              · simp only [Vector.getElem_set_ne closing.slot.isLt inside here]
+            simp only [Option.getD_none, TemporalControl.withSkill]
+            exact congrArg (fun table => (⟨⟨⟨representation, ⟨control, metaController, table,
+              demons⟩⟩, references⟩, credit, creditMatches, average, rate, lifetime⟩ :
+                TemporalControl interface ⟨.frozen, _, _, _⟩ config criterion dimension)) kept
+
+/-- **In a frozen profile the free dispatch is one result in both modes.** For every
+state of a frozen profile, frame, reward word, closing activation and terminal value, the
+form of the free dispatch is the same in the mode `selection` and in the mode
+`drawFirst`, also when the meta draw starts an option. The owed reward, the terminal
+credit and the meta credit write nothing there, and a frozen start neither settles nor
+resets, so the policy that the start freezes is the frozen policy of the option the
+refresh left. So the first place where the two dispatches can differ is not a place
+where they always differ. -/
+theorem boundaryForm_frozen (state : TemporalControl interface profile config criterion dimension)
+    (frozen : profile.mode = .frozen) (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (ended : Option EndEvent) (terminal : PolicyDecision metaCount → Binary32) :
+    boundaryForm .selection state models plan features declared reward goal closing ended terminal =
+      boundaryForm .drawFirst state models plan features declared reward goal closing ended
+        terminal := by
+  have idle : (profile.usesHierarchy && profile.mode != .frozen) = false := by
+    simp [frozen]
+  have learned : ∀ (origin : TemporalControl interface profile config criterion dimension)
+      (retained : Option (Closing interface.actions config criterion dimension interface.layout
+        (EndingPayload (profile.mode != .frozen)))) (value : Binary32)
+      (decision : PolicyDecision metaCount),
+      (match retained with
+        | none => origin.oweReward reward
+        | some owner => ((origin.oweReward reward).closeOption models features owner reward
+            value).1).learnMeta features decision = origin := by
+    intro origin retained value decision
+    have credited : (match retained with
+        | none => origin.oweReward reward
+        | some owner => ((origin.oweReward reward).closeOption models features owner reward
+            value).1) = origin := by
+      cases retained with
+      | none => exact oweReward_idle origin reward idle
+      | some owner =>
+        dsimp only
+        rw [oweReward_idle origin reward idle]
+        exact closeOption_frozen origin frozen models features owner reward value
+    rw [credited, TemporalControl.learnMeta_eq]
+    simp [frozen]
+  unfold boundaryForm
+  dsimp only
+  generalize state.refreshFree closing = fresh
+  generalize (fresh.1.planFree plan features).drawMeta features = met
+  rw [learned met.1 fresh.2 (terminal met.2) met.2]
+  cases skillOfMeta met.2.action with
+  | none => rfl
+  | some slot =>
+    dsimp only
+    cases (met.1.runtime.lifecycle.consumers.skills.get slot).interest.potential features
+        declared with
+    | none => rfl
+    | some potential =>
+      dsimp only
+      have same : (((met.1.runtime.lifecycle.consumers.skills.get slot).settleTemporal models
+            met.1.valueFunction features potential goal (comparisonValue criterion met.2.snapshot)
+            met.1.skillRate reward met.1.average.rate
+            (profile.mode != EvaluationMode.frozen)).beginTemporal models features potential
+              (profile.mode != EvaluationMode.frozen) met.1.skillRate).2.2.policy =
+          (met.1.runtime.lifecycle.consumers.skills.get slot).frozenPolicy features
+            met.1.skillRate := by
+        obtain ⟨mode, credit, rate, subtasks⟩ := profile
+        cases frozen
+        rfl
+      rw [same]
+
 end AcornVerif.DrawFirst
