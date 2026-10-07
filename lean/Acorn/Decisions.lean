@@ -1015,9 +1015,9 @@ attribute [regula_decision] Host.CheckpointStatus.parse
 
 /-! ## Certificate tests
 
-The checkers of `Host.Certificate` decide a certificate by these tests of one tile. The checkers
-themselves are registered in `AcornVerif.Decisions`, with what an accepted certificate
-establishes, and below with the admissions of a dependent type. -/
+The checkers of `Host.Certificate` decide a certificate by these tests of one tile. The contracts
+of the checkers themselves are stated in `AcornVerif.Decisions`, with what an accepted
+certificate establishes. -/
 
 /-- The region test accepts exactly a tile that is one of the listed cells
 (`AcornVerif.CurrentCertificates.inRegion_iff`). -/
