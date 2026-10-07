@@ -332,31 +332,43 @@ the parent's body. Neither a name nor a flag nor the source range that Lean
 records decides.
 
 The audit computes the fact behind each reason and refuses an entry whose fact
-is false. For six of the reasons no written theorem of the maintained
-libraries names the definition in its statement, or another computed fact holds:
-no such theorem, which is the absence of a direct reference and nothing more;
-that, and its body applies a registered decision; that, and it belongs to the
-certificate search module and each caller outside that module applies a
-registered decision; it is the comparison of a derived instance, inside the
-declaration of the type it compares; it is the default value of a structure
-field that is not a function; it belongs to the proof library. One more reason
-is for a definition that a written theorem does name and that has no contract.
-Its entry gives one such theorem, and the audit checks that theorem and requires
-that no implementation of a registered decision reaches the definition through
-definition bodies. A definition that a registered decision reaches has a
-contract. The inventory makes no statement about what a caller does with the
-result of a definition in this class. Two facts rest in part on a position and
-not on a recorded relationship: that a comparison is derived is inferred from
-the recorded declaration ranges, and the proof library is identified by its
-modules. The audit prints the count of each class and of each reason, and two
-theorems of the inventory state how many entries have a standing theorem and how
-many have none. The audit also lists the decision functions whose contracts
-carry no accepted input or no refused input. A kind carries its witnesses in its
-type, and a requirement with no kind carries one as a marked closed fact at the
-top level of its condition. The inventory establishes that every such definition
-has been classified and that each computed fact holds. The inventory's own
-decision is a pure function with a theorem that it accepts exactly a definition
-in exactly one class. `Acorn.Decisions`
+is false. The reasons of a first group include the fact that no written theorem
+of the maintained libraries names the definition in its statement: no such
+theorem, which is the absence of a direct reference and nothing more; that, and
+its body applies a registered decision; that, and it belongs to the certificate
+search module and each caller outside that module applies a registered decision.
+The reasons of a second group are other computed facts and do not include it:
+the definition is the comparison of a derived instance, inside the declaration
+of the type it compares; it is the default value of a structure field that is
+not a function; it belongs to the proof library. A written theorem can name a
+definition with a reason of the second group, and the audit prints, for each
+reason, how many of its entries a written theorem names. The last reason is for
+a definition that a written theorem names and that has no contract. Its entry
+gives one such theorem, which the audit checks. The audit also computes, for
+every excluded definition, whether the implementation of a registered decision
+reaches it through definition bodies. A definition that a written theorem names
+and a registered decision reaches has a contract. A definition that no written
+theorem names and a registered decision reaches is in a list of the inventory,
+and a theorem states the size of that list: it has no contract of its own, and
+the contract of the decision that reaches it is the evidence. The inventory
+makes no statement about what a caller does with the result of an excluded
+definition. The facts for a derived comparison and for the proof library rest in
+part on a position and not on a recorded relationship: that a comparison is
+derived is inferred from the recorded declaration ranges, and the proof library
+is identified by its modules. The audit prints the count of each class and of
+each reason. Each decision function with a contract has a closed accepted input
+and a closed refused input in a contract, or a named obstruction for the one
+that is missing; the audit refuses a function with neither and prints the
+obstructions by reason. A kind carries its witnesses in its type. A requirement
+with no kind carries one as a marked fact at the top level of its condition,
+about the function that the condition binds, at an input that does not name that
+function. The audit also prints the requirements with no kind whose every claim
+is below a hypothesis about the function: a function that never satisfies the
+hypothesis satisfies such a statement, so its closed witness is its only
+protection. The inventory establishes that every such definition has been
+classified and that each computed fact holds. The inventory's own decision is a
+pure function with a theorem that it accepts exactly a definition in exactly one
+class. `Acorn.Decisions`
 cannot register a function of another library, such as a NativeApp parser. No
 kind says that a specification is the intended one. `Acorn.Decisions` belongs to
 the Acorn library

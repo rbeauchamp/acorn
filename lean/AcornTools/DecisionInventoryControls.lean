@@ -4,6 +4,8 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 
+import Regula.Contract
+
 /-!
 # Controls of the decision inventory
 
@@ -18,7 +20,10 @@ marker would decide wrongly. The ownership audit checks them through
 * neither field default that is a function is a stored value, the one behind a reducible
   definition included;
 * a witness marker counts only as a closed fact at the top level of a condition, with a
-  standard acceptance predicate, about the function that the condition binds.
+  standard acceptance predicate, about the function that the condition binds, with an input
+  that does not name that function;
+* a kind counts only when it is stated about the function that the condition binds;
+* a statement whose every claim is below a hypothesis about the function is `conditional`.
 
 They are read by that check and by nothing else.
 -/
@@ -79,5 +84,26 @@ def unconditional : (Nat → Bool) → Prop := fun test => Accepts (fun _ => Tru
 
 /-- A marker about a function that the condition does not bind: it is not counted. -/
 def foreign : (Nat → Bool) → Prop := fun _ => Accepts (· = true) (T.match_37 0)
+
+/-- A marker whose input is built from the function that the condition binds: it is not
+counted. -/
+def selfBuilt : (Nat → Bool) → Prop :=
+  fun test => Accepts (· = true) (test (if test 0 then 0 else 1))
+
+/-- A kind about the function that the condition binds: it is a kind of that function. -/
+def ownKind : (Nat → Bool) → Prop :=
+  fun test => Regula.Decides (· = true) (fun count : Nat => count = 0) test
+
+/-- A kind about another function: it is not a kind of the function that the condition
+binds. -/
+def foreignKind : (Nat → Bool) → Prop :=
+  fun _ => Regula.Decides (· = true) (fun count : Nat => count = 0) T.match_37
+
+/-- A claim below a hypothesis about the function that the condition binds: a function that
+accepts nothing satisfies it. -/
+def guarded : (Nat → Bool) → Prop := fun test => ∀ count, test count = true → count = 0
+
+/-- An equivalence about the function that the condition binds. -/
+def exact : (Nat → Bool) → Prop := fun test => ∀ count, test count = true ↔ count = 0
 
 end AcornDecisionInventory.Control

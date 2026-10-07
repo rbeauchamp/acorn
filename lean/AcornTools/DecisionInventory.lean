@@ -43,14 +43,22 @@ environment. `Reason` states the fact behind each reason, and which part of that
 relationship that the environment records and which part is a position; an entry whose fact
 is false fails verification.
 
-The reasons with no standing theorem say that no written theorem names the definition, with
-one more fact for some of them. The reason `named` is for a definition that a written theorem
-does name and that has no contract: the entry gives one such theorem, the audit checks it,
-and the audit requires that no implementation of a registered decision reaches the
-definition through definition bodies. A definition that a registered decision reaches has a
-contract. The inventory makes no statement about what a caller does with the result of a
-`named` definition. `named_count` states how many such entries there are; a new entry changes
-that number.
+The reasons `unproved`, `composed` and `proposal` include the fact that no written theorem
+names the definition. The reasons `derived`, `default` and `model` are other facts and do not
+include it: a written theorem can name such a definition, and the audit prints, for each
+reason, how many of its entries a written theorem names. The reason `named` is for a
+definition that a written theorem does name and that has no contract: the entry gives one
+such theorem, and the audit checks it.
+
+The audit computes, for every excluded definition, whether the implementation of a registered
+decision reaches it through definition bodies (`reachable`). A definition that a written
+theorem names and a registered decision reaches is refused: it needs a contract. A definition
+that no written theorem names and a registered decision reaches is in the list `relied`; it
+has no contract of its own, and the contract of the decision that reaches it is the evidence.
+The reach of every entry must agree with that list (`Evidence.placed`), and `relied_count`
+states its size, so the list cannot grow without a change of that theorem. The inventory
+makes no statement about what a caller does with the result of an excluded definition.
+`named_count` states how many entries the reason `named` has.
 
 ## The domain
 
@@ -68,12 +76,22 @@ name, a flag or a count of written binders would decide wrongly.
 
 ## Witnesses
 
-The audit lists the decision functions whose contracts carry no accepted input, and those
-whose contracts carry no refused input. A kind carries its witnesses in its type. A
-requirement with no kind carries one as a marked fact (`acceptanceMarkers`, `refusalMarkers`)
-at the top level of its condition, with a standard acceptance predicate, about the function
-that the condition binds. Such a fact is below no quantifier and no hypothesis, so it is a
-proved statement about one closed input and cannot hold vacuously.
+Each decision function with a contract has a closed accepted input and a closed refused input
+in a contract, or a named obstruction for the one that is missing. The audit refuses a
+function with neither, and it prints the obstructions grouped by reason. A kind carries its
+witnesses in its type, and it counts only when it is stated about the function that its
+condition binds (`kindAbout`). A requirement with no kind carries a witness as a marked fact
+(`acceptanceMarkers`, `refusalMarkers`) at the top level of its condition, with a standard
+acceptance predicate, about the function that the condition binds, at arguments that do not
+name that function (`witnessed`). Such a fact is below no quantifier and no hypothesis, and
+its input is not built from the decided function, so it is a proved statement about one
+closed input and cannot hold vacuously. A named obstruction is a marker with one line of
+reason (`acceptanceObstructions`, `refusalObstructions`).
+
+The audit also prints the form of each statement with no kind (`Form`). A statement is
+`conditional` when every claim about the function is below a hypothesis about the function. A
+function that never satisfies the hypothesis satisfies such a statement, so its closed
+witness is its only protection.
 
 This is a check that every such definition has been classified and that each computed fact
 holds. Whether a contract states the intended specification is review.
@@ -179,27 +197,36 @@ structure Evidence where
   standing : Bool
   /-- The implementation of a registered decision reaches the definition. -/
   reached : Bool
+  /-- The definition is in the list `relied`. -/
+  relied : Bool
   deriving DecidableEq, Repr
+
+/-- The reach of an entry agrees with the list `relied`: a definition that a registered
+decision reaches is in the list, a definition in the list is reached, and no written theorem
+names a definition in the list. -/
+def Evidence.placed (evidence : Evidence) : Bool :=
+  evidence.reached == evidence.relied && !(evidence.relied && evidence.mentioned)
 
 /-- Whether the computed facts support a reason. -/
 def Reason.supported : Reason → Evidence → Bool
-  | .unproved, evidence => !evidence.mentioned
-  | .composed, evidence => !evidence.mentioned && evidence.applies
-  | .proposal, evidence => !evidence.mentioned && evidence.searching
-  | .derived, evidence => evidence.generated
-  | .default, evidence => evidence.fieldDefault
-  | .model, evidence => evidence.proofLibrary
-  | .named _, evidence => evidence.standing && !evidence.reached
+  | .unproved, evidence => !evidence.mentioned && evidence.placed
+  | .composed, evidence => !evidence.mentioned && evidence.applies && evidence.placed
+  | .proposal, evidence => !evidence.mentioned && evidence.searching && evidence.placed
+  | .derived, evidence => evidence.generated && evidence.placed
+  | .default, evidence => evidence.fieldDefault && evidence.placed
+  | .model, evidence => evidence.proofLibrary && evidence.placed
+  | .named _, evidence => evidence.standing && !evidence.reached && !evidence.relied
 
-/-- A reason with no standing theorem does not depend on a standing theorem or on reach. -/
+/-- A reason with no standing theorem does not depend on a standing theorem. -/
 theorem Reason.supported_plain (reason : Reason) (left right : Evidence)
     (plain : reason.standing? = none) (mentioned : left.mentioned = right.mentioned)
     (applies : left.applies = right.applies) (searching : left.searching = right.searching)
     (generated : left.generated = right.generated)
     (fieldDefault : left.fieldDefault = right.fieldDefault)
-    (proofLibrary : left.proofLibrary = right.proofLibrary) :
+    (proofLibrary : left.proofLibrary = right.proofLibrary)
+    (reached : left.reached = right.reached) (relied : left.relied = right.relied) :
     reason.supported left = reason.supported right := by
-  cases reason <;> simp_all [Reason.supported, Reason.standing?]
+  cases reason <;> simp_all [Reason.supported, Reason.standing?, Evidence.placed]
 
 /-- A "no theorem" reason is refused for a definition that a theorem mentions. -/
 theorem Reason.unproved_refused (reason : Reason) (evidence : Evidence)
@@ -208,20 +235,26 @@ theorem Reason.unproved_refused (reason : Reason) (evidence : Evidence)
     reason.supported evidence = false := by
   rcases unproved with rfl | rfl | rfl <;> simp [Reason.supported, mentioned]
 
-/-- An entry that a theorem names is supported exactly when its standing theorem is checked
-and no registered decision reaches the definition. -/
+/-- An entry that a theorem names is supported exactly when its standing theorem is checked,
+no registered decision reaches the definition and the definition is not in `relied`. -/
 theorem Reason.supported_named (reason : Reason) (evidence : Evidence) (standing : Name)
     (named : reason.standing? = some standing) :
-    reason.supported evidence = (evidence.standing && !evidence.reached) := by
+    reason.supported evidence = (evidence.standing && !evidence.reached && !evidence.relied) := by
   cases reason <;> simp_all [Reason.supported, Reason.standing?]
 
-/-- A definition that a registered decision reaches cannot stay in the class of entries that
-a theorem names: it needs a contract. -/
-theorem Reason.reached_refused (reason : Reason) (evidence : Evidence) (standing : Name)
-    (named : reason.standing? = some standing) (reached : evidence.reached = true) :
+/-- For every reason, a definition that a registered decision reaches and that is not in
+`relied` is refused: it needs a contract or a place in that list. -/
+theorem Reason.reached_refused (reason : Reason) (evidence : Evidence)
+    (reached : evidence.reached = true) (unlisted : evidence.relied = false) :
     reason.supported evidence = false := by
-  rw [Reason.supported_named reason evidence standing named, reached]
-  simp
+  cases reason <;> simp [Reason.supported, Evidence.placed, reached, unlisted]
+
+/-- For every reason, a definition in `relied` that a written theorem names is refused: a
+definition that a theorem names and a registered decision reaches needs a contract. -/
+theorem Reason.relied_refused (reason : Reason) (evidence : Evidence)
+    (relied : evidence.relied = true) (mentioned : evidence.mentioned = true) :
+    reason.supported evidence = false := by
+  cases reason <;> simp [Reason.supported, Evidence.placed, relied, mentioned]
 
 /-- The decision registries: the modules whose contracts count toward the inventory. -/
 def registries : Array Name := #[`Acorn.Decisions, `AcornVerif.Decisions]
@@ -334,7 +367,6 @@ def excluded : Array (Name × Shape × Reason) := #[
     .default),
   (`Acorn.AgentDriver.dispatch, .fixed, .unproved),
   (`Acorn.Checkpoint.temporaryPath, .fixed, .unproved),
-  (`Acorn.Features.Assignment.feature, .dependent, .unproved),
   (`Acorn.Features.Assignment.retain, .dependent, .unproved),
   (`Acorn.Handcrafted.spatialPotential, .fixed, .unproved),
   (`Acorn.Host.AgentArguments.admit, .fixed, .unproved),
@@ -568,12 +600,30 @@ def excluded : Array (Name × Shape × Reason) := #[
     .named `Acorn.Handcrafted.TemporalControl.finish_skill)
 ]
 
+/-- The excluded definitions that the implementation of a registered decision reaches and that
+no written theorem names. None has a contract: the contract of the registered decision that
+reaches it is the evidence. The audit computes the reach of every excluded definition and
+requires it to agree with this list. -/
+def relied : Array Name := #[
+  `Acorn.Host.fbm, `Acorn.Host.octaveLoop, `Acorn.Host.valueNoise, `Acorn.Host.foodDue,
+  `Acorn.Host.foodTrials, `Acorn.Host.passiveChange, `Acorn.Host.spawnFood,
+  `Acorn.Host.wanderDeer, `Acorn.Host.wanderPopulation,
+  `Acorn.Lifetime.DemonRecords.agreementRatio, `Acorn.Lifetime.SumCount.admit,
+  `Acorn.Prediction.admit,
+  `Acorn.Host.Viewer.instBEqPhase.beq, `Acorn.Host.instBEqAction.beq,
+  `Acorn.Host.instBEqBoxPosition.beq, `Acorn.Host.instBEqCheckpointStatus.beq,
+  `Acorn.Host.instBEqTileKind.beq
+]
+
+/-- The size of `relied`. A new member changes this number, which is reviewed. -/
+theorem relied_count : relied.size = 17 := by decide
+
 /-- The entries that a theorem names. A new entry changes this number, which is reviewed. -/
 theorem named_count : (excluded.filter fun entry => entry.2.2.standing?.isSome).size = 39 := by
   decide +kernel
 
 /-- The entries with a reason that has no standing theorem. -/
-theorem plain_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 207 := by
+theorem plain_count : (excluded.filter fun entry => entry.2.2.standing?.isNone).size = 206 := by
   decide +kernel
 
 /-- The result heads that make a definition verdict-shaped. -/
@@ -602,6 +652,20 @@ structure Candidate where
   /-- The constants its body names. -/
   uses : Array Name
 
+/-- The form of a statement with no kind, by the positions in which it names the bound
+implementation. A marker is not counted. -/
+inductive Form where
+  /-- The implementation is named inside an equivalence that is below no hypothesis that
+  names it. -/
+  | equivalence
+  /-- The implementation is named in some other position that is below no such hypothesis. -/
+  | unconditional
+  /-- Every position that names the implementation is a hypothesis, or is below a hypothesis
+  that names it. A function that never gives the result that the hypotheses require satisfies
+  such a statement, so a closed witness is its only protection. -/
+  | conditional
+  deriving DecidableEq, Repr
+
 /-- What the contracts of the registries state about one decision function. -/
 structure Registered where
   /-- One of its contracts is a decision kind. -/
@@ -610,6 +674,10 @@ structure Registered where
   accepted : Bool := false
   /-- One of its contracts carries an input that the function refuses. -/
   refused : Bool := false
+  /-- The reason that one of its contracts gives for the absence of an accepted input. -/
+  unaccepted : Option String := none
+  /-- The reason that one of its contracts gives for the absence of a refused input. -/
+  unrefused : Option String := none
 
 /-- What the walk has read so far. -/
 structure Observed where
@@ -628,10 +696,13 @@ structure Observed where
   searchers : Array (Name × Array Name) := #[]
   /-- The constants that the body of each definition of the surveyed modules names. -/
   bodies : NameMap (Array Name) := {}
+  /-- The contracts with no kind, with their implementation and the form of their statement. -/
+  statements : Array (Name × Name × Option Form) := #[]
 
 /-- Join what two contracts state about one function. -/
 def Registered.add (left right : Registered) : Registered :=
-  ⟨left.kind || right.kind, left.accepted || right.accepted, left.refused || right.refused⟩
+  ⟨left.kind || right.kind, left.accepted || right.accepted, left.refused || right.refused,
+    left.unaccepted.or right.unaccepted, left.unrefused.or right.unrefused⟩
 
 /-- Join the observations of two environments. -/
 def Observed.add (left right : Observed) : Observed :=
@@ -643,7 +714,8 @@ def Observed.add (left right : Observed) : Observed :=
     certified := right.certified.fold (fun all label count =>
       all.insert label (all.getD label 0 + count)) left.certified
     searchers := left.searchers ++ right.searchers
-    bodies := right.bodies.foldl (fun all name uses => all.insert name uses) left.bodies }
+    bodies := right.bodies.foldl (fun all name uses => all.insert name uses) left.bodies
+    statements := left.statements ++ right.statements }
 
 /-- What the one telescope of the inventory reads from a type. Every count of arguments in
 this module comes from here. -/
@@ -803,26 +875,114 @@ def conjuncts : Expr → Array Expr
 
 /-- Whether a requirement with no kind carries a witness with one of the given markers: a
 conjunct at the top level of the condition whose predicate is a standard one and whose
-result is an application of the implementation that the condition binds. Such a conjunct is
-below no quantifier and no hypothesis, so it is a proved statement about one closed input. -/
+result is an application of the implementation that the condition binds to arguments that do
+not name that implementation. Such a conjunct is below no quantifier and no hypothesis, and
+its input is not built from the decided function, so it is a proved statement about one
+closed input. -/
 def witnessed (markers : Array Name) : Expr → Bool
   | .lam _ _ body _ =>
     (conjuncts body).any fun fact =>
       (fact.getAppFn.constName?).any markers.contains &&
         (match fact.getAppArgs with
-          | #[_, predicate, result] => standardAccepts predicate && result.getAppFn == .bvar 0
+          | #[_, predicate, result] =>
+            standardAccepts predicate && result.getAppFn == .bvar 0 &&
+              result.getAppArgs.all fun argument => !argument.hasLooseBVar 0
           | _ => false)
   | _ => false
 
-/-- What one contract condition states: its kind, and the witnesses it carries. A two-way
-kind carries both witnesses in its type, a sound kind the accepted one and a complete kind
-the refused one. -/
+/-- The marker propositions of the registries for a named obstruction: no closed accepted
+input, or no closed refused input, is registered, for the reason that the marker states. -/
+def acceptanceObstructions : Array Name :=
+  #[`Acorn.Decisions.NoAccepted, `AcornVerif.Decisions.NoAccepted]
+
+@[inherit_doc acceptanceObstructions]
+def refusalObstructions : Array Name :=
+  #[`Acorn.Decisions.NoRefused, `AcornVerif.Decisions.NoRefused]
+
+/-- The reason of a named obstruction with one of the given markers: a conjunct at the top
+level of the condition that applies the marker to a text literal. -/
+def obstruction? (markers : Array Name) : Expr → Option String
+  | .lam _ _ body _ =>
+    (conjuncts body).findSome? fun fact =>
+      if (fact.getAppFn.constName?).any markers.contains then
+        match fact.getAppArgs with
+        | #[.lit (.strVal reason)] => some reason
+        | _ => none
+      else none
+  | _ => none
+
+/-- The function that a kind is stated about, below its `Function.uncurry` wrappers. -/
+def decided : Expr → Expr
+  | .app (.app (.app (.app (.app (.const ``Function.uncurry _) _) _) _) function) pair =>
+    .app (decided function) pair
+  | .app (.app (.app (.app (.const ``Function.uncurry _) _) _) _) function => decided function
+  | function => function
+
+/-- Whether a condition is a kind about the implementation that it binds: a condition that is
+not a function is a kind applied to its acceptance predicate and specification, which the
+contract applies to the implementation; a condition that binds the implementation states the
+kind about that bound function, below `Function.uncurry` and nothing more. A kind about another
+function is not a kind of this implementation. -/
+def kindAbout (condition : Expr) : Option Name :=
+  match condition with
+  | .lam _ _ body _ =>
+    match body.getAppFn.constName?, body.getAppArgs.back? with
+    | some kind, some function =>
+      if kinds.contains kind && decided function == .bvar 0 then some kind else none
+    | _, _ => none
+  | applied =>
+    match applied.getAppFn.constName? with
+    | some kind => if kinds.contains kind then some kind else none
+    | none => none
+
+/-- What one contract condition states: its kind, the witnesses it carries and the
+obstructions it names. A two-way kind carries both witnesses in its type, a sound kind the
+accepted one and a complete kind the refused one. -/
 def registered (condition : Expr) : Registered :=
-  match (conditionBody condition).getAppFn.constName? with
-  | some ``Regula.Decides => ⟨true, true, true⟩
-  | some ``Regula.DecidesSoundly => ⟨true, true, false⟩
-  | some ``Regula.DecidesCompletely => ⟨true, false, true⟩
-  | _ => ⟨false, witnessed acceptanceMarkers condition, witnessed refusalMarkers condition⟩
+  match kindAbout condition with
+  | some ``Regula.Decides => { kind := true, accepted := true, refused := true }
+  | some ``Regula.DecidesSoundly => { kind := true, accepted := true }
+  | some ``Regula.DecidesCompletely => { kind := true, refused := true }
+  | _ =>
+    { accepted := witnessed acceptanceMarkers condition
+      refused := witnessed refusalMarkers condition
+      unaccepted := obstruction? acceptanceObstructions condition
+      unrefused := obstruction? refusalObstructions condition }
+
+/-- Every marker of a registry: a conjunct with one of these heads is a witness or an
+obstruction and not a part of the statement. -/
+def markers : Array Name :=
+  acceptanceMarkers ++ refusalMarkers ++ acceptanceObstructions ++ refusalObstructions
+
+/-- The form of a conjunction is the strongest form of its parts: a statement is
+`conditional` only when every part of it is. -/
+def Form.join : Form → Form → Form
+  | .equivalence, _ | _, .equivalence => .equivalence
+  | .unconditional, _ | _, .unconditional => .unconditional
+  | .conditional, .conditional => .conditional
+
+/-- The form of a proposition in which the implementation is the loose variable `bound`.
+A hypothesis or a binder type that names the implementation makes everything below it
+conditional. `none` when the proposition names the implementation only inside a marker, or
+not at all. -/
+def formOf (bound : Nat) : Expr → Option Form
+  | .forallE _ domain body _ =>
+    if domain.hasLooseBVar bound then some .conditional else formOf (bound + 1) body
+  | .app (.app (.const ``And _) left) right =>
+    match formOf bound left, formOf bound right with
+    | some first, some second => some (first.join second)
+    | some first, none | none, some first => some first
+    | none, none => none
+  | proposition =>
+    if (proposition.getAppFn.constName?).any markers.contains then none
+    else if !proposition.hasLooseBVar bound then none
+    else if proposition.isAppOf ``Iff then some .equivalence
+    else some .unconditional
+
+/-- The form of a contract condition with no kind. -/
+def conditionForm : Expr → Option Form
+  | .lam _ _ body _ => formOf 0 body
+  | _ => none
 
 /-- Evaluate a computation of the elaborator's reduction engine on a compiled environment. -/
 def reduce {α : Type} (env : Environment) (computation : MetaM α) : IO α := do
@@ -847,7 +1007,10 @@ def Observed.observe (observed : Observed) (env : Environment) (owner name : Nam
       let some condition := info.type.getAppArgs[2]?
         | throw (IO.userError s!"{name}: contract has no condition")
       let stated := ((observed.contracts.find? implementation).getD {}).add (registered condition)
-      return { observed with contracts := observed.contracts.insert implementation stated }
+      let statements := if (kindAbout condition).isSome then observed.statements
+        else observed.statements.push (name, implementation, conditionForm condition)
+      return { observed with
+        contracts := observed.contracts.insert implementation stated, statements }
     unless written env name do return observed
     let used := info.type.getUsedConstantsAsSet
     let mut standing := observed.standing
@@ -911,6 +1074,11 @@ def check (observed : Observed) : IO Unit := do
   let mut valid : NameSet := {}
   let mut named : NameSet := {}
   let mut counts : Std.HashMap String Nat := {}
+  let mut namedBy : Std.HashMap String Nat := {}
+  let mut reachedBy : Std.HashMap String Nat := {}
+  for name in relied do
+    unless excluded.any (·.1 == name) do
+      failures := failures.push s!"{name} is in the list of reached definitions and has no entry"
   for (name, shape, reason) in excluded do
     if named.contains name then
       failures := failures.push s!"{name} has more than one exclusion entry"
@@ -936,10 +1104,15 @@ def check (observed : Observed) : IO Unit := do
           fieldDefault := candidate.fieldDefault
           proofLibrary := (`AcornVerif).isPrefixOf candidate.owner
           standing := observed.standing.contains name
-          reached := reached.contains name }
+          reached := reached.contains name
+          relied := relied.contains name }
       if reason.supported evidence then
         valid := valid.insert name
         counts := counts.insert reason.label (counts.getD reason.label 0 + 1)
+        if evidence.mentioned then
+          namedBy := namedBy.insert reason.label (namedBy.getD reason.label 0 + 1)
+        if evidence.reached then
+          reachedBy := reachedBy.insert reason.label (reachedBy.getD reason.label 0 + 1)
       else
         failures := failures.push
           s!"{name}: the facts do not support its reason {repr reason} ({repr evidence})"
@@ -961,30 +1134,57 @@ def check (observed : Observed) : IO Unit := do
         s!"(its type is {repr candidate.shape})")
     else if classes.structural && classes.contract then
       failures := failures.push s!"{candidate.name} is structural and has a contract"
+  -- Each decision function has a closed accepted input or a named obstruction, and the same
+  -- for a refused input.
+  let stated := observed.contracts.foldl (fun all name stated => all.push (name, stated)) #[]
+  for (name, stated) in stated do
+    unless stated.accepted || stated.unaccepted.isSome do
+      failures := failures.push
+        s!"{name}: no contract carries an accepted input or names the obstruction to one"
+    unless stated.refused || stated.unrefused.isSome do
+      failures := failures.push
+        s!"{name}: no contract carries a refused input or names the obstruction to one"
   unless failures.isEmpty do
     for failure in failures do IO.eprintln s!"decision inventory: {failure}"
     throw (IO.userError s!"{failures.size} decision inventory failures")
-  let count (label : String) : Nat := counts.getD label 0
-  let reasons (labels : List String) : String :=
-    ", ".intercalate (labels.map fun label => s!"{label} {count label}")
-  let plain := (Reason.plainLabels.map count).sum
+  let all := Reason.plainLabels ++ [Reason.namedLabel]
+  let listed (table : Std.HashMap String Nat) : String :=
+    ", ".intercalate ((all.filter fun label => table.getD label 0 != 0).map fun label =>
+      s!"{label} {table.getD label 0}")
+  let total (table : Std.HashMap String Nat) : Nat := (all.map fun label => table.getD label 0).sum
   IO.println (s!"decisions: {observed.candidates.size} verdict-shaped definitions: " ++
     s!"{structural} structural, {contracts} with a contract ({decided} with a decision " ++
     s!"kind, {contracts - decided} with a requirement that the Regula audit does not check " ++
     "for witnesses or independence), " ++
-    s!"{plain} with no contract and no theorem that names them ({reasons Reason.plainLabels}), " ++
-    s!"{count Reason.namedLabel} with no contract that a theorem names and no registered " ++
-    "decision reaches; " ++
+    s!"{total counts} excluded with a computed reason ({listed counts}); " ++
+    s!"a written theorem names {total namedBy} of the excluded ({listed namedBy}); " ++
+    s!"a registered decision reaches {total reachedBy} of the excluded, and no theorem names " ++
+    s!"them ({listed reachedBy}); " ++
     s!"recursion companions outside the domain: {observed.certified.toList}")
-  -- The decision functions whose contracts carry no accepted or no refused input.
-  let stated := observed.contracts.foldl (fun all name stated => all.push (name, stated)) #[]
-  let lacking (select : Registered → Bool) : List String :=
-    ((stated.filter fun (_, stated) => !select stated).map (·.1.toString)).qsort (· < ·) |>.toList
-  let unaccepted := lacking (·.accepted)
-  let unrefused := lacking (·.refused)
+  -- Witnesses and obstructions, by reason.
+  let grouped (select : Registered → Option String) : String :=
+    let reasons := stated.foldl (fun (table : Std.HashMap String (Array String)) (name, stated) =>
+      match select stated with
+      | some reason => table.insert reason ((table.getD reason #[]).push name.toString)
+      | none => table) {}
+    "; ".intercalate ((reasons.toList.map fun (reason, names) =>
+      s!"{reason} ({names.size}): {(names.qsort (· < ·)).toList}").toArray.qsort (· < ·)).toList
+  let without (select : Registered → Bool) : Nat := (stated.filter fun (_, stated) => !select stated).size
   IO.println (s!"decision witnesses: {stated.size} decision functions with a contract; " ++
-    s!"{unaccepted.length} with no accepted input in a contract: {unaccepted}; " ++
-    s!"{unrefused.length} with no refused input in a contract: {unrefused}")
+    s!"{without (·.accepted)} with no closed accepted input, each with a named obstruction: " ++
+    s!"{grouped fun stated => if stated.accepted then none else stated.unaccepted}")
+  IO.println (s!"decision witnesses: {without (·.refused)} with no closed refused input, each " ++
+    s!"with a named obstruction: {grouped fun stated => if stated.refused then none else stated.unrefused}")
+  -- The form of each statement with no kind.
+  let form (wanted : Option Form) : List String :=
+    ((observed.statements.filter fun (_, _, form) => form == wanted).map
+      fun (name, _, _) => name.toString).qsort (· < ·) |>.toList
+  IO.println (s!"decision statements with no kind: {observed.statements.size}; " ++
+    s!"{(form (some .equivalence)).length} with an equivalence, " ++
+    s!"{(form (some .unconditional)).length} with another unconditional claim, " ++
+    s!"{(form none).length} with markers only, and {(form (some .conditional)).length} " ++
+    s!"conditional, which a function that never satisfies the hypothesis satisfies: " ++
+    s!"{form (some .conditional)}")
 
 /-- The cases that a name, a flag or a count of written binders would decide wrongly, as
 written declarations of `AcornTools.DecisionInventoryControls`. The audit refuses to run
@@ -1026,8 +1226,15 @@ def controls (env : Environment) : IO Unit := do
     return value
   unless witnessed marker (← condition `closedFact) do
     throw (IO.userError "decision inventory: a closed witness at the top level is not counted")
-  for name in #[`hypothetical, `quantified, `unconditional, `foreign] do
+  for name in #[`hypothetical, `quantified, `unconditional, `foreign, `selfBuilt] do
     if witnessed marker (← condition name) then
       throw (IO.userError s!"decision inventory: the marker of control {name} is counted")
+  unless (kindAbout (← condition `ownKind)).isSome do
+    throw (IO.userError "decision inventory: a kind about the bound function is not counted")
+  if (kindAbout (← condition `foreignKind)).isSome then
+    throw (IO.userError "decision inventory: a kind about another function is counted")
+  unless conditionForm (← condition `guarded) == some .conditional &&
+      conditionForm (← condition `exact) == some .equivalence do
+    throw (IO.userError "decision inventory: the form of a control statement is wrong")
 
 end AcornDecisionInventory

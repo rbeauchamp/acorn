@@ -40,15 +40,71 @@ name instead, with a statement that still refers to the executing definition.
 namespace AcornVerif.Decisions
 open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime
 
+/-- The marker of an accepted input in a requirement with no kind: the acceptance predicate
+holds of the result of the function at one input. The ownership audit counts a marked fact
+only at the top level of a condition, with a standard predicate, about the function that the
+condition binds. `Acorn.Decisions` declares the same marker, because no module imports a
+registry. -/
+def Accepts.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := accepts result
+
+/-- The marker of a refused input: the acceptance predicate does not hold of the result of the
+function at one input. -/
+def Refuses.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ¬accepts result
+
+/-- A named obstruction: no closed accepted input of the function is registered, for the
+stated reason. The ownership audit prints the reason, and it refuses a decision function that
+has neither a closed accepted input nor this marker in a contract. -/
+def NoAccepted (_reason : String) : Prop := True
+
+/-- A named obstruction: no closed refused input of the function is registered, for the stated
+reason. -/
+def NoRefused (_reason : String) : Prop := True
+
+/-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
+def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
+
+/-- A feature dimension of capacity one, for closed witnesses. -/
+def small : Dimension := ⟨1, by decide, ⟨0, rfl⟩, by decide⟩
+
+/-- A resumable agent construction with one unit and one weight, for closed witnesses. -/
+def tiny : AgentConstruction :=
+  { AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation with
+    config :=
+      { (AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation).config with
+        units := ⟨1, by decide, by decide⟩ }
+    dimension := small }
+
+/-- The same construction under the frozen profile, which is not resumable. -/
+def frozen : AgentConstruction := { tiny with profile := { tiny.profile with mode := .frozen } }
+
+/-- The image of the initial state of the small construction. -/
+def saved := Checkpoint.snapshotImage tiny tiny.initial
+
+/-- The raw feature image that a checkpoint of that image carries, with a given seed word. -/
+def rawSaved (seed : UInt64) : RawFeatureImage Grid.actions tiny.dimension demonLayout :=
+  ⟨seed, tiny.config.tilings, tiny.config.units.count.toUInt32.toUInt16,
+    tiny.dimension.capacity.toUInt32, tiny.criterion.tag.toUInt32.toUInt8,
+    saved.features.progress.clock, (testerWords saved.features.progress).progress,
+    saved.features.assignments.map (Assignment.words tiny.dimension), saved.features.primary⟩
+
+/-- The position of the one tile of the world `quiet`. -/
+def origin : Host.Position := ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩
+
 /-- Total admission accepts the words of every stored total of the receiving quantity and
 returns that total (`CurrentCheckpoint.sum_roundtrip`). The result type depends on the
 quantity, so the contract is a requirement with no kind.
 
 **Not claimed:** that every accepted word pair is the word image of a stored total. -/
 theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
-    ∀ (quantity : Quantity) (record : SumCount quantity),
-      admit quantity (sumWords record) = some record) :=
-  ⟨fun _ => CurrentCheckpoint.sum_roundtrip⟩
+    (∀ (quantity : Quantity) (record : SumCount quantity),
+      admit quantity (sumWords record) = some record) ∧
+      Accepts (·.isSome = true)
+        (admit .reward (0, ⟨0⟩)) ∧
+      Refuses (·.isSome = true)
+        (admit .reward (0, ⟨0x7ff8000000000000⟩))) :=
+  ⟨⟨(fun _ => CurrentCheckpoint.sum_roundtrip),
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- An image whose overall reward total is a NaN word, with every other field zero. -/
 def refusedLifetime : LifetimeWords :=
@@ -71,20 +127,6 @@ theorem lifetime_admit : Regula.ExecutableContract admitLifetime
      refused := ⟨refusedLifetime, by
        have illegal : ¬LegalSum .reward 0 ⟨0x7ff8000000000000⟩ := by decide
        simp [admitLifetime, admitSum, SumCount.admit, refusedLifetime, illegal]⟩ }⟩
-
-/-- The marker of an accepted input in a requirement with no kind: the acceptance predicate
-holds of the result of the function at one input. The ownership audit counts a marked fact
-only at the top level of a condition, with a standard predicate, about the function that the
-condition binds. `Acorn.Decisions` declares the same marker, because no module imports a
-registry. -/
-def Accepts.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := accepts result
-
-/-- The marker of a refused input: the acceptance predicate does not hold of the result of the
-function at one input. -/
-def Refuses.{u} {ρ : Sort u} (accepts : ρ → Prop) (result : ρ) : Prop := ¬accepts result
-
-/-- A world of one tile with day length one and no food or deer, for closed witnesses. -/
-def quiet : Host.WorldConfig := ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩
 
 /-! ## Certificate checkers -/
 
@@ -230,7 +272,7 @@ kind.
 a hypothesis. An acceptance fact needs the generated terrain of the tiles at the stance; no
 theorem supplies one. -/
 theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun check =>
-    ∀ (config : Host.WorldConfig) (stance : Host.BoxPosition config)
+    (∀ (config : Host.WorldConfig) (stance : Host.BoxPosition config)
       (direction : Host.Direction) (item : Host.Item),
       (check config stance direction item = true →
         (∀ (world next : Host.World config) (events : Host.StepResult),
@@ -252,8 +294,12 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
           stance.position.x.val = approach.position.x.val + direction.delta.1 ∧
             stance.position.y.val = approach.position.y.val + direction.delta.2 ∧
             ∀ world : Host.World config, world.enterable approach.position = .ok true) ∧
-        (config.side = 1 → check config stance direction item = false)) :=
-  ⟨fun config stance direction item =>
+        (config.side = 1 → check config stance direction item = false)) ∧
+      NoAccepted
+        "terrain: the input needs the terrain of a generated tile" ∧
+      Refuses (· = true)
+        (check quiet ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩ .north .wood)) :=
+  ⟨⟨(fun config stance direction item =>
     ⟨fun accepted =>
       ⟨CurrentCertificates.stance_harvest accepted,
         fun world next action events heads column row =>
@@ -264,7 +310,9 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
         obtain ⟨column, row⟩ := CurrentCertificates.translate_some _ _ _ _ moved
         exact ⟨approach, column, row, fun world =>
           CurrentCertificates.walkable_enterable world approach.position walkable⟩⟩,
-      fun single => single_refused single stance direction item⟩⟩
+      fun single => single_refused single stance direction item⟩),
+    trivial,
+    by unfold Refuses; rw [single_refused (config := quiet) (by decide)]; exact Bool.false_ne_true⟩⟩
 
 /-- Replay checking returns a certificate only for an action list that shows its goal reached
 (`replay_certified` states the relation), and it refuses the empty action list. In the empty
@@ -318,7 +366,7 @@ checker.
 **Not claimed:** an accepted input. It needs the generated terrain of the tiles at the stance;
 no theorem supplies one. -/
 theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (fun check =>
-    ∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
+    (∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
       (direction : Host.Direction),
       ((check config item stance direction).isSome = true →
         ∀ (world next : Host.World config) (events : Host.StepResult),
@@ -326,8 +374,12 @@ theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (f
           (item = .wood → world.tileKind (stance.facingPosition direction) = .ok .tree) →
           world.step .harvest = .ok (next, events) → events.exhausted = false →
             events.harvested = some item) ∧
-        (config.side = 1 → check config item stance direction = none)) :=
-  ⟨fun config item stance direction =>
+        (config.side = 1 → check config item stance direction = none)) ∧
+      NoAccepted
+        "terrain: the input needs the terrain of a generated tile" ∧
+      Refuses (·.isSome = true)
+        (check quiet .wood ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩ .north)) :=
+  ⟨⟨(fun config item stance direction =>
     ⟨fun present world next events standing facing grown stepped paid => by
       obtain ⟨certificate, built⟩ := Option.isSome_iff_exists.mp present
       have accepted : Host.stanceCertified config stance direction item = true := by
@@ -338,7 +390,11 @@ theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (f
       exact (CurrentCertificates.stance_harvest accepted world next events standing facing grown
         stepped paid).1,
     fun single => by
-      simp [Host.StanceCertificate.check, single_refused single stance direction item]⟩⟩
+      simp [Host.StanceCertificate.check, single_refused single stance direction item]⟩),
+    trivial,
+    by
+      unfold Refuses
+      simp [Host.StanceCertificate.check, single_refused (config := quiet) (by decide)]⟩⟩
 
 /-- The walkable test accepts only a tile that is enterable in every world of the
 configuration, with or without a boat (`CurrentCertificates.walkable_enterable`).
@@ -349,9 +405,15 @@ tile. The statement is therefore a requirement with no kind.
 
 **Not claimed:** completeness. The test refuses water, which a body with a boat enters. -/
 theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test =>
-    ∀ (config : Host.WorldConfig) (tile : Host.Position), test config tile = true →
-      ∀ world : Host.World config, world.enterable tile = .ok true) :=
-  ⟨fun _ tile accepted world => CurrentCertificates.walkable_enterable world tile accepted⟩
+    (∀ (config : Host.WorldConfig) (tile : Host.Position), test config tile = true →
+      ∀ world : Host.World config, world.enterable tile = .ok true) ∧
+      NoAccepted
+        "terrain: the input needs the terrain of a generated tile" ∧
+      NoRefused
+        "terrain: the input needs the terrain of a generated tile") :=
+  ⟨⟨(fun _ tile accepted world => CurrentCertificates.walkable_enterable world tile accepted),
+    trivial,
+    trivial⟩⟩
 
 /-! ## Checkpoint admissions
 
@@ -364,17 +426,23 @@ and returns that list (`CurrentCheckpoint.demons_roundtrip`).
 
 **Not claimed:** that every accepted column triple is the image of a durable list. -/
 theorem demons_admit : Regula.ExecutableContract admitDemons (fun admit =>
-    ∀ (discounts : List Discount) (records : DurableDemons discounts),
+    (∀ (discounts : List Discount) (records : DurableDemons discounts),
       admit discounts (demonColumns records).sums.toList (demonColumns records).returns.toList
-        (demonColumns records).errors.toList = some records) :=
-  ⟨fun _ => CurrentCheckpoint.demons_roundtrip⟩
+        (demonColumns records).errors.toList = some records) ∧
+      Accepts (·.isSome = true)
+        (admit [] [] [] []) ∧
+      Refuses (·.isSome = true)
+        (admit [.g99] [] [] [])) :=
+  ⟨⟨(fun _ => CurrentCheckpoint.demons_roundtrip),
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- Feature-image admission accepts the feature words of every agent image of the receiving
 construction and returns its features (`CurrentCheckpoint.feature_roundtrip`).
 
 **Not claimed:** that every accepted image is the word image of a feature state. -/
 theorem feature_image_admit : Regula.ExecutableContract @FeatureImage.admit (fun admit =>
-    ∀ (construction : AgentConstruction)
+    (∀ (construction : AgentConstruction)
       (image : AgentImage Grid.interface construction.config construction.criterion
         construction.dimension),
       admit construction.config construction.criterion construction.dimension
@@ -383,33 +451,53 @@ theorem feature_image_admit : Regula.ExecutableContract @FeatureImage.admit (fun
           construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
           image.features.progress.clock, (testerWords image.features.progress).progress,
           image.features.assignments.map (Assignment.words construction.dimension),
-          image.features.primary⟩ = some image.features) :=
-  ⟨CurrentCheckpoint.feature_roundtrip⟩
+          image.features.primary⟩ = some image.features) ∧
+      Accepts (·.isSome = true)
+        (admit tiny.config tiny.criterion tiny.dimension (rawSaved tiny.config.seed)) ∧
+      Refuses (·.isSome = true)
+        (admit tiny.config tiny.criterion tiny.dimension (rawSaved (tiny.config.seed + 1)))) :=
+  ⟨⟨(CurrentCheckpoint.feature_roundtrip),
+    by
+      unfold Accepts
+      exact (congrArg Option.isSome (CurrentCheckpoint.feature_roundtrip tiny saved)).trans rfl,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- Payload admission accepts the payload of every agent image of a resumable construction
 and returns that image (`CurrentCheckpoint.image_roundtrip`).
 
 **Not claimed:** that every accepted payload is the payload of an image. -/
 theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
-    ∀ (construction : AgentConstruction)
+    (∀ (construction : AgentConstruction)
       (image : AgentImage Grid.interface construction.config construction.criterion
         construction.dimension),
       construction.profile.checkpointSupported = true →
-        admit construction (imagePayload construction image) = .ok image) :=
-  ⟨CurrentCheckpoint.image_roundtrip⟩
+        admit construction (imagePayload construction image) = .ok image) ∧
+      Accepts (·.isOk = true)
+        (admit tiny (Checkpoint.snapshot tiny tiny.initial)) ∧
+      Refuses (·.isOk = true)
+        (admit frozen (Checkpoint.snapshot frozen frozen.initial))) :=
+  ⟨⟨(CurrentCheckpoint.image_roundtrip),
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- Candidate loading accepts the encoded payload of every agent image of a resumable
 construction and returns that image (`CurrentCheckpoint.candidate_roundtrip`).
 
 **Not claimed:** that every accepted byte list is such an encoding. -/
 theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
-    ∀ (construction : AgentConstruction)
+    (∀ (construction : AgentConstruction)
       (image : AgentImage Grid.interface construction.config construction.criterion
         construction.dimension),
       construction.profile.checkpointSupported = true →
         load construction (encode construction.dimension (imagePayload construction image)) =
-          .ok image) :=
-  ⟨CurrentCheckpoint.candidate_roundtrip⟩
+          .ok image) ∧
+      Accepts (·.isOk = true)
+        (load tiny (encode tiny.dimension (imagePayload tiny saved))) ∧
+      Refuses (·.isOk = true)
+        (load tiny [])) :=
+  ⟨⟨(CurrentCheckpoint.candidate_roundtrip),
+    by unfold Accepts; rw [CurrentCheckpoint.candidate_roundtrip tiny saved (by decide)]; rfl,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-! ## World and goal tests -/
 
@@ -468,7 +556,7 @@ ownership of the tool (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_if
 observations that `Goal.observe` produces; `task_satisfied` states the kind. -/
 theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
     (fun satisfied =>
-      (∀ (target position : Host.Position) (inventory : Host.Inventory) (elapsed : UInt64),
+    ((∀ (target position : Host.Position) (inventory : Host.Inventory) (elapsed : UInt64),
         satisfied ((Host.Goal.reach target).observe position inventory elapsed) = true ↔
           CurrentGoals.InGoalBox target position) ∧
       (∀ (item : Host.Item) (count : UInt32) (position : Host.Position)
@@ -482,9 +570,12 @@ theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
       ∀ (tool : Host.Craftable) (position : Host.Position) (inventory : Host.Inventory)
         (elapsed : UInt64),
         satisfied ((Host.Goal.craft tool).observe position inventory elapsed) =
-          inventory.owns tool) :=
-  ⟨⟨CurrentGoals.reach_satisfied_iff, CurrentGoals.collect_satisfied_iff,
-    CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied⟩⟩
+          inventory.owns tool) ∧
+      Accepts (· = true)
+        (satisfied ((Host.Goal.survive 0).observe origin ⟨0, 0, 0, 0, false, false⟩ 0))) :=
+  ⟨⟨(⟨CurrentGoals.reach_satisfied_iff, CurrentGoals.collect_satisfied_iff,
+    CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied⟩),
+    by unfold Accepts; decide +kernel⟩⟩
 
 /-- The exponential classifier sends a word to reduction, with no saturated result, exactly
 when the word is finite and strictly between the underflow and the overflow thresholds
@@ -535,11 +626,17 @@ with the body's boat, and it refuses exactly when the terrain refuses
 (`CurrentStep.enterable_static`). The world's type depends on the configuration, so the
 statement is a requirement with no kind. -/
 theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
+    (∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
       @enterable config world position =
         (Host.terrain position config.raw.seed config.raw.baseScale).map
-          (fun base => CurrentStep.passable base world.body.inventory.boat)) :=
-  ⟨fun _ => CurrentStep.enterable_static⟩
+          (fun base => CurrentStep.passable base world.body.inventory.boat)) ∧
+      NoAccepted
+        "terrain: the input needs the terrain of a generated tile" ∧
+      NoRefused
+        "terrain: the input needs the terrain of a generated tile") :=
+  ⟨⟨(fun _ => CurrentStep.enterable_static),
+    trivial,
+    trivial⟩⟩
 
 /-- The world's completion flag, for each family of installed goal, is exactly: the body in
 the goal box, the inventory holding the count, the time since installation reaching the
@@ -547,7 +644,7 @@ duration; for a craft goal it is the ownership of the tool (`CurrentGoals.goalSa
 with the four family theorems). The statement names no function that the flag applies. The
 world's type depends on the configuration, so it is a requirement with no kind. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config),
+    (∀ (config : Host.WorldConfig) (world : Host.World config),
       (∀ target, world.goal = some (.reach target) →
         (@satisfied config world = true ↔
           CurrentGoals.InGoalBox target world.body.position.position)) ∧
@@ -558,8 +655,12 @@ theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fu
         (@satisfied config world = true ↔
           required.toNat ≤ ((world.time.toNat - world.goalStart.toNat).toUInt64).toNat)) ∧
       ∀ tool, world.goal = some (.craft tool) →
-        @satisfied config world = world.body.inventory.owns tool) :=
-  ⟨fun _ world =>
+        @satisfied config world = world.body.inventory.owns tool) ∧
+      Accepts (· = true)
+        (@satisfied quiet ((Host.World.empty quiet).setGoal (.survive 0))) ∧
+      Refuses (· = true)
+        (@satisfied quiet ((Host.World.empty quiet).setGoal (.survive 1)))) :=
+  ⟨⟨(fun _ world =>
     ⟨fun target installed => by
         rw [CurrentGoals.goalSatisfied_eq world _ installed]
         exact CurrentGoals.reach_satisfied_iff _ _ _ _,
@@ -571,22 +672,27 @@ theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fu
         exact CurrentGoals.survive_satisfied_iff _ _ _ _,
       fun tool installed => by
         rw [CurrentGoals.goalSatisfied_eq world _ installed]
-        exact CurrentGoals.craft_satisfied _ _ _ _⟩⟩
+        exact CurrentGoals.craft_satisfied _ _ _ _⟩),
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- An action replay returns a world exactly when a run of the executed world step over those
 actions ends in that world (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). In the
 empty world of one tile the replay of one wait returns a world. The world step is the subject
 of the claim. The world's type depends on the configuration, so the statement has no kind. -/
 theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (fun advance =>
-    (∀ (config : Host.WorldConfig) (world final : Host.World config)
+    ((∀ (config : Host.WorldConfig) (world final : Host.World config)
       (actions : List Host.Action),
       @advance config world actions = .ok final ↔
         ∃ trace, CurrentStep.Trace world trace final ∧ trace.map (·.1) = actions) ∧
-      Accepts (·.isOk = true) (@advance quiet (Host.World.empty quiet) [.wait])) :=
-  ⟨⟨fun _ world final actions =>
+      Accepts (·.isOk = true) (@advance quiet (Host.World.empty quiet) [.wait])) ∧
+      NoRefused
+        "terrain: a refusal is a refusal of the terrain generator") :=
+  ⟨⟨(⟨fun _ world final actions =>
       ⟨CurrentStep.actions_trace world final actions,
         fun ⟨_, run, same⟩ => same ▸ CurrentStep.trace_actions run⟩,
-    by unfold Accepts; decide +kernel⟩⟩
+    by unfold Accepts; decide +kernel⟩),
+    trivial⟩⟩
 
 /-- What the readers of the terrain do with its result: enterability is the terrain result
 mapped through static passability with the body's boat, so a terrain refusal is the only
@@ -600,7 +706,7 @@ generator.
 **Not claimed:** the terrain of any tile, an accepted input or a refused input. The terrain
 is the result of binary32 noise arithmetic, and no theorem states the terrain of a tile. -/
 theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
-    ∀ (config : Host.WorldConfig),
+    (∀ (config : Host.WorldConfig),
       (∀ (world : Host.World config) (position : Host.Position),
         world.enterable position =
           (terrain position config.raw.seed config.raw.baseScale).map
@@ -611,8 +717,14 @@ theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
             terrain next.body.position.position config.raw.seed config.raw.baseScale ≠
                 .ok .mountain ∧
               (terrain next.body.position.position config.raw.seed config.raw.baseScale =
-                  .ok .water → world.body.inventory.boat = true)) :=
-  ⟨fun _ => ⟨CurrentStep.enterable_static, CurrentStep.step_terrain⟩⟩
+                  .ok .water → world.body.inventory.boat = true)) ∧
+      NoAccepted
+        "terrain: the input needs the terrain of a generated tile" ∧
+      NoRefused
+        "terrain: the input needs the terrain of a generated tile") :=
+  ⟨⟨(fun _ => ⟨CurrentStep.enterable_static, CurrentStep.step_terrain⟩),
+    trivial,
+    trivial⟩⟩
 
 /-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
 with the same refusal. The terrain generator is the subject of the claim. The world's type
@@ -621,18 +733,24 @@ depends on the configuration, so the statement has no kind.
 **Not claimed:** the kind of an accepted tile, an accepted input or a refused input.
 `CurrentStep.enterable_static` states what an entry reads from it. -/
 theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position)
+    (∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position)
       (refusal : Host.WorldError),
       @tileKind config world position = .error refusal ↔
-        Host.terrain position config.raw.seed config.raw.baseScale = .error refusal) :=
-  ⟨fun config world position refusal => by
+        Host.terrain position config.raw.seed config.raw.baseScale = .error refusal) ∧
+      NoAccepted
+        "terrain: the input needs the terrain of a generated tile" ∧
+      NoRefused
+        "terrain: the input needs the terrain of a generated tile") :=
+  ⟨⟨(fun config world position refusal => by
     unfold Host.World.tileKind
     cases Host.terrain position config.raw.seed config.raw.baseScale with
     | error other => simp [bind, Except.bind]
     | ok base =>
       simp only [bind, Except.bind, pure, Except.pure, reduceCtorEq, iff_false]
       repeat' split
-      all_goals simp⟩
+      all_goals simp),
+    trivial,
+    trivial⟩⟩
 
 /-- A paid action that succeeds either found the energy short, rested and set the exhausted
 flag, or spent the cost of the action with the exhausted flag clear
@@ -642,19 +760,22 @@ statement has no kind.
 **Not claimed:** the effect of the action on the body. `CurrentStep.payAndAct_outcome` states
 it through the relation `CurrentStep.Performed`. -/
 theorem pay_and_act : Regula.ExecutableContract @Host.payAndAct (fun pay =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
+    (∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
       (active : Host.ActionChange config), @pay config world action = .ok active →
         ∃ night,
           (world.body.energy.spend (action.energyCost night) = none ∧
             active.body = { world.body with energy := world.body.energy.gain .rest } ∧
             active.events.exhausted = true) ∨
           (∃ energy, world.body.energy.spend (action.energyCost night) = some energy ∧
-            active.events.exhausted = false)) :=
-  ⟨fun _ world action active paid => by
-    obtain ⟨night, short | ⟨energy, spent, -, awake⟩⟩ :=
-      CurrentStep.payAndAct_outcome world action active paid
-    · exact ⟨night, .inl short⟩
-    · exact ⟨night, .inr ⟨energy, spent, awake⟩⟩⟩
+            active.events.exhausted = false)) ∧
+      Accepts (·.isOk = true) (@pay quiet (Host.World.empty quiet) .wait) ∧
+      NoRefused "terrain: a refusal is a refusal of the terrain generator") :=
+  ⟨⟨fun _ world action active paid => by
+      obtain ⟨night, short | ⟨energy, spent, -, awake⟩⟩ :=
+        CurrentStep.payAndAct_outcome world action active paid
+      · exact ⟨night, .inl short⟩
+      · exact ⟨night, .inr ⟨energy, spent, awake⟩⟩,
+    by unfold Accepts; decide +kernel, trivial⟩⟩
 
 /-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
 body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
@@ -662,17 +783,20 @@ tile and the move are stated by coordinate equations and constructors. Enterabil
 executed test of the world, which is the subject of that hypothesis. The world's type depends
 on the configuration, so the statement has no kind. -/
 theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perform =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
+    (∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
       (direction : Host.Direction) (position : Host.BoxPosition config)
       (active : Host.ActionChange config), Heads action direction →
       position.position.x.val = world.body.position.position.x.val + direction.delta.1 →
       position.position.y.val = world.body.position.position.y.val + direction.delta.2 →
       world.enterable position.position = .ok true →
       @perform config world action = .ok active →
-        active.body.position = position ∧ active.body.facing = direction) :=
-  ⟨fun _ world action direction position active heads column row enter performed =>
-    CurrentCertificates.perform_move world action direction position (heads_direction heads)
-      (CurrentCertificates.translate_of_eq _ _ _ _ column row) enter active performed⟩
+        active.body.position = position ∧ active.body.facing = direction) ∧
+      Accepts (·.isOk = true) (@perform quiet (Host.World.empty quiet) .wait) ∧
+      NoRefused "terrain: a refusal is a refusal of the terrain generator") :=
+  ⟨⟨fun _ world action direction position active heads column row enter performed =>
+      CurrentCertificates.perform_move world action direction position (heads_direction heads)
+        (CurrentCertificates.translate_of_eq _ _ _ _ column row) enter active performed,
+    by unfold Accepts; decide +kernel, trivial⟩⟩
 
 /-! ## Learner admissions -/
 
@@ -680,7 +804,7 @@ theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perf
 (`CurrentTemporal.declared_refusal`), and a learned interest accepts every source
 (`CurrentTemporal.learned_potential`). -/
 theorem interest_potential : Regula.ExecutableContract @Interest.potential (fun potential =>
-    ∀ {config : Features.Config} {dimension : Dimension},
+    (∀ {config : Features.Config} {dimension : Dimension},
       (∀ (origin : Departure) (tag : Fin Acorn.FeatureConstants.skillCount)
         (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials),
         origin ≠ declared.origin →
@@ -688,14 +812,22 @@ theorem interest_potential : Regula.ExecutableContract @Interest.potential (fun 
             none) ∧
       ∀ (assignment : Assignment config) (features : SwiftTd.ActiveSet dimension)
         (declared : DeclaredPotentials),
-        (potential (Interest.learned assignment) features declared).isSome = true) :=
-  ⟨⟨CurrentTemporal.declared_refusal, fun _ _ _ => rfl⟩⟩
+        (potential (Interest.learned assignment) features declared).isSome = true) ∧
+      Accepts (·.isSome = true)
+        (@potential tiny.config small (.learned .neutral) (SwiftTd.ActiveSet.empty small)
+          ⟨.featureChannels, Vector.replicate _ false⟩) ∧
+      Refuses (·.isSome = true)
+        (@potential tiny.config small (.declared .spatialPotentials ⟨0, by decide⟩)
+          (SwiftTd.ActiveSet.empty small) ⟨.featureChannels, Vector.replicate _ false⟩)) :=
+  ⟨⟨(⟨CurrentTemporal.declared_refusal, fun _ _ _ => rfl⟩),
+    by unfold Accepts; decide +kernel,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- Profile admission accepts the feature words of every agent image of a resumable
 construction and returns its features (`CurrentCheckpoint.feature_roundtrip`). The refusal
 under every other profile is `profile_admit` in `Acorn.Decisions`. -/
 theorem profile_admit_accepts : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
-    ∀ (construction : AgentConstruction)
+    (∀ (construction : AgentConstruction)
       (image : AgentImage Grid.interface construction.config construction.criterion
         construction.dimension),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
@@ -707,27 +839,46 @@ theorem profile_admit_accepts : Regula.ExecutableContract @FeatureProfile.admit 
           construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
           image.features.progress.clock, (testerWords image.features.progress).progress,
           image.features.assignments.map (Assignment.words construction.dimension),
-          image.features.primary⟩ = some image.features) :=
-  ⟨fun construction image resumable => by
+          image.features.primary⟩ = some image.features) ∧
+      Accepts (·.isSome = true)
+        (admit tiny.profile tiny.config tiny.criterion tiny.dimension
+          (rawSaved tiny.config.seed)) ∧
+      Refuses (·.isSome = true)
+        (admit frozen.profile tiny.config tiny.criterion tiny.dimension
+          (rawSaved tiny.config.seed))) :=
+  ⟨⟨(fun construction image resumable => by
     have supported := (FeatureProfile.checkpoint_iff construction.profile).mpr resumable
     simp only [FeatureProfile.admit, supported, ↓reduceIte]
-    exact CurrentCheckpoint.feature_roundtrip construction image⟩
+    exact CurrentCheckpoint.feature_roundtrip construction image),
+    by
+      unfold Accepts FeatureProfile.admit
+      rw [ite_eq_left (by decide : tiny.profile.checkpointSupported = true)]
+      exact (congrArg Option.isSome (CurrentCheckpoint.feature_roundtrip tiny saved)).trans rfl,
+    by unfold Refuses; decide +kernel⟩⟩
 
 /-- Loading accepts the bytes that a resumable construction saved from any state, for every
 receiver of that construction (`CurrentCheckpoint.save_load`). The refusal under every other
 profile is `checkpoint_load` in `Acorn.Decisions`. -/
 theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun load =>
-    ∀ (construction : AgentConstruction) (source receiver : construction.State),
+    (∀ (construction : AgentConstruction) (source receiver : construction.State),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
         construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned →
       (load construction receiver
-        (encode construction.dimension (snapshot construction source))).isOk = true) :=
-  ⟨fun construction source receiver resumable => by
+        (encode construction.dimension (snapshot construction source))).isOk = true) ∧
+      Accepts (·.isOk = true)
+        (load tiny tiny.initial (encode tiny.dimension (snapshot tiny tiny.initial)))) :=
+  ⟨⟨(fun construction source receiver resumable => by
     have supported := (FeatureProfile.checkpoint_iff construction.profile).mpr resumable
     obtain ⟨restored, -, loaded⟩ :=
       CurrentCheckpoint.save_load construction source receiver supported
     rw [loaded]
-    rfl⟩
+    rfl),
+    by
+      unfold Accepts
+      obtain ⟨restored, -, loaded⟩ :=
+        CurrentCheckpoint.save_load tiny tiny.initial tiny.initial (by decide)
+      rw [loaded]
+      rfl⟩⟩
 
 /-- Squared-discrepancy admission accepts every pair of finite words whose exact
 discrepancy is within the magnitude of a finite envelope word
@@ -763,5 +914,31 @@ theorem precision_admit : Regula.ExecutableContract Agreement.precision (fun pre
        exact AgreementTelemetryPrecision.precision_available input.1.1 sample input.1.2
          returned power room tracked ideal
      refused := ⟨((.g99, 0), ⟨0x7fc00000⟩), by decide⟩ }⟩
+
+/-! ## Witnesses of the one-way kinds
+
+A sound kind carries an accepted input and a complete kind a refused one. Each statement below
+is the closed input of the other side. -/
+
+/-- Lifetime admission accepts the lifetime image of the initial state of a small agent. -/
+theorem lifetime_admit_accepted : Regula.ExecutableContract admitLifetime (fun admit =>
+    Accepts (·.isSome = true) (admit (Checkpoint.snapshot tiny tiny.initial).lifetime)) :=
+  ⟨by unfold Accepts; decide +kernel⟩
+
+/-- Precision derivation accepts a zero power at no settlement steps. -/
+theorem precision_admit_accepted : Regula.ExecutableContract Agreement.precision (fun admit =>
+    Accepts (·.isSome = true) (admit .g99 0 .zero)) :=
+  ⟨by unfold Accepts; decide +kernel⟩
+
+/-- The blocked checker refuses a region that holds the start tile. -/
+theorem region_blocked_refused : Regula.ExecutableContract Host.regionBlocked (fun check =>
+    Refuses (· = true)
+      (check quiet true ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩ [origin] origin)) :=
+  ⟨by unfold Refuses; decide +kernel⟩
+
+/-- Rank selection returns no index for an empty histogram. -/
+theorem rank_index_refused : Regula.ExecutableContract Host.Endurance.rankIndex (fun rank =>
+    Refuses (·.isSome = true) (rank 0 0 0 [])) :=
+  ⟨by unfold Refuses; decide +kernel⟩
 
 end AcornVerif.Decisions
