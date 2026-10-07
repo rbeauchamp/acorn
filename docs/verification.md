@@ -275,48 +275,57 @@ a wall clock with a declared cycle and a latency in cycles.
 it waits. For a wall-clock declaration, `Acorn.Pace.meets_index` states the verdict
 on the instant an action is released at: the deadline is met exactly when the release
 falls in a cycle before the one the deadline starts. `Acorn.Pace.outcome` gives, for
-what a host holds and an instant, the action in force and whether a fault holds.
-`Acorn.Pace.step_fault` states that in one step a fault holds exactly from the
-deadline to the release, and `Acorn.Pace.step_holds` that the preceding action is
-in force at every instant of the fault:
+what a host holds, a world's default and an instant, the action in force and whether a
+fault holds. `Acorn.Pace.step_fault` states that in one step a fault holds exactly
+from the deadline to the release:
 
 ```lean
-theorem Acorn.Pace.step_fault {α : Type} (pace : Acorn.Pace) (origin : Acorn.Instant) (prior : Option α)
-  (index : ℕ) (released : Acorn.Instant) (chosen : α) (now : Acorn.Instant) :
-  (pace.outcome origin (Acorn.Standing.during prior index released chosen now) now).fault = true ↔
+theorem Acorn.Pace.step_fault {α : Type} (pace : Acorn.Pace) (origin : Acorn.Instant) (rest : Option α)
+  (prior : Acorn.Force α) (index : ℕ) (released : Acorn.Instant) (chosen : Acorn.Force α)
+  (now : Acorn.Instant) :
+  (pace.outcome origin rest (Acorn.Standing.during prior index released chosen now) now).fault =
+      true ↔
     (pace.deadline origin index).nanoseconds ≤ now.nanoseconds ∧
       now.nanoseconds ≤ released.nanoseconds
 ```
 
-`Acorn.Pace.step_faultless` states that no instant has a fault exactly when the
-release meets the deadline. An instant is a natural number of nanoseconds, so this
-arithmetic is exact. The statements are about these functions: no executing loop keeps a
-standing or reads a cycle or a latency, and no executing world declares a wall clock.
+`Acorn.Pace.step_holds` states that the preceding action is in force at every
+instant of the fault at which it has not lapsed, which is every instant in a world whose
+actions do not lapse, and `Acorn.Pace.step_lapsed` that from its lapse the fault has
+the world's default. `Acorn.Pace.step_faultless` states that no instant has a fault
+exactly when the release meets the deadline. An instant is a natural number of
+nanoseconds, so this arithmetic is exact. The statements are about these functions: no
+executing loop keeps a standing or reads a cycle or a latency, and no executing world
+declares a wall clock.
 
 The Microduck world has an action table and a bridge's state, as pure definitions that no
 executing loop calls. The type of the commands a bridge can send is closed: enable, one of
 four velocities, one of five skills. `Acorn.Host.Microduck.Action.commands_powered`
 states that the release of an action never sends the enable command.
-`Acorn.Host.Microduck.Action.span_covers` states that the percept after an action
-is sensed after the action's declared duration. `Acorn.Host.Microduck.Bridge.tick_fresh`
-and `Acorn.Host.Microduck.Bridge.Fresh.age` bound the age of the last send of a
-velocity inside its hold, and `Acorn.Host.Microduck.Bridge.ticks_sent` states that
-over any list of readings of the clock every command is the action's velocity, sent before
-the end of the hold:
+`Acorn.Host.Microduck.Action.next_covers` states, for every release, timely or
+late, that the cycle the next percept is computed to have starts no earlier than the
+release plus the action's declared duration and a transit allowance:
 
 ```lean
-theorem Acorn.Host.Microduck.Bridge.ticks_sent (keep : Acorn.Host.Microduck.Keep)
-  (bridge : Acorn.Host.Microduck.Bridge) (readings : List Acorn.Instant)
-  (entry : Acorn.Instant × Acorn.Host.Microduck.Command)
-  (member : entry ∈ (Acorn.Host.Microduck.Bridge.ticks keep bridge readings).2) :
-  entry.2 = Acorn.Host.Microduck.Command.move bridge.action.velocity ∧
-    bridge.action.velocity ≠ Acorn.Host.Microduck.Velocity.zero ∧
-      entry.1.nanoseconds < bridge.ends.nanoseconds
+theorem Acorn.Host.Microduck.Action.next_covers (action : Acorn.Host.Microduck.Action) (pace : Acorn.Pace)
+  (transit : ℕ) (origin : Acorn.Instant) (index : ℕ) (released : Acorn.Instant) :
+  released.nanoseconds + action.duration + transit ≤
+    (pace.boundary origin (action.next pace transit origin index released)).nanoseconds
 ```
 
-Four things are assumptions of those statements' use and not theorems: the daemon's expiry
-of a velocity, the time from a send to the daemon's receipt, the gap between two readings
-of the host's clock, and that the posture a caller states is the body's.
+That a host senses the next percept at that cycle and no earlier is an obligation of a
+host loop, which is not built. `Acorn.Host.Microduck.Bridge.ticks_named` states that
+over any list of readings of the clock every command sent is the velocity of the action
+that the bridge's force names at that reading, and
+`Acorn.Host.Microduck.Bridge.tick_lapsed` that from the end of the hold the force
+names the world's default and nothing is sent. `Acorn.Host.Microduck.Bridge.fault_named`
+states the action in force during a fault: the preceding action up to the end of its
+hold, and the default from it. `Acorn.Host.Microduck.Bridge.tick_fresh` and
+`Acorn.Host.Microduck.Bridge.Fresh.age` bound the age of the last send of a
+velocity inside its hold. Five things are assumptions of those statements' use and not
+theorems: the daemon's expiry of a velocity, the time from a send to the daemon's receipt,
+the gap between two readings of the host's clock, that the posture a caller states is the
+body's, and that a declared duration covers what the body takes.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
@@ -440,9 +449,11 @@ A decision procedure whose result type is `Decidable` carries both directions in
 its type and is registered with no contract. An admission with an argument or
 result type that depends on an earlier argument has no kind. Neither has a
 function between fixed types for which no theorem states a set of the inputs
-that it accepts. Where a theorem
-proves which inputs it accepts or refuses, or a property of an accepted or a
-refused result, that statement is registered as a requirement with no kind, and
+that it accepts, nor a verdict with more than two results, such as the outcome of a
+released Microduck action. Where a theorem
+proves which inputs it accepts or refuses, a property of an accepted or a
+refused result, or which result a verdict gives, that statement is registered as a
+requirement with no kind, and
 the ownership audit requires the contract by name. A decision that takes its
 element type as an argument has no kind either and is registered in the same
 way. A requirement with no kind is a statement that the Regula audit does not

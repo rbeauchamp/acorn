@@ -42,11 +42,14 @@ the toggle is sent exactly when the action asks for the other posture
 (`Action.commands_toggle`). That the stated posture is the body's is the caller's
 obligation; a wrong one sends the toggle the wrong way.
 
-An action lasts `Action.span` cycles: the latency, and the fewest cycles that cover its
-declared duration. A release that meets its deadline can be as late as the deadline, so
-the percept `span` cycles after the action's own is sensed after the declared duration
-has passed since the release (`Action.span_covers`). A host owes that it senses the next
-percept no earlier.
+The cycle of the percept after an action is computed from the instant of the action's
+release, whether the release was timely or late: `Action.next` is the first cycle that
+starts no earlier than the release plus the action's declared duration and a transit
+allowance, and it is after the action's own cycle. So the start of that cycle is never
+inside the declared duration of the action (`Action.next_covers`, which has no
+hypothesis on the release), and no earlier cycle after the action's own has that
+property (`Action.next_least`). A host owes that it senses the next percept at that
+cycle and no earlier; this module states the cycle and not what a host does.
 -/
 namespace Acorn.Host.Microduck
 
@@ -202,36 +205,47 @@ def Action.duration : Action → Nat
   | .roll => 1400000000
   | .pick => 3000000000
 
-/-- Cycles an action lasts at a pace: the latency, and the fewest cycles that cover its
-declared duration. It is positive (`Action.span_pos`), and the percept that many cycles
-later is sensed after the duration (`Action.span_covers`). -/
-def Action.span (pace : Pace) (action : Action) : Nat :=
-  pace.latency + (action.duration + pace.cycle - 1) / pace.cycle
+/-- The cycle of the percept after an action, from the instant the action is released
+at: the first cycle that starts no earlier than the release plus the action's declared
+duration and the transit allowance, and after the cycle of the action's own percept. -/
+def Action.next (action : Action) (pace : Pace) (transit : Nat) (origin : Instant)
+    (index : Nat) (released : Instant) : Nat :=
+  max (index + 1)
+    (pace.first origin ⟨released.nanoseconds + action.duration + transit⟩)
 
-/-- Every action lasts at least one cycle. -/
-theorem Action.span_pos (pace : Pace) (action : Action) : 0 < action.span pace :=
-  Nat.lt_of_lt_of_le pace.causal (Nat.le_add_right _ _)
+/-- The percept after an action is of a later cycle than the action's own. -/
+theorem Action.next_after (action : Action) (pace : Pace) (transit : Nat) (origin : Instant)
+    (index : Nat) (released : Instant) :
+    index < action.next pace transit origin index released :=
+  Nat.lt_of_lt_of_le (Nat.lt_succ_self index) (Nat.le_max_left _ _)
 
-/-- **The next percept is sensed after the declared duration.** For every pace, origin,
-cycle, action and release that meets the deadline of the action's percept: the cycle
-`span` cycles after the percept's starts no earlier than the release plus the action's
-declared duration. -/
-theorem Action.span_covers (pace : Pace) (origin : Instant) (index : Nat) (action : Action)
-    (released : Instant) (met : pace.meets origin index released = true) :
-    released.nanoseconds + action.duration ≤
-      (pace.boundary origin (index + action.span pace)).nanoseconds := by
-  have verdict := (pace.meets_iff origin index released).mp met
-  have running := pace.running
-  have covered :
-      action.duration ≤ ((action.duration + pace.cycle - 1) / pace.cycle) * pace.cycle := by
-    have lower := Nat.lt_div_mul_add (a := action.duration + pace.cycle - 1) running
-    omega
-  have split : (index + (pace.latency + (action.duration + pace.cycle - 1) / pace.cycle)) *
-      pace.cycle = (index + pace.latency) * pace.cycle +
-        ((action.duration + pace.cycle - 1) / pace.cycle) * pace.cycle := by
-    rw [← Nat.add_assoc, Nat.add_mul]
-  rw [pace.boundary_nanoseconds origin (index + action.span pace)]
-  unfold Action.span
+/-- **The next percept's cycle starts after the declared duration, for every release.**
+For every action, pace, transit allowance, origin, cycle and instant of release, timely
+or late: the cycle of the next percept starts no earlier than the release plus the
+action's declared duration and the transit allowance. -/
+theorem Action.next_covers (action : Action) (pace : Pace) (transit : Nat) (origin : Instant)
+    (index : Nat) (released : Instant) :
+    released.nanoseconds + action.duration + transit ≤
+      (pace.boundary origin (action.next pace transit origin index released)).nanoseconds := by
+  have starts : released.nanoseconds + action.duration + transit ≤
+      origin.nanoseconds +
+        pace.first origin ⟨released.nanoseconds + action.duration + transit⟩ * pace.cycle :=
+    pace.first_starts origin ⟨released.nanoseconds + action.duration + transit⟩
+  have later : pace.first origin ⟨released.nanoseconds + action.duration + transit⟩ ≤
+      action.next pace transit origin index released := Nat.le_max_right _ _
+  have grows := Nat.mul_le_mul_right pace.cycle later
+  rw [pace.boundary_nanoseconds]
   omega
+
+/-- **No earlier cycle would do.** For every later cycle than the action's own that starts
+no earlier than the release plus the declared duration and the transit allowance, the
+cycle of the next percept is not later. -/
+theorem Action.next_least (action : Action) (pace : Pace) (transit : Nat) (origin : Instant)
+    (index : Nat) (released : Instant) (later : Nat) (after : index < later)
+    (covers : released.nanoseconds + action.duration + transit ≤
+      (pace.boundary origin later).nanoseconds) :
+    action.next pace transit origin index released ≤ later :=
+  Nat.max_le.mpr ⟨after, pace.first_least origin
+    ⟨released.nanoseconds + action.duration + transit⟩ later covers⟩
 
 end Acorn.Host.Microduck

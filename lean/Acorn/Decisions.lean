@@ -11,6 +11,7 @@ import Acorn.Host.Campaign
 import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
+import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.GoalProtocol
@@ -36,7 +37,7 @@ a property of its accepted or refused results, or when the inputs it accepts fol
 unfolding its definition in this module. The property is the set of accepted or refused inputs
 where a theorem states one, and otherwise what an accepted or a refused result is; each
 contract's docstring says which. A contract states only what its theorem proves: a decision
-with one proved direction carries that direction alone. Six groups are registered.
+with one proved direction carries that direction alone. Seven groups are registered.
 
 * Decisions of independent arguments carry a kind and the registration. A function of several
   arguments is decided on their product through `Function.uncurry`.
@@ -55,6 +56,11 @@ with one proved direction carries that direction alone. Six groups are registere
   `AcornVerif.Decisions`, is about what the readers of its result do with it. The proved
   statement is registered as a requirement with no kind, and the ownership audit requires it
   in the same way.
+* A verdict with more than two results has no kind: a kind is stated about an acceptance.
+  `Host.Microduck.Action.outcome` gives one of four outcomes. Its statement, that the function
+  gives an outcome exactly when the specification `Host.Microduck.Action.Judged` holds of it,
+  is registered as a requirement with no kind, and the ownership audit requires it in the same
+  way.
 * A function with a kind can carry a second statement beside it for what its kind does not
   state: the value of an accepted result (`cli_value_found`), or the exact verdict on a part
   of the inputs (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`). That
@@ -1003,6 +1009,24 @@ theorem pace_meets : Regula.ExecutableContract Pace.meets (fun meets =>
     ⟨(((⟨1, 1, by decide, by decide⟩, ⟨0⟩), 0), ⟨1⟩), by decide⟩⟩
 
 attribute [regula_decision] Pace.meets
+
+/-- What became of a released Microduck action: for every action, stated posture, answer of
+the daemon, evidence and outcome, the function gives the outcome exactly when the
+specification `Host.Microduck.Action.Judged` holds of it
+(`Host.Microduck.Action.outcome_judged`). The specification is a disjunction of propositions
+about the two facts and about the commands the release sent; where the function compares the
+action's intent with the stated posture, the specification says that the release of a posture
+action sent no toggle, through `Host.Microduck.Action.commands`. The result is one of four
+outcomes and not an acceptance, so this is a requirement with no kind. It states nothing about
+how sensing shows an action, which no definition gives yet, or about what a caller does with
+the outcome. -/
+theorem microduck_outcome :
+    Regula.ExecutableContract Host.Microduck.Action.outcome (fun outcome =>
+      ∀ (action : Host.Microduck.Action) (sitting : Bool) (reply : Host.Microduck.Reply)
+        (shown : Bool) (result : Host.Microduck.Outcome),
+        outcome action sitting reply shown = result ↔
+          action.Judged sitting reply shown result) :=
+  ⟨Host.Microduck.Action.outcome_judged⟩
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification
