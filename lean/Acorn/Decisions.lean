@@ -1734,8 +1734,8 @@ theorem microduck_shows :
 attribute [regula_decision] Host.Microduck.Action.shows
 
 /-- The sensing of a percept gives one exactly for an instant and a host with no percept
-awaiting of which two things hold: a state frame is held with its pair, and the cycle of the
-instant is not before the first cycle that the last release allows
+awaiting of which two things hold: a state frame is held, and the cycle of the instant is
+not before the first cycle that the last release allows
 (`Host.Microduck.Idle.sense_admitted`), for every instant and host. The statement is the
 guard of the function written as a proposition on what the host holds. That no percept
 awaits is in the type of the host. Both outcomes occur: a host that only started is
@@ -1755,7 +1755,7 @@ theorem microduck_sense :
     Regula.ExecutableContract Host.Microduck.Idle.sense (fun sense =>
       ∀ (now : Instant) (idle : Host.Microduck.Idle),
         (sense now idle).isSome = true ↔
-          (∃ pair, idle.calm.pair = some pair) ∧
+          (∃ frame, idle.calm.state = some frame) ∧
             idle.calm.cycle ≤ idle.calm.pace.index idle.calm.origin now) :=
   ⟨Host.Microduck.Idle.sense_admitted⟩
 

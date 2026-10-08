@@ -980,9 +980,12 @@ every derivation holds of every value.
   show the action, and the next percept can be sensed before the label changes. How
   often it is wrong, in either direction, is UNKNOWN until the simulator runs.
 - A state frame is paired with a depth frame only when the depth frame is stamped at or
-  before it: the later of the two latest depth frames that is. With none, the reading
-  has no depth, which the frame of the interface marks as absent. So the age of a depth
-  frame is the exact difference of two stamps (`Idle.sense_age`).
+  before it: the later of the two latest depth frames that is, chosen when the host
+  senses. With none, the reading has no depth, which the frame of the interface marks as
+  absent. So the age of a depth frame is the exact difference of two stamps
+  (`Idle.sense_age`). The frames held are functions of each stream alone, so the reading
+  does not depend on how the two streams interleave (`Idle.heard_frames`); the bound of
+  this is the cache of two depth frames.
 - Sensing gives a percept only in a cycle that is not before the one the last release
   allows, and from a state frame heard since that release, which it uses up
   (`Idle.sense_iff`). The frame was heard after the release; it can have been made
@@ -991,15 +994,21 @@ every derivation holds of every value.
   the readings it sensed (`Reached.latch`), so after a near reading no percept is the
   event of the goal until a clear one (`Idle.sense_held`).
 - A release names the cycle it answers and is admitted exactly when that is the awaited
-  one and has started (`Awaiting.release_iff`). Each command gets one of the host's
-  next unused identifiers, which no earlier release holds (`Awaiting.release_fresh`).
+  one and has started (`Awaiting.release_iff`). The identifiers given are consecutive
+  from those of the opening requests, the counter is the next one, and each transition
+  raises it by the count it gives (`Reached.counter`, `counter_rises`). So each command
+  gets an identifier at or above the counter before the release, given on no earlier
+  step and held by no earlier release (`Awaiting.release_fresh`).
 - No standing is stored. The standing of an idle host at an instant is the one of its
   last step, so the verdict of the host that a release returns is the deadline rule's
   at every instant: a fault from the deadline to the release, the instant of the
   release included, and during it the action of the release before, up to the end of
   its hold (`Awaiting.release_standing`, `Awaiting.release_fault`, `Calm.fault_named`).
-- A reading of the clock sends the velocity again when the bridge says so, with a new
-  identifier, and changes nothing that the deadline rule reads (`Idle.tick_keeps`).
+- A reading of the clock, in either phase, sends the velocity again when the bridge says
+  so, with a new identifier, and changes nothing that the deadline rule reads
+  (`Idle.tick_keeps`, `Awaiting.tick_keeps`). While a percept awaits, what it sends is
+  the velocity of the action that the deadline rule names in force, up to the end of its
+  hold, and nothing from then (`Awaiting.tick_named`).
 
 No executing loop calls these transitions yet, and none of them reads a clock or a
 socket.

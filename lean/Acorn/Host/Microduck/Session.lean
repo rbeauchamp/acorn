@@ -25,9 +25,9 @@ proof that its state is reached from the start by the transitions (`Reached`, an
 proposition with one constructor for each transition), so every value of either type,
 however it was written, has a derivation from `Idle.start`: an awaited percept was sensed,
 and what holds of every derivation holds of every value. `Reached` also names the readings
-sensed on the way, in order. `Calm` and `Poised` are what the two phases hold, as plain
-data; the transitions on them are private, and the statements below are about the sealed
-types.
+sensed on the way and the identifiers given to requests on the way, each in order. `Calm`
+and `Poised` are what the two phases hold, as plain data; the transitions on them are
+private, and the statements below are about the sealed types.
 
 **Hearing a line** (`Idle.hear`, `Awaiting.hear`). While no percept awaits, a state frame
 replaces the latest one and a depth frame becomes the latest of two that the host keeps
@@ -64,13 +64,17 @@ last are gathered from the lines heard since its release.
 
 **Pairing a state frame with a depth frame.** A depth frame may not lead the state frame it
 is paired with: a `Pair` is a state frame with a depth frame that is stamped at or before
-it, or with none. A state frame is paired with the later of the two latest depth frames
-that is stamped at or before it (`Pair.of`), and a depth frame heard after it and stamped
-at or before it takes that place (`Pair.offer`). When neither of the two latest depth
-frames is at or before the state frame, and before any depth frame is heard, the reading
-has no depth, which the frame of the interface marks as absent. So the depth frame of
-every reading is stamped at or before its state frame, and its age is the exact
-difference of the two stamps, with no subtraction that truncates (`Idle.sense_age`).
+it, or with none. The host holds the latest state frame heard since the last release and
+the two latest depth frames heard, and pairs them when it senses: the state frame with the
+later of the two depth frames that is stamped at or before it (`Pair.of`). When neither
+is, and before any depth frame is heard, the reading has no depth, which the frame of the
+interface marks as absent. So the depth frame of every reading is stamped at or before its
+state frame, and its age is the exact difference of the two stamps, with no subtraction
+that truncates (`Idle.sense_age`). Each of the three frames held is a function of the
+frames of one stream, in their order, so the reading does not depend on how the two
+streams interleave (`Idle.heard_frames`). The bound of this is the cache of two depth
+frames: a state frame heard after two depth frames stamped after it has no depth, even when
+an older depth frame at or before it was heard.
 
 **Sensing a percept** (`Idle.sense`, `Idle.sense_iff`). A percept is sensed at an instant,
 for the cycle the instant falls in, only when the cycle is not before the first cycle that
@@ -95,9 +99,12 @@ after a near reading no percept is the event of the goal until a clear one
 cycle it answers and is admitted exactly when that is the awaited cycle and the cycle has
 started. The commands are the action's for the posture of the percept's state frame, by
 the sitting label (`State.Sitting`), each with one of the host's next unused identifiers.
-The identifiers of a release are new: above those of the opening requests and held by no
-earlier release (`Awaiting.release_fresh`, `Reached.identifiers`). The hold of every
-released action ends a bounded time after it (`Idle.hold_bounded`).
+The identifiers given are the consecutive numbers from those of the opening requests, in the
+order given, and the counter is the next one (`Reached.counter`); each transition raises
+the counter by the count of the identifiers it gives (`counter_rises`). So the identifiers
+of a release are at or above the counter before it, given on no earlier step and held by no
+earlier release (`Awaiting.release_fresh`). The hold of every released action ends a
+bounded time after it (`Idle.hold_bounded`).
 
 **The deadline rule.** No standing is stored. The standing of an `Awaiting` is the force
 of the release before it with the awaited cycle (`Poised.standing`). The standing of an
@@ -111,9 +118,14 @@ exactly when the deadline has passed (`Awaiting.release_fault`). During a fault 
 in force is the one of the release before, up to the end of its hold, and the world's
 default from then (`Calm.fault_named`).
 
-**Reading the clock** (`Idle.tick`). The velocity of the last release is sent again when
-`Bridge.tick` says so, as a request with a new identifier that the release then holds, and
-nothing that the deadline rule or the next percept reads changes (`Idle.tick_keeps`).
+**Reading the clock** (`Idle.tick`, `Awaiting.tick`). In either phase the velocity of the
+last release is sent again when `Bridge.tick` says so, as a request with a new identifier
+that the release then holds, and nothing that the deadline rule or the next percept reads
+changes (`Idle.tick_keeps`, `Awaiting.tick_keeps`). So the host keeps the preceding
+velocity alive while the agent computes: while a percept awaits, what a reading of the
+clock sends is the velocity of the action that the deadline rule names in force, and from
+the end of that action's hold it sends nothing and the rule names the world's default
+(`Awaiting.tick_named`).
 
 What is not here: every effect. The three opening requests, two that subscribe and one
 that enables the policy, have the identifiers below `opening`, and a host sends them when
@@ -224,15 +236,6 @@ def Pair.of (state : State) (latest earlier : Option Depth) : Pair :=
         exact fitting_ordered state earlier _ second⟩
     | none => ⟨state, none, fun _ wrong => nomatch wrong⟩
 
-/-- A depth frame heard after a state frame is paired with it when it is stamped at or
-before it, in the place of the depth frame paired so far. -/
-def Pair.offer (frame : Depth) (pair : Pair) : Pair :=
-  if fits : frame.taken.nanoseconds ≤ pair.state.taken.nanoseconds then
-    ⟨pair.state, some frame, fun other same => by
-      cases same
-      exact fits⟩
-  else pair
-
 /-- The reading of a pair. -/
 def Pair.reading (pair : Pair) : Reading :=
   ⟨pair.state, pair.depth⟩
@@ -292,8 +295,8 @@ structure Calm where
   before : Option Bridge
   /-- The last release, if an action was released. -/
   last : Option Sent
-  /-- The latest state frame heard since the last release, with its depth frame. -/
-  pair : Option Pair
+  /-- The latest state frame heard since the last release. -/
+  state : Option State
   /-- The latest depth frame heard. -/
   depth : Option Depth
   /-- The depth frame heard before the latest one. -/
@@ -346,14 +349,8 @@ private def showing (last : Option Sent) (frame : State) : Bool :=
 /-- A line is heard while no percept awaits. -/
 private def Calm.heard (calm : Calm) : Line → Calm
   | .state frame =>
-    { calm with
-      pair := some (Pair.of frame calm.depth calm.earlier)
-      shown := calm.shown || showing calm.last frame }
-  | .depth frame =>
-    { calm with
-      depth := some frame
-      earlier := calm.depth
-      pair := calm.pair.map (Pair.offer frame) }
+    { calm with state := some frame, shown := calm.shown || showing calm.last frame }
+  | .depth frame => { calm with depth := some frame, earlier := calm.depth }
   | .result id (some accepted) => { calm with last := calm.last.map (Sent.answer id accepted) }
   | .fault (some id) => { calm with last := calm.last.map (Sent.answer id false) }
   | .result _ none => calm
@@ -386,13 +383,14 @@ def Sensed.percept (sensed : Sensed) : Features.Percept Handcrafted.Microduck.in
 
 /-- A percept is sensed at an instant. -/
 private def Calm.sensed (now : Instant) (calm : Calm) : Option (Poised × Sensed) :=
-  match calm.pair with
-  | some pair =>
+  match calm.state with
+  | some frame =>
     if calm.cycle ≤ calm.pace.index calm.origin now then
       some (⟨calm.pace, calm.keep, calm.origin, calm.next, calm.last, calm.depth, calm.earlier,
-          Handcrafted.Microduck.arm calm.armed pair.reading, calm.pace.index calm.origin now,
-          decide pair.state.Sitting⟩,
-        ⟨pair.reading, calm.last.map fun sent => sent.record.outcome sent.reply calm.shown,
+          Handcrafted.Microduck.arm calm.armed (Pair.of frame calm.depth calm.earlier).reading,
+          calm.pace.index calm.origin now, decide frame.Sitting⟩,
+        ⟨(Pair.of frame calm.depth calm.earlier).reading,
+          calm.last.map fun sent => sent.record.outcome sent.reply calm.shown,
           calm.late, calm.armed⟩)
     else none
   | none => none
@@ -406,6 +404,24 @@ private def Poised.heard (poised : Poised) : Line → Poised
   | .result _ _ => poised
   | .fault _ => poised
   | .invalid => poised
+
+/-- What a tick of the bridge makes of what a host holds while a percept awaits: a velocity
+sent again is a request with the next unused identifier, which the release before the
+percept then holds. -/
+private def Poised.resend (poised : Poised) (sent : Sent) :
+    Bridge × Option Command → Poised × Option (Nat × Command)
+  | (record, some command) =>
+    ({ poised with
+        next := poised.next + 1
+        last := some { sent with record := record, resent := poised.next :: sent.resent } },
+      some (poised.next, command))
+  | (_, none) => (poised, none)
+
+/-- The clock is read while a percept awaits. -/
+private def Poised.ticked (now : Instant) (poised : Poised) : Poised × Option (Nat × Command) :=
+  match poised.last with
+  | some sent => poised.resend sent (sent.record.tick poised.pace poised.keep poised.origin now)
+  | none => (poised, none)
 
 /-- The standing of the deadline rule while a percept awaits: the force of the release
 before it, and its cycle. -/
@@ -469,34 +485,46 @@ inductive Phase where
   /-- A percept awaits its action. -/
   | awaiting (poised : Poised)
 
+/-- The identifier of a request that a reading of the clock sent, if it sent one. -/
+def issue (sent : Option (Nat × Command)) : List Nat :=
+  match sent with
+  | some pair => [pair.1]
+  | none => []
+
 /-- The state is reached from the start by the transitions, with the readings that were
-sensed on the way, in order. There is one constructor for each transition, and no other
-way to a state. -/
-inductive Reached : List Reading → Phase → Prop where
+sensed on the way and the identifiers that were given to requests on the way, each in
+order. There is one constructor for each transition, and no other way to a state. -/
+inductive Reached : List Reading → List Nat → Phase → Prop where
   /-- A host starts. -/
   | start (pace : Pace) (keep : Keep) (origin : Instant) :
-      Reached [] (.idle (Calm.start pace keep origin))
+      Reached [] [] (.idle (Calm.start pace keep origin))
   /-- A line is heard while no percept awaits. -/
-  | hear {readings : List Reading} {calm : Calm} (reached : Reached readings (.idle calm))
-      (line : Line) : Reached readings (.idle (calm.heard line))
+  | hear {readings : List Reading} {issued : List Nat} {calm : Calm}
+      (reached : Reached readings issued (.idle calm)) (line : Line) :
+      Reached readings issued (.idle (calm.heard line))
   /-- The clock is read while no percept awaits. -/
-  | tick {readings : List Reading} {calm : Calm} (reached : Reached readings (.idle calm))
-      (now : Instant) : Reached readings (.idle (calm.ticked now).1)
+  | tick {readings : List Reading} {issued : List Nat} {calm : Calm}
+      (reached : Reached readings issued (.idle calm)) (now : Instant) :
+      Reached readings (issued ++ issue (calm.ticked now).2) (.idle (calm.ticked now).1)
   /-- A percept is sensed. -/
-  | sense {readings : List Reading} {calm : Calm} (reached : Reached readings (.idle calm))
-      (now : Instant) {poised : Poised} {sensed : Sensed}
-      (admitted : calm.sensed now = some (poised, sensed)) :
-      Reached (readings ++ [sensed.reading]) (.awaiting poised)
+  | sense {readings : List Reading} {issued : List Nat} {calm : Calm}
+      (reached : Reached readings issued (.idle calm)) (now : Instant) {poised : Poised}
+      {sensed : Sensed} (admitted : calm.sensed now = some (poised, sensed)) :
+      Reached (readings ++ [sensed.reading]) issued (.awaiting poised)
   /-- A line is heard while a percept awaits. -/
-  | listen {readings : List Reading} {poised : Poised}
-      (reached : Reached readings (.awaiting poised)) (line : Line) :
-      Reached readings (.awaiting (poised.heard line))
+  | listen {readings : List Reading} {issued : List Nat} {poised : Poised}
+      (reached : Reached readings issued (.awaiting poised)) (line : Line) :
+      Reached readings issued (.awaiting (poised.heard line))
+  /-- The clock is read while a percept awaits. -/
+  | watch {readings : List Reading} {issued : List Nat} {poised : Poised}
+      (reached : Reached readings issued (.awaiting poised)) (now : Instant) :
+      Reached readings (issued ++ issue (poised.ticked now).2) (.awaiting (poised.ticked now).1)
   /-- The action of the awaited percept is released. -/
-  | release {readings : List Reading} {poised : Poised}
-      (reached : Reached readings (.awaiting poised)) (index : Nat) (now : Instant)
+  | release {readings : List Reading} {issued : List Nat} {poised : Poised}
+      (reached : Reached readings issued (.awaiting poised)) (index : Nat) (now : Instant)
       (action : Action) {calm : Calm} {commands : List (Nat × Command)}
       (admitted : poised.released index now action = some (calm, commands)) :
-      Reached readings (.idle calm)
+      Reached readings (issued ++ commands.map fun pair => pair.1) (.idle calm)
 
 /-- A host while no percept awaits its action. Every value has a derivation from the start
 by the transitions. -/
@@ -504,7 +532,7 @@ structure Idle where
   /-- What the host holds. -/
   calm : Calm
   /-- The state is reached from the start. -/
-  reached : ∃ readings, Reached readings (.idle calm)
+  reached : ∃ readings issued, Reached readings issued (.idle calm)
 
 /-- A host while a percept awaits its action. Every value has a derivation from the start
 by the transitions, so the awaited percept was sensed. -/
@@ -512,12 +540,12 @@ structure Awaiting where
   /-- What the host holds. -/
   poised : Poised
   /-- The state is reached from the start. -/
-  reached : ∃ readings, Reached readings (.awaiting poised)
+  reached : ∃ readings issued, Reached readings issued (.awaiting poised)
 
 /-- A host before its first event: no action was released, no frame was heard and no
 percept awaits. Its first unused identifier is after those of the opening requests. -/
 def Idle.start (pace : Pace) (keep : Keep) (origin : Instant) : Idle :=
-  ⟨Calm.start pace keep origin, [], .start pace keep origin⟩
+  ⟨Calm.start pace keep origin, [], [], .start pace keep origin⟩
 
 /-- One line of a daemon is heard while no percept awaits. A state frame replaces the
 latest one, paired with the latest depth frame that is not stamped after it, and is tested
@@ -525,12 +553,14 @@ for showing the action of the last release. A depth frame becomes the latest one
 or a fault with the identifier of a request of the last release answers it. Every other
 line changes nothing. -/
 def Idle.hear (idle : Idle) (line : Line) : Idle :=
-  ⟨idle.calm.heard line, idle.reached.imp fun _ reached => reached.hear line⟩
+  ⟨idle.calm.heard line,
+    idle.reached.elim fun _ found => found.elim fun _ reached => ⟨_, _, reached.hear line⟩⟩
 
 /-- The clock is read while no percept awaits: the velocity of the last release is sent
 again when the bridge says so, as a request with a new identifier. -/
 def Idle.tick (now : Instant) (idle : Idle) : Idle × Option (Nat × Command) :=
-  (⟨(idle.calm.ticked now).1, idle.reached.imp fun _ reached => reached.tick now⟩,
+  (⟨(idle.calm.ticked now).1,
+      idle.reached.elim fun _ found => found.elim fun _ reached => ⟨_, _, reached.tick now⟩⟩,
     (idle.calm.ticked now).2)
 
 /-- A percept is sensed at an instant, for the cycle the instant falls in. There is one
@@ -540,13 +570,26 @@ advances by the reading. -/
 def Idle.sense (now : Instant) (idle : Idle) : Option (Awaiting × Sensed) :=
   match admitted : idle.calm.sensed now with
   | some (poised, sensed) =>
-    some (⟨poised, idle.reached.elim fun _ reached => ⟨_, reached.sense now admitted⟩⟩, sensed)
+    some (⟨poised, idle.reached.elim fun _ found => found.elim fun _ reached =>
+      ⟨_, _, reached.sense now admitted⟩⟩, sensed)
   | none => none
 
 /-- One line of a daemon is heard while a percept awaits: a depth frame becomes the latest
 one, and every other line changes nothing. -/
 def Awaiting.hear (awaiting : Awaiting) (line : Line) : Awaiting :=
-  ⟨awaiting.poised.heard line, awaiting.reached.imp fun _ reached => reached.listen line⟩
+  ⟨awaiting.poised.heard line,
+    awaiting.reached.elim fun _ found => found.elim fun _ reached =>
+      ⟨_, _, reached.listen line⟩⟩
+
+/-- The clock is read while a percept awaits: the velocity of the release before the
+percept is sent again when the bridge says so, as a request with a new identifier. So a
+host can keep the preceding action in force while the agent computes, up to the end of
+its hold. -/
+def Awaiting.tick (now : Instant) (awaiting : Awaiting) : Awaiting × Option (Nat × Command) :=
+  (⟨(awaiting.poised.ticked now).1,
+      awaiting.reached.elim fun _ found => found.elim fun _ reached =>
+        ⟨_, _, reached.watch now⟩⟩,
+    (awaiting.poised.ticked now).2)
 
 /-- The action of the awaited percept is released at an instant, for the cycle it names:
 the state after the release, and the commands to send, each with a new identifier. Nothing
@@ -556,8 +599,8 @@ def Awaiting.release (index : Nat) (now : Instant) (action : Action) (awaiting :
     Option (Idle × List (Nat × Command)) :=
   match admitted : awaiting.poised.released index now action with
   | some (calm, commands) =>
-    some (⟨calm, awaiting.reached.elim fun _ reached =>
-      ⟨_, reached.release index now action admitted⟩⟩, commands)
+    some (⟨calm, awaiting.reached.elim fun _ found => found.elim fun _ reached =>
+      ⟨_, _, reached.release index now action admitted⟩⟩, commands)
   | none => none
 
 /-! ## The answer to a release -/
@@ -637,21 +680,23 @@ private theorem Idle.sense_sensed (now : Instant) (idle : Idle) (awaiting : Awai
       exact nomatch missing
 
 /-- **When a percept is sensed, and what it is built from.** For every instant and host
-with no percept awaiting: a percept is sensed exactly when a state frame is held with its
-pair and the cycle of the instant is not before the first cycle that the last release
-allows. The reading is the pair's; what became of the preceding action is the outcome of
+with no percept awaiting: a percept is sensed exactly when a state frame is held and the
+cycle of the instant is not before the first cycle that the last release allows. The
+reading is that state frame paired, by `Pair.of`, with the later of the two depth frames
+held that is stamped at or before it; what became of the preceding action is the outcome of
 the last release for its answer and the evidence; and the state after it awaits the action
 of the instant's cycle, holds whether the body sat in the state frame, and holds the latch
 advanced by the reading. -/
 theorem Idle.sense_iff (now : Instant) (idle : Idle) (awaiting : Awaiting) (sensed : Sensed) :
     idle.sense now = some (awaiting, sensed) ↔
-      ∃ pair, idle.calm.pair = some pair ∧
+      ∃ frame, idle.calm.state = some frame ∧
         idle.calm.cycle ≤ idle.calm.pace.index idle.calm.origin now ∧
         awaiting.poised = ⟨idle.calm.pace, idle.calm.keep, idle.calm.origin, idle.calm.next,
           idle.calm.last, idle.calm.depth, idle.calm.earlier,
-          Handcrafted.Microduck.arm idle.calm.armed pair.reading,
-          idle.calm.pace.index idle.calm.origin now, decide pair.state.Sitting⟩ ∧
-        sensed = ⟨pair.reading,
+          Handcrafted.Microduck.arm idle.calm.armed
+            (Pair.of frame idle.calm.depth idle.calm.earlier).reading,
+          idle.calm.pace.index idle.calm.origin now, decide frame.Sitting⟩ ∧
+        sensed = ⟨(Pair.of frame idle.calm.depth idle.calm.earlier).reading,
           idle.calm.last.map fun sent => sent.record.outcome sent.reply idle.calm.shown,
           idle.calm.late, idle.calm.armed⟩ := by
   rw [Idle.sense_sensed]
@@ -659,14 +704,14 @@ theorem Idle.sense_iff (now : Instant) (idle : Idle) (awaiting : Awaiting) (sens
   constructor
   · intro found
     split at found
-    · rename_i pair held
+    · rename_i frame held
       split at found
       · rename_i due
         have same := Prod.mk.inj (Option.some.inj found)
-        exact ⟨pair, held, due, same.1.symm, same.2.symm⟩
+        exact ⟨frame, held, due, same.1.symm, same.2.symm⟩
       · exact nomatch found
     · exact nomatch found
-  · rintro ⟨pair, held, due, poised, rfl⟩
+  · rintro ⟨frame, held, due, poised, rfl⟩
     rw [poised]
     simp only [held, due, ↓reduceIte]
 
@@ -674,14 +719,14 @@ theorem Idle.sense_iff (now : Instant) (idle : Idle) (awaiting : Awaiting) (sens
 every instant and host with no percept awaiting. -/
 theorem Idle.sense_admitted (now : Instant) (idle : Idle) :
     (idle.sense now).isSome = true ↔
-      (∃ pair, idle.calm.pair = some pair) ∧
+      (∃ frame, idle.calm.state = some frame) ∧
         idle.calm.cycle ≤ idle.calm.pace.index idle.calm.origin now := by
   constructor
   · intro found
     obtain ⟨⟨awaiting, sensed⟩, same⟩ := Option.isSome_iff_exists.mp found
-    obtain ⟨pair, held, due, _⟩ := (Idle.sense_iff now idle awaiting sensed).mp same
-    exact ⟨⟨pair, held⟩, due⟩
-  · rintro ⟨⟨pair, held⟩, due⟩
+    obtain ⟨frame, held, due, _⟩ := (Idle.sense_iff now idle awaiting sensed).mp same
+    exact ⟨⟨frame, held⟩, due⟩
+  · rintro ⟨⟨frame, held⟩, due⟩
     unfold Idle.sense
     split
     · rfl
@@ -909,20 +954,64 @@ theorem Idle.hear_keeps (idle : Idle) (line : Line) :
     | some number =>
       exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, answered number false, stood number false, rfl⟩
 
-/-- **The frames a host holds after hearing one.** For every host with no percept awaiting:
-after a state frame the host holds it paired with the later of its two latest depth frames
-that is stamped at or before it, or with none; after a depth frame the host holds it as the
-latest one and the one before as the earlier one, and the state frame held is paired with
-it when it is stamped at or before that state frame. -/
-theorem Idle.hear_frame (idle : Idle) :
-    (∀ frame : State, (idle.hear (.state frame)).calm.pair =
-        some (Pair.of frame idle.calm.depth idle.calm.earlier) ∧
-      (idle.hear (.state frame)).calm.depth = idle.calm.depth ∧
-      (idle.hear (.state frame)).calm.earlier = idle.calm.earlier) ∧
-      ∀ frame : Depth, (idle.hear (.depth frame)).calm.depth = some frame ∧
-        (idle.hear (.depth frame)).calm.earlier = idle.calm.depth ∧
-        (idle.hear (.depth frame)).calm.pair = idle.calm.pair.map (Pair.offer frame) :=
-  ⟨fun _ => ⟨rfl, rfl, rfl⟩, fun _ => ⟨rfl, rfl, rfl⟩⟩
+/-- The state frame of a line, when the line is one. -/
+def Line.stateFrame : Line → Option State
+  | .state frame => some frame
+  | _ => none
+
+/-- The depth frame of a line, when the line is one. -/
+def Line.depthFrame : Line → Option Depth
+  | .depth frame => some frame
+  | _ => none
+
+/-- **The frames a host holds after hearing a line.** For every host with no percept
+awaiting and every line: a state frame becomes the state frame held, and a depth frame
+becomes the latest depth frame held, with the one that was the latest as the earlier one;
+every other line leaves the three as they are. -/
+theorem Idle.hear_frame (idle : Idle) (line : Line) :
+    (idle.hear line).calm.state = (line.stateFrame.map some).getD idle.calm.state ∧
+      ((idle.hear line).calm.depth, (idle.hear line).calm.earlier) =
+        match line.depthFrame with
+        | some frame => (some frame, idle.calm.depth)
+        | none => (idle.calm.depth, idle.calm.earlier) := by
+  show (idle.calm.heard line).state = _ ∧
+    ((idle.calm.heard line).depth, (idle.calm.heard line).earlier) = _
+  cases line with
+  | result id accepted => cases accepted <;> exact ⟨rfl, rfl⟩
+  | fault id => cases id <;> exact ⟨rfl, rfl⟩
+  | state _ | depth _ | unread _ | notice | invalid => exact ⟨rfl, rfl⟩
+
+/-- **The frames held are a function of the frames heard on each stream, and not of how
+the two streams are interleaved.** For every host with no percept awaiting and every list
+of lines heard in order: the state frame held is the last state frame of the list, or the
+one held before when the list has none; and the two depth frames held are the last two
+depth frames heard, counting those held before. Each is computed from the frames of one
+stream alone, in their order, so two lists of lines with the same state frames in order
+and the same depth frames in order leave the same three frames. The reading of the next
+percept is `Pair.of` of those three, so it does not depend on the interleaving either. A
+host keeps two depth frames: a state frame is paired with a depth frame when one of the
+two latest depth frames heard is stamped at or before it. -/
+theorem Idle.heard_frames (lines : List Line) (idle : Idle) :
+    (lines.foldl Idle.hear idle).calm.state =
+        (lines.filterMap Line.stateFrame).foldl (fun _ frame => some frame) idle.calm.state ∧
+      ((lines.foldl Idle.hear idle).calm.depth, (lines.foldl Idle.hear idle).calm.earlier) =
+        (lines.filterMap Line.depthFrame).foldl
+          (fun (cache : Option Depth × Option Depth) frame => (some frame, cache.1))
+          (idle.calm.depth, idle.calm.earlier) := by
+  induction lines generalizing idle with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons line rest hold =>
+    obtain ⟨held, cached⟩ := idle.hear_frame line
+    obtain ⟨later, cache⟩ := hold (idle.hear line)
+    rw [List.foldl_cons, later, cache, held, cached]
+    cases line with
+    | state frame => exact ⟨rfl, rfl⟩
+    | depth frame => exact ⟨rfl, rfl⟩
+    | result id accepted => exact ⟨rfl, rfl⟩
+    | fault id => exact ⟨rfl, rfl⟩
+    | unread stream => exact ⟨rfl, rfl⟩
+    | notice => exact ⟨rfl, rfl⟩
+    | invalid => exact ⟨rfl, rfl⟩
 
 /-- **The action is shown exactly when a state frame showed it.** For every host with no
 percept awaiting and every line: after the line the evidence holds exactly when it held
@@ -999,7 +1088,7 @@ private theorem Calm.ticked_keeps (now : Instant) (calm : Calm) :
       (calm.ticked now).1.keep = calm.keep ∧
       (calm.ticked now).1.origin = calm.origin ∧
       (calm.ticked now).1.before = calm.before ∧
-      (calm.ticked now).1.pair = calm.pair ∧
+      (calm.ticked now).1.state = calm.state ∧
       (calm.ticked now).1.shown = calm.shown ∧
       (calm.ticked now).1.late = calm.late ∧
       (calm.ticked now).1.armed = calm.armed ∧
@@ -1017,7 +1106,7 @@ private theorem Calm.ticked_keeps (now : Instant) (calm : Calm) :
         (calm.resend sent result).1.keep = calm.keep ∧
         (calm.resend sent result).1.origin = calm.origin ∧
         (calm.resend sent result).1.before = calm.before ∧
-        (calm.resend sent result).1.pair = calm.pair ∧
+        (calm.resend sent result).1.state = calm.state ∧
         (calm.resend sent result).1.shown = calm.shown ∧
         (calm.resend sent result).1.late = calm.late ∧
         (calm.resend sent result).1.armed = calm.armed ∧
@@ -1054,9 +1143,9 @@ private theorem Calm.ticked_keeps (now : Instant) (calm : Calm) :
 changes nothing that the deadline rule or the next percept reads.** For every instant and
 host with no percept awaiting: the command is the one of `Bridge.tick` for the record of
 the last release, with the host's next unused identifier, and none for a host that has
-released nothing; the settings, the frames held, the evidence, the late release, the latch
-and the record before the last are as before; and the standing of the deadline rule at
-every instant and the first cycle of the next percept are as before. -/
+released nothing; the settings, the state frame held, the evidence, the late release, the
+latch and the record before the last are as before; and the standing of the deadline rule
+at every instant and the first cycle of the next percept are as before. -/
 theorem Idle.tick_keeps (now : Instant) (idle : Idle) :
     (idle.tick now).2 =
         (idle.calm.last.bind fun sent =>
@@ -1066,13 +1155,140 @@ theorem Idle.tick_keeps (now : Instant) (idle : Idle) :
       (idle.tick now).1.calm.keep = idle.calm.keep ∧
       (idle.tick now).1.calm.origin = idle.calm.origin ∧
       (idle.tick now).1.calm.before = idle.calm.before ∧
-      (idle.tick now).1.calm.pair = idle.calm.pair ∧
+      (idle.tick now).1.calm.state = idle.calm.state ∧
       (idle.tick now).1.calm.shown = idle.calm.shown ∧
       (idle.tick now).1.calm.late = idle.calm.late ∧
       (idle.tick now).1.calm.armed = idle.calm.armed ∧
       (∀ instant, (idle.tick now).1.calm.standing instant = idle.calm.standing instant) ∧
       (idle.tick now).1.calm.cycle = idle.calm.cycle :=
   Calm.ticked_keeps now idle.calm
+
+/-- What a reading of the clock sends and keeps while a percept awaits, for what the host
+holds. -/
+private theorem Poised.ticked_keeps (now : Instant) (poised : Poised) :
+    (poised.ticked now).2 =
+        (poised.last.bind fun sent =>
+          (sent.record.tick poised.pace poised.keep poised.origin now).2.map
+            fun command => (poised.next, command)) ∧
+      (poised.ticked now).1.pace = poised.pace ∧
+      (poised.ticked now).1.keep = poised.keep ∧
+      (poised.ticked now).1.origin = poised.origin ∧
+      (poised.ticked now).1.depth = poised.depth ∧
+      (poised.ticked now).1.earlier = poised.earlier ∧
+      (poised.ticked now).1.armed = poised.armed ∧
+      (poised.ticked now).1.index = poised.index ∧
+      (poised.ticked now).1.sitting = poised.sitting ∧
+      (poised.ticked now).1.standing = poised.standing := by
+  have resent : ∀ (sent : Sent) (result : Bridge × Option Command),
+      poised.last = some sent →
+      result.1.force poised.pace poised.keep poised.origin =
+        sent.record.force poised.pace poised.keep poised.origin →
+      (poised.resend sent result).2 = result.2.map (fun command => (poised.next, command)) ∧
+        (poised.resend sent result).1.pace = poised.pace ∧
+        (poised.resend sent result).1.keep = poised.keep ∧
+        (poised.resend sent result).1.origin = poised.origin ∧
+        (poised.resend sent result).1.depth = poised.depth ∧
+        (poised.resend sent result).1.earlier = poised.earlier ∧
+        (poised.resend sent result).1.armed = poised.armed ∧
+        (poised.resend sent result).1.index = poised.index ∧
+        (poised.resend sent result).1.sitting = poised.sitting ∧
+        (poised.resend sent result).1.standing = poised.standing := by
+    intro sent result held forced
+    obtain ⟨record, command⟩ := result
+    cases command with
+    | none => exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+    | some command =>
+      refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_⟩
+      show Standing.awaiting (record.force poised.pace poised.keep poised.origin) poised.index =
+        poised.standing
+      unfold Poised.standing
+      rw [held, show record.force poised.pace poised.keep poised.origin =
+        sent.record.force poised.pace poised.keep poised.origin from forced]
+      rfl
+  unfold Poised.ticked
+  cases held : poised.last with
+  | none => exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  | some sent =>
+    exact resent sent _ held
+      (tick_record poised.pace poised.keep poised.origin sent.record now).2.2
+
+/-- **A reading of the clock while a percept awaits sends what the bridge's tick sends, with
+a new identifier, and changes nothing else.** For every instant and host with a percept
+awaiting: the command is the one of `Bridge.tick` for the record of the release before the
+percept, with the host's next unused identifier, and none for a host that has released
+nothing; the settings, the depth frames held, the latch, the awaited cycle, the held
+posture and the standing of the deadline rule are as before. -/
+theorem Awaiting.tick_keeps (now : Instant) (awaiting : Awaiting) :
+    (awaiting.tick now).2 =
+        (awaiting.poised.last.bind fun sent =>
+          (sent.record.tick awaiting.poised.pace awaiting.poised.keep awaiting.poised.origin
+            now).2.map fun command => (awaiting.poised.next, command)) ∧
+      (awaiting.tick now).1.poised.pace = awaiting.poised.pace ∧
+      (awaiting.tick now).1.poised.keep = awaiting.poised.keep ∧
+      (awaiting.tick now).1.poised.origin = awaiting.poised.origin ∧
+      (awaiting.tick now).1.poised.depth = awaiting.poised.depth ∧
+      (awaiting.tick now).1.poised.earlier = awaiting.poised.earlier ∧
+      (awaiting.tick now).1.poised.armed = awaiting.poised.armed ∧
+      (awaiting.tick now).1.poised.index = awaiting.poised.index ∧
+      (awaiting.tick now).1.poised.sitting = awaiting.poised.sitting ∧
+      (awaiting.tick now).1.poised.standing = awaiting.poised.standing :=
+  Poised.ticked_keeps now awaiting.poised
+
+/-- **While a percept awaits, what is sent is the velocity of the action that the deadline
+rule names, up to the end of its hold.** For every instant and host with a percept awaiting.
+When a reading of the clock sends a command, it is the velocity of the action of the release
+before the percept, the instant is before the end of that action's hold, and `Pace.outcome`
+names that action as the one in force at the instant. From the end of the hold a reading of
+the clock sends nothing, and `Pace.outcome` names the world's default. So while the agent
+computes, late or not, the host sends the action that the rule holds in force and no other,
+and it stops sending when the rule stops naming it. -/
+theorem Awaiting.tick_named (now : Instant) (awaiting : Awaiting) (sent : Sent)
+    (held : awaiting.poised.last = some sent) :
+    (∀ id command, (awaiting.tick now).2 = some (id, command) →
+      command = .move sent.record.action.velocity ∧
+        now.nanoseconds <
+          (sent.record.ends awaiting.poised.pace awaiting.poised.keep
+            awaiting.poised.origin).nanoseconds ∧
+        (awaiting.poised.pace.outcome awaiting.poised.origin (some Declared.rest)
+          awaiting.poised.standing now).action = some sent.record.action) ∧
+      ((sent.record.ends awaiting.poised.pace awaiting.poised.keep
+          awaiting.poised.origin).nanoseconds ≤ now.nanoseconds →
+        (awaiting.tick now).2 = none ∧
+          (awaiting.poised.pace.outcome awaiting.poised.origin (some Declared.rest)
+            awaiting.poised.standing now).action = some Declared.rest) := by
+  have sends := (Awaiting.tick_keeps now awaiting).1
+  have named : (awaiting.poised.pace.outcome awaiting.poised.origin (some Declared.rest)
+      awaiting.poised.standing now).action =
+        if now.nanoseconds < (sent.record.ends awaiting.poised.pace awaiting.poised.keep
+          awaiting.poised.origin).nanoseconds then some sent.record.action
+        else some Declared.rest := by
+    rw [awaiting.poised.pace.outcome_action awaiting.poised.origin]
+    unfold Poised.standing
+    rw [held]
+    exact sent.record.force_named awaiting.poised.pace awaiting.poised.keep
+      awaiting.poised.origin (some Declared.rest) now
+  rw [held] at sends
+  constructor
+  · intro id command sent_
+    rw [sent_] at sends
+    obtain ⟨other, ticked, same⟩ := Option.map_eq_some_iff.mp sends.symm
+    obtain ⟨_, rfl⟩ := Prod.mk.inj same
+    obtain ⟨moved, _, inside⟩ := sent.record.tick_command awaiting.poised.pace
+      awaiting.poised.keep awaiting.poised.origin now other ticked
+    refine ⟨moved, inside, ?_⟩
+    rw [named]
+    simp only [inside, ↓reduceIte]
+  · intro ended
+    obtain ⟨_, quiet⟩ := sent.record.tick_lapsed awaiting.poised.pace awaiting.poised.keep
+      awaiting.poised.origin (some Declared.rest) now ended
+    refine ⟨?_, ?_⟩
+    · rw [sends]
+      show Option.map _ (sent.record.tick awaiting.poised.pace awaiting.poised.keep
+        awaiting.poised.origin now).2 = none
+      rw [quiet]
+      rfl
+    · rw [named]
+      simp only [Nat.not_lt.mpr ended, ↓reduceIte]
 
 /-! ## What holds of every reachable state -/
 
@@ -1095,36 +1311,38 @@ def Phase.last : Phase → Option Sent
 state reached with a list of sensed readings: the latch that the state holds is the fold of
 the adapter's `arm` over those readings, from a disarmed latch. So the event of the goal in
 a percept is decided by the readings the host sensed and by nothing a caller supplies. -/
-theorem Reached.latch {readings : List Reading} {phase : Phase}
-    (reached : Reached readings phase) :
+theorem Reached.latch {readings : List Reading} {issued : List Nat} {phase : Phase}
+    (reached : Reached readings issued phase) :
     phase.armed = readings.foldl Handcrafted.Microduck.arm false := by
   induction reached with
   | start => rfl
-  | @hear readings calm _ line hold =>
+  | @hear readings issued calm _ line hold =>
     have kept : (calm.heard line).armed = calm.armed := by
       cases line with
       | result id accepted => cases accepted <;> rfl
       | fault id => cases id <;> rfl
       | state _ | depth _ | unread _ | notice | invalid => rfl
     exact kept.trans hold
-  | @tick readings calm _ now hold =>
+  | @tick readings issued calm _ now hold =>
     exact ((Calm.ticked_keeps now calm).2.2.2.2.2.2.2.2.1).trans hold
-  | @sense readings calm _ now poised sensed admitted hold =>
+  | @sense readings issued calm _ now poised sensed admitted hold =>
     unfold Calm.sensed at admitted
     split at admitted
-    · rename_i pair held
+    · rename_i frame held
       split at admitted
       · have same := Prod.mk.inj (Option.some.inj admitted)
         rw [← same.1, ← same.2, List.foldl_append]
-        show Handcrafted.Microduck.arm calm.armed pair.reading = _
+        show Handcrafted.Microduck.arm calm.armed _ = _
         rw [show calm.armed = _ from hold]
         rfl
       · exact nomatch admitted
     · exact nomatch admitted
-  | @listen readings poised _ line hold =>
+  | @listen readings issued poised _ line hold =>
     have kept : (poised.heard line).armed = poised.armed := by cases line <;> rfl
     exact kept.trans hold
-  | @release readings poised _ index now action calm commands admitted hold =>
+  | @watch readings issued poised _ now hold =>
+    exact ((Poised.ticked_keeps now poised).2.2.2.2.2.2.1).trans hold
+  | @release readings issued poised _ index now action calm commands admitted hold =>
     unfold Poised.released at admitted
     split at admitted
     · split at admitted
@@ -1133,19 +1351,53 @@ theorem Reached.latch {readings : List Reading} {phase : Phase}
       · exact nomatch admitted
     · exact nomatch admitted
 
-/-- **Every identifier that a state holds is below its next unused one, and the opening
-identifiers are below every one it gives.** For every reachable state: the next unused
-identifier is at least the count of the opening requests, and every identifier that the
-last release holds, among its commands or its resent velocities, is below the next unused
-one. -/
-theorem Reached.identifiers {readings : List Reading} {phase : Phase}
-    (reached : Reached readings phase) :
-    opening ≤ phase.next ∧
+/-- What a reading of the clock issues is the next unused identifier, and the counter then
+moves past it. -/
+private theorem issue_next (next after : Nat) (sent : Option (Nat × Command))
+    (given : ∀ pair, sent = some pair → pair.1 = next ∧ after = next + 1)
+    (kept : sent = none → after = next) (issued : List Nat)
+    (below : ∀ id ∈ issued, opening ≤ id ∧ id < next) (distinct : issued.Nodup)
+    (least : opening ≤ next) :
+    next ≤ after ∧ (∀ id ∈ issued ++ issue sent, opening ≤ id ∧ id < after) ∧
+      (issued ++ issue sent).Nodup := by
+  cases sent with
+  | none =>
+    cases kept rfl
+    exact ⟨Nat.le_refl _, by simpa [issue] using below, by simpa [issue] using distinct⟩
+  | some pair =>
+    obtain ⟨numbered, moved⟩ := given pair rfl
+    cases moved
+    refine ⟨Nat.le_succ _, fun id inside => ?_, ?_⟩
+    · rcases List.mem_append.mp inside with old | new
+      · exact ⟨(below id old).1, Nat.lt_succ_of_lt (below id old).2⟩
+      · cases List.mem_singleton.mp new
+        rw [numbered]
+        exact ⟨least, Nat.lt_succ_self _⟩
+    · refine List.nodup_append.mpr ⟨distinct,
+        List.nodup_cons.mpr ⟨(fun wrong => nomatch wrong), List.nodup_nil⟩,
+        fun id old other new => ?_⟩
+      cases List.mem_singleton.mp new
+      intro same
+      rw [same, numbered] at old
+      exact Nat.lt_irrefl _ (below _ old).2
+
+/-- **No identifier is given twice, and the counter is above every identifier given.** For
+every state reached with a list of the identifiers given to requests on the way: the next
+unused identifier is at least the count of the opening requests; every identifier given is
+at least that count and below the next unused one; no identifier occurs twice in the list;
+and every identifier that the last release holds, among its commands or its resent
+velocities, is below the next unused one. `Reached.counter` states which identifiers were
+given. -/
+theorem Reached.identifiers {readings : List Reading} {issued : List Nat} {phase : Phase}
+    (reached : Reached readings issued phase) :
+    opening ≤ phase.next ∧ (∀ id ∈ issued, opening ≤ id ∧ id < phase.next) ∧ issued.Nodup ∧
       ∀ sent, phase.last = some sent → ∀ id ∈ sent.awaited ++ sent.resent, id < phase.next := by
   induction reached with
-  | start => exact ⟨Nat.le_refl _, fun _ wrong => nomatch wrong⟩
-  | @hear readings calm _ line hold =>
-    obtain ⟨least, below⟩ := hold
+  | start =>
+    exact ⟨Nat.le_refl _, (fun _ wrong => nomatch wrong), List.nodup_nil,
+      fun _ wrong => nomatch wrong⟩
+  | @hear readings issued calm _ line hold =>
+    obtain ⟨least, given, distinct, below⟩ := hold
     have answered : ∀ (id : Nat) (accepted : Bool) (sent : Sent),
         calm.last.map (Sent.answer id accepted) = some sent →
         ∀ other ∈ sent.awaited ++ sent.resent, other < calm.next := by
@@ -1155,38 +1407,54 @@ theorem Reached.identifiers {readings : List Reading} {phase : Phase}
     cases line with
     | result id accepted =>
       cases accepted with
-      | none => exact ⟨least, below⟩
-      | some value => exact ⟨least, answered id value⟩
+      | none => exact ⟨least, given, distinct, below⟩
+      | some value => exact ⟨least, given, distinct, answered id value⟩
     | fault id =>
       cases id with
-      | none => exact ⟨least, below⟩
-      | some number => exact ⟨least, answered number false⟩
-    | state _ | depth _ | unread _ | notice | invalid => exact ⟨least, below⟩
-  | @tick readings calm _ now hold =>
-    obtain ⟨least, below⟩ := hold
+      | none => exact ⟨least, given, distinct, below⟩
+      | some number => exact ⟨least, given, distinct, answered number false⟩
+    | state _ | depth _ | unread _ | notice | invalid => exact ⟨least, given, distinct, below⟩
+  | @tick readings issued calm _ now hold =>
+    obtain ⟨least, given, distinct, below⟩ := hold
     have step : ∀ (sent : Sent) (result : Bridge × Option Command), calm.last = some sent →
-        opening ≤ (calm.resend sent result).1.next ∧
-          ∀ other, (calm.resend sent result).1.last = some other →
-            ∀ id ∈ other.awaited ++ other.resent, id < (calm.resend sent result).1.next := by
+        (∀ pair, (calm.resend sent result).2 = some pair →
+          pair.1 = calm.next ∧ (calm.resend sent result).1.next = calm.next + 1) ∧
+        ((calm.resend sent result).2 = none → (calm.resend sent result).1.next = calm.next) ∧
+        ∀ other, (calm.resend sent result).1.last = some other →
+          ∀ id ∈ other.awaited ++ other.resent, id < (calm.resend sent result).1.next := by
       intro sent result held
       obtain ⟨record, command⟩ := result
       cases command with
-      | none => exact ⟨least, fun other same id inside => below other same id inside⟩
+      | none =>
+        exact ⟨(fun _ wrong => nomatch wrong), fun _ => rfl,
+          fun other same id inside => below other same id inside⟩
       | some command =>
-        refine ⟨Nat.le_succ_of_le least, fun other same id inside => ?_⟩
-        cases Option.some.inj same
-        rcases List.mem_append.mp inside with first | second
-        · exact Nat.lt_succ_of_lt (below sent held id (List.mem_append_left _ first))
-        · rcases List.mem_cons.mp second with rfl | older
-          · exact Nat.lt_succ_self _
-          · exact Nat.lt_succ_of_lt (below sent held id (List.mem_append_right _ older))
-    show opening ≤ (calm.ticked now).1.next ∧
-      ∀ sent, (calm.ticked now).1.last = some sent → _
-    unfold Calm.ticked
-    cases held : calm.last with
-    | none => exact ⟨least, fun other same => nomatch (held.symm.trans same)⟩
-    | some sent => exact step sent _ held
-  | @sense readings calm _ now poised sensed admitted hold =>
+        refine ⟨fun pair same => ?_, (fun wrong => nomatch wrong), fun other same id inside => ?_⟩
+        · cases Option.some.inj same
+          exact ⟨rfl, rfl⟩
+        · cases Option.some.inj same
+          rcases List.mem_append.mp inside with first | second
+          · exact Nat.lt_succ_of_lt (below sent held id (List.mem_append_left _ first))
+          · rcases List.mem_cons.mp second with rfl | older
+            · exact Nat.lt_succ_self _
+            · exact Nat.lt_succ_of_lt (below sent held id (List.mem_append_right _ older))
+    have whole : (∀ pair, (calm.ticked now).2 = some pair →
+          pair.1 = calm.next ∧ (calm.ticked now).1.next = calm.next + 1) ∧
+        ((calm.ticked now).2 = none → (calm.ticked now).1.next = calm.next) ∧
+        ∀ other, (calm.ticked now).1.last = some other →
+          ∀ id ∈ other.awaited ++ other.resent, id < (calm.ticked now).1.next := by
+      unfold Calm.ticked
+      cases held : calm.last with
+      | none =>
+        exact ⟨(fun _ wrong => nomatch wrong), fun _ => rfl,
+          fun other same => nomatch (held.symm.trans same)⟩
+      | some sent => exact step sent _ held
+    obtain ⟨moved, kept, held⟩ := whole
+    obtain ⟨rose, all, apart⟩ :=
+      issue_next calm.next (calm.ticked now).1.next (calm.ticked now).2 moved kept issued given
+        distinct least
+    exact ⟨Nat.le_trans least rose, all, apart, held⟩
+  | @sense readings issued calm _ now poised sensed admitted hold =>
     unfold Calm.sensed at admitted
     split at admitted
     · split at admitted
@@ -1194,44 +1462,255 @@ theorem Reached.identifiers {readings : List Reading} {phase : Phase}
         exact hold
       · exact nomatch admitted
     · exact nomatch admitted
-  | @listen readings poised _ line hold =>
+  | @listen readings issued poised _ line hold =>
     cases line <;> exact hold
-  | @release readings poised _ index now action calm commands admitted hold =>
-    obtain ⟨least, _⟩ := hold
+  | @watch readings issued poised _ now hold =>
+    obtain ⟨least, given, distinct, below⟩ := hold
+    have step : ∀ (sent : Sent) (result : Bridge × Option Command), poised.last = some sent →
+        (∀ pair, (poised.resend sent result).2 = some pair →
+          pair.1 = poised.next ∧ (poised.resend sent result).1.next = poised.next + 1) ∧
+        ((poised.resend sent result).2 = none →
+          (poised.resend sent result).1.next = poised.next) ∧
+        ∀ other, (poised.resend sent result).1.last = some other →
+          ∀ id ∈ other.awaited ++ other.resent, id < (poised.resend sent result).1.next := by
+      intro sent result held
+      obtain ⟨record, command⟩ := result
+      cases command with
+      | none =>
+        exact ⟨(fun _ wrong => nomatch wrong), fun _ => rfl,
+          fun other same id inside => below other same id inside⟩
+      | some command =>
+        refine ⟨fun pair same => ?_, (fun wrong => nomatch wrong), fun other same id inside => ?_⟩
+        · cases Option.some.inj same
+          exact ⟨rfl, rfl⟩
+        · cases Option.some.inj same
+          rcases List.mem_append.mp inside with first | second
+          · exact Nat.lt_succ_of_lt (below sent held id (List.mem_append_left _ first))
+          · rcases List.mem_cons.mp second with rfl | older
+            · exact Nat.lt_succ_self _
+            · exact Nat.lt_succ_of_lt (below sent held id (List.mem_append_right _ older))
+    have whole : (∀ pair, (poised.ticked now).2 = some pair →
+          pair.1 = poised.next ∧ (poised.ticked now).1.next = poised.next + 1) ∧
+        ((poised.ticked now).2 = none → (poised.ticked now).1.next = poised.next) ∧
+        ∀ other, (poised.ticked now).1.last = some other →
+          ∀ id ∈ other.awaited ++ other.resent, id < (poised.ticked now).1.next := by
+      unfold Poised.ticked
+      cases held : poised.last with
+      | none =>
+        exact ⟨(fun _ wrong => nomatch wrong), fun _ => rfl,
+          fun other same => nomatch (held.symm.trans same)⟩
+      | some sent => exact step sent _ held
+    obtain ⟨moved, kept, held⟩ := whole
+    obtain ⟨rose, all, apart⟩ :=
+      issue_next poised.next (poised.ticked now).1.next (poised.ticked now).2 moved kept issued
+        given distinct least
+    exact ⟨Nat.le_trans least rose, all, apart, held⟩
+  | @release readings issued poised _ index now action calm commands admitted hold =>
+    obtain ⟨least, given, distinct, _⟩ := hold
     unfold Poised.released at admitted
     split at admitted
     · split at admitted
-      · rw [← (Prod.mk.inj (Option.some.inj admitted)).1]
-        refine ⟨Nat.le_trans least (Nat.le_add_right _ _), fun sent same id inside => ?_⟩
-        cases Option.some.inj same
-        rw [List.append_nil] at inside
-        exact (List.mem_range'_1.mp inside).2
+      · have same := Prod.mk.inj (Option.some.inj admitted)
+        rw [← same.1, ← same.2]
+        have firsts := List.map_fst_zip (l₁ := List.range' poised.next
+          (action.commands poised.sitting).length) (l₂ := action.commands poised.sitting)
+          (by rw [List.length_range']; exact Nat.le_refl _)
+        show opening ≤ poised.next + (action.commands poised.sitting).length ∧ _
+        rw [firsts]
+        refine ⟨Nat.le_trans least (Nat.le_add_right _ _), fun id inside => ?_, ?_,
+          fun sent same id inside => ?_⟩
+        · rcases List.mem_append.mp inside with old | new
+          · exact ⟨(given id old).1, Nat.lt_of_lt_of_le (given id old).2 (Nat.le_add_right _ _)⟩
+          · obtain ⟨lower, upper⟩ := List.mem_range'_1.mp new
+            exact ⟨Nat.le_trans least lower, upper⟩
+        · refine List.nodup_append.mpr ⟨distinct, List.nodup_range', fun id old other new => ?_⟩
+          intro same
+          rw [same] at old
+          exact Nat.lt_irrefl _ (Nat.lt_of_lt_of_le (given _ old).2 (List.mem_range'_1.mp new).1)
+        · cases Option.some.inj same
+          rw [List.append_nil] at inside
+          exact (List.mem_range'_1.mp inside).2
       · exact nomatch admitted
     · exact nomatch admitted
 
-/-- **The identifiers of a release are new.** For every admitted release: each command is
-given an identifier that is at least the next unused one of the host before the release,
-so it is above the opening identifiers and is held by no earlier release; and the
+/-- What a tick of the bridge gives, for what the host holds: the identifiers given are the
+consecutive ones from the next unused identifier, and the counter moves past them. -/
+private theorem Calm.resend_counter (calm : Calm) (sent : Sent) (result : Bridge × Option Command) :
+    ∃ count, issue (calm.resend sent result).2 = List.range' calm.next count ∧
+      (calm.resend sent result).1.next = calm.next + count := by
+  obtain ⟨record, command⟩ := result
+  cases command with
+  | none => exact ⟨0, rfl, rfl⟩
+  | some command => exact ⟨1, rfl, rfl⟩
+
+/-- What a reading of the clock gives while no percept awaits: the identifiers given are the
+consecutive ones from the next unused identifier, and the counter moves past them. -/
+private theorem Calm.ticked_counter (now : Instant) (calm : Calm) :
+    ∃ count, issue (calm.ticked now).2 = List.range' calm.next count ∧
+      (calm.ticked now).1.next = calm.next + count := by
+  unfold Calm.ticked
+  cases calm.last with
+  | none => exact ⟨0, rfl, rfl⟩
+  | some sent => exact calm.resend_counter sent _
+
+/-- What a tick of the bridge gives while a percept awaits: the identifiers given are the
+consecutive ones from the next unused identifier, and the counter moves past them. -/
+private theorem Poised.resend_counter (poised : Poised) (sent : Sent)
+    (result : Bridge × Option Command) :
+    ∃ count, issue (poised.resend sent result).2 = List.range' poised.next count ∧
+      (poised.resend sent result).1.next = poised.next + count := by
+  obtain ⟨record, command⟩ := result
+  cases command with
+  | none => exact ⟨0, rfl, rfl⟩
+  | some command => exact ⟨1, rfl, rfl⟩
+
+/-- What a reading of the clock gives while a percept awaits: the identifiers given are the
+consecutive ones from the next unused identifier, and the counter moves past them. -/
+private theorem Poised.ticked_counter (now : Instant) (poised : Poised) :
+    ∃ count, issue (poised.ticked now).2 = List.range' poised.next count ∧
+      (poised.ticked now).1.next = poised.next + count := by
+  unfold Poised.ticked
+  cases poised.last with
+  | none => exact ⟨0, rfl, rfl⟩
+  | some sent => exact poised.resend_counter sent _
+
+/-- Consecutive identifiers from the opening ones, followed by consecutive identifiers from
+the counter, are consecutive identifiers from the opening ones. -/
+private theorem counter_step (count next given : Nat) (issued : List Nat)
+    (counted : next = opening + count) (consecutive : issued = List.range' opening count) :
+    issued ++ List.range' next given = List.range' opening (count + given) := by
+  rw [consecutive, counted]
+  exact List.range'_append_1
+
+/-- **The identifiers given are the consecutive numbers from the opening ones, in the order
+they were given, and the counter is the next one.** For every state reached with the
+identifiers given to requests on the way: the next unused identifier is the count of the
+opening requests plus the count of the identifiers given, and the identifiers given are the
+numbers from the count of the opening requests up, one after another. Each constructor of
+`Reached` extends the list of identifiers given, so along a derivation the counter never
+decreases, and `counter_rises` states by how much each transition raises it. -/
+theorem Reached.counter {readings : List Reading} {issued : List Nat} {phase : Phase}
+    (reached : Reached readings issued phase) :
+    phase.next = opening + issued.length ∧ issued = List.range' opening issued.length := by
+  induction reached with
+  | start => exact ⟨rfl, rfl⟩
+  | @hear readings issued calm _ line hold =>
+    have kept : (calm.heard line).next = calm.next := by
+      cases line with
+      | result id accepted => cases accepted <;> rfl
+      | fault id => cases id <;> rfl
+      | state _ | depth _ | unread _ | notice | invalid => rfl
+    exact ⟨kept.trans hold.1, hold.2⟩
+  | @tick readings issued calm _ now hold =>
+    obtain ⟨given, sent, moved⟩ := Calm.ticked_counter now calm
+    have counted : calm.next = opening + issued.length := hold.1
+    show (calm.ticked now).1.next = opening + (issued ++ issue (calm.ticked now).2).length ∧ _
+    rw [sent, List.length_append, List.length_range', moved, counted, Nat.add_assoc]
+    exact ⟨rfl, counter_step issued.length _ given issued rfl hold.2⟩
+  | @sense readings issued calm _ now poised sensed admitted hold =>
+    unfold Calm.sensed at admitted
+    split at admitted
+    · split at admitted
+      · rw [← (Prod.mk.inj (Option.some.inj admitted)).1]
+        exact hold
+      · exact nomatch admitted
+    · exact nomatch admitted
+  | @listen readings issued poised _ line hold =>
+    cases line <;> exact hold
+  | @watch readings issued poised _ now hold =>
+    obtain ⟨given, sent, moved⟩ := Poised.ticked_counter now poised
+    have counted : poised.next = opening + issued.length := hold.1
+    show (poised.ticked now).1.next = opening + (issued ++ issue (poised.ticked now).2).length ∧ _
+    rw [sent, List.length_append, List.length_range', moved, counted, Nat.add_assoc]
+    exact ⟨rfl, counter_step issued.length _ given issued rfl hold.2⟩
+  | @release readings issued poised _ index now action calm commands admitted hold =>
+    unfold Poised.released at admitted
+    split at admitted
+    · split at admitted
+      · have same := Prod.mk.inj (Option.some.inj admitted)
+        rw [← same.1, ← same.2]
+        have firsts := List.map_fst_zip (l₁ := List.range' poised.next
+          (action.commands poised.sitting).length) (l₂ := action.commands poised.sitting)
+          (by rw [List.length_range']; exact Nat.le_refl _)
+        have counted : poised.next = opening + issued.length := hold.1
+        show poised.next + (action.commands poised.sitting).length = _ ∧ _
+        rw [firsts, List.length_append, List.length_range']
+        refine ⟨?_, counter_step issued.length _ _ issued counted hold.2⟩
+        rw [counted, Nat.add_assoc]
+      · exact nomatch admitted
+    · exact nomatch admitted
+
+/-- **The counter never decreases: each transition raises it by the count of the
+identifiers it gives.** Hearing a line and sensing a percept leave the next unused
+identifier as it was; a reading of the clock, in either phase, raises it by one when it
+sends a velocity again and leaves it otherwise; and a release raises it by the count of its
+commands. Every derivation is a sequence of these transitions (`Reached`), so the counter
+never decreases along one. -/
+theorem counter_rises :
+    (∀ (idle : Idle) (line : Line), (idle.hear line).calm.next = idle.calm.next) ∧
+      (∀ (idle : Idle) (now : Instant),
+        (idle.tick now).1.calm.next = idle.calm.next + (issue (idle.tick now).2).length) ∧
+      (∀ (idle : Idle) (now : Instant) (awaiting : Awaiting) (sensed : Sensed),
+        idle.sense now = some (awaiting, sensed) → awaiting.poised.next = idle.calm.next) ∧
+      (∀ (awaiting : Awaiting) (line : Line),
+        (awaiting.hear line).poised.next = awaiting.poised.next) ∧
+      (∀ (awaiting : Awaiting) (now : Instant),
+        (awaiting.tick now).1.poised.next =
+          awaiting.poised.next + (issue (awaiting.tick now).2).length) ∧
+      (∀ (index : Nat) (now : Instant) (action : Action) (awaiting : Awaiting) (idle : Idle)
+        (commands : List (Nat × Command)),
+        awaiting.release index now action = some (idle, commands) →
+          idle.calm.next = awaiting.poised.next + commands.length) := by
+  refine ⟨fun idle line => (Idle.hear_keeps idle line).2.2.2.1, fun idle now => ?_,
+    fun idle now awaiting sensed admitted => ?_, fun awaiting line => ?_,
+    fun awaiting now => ?_, fun index now action awaiting idle commands admitted => ?_⟩
+  · obtain ⟨given, sent, moved⟩ := Calm.ticked_counter now idle.calm
+    show (idle.calm.ticked now).1.next = idle.calm.next + (issue (idle.calm.ticked now).2).length
+    rw [sent, List.length_range']
+    exact moved
+  · obtain ⟨_, _, _, poised, _⟩ := (Idle.sense_iff now idle awaiting sensed).mp admitted
+    rw [poised]
+  · show (awaiting.poised.heard line).next = awaiting.poised.next
+    cases line <;> rfl
+  · obtain ⟨given, sent, moved⟩ := Poised.ticked_counter now awaiting.poised
+    show (awaiting.poised.ticked now).1.next =
+      awaiting.poised.next + (issue (awaiting.poised.ticked now).2).length
+    rw [sent, List.length_range']
+    exact moved
+  · obtain ⟨_, _, calm, rfl⟩ :=
+      (Awaiting.release_iff index now action awaiting idle commands).mp admitted
+    rw [List.length_zip, List.length_range', Nat.min_self, calm]
+
+/-- **The identifiers of a release are new, and were never given before.** For every
+admitted release, and every derivation of the host before it with the identifiers given on
+the way: each command is given an identifier that is at least the next unused one of the
+host before the release, so it is above the opening identifiers, it is none of the
+identifiers given earlier on that derivation, and it is held by no earlier release; and the
 identifiers of the commands of one release differ. -/
 theorem Awaiting.release_fresh (index : Nat) (now : Instant) (action : Action)
     (awaiting : Awaiting) (idle : Idle) (commands : List (Nat × Command))
-    (admitted : awaiting.release index now action = some (idle, commands)) :
+    (admitted : awaiting.release index now action = some (idle, commands))
+    (readings : List Reading) (issued : List Nat)
+    (reached : Reached readings issued (.awaiting awaiting.poised)) :
     (commands.map fun pair => pair.1).Nodup ∧
-      ∀ pair ∈ commands, opening ≤ pair.1 ∧
+      ∀ pair ∈ commands, awaiting.poised.next ≤ pair.1 ∧ opening ≤ pair.1 ∧
+        pair.1 ∉ issued ∧
         ∀ sent, awaiting.poised.last = some sent → pair.1 ∉ sent.awaited ++ sent.resent := by
-  obtain ⟨readings, reached⟩ := awaiting.reached
-  obtain ⟨least, below⟩ := reached.identifiers
+  obtain ⟨least, given, _, below⟩ := reached.identifiers
   obtain ⟨_, _, _, rfl⟩ :=
     (Awaiting.release_iff index now action awaiting idle commands).mp admitted
   refine ⟨?_, fun pair inside => ?_⟩
   · have firsts := List.map_fst_zip (l₁ := List.range' awaiting.poised.next
       (action.commands awaiting.poised.sitting).length)
-      (l₂ := action.commands awaiting.poised.sitting) (by rw [List.length_range']; exact Nat.le_refl _)
+      (l₂ := action.commands awaiting.poised.sitting)
+      (by rw [List.length_range']; exact Nat.le_refl _)
     rw [firsts]
     exact List.nodup_range'
   · have numbered := (List.mem_range'_1.mp (List.of_mem_zip inside).1).1
-    exact ⟨Nat.le_trans least numbered, fun sent held within =>
-      absurd (below sent held pair.1 within) (Nat.not_lt.mpr numbered)⟩
+    exact ⟨numbered, Nat.le_trans least numbered,
+      fun earlier => absurd (given pair.1 earlier).2 (Nat.not_lt.mpr numbered),
+      fun sent held within =>
+        absurd (below sent held pair.1 within) (Nat.not_lt.mpr numbered)⟩
 
 /-- **After a near reading, no percept is the event of the goal until a clear reading.**
 For every host with no percept awaiting that is reached with a history of sensed readings
@@ -1239,32 +1718,34 @@ in which a near reading is followed by readings none of which is clear: the next
 that the host senses is not the event of the goal. So clear, near, near gives one event,
 from the transitions of the host. -/
 theorem Idle.sense_held (idle : Idle) (before : List Reading) (first : Reading)
-    (later : List Reading) (reached : Reached (before ++ first :: later) (.idle idle.calm))
+    (later : List Reading) (issued : List Nat)
+    (reached : Reached (before ++ first :: later) issued (.idle idle.calm))
     (close : Handcrafted.Microduck.near first = true)
     (narrow : ∀ reading ∈ later, Handcrafted.Microduck.clear reading = false)
     (now : Instant) (awaiting : Awaiting) (sensed : Sensed)
     (admitted : idle.sense now = some (awaiting, sensed)) :
     sensed.percept.frame.achieved = false := by
-  obtain ⟨pair, _, _, _, rfl⟩ := (Idle.sense_iff now idle awaiting sensed).mp admitted
+  obtain ⟨frame, _, _, _, rfl⟩ := (Idle.sense_iff now idle awaiting sensed).mp admitted
   have latch : idle.calm.armed = _ := reached.latch
-  show Handcrafted.Microduck.achieved idle.calm.armed pair.reading = false
+  show Handcrafted.Microduck.achieved idle.calm.armed _ = false
   rw [latch, List.foldl_append, List.foldl_cons]
-  exact Handcrafted.Microduck.arm_held _ first later pair.reading close narrow
+  exact Handcrafted.Microduck.arm_held _ first later _ close narrow
 
 /-- **The depth frame of every reading is stamped at or before its state frame, and its age
 is the exact difference.** For every percept that a host senses and the depth frame of its
 reading, if it has one: the stamp of the depth frame is not after the stamp of the state
 frame, and the stamp of the depth frame plus the age of the reading is the stamp of the
-state frame. A reading with no depth frame at or before its state frame has none. -/
+state frame. A reading with no depth frame at or before its state frame among the two that
+the host holds has none. -/
 theorem Idle.sense_age (now : Instant) (idle : Idle) (awaiting : Awaiting) (sensed : Sensed)
     (admitted : idle.sense now = some (awaiting, sensed)) (depth : Depth)
     (paired : sensed.reading.depth = some depth) :
     depth.taken.nanoseconds ≤ sensed.reading.state.taken.nanoseconds ∧
       ∃ age, sensed.reading.age = some age ∧
         depth.taken.nanoseconds + age = sensed.reading.state.taken.nanoseconds := by
-  obtain ⟨pair, _, _, _, rfl⟩ := (Idle.sense_iff now idle awaiting sensed).mp admitted
-  have ordered := pair.ordered depth paired
-  exact ⟨ordered, Reading.age_exact pair.reading depth paired ordered⟩
+  obtain ⟨frame, _, _, _, rfl⟩ := (Idle.sense_iff now idle awaiting sensed).mp admitted
+  have ordered := (Pair.of frame idle.calm.depth idle.calm.earlier).ordered depth paired
+  exact ⟨ordered, Reading.age_exact _ depth paired ordered⟩
 
 /-- The last release of an idle state is not before the start of its percept's cycle. -/
 private def Phase.Begun : Phase → Prop
@@ -1274,11 +1755,11 @@ private def Phase.Begun : Phase → Prop
   | .awaiting _ => True
 
 /-- Every reachable state has its last release at or after the start of its cycle. -/
-private theorem Reached.begun {readings : List Reading} {phase : Phase}
-    (reached : Reached readings phase) : phase.Begun := by
+private theorem Reached.begun {readings : List Reading} {issued : List Nat} {phase : Phase}
+    (reached : Reached readings issued phase) : phase.Begun := by
   induction reached with
   | start => exact fun _ wrong => nomatch wrong
-  | @hear readings calm _ line hold =>
+  | @hear readings issued calm _ line hold =>
     have answered : ∀ (id : Nat) (accepted : Bool) (sent : Sent),
         calm.last.map (Sent.answer id accepted) = some sent →
         (calm.pace.boundary calm.origin sent.record.index).nanoseconds ≤
@@ -1297,7 +1778,7 @@ private theorem Reached.begun {readings : List Reading} {phase : Phase}
       | none => exact hold
       | some number => exact answered number false
     | state _ | depth _ | unread _ | notice | invalid => exact hold
-  | @tick readings calm _ now hold =>
+  | @tick readings issued calm _ now hold =>
     have step : ∀ (sent : Sent) (result : Bridge × Option Command), calm.last = some sent →
         result.1.index = sent.record.index → result.1.released = sent.record.released →
         ∀ other, (calm.resend sent result).1.last = some other →
@@ -1325,7 +1806,8 @@ private theorem Reached.begun {readings : List Reading} {phase : Phase}
       exact step sent _ held index released
   | sense => trivial
   | listen => trivial
-  | @release readings poised _ index now action calm commands admitted hold =>
+  | watch => trivial
+  | @release readings issued poised _ index now action calm commands admitted hold =>
     unfold Poised.released at admitted
     split at admitted
     · split at admitted
@@ -1346,19 +1828,19 @@ theorem Idle.hold_bounded (idle : Idle) (sent : Sent) (held : idle.calm.last = s
     (sent.record.ends idle.calm.pace idle.calm.keep idle.calm.origin).nanoseconds ≤
       sent.record.released.nanoseconds + sent.record.action.duration + idle.calm.keep.transit +
         (1 + idle.calm.pace.latency + idle.calm.keep.grace) * idle.calm.pace.cycle := by
-  obtain ⟨readings, reached⟩ := idle.reached
+  obtain ⟨readings, issued, reached⟩ := idle.reached
   exact Bridge.ends_bounded idle.calm.pace idle.calm.keep idle.calm.origin sent.record
     (reached.begun sent held)
 
-/-- **Every identifier that a host holds is below its next unused one.** For every host,
-in either phase: the statement of `Reached.identifiers`, which holds because the host is
-reached from the start. -/
+/-- **Every identifier that a host holds is below its next unused one.** For every host
+with no percept awaiting: the next unused identifier is at least the count of the opening
+requests, and every identifier that the last release holds is below it. -/
 theorem Idle.identifiers (idle : Idle) :
     opening ≤ idle.calm.next ∧
       ∀ sent, idle.calm.last = some sent →
         ∀ id ∈ sent.awaited ++ sent.resent, id < idle.calm.next := by
-  obtain ⟨readings, reached⟩ := idle.reached
-  exact reached.identifiers
+  obtain ⟨readings, issued, reached⟩ := idle.reached
+  exact ⟨reached.identifiers.1, reached.identifiers.2.2.2⟩
 
 /-- **An action is released exactly for the awaited cycle, once it has started.** For every
 cycle, instant, action and host with a percept awaiting. -/
@@ -1391,7 +1873,7 @@ instance : Nonempty Awaiting := by
     .stand, false, false, none, ⟨false, false, false, false⟩⟩
   let idle := (Idle.start Declared.pace Declared.keep ⟨0⟩).hear (.state frame)
   have sensing : (idle.sense ⟨0⟩).isSome = true :=
-    (Idle.sense_admitted ⟨0⟩ idle).mpr ⟨⟨_, ((Idle.hear_frame _).1 frame).1⟩, Nat.zero_le _⟩
+    (Idle.sense_admitted ⟨0⟩ idle).mpr ⟨⟨frame, rfl⟩, Nat.zero_le _⟩
   obtain ⟨⟨awaiting, _⟩, _⟩ := Option.isSome_iff_exists.mp sensing
   exact ⟨awaiting⟩
 

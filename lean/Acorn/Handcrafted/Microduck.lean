@@ -61,7 +61,7 @@ position carries at most one word of a frame (`entries_distinct`).
 | 43 | the four limit names | one bit for each |
 | 44 | whether the reading has a depth frame | 0 or 1 |
 | 45 | the age of the depth frame, when there is one | in steps of 20 ms, at most 25 |
-| 46 | what became of the preceding action | 0 before any action, then 1 to 4 |
+| 46 | what became of the preceding action | 0 before any action, then 1 to 5 |
 | 47 | whether the release of the preceding action was late | 0 or 1 |
 
 A level is the count of whole steps from the least value of the scale of thousandths, so
@@ -220,7 +220,8 @@ def flag (value : Bool) : UInt64 := if value then 1 else 0
 def limited (limits : Limits) : UInt64 :=
   flag limits.deadman + 2 * flag limits.range + 4 * flag limits.finite + 8 * flag limits.other
 
-/-- The code of what became of the preceding action: zero before any action. -/
+/-- The code of what became of the preceding action: zero before any action, and one to five
+for the five outcomes, five for an action whose answer was not complete. -/
 def became : Option Outcome → UInt64
   | none => 0
   | some .executed => 1

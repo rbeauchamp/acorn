@@ -323,9 +323,12 @@ theorem Acorn.Host.Microduck.Action.next_covers (action : Acorn.Host.Microduck.A
     (pace.boundary origin (action.next pace transit origin index released)).nanoseconds
 ```
 
-That a host senses the next percept at that cycle and no earlier is in the pure
-transitions of a host: a percept is sensed only in a cycle that is not before that one, and
-from a state frame heard since the release (`Acorn.Host.Microduck.Idle.sense_iff`).
+That a sensed percept cannot precede that cycle is in the pure transitions of a host: a
+percept is sensed only in a cycle that is not before that one, and from a state frame heard
+since the release (`Acorn.Host.Microduck.Idle.sense_iff`); it can be sensed in a later
+cycle. While the percept awaits its action, a reading of the clock sends the velocity of the
+action that the deadline rule names in force, up to the end of its hold, and nothing from
+then (`Acorn.Host.Microduck.Awaiting.tick_named`).
 A host is in one of two phases, each a type whose values are reached from the start by the
 transitions, and its verdict at every instant is the deadline rule's for its last step: a
 fault holds from the deadline to the release, the instant of the release included
