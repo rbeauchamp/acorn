@@ -45,7 +45,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Seven functions of this module have a contract and no kind. The reasons are three.
+Nine functions of this module have a contract and no kind. The reasons are four.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -56,12 +56,16 @@ Seven functions of this module have a contract and no kind. The reasons are thre
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
   `Checkpoint.load`.
+* The function returns a result exactly when the terrain generator `Host.terrain` does, and
+  the admission behaviour of the generator has no independent refusal criterion here:
+  `Host.World.enterable` and `Host.World.tileKind`. A kind needs that criterion and the proof
+  of its correspondence with the generator.
 * No theorem states the set of the inputs that the function accepts. The statements of
   `Host.payAndAct` and `Host.performAction` are properties of the result of an accepted
   action, and the statement of `Host.terrain` is about what the readers of its result do with
   it.
 
-Kinds for the functions of the first two reasons are remaining work of
+Kinds for the functions of the first three reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
 
 ## Tests that a specification does not share
@@ -80,10 +84,8 @@ and the move by `Offset` and `Heads`, with no offset table, no facing position a
 translation. `squared_admit_exact` states the discrepancy of two words by their rational
 values, with no unit map. A private lemma beside each connects the reader with the statement.
 
-Two kinds name a function that their functions call, as shared vocabulary. `world_enterable`
-and `tile_kind` name the terrain generator `Host.terrain`: no theorem states its refusals in
-other terms, and each kind states that its function adds no refusal to those of the generator.
-The round trips of the checkpoint admissions name the writers of the forms that they read.
+The kinds of the checkpoint admissions name the writers of the forms that they read, which
+the admissions do not call.
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
 tests that their functions run. `replay_certified`, `replay_check` and `advance_actions` reach
@@ -109,21 +111,6 @@ def wide : Host.WorldConfig :=
 coordinate overflow, and the kernel evaluates that refusal. -/
 def last : Host.Position := ⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩
 
-/-- A complete decision about whether an optional result holds a value: the function accepts
-every input with a written form, and it refuses one input. The kind is about
-`Regula.Dependent.isSome` of the function. -/
-private theorem reads.{u, v, w} {α : Sort u} {payload : α → Type v} {β : α → Sort w}
-    {write : ∀ x, β x → Prop} {f : ∀ x, Option (payload x)}
-    (complete : ∀ x (value : β x), write x value → (f x).isSome = true)
-    (refused : ∃ x, (f x).isSome = false) :
-    Regula.DecidesCompletely (· = true) (fun x => ∃ value : β x, write x value)
-      (Regula.Dependent.isSome f) :=
-  { complete := fun x ⟨value, written⟩ => complete x value written
-    refused := refused.elim fun x none => ⟨x, fun some => by
-      have some : (f x).isSome = true := some
-      rw [none] at some
-      exact Bool.false_ne_true some⟩ }
-
 /-- A two-way decision from an acceptance equivalence about the function, an input that
 satisfies the specification and one that does not. -/
 private theorem decides.{u, v} {α : Sort u} {ρ : Sort v} {accepts : ρ → Prop} {spec : α → Prop}
@@ -147,9 +134,6 @@ def narrow : Dimension := ⟨1, by decide, ⟨0, rfl⟩, by decide⟩
 
 /-- The resumable profile. -/
 def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
-
-/-- A profile that is not resumable: primitive-only control. -/
-def primitive : FeatureProfile := ⟨.primitiveOnly, .perStep, .declared, .learned⟩
 
 /-- A construction of the given profile over `bank` and `narrow`. -/
 def construction (profile : FeatureProfile) : AgentConstruction :=
@@ -178,6 +162,11 @@ def initialPayload : Payload narrow :=
   imagePayload (construction resumable)
     (snapshotImage (construction resumable) (AgentConstruction.initial _))
 
+/-- The payload of the initial agent of the resumable construction with the format generation
+zero in its header. Every other field is the field of `initialPayload`. -/
+def stalePayload : Payload narrow :=
+  { initialPayload with header := { initialPayload.header with version := 0 } }
+
 /-- A tile of `wide` from which a tree to the west can be harvested. -/
 def stand : Host.BoxPosition wide := ⟨⟨0, by decide⟩, ⟨6, by decide⟩⟩
 
@@ -186,49 +175,37 @@ the terrain of its three tiles. -/
 private theorem stood : Host.stanceCertified wide stand .west .wood = true := by
   decide +kernel
 
-/-- The terrain generator returns a kind for the tile of `stand`: the stance checker accepts
-only a stance on a walkable tile. -/
-private theorem open_tile :
-    (Host.terrain stand.position wide.raw.seed wide.raw.baseScale).isOk = true := by
-  have accepted := stood
-  unfold Host.stanceCertified at accepted
-  have walkable := ((Bool.and_eq_true _ _).mp ((Bool.and_eq_true _ _).mp accepted).1).2
-  unfold Host.walkableTile at walkable
-  cases generated : Host.terrain stand.position wide.raw.seed wide.raw.baseScale with
-  | ok kind => rfl
-  | error refusal =>
-    rw [generated] at walkable
-    exact absurd walkable Bool.false_ne_true
+/-- An admitted total holds the two input words unchanged: admission makes the record from
+the words and the proof of their legality. -/
+private theorem sum_written {quantity : Quantity} {words : SumWords}
+    {record : SumCount quantity} (admitted : admitSum quantity words = some record) :
+    words = sumWords record := by
+  unfold admitSum SumCount.admit at admitted
+  split at admitted
+  · cases admitted
+    rfl
+  · exact nomatch admitted
 
-/-- The terrain generator refuses the last coordinate. The kernel evaluates the refusal. -/
-private theorem last_refused :
-    (Host.terrain last wide.raw.seed wide.raw.baseScale).isOk = false := by
-  decide +kernel
-
-/-- A result is a success exactly when it is the success of some value. -/
-private theorem ok_iff.{u, v} {ε : Type u} {α : Type v} (result : Except ε α) :
-    result.isOk = true ↔ ∃ value, result = .ok value := by
-  cases result with
-  | error refusal => exact ⟨fun ok => (nomatch ok), fun ⟨_, same⟩ => (nomatch same)⟩
-  | ok value => exact ⟨fun _ => ⟨value, rfl⟩, fun _ => rfl⟩
-
-/-- Total admission accepts the words of every stored total of the receiving quantity
-(`CurrentCheckpoint.sum_roundtrip`), and it refuses a reward total whose sum is a NaN word.
-`sum_admit_value` states the total that it returns.
-
-**Not claimed:** soundness. No theorem states that every accepted word pair is the word image
-of a stored total. -/
+/-- Total admission accepts exactly the words of a stored total of the receiving quantity. An
+accepted pair is the words of the total that admission returns (`sum_written`), and the words
+of every stored total are accepted (`CurrentCheckpoint.sum_roundtrip`). The accepted input is
+the zero total of the reward quantity. The refused input is a count of one with the sum two
+under the reward quantity, whose bound for one observation is one. `sum_admit_value` states
+the total that admission returns. -/
 theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
-    Regula.DecidesCompletely (· = true)
+    Regula.Decides (· = true)
       (fun input : Quantity × SumWords => ∃ record : SumCount input.1, input.2 = sumWords record)
       (Regula.Dependent.isSome fun input : Quantity × SumWords => admit input.1 input.2)) :=
-  ⟨reads
-    (fun input record written => by
-      rw [written, CurrentCheckpoint.sum_roundtrip]
-      rfl)
-    ⟨(.reward, (0, ⟨0x7ff8000000000000⟩)), by
-      have illegal : ¬LegalSum .reward 0 ⟨0x7ff8000000000000⟩ := by decide
-      simp [admitSum, SumCount.admit, illegal]⟩⟩
+  ⟨.of_iff
+    (fun input => ⟨fun accepted => by
+        obtain ⟨record, admitted⟩ := Option.isSome_iff_exists.mp accepted
+        exact ⟨record, sum_written admitted⟩,
+      fun ⟨record, written⟩ => by
+        change (admitSum input.1 input.2).isSome = true
+        rw [written, CurrentCheckpoint.sum_roundtrip]
+        rfl⟩)
+    ⟨(.reward, (0, ⟨0⟩)), by decide⟩
+    ⟨(.reward, (1, ⟨0x4000000000000000⟩)), by decide⟩⟩
 
 /-- Total admission returns the total whose words it reads (`CurrentCheckpoint.sum_roundtrip`).
 A kind does not state the value of a result, so this statement is a requirement with no kind
@@ -662,9 +639,14 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
 
 /-! ## Checkpoint admissions
 
-Each admission below composes the admissions of its parts. Its round trip is proved in
-`CurrentCheckpoint`, and its type depends on the receiving construction or on the discounts,
-and the statement is a requirement with no kind. -/
+Each admission below composes the admissions of its parts, and its round trip is proved in
+`CurrentCheckpoint`. The kind of an admission states which inputs it accepts. It is two-way for
+the demon columns, whose admitted list holds the input words unchanged, and complete for the
+feature image, the payload and the candidate, where no theorem states that an accepted input is
+a written one. The type of a result depends on the receiving construction or on the discounts,
+so each kind is about `Regula.Dependent.isSome` or `Regula.Dependent.isOk` of the function. The
+value that an admission returns is a separate requirement with no kind, under the name of the
+kind with `_value`. -/
 
 /-- The arguments of `Checkpoint.admitDemons`, in order. -/
 structure DemonsAdmit where
@@ -677,25 +659,63 @@ structure DemonsAdmit where
   /-- The column of errors. -/
   errors : List Binary32
 
-/-- Demon admission accepts the columns of every durable demon list of the receiving discounts
-(`CurrentCheckpoint.demons_roundtrip`), and it refuses empty columns for one discount.
-`demons_admit_value` states the list that it returns.
+/-- An admitted demon list holds the three input columns unchanged: each step of the
+admission admits one total, one return and one error without changing a word
+(`sum_written`, `Bounded32.admit_exact`), and columns of unequal lengths are refused. -/
+private theorem demons_written (discounts : List Discount) :
+    ∀ (sums : List SumWords) (returns errors : List Binary32)
+      (records : DurableDemons discounts),
+      admitDemons discounts sums returns errors = some records →
+        sums = (demonColumns records).sums.toList ∧
+          returns = (demonColumns records).returns.toList ∧
+          errors = (demonColumns records).errors.toList := by
+  induction discounts with
+  | nil =>
+    intro sums returns errors records admitted
+    cases sums <;> cases returns <;> cases errors <;> simp only [admitDemons] at admitted
+    · cases admitted
+      exact ⟨rfl, rfl, rfl⟩
+    all_goals exact nomatch admitted
+  | cons discount rest ih =>
+    intro sums returns errors records admitted
+    cases sums <;> cases returns <;> cases errors <;> simp only [admitDemons] at admitted
+    case cons.cons.cons sum sums value values error errors =>
+      simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at admitted
+      obtain ⟨total, totalAdmitted, prediction, predictionAdmitted, bounded, boundedAdmitted,
+        tail, tailAdmitted, built⟩ := admitted
+      cases built
+      obtain ⟨tailSums, tailReturns, tailErrors⟩ := ih sums values errors tail tailAdmitted
+      have first := sum_written totalAdmitted
+      have second := (Bounded32.admit_exact _ _ _ predictionAdmitted).1
+      have third := (Bounded32.admit_exact _ _ _ boundedAdmitted).1
+      simp only [demonColumns, CurrentCheckpoint.prepend_toList]
+      exact ⟨by rw [first, tailSums], by rw [← second, tailReturns], by rw [← third, tailErrors]⟩
+    all_goals exact nomatch admitted
 
-**Not claimed:** soundness. No theorem states that every accepted column triple is the image of
-a durable list. -/
+/-- Demon admission accepts exactly the columns of a durable demon list of the receiving
+discounts. Accepted columns are the columns of the list that admission returns
+(`demons_written`), and the columns of every durable list are accepted
+(`CurrentCheckpoint.demons_roundtrip`). The accepted input is one channel with the zero total,
+the zero return and the zero error, and the refused input is that channel with a NaN return.
+`demons_admit_value` states the list that admission returns. -/
 theorem demons_admit : Regula.ExecutableContract admitDemons (fun admit =>
-    Regula.DecidesCompletely (· = true)
+    Regula.Decides (· = true)
       (fun input : DemonsAdmit => ∃ records : DurableDemons input.discounts,
         input.sums = (demonColumns records).sums.toList ∧
           input.returns = (demonColumns records).returns.toList ∧
           input.errors = (demonColumns records).errors.toList)
       (Regula.Dependent.isSome fun input : DemonsAdmit =>
         admit input.discounts input.sums input.returns input.errors)) :=
-  ⟨reads
-    (fun input records written => by
-      rw [written.1, written.2.1, written.2.2, CurrentCheckpoint.demons_roundtrip]
-      rfl)
-    ⟨⟨[.g99], [], [], []⟩, rfl⟩⟩
+  ⟨.of_iff
+    (fun input => ⟨fun accepted => by
+        obtain ⟨records, admitted⟩ := Option.isSome_iff_exists.mp accepted
+        exact ⟨records, demons_written _ _ _ _ records admitted⟩,
+      fun ⟨records, written⟩ => by
+        change (admitDemons input.discounts input.sums input.returns input.errors).isSome = true
+        rw [written.1, written.2.1, written.2.2, CurrentCheckpoint.demons_roundtrip]
+        rfl⟩)
+    ⟨⟨[.g99], [(0, ⟨0⟩)], [.zero], [.zero]⟩, by decide +kernel⟩
+    ⟨⟨[.g99], [(0, ⟨0⟩)], [⟨0x7fc00000⟩], [.zero]⟩, by decide +kernel⟩⟩
 
 /-- Demon admission returns the durable list whose columns it reads
 (`CurrentCheckpoint.demons_roundtrip`). A kind does not state the value of a result, so this
@@ -765,8 +785,10 @@ theorem feature_image_admit_value :
   ⟨CurrentCheckpoint.feature_roundtrip⟩
 
 /-- Payload admission accepts the payload of every agent image of a resumable construction
-(`CurrentCheckpoint.image_roundtrip`), and it refuses a payload under a construction that is
-not resumable. `payload_admit_value` states the image that it returns.
+(`CurrentCheckpoint.image_roundtrip`), and it refuses `stalePayload` under the resumable
+construction that accepts `initialPayload`: the two payloads differ in the format generation of
+the header alone, so the refusal reads the payload. `payload_admit_value` states the image that
+it returns.
 
 **Not claimed:** soundness. No theorem states that every accepted payload is the payload of an
 image. -/
@@ -783,21 +805,21 @@ theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
        rw [written, CurrentCheckpoint.image_roundtrip input.1 image
          ((FeatureProfile.checkpoint_iff _).mpr supported)]
        rfl
-     refused := ⟨⟨construction primitive, initialPayload⟩, fun accepted => by
-       have accepted : (admitPayload (construction primitive) initialPayload).isOk = true :=
+     refused := ⟨⟨construction resumable, stalePayload⟩, fun accepted => by
+       have accepted : (admitPayload (construction resumable) stalePayload).isOk = true :=
          accepted
-       cases admitted : admitPayload (construction primitive) initialPayload with
+       cases admitted : admitPayload (construction resumable) stalePayload with
        | error refusal =>
          rw [admitted] at accepted
          exact Bool.false_ne_true accepted
        | ok image =>
          unfold admitPayload at admitted
-         cases header : admitHeader (construction primitive) initialPayload.header with
+         cases header : admitHeader (construction resumable) stalePayload.header with
          | error refusal =>
            rw [header] at admitted
            exact nomatch admitted
          | ok gain =>
-           exact absurd ((admitHeader_iff _ _ _).mp header).supported.1 (by decide)⟩ }⟩
+           exact absurd ((admitHeader_iff _ _ _).mp header).version (by decide)⟩ }⟩
 
 /-- Payload admission returns the image whose payload it reads
 (`CurrentCheckpoint.image_roundtrip`). A kind does not state the value of a result, so this
@@ -961,45 +983,18 @@ theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun ind
        exact ⟨i, (Endurance.rankIndex_spec input.1.1.1 input.1.1.2 input.1.2 input.2 i found).1⟩
      accepted := ⟨(((0, 1), 0), [0]), by decide⟩ }⟩
 
-/-- The arguments of `Host.World.enterable` and of `Host.World.tileKind`, in order. -/
-structure WorldTile where
-  /-- The world configuration. -/
-  config : Host.WorldConfig
-  /-- The world. -/
-  world : Host.World config
-  /-- The tile. -/
-  position : Host.Position
-
-/-- The entry test returns a verdict exactly when the terrain generator returns a kind for the
-tile (`CurrentStep.enterable_static`). `Host.terrain` is the generator, which the test also
-calls. It is shared vocabulary: the generator is procedural noise with a checked coordinate
-range, no theorem states its refusals in other terms, and the claim is that the test adds no
-refusal to those of the generator. The two witnesses are the tile of `stand`, whose terrain the
-kernel evaluates, and the last coordinate, which the generator refuses, so a generator with one
-verdict for every tile fails one of them. `world_enterable_value` states the verdict. -/
-theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
-    Regula.Decides (· = true)
-      (fun input : WorldTile => ∃ base,
-        Host.terrain input.position input.config.raw.seed input.config.raw.baseScale = .ok base)
-      (Regula.Dependent.isOk fun input : WorldTile =>
-        @enterable input.config input.world input.position)) :=
-  ⟨decides
-    (fun input => by
-      change (input.world.enterable input.position).isOk = true ↔ _
-      rw [CurrentStep.enterable_static]
-      cases Host.terrain input.position input.config.raw.seed input.config.raw.baseScale with
-      | error refusal => exact ⟨fun ok => (nomatch ok), fun ⟨_, same⟩ => (nomatch same)⟩
-      | ok base => exact ⟨fun _ => ⟨base, rfl⟩, fun _ => rfl⟩)
-    ⟨⟨wide, .empty wide, stand.position⟩, (ok_iff _).mp open_tile⟩
-    ⟨⟨wide, .empty wide, last⟩, fun generated =>
-      Bool.false_ne_true (last_refused.symm.trans ((ok_iff _).mpr generated))⟩⟩
-
 /-- Whether the body may enter a tile is exactly the static passability of the tile's terrain
 with the body's boat, and it refuses exactly when the terrain refuses
-(`CurrentStep.enterable_static`). A kind does not state the value of a result, so this
-statement is a requirement with no kind beside the kind `world_enterable`. -/
-theorem world_enterable_value : Regula.ExecutableContract @Host.World.enterable
-    (fun enterable =>
+(`CurrentStep.enterable_static`).
+
+The statement keeps no kind. The entry test returns a verdict exactly when `Host.terrain`
+returns a kind for the tile, and the admission behaviour of `Host.terrain` has no independent
+refusal criterion here: no theorem states, without running the generator, the positions, seeds
+and scales that it refuses. A kind needs that criterion as its specification and the proof
+that the generator refuses exactly what the criterion names. A specification that names
+`Host.terrain` relates the entry test to the generator and is unchanged by a change of the
+generator (https://github.com/rbeauchamp/acorn/issues/105). -/
+theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
       @enterable config world position =
         (Host.terrain position config.raw.seed config.raw.baseScale).map
@@ -1138,38 +1133,17 @@ theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
                   .ok .water → world.body.inventory.boat = true)) :=
   ⟨fun _ => ⟨CurrentStep.enterable_static, CurrentStep.step_terrain⟩⟩
 
-/-- The effective kind of a tile is returned exactly when the terrain generator returns a kind
-for the tile. `Host.terrain` is the generator, which the function also calls: it is shared
-vocabulary for the reason that `world_enterable` gives, and the witnesses are those of
-`world_enterable`. `tile_kind_value` states the refusal.
+/-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
+with the same refusal.
+
+The statement keeps no kind, for the reason that `world_enterable` gives: the function returns
+a kind exactly when `Host.terrain` does, and the admission behaviour of `Host.terrain` has no
+independent refusal criterion here. A kind needs that criterion and the proof of its
+correspondence with the generator.
 
 **Not claimed:** the kind of an accepted tile. `CurrentStep.enterable_static` states what an
 entry reads from it. -/
 theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
-    Regula.Decides (· = true)
-      (fun input : WorldTile => ∃ base,
-        Host.terrain input.position input.config.raw.seed input.config.raw.baseScale = .ok base)
-      (Regula.Dependent.isOk fun input : WorldTile =>
-        @tileKind input.config input.world input.position)) :=
-  ⟨decides
-    (fun input => by
-      change (input.world.tileKind input.position).isOk = true ↔ _
-      unfold Host.World.tileKind
-      cases Host.terrain input.position input.config.raw.seed input.config.raw.baseScale with
-      | error refusal => exact ⟨fun ok => (nomatch ok), fun ⟨_, same⟩ => (nomatch same)⟩
-      | ok base =>
-        refine ⟨fun _ => ⟨base, rfl⟩, fun _ => ?_⟩
-        simp only [bind, Except.bind, pure, Except.pure]
-        repeat' split
-        all_goals rfl)
-    ⟨⟨wide, .empty wide, stand.position⟩, (ok_iff _).mp open_tile⟩
-    ⟨⟨wide, .empty wide, last⟩, fun generated =>
-      Bool.false_ne_true (last_refused.symm.trans ((ok_iff _).mpr generated))⟩⟩
-
-/-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
-with the same refusal. A kind does not state the value of a result, so this statement is a
-requirement with no kind beside the kind `tile_kind`. -/
-theorem tile_kind_value : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position)
       (refusal : Host.WorldError),
       @tileKind config world position = .error refusal ↔
@@ -1330,9 +1304,10 @@ theorem profile_admit_sound : Regula.ExecutableContract @FeatureProfile.admit (f
            (snapshotImage (construction resumable) (AgentConstruction.initial _)).image⟩⟩ }⟩
 
 /-- Profile admission accepts the feature words of every agent image of a resumable
-construction (`CurrentCheckpoint.feature_roundtrip`), and it refuses the words of the initial
-agent under a profile that is not resumable. `profile_admit_sound` states that it accepts
-under no other profile, `profile_admit` in `Acorn.Decisions` states the refusal, and
+construction (`CurrentCheckpoint.feature_roundtrip`), and it refuses, under the resumable
+profile, the words of the initial agent with the seed one in the place of the seed of `bank`:
+the refusal reads the raw image. `profile_admit_sound` states that it accepts under no other
+profile, `profile_admit` in `Acorn.Decisions` states the refusal under another profile, and
 `profile_admit_accepts_value` states the features that it returns. -/
 theorem profile_admit_accepts : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
     Regula.DecidesCompletely (· = true)
@@ -1352,13 +1327,9 @@ theorem profile_admit_accepts : Regula.ExecutableContract @FeatureProfile.admit 
        simp only [FeatureProfile.admit, enabled, ↓reduceIte]
        rw [featureWords, CurrentCheckpoint.feature_roundtrip construction image]
        rfl
-     refused := ⟨⟨primitive, Grid.actions, bank, .discounted, narrow, demonLayout,
-       initialWords primitive⟩, fun accepted => by
-         have accepted : (FeatureProfile.admit primitive bank .discounted narrow
-           (initialWords primitive)).isSome = true := accepted
-         rw [FeatureProfile.unsupported_refuses primitive bank .discounted narrow
-           (initialWords primitive) (by decide)] at accepted
-         exact absurd accepted Bool.false_ne_true⟩ }⟩
+     refused := ⟨⟨resumable, Grid.actions, bank, .discounted, narrow, demonLayout,
+       { initialWords resumable with seed := 1 }⟩, fun accepted =>
+         absurd accepted (by decide)⟩ }⟩
 
 /-- Profile admission returns the features of the image whose words it reads, under a
 resumable construction (`CurrentCheckpoint.feature_roundtrip`). A kind does not state the

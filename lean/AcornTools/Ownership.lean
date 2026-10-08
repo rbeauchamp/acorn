@@ -390,8 +390,6 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Checkpoint.admitPayload),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.candidate_load_value,
     `Acorn.Checkpoint.loadCandidate),
-  (`AcornVerif.Decisions, `AcornVerif.Decisions.world_enterable_value, `Acorn.Host.World.enterable),
-  (`AcornVerif.Decisions, `AcornVerif.Decisions.tile_kind_value, `Acorn.Host.World.tileKind),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.interest_potential_declared,
     `Acorn.Features.Interest.potential),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.profile_admit_accepts_value,
