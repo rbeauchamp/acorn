@@ -28,6 +28,7 @@ import AcornVerif.CurrentState
 import AcornVerif.CurrentLearnerArithmetic
 import AcornVerif.CurrentLearner
 import AcornVerif.CurrentFloor
+import AcornVerif.CurrentTerrain
 import AcornVerif.CurrentWorld
 import AcornVerif.CurrentRunner
 import AcornVerif.CurrentStep

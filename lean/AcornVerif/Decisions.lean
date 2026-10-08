@@ -9,6 +9,7 @@ import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentExponential
 import AcornVerif.CurrentTemporal
+import AcornVerif.CurrentTerrain
 import AcornVerif.Endurance
 
 /-!
@@ -34,6 +35,9 @@ a kind does not state stands beside it as a requirement with no kind: the value 
 result, under the name of the kind with `_value`, or a set of refused inputs beside a one-way
 kind, under the name of the kind with `_refused`. `interest_potential_declared` states
 pointwise a class of refused inputs that the two-way kind `interest_potential` also gives.
+`world_enterable`, `tile_kind` and `terrain_read` keep their names beside the kinds of the
+terrain: the verdict of an accepted entry, the refusal of a refused tile, and what the readers
+of the terrain do with its result.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
@@ -46,7 +50,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Nine functions of this module have a contract and no kind. The reasons are four.
+Six functions of this module have a contract and no kind. The reasons are three.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -57,16 +61,11 @@ Nine functions of this module have a contract and no kind. The reasons are four.
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
   `Checkpoint.load`.
-* The function returns a result exactly when the terrain generator `Host.terrain` does, and
-  the admission behaviour of the generator has no independent refusal criterion here:
-  `Host.World.enterable` and `Host.World.tileKind`. A kind needs that criterion and the proof
-  of its correspondence with the generator.
 * No theorem states the set of the inputs that the function accepts. The statements of
   `Host.payAndAct` and `Host.performAction` are properties of the result of an accepted
-  action, and the statement of `Host.terrain` is about what the readers of its result do with
-  it.
+  action.
 
-Kinds for the functions of the first three reasons are remaining work of
+Kinds for the functions of the first two reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
 
 ## Tests that a specification does not share
@@ -87,6 +86,13 @@ values, with no unit map. A private lemma beside each connects the reader with t
 
 The kinds of the checkpoint admissions name the writers of the forms that they read, which
 the admissions do not call.
+
+The kinds of the terrain name the binary32 quotient of a coordinate by an octave scale, which the
+generator computes: `Host.coordinateFloat`, `Binary32.div` and `Binary32.mul` are shared with it,
+and none of them is a test. The kinds of its two readers also share `Host.WorldConfig.side`, which
+the type of their world argument reads. The floor, the saturating cast and the checked successor
+of the lattice coordinate are not shared: `CurrentTerrain.PastLast` bounds the exact value of the
+quotient in their place.
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
 tests that their functions run. This module keeps no list of them, and the examples that follow
@@ -109,9 +115,13 @@ is the accepted input of `terrain_walkable`. -/
 def wide : Host.WorldConfig :=
   ⟨⟨0, ⟨2 ^ 63 - 1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
 
-/-- The position with the last horizontal coordinate. The terrain generator refuses it with a
-coordinate overflow, and the kernel evaluates that refusal. -/
+/-- The position with the last horizontal coordinate. At the noise scale of `wide` the terrain
+generator refuses it with a coordinate overflow, and the kernel evaluates that refusal. -/
 def last : Host.Position := ⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩
+
+/-- The configuration of `wide` with another noise scale. -/
+def wideAt (scale : Binary32) : Host.WorldConfig :=
+  ⟨{ wide.raw with baseScale := scale }, wide.positiveSide, wide.positiveDay⟩
 
 /-- A two-way decision from an acceptance equivalence about the function, an input that
 satisfies the specification and one that does not. -/
@@ -985,17 +995,71 @@ theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun ind
        exact ⟨i, (Endurance.rankIndex_spec input.1.1.1 input.1.1.2 input.1.2 input.2 i found).1⟩
      accepted := ⟨(((0, 1), 0), [0]), by decide⟩ }⟩
 
+/-! ## Refusals of the terrain
+
+The terrain generator and its two readers in the world refuse a position exactly when the value
+noise reaches a lattice coordinate with no successor, `CurrentTerrain.LatticeAdmits`, which states
+the condition on the exact value of the quotient of each coordinate by each octave scale. The
+witnesses of the three kinds are the last coordinate at the noise scales of two and of one half.
+A generator that read every scale as one would fail each kind: at the scale one it refuses the
+last coordinate. -/
+
+/-- The arguments of `Host.World.tileKind` and `Host.World.enterable`, in order. -/
+structure WorldTile where
+  /-- The world configuration. -/
+  config : Host.WorldConfig
+  /-- The world. -/
+  world : Host.World config
+  /-- The tile. -/
+  position : Host.Position
+
+/-- The terrain generator admits exactly a position whose value noise has a lattice successor at
+each of the four octave scales of the base scale (`CurrentTerrain.terrain_isOk`): the quotient of
+neither coordinate by an octave scale is positive infinity or a finite value of at least
+`2 ^ 63 - 1`. The seed enters no refusal. The accepted input is the last coordinate at the scale
+two, whose horizontal quotients are `2 ^ 62` to `2 ^ 59`. The refused input is the last coordinate
+at the scale one half, whose first horizontal quotient is `2 ^ 64`. -/
+theorem terrain_lattice : Regula.ExecutableContract Host.terrain (fun terrain =>
+    Regula.Decides (·.isOk = true)
+      (fun input : (Host.Position × UInt64) × Binary32 =>
+        CurrentTerrain.LatticeAdmits input.1.1 input.2)
+      (Function.uncurry (Function.uncurry terrain))) :=
+  ⟨decides (fun input => CurrentTerrain.terrain_isOk input.1.1 input.1.2 input.2)
+    ⟨((last, 0), ⟨0x40000000⟩), by decide +kernel⟩
+    ⟨((last, 0), ⟨0x3f000000⟩), by decide +kernel⟩⟩
+
+/-- The effective kind of a tile is refused exactly when the value noise refuses its position at
+the base scale of the world (`CurrentTerrain.tileKind_isOk`). The witnesses are the inputs of
+`terrain_lattice` in an empty world with the box of `wide`. -/
+theorem tile_kind_lattice : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
+    Regula.Decides (·.isOk = true)
+      (fun input : WorldTile =>
+        CurrentTerrain.LatticeAdmits input.position input.config.raw.baseScale)
+      (fun input : WorldTile => @tileKind input.config input.world input.position)) :=
+  ⟨decides (fun input => CurrentTerrain.tileKind_isOk input.world input.position)
+    ⟨⟨wideAt ⟨0x40000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩
+    ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩⟩
+
+/-- An entry into a tile is refused exactly when the value noise refuses its position at the base
+scale of the world (`CurrentTerrain.enterable_isOk`). The witnesses are those of
+`tile_kind_lattice`. -/
+theorem world_enterable_lattice : Regula.ExecutableContract @Host.World.enterable
+    (fun enterable =>
+    Regula.Decides (·.isOk = true)
+      (fun input : WorldTile =>
+        CurrentTerrain.LatticeAdmits input.position input.config.raw.baseScale)
+      (fun input : WorldTile => @enterable input.config input.world input.position)) :=
+  ⟨decides (fun input => CurrentTerrain.enterable_isOk input.world input.position)
+    ⟨⟨wideAt ⟨0x40000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩
+    ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩⟩
+
 /-- Whether the body may enter a tile is exactly the static passability of the tile's terrain
 with the body's boat, and it refuses exactly when the terrain refuses
 (`CurrentStep.enterable_static`).
 
-The statement keeps no kind. The entry test returns a verdict exactly when `Host.terrain`
-returns a kind for the tile, and the admission behaviour of `Host.terrain` has no independent
-refusal criterion here: no theorem states, without running the generator, the positions, seeds
-and scales that it refuses. A kind needs that criterion as its specification and the proof
-that the generator refuses exactly what the criterion names. A specification that names
-`Host.terrain` relates the entry test to the generator and is unchanged by a change of the
-generator (https://github.com/rbeauchamp/acorn/issues/105). -/
+The statement is a requirement with no kind beside the kind `world_enterable_lattice`, which
+states the refused positions. It gives the verdict of an accepted entry, which that kind does
+not state. -/
 theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
       @enterable config world position =
@@ -1117,7 +1181,8 @@ onto a tile whose terrain is a mountain, or water without a boat (`CurrentStep.s
 
 The statement names `Host.World.enterable` and `Host.World.step`, which are defined through
 the terrain. It is a statement about those readers, and it is not independent of the terrain
-generator.
+generator. It is a requirement with no kind beside the kind `terrain_lattice`, which states the
+refused positions.
 
 **Not claimed:** the kind of any tile. -/
 theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
@@ -1138,10 +1203,8 @@ theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
 /-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
 with the same refusal.
 
-The statement keeps no kind, for the reason that `world_enterable` gives: the function returns
-a kind exactly when `Host.terrain` does, and the admission behaviour of `Host.terrain` has no
-independent refusal criterion here. A kind needs that criterion and the proof of its
-correspondence with the generator.
+The statement is a requirement with no kind beside the kind `tile_kind_lattice`, which states the
+refused positions. It gives the refusal of a refused tile, which that kind does not state.
 
 **Not claimed:** the kind of an accepted tile. `CurrentStep.enterable_static` states what an
 entry reads from it. -/
@@ -1161,7 +1224,7 @@ theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind
 
 /-- A paid action that succeeds either found the energy short, rested and set the exhausted
 flag, or spent the cost of the action with the exhausted flag clear
-(`CurrentStep.payAndAct_outcome`). The world's type depends on the configuration, and the
+(`CurrentStep.payAndAct_outcome`). No theorem states the actions that it accepts, and the
 statement has no kind.
 
 **Not claimed:** the effect of the action on the body. `CurrentStep.payAndAct_outcome` states
@@ -1194,7 +1257,7 @@ def Moves {config : Host.WorldConfig} (world : Host.World config) (action : Host
 
 /-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
 body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
-hypotheses are the predicate `Moves`. The world's type depends on the configuration, and the
+hypotheses are the predicate `Moves`. No theorem states the actions that it accepts, and the
 statement has no kind.
 
 **Not claimed:** that some input satisfies the hypotheses. -/

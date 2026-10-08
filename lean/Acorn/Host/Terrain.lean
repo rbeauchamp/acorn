@@ -255,11 +255,19 @@ theorem floor32_eq_spec (value : Binary32) : floor32 value = floor32Spec value :
 theorem floor32_exceptional (value : Binary32)
     (h : value.magnitude / 2 ^ 23 = 255) : floor32 value = value := by rw [floor32_eq_spec]; simp [floor32Spec, h]
 
+/-- The binary64 word that the coordinate cast converts: the widening of a word that is not a
+NaN, and the quiet NaN `0x7ff8000000000000` for a NaN, which the conversion maps to zero. The
+widening of a NaN is the native cast `Conversion.widenNaN`, which has no model in the logic. The
+word is not inlined into the cast, so the compiler does not fold the conversion of the NaN into a
+cached integer: the native resource audit admits an integer only from the conversion call. -/
+@[noinline] def castWord (value : Binary32) : Binary64 :=
+  if value.IsNaN then ⟨0x7ff8000000000000⟩ else Conversion.widen value
+
 /-- Saturating binary32-to-i64 conversion has an explicit complete raw-word domain. -/
 def coordinateCast (value : Binary32) : Coordinate :=
-  ⟨Conversion.toI64 (Conversion.widen value), by
+  ⟨Conversion.toI64 (castWord value), by
     rw [Conversion.toI64_eq_signedCast]
-    exact Conversion.signedCast_bounds 63 (Conversion.widen value)⟩
+    exact Conversion.signedCast_bounds 63 _⟩
 
 /-- Hash input uses the signed coordinate's exact two's-complement residue. -/
 def coordinateWord (coordinate : Coordinate) : UInt64 :=
