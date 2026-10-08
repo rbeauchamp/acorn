@@ -914,11 +914,15 @@ to the number as the text writes it, saturated (`kept_nearest`): that is the dec
 rule for the real quantities, which are the joint angles and rates, the gravity
 direction, the turning rates and the position of the odometry. Every quantity that the
 daemon writes as an integer is read exactly and never repaired: a stamp, a status, the
-gain, the stated numbers of rows and columns and a distance of a depth zone are natural
-numbers that digits alone spell, so `1.0` is refused there. A distance is at most
-32,767, the width the daemon states for it without the sign, and a frame with a
-negative distance, a fraction or a larger number is refused whole
-(`Depth.read_distances`). An array has exactly its declared length. A string
+gain, the stated numbers of rows and columns and the distance of a depth zone with a
+valid return are natural numbers that digits alone spell, so `1.0` is refused there.
+A distance is read by the status of its zone (`Depth.read_distances`). With the status
+5, a valid return, it is at most 32,767, the width the daemon states for it without the
+sign, and a frame with such a zone at a negative distance is refused whole. The
+distance of a zone without a valid return is not kept, because no consumer reads it:
+it must be an integer of the daemon's signed sixteen-bit type, from -32,768 to 32,767,
+and the zone keeps 0. A frame with a fraction or a number outside that type as a
+distance is refused whole, whatever the status. An array has exactly its declared length. A string
 outside the ten policy labels is the policy `other`, by a table of labels that the
 function of names is proved equal to (`Policy.named_iff`). The joint rates, the gain
 and the list of limit names can be missing, and a missing member and a null member are

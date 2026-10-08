@@ -1518,18 +1518,22 @@ attribute [regula_decision] Host.Microduck.State.read
 member by member (`Host.Microduck.Depth.read_iff`). The specification
 `Host.Microduck.Depth.Written` says that the value states eight rows and eight columns, and
 names the member that the stamp, the sixty-four distances and the sixty-four statuses are
-read from, each by a relation on that member. Every number of a depth frame is a natural
-number that digits alone spell, and none is rounded or saturated: a distance is at most
-32,767 (`Host.Microduck.Depth.read_distances`) and a status is below 256. The two inputs of the proof are an object
-with the five members that the reader requires, which is accepted, and null, which is
-refused.
+read from, each by a relation on that member. No number of a depth frame is rounded or
+saturated, and a status is a natural number below 256 that digits alone spell. A distance
+is read by the status of its zone (`Host.Microduck.Depth.read_distances`): with the status
+5, a valid return, it is a natural number of at most 32,767 that digits alone spell; with
+another status it is an integer from -32,768 to 32,767, and the zone keeps 0, because no
+consumer reads the distance of a zone without a valid return. The two inputs of the proof
+are an object with the five members that the reader requires, which is accepted, and null,
+which is refused.
 
 **Not claimed:** which depth frame an accepted value has, which
 `Host.Microduck.Depth.read_iff` states. An independent statement of the relation on a
-number: `Host.Microduck.Counted` is written with `Host.Microduck.spelled` of the reader, so
-that the stated rows and columns are 8, that a distance is at most 32,767 and that a status
-is below 256 rest on that arithmetic here, and `AcornVerif.Decimal.counted_numberOf` states
-the relation without it. That a line of the daemon gives such a value, as for
+number: `Host.Microduck.Counted` and `Host.Microduck.Signed` are written with
+`Host.Microduck.spelled` of the reader, so that the stated rows and columns are 8, that a
+distance is in its range and that a status is below 256 rest on that arithmetic here.
+`AcornVerif.Decimal.counted_numberOf` states `Counted` without it, and no theorem states
+`Signed` without it. That a line of the daemon gives such a value, as for
 `microduck_state`. -/
 theorem microduck_depth :
     Regula.ExecutableContract Host.Microduck.Depth.read

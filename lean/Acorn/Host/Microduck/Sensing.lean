@@ -24,8 +24,10 @@ with the proof of its bounds. Two scales are declared, and each fits sixteen bit
   thousandths. It holds angles in radians, rates in radians per second, the components
   of the gravity direction, and a height in metres.
 - `Declared.range` keeps whole millimetres from 0 to 32,767. It holds a depth, which
-  the daemon writes as a signed sixteen-bit integer. A depth is read as that integer and
-  nothing is converted: the reader refuses a frame with a depth outside the range.
+  the daemon writes as a signed sixteen-bit integer. The depth of a zone with a valid
+  return is read as that integer and nothing is converted: the reader refuses a frame
+  with such a depth outside the range. The depth of a zone without a valid return is
+  not kept, because no consumer reads it, and the zone holds 0.
 
 A quantity that the daemon writes as an unsigned integer has no scale. The servo gain
 and the status of a depth zone keep the daemon's width, sixteen bits and eight. A stamp
@@ -176,7 +178,7 @@ structure State where
 /-- One zone of a depth frame. -/
 structure Cell where
   /-- The distance of the return, in millimetres. It has a meaning only with a status
-  that says the return is valid. -/
+  that says the return is valid; the reader keeps 0 for a zone with another status. -/
   distance : Declared.range.Word
   /-- The sensor's status of the zone. The simulator sent 5 for a valid return and 255
   for nothing in range, and no other value; the record says a sensor sends more

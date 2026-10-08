@@ -35,9 +35,13 @@ it. The relations are these.
   writes it, in the units of the scale, saturated (`AcornVerif.Decimal.kept_nearest`).
 - `Counted`: the natural number of a JSON number that digits alone spell, with no sign,
   point or exponent, so `1.0` and `1e3` are not counted. The stamps, the statuses, the gain,
-  the distances of a depth frame (`Ranged`, at most 32,767) and the stated numbers of rows
-  and columns are read so
+  the distance of a depth zone with a valid return (`Ranged`, at most 32,767) and the stated
+  numbers of rows and columns are read so
   (`AcornVerif.Decimal.counted_numberOf` states the number by the places of its digits).
+- `Signed`: the integer of a JSON number that digits with an optional minus sign spell,
+  with no point or exponent. The distance of a depth zone with no valid return must be one
+  from -32,768 to 32,767.
+- `Zoned`: the distance of a depth zone, by its status (`Depth.read_distances`).
   It is read from the numeral of the one scanner of `Acorn.Json` and not by
   `Acorn.Json.Value.natural`, which no theorem states the accepted spellings of and which
   refuses a number of two to the sixty-four or more.
@@ -63,20 +67,26 @@ whose `move` is an object with no list has no limit.
 
 **What a depth frame is read from.** `rows` and `cols` must both be the number 8, since
 the reader lays the sixty-four zones out row by row in eight columns and a frame of
-another shape would be laid out wrongly. The stamp from `t_ns`; the distances from
-`distance_mm`, sixty-four whole numbers of millimetres from 0 to 32,767; the statuses from
-`status`, sixty-four natural numbers below 256.
+another shape would be laid out wrongly. The stamp from `t_ns`; the statuses from
+`status`, sixty-four natural numbers below 256; the distances from `distance_mm`,
+sixty-four integers, each read by the status of its zone. With the status 5, a valid
+return, the distance is a whole number of millimetres from 0 to 32,767. With another
+status the value is an integer from -32,768 to 32,767, and the zone keeps the distance 0.
 
 **Which numbers are converted and which are read exactly.** The daemon writes a real
 quantity as a decimal fraction: the joint angles and rates, the gravity direction, the
 turning rates and the position of the odometry. For these, and for these only, the
 rounding and the saturation of the thousandths scale are the declared rule
 (`Scale.Kept`). Every quantity that the daemon writes as an integer is read exactly, by
-`Counted`, and a frame with another spelling there is refused and not repaired: the two
-stamps, the gain, the stated rows and columns, the statuses and the distances. The record
-gives a distance as a signed sixteen-bit integer, so a distance is a number of at most
-32,767 that digits alone spell: a frame with a distance of `65536`, of `2.5` or of `-1`
-is refused whole (`Depth.read_distances`), whatever the status of the zone says. The two
+`Counted` or `Signed`, and a frame with another spelling there is refused and not
+repaired: the two stamps, the gain, the stated rows and columns, the statuses and the
+distances. The record gives a distance as a signed sixteen-bit integer. The distance of a
+zone with the status 5 is a number of at most 32,767 that digits alone spell, so a frame
+with such a zone at `-1` is refused whole. The distance of a zone without a valid return
+is not kept, because no consumer reads it (`Acorn.Handcrafted.Microduck.symbol`, `near`
+and `clear` read a distance only with the status 5): it must be an integer of the
+record's type, and the zone keeps 0. A frame with a distance of `65536`, of `2.5` or of
+`1e3` is refused whole whatever the status of its zone (`Depth.read_distances`). The two
 reports of a state frame are booleans and its policy is a string, and neither is a
 number.
 
@@ -182,18 +192,18 @@ theorem Each.length {α : Type} {Read : Json.Value → α → Prop} {values : Li
   | nil => rfl
   | cons _ _ hold => rw [List.length_cons, List.length_cons, hold]
 
-/-- Where values and results correspond, the relation holds of every value with some
-result. -/
-theorem Each.left {α : Type} {Read : Json.Value → α → Prop} {values : List Json.Value}
+/-- Where values and results correspond, the relation holds of each value with the result
+in its place. -/
+theorem Each.zip {α : Type} {Read : Json.Value → α → Prop} {values : List Json.Value}
     {results : List α} (each : Each Read values results) :
-    ∀ value ∈ values, ∃ result, Read value result := by
+    ∀ pair ∈ values.zip results, Read pair.1 pair.2 := by
   induction each with
   | nil => exact fun _ inside => nomatch inside
   | cons first _ hold =>
-    intro value inside
+    intro pair inside
     rcases List.mem_cons.mp inside with rfl | later
-    · exact ⟨_, first⟩
-    · exact hold value later
+    · exact first
+    · exact hold pair later
 
 /-- A list is read exactly when its values and the results correspond one to one, in
 order. For every reader and the relation it decides. -/
@@ -463,6 +473,45 @@ private theorem distance_iff (json : Json.Value) (result : Declared.range.Word) 
     refine ⟨natural, (count_iff json natural).mpr counted, ?_⟩
     simp only [inside, ↓reduceDIte]
     exact congrArg some (Subtype.ext same)
+
+/-- The integer of a JSON value: for a number whose numeral has no point and no exponent
+part, the number that its digits spell, negated when the numeral has a minus sign. It
+reads the spelling and rounds nothing. -/
+private def integer (json : Json.Value) : Option Int :=
+  match json.numeral with
+  | some ⟨negative, whole, none, none⟩ =>
+    some (if negative then -(spelled whole : Int) else spelled whole)
+  | _ => none
+
+/-- The value is a number spelled by digits with an optional minus sign, a single zero or
+digits with no leading zero, with no point and no exponent, and the digits with their sign
+spell the integer. -/
+def Signed (json : Json.Value) (integer : Int) : Prop :=
+  ∃ (negative : Bool) (digits : List Char),
+    (⟨negative, digits, none, none⟩ : Json.Numeral).Formed ∧
+      json = .number (String.ofList (⟨negative, digits, none, none⟩ : Json.Numeral).chars) ∧
+        (if negative then -(spelled digits : Int) else spelled digits) = integer
+
+/-- A value has an integer exactly when digits with an optional minus sign spell it. -/
+private theorem integer_iff (json : Json.Value) (result : Int) :
+    integer json = some result ↔ Signed json result := by
+  unfold integer Signed
+  constructor
+  · intro found
+    cases scanned : json.numeral with
+    | none =>
+      rw [scanned] at found
+      exact nomatch found
+    | some numeral =>
+      rw [scanned] at found
+      obtain ⟨negative, whole, fraction, exponent⟩ := numeral
+      cases fraction <;> cases exponent <;>
+        first
+        | (simp at found; done)
+        | (obtain ⟨formed, same⟩ := (Json.Value.numeral_iff json _).mp scanned
+           exact ⟨negative, whole, formed, same, Option.some.inj found⟩)
+  · rintro ⟨negative, digits, formed, same, rfl⟩
+    rw [(Json.Value.numeral_iff json ⟨negative, digits, none, none⟩).mpr ⟨formed, same⟩]
 
 /-- The truth value of a JSON value that is `true` or `false`. -/
 private def flag : Json.Value → Option Bool
@@ -748,46 +797,168 @@ theorem State.read_iff (json : Json.Value) (state : State) :
 
 /-! ## A depth frame -/
 
-/-- Zones built from their distances and their statuses have those distances. -/
-private theorem Cell.distances {size : Nat} (distances : Vector Declared.range.Word size)
-    (statuses : Vector UInt8 size) :
-    (Vector.zipWith Cell.mk distances statuses).map (·.distance) = distances := by
-  ext place inside
-  simp
+/-- The zone of a status and of the JSON value of its distance. With the status 5, a valid
+return, the distance is the one that `distance` reads. With another status the value must
+be an integer of the record's signed sixteen-bit type, and the zone keeps the distance 0:
+the distance of a zone without a valid return is not kept, because no consumer reads it. -/
+private def zone (status : UInt8) (json : Json.Value) : Option Cell :=
+  if status = 5 then (distance json).map (Cell.mk · status)
+  else
+    (integer json).bind fun value =>
+      if -32768 ≤ value ∧ value ≤ 32767 then some ⟨⟨0, by decide, by decide⟩, status⟩
+      else none
 
-/-- Zones built from their distances and their statuses have those statuses. -/
-private theorem Cell.statuses {size : Nat} (distances : Vector Declared.range.Word size)
-    (statuses : Vector UInt8 size) :
-    (Vector.zipWith Cell.mk distances statuses).map (·.status) = statuses := by
-  ext place inside
-  simp
+/-- The value is the distance of the zone, by the status of the zone. With the status 5, a
+valid return, digits alone spell the distance (`Ranged`). With another status the value is
+an integer from -32,768 to 32,767, the record's signed sixteen-bit type, that `Signed`
+spells, and the distance of the zone is 0. -/
+def Zoned (json : Json.Value) (cell : Cell) : Prop :=
+  if cell.status = 5 then Ranged json cell.distance
+  else (∃ integer : Int, Signed json integer ∧ -32768 ≤ integer ∧ integer ≤ 32767) ∧
+    cell.distance.val = 0
 
-/-- Zones are the ones built from their own distances and statuses. -/
-private theorem Cell.joined {size : Nat} (cells : Vector Cell size) :
-    Vector.zipWith Cell.mk (cells.map (·.distance)) (cells.map (·.status)) = cells := by
-  ext place inside
-  simp
+/-- A value is read as the zone of a status exactly when the zone has that status and the
+value is its distance. -/
+private theorem zone_iff (status : UInt8) (json : Json.Value) (cell : Cell) :
+    zone status json = some cell ↔ cell.status = status ∧ Zoned json cell := by
+  obtain ⟨⟨measured, bounds⟩, stated⟩ := cell
+  unfold zone Zoned
+  dsimp only
+  by_cases valid : status = 5
+  · subst valid
+    rw [ite_eq_left rfl, Option.map_eq_some_iff]
+    constructor
+    · rintro ⟨word, read, same⟩
+      cases same
+      exact ⟨rfl, by rw [ite_eq_left rfl]; exact (distance_iff json _).mp read⟩
+    · rintro ⟨rfl, ranged⟩
+      rw [ite_eq_left rfl] at ranged
+      exact ⟨_, (distance_iff json _).mpr ranged, rfl⟩
+  · rw [ite_eq_right valid, Option.bind_eq_some_iff]
+    constructor
+    · rintro ⟨value, read, sized⟩
+      split at sized
+      · rename_i inside
+        cases sized
+        exact ⟨rfl, by
+          rw [ite_eq_right valid]
+          exact ⟨⟨value, (integer_iff json value).mp read, inside.1, inside.2⟩, rfl⟩⟩
+      · exact nomatch sized
+    · rintro ⟨rfl, zoned⟩
+      rw [ite_eq_right valid] at zoned
+      obtain ⟨⟨value, signed, low, high⟩, zero⟩ := zoned
+      subst zero
+      refine ⟨value, (integer_iff json value).mpr signed, ?_⟩
+      rw [ite_eq_left ⟨low, high⟩]
+
+/-- The zones of a list of statuses and of the JSON values of their distances, in order.
+Nothing when the lists differ in length or one zone is not read. -/
+private def zones : List UInt8 → List Json.Value → Option (List Cell)
+  | [], [] => some []
+  | [], _ :: _ => none
+  | _ :: _, [] => none
+  | status :: statuses, value :: values =>
+    (zone status value).bind fun first => (zones statuses values).map (first :: ·)
+
+/-- A list of values is read as zones exactly when each value is the distance of the zone
+in its place, and the zones have the statuses, in order. -/
+private theorem zones_iff (statuses : List UInt8) (values : List Json.Value) (cells : List Cell) :
+    zones statuses values = some cells ↔
+      Each Zoned values cells ∧ cells.map (·.status) = statuses := by
+  induction values generalizing statuses cells with
+  | nil =>
+    cases statuses with
+    | nil =>
+      simp only [zones, Option.some.injEq, List.map_eq_nil_iff]
+      constructor
+      · rintro rfl
+        exact ⟨.nil, rfl⟩
+      · rintro ⟨related, _⟩
+        cases related
+        rfl
+    | cons status statuses =>
+      simp only [zones, reduceCtorEq, false_iff]
+      rintro ⟨related, same⟩
+      cases related
+      simp at same
+  | cons head tail hold =>
+    cases statuses with
+    | nil =>
+      simp only [zones, reduceCtorEq, false_iff]
+      rintro ⟨related, same⟩
+      cases related
+      simp at same
+    | cons status statuses =>
+      simp only [zones, Option.bind_eq_some_iff, Option.map_eq_some_iff]
+      constructor
+      · rintro ⟨first, one, others, rest, rfl⟩
+        obtain ⟨stated, zoned⟩ := (zone_iff status head first).mp one
+        obtain ⟨related, same⟩ := (hold statuses others).mp rest
+        exact ⟨.cons zoned related, by rw [List.map_cons, stated, same]⟩
+      · rintro ⟨related, same⟩
+        cases related with
+        | cons zoned rest =>
+          rw [List.map_cons, List.cons.injEq] at same
+          exact ⟨_, (zone_iff status head _).mpr ⟨same.1, zoned⟩,
+            _, (hold statuses _).mpr ⟨rest, same.2⟩, rfl⟩
+
+/-- The sixty-four zones of a depth frame, from its statuses and from the value of its
+distances, an array of one distance for each status. Nothing for an array of another
+length, for an array with a zone that is not read and for a value that is no array. -/
+private def grid (statuses : Vector UInt8 64) : Json.Value → Option (Vector Cell 64)
+  | .array values =>
+    (zones statuses.toList values).bind fun cells =>
+      if exact : cells.length = 64 then some ⟨cells.toArray, exact⟩ else none
+  | _ => none
+
+/-- A value is read as the zones of the statuses exactly when each of its values is the
+distance of the zone in its place, and the zones have the statuses. -/
+private theorem grid_iff (statuses : Vector UInt8 64) (json : Json.Value)
+    (cells : Vector Cell 64) :
+    grid statuses json = some cells ↔
+      Listed Zoned json cells ∧ cells.map (·.status) = statuses := by
+  unfold Listed
+  cases json with
+  | array values =>
+    unfold grid
+    rw [Option.bind_eq_some_iff]
+    constructor
+    · rintro ⟨items, collected, sized⟩
+      split at sized
+      · cases Option.some.inj sized
+        obtain ⟨related, same⟩ := (zones_iff _ values items).mp collected
+        refine ⟨⟨values, rfl, related⟩, Vector.toList_inj.mp ?_⟩
+        simpa using same
+      · exact nomatch sized
+    · rintro ⟨⟨_, same, related⟩, stated⟩
+      cases same
+      refine ⟨cells.toList, (zones_iff _ values _).mpr ⟨related, ?_⟩, ?_⟩
+      · rw [← stated, Vector.toList_map]
+      · simp [Vector.toList]
+  | null | bool _ | number _ | string _ | object _ =>
+    exact ⟨fun found => (nomatch found), fun ⟨⟨_, same, _⟩, _⟩ => (nomatch same)⟩
 
 /-- The depth frame that the parameters of a `tof.frame` notification hold. Nothing when
 the frame does not state eight rows and eight columns, and when a member that the frame
-keeps is missing or is not read. A frame with one distance that is not a whole number of
-millimetres from 0 to 32,767 is refused whole. -/
+keeps is missing or is not read. The distance of a zone is read by its status (`Zoned`): a
+frame with a zone of the status 5 whose distance is not a whole number of millimetres from
+0 to 32,767, or with a zone of another status whose distance is not an integer of sixteen
+signed bits, is refused whole. -/
 def Depth.read (json : Json.Value) : Option Depth :=
   (within "rows" count json).bind fun rows =>
   (within "cols" count json).bind fun columns =>
     if rows = 8 then
       if columns = 8 then
         (within "t_ns" stamp json).bind fun taken =>
-        (within "distance_mm" (vector 64 distance) json).bind fun distances =>
-        (within "status" (vector 64 byte) json).map fun statuses =>
-          ⟨taken, Vector.zipWith Cell.mk distances statuses⟩
+        (within "status" (vector 64 byte) json).bind fun statuses =>
+        (within "distance_mm" (grid statuses) json).map fun cells => ⟨taken, cells⟩
       else none
     else none
 
 /-- What a depth frame keeps of the parameters of a `tof.frame` notification, member by
 member. It names the member that each field is read from, and no reader of this module.
-`Counted` is written with the arithmetic of the decimal module. No number of a depth frame
-is rounded or saturated. -/
+`Counted` and `Signed` are written with the arithmetic of the decimal module. No number of
+a depth frame is rounded or saturated. -/
 structure Depth.Written (json : Json.Value) (depth : Depth) : Prop where
   /-- The frame states eight rows. -/
   rows : Within "rows" Counted json 8
@@ -796,9 +967,11 @@ structure Depth.Written (json : Json.Value) (depth : Depth) : Prop where
   /-- The stamp is the natural number of `t_ns`. -/
   taken : Within "t_ns" (fun inner (taken : Stamp) => Counted inner taken.nanoseconds) json
     depth.taken
-  /-- The distances of the zones are the sixty-four numbers of `distance_mm`, in order:
-  each a whole number of millimetres from 0 to 32,767 that digits alone spell. -/
-  distances : Within "distance_mm" (Listed Ranged) json (depth.cells.map (·.distance))
+  /-- The sixty-four values of `distance_mm` are the distances of the zones, in order, each
+  by the status of its zone (`Zoned`): with the status 5, the distance written, a whole
+  number of millimetres from 0 to 32,767 that digits alone spell; with another status, an
+  integer from -32,768 to 32,767, and the distance of the zone is 0. -/
+  distances : Within "distance_mm" (Listed Zoned) json depth.cells
   /-- The statuses of the zones are the sixty-four natural numbers of `status`, in order,
   each below 256. -/
   statuses : Within "status" (Listed fun inner (status : UInt8) => Counted inner status.toNat)
@@ -808,8 +981,8 @@ structure Depth.Written (json : Json.Value) (depth : Depth) : Prop where
 member.** For every JSON value and every depth frame. -/
 theorem Depth.read_iff (json : Json.Value) (depth : Depth) :
     Depth.read json = some depth ↔ Depth.Written json depth := by
-  have ranges := @vector_iff _ 64 _ _ distance_iff
   have bytes := @vector_iff _ 64 _ _ byte_iff
+  have zoned := fun statuses => within_iff (grid_iff statuses) "distance_mm" json
   unfold Depth.read
   simp only [Option.bind_eq_some_iff]
   constructor
@@ -819,40 +992,56 @@ theorem Depth.read_iff (json : Json.Value) (depth : Depth) :
       · rename_i eight wide
         subst eight wide
         simp only [Option.bind_eq_some_iff, Option.map_eq_some_iff] at rest
-        obtain ⟨taken, three, distances, four, statuses, five, rfl⟩ := rest
+        obtain ⟨taken, three, statuses, four, cells, five, rfl⟩ := rest
+        obtain ⟨inner, member, listed, stated⟩ := (zoned statuses cells).mp five
         exact
           { rows := (within_iff count_iff _ json 8).mp one
             columns := (within_iff count_iff _ json 8).mp two
             taken := (within_iff stamp_iff _ json taken).mp three
-            distances := by
-              rw [Cell.distances]
-              exact (within_iff ranges _ json distances).mp four
+            distances := ⟨inner, member, listed⟩
             statuses := by
-              rw [Cell.statuses]
-              exact (within_iff bytes _ json statuses).mp five }
+              show Within _ _ json (cells.map (·.status))
+              rw [stated]
+              exact (within_iff bytes _ json statuses).mp four }
       · exact nomatch rest
     · exact nomatch rest
   · intro written
     refine ⟨8, (within_iff count_iff _ json 8).mpr written.rows,
       8, (within_iff count_iff _ json 8).mpr written.columns, ?_⟩
     simp only [↓reduceIte, Option.bind_eq_some_iff, Option.map_eq_some_iff]
-    refine ⟨depth.taken, (within_iff stamp_iff _ json _).mpr written.taken,
-      depth.cells.map (·.distance), (within_iff ranges _ json _).mpr written.distances,
-      depth.cells.map (·.status), (within_iff bytes _ json _).mpr written.statuses, ?_⟩
-    rw [Cell.joined]
+    obtain ⟨inner, member, listed⟩ := written.distances
+    exact ⟨depth.taken, (within_iff stamp_iff _ json _).mpr written.taken,
+      depth.cells.map (·.status), (within_iff bytes _ json _).mpr written.statuses,
+      depth.cells, (zoned _ _).mpr ⟨inner, member, listed, rfl⟩, rfl⟩
 
-/-- **Every distance of a depth frame that is read is a whole number of millimetres that
-is not negative and that sixteen signed bits hold.** For every JSON value that is read as
-a depth frame: its member `distance_mm` is an array, and every value of the array is a
-number that digits alone spell, of at most 32,767. So a frame with a distance of `65536`,
-of `2.5` or of `-1` is not read, whatever its status says. -/
+/-- **Every zone of a depth frame that is read keeps the distance that its status calls
+for.** For every JSON value that is read as a depth frame: its member `distance_mm` is an
+array of sixty-four values, and each value is paired with the zone in its place. With the
+status 5, a valid return, the value is a number that digits alone spell, of at most
+32,767, and it is the distance of the zone. With another status the value is an integer
+from -32,768 to 32,767 with an optional minus sign and no point or exponent, and the
+distance of the zone is 0. So a frame with a distance of `65536`, of `2.5` or of `1e3` is
+not read, whatever the status of its zone, and a frame with a distance of `-1` is read only
+when the status of its zone is not 5. -/
 theorem Depth.read_distances (json : Json.Value) (depth : Depth)
     (read : Depth.read json = some depth) :
     ∃ values : List Json.Value, Json.Value.Member "distance_mm" json (.array values) ∧
-      ∀ value ∈ values, ∃ natural : Nat, Counted value natural ∧ natural ≤ 32767 := by
+      values.length = 64 ∧ ∀ pair ∈ values.zip depth.cells.toList,
+        (pair.2.status = 5 → ∃ natural : Nat, Counted pair.1 natural ∧ natural ≤ 32767 ∧
+          (natural : Int) = pair.2.distance.val) ∧
+        (pair.2.status ≠ 5 → (∃ integer : Int, Signed pair.1 integer ∧ -32768 ≤ integer ∧
+          integer ≤ 32767) ∧ pair.2.distance.val = 0) := by
   obtain ⟨_, member, values, rfl, each⟩ := ((Depth.read_iff json depth).mp read).distances
-  refine ⟨values, member, fun value inside => ?_⟩
-  obtain ⟨word, natural, counted, same⟩ := each.left value inside
-  exact ⟨natural, counted, Int.ofNat_le.mp (same ▸ word.property.2)⟩
+  refine ⟨values, member, by rw [each.length]; simp, fun pair inside => ?_⟩
+  have zoned := each.zip pair inside
+  unfold Zoned at zoned
+  constructor
+  · intro valid
+    rw [ite_eq_left valid] at zoned
+    obtain ⟨natural, counted, same⟩ := zoned
+    exact ⟨natural, counted, Int.ofNat_le.mp (same ▸ pair.2.distance.property.2), same⟩
+  · intro other
+    rw [ite_eq_right other] at zoned
+    exact zoned
 
 end Acorn.Host.Microduck
