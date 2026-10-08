@@ -94,7 +94,7 @@ Twelve functions of this module have a contract and no kind. The reasons are fou
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
-fix one direction only, and it does not show that both outcomes occur for its function.
+fix one direction only, and it need not show that both outcomes occur for its function.
 RG1009 does not read its specification. Each docstring says what its statement gives and what
 it does not claim. Kinds for the functions of the last three reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
@@ -3603,7 +3603,7 @@ unit feature is active.
 sides share, for the reason that `candidate_of_weight` gives. The two witnesses are the
 selected objectives of the two units of `pair`, with the slot of the first unit active. The
 map sends the second unit to the other slot of `double`, so a map that sends every unit to one
-slot fails the refused witness. -/
+slot fails one of the witnesses. -/
 theorem assignment_potential : Regula.ExecutableContract @Assignment.potential (fun potential =>
     Regula.Decides (· = true)
       (fun input : AssignmentPotential =>

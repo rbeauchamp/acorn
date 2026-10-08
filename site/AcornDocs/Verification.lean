@@ -429,7 +429,7 @@ proved in the proof library ([Regula issue
 271](https://github.com/rbeauchamp/regula/issues/271)). A requirement with no
 kind is a statement that the Regula audit does not examine: that audit checks
 only that its theorem is proved about the executing definition. Such a statement
-can fix one direction only, and it does not show that both outcomes occur for
+can fix one direction only, and it need not show that both outcomes occur for
 its function. Kinds for these functions and for the statements of
 `lean/AcornVerif/Decisions.lean` are remaining work of [issue
 105](https://github.com/rbeauchamp/acorn/issues/105). A contract states only

@@ -28,7 +28,7 @@ no kind. The walkable test is not a certificate checker, and it carries the two-
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
-fix one direction only, and no statement here shows that both outcomes occur for its function.
+fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
 The statements of this module with no kind about a function with a dependent type were stated
