@@ -404,27 +404,35 @@ with the {splice}`numberWord toolExecutables.length` tool executables; it is the
 `lean/Acorn/Decisions.lean` registers the library's decision functions for which
 a property of the accepted or refused result is proved. A decision function is
 an admission, parser or validity test: its result accepts or refuses an input.
-A registration of a function between fixed types is a Regula executable contract
-about the executing definition itself, with the kind its proof establishes. A
-two-way kind states that the function accepts exactly the inputs that satisfy
-the written specification, with one accepted and one refused input as witnesses.
-Regula's decision attribute makes the contract a requirement of the function, so
-the audit fails when a contract is removed while its function stays registered.
-A decision procedure whose result type is `Decidable` carries both directions in
-its type and is registered with no contract. An admission with an argument or
-result type that depends on an earlier argument has no kind. Neither has a
-function between fixed types for which no theorem states a set of the inputs
-that it accepts. Where a theorem
-proves which inputs it accepts or refuses, or a property of an accepted or a
-refused result, that statement is registered as a requirement with no kind, and
-the ownership audit requires the contract by name. A decision that takes its
-element type as an argument has no kind either and is registered in the same
-way. A requirement with no kind is a statement that the Regula audit does not
-examine: that audit checks only that its theorem is proved about the executing
-definition. Such a statement can fix one direction only, and no statement of a
-registry shows that both outcomes occur for its function. Kinds for these
-functions are remaining work of
-[issue 67](https://github.com/rbeauchamp/acorn/issues/67). A contract states only
+A registration is a Regula executable contract about the executing definition
+itself, with the kind its proof establishes. A two-way kind states that the
+function accepts exactly the inputs that satisfy the written specification, with
+one accepted and one refused input as witnesses. Regula's decision attribute
+makes the contract a requirement of the function, so the audit fails when a
+contract is removed while its function stays registered. A decision procedure
+whose result type is `Decidable` carries both directions in its type and is
+registered with no contract. An admission with an argument or result type that
+depends on an earlier argument, and a decision that takes its element type as an
+argument, carry a kind in the forms that Regula reads for them. The kind is
+stated about the function applied to every field of a structure of its arguments
+and, where the result type depends on the input, about whether the result holds
+a value, with the value forgotten. A statement of the value of an accepted
+result stands beside such a kind as a requirement with no kind. A function keeps
+a requirement with no kind where no kind is true of it or where Regula refuses
+the kind, and the ownership audit requires the contract by name. The module
+documentation of `lean/Acorn/Decisions.lean` gives the four reasons: a function
+that accepts every input or whose accepted inputs no theorem states; an input
+that holds a state whose invariant names tests that the function runs ([Regula
+issue 270](https://github.com/rbeauchamp/regula/issues/270)); a specification
+about a function with such tests; and an accepted input whose acceptance is
+proved in the proof library ([Regula issue
+271](https://github.com/rbeauchamp/regula/issues/271)). A requirement with no
+kind is a statement that the Regula audit does not examine: that audit checks
+only that its theorem is proved about the executing definition. Such a statement
+can fix one direction only, and it does not show that both outcomes occur for
+its function. Kinds for these functions and for the statements of
+`lean/AcornVerif/Decisions.lean` are remaining work of [issue
+105](https://github.com/rbeauchamp/acorn/issues/105). A contract states only
 what its theorem proves.
 
 A kind compares a function with its specification as the two are defined now.
@@ -475,8 +483,7 @@ Regula does not count them toward a registration, so their functions are not
 registered, and the ownership audit requires each contract by name. Among them
 are the certificate checkers. No checker is complete, so each contract states
 what an accepted certificate establishes: the blocked checker carries the sound
-kind, and the replay and stance checkers, whose arguments have a dependent type,
-a requirement with no kind.
+kind, and the replay and stance checkers a requirement with no kind.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

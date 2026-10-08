@@ -23,14 +23,19 @@ about runs of the executed world step, proved in `CurrentCertificates`.
 No certificate checker is complete: each contract below states what an accepted certificate
 establishes, and a refused certificate establishes nothing. The blocked checker is a function
 between fixed types and carries the sound kind. The replay and stance checkers take an
-argument whose type depends on the configuration, so their statements are requirements with
+argument whose type depends on the configuration, and their statements are requirements with
 no kind. The walkable test is not a certificate checker, and it carries the two-way kind.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
 fix one direction only, and no statement here shows that both outcomes occur for its function.
-Each docstring says what its statement gives and what it does not claim. Kinds for these
-functions are remaining work of https://github.com/rbeauchamp/acorn/issues/67.
+Each docstring says what its statement gives and what it does not claim.
+
+The statements of this module with no kind about a function with a dependent type were stated
+when Regula had no kind for such a function. Regula v0.10.0 reads a kind for them through the
+fields of a structure and the erasures `Regula.Dependent.isSome` and `Regula.Dependent.isOk`,
+as `Acorn.Decisions` states them for the functions whose proofs need no proof library. Those
+kinds are remaining work of https://github.com/rbeauchamp/acorn/issues/105.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here for the same reason: their theorems are
@@ -74,7 +79,7 @@ def last : Host.Position := ⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩�
 
 /-- Total admission accepts the words of every stored total of the receiving quantity and
 returns that total (`CurrentCheckpoint.sum_roundtrip`). The result type depends on the
-quantity, so the contract is a requirement with no kind.
+quantity, and the contract is a requirement with no kind.
 
 **Not claimed:** that every accepted word pair is the word image of a stored total. -/
 theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
@@ -160,7 +165,7 @@ private theorem replay_reaches {config : Host.WorldConfig} {world : Host.World c
 within its cap (`CurrentCertificates.replay_feasible` with the four goal-family theorems): some
 run of at least one and at most `cap` executed steps, from the world with the goal installed,
 ends in a world in which the goal is achieved. It refuses the empty action list and every list
-longer than the cap. The world's type depends on the configuration, so the statement has no
+longer than the cap. The world's type depends on the configuration, and the statement has no
 kind.
 
 **Not claimed:** completeness. The checker refuses an action list that does not itself reach
@@ -237,7 +242,7 @@ enterable in every world (`stance_approach`, `walkable_enterable`). The tile beh
 move are stated by coordinate equations and by the constructors of the action and the
 direction, with no checked translation and no direction table. A wood stance needs its
 tree standing. It refuses every stance of a box with one tile, because no tile of that box is
-behind the stance. The stance's type depends on the configuration, so the statement has no
+behind the stance. The stance's type depends on the configuration, and the statement has no
 kind.
 
 **Not claimed:** completeness, or that a step succeeds: a successful step is a hypothesis. -/
@@ -374,7 +379,7 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
 
 Each admission below composes the admissions of its parts. Its round trip is proved in
 `CurrentCheckpoint`, and its type depends on the receiving construction or on the discounts,
-so the statement is a requirement with no kind. -/
+and the statement is a requirement with no kind. -/
 
 /-- Demon admission accepts the columns of every durable demon list of the receiving discounts
 and returns that list (`CurrentCheckpoint.demons_roundtrip`).
@@ -549,7 +554,7 @@ theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun ind
 
 /-- Whether the body may enter a tile is exactly the static passability of the tile's terrain
 with the body's boat, and it refuses exactly when the terrain refuses
-(`CurrentStep.enterable_static`). The world's type depends on the configuration, so the
+(`CurrentStep.enterable_static`). The world's type depends on the configuration, and the
 statement is a requirement with no kind. -/
 theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
@@ -566,7 +571,7 @@ with the four family theorems). The statement names neither the completion predi
 clause names the test `Host.Inventory.owns` and its collect clause names the count
 `Host.Inventory.count`, and the flag applies both through `Host.Goal.observe`. Its survive
 clause repeats the elapsed-time expression that `Host.World.taskObservation` computes. The
-world's type depends on the configuration, so it is a requirement with no kind. -/
+world's type depends on the configuration, and it is a requirement with no kind. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
     ∀ (config : Host.WorldConfig) (world : Host.World config),
       (∀ target, world.goal = some (.reach target) →
@@ -596,7 +601,7 @@ theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fu
 
 /-- An action replay returns a world exactly when a run of the executed world step over those
 actions ends in that world (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). The
-world step is the subject of the claim. The world's type depends on the configuration, so the
+world step is the subject of the claim. The world's type depends on the configuration, and the
 statement has no kind. -/
 theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (fun advance =>
     ∀ (config : Host.WorldConfig) (world final : Host.World config)
@@ -634,7 +639,7 @@ theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
 
 /-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
 with the same refusal. The terrain generator is the subject of the claim. The world's type
-depends on the configuration, so the statement has no kind.
+depends on the configuration, and the statement has no kind.
 
 **Not claimed:** the kind of an accepted tile. `CurrentStep.enterable_static` states what an
 entry reads from it. -/
@@ -654,7 +659,7 @@ theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind
 
 /-- A paid action that succeeds either found the energy short, rested and set the exhausted
 flag, or spent the cost of the action with the exhausted flag clear
-(`CurrentStep.payAndAct_outcome`). The world's type depends on the configuration, so the
+(`CurrentStep.payAndAct_outcome`). The world's type depends on the configuration, and the
 statement has no kind.
 
 **Not claimed:** the effect of the action on the body. `CurrentStep.payAndAct_outcome` states
@@ -687,7 +692,7 @@ def Moves {config : Host.WorldConfig} (world : Host.World config) (action : Host
 
 /-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
 body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
-hypotheses are the predicate `Moves`. The world's type depends on the configuration, so the
+hypotheses are the predicate `Moves`. The world's type depends on the configuration, and the
 statement has no kind.
 
 **Not claimed:** that some input satisfies the hypotheses. -/
@@ -759,7 +764,7 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
 /-- Squared-discrepancy admission accepts every pair of finite words whose exact
 discrepancy is within the magnitude of a finite envelope word
 (`CurrentAgreement.admitSquared_available`). `squared_admit` in `Acorn.Decisions` states the
-value of an accepted result. -/
+kind against the exact squared discrepancy, and `squared_admit_value` the admitted sample. -/
 theorem squared_admit_accepts : Regula.ExecutableContract Agreement.admitSquared (fun admit =>
     ∀ forecast outcome envelope : Binary32, forecast.Finite → outcome.Finite →
       envelope.Finite →
