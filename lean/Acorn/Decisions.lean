@@ -55,10 +55,11 @@ with one proved direction carries that direction alone. Five groups are register
 * A function with a kind can carry a second statement beside it for what its kind does not
   state: the value of an accepted result (`cli_value_found`, and each statement with a name
   that ends in `_value`), the exact verdict on a part of the inputs (`capture_follows`, and
-  `task_observed` in `AcornVerif.Decisions`), or which of several accepted results an input has
-  (`microduck_outcome_judged`, for a verdict of four outcomes whose kind states only which
-  inputs are not refused). That statement is a requirement with no kind, and the ownership
-  audit requires it by name.
+  `task_observed` in `AcornVerif.Decisions`), a set of accepted inputs beside a sound kind,
+  which carries one accepted input (`schema_covers_empty`, `predicate_eval_programs`), or which
+  of several accepted results an input has (`microduck_outcome_judged`, for a verdict of four
+  outcomes whose kind states only which inputs are not refused). That statement is a
+  requirement with no kind, and the ownership audit requires it by name.
 * A function keeps a requirement with no kind where no kind is true of it, or where Regula
   refuses the kind. The function carries no `@[regula_decision]` registration, and the
   ownership audit requires the contract by name, with a statement that still refers to the
@@ -66,13 +67,12 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Thirteen functions of this module have a contract and no kind. The reasons are four.
+Twelve functions of this module have a contract and no kind. The reasons are four.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
   every configuration, and a complete or a two-way kind carries a refused input. The statement
-  of `Host.World.step` is a property of the world that an accepted step returns, and the one of
-  `ClockProgram.Predicate.eval` is about two fixed programs: no theorem states the set of the
-  inputs that either function accepts. The same holds of `Host.terrain`, whose statement, in
+  of `Host.World.step` is a property of the world that an accepted step returns, and no
+  theorem states which steps succeed. The same holds of `Host.terrain`, whose statement, in
   `AcornVerif.Decisions`, is about what the readers of its result do with it.
 * The input holds a state whose invariant names tests that the function runs. Regula reads the
   type of the input of a specification, so RG1009
@@ -351,7 +351,8 @@ The witnesses of a kind are inputs of the function. Each definition below is a c
 or makes a value from closed parts, and is an input or a part of an input of the kinds of the
 functions with a dependent type. -/
 
-/-- The interval that holds only positive zero. -/
+/-- The interval whose two endpoints are positive zero. It holds the two encodings of zero and
+no other word. -/
 def point : Interval32 := ⟨.zero, .zero, by decide, by decide, by decide⟩
 
 /-- The feature space with one index. -/
@@ -374,9 +375,18 @@ def plan : Host.CampaignPlan 1 := ⟨1, by decide, 1, by decide, 1, 0, by decide
 def writer : Host.WritableCheckpoint :=
   (Host.WritableCheckpoint.admit ⟨""⟩ 2 .missing).get (by decide)
 
-/-- A bank configuration with two units and no maturity threshold. -/
+/-- The feature space with two indices. -/
+def double : Dimension := ⟨2, by decide, ⟨1, rfl⟩, by decide⟩
+
+/-- A bank configuration with two units and no maturity threshold. Its seed is one: the slot
+map `unitFeature` sends its first unit to the second index of `double` and its second unit to
+the first index. -/
 def pair : Features.Config :=
-  ⟨0, 1, by decide, ⟨2, by decide, by decide⟩, ⟨1, by decide, by decide, 0, .zero, .zero⟩⟩
+  ⟨1, 1, by decide, ⟨2, by decide, by decide⟩, ⟨1, by decide, by decide, 0, .zero, .zero⟩⟩
+
+/-- Weights of the two indices of `double`: zero at the first and one at the second. -/
+def split : WeightArray (.discounted .g99) double :=
+  #v[⟨⟨.zero, by decide⟩⟩, ⟨⟨⟨0x3f800000⟩, by decide⟩⟩]
 
 /-- A tester state of `pair` at clock one: both units were born at clock zero, the first with
 utility zero and the second with utility one. -/
@@ -2826,18 +2836,63 @@ theorem prediction_advance_raw :
         absurd ((Action.admit_none _ _).mpr outside) (by simp [admitted])
       exact ⟨fun _ => Nat.lt_of_not_le inside, fun _ => rfl⟩⟩
 
+/-- The arguments of `Host.Viewer.ClockProgram.Predicate.eval`, in order. -/
+structure PredicateEval where
+  /-- The number of values. -/
+  arity : Nat
+  /-- The values. -/
+  values : Fin arity → Nat
+  /-- The program. -/
+  program : ClockProgram.Predicate arity
+
+/-- What an accepted evaluation shows of the two order programs for two snapshots with the
+same process marker, which is the first value of each snapshot. For the agreement-order
+program, the previous snapshot is not stopped, and the clock advanced or it is the same and
+the next snapshot is stopped. For the snapshot-order program, the previous snapshot is not
+stopped and its clock is not later. The statement holds of every input with another program. -/
+def Ordered (input : PredicateEval) : Prop :=
+  (∀ values : Fin 6 → Nat, input = ⟨6, values, ClockProgram.agreementFollows⟩ →
+      values 0 = values 3 →
+        values 5 = 0 ∧ (values 4 < values 1 ∨ (values 1 = values 4 ∧ values 2 = 1))) ∧
+    ∀ values : Fin 14 → Nat, input = ⟨14, values, ClockProgram.snapshotFollows⟩ →
+      values 0 = values 7 → values 9 = 0 ∧ values 8 ≤ values 1
+
+/-- The clock-predicate evaluator accepts the agreement-order and the snapshot-order program,
+for two snapshots with the same process marker, only for the values that `Ordered` states
+(`ClockProgram.agreementFollows_same`, `snapshotFollows_same`). The accepted input is the
+snapshot-order program for one more resolved attempt of the same process, clock and cycle
+(`ClockProgram.snapshotFollows_goal`). `predicate_eval_programs` states the class of inputs
+that the last theorem accepts.
+
+**Not claimed:** completeness, or the verdict on another program: the specification holds of
+every input whose program is neither of the two. -/
+theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval (fun eval =>
+    Regula.DecidesSoundly (· = true) Ordered
+      (fun input : PredicateEval => @eval input.arity input.values input.program)) :=
+  ⟨{ sound := fun input accepted =>
+       ⟨fun values same clocks => by
+          subst same
+          exact ClockProgram.agreementFollows_same values clocks accepted,
+        fun values same clocks => by
+          subst same
+          exact ClockProgram.snapshotFollows_same values clocks accepted⟩
+     accepted := ⟨⟨14, fun index => if index = 4 then 1 else 0, ClockProgram.snapshotFollows⟩,
+       ClockProgram.snapshotFollows_goal _ (by decide) (by decide) (by decide) (by decide)
+         (by decide)⟩ }⟩
+
+attribute [regula_decision] ClockProgram.Predicate.eval
+
 /-- The clock-predicate evaluator, on the agreement-order and snapshot-order programs with
 equal leading clocks, accepts only the values the theorems state
 (`ClockProgram.agreementFollows_same`, `snapshotFollows_same`), and it accepts the
 snapshot-order program whenever the same process and run are not terminal, share a cycle
-and resolved more attempts (`ClockProgram.snapshotFollows_goal`).
-
-The statement keeps no kind. It is three properties of two fixed programs, each under
-hypotheses on the values, and no theorem states the set of the value and program pairs that
-the evaluator accepts.
+and resolved more attempts (`ClockProgram.snapshotFollows_goal`). The sound kind
+`predicate_eval` carries one accepted input and does not state a set of accepted inputs, so
+this statement is a requirement with no kind beside it.
 
 **Not claimed:** the verdict on other programs. -/
-theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval (fun eval =>
+theorem predicate_eval_programs :
+    Regula.ExecutableContract @ClockProgram.Predicate.eval (fun eval =>
     (∀ values : Fin 6 → Nat, values 0 = values 3 →
       eval values ClockProgram.agreementFollows = true →
         values 5 = 0 ∧ (values 4 < values 1 ∨ (values 1 = values 4 ∧ values 2 = 1))) ∧
@@ -2861,9 +2916,15 @@ structure CandidateWeight where
   /-- The unit. -/
   unit : Fin config.units.count
 
-/-- A weight enters the ranking exactly when its signed word is positive. `unitFeature` is the
-slot map, which the admission also reads. `candidate_of_weight_value` states the key of an
-entering weight. -/
+/-- A weight enters the ranking exactly when its signed word is positive.
+`candidate_of_weight_value` states the key of an entering weight.
+
+`unitFeature` is the slot map, a hash of the seed and the unit, which the admission also reads.
+The map has no meaning apart from its formula: two units can share a slot, and the readers of a
+slot share it on purpose. So the specification names the map, as vocabulary that the two sides
+share, and does not state the formula a second time. The two witnesses are the two units of
+`pair` under the weights `split`. The map sends them to different slots of `double`, so a map
+that sends every unit to one slot fails one of them. -/
 theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun admit =>
     Regula.Decides (· = true)
       (fun input : CandidateWeight =>
@@ -2871,8 +2932,8 @@ theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun 
       (Regula.Dependent.isSome fun input : CandidateWeight =>
         @admit input.dimension input.config input.weights input.unit)) :=
   ⟨present (fun _ => @dite_isSome _ _ (Binary32.positiveDecidable _) _)
-    ⟨⟨narrow, bank, .replicate _ ⟨⟨⟨0x3f800000⟩, by decide⟩⟩, ⟨0, by decide⟩⟩, by decide⟩
-    ⟨⟨narrow, bank, .replicate _ ⟨⟨.zero, by decide⟩⟩, ⟨0, by decide⟩⟩, by decide⟩⟩
+    ⟨⟨double, pair, split, ⟨0, by decide⟩⟩, by decide⟩
+    ⟨⟨double, pair, split, ⟨1, by decide⟩⟩, by decide⟩⟩
 
 attribute [regula_decision] candidateOfWeight
 
@@ -2887,9 +2948,21 @@ theorem candidate_of_weight_value : Regula.ExecutableContract @candidateOfWeight
           (weights.get (unitFeature dimension config candidate.unit)).value.bits.toNat) :=
   ⟨candidateOfWeight_key⟩
 
+/-- A slot holds a selected objective exactly when its interest is that learned objective. A
+declared interest holds the neutral objective. -/
+private theorem held_selected {config : Features.Config} (interest : Interest config)
+    (unit : Fin config.units.count) (bonus : Bonus) :
+    interest.held = .selected unit bonus ↔ interest = .learned (.selected unit bonus) := by
+  cases interest with
+  | learned assignment =>
+    exact ⟨fun same => congrArg Interest.learned same, fun same => Interest.learned.inj same⟩
+  | declared origin tag => exact ⟨fun same => (nomatch same), fun same => (nomatch same)⟩
+
 /-- A unit can be replaced: it is older than the maturity threshold and, away from a free
-boundary, it is the objective of no skill. Stated on the stored birth step, the clock and the
-objectives, with no eligibility test. -/
+boundary, it is the learned objective of no skill. Stated on the stored birth step, the clock
+and the interests of the skills by their constructors, with no eligibility test and no reader
+of an interest: `held_selected` connects the reader `Interest.held`, which the executed test
+calls. -/
 def Replaceable {shape : PatchShape} {actions : Word.Count} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount}
     (state : Features.Lifecycle shape actions config criterion dimension discounts)
@@ -2897,7 +2970,7 @@ def Replaceable {shape : PatchShape} {actions : Word.Count} {config : Features.C
   state.progress.units[unit.val].birth.toNat + config.tester.maturity <
       state.progress.clock.toNat ∧
     (free = true ∨ ∀ skill ∈ state.consumers.skills.toList,
-      ∀ bonus, skill.interest.held ≠ .selected unit bonus)
+      ∀ bonus, skill.interest ≠ .learned (.selected unit bonus))
 
 private theorem eligible_iff {shape : PatchShape} {actions : Word.Count}
     {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
@@ -2919,7 +2992,7 @@ private theorem eligible_iff {shape : PatchShape} {actions : Word.Count}
         exact differs bonus same rfl
   simp only [Features.Lifecycle.eligible, Features.Lifecycle.mature, Ensemble.holds,
     Replaceable, Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true, Bool.not_eq_true',
-    List.any_eq_false, held]
+    List.any_eq_false, held, ne_eq, held_selected]
 
 /-- Candidate selection returns no unit exactly when no unit can be replaced, and a returned
 unit can be replaced and has the least stored utility among the units that can
@@ -3129,8 +3202,8 @@ structure ListDecode where
 any suffix (`Checkpoint.list_roundtrip`), and it refuses the empty byte list for one byte.
 `list_decode_value` states the list and the suffix that it returns.
 
-**Not claimed:** soundness. No theorem states that every accepted byte list is such an
-encoding. -/
+**Not claimed:** soundness. It does not hold for every codec: a codec can read back a byte list
+that it does not write, and the decoder then accepts a list that is no encoding. -/
 theorem list_decode : Regula.ExecutableContract @Checkpoint.decodeList (fun decode =>
     Regula.DecidesCompletely (· = true)
       (fun input : ListDecode => ∃ written : List input.element × List UInt8,
@@ -3172,8 +3245,8 @@ structure ListDecodeInto where
 accumulator (`Checkpoint.list_into_roundtrip`), and it refuses the empty byte list for one
 byte. `list_decode_into_value` states the list that it returns.
 
-**Not claimed:** soundness. No theorem states that every accepted byte list is such an
-encoding. -/
+**Not claimed:** soundness. It does not hold for every codec, for the reason that `list_decode`
+gives. -/
 theorem list_decode_into : Regula.ExecutableContract @Checkpoint.decodeListInto (fun decode =>
     Regula.DecidesCompletely (· = true)
       (fun input : ListDecodeInto => ∃ written : List input.element × List UInt8,
@@ -3235,7 +3308,8 @@ structure SchemaCovers where
   schema : List (String × TelemetryShape)
 
 /-- The schema test accepts only a table whose every entry names a schema key with a fitting
-shape (`schemaCovers_sound`), and it accepts the empty table against the empty schema.
+shape (`schemaCovers_sound`). The accepted input is a table of one entry that fits, under a
+test that reads the entry. `schema_covers_empty` states that every empty table is accepted.
 
 **Not claimed:** completeness. The test reads the table in schema order and refuses a fitting
 table that is listed in another order. -/
@@ -3246,9 +3320,17 @@ theorem schema_covers : Regula.ExecutableContract @schemaCovers (fun covers =>
       (fun input : SchemaCovers =>
         @covers input.element input.fits input.table input.schema)) :=
   ⟨{ sound := fun input => schemaCovers_sound input.fits input.table input.schema
-     accepted := ⟨⟨Unit, fun _ _ _ => true, [], []⟩, rfl⟩ }⟩
+     accepted := ⟨⟨Bool, fun _ item _ => item, [("a", true)], [("a", .natural)]⟩, by decide⟩ }⟩
 
 attribute [regula_decision] schemaCovers
+
+/-- The schema test accepts the empty table against every schema, for every element type and
+every test of an entry. The sound kind `schema_covers` carries one accepted input and does not
+state a set of accepted inputs, so this statement is a requirement with no kind beside it. -/
+theorem schema_covers_empty : Regula.ExecutableContract @schemaCovers (fun covers =>
+    ∀ (α : Type) (fits : String → α → TelemetryShape → Bool)
+      (schema : List (String × TelemetryShape)), @covers α fits [] schema = true) :=
+  ⟨fun _ _ _ => rfl⟩
 
 /-! ## Definitions that a registered decision reads
 
@@ -3434,30 +3516,33 @@ structure EnsembleHolds where
   /-- The unit. -/
   unit : Fin config.units.count
 
-/-- A unit is held exactly when the objective of some skill is a selected objective of that
-unit. -/
+/-- A unit is held exactly when the interest of some skill is the learned, selected objective
+of that unit. The specification states the interest by its constructors and names no reader of
+an interest: `held_selected` connects the reader `Interest.held`, which the test calls. The
+refused input is an ensemble of declared interests, which hold no unit. -/
 theorem ensemble_holds : Regula.ExecutableContract @Ensemble.holds (fun holds =>
     Regula.Decides (· = true)
       (fun input : EnsembleHolds => ∃ skill ∈ input.ensemble.skills.toList, ∃ bonus,
-        skill.interest.held = .selected input.unit bonus)
+        skill.interest = .learned (.selected input.unit bonus))
       (fun input : EnsembleHolds =>
         @holds input.actions input.config input.criterion input.dimension input.discounts
           input.ensemble input.unit)) :=
   ⟨decides
     (fun input => by
       show input.ensemble.holds input.unit = true ↔ _
-      simp only [Ensemble.holds, List.any_eq_true, holds_selected])
+      simp only [Ensemble.holds, List.any_eq_true, holds_selected, held_selected])
     ⟨⟨⟨1, by decide⟩, bank, .discounted, narrow, [],
       .initial _ _ _ _ (.replicate _ (.learned chosen)), ⟨0, by decide⟩⟩,
       Skill.initial _ _ _ (.learned chosen),
       by simp [Ensemble.initial, Acorn.FeatureConstants.skillCount], spark, rfl⟩
     ⟨⟨⟨1, by decide⟩, bank, .discounted, narrow, [],
-      .initial _ _ _ _ (.replicate _ (.learned .neutral)), ⟨0, by decide⟩⟩,
-      fun ⟨skill, member, bonus, held⟩ => by
+      .initial _ _ _ _ (.replicate _ (.declared .spatialPotentials ⟨0, by decide⟩)),
+      ⟨0, by decide⟩⟩,
+      fun ⟨skill, member, bonus, learned⟩ => by
         simp only [Ensemble.initial, Vector.map_replicate, Vector.toList_replicate,
           List.mem_replicate] at member
-        rw [member.2] at held
-        exact nomatch held⟩⟩
+        rw [member.2] at learned
+        exact nomatch learned⟩⟩
 
 attribute [regula_decision] Ensemble.holds
 
@@ -3512,7 +3597,13 @@ structure AssignmentPotential where
   active : SwiftTd.ActiveSet dimension
 
 /-- The hashed-slot potential of an objective is set exactly for a selected objective whose
-unit feature is active. `unitFeature` is the slot map, which the potential also reads. -/
+unit feature is active.
+
+`unitFeature` is the slot map, which the potential also reads. It is vocabulary that the two
+sides share, for the reason that `candidate_of_weight` gives. The two witnesses are the
+selected objectives of the two units of `pair`, with the slot of the first unit active. The
+map sends the second unit to the other slot of `double`, so a map that sends every unit to one
+slot fails the refused witness. -/
 theorem assignment_potential : Regula.ExecutableContract @Assignment.potential (fun potential =>
     Regula.Decides (· = true)
       (fun input : AssignmentPotential =>
@@ -3530,8 +3621,12 @@ theorem assignment_potential : Regula.ExecutableContract @Assignment.potential (
           Assignment.selected.injEq]
         exact ⟨fun member => ⟨unit, bonus, ⟨rfl, rfl⟩, member⟩,
           fun ⟨_, _, ⟨same, _⟩, member⟩ => same ▸ member⟩)
-    ⟨⟨narrow, bank, chosen, ⟨[⟨0, by decide⟩], by simp⟩⟩, ⟨0, by decide⟩, spark, rfl, by decide⟩
-    ⟨⟨narrow, bank, .neutral, .empty narrow⟩, fun ⟨_, _, same, _⟩ => nomatch same⟩⟩
+    ⟨⟨double, pair, .selected ⟨0, by decide⟩ spark, ⟨[⟨1, by decide⟩], by simp⟩⟩,
+      ⟨0, by decide⟩, spark, rfl, by decide⟩
+    ⟨⟨double, pair, .selected ⟨1, by decide⟩ spark, ⟨[⟨1, by decide⟩], by simp⟩⟩,
+      fun ⟨_, _, same, member⟩ => by
+        cases same
+        exact absurd member (by decide)⟩⟩
 
 attribute [regula_decision] Assignment.potential
 
