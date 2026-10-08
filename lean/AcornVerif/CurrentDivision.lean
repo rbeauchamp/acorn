@@ -92,7 +92,7 @@ theorem model_round_accuracy_distance (spec : Format) (sign : Sign) (mantissa : 
   change |signCoefficient sign*(first.1.roundedMantissa:ℚ)*(2:ℚ)^first.2-
     signCoefficient sign*mantissa*(2:ℚ)^exponent| ≤ (2:ℚ)^(exponent+shift)
   rw [he, zpow_add₀ (by norm_num : (2:ℚ) ≠ 0), zpow_natCast, abs_le]
-  cases sign <;> simp only [signCoefficient] <;> constructor <;> nlinarith
+  cases sign <;> simp only [signCoefficient] <;> constructor <;> linarith
 
 /-- A quotient of positive significands and a positive dyadic scale is positive. -/
 theorem model_ratio_positive (left right : Nat) (leftExponent rightExponent : Int)
@@ -317,7 +317,7 @@ theorem model_divCore_error (spec : Format) (sign : Sign) (left right : Nat)
       signCoefficient sign*ratio| ≤ (2:ℚ)^core.2.1 := by
     rw [abs_le]
     cases sign <;> simp only [signCoefficient] <;> constructor <;>
-      nlinarith [bracket.2.2.1, bracket.2.2.2]
+      linarith [bracket.2.2.1, bracket.2.2.2]
   have approximation := model_round_accuracy_distance spec sign core.1 core.2.1 core.2.2
   change |unpackedValue (roundWithAccuracy spec sign core.1 core.2.1 core.2.2)-
     signCoefficient sign*(core.1:ℚ)*(2:ℚ)^core.2.1| ≤ (2:ℚ)^(core.2.1+shift) at approximation

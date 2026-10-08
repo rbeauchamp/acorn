@@ -121,11 +121,11 @@ def site (write : Bool) (whole : Bool := false) : IO Unit := do
     "Main.lean"] ++ (if write then #["write"] else #[])) (some "../site") env whole
   IO.println "site: documents elaborated against their Lean owners; kept Markdown matches"
 
-/-- Source admission precedes application compilation; every discovered module is built.
-Every declared native entry retains compilation and execution-route admission. Checks with
-no dependence on one another run at once: the two source admissions with Lake's target
-inventory before the build, and every admission of the finished build after it. -/
-def verify : IO Unit := do
+/-- Source admission precedes application compilation. Every discovered module is admitted;
+the build requests each one that `keep` accepts, with its native object where it has one,
+and every declared executable. The two source admissions run at once with Lake's target
+inventory, since none depends on another. -/
+def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
   lake #["build", "lean-boundary-audit"]
   let modules ← AcornOwnershipAudit.sources
   let waiting ← IO.mkRef #[]
@@ -135,6 +135,7 @@ def verify : IO Unit := do
     run ".lake/build/bin/lean-boundary-audit" #["proof-source"] (whole := true)]
   IO.println "ownership: source modules and Lake entries admitted"
   (← IO.getStdout).flush
+  let modules := modules.filter keep
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
   -- Lake of Lean v4.34.0). A request for an executable's root module resolves to that
@@ -152,6 +153,12 @@ def verify : IO Unit := do
         fun name => "+" ++ name.toString ++ ":c.o.export"
   lake (#["build"] ++ requests modules ++ executableTargets.map (·.1) ++
     lateTargets.map (·.1) ++ requests lateModules)
+
+/-- Every discovered module is built, and every declared native entry retains compilation and
+execution-route admission. Every admission of the finished build runs at once with the
+others, since none depends on another. -/
+def verify : IO Unit := do
+  admitAndBuild fun _ => true
   together [
     run ".lake/build/bin/lean-boundary-audit" #["compiled"] (whole := true),
     run ".lake/build/bin/native-audit" (whole := true),
@@ -167,13 +174,18 @@ def main (args : List String) : IO UInt32 := do
   try
     match args with
     | [] => AcornGate.verify
+    -- The first of CI's two timed stages: the build that the complete command then reuses
+    -- where Lake's traces match. It admits nothing after the build.
+    | ["build-executing"] =>
+      AcornGate.admitAndBuild fun name => !(`AcornVerif).isPrefixOf name
+      IO.println "build-executing: sources admitted; modules outside AcornVerif and entries built"
     | ["diagnostics"] =>
       AcornGate.lake #["build", "acorn-core"]
       AcornGate.audits
       IO.println "Optional mutation diagnostics passed; this is not ordinary merge verification."
     | ["site"] => AcornGate.site false
     | ["site", "write"] => AcornGate.site true
-    | _ => throw (IO.userError "usage: acorn-gates [diagnostics | site [write]]")
+    | _ => throw (IO.userError "usage: acorn-gates [build-executing | diagnostics | site [write]]")
     return 0
   catch error =>
     IO.eprintln s!"acorn-gates: {error}"

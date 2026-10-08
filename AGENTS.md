@@ -96,8 +96,10 @@ Then run the complete command in the actual Git checkout:
 ./scripts/verify.sh
 ```
 
-- Verification is bounded by a hard 360-second process-group SIGKILL deadline,
-  including cold project builds.
+- Each run is bounded by a hard 360-second process-group SIGKILL deadline,
+  including the cold project build when outputs are cold. CI runs
+  `./scripts/verify.sh build-executing` first, under its own deadline, so there
+  the cold build and the checks no longer share one.
 - No override, grace period, partial pass, missing check or cached acceptance
   substitutes for a pass.
 - Every discovered module and native entry retains compilation and

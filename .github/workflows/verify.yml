@@ -20,8 +20,8 @@ env:
 # after a failure.
 jobs:
   verify:
-    # The standard public Ubuntu runner has four CPUs and 16 GB RAM; the cold suite
-    # retains the same deadline as local verification.
+    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The project's
+    # cold build is timed in two stages below, each under verify.sh's own deadline.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -161,7 +161,17 @@ jobs:
             lean/.lake/packages/MD4Lean
             lean/.lake/packages/illuminate
           key: ${{ steps.verso.outputs.cache-primary-key }}
-      - name: Verify exact source with cold project outputs
+      # Two timed stages on this runner, each under verify.sh's own 360-second
+      # deadline: the cold build fills all four CPUs, and with the checks beside it a
+      # slow runner came within 40 seconds of one deadline. Stage one admits the
+      # sources and builds cold every module outside the proof library AcornVerif,
+      # its native object and every executable. Stage two is the complete command
+      # unchanged: Lake reuses a stage one output only where its trace matches the
+      # checked-out source, toolchain and options, and builds everything else.
+      # Nothing is carried between runs.
+      - name: Build the executing library, tools and native objects cold
+        run: ./scripts/verify.sh build-executing
+      - name: Verify exact source over the first stage's outputs
         run: ./scripts/verify.sh
   regula:
     # Regula audits every surface lean/foundation_manifest.json claims. It builds

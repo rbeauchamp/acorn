@@ -30,10 +30,13 @@ start with the [README](../README.md#start-with-the-live-viewer).
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
 Lean, Mathlib, FloatLib and Verso dependencies, a C compiler, OpenSSL 3, ShellCheck
 and GNU coreutils.
-The hard 360-second deadline includes project compilation and every ordinary
-check. It uses process-group SIGKILL with no grace period or budget override;
-missing, skipped or timed-out checks fail. OS scheduling and signal delivery
-are the trusted mechanisms that enforce this deadline.
+Each run of the command has a hard 360-second deadline, which includes the
+project compilation the run does and every ordinary check; from cold project
+outputs that is the whole build. [CI](#build-and-source-inventory) splits the
+cold build over two runs, each with its own deadline. The deadline uses
+process-group SIGKILL with no grace period or budget override; missing, skipped
+or timed-out checks fail. OS scheduling and signal delivery are the trusted
+mechanisms that enforce this deadline.
 
 Project instruction changes have no live Acorn runtime surface. The complete
 verification command remains required for documentation changes.
@@ -367,12 +370,23 @@ Numerical proofs use the executing Lean definitions. Native admission checks
 their compiler IR, primitive calls, resource contracts and compiler flags.
 Primitive IEEE interpretation remains a native assumption.
 
-CI provisions dependencies separately and runs the identical ordinary command
-with cold project outputs. A second job runs the [Regula audit](#regula-audit)
-on the same head, also from cold project outputs. The workflow has read-only
-repository permissions, no secrets, no privileged pull-request trigger, and
-pinned action revisions. Both jobs must pass on the exact proposed head before
-merge.
+CI provisions dependencies separately and runs the command twice in one job on
+one runner, from cold project outputs, each run under its own 360-second
+deadline. The first, `./scripts/verify.sh build-executing`, admits the sources as
+the complete command does, then builds every module outside the proof library
+`AcornVerif` with its native object, and every executable; it admits nothing
+after the build. The second is the identical complete command: Lake reuses an
+output of the first only where its trace matches the checked-out source,
+toolchain and options, and builds the rest. So in CI the cold build and the
+checks no longer share one deadline: the first bounds the build of the
+executing library and the tools, the second the proof library's build and every
+check. The job passes only when both runs pass. The cold build keeps all four
+processors of the runner busy, and with the checks beside it inside one deadline
+a slow runner left too little margin. No output is carried from one CI run to
+another. A second job runs the [Regula audit](#regula-audit) on the same head,
+from cold project outputs. The workflow has read-only repository permissions, no
+secrets, no privileged pull-request trigger, and pinned action revisions. Both
+jobs must pass on the exact proposed head before merge.
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners
