@@ -1038,9 +1038,9 @@ channel and a value into one feature and does not generalise between two values,
 step is the resolution the agent has of a quantity. The steps are authored and no
 experiment has qualified them. Each position of the layout carries at most one word
 (`entries_distinct`), two positions have two channels (`channel_injective`), and no
-word is on a prediction feedback channel (`channel_clear`). A refused action and an
-accepted action that was not executed are two values of their word
-(`became_injective`).
+word is on a prediction feedback channel (`channel_clear`). A refused action, an
+accepted action that was not executed and an action whose answer was not complete are
+three values of their word (`became_injective`).
 
 Absence is a word and not a zero. The rates, the gain and the depth frame can be
 missing; each has a presence word, which is one when the reading has the quantity
