@@ -165,9 +165,10 @@ report of the definitions that have no contract is work of Regula
   carries both directions of its decision in its type, have no contract.
 * No theorem of the maintained libraries names the definition in its statement. This is the
   absence of a direct reference and nothing more. These are the command-line parsers of
-  `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the JSON parser
-  `Json.parse` with its readers and private helpers (the scanner of a number
-  `Json.Numeral.scan`, the reader `Json.Value.numeral` and the member lookup
+  `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the readers and the
+  private helpers of the JSON parser (the parser `Json.parse` has the
+  contract `json_parse`, which states texts it accepts and not every text; the scanner of a
+  number `Json.Numeral.scan`, the reader `Json.Value.numeral` and the member lookup
   `Json.Value.member` have the contracts `json_scan`, `json_numeral` and `json_member`), the
   viewer's envelope and map decoders,
   and the transitions and lookups that no theorem mentions. Kinds for the parsers against
@@ -226,10 +227,9 @@ private readers of the parts of a frame in `Host.Microduck.Wire`, which
 only private lemmas of the proofs of `Host.Microduck.State.read_iff` and
 `Host.Microduck.Depth.read_iff` name them, and the contracts `microduck_state` and
 `microduck_depth` are their evidence. `Host.Microduck.Line.read` applies the same readers
-and four private helpers of its own, with the contract `microduck_line` as their evidence.
-`Host.Microduck.Command.reads`, a private test with a result of `Bool`, has no contract and
-no registered decision applies it: only the proof of `Host.Microduck.Command.line_asked`
-evaluates it, and a private lemma states what a value that passes it is.
+and private helpers of its own, one for each case of a line and the tests those apply, with
+the contract `microduck_line` as their evidence; private lemmas state each in the relations
+that the contract names.
 
 What the list does not hold:
 
@@ -1567,15 +1567,18 @@ theorem microduck_depth :
 
 attribute [regula_decision] Host.Microduck.Depth.read
 
-/-- The reader of a daemon's line gives a frame or an answer, and neither
-`Host.Microduck.Line.other` nor a refused frame, exactly for three kinds of value: a
-`robot.state` notification whose parameters write a state frame, a `tof.frame` notification
-whose parameters write a depth frame, and a value with no method that is a string, with an
-id that is a natural number or is missing or null, and with a verdict. The specification is
-stated with the relations of `Host.Microduck.Wire` on the members of the value, and names no
-reader. The two inputs of the proof are an object with an id and a result that accepts, which
-is read as an answer, and null, which is not read. `microduck_line_read` states which line
-each value is read as.
+/-- The reader of a daemon's line gives a line that is not `Host.Microduck.Line.invalid`
+exactly for a value that is a JSON-RPC 2.0 notification or response: a notification of some
+method (the version `2.0`, a string `method`, no member `id`), a response with a result (the
+version, no `method`, no `error`, a natural number as `id` and a member `result`), or a
+response with an error (the version, no `method`, no `result`, an `id` that is a natural
+number or null, and an `error` that is an object with an integer `code` and a string
+`message`). The rules are those of the JSON-RPC Working Group, *JSON-RPC 2.0 Specification*
+(2010, updated 2013), sections 4, 4.1, 5 and 5.1. The specification is stated with the
+relations of `Host.Microduck.Wire` on the members of the value, and names no reader. The two
+inputs of the proof are an object with the version, an id and a result, which is read as a
+result, and null, which is invalid. `microduck_line_read` states which line each value is
+read as.
 
 **Not claimed:** that the text of a line parses to such a value, and that a daemon sends
 one. An independent statement of the relations on a number: the id is
@@ -1584,76 +1587,117 @@ one. An independent statement of the relations on a number: the id is
 say. What a host does with a line. -/
 theorem microduck_line :
     Regula.ExecutableContract Host.Microduck.Line.read
-      (Regula.Decides
-        (fun line => line ≠ Host.Microduck.Line.other ∧
-          ∀ stream, line ≠ Host.Microduck.Line.refused stream)
+      (Regula.Decides (fun line => line ≠ Host.Microduck.Line.invalid)
         (fun json : Json.Value =>
-          (∃ frame, Host.Microduck.Within "method" Host.Microduck.Said json "robot.state" ∧
-              Host.Microduck.Within "params" Host.Microduck.State.Written json frame) ∨
-            (∃ frame, Host.Microduck.Within "method" Host.Microduck.Said json "tof.frame" ∧
-              Host.Microduck.Within "params" Host.Microduck.Depth.Written json frame) ∨
-            ∃ id reply, (∀ method, ¬Host.Microduck.Within "method" Host.Microduck.Said json method) ∧
-              Host.Microduck.Lacking "id" Host.Microduck.Counted json id ∧
-                Host.Microduck.Answered json reply)) :=
+          (∃ method, Host.Microduck.Notified json method) ∨
+            (∃ id accepted, Host.Microduck.Resulted json id accepted) ∨
+            ∃ id, Host.Microduck.Faulted json id)) :=
   ⟨decides
     (fun json => by
       constructor
-      · rintro ⟨read, framed⟩
+      · intro valid
         cases line : Host.Microduck.Line.read json with
-        | state frame => exact .inl ⟨frame, (Host.Microduck.Line.read_state json frame).mp line⟩
+        | state frame =>
+          exact .inl ⟨_, ((Host.Microduck.Line.read_state json frame).mp line).1⟩
         | depth frame =>
-          exact .inr (.inl ⟨frame, (Host.Microduck.Line.read_depth json frame).mp line⟩)
-        | answer id reply =>
-          exact .inr (.inr ⟨id, reply, (Host.Microduck.Line.read_answer json id reply).mp line⟩)
-        | refused stream => exact absurd line (framed stream)
-        | other => exact absurd line read
-      · rintro (⟨frame, written⟩ | ⟨frame, written⟩ | ⟨id, reply, written⟩)
-        · rw [(Host.Microduck.Line.read_state json frame).mpr written]
-          exact ⟨fun wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩
-        · rw [(Host.Microduck.Line.read_depth json frame).mpr written]
-          exact ⟨fun wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩
-        · rw [(Host.Microduck.Line.read_answer json id reply).mpr written]
-          exact ⟨fun wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩)
-    ⟨.object [("id", .number "0"), ("result", .object [("accepted", .bool true)])],
-      .inr (.inr ⟨some 0, .accepted,
-        (Host.Microduck.Line.read_answer _ (some 0) .accepted).mp rfl⟩)⟩
+          exact .inl ⟨_, ((Host.Microduck.Line.read_depth json frame).mp line).1⟩
+        | unread stream =>
+          exact .inl ⟨_, ((Host.Microduck.Line.read_unread json stream).mp line).1⟩
+        | notice =>
+          obtain ⟨method, noted, _⟩ := (Host.Microduck.Line.read_notice json).mp line
+          exact .inl ⟨method, noted⟩
+        | result id accepted =>
+          exact .inr (.inl ⟨id, accepted,
+            (Host.Microduck.Line.read_result json id accepted).mp line⟩)
+        | fault id => exact .inr (.inr ⟨id, (Host.Microduck.Line.read_fault json id).mp line⟩)
+        | invalid => exact absurd line valid
+      · intro valid invalid
+        obtain ⟨unnoted, unresulted, unfaulted⟩ :=
+          (Host.Microduck.Line.read_invalid json).mp invalid
+        rcases valid with ⟨method, noted⟩ | ⟨id, accepted, resulted⟩ | ⟨id, faulted⟩
+        · exact unnoted method noted
+        · exact unresulted id accepted resulted
+        · exact unfaulted id faulted)
+    ⟨.object [("jsonrpc", .string "2.0"), ("id", .number "0"),
+        ("result", .object [("accepted", .bool true)])],
+      .inr (.inl ⟨0, some true, (Host.Microduck.Line.read_result _ 0 (some true)).mp rfl⟩)⟩
     ⟨.null, by
-      rintro (⟨_, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩ | ⟨_, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩ |
-        ⟨_, _, _, (⟨_, ⟨_, wrong⟩, _⟩ | ⟨_, _, ⟨_, _, wrong, _⟩, _⟩), _⟩) <;>
-        exact nomatch wrong⟩⟩
+      rintro (⟨_, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩ | ⟨_, _, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩ |
+        ⟨_, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩) <;> exact nomatch wrong⟩⟩
 
 attribute [regula_decision] Host.Microduck.Line.read
 
-/-- Which line a value is read as, for every JSON value: a state frame exactly when the
-value is a `robot.state` notification whose parameters write the frame
-(`Host.Microduck.Line.read_state`); a depth frame exactly when it is a `tof.frame`
-notification whose parameters write the frame (`Host.Microduck.Line.read_depth`); a refused
-frame of a stream exactly when it is a notification of the stream whose parameters write no
-frame (`Host.Microduck.Line.read_refused`); and an answer with an id and a reply exactly when
-the value has no method that is a string, its id is that natural number or is missing or
-null, and it is answered with the reply: a refusal for a value with a member `error`, null
-included, and otherwise what the boolean `result.accepted` states
-(`Host.Microduck.Line.read_answer`). A kind states the accepted inputs and not which accepted
-result an input has, so this statement is a requirement with no kind beside the kind
-`microduck_line`. It states nothing about what a host does with a line. -/
+/-- Which line a value is read as, for every JSON value, with one statement for each
+constructor of `Host.Microduck.Line`: a state frame and a depth frame exactly for a
+notification of that method whose parameters write the frame
+(`Host.Microduck.Line.read_state`, `Host.Microduck.Line.read_depth`); an unread frame of a
+stream exactly for a notification of the stream whose parameters write none
+(`Host.Microduck.Line.read_unread`); a notice exactly for a notification of another method
+(`Host.Microduck.Line.read_notice`); a result with an identifier and an acceptance exactly
+for a response with that result (`Host.Microduck.Line.read_result`); a fault exactly for a
+response with an error (`Host.Microduck.Line.read_fault`); and invalid exactly for a value
+that is none of these (`Host.Microduck.Line.read_invalid`). A kind states the accepted inputs
+and not which accepted result an input has, so this statement is a requirement with no kind
+beside the kind `microduck_line`. It states nothing about what a host does with a line. -/
 theorem microduck_line_read :
     Regula.ExecutableContract Host.Microduck.Line.read (fun read =>
       ∀ json : Json.Value,
         (∀ frame, read json = .state frame ↔
-            Host.Microduck.Within "method" Host.Microduck.Said json "robot.state" ∧
+            Host.Microduck.Notified json "robot.state" ∧
               Host.Microduck.Within "params" Host.Microduck.State.Written json frame) ∧
           (∀ frame, read json = .depth frame ↔
-            Host.Microduck.Within "method" Host.Microduck.Said json "tof.frame" ∧
+            Host.Microduck.Notified json "tof.frame" ∧
               Host.Microduck.Within "params" Host.Microduck.Depth.Written json frame) ∧
-          (∀ stream, read json = .refused stream ↔
-            Host.Microduck.Within "method" Host.Microduck.Said json stream.method ∧
-              stream.Unwritten json) ∧
-          ∀ id reply, read json = .answer id reply ↔
-            (∀ method, ¬Host.Microduck.Within "method" Host.Microduck.Said json method) ∧
-              Host.Microduck.Lacking "id" Host.Microduck.Counted json id ∧
-                Host.Microduck.Answered json reply) :=
+          (∀ stream, read json = .unread stream ↔
+            Host.Microduck.Notified json stream.method ∧ stream.Unwritten json) ∧
+          (read json = .notice ↔
+            ∃ method, Host.Microduck.Notified json method ∧ method ≠ "robot.state" ∧
+              method ≠ "tof.frame") ∧
+          (∀ id accepted, read json = .result id accepted ↔
+            Host.Microduck.Resulted json id accepted) ∧
+          (∀ id, read json = .fault id ↔ Host.Microduck.Faulted json id) ∧
+          (read json = .invalid ↔
+            (∀ method, ¬Host.Microduck.Notified json method) ∧
+              (∀ id accepted, ¬Host.Microduck.Resulted json id accepted) ∧
+                ∀ id, ¬Host.Microduck.Faulted json id)) :=
   ⟨fun json => ⟨Host.Microduck.Line.read_state json, Host.Microduck.Line.read_depth json,
-    Host.Microduck.Line.read_refused json, Host.Microduck.Line.read_answer json⟩⟩
+    Host.Microduck.Line.read_unread json, Host.Microduck.Line.read_notice json,
+    Host.Microduck.Line.read_result json, Host.Microduck.Line.read_fault json,
+    Host.Microduck.Line.read_invalid json⟩⟩
+
+/-- The JSON parser accepts every text of a request: for every request whose names are of
+plain characters and differ at each level, whose strings are of plain characters and whose
+numbers are formed numerals with no exponent part, it accepts the text that
+`Json.Request.chars` writes (`Json.parse_request`). The kind is the complete one: it states
+texts that the parser accepts and not every text it accepts. The specification is stated on
+the request and its text, and names no function of the parser. The refused input of the
+proof is the empty text. `json_parse_value` states the value of an accepted text of a
+request.
+
+**Not claimed:** soundness. The parser accepts every JSON text within its limits, and no
+theorem states which texts those are; kinds for the parser against the grammar of JSON are
+the subject of https://github.com/rbeauchamp/acorn/issues/81. -/
+theorem json_parse :
+    Regula.ExecutableContract Json.parse
+      (Regula.DecidesCompletely (fun result => result.isOk = true)
+        (fun text : String => ∃ request : Json.Request,
+          request.Simple ∧ text = String.ofList request.chars)) :=
+  ⟨{ complete := fun text ⟨request, simple, same⟩ => by
+       rw [same, Json.parse_request request simple]
+       rfl
+     refused := ⟨"", by decide +kernel⟩ }⟩
+
+attribute [regula_decision] Json.parse
+
+/-- The value that the JSON parser gives for the text of a request: for every such request,
+the value of the request, with every member in its place (`Json.parse_request`). A kind
+states accepted inputs and not the value of an accepted result, so this statement is a
+requirement with no kind beside the kind `json_parse`. -/
+theorem json_parse_value :
+    Regula.ExecutableContract Json.parse (fun parse =>
+      ∀ request : Json.Request, request.Simple →
+        parse (String.ofList request.chars) = .ok request.value) :=
+  ⟨Json.parse_request⟩
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification

@@ -405,4 +405,28 @@ def Signed (json : Json.Value) (integer : Int) : Prop :=
       json = .number (String.ofList (⟨negative, digits, none, none⟩ : Json.Numeral).chars) ∧
         (if negative then -(spelled digits : Int) else spelled digits) = integer
 
+/-- **The decimal digits of a natural number spell it.** For every natural number. -/
+theorem spelled_digits (natural : Nat) : spelled (Json.Numeral.digits natural) = natural := by
+  have single : ∀ digit : Fin 10, spelled [Json.Numeral.figure digit] = digit.val := fun digit => by
+    show 10 * 0 + ((Json.Numeral.figure digit).toNat - 48) = digit.val
+    rw [(Json.Numeral.figure_digit digit).2, Nat.mul_zero, Nat.zero_add]
+  induction natural using Nat.strongRecOn with
+  | ind natural hold =>
+    unfold Json.Numeral.digits
+    split
+    · exact single _
+    · rename_i large
+      rw [spelled_append, hold (natural / 10) (by omega), single]
+      show natural / 10 * 10 ^ 1 + natural % 10 = natural
+      omega
+
+/-- **A natural number is counted from its own numeral.** For every natural number: the
+JSON number with the spelling of its decimal digits is spelled by digits alone, and they
+spell the number. -/
+theorem counted_natural (natural : Nat) :
+    Counted (.number (String.ofList (Json.Numeral.natural natural).chars)) natural :=
+  ⟨Json.Numeral.digits natural, Json.Numeral.natural_formed natural, by
+    simp [Json.Numeral.natural, Json.Numeral.chars, Json.Numeral.fractionChars,
+      Json.Numeral.exponentChars], spelled_digits natural⟩
+
 end Acorn.Host.Microduck

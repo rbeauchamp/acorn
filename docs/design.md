@@ -694,14 +694,16 @@ of the table's four velocities, one of five skills. It is a closed finite type. 
 has no constructor for cutting power, shutting down or rebooting, the enable command
 takes no argument, so no value asks to disable the policy, and no value carries a
 velocity outside the table (the daemon does not clamp a velocity). `Command.line` is
-the line of JSON of each command: a request with the method and the parameters of the
-record, and the number of the command among the ten commands as its id, which is not
-the index of an action. Each magnitude of a
-velocity is a numeral of a table, proved to write the thousandths of the action table
-over a thousand exactly (`spelling_twist`), and the parser of this repository reads
-each of the ten lines as the request of its command, with exactly its members and its
-parameters and no other (`Command.line_asked`); that a daemon reads them so is not
-stated. The release of an action sends velocities and skills
+the line of JSON of one send of a command: a request with the method and the
+parameters of the record, and an identifier that the caller gives for each send, so
+that an answer names one send and not a kind of command. Each magnitude of a velocity
+is a numeral of a table, proved to write the thousandths of the action table over a
+thousand exactly (`spelling_twist`). A line is the text of a request value, and the
+parser of this repository reads the text of every such value back as the value
+(`parse_request`, the first theorem about that parser on a family of texts), so for
+every identifier and command it reads the line as the request, with exactly its
+members and its parameters and no other (`Command.line_asked`); that a daemon reads
+them so is not stated. The release of an action sends velocities and skills
 only (`Action.commands_powered`), so the enable command is the bridge's own. Every
 release sends a velocity first (`Action.commands_head`): a skill and a posture are
 released with the zero velocity. The daemon exposes sitting and standing as one
@@ -935,14 +937,18 @@ both read as nothing measured. The object that holds the list of limit names mus
 an object. A depth frame must state eight rows and eight columns. A member that neither
 reader names is not read. The names of the members and the
 labels are those of the record of one observed run; no theorem relates them to what a
-daemon sends. `Line.read` reads a whole parsed line: a state frame or a depth frame
-for a notification of that method whose parameters write the frame; a refused frame of
-that stream for one whose parameters write none; the answer to a request for a value
-with no method that is a string, an id that is a natural number or is missing or null,
-and a verdict (a refusal when it has an error member, and otherwise what its accepted
-member says); and nothing a host reads for every other value (`Line.read_state`,
-`Line.read_depth`, `Line.read_refused`, `Line.read_answer`). What a host does at a
-refused frame is not decided.
+daemon sends. `Line.read` reads a whole parsed line as exactly one case of a JSON-RPC
+2.0 line, with one constructor of its result for each case and one theorem for each
+constructor. A notification has the version `2.0`, a string method and no identifier:
+it is a state frame or a depth frame when its parameters write the frame, an unread
+frame of that stream when they write none, and a notice for another method. A response
+has no method and an identifier, and exactly one of a result and an error: a result
+carries the boolean of its accepted member, and an error is an object with an integer
+code and a string message, with an identifier that can be null. Every other value is
+invalid, an error member that is null beside a result included (`Line.read_state`,
+`Line.read_depth`, `Line.read_unread`, `Line.read_notice`, `Line.read_result`,
+`Line.read_fault`, `Line.read_invalid`). What a host does at an unread frame is not
+decided.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol

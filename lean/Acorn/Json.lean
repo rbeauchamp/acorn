@@ -24,6 +24,23 @@ nothing left (`Numeral.scan_chars`); and a value has a numeral exactly when it i
 with the spelling of that numeral, which is formed (`Value.numeral_iff`). No theorem
 states that every number of a parsed text has a numeral: that rests on the parser building
 a number in one place, from the spelling of a scanned numeral.
+
+A formed numeral with no exponent part is also scanned back from the head of a longer
+text that goes on with no digit, point or exponent mark (`Numeral.scan_append`).
+`Numeral.natural` is the numeral of a natural number, its decimal digits, and it is
+formed (`Numeral.natural_formed`).
+
+`parse` has one theorem. A `Request` is a JSON object of two levels, whose members are
+scalars or one object of scalars, and `Request.chars` is its text with no space.
+`parse_request` states that `parse` reads that text back as the value of the request,
+for every request whose names and strings are of plain characters (no quotation mark, no
+reverse solidus, no control character), whose names differ at each level and whose numbers
+are formed numerals with no exponent part. Its proof follows the parser through the text:
+the white space, the body of a string, the scanner of a number, the value reader and the
+loop over the members of an object, each with a lemma for texts of this family, and the
+fuel that `parse` derives from the length of the text is shown to be enough. No theorem
+states what `parse` does with any other text: with an array, an escape, a nested object
+of more levels, white space, or a text that is no JSON.
 -/
 namespace Acorn.Json
 
@@ -825,6 +842,757 @@ theorem Value.member_iff (name : String) (outer inner : Value) :
         rfl⟩
   | null | bool _ | number _ | string _ | array _ =>
     exact ⟨fun found => (nomatch found), fun ⟨_, _, same, _⟩ => (nomatch same)⟩
+
+/-! ## The text of a request, and reading it back
+
+A request that a host writes is a JSON object of two levels: its members are scalars
+(a string, a number by its numeral, a boolean) or one object of scalars. `Request.chars`
+is the text of such an object, with no space. `Request.parse_chars` states that `parse`
+reads that text back as the value of the request, for every request whose strings need no
+escape, whose numbers are formed numerals with no exponent part, and whose member names
+differ at each level. It is a statement about `parse` on a family of texts, and the first
+one; the parser has no other theorem. -/
+
+/-- A character that a string of a request can hold as it is: no quotation mark, no
+reverse solidus and no control character. -/
+def Plain (c : Char) : Prop :=
+  c ≠ '"' ∧ c ≠ '\\' ∧ 32 ≤ c.toNat
+
+instance (c : Char) : Decidable (Plain c) :=
+  inferInstanceAs (Decidable (c ≠ '"' ∧ c ≠ '\\' ∧ 32 ≤ c.toNat))
+
+/-- A scalar of a request: a string, a number by its numeral, or a boolean. -/
+inductive Scalar where
+  /-- A string. -/
+  | text (value : String)
+  /-- A number, by its numeral. -/
+  | number (numeral : Numeral)
+  /-- A boolean. -/
+  | flag (value : Bool)
+
+/-- The value of a scalar. -/
+def Scalar.value : Scalar → Value
+  | .text value => .string value
+  | .number numeral => .number (String.ofList numeral.chars)
+  | .flag value => .bool value
+
+/-- The text of a scalar. -/
+def Scalar.chars : Scalar → List Char
+  | .text value => '"' :: (value.toList ++ ['"'])
+  | .number numeral => numeral.chars
+  | .flag true => ['t', 'r', 'u', 'e']
+  | .flag false => ['f', 'a', 'l', 's', 'e']
+
+/-- A scalar that the text of a request writes as it is: a string of plain characters, a
+formed numeral with no exponent part, or a boolean. -/
+def Scalar.Simple : Scalar → Prop
+  | .text value => ∀ c ∈ value.toList, Plain c
+  | .number numeral => numeral.Formed ∧ numeral.exponent = none
+  | .flag _ => True
+
+/-- The white space of the parser leaves a list that starts with no space as it is. -/
+private theorem ws_cons (c : Char) (cs : List Char)
+    (solid : (c == ' ' || c == '\r' || c == '\n' || c == '\t') = false) :
+    ws (c :: cs) = c :: cs := by
+  unfold ws
+  rw [List.dropWhile_cons, solid]
+  rfl
+
+/-- Pushing characters one by one appends their string. -/
+private theorem foldl_push (characters : List Char) (out : String) :
+    characters.foldl String.push out = out ++ String.ofList characters := by
+  induction characters generalizing out with
+  | nil => simp
+  | cons head tail hold =>
+    rw [List.foldl_cons, hold, String.push_eq_append, String.ofList_cons, String.append_assoc]
+
+/-- One plain character of the body of a string is pushed, and the body goes on. -/
+private theorem stringBody_step (c : Char) (cs : List Char) (out : String) (fuel : Nat)
+    (plain : Plain c) :
+    stringBody (fuel + 1) (c :: cs) out = stringBody fuel cs (out.push c) := by
+  obtain ⟨quote, solidus, visible⟩ := plain
+  conv => lhs; unfold stringBody
+  split
+  · rename_i wrong
+    exact nomatch wrong
+  · rename_i wrong
+    exact absurd (List.cons.inj wrong).1 quote
+  · rename_i wrong
+    exact absurd (List.cons.inj wrong).1 solidus
+  · rename_i wrong
+    exact absurd (List.cons.inj wrong).1 solidus
+  · rename_i other others same
+    obtain ⟨rfl, rfl⟩ := List.cons.inj same
+    simp only [Nat.not_lt.mpr visible, ↓reduceIte]
+
+/-- The body of a string of plain characters is read up to its closing quotation mark, with
+fuel for each character and the mark. -/
+private theorem stringBody_plain (characters rest : List Char) (out : String) (fuel : Nat)
+    (plain : ∀ c ∈ characters, Plain c) (enough : characters.length < fuel) :
+    stringBody fuel (characters ++ '"' :: rest) out =
+      .ok (characters.foldl String.push out, rest) := by
+  induction characters generalizing out fuel with
+  | nil =>
+    cases fuel with
+    | zero => exact absurd enough (Nat.lt_irrefl 0)
+    | succ fuel => rfl
+  | cons head tail hold =>
+    cases fuel with
+    | zero => exact absurd enough (Nat.not_lt_zero _)
+    | succ fuel =>
+      show stringBody (fuel + 1) (head :: (tail ++ '"' :: rest)) out = _
+      rw [stringBody_step head _ out fuel (plain head List.mem_cons_self), List.foldl_cons]
+      exact hold (out.push head) fuel
+        (fun c inside => plain c (List.mem_cons_of_mem head inside))
+        (Nat.lt_of_succ_lt_succ enough)
+
+/-- A string of plain characters between quotation marks is read as that string. -/
+private theorem stringValue_plain (characters rest : List Char)
+    (plain : ∀ c ∈ characters, Plain c) :
+    stringValue ('"' :: (characters ++ '"' :: rest)) = .ok (String.ofList characters, rest) := by
+  unfold stringValue
+  show (stringBody ('"' :: (characters ++ '"' :: rest)).length (characters ++ '"' :: rest) "") = _
+  rw [stringBody_plain characters rest "" _ plain (by simp; omega), foldl_push,
+    String.empty_append]
+
+/-- A character that can follow a number in the text of a request: no digit, no point and
+no exponent mark. -/
+private def Stops (rest : List Char) : Prop :=
+  ∀ c, rest.head? = some c → c.isDigit = false ∧ c ≠ '.' ∧ c ≠ 'e' ∧ c ≠ 'E'
+
+/-- **A formed numeral with no exponent part is scanned back from the head of a text.** For
+every such numeral and every text after it that starts with no digit, no point and no
+exponent mark: the scanner gives the numeral and that text. -/
+theorem Numeral.scan_append (numeral : Numeral) (formed : numeral.Formed)
+    (bare : numeral.exponent = none) (rest : List Char)
+    (stop : ∀ c, rest.head? = some c → c.isDigit = false ∧ c ≠ '.' ∧ c ≠ 'e' ∧ c ≠ 'E') :
+    Numeral.scan (numeral.chars ++ rest) = some (numeral, rest) := by
+  have wholeChecked : numeral.whole = ['0'] ∨
+      (numeral.whole ≠ [] ∧ (∀ c ∈ numeral.whole, c.isDigit = true) ∧
+        numeral.whole.head? ≠ some '0') :=
+    formed.whole.imp id fun run =>
+      ⟨run.1, fun c member => (Numeral.digit_iff c).mpr (run.2.1 c member), run.2.2⟩
+  have fractionChecked : ∀ digits, numeral.fraction = some digits →
+      digits ≠ [] ∧ ∀ c ∈ digits, c.isDigit = true := fun digits same =>
+    ⟨(formed.fraction digits same).1, fun c member =>
+      (Numeral.digit_iff c).mpr ((formed.fraction digits same).2 c member)⟩
+  have exponent : Numeral.scanExponent rest = some (none, rest) := by
+    cases rest with
+    | nil => rfl
+    | cons head others =>
+      obtain ⟨_, _, lower, upper⟩ := stop head rfl
+      simp only [Numeral.scanExponent, lower, upper, ↓reduceIte]
+  have fraction := Numeral.scanFraction_append numeral.fraction rest fractionChecked
+    fun c first => ⟨(stop c first).1, (stop c first).2.1⟩
+  have fractionStop : ∀ c,
+      (Numeral.fractionChars numeral.fraction ++ rest).head? = some c → c.isDigit = false := by
+    intro c first
+    cases present : numeral.fraction with
+    | none =>
+      rw [present] at first
+      exact (stop c first).1
+    | some digits =>
+      rw [present] at first
+      have point : c = '.' := (Option.some.inj first).symm
+      subst point
+      decide
+  have whole := Numeral.scanWhole_append numeral.whole
+    (Numeral.fractionChars numeral.fraction ++ rest) wholeChecked fractionStop
+  have plain : ∀ c, (numeral.whole ++ (Numeral.fractionChars numeral.fraction ++
+      rest)).head? = some c → c ≠ '-' := by
+    intro c first
+    rcases wholeChecked with zero | ⟨nonempty, all, _⟩
+    · rw [zero] at first
+      have same : c = '0' := (Option.some.inj first).symm
+      subst same
+      decide
+    · cases shape : numeral.whole with
+      | nil => exact absurd shape nonempty
+      | cons head others =>
+        rw [shape] at first all
+        have same : c = head := (Option.some.inj first).symm
+        subst same
+        exact (Numeral.digit_other (all c List.mem_cons_self)).1
+  have minus := Numeral.scanMinus_append numeral.negative
+    (numeral.whole ++ (Numeral.fractionChars numeral.fraction ++ rest)) plain
+  have spelled : numeral.chars ++ rest =
+      (if numeral.negative then ['-'] else []) ++
+        (numeral.whole ++ (Numeral.fractionChars numeral.fraction ++ rest)) := by
+    unfold Numeral.chars
+    rw [bare]
+    simp only [Numeral.exponentChars, List.append_nil, List.append_assoc]
+  have same : numeral = ⟨numeral.negative, numeral.whole, numeral.fraction, none⟩ := by
+    cases numeral
+    cases bare
+    rfl
+  unfold Numeral.scan
+  rw [spelled, minus]
+  simp only [whole, Option.bind_some, fraction, exponent, Option.map_some]
+  rw [← same]
+
+/-- A formed numeral with no exponent part, at the head of a text that goes on with no
+digit, point or exponent mark, is read as the number with its spelling. -/
+private theorem number_append (numeral : Numeral) (formed : numeral.Formed)
+    (bare : numeral.exponent = none) (rest : List Char) (stop : Stops rest) :
+    number (numeral.chars ++ rest) = .ok (.number (String.ofList numeral.chars), rest) := by
+  unfold number
+  rw [Numeral.scan_append numeral formed bare rest stop]
+
+/-- What follows a value in an object of a request: a comma or a closing brace. -/
+private def Delimited (rest : List Char) : Prop :=
+  ∃ tail, rest = ',' :: tail ∨ rest = '}' :: tail
+
+/-- A text that starts with a comma or a brace stops a number. -/
+private theorem Delimited.stops {rest : List Char} (delimited : Delimited rest) : Stops rest := by
+  obtain ⟨tail, rfl | rfl⟩ := delimited <;>
+    (intro c first
+     cases Option.some.inj first
+     decide)
+
+/-- The text of a formed numeral starts with a minus sign or a digit. -/
+private theorem Numeral.chars_head (numeral : Numeral) (formed : numeral.Formed) :
+    ∃ first more, numeral.chars = first :: more ∧ (first = '-' ∨ first.isDigit = true) := by
+  unfold Numeral.chars
+  cases numeral.negative with
+  | true => exact ⟨'-', _, rfl, .inl rfl⟩
+  | false =>
+    rcases formed.whole with zero | ⟨nonempty, all, _⟩
+    · rw [zero]
+      exact ⟨'0', _, rfl, .inr (by decide)⟩
+    · cases shape : numeral.whole with
+      | nil => exact absurd shape nonempty
+      | cons head others =>
+        rw [shape] at all
+        exact ⟨head, _, rfl, .inr ((Numeral.digit_iff head).mpr (all head List.mem_cons_self))⟩
+
+/-- A simple scalar at the head of a text that goes on with a comma or a brace is read as
+its value, at any depth the parser admits and with any fuel. -/
+private theorem value_scalar (scalar : Scalar) (simple : scalar.Simple) (rest : List Char)
+    (delimited : Delimited rest) (fuel depth : Nat) (shallow : depth ≤ 128) :
+    value (fuel + 1) depth (scalar.chars ++ rest) = .ok (scalar.value, rest) := by
+  have deep : ¬depth > 128 := Nat.not_lt.mpr shallow
+  cases scalar with
+  | text written =>
+    have opened : ws ('"' :: (written.toList ++ '"' :: rest)) =
+        '"' :: (written.toList ++ '"' :: rest) := ws_cons _ _ (by decide)
+    show value (fuel + 1) depth ('"' :: ((written.toList ++ ['"']) ++ rest)) = _
+    rw [List.append_assoc, List.singleton_append]
+    unfold value
+    simp only [deep, ↓reduceIte, opened, stringValue_plain written.toList rest simple,
+      String.ofList_toList]
+    rfl
+  | flag truth =>
+    cases truth with
+    | true =>
+      show value (fuel + 1) depth ('t' :: 'r' :: 'u' :: 'e' :: rest) = _
+      unfold value
+      simp only [deep, ↓reduceIte, ws_cons 't' _ (by decide)]
+      rfl
+    | false =>
+      show value (fuel + 1) depth ('f' :: 'a' :: 'l' :: 's' :: 'e' :: rest) = _
+      unfold value
+      simp only [deep, ↓reduceIte, ws_cons 'f' _ (by decide)]
+      rfl
+  | number numeral =>
+    obtain ⟨formed, bare⟩ := simple
+    obtain ⟨first, more, spelled, leading⟩ := numeral.chars_head formed
+    have read := number_append numeral formed bare rest delimited.stops
+    have solid : (first == ' ' || first == '\r' || first == '\n' || first == '\t') = false := by
+      rcases leading with rfl | digit
+      · decide
+      · have other : first ≠ ' ' ∧ first ≠ '\r' ∧ first ≠ '\n' ∧ first ≠ '\t' := by
+          refine ⟨?_, ?_, ?_, ?_⟩ <;> intro same <;> rw [same] at digit <;>
+            exact absurd digit (by decide)
+        simp [other.1, other.2.1, other.2.2.1, other.2.2.2]
+    have starts : (first == '-' || first.isDigit) = true := by
+      rcases leading with rfl | digit
+      · decide
+      · simp [digit]
+    have differs : first ≠ '"' ∧ first ≠ '{' ∧ first ≠ '[' ∧ first ≠ 'n' ∧ first ≠ 't' ∧
+        first ≠ 'f' := by
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> intro same <;> rw [same] at leading <;>
+        exact absurd leading (by decide)
+    show value (fuel + 1) depth (numeral.chars ++ rest) = _
+    rw [spelled] at read ⊢
+    rw [List.cons_append] at read ⊢
+    unfold value
+    simp only [deep, ↓reduceIte, ws_cons first _ solid]
+    split
+    · rename_i wrong
+      exact absurd (List.cons.inj wrong).1 differs.1
+    · rename_i wrong
+      exact absurd (List.cons.inj wrong).1 differs.2.1
+    · rename_i wrong
+      exact absurd (List.cons.inj wrong).1 differs.2.2.1
+    · rename_i wrong
+      exact absurd (List.cons.inj wrong).1 differs.2.2.2.1
+    · rename_i wrong
+      exact absurd (List.cons.inj wrong).1 differs.2.2.2.2.1
+    · rename_i wrong
+      exact absurd (List.cons.inj wrong).1 differs.2.2.2.2.2
+    · rename_i c others same
+      cases (List.cons.inj same).1
+      simp only [starts, ↓reduceIte]
+      have valued : (Scalar.number numeral).value =
+          .number (String.ofList (first :: more)) := by
+        show Value.number (String.ofList numeral.chars) = _
+        rw [spelled]
+      rw [valued]
+      exact read
+    · rename_i wrong
+      exact nomatch wrong
+
+/-- A member of an object as the parser meets it: the characters of its name, the text of
+its value, the value, and the fuel that reading the value needs. -/
+private structure Entry where
+  /-- The characters of the name. -/
+  name : List Char
+  /-- The text of the value. -/
+  text : List Char
+  /-- The value. -/
+  parsed : Value
+  /-- The fuel that reading the value needs. -/
+  need : Nat
+
+/-- The parser's value reader reads the text of the member as its value, before a comma or
+a brace, at one depth and with the fuel the member needs. -/
+private def Entry.Read (depth : Nat) (entry : Entry) : Prop :=
+  ∀ fuel rest, entry.need ≤ fuel → Delimited rest →
+    value fuel depth (entry.text ++ rest) = .ok (entry.parsed, rest)
+
+/-- The text of one member: its name between quotation marks, a colon and its value. -/
+private def Entry.chars (entry : Entry) : List Char :=
+  '"' :: (entry.name ++ '"' :: ':' :: entry.text)
+
+/-- The texts of the members of an object one after the other, with a comma between two. -/
+def joined : List (List Char) → List Char
+  | [] => []
+  | [text] => text
+  | text :: next :: more => text ++ ',' :: joined (next :: more)
+
+/-- The name and the value of a member, as the parser keeps them. -/
+private def Entry.field (entry : Entry) : String × Value :=
+  (String.ofList entry.name, entry.parsed)
+
+/-- The members of an object that is not empty are read in order, up to the closing brace:
+for names of plain characters that differ from each other and from the members read
+before, values that the value reader reads, and fuel for each member. -/
+private theorem fields_entries (entries : List Entry) (depth : Nat) :
+    ∀ (out : List (String × Value)) (rest : List Char) (fuel : Nat),
+      entries ≠ [] →
+      (∀ entry ∈ entries, ∀ c ∈ entry.name, Plain c) →
+      (∀ entry ∈ entries, entry.Read depth) →
+      (∀ entry ∈ entries, ∀ field ∈ out, field.1 ≠ String.ofList entry.name) →
+      (entries.map fun entry => String.ofList entry.name).Nodup →
+      (∀ entry ∈ entries, entry.need + entries.length ≤ fuel) →
+      fields fuel depth (joined (entries.map Entry.chars) ++ '}' :: rest) out =
+        .ok (.object (out ++ entries.map Entry.field), rest) := by
+  induction entries with
+  | nil => exact fun _ _ _ wrong => absurd rfl wrong
+  | cons entry more hold =>
+    intro out rest fuel _ names read fresh distinct enough
+    have plain := names entry List.mem_cons_self
+    have unseen : (out.any fun field => field.1 == String.ofList entry.name) = false := by
+      rw [List.any_eq_false]
+      intro field inside
+      simpa using fresh entry List.mem_cons_self field inside
+    obtain ⟨less, fueled⟩ : ∃ less, fuel = less + 1 :=
+      ⟨fuel - 1, by have := enough entry List.mem_cons_self; simp at this; omega⟩
+    subst fueled
+    have needed : entry.need ≤ less := by
+      have := enough entry List.mem_cons_self
+      simp at this
+      omega
+    cases more with
+    | nil =>
+      have valued := read entry List.mem_cons_self less ('}' :: rest) needed ⟨rest, .inr rfl⟩
+      show fields (less + 1) depth
+        ('"' :: (entry.name ++ '"' :: ':' :: entry.text) ++ '}' :: rest) out = _
+      rw [List.cons_append, List.append_assoc, List.cons_append, List.cons_append]
+      unfold fields
+      simp only [ws_cons '"' _ (by decide), stringValue_plain entry.name _ plain, Bind.bind,
+        Except.bind, unseen, Bool.false_eq_true, ↓reduceIte, ws_cons ':' _ (by decide), require,
+        beq_self_eq_true, valued, ws_cons '}' _ (by decide), pure, Except.pure, List.map_cons,
+        List.map_nil]
+      rfl
+    | cons next others =>
+      have following :
+          Delimited (',' :: (joined ((next :: others).map Entry.chars) ++ '}' :: rest)) :=
+        ⟨_, .inl rfl⟩
+      have valued := read entry List.mem_cons_self less _ needed following
+      have later := hold (out ++ [entry.field]) rest less (fun wrong => nomatch wrong)
+        (fun other inside => names other (List.mem_cons_of_mem entry inside))
+        (fun other inside => read other (List.mem_cons_of_mem entry inside))
+        (fun other inside field held => by
+          rcases List.mem_append.mp held with before | here
+          · exact fresh other (List.mem_cons_of_mem entry inside) field before
+          · rw [List.mem_singleton.mp here]
+            intro same
+            have apart := (List.nodup_cons.mp distinct).1
+            exact apart (List.mem_map.mpr ⟨other, inside, same.symm⟩))
+        (List.nodup_cons.mp distinct).2
+        (fun other inside => by
+          have := enough other (List.mem_cons_of_mem entry inside)
+          simp at this ⊢
+          omega)
+      show fields (less + 1) depth
+        (('"' :: (entry.name ++ '"' :: ':' :: entry.text) ++
+          ',' :: joined ((next :: others).map Entry.chars)) ++ '}' :: rest) out = _
+      rw [List.cons_append, List.cons_append, List.append_assoc, List.append_assoc,
+        List.cons_append, List.cons_append, List.cons_append]
+      unfold fields
+      simp only [ws_cons '"' _ (by decide), stringValue_plain entry.name _ plain, Bind.bind,
+        Except.bind, unseen, Bool.false_eq_true, ↓reduceIte, ws_cons ':' _ (by decide), require,
+        beq_self_eq_true, valued, ws_cons ',' _ (by decide)]
+      have regroup : out ++ [entry.field] ++ List.map Entry.field (next :: others) =
+          out ++ List.map Entry.field (entry :: next :: others) := by
+        rw [List.append_assoc]
+        rfl
+      rw [regroup] at later
+      exact later
+
+/-- An object with members is read as the object of their fields, whatever follows it: for
+names of plain characters that differ, values that the value reader reads one level deeper,
+and fuel for each member. -/
+private theorem value_entries (entries : List Entry) (depth fuel : Nat) (rest : List Char)
+    (shallow : depth ≤ 128) (nonempty : entries ≠ [])
+    (names : ∀ entry ∈ entries, ∀ c ∈ entry.name, Plain c)
+    (read : ∀ entry ∈ entries, entry.Read (depth + 1))
+    (distinct : (entries.map fun entry => String.ofList entry.name).Nodup)
+    (enough : ∀ entry ∈ entries, entry.need + entries.length ≤ fuel) :
+    value (fuel + 1) depth ('{' :: (joined (entries.map Entry.chars) ++ '}' :: rest)) =
+      .ok (.object (entries.map Entry.field), rest) := by
+  have deep : ¬depth > 128 := Nat.not_lt.mpr shallow
+  have inner := fields_entries entries (depth + 1) [] rest fuel nonempty names read
+    (fun _ _ _ wrong => nomatch wrong) distinct enough
+  rw [List.nil_append] at inner
+  cases entries with
+  | nil => exact absurd rfl nonempty
+  | cons entry more =>
+    have opened : ∃ tail, joined ((entry :: more).map Entry.chars) ++ '}' :: rest = '"' :: tail := by
+      cases more with
+      | nil => exact ⟨_, rfl⟩
+      | cons next others => exact ⟨_, rfl⟩
+    obtain ⟨tail, shape⟩ := opened
+    rw [shape] at inner ⊢
+    unfold value
+    simp only [deep, ↓reduceIte, ws_cons '{' _ (by decide), ws_cons '"' _ (by decide)]
+    exact inner
+
+/-- The text of a scalar is not empty, and reading it needs one unit of fuel. -/
+private def Scalar.entry (name : String) (scalar : Scalar) : Entry :=
+  ⟨name.toList, scalar.chars, scalar.value, 1⟩
+
+/-- A simple scalar is read at every depth the parser admits. -/
+private theorem Scalar.entry_read (name : String) (scalar : Scalar) (simple : scalar.Simple)
+    (depth : Nat) (shallow : depth ≤ 128) : (scalar.entry name).Read depth := by
+  intro fuel rest needed delimited
+  obtain ⟨less, rfl⟩ : ∃ less, fuel = less + 1 := ⟨fuel - 1, by
+    have : 1 ≤ fuel := needed
+    omega⟩
+  exact value_scalar scalar simple rest delimited less depth shallow
+
+/-- A member of a request: a scalar, or an object of scalars by their names. -/
+inductive Part where
+  /-- A scalar. -/
+  | scalar (scalar : Scalar)
+  /-- An object of scalars, each with its name. -/
+  | object (members : List (String × Scalar))
+
+/-- The text of a member with a name: the name between quotation marks, a colon and the text
+of the value. -/
+def member (name : String) (text : List Char) : List Char :=
+  '"' :: (name.toList ++ '"' :: ':' :: text)
+
+/-- The value of a part. -/
+def Part.value : Part → Value
+  | .scalar inner => inner.value
+  | .object members => .object (members.map fun pair => (pair.1, pair.2.value))
+
+/-- The text of a part. -/
+def Part.chars : Part → List Char
+  | .scalar inner => inner.chars
+  | .object members =>
+    '{' :: (joined (members.map fun pair => member pair.1 pair.2.chars) ++ ['}'])
+
+/-- A part that the text of a request writes as it is: a simple scalar, or an object whose
+names are of plain characters and differ and whose scalars are simple. -/
+def Part.Simple : Part → Prop
+  | .scalar inner => inner.Simple
+  | .object members =>
+    (∀ pair ∈ members, (∀ c ∈ pair.1.toList, Plain c) ∧ pair.2.Simple) ∧
+      (members.map fun pair => pair.1).Nodup
+
+/-- A request: the members of its object, each with its name. -/
+abbrev Request := List (String × Part)
+
+/-- The value of a request: the object of its members. -/
+def Request.value (request : Request) : Value :=
+  .object (request.map fun pair => (pair.1, pair.2.value))
+
+/-- The text of a request: its members between braces, with a comma between two and no
+space. -/
+def Request.chars (request : Request) : List Char :=
+  '{' :: (joined (request.map fun pair => member pair.1 pair.2.chars) ++ ['}'])
+
+/-- A request that its text writes as it is: the names of its members are of plain
+characters and differ, and its parts are simple. -/
+def Request.Simple (request : Request) : Prop :=
+  (∀ pair ∈ request, (∀ c ∈ pair.1.toList, Plain c) ∧ pair.2.Simple) ∧
+    (request.map fun pair => pair.1).Nodup
+
+/-- A text of the joined texts has, with the count of the texts, at most the length of the
+whole and one. -/
+private theorem joined_length (texts : List (List Char)) :
+    ∀ text ∈ texts, text.length + texts.length ≤ (joined texts).length + 1 := by
+  induction texts with
+  | nil => exact fun _ wrong => nomatch wrong
+  | cons first more hold =>
+    cases more with
+    | nil =>
+      intro text inside
+      cases List.mem_singleton.mp inside
+      exact Nat.le_refl _
+    | cons next others =>
+      have rest := hold
+      have second := rest next List.mem_cons_self
+      intro text inside
+      show text.length + (others.length + 1 + 1) ≤
+        (first ++ ',' :: joined (next :: others)).length + 1
+      rw [List.length_append, List.length_cons]
+      simp only [List.length_cons] at second
+      rcases List.mem_cons.mp inside with rfl | later
+      · omega
+      · have bound := rest text later
+        simp only [List.length_cons] at bound
+        omega
+
+/-- The names of members, read back from their characters, are the names. -/
+private theorem names_back {α : Type} (pairs : List (String × α)) :
+    (pairs.map fun pair => String.ofList pair.1.toList) = pairs.map fun pair => pair.1 :=
+  List.map_congr_left fun _ _ => String.ofList_toList
+
+/-- The fuel that reading a part needs. -/
+private def Part.need : Part → Nat
+  | .scalar _ => 1
+  | .object members => members.length + 2
+
+/-- A part as a member the parser meets. -/
+private def Part.entry (name : String) (part : Part) : Entry :=
+  ⟨name.toList, part.chars, part.value, part.need⟩
+
+/-- The fuel a part needs is at most the length of its text and one. -/
+private theorem Part.need_le (part : Part) : part.need ≤ part.chars.length + 1 := by
+  cases part with
+  | scalar inner => exact Nat.succ_le_succ (Nat.zero_le _)
+  | object members =>
+    show members.length + 2 ≤
+      ('{' :: (joined (members.map fun pair => member pair.1 pair.2.chars) ++ ['}'])).length + 1
+    rw [List.length_cons, List.length_append, List.length_singleton]
+    cases members with
+    | nil => exact Nat.le_add_left _ _
+    | cons pair more =>
+      have bound := joined_length (((pair :: more).map fun pair => member pair.1 pair.2.chars))
+        (member pair.1 pair.2.chars) List.mem_cons_self
+      simp only [List.length_map, List.length_cons] at bound ⊢
+      omega
+
+/-- A simple part is read at every depth below the deepest the parser admits. -/
+private theorem part_read (name : String) (part : Part) (simple : part.Simple)
+    (depth : Nat) (shallow : depth + 1 ≤ 128) : (part.entry name).Read depth := by
+  cases part with
+  | scalar inner => exact inner.entry_read name simple depth (Nat.le_of_succ_le shallow)
+  | object members =>
+    obtain ⟨parts, distinct⟩ := simple
+    intro fuel rest needed _
+    obtain ⟨less, rfl⟩ : ∃ less, fuel = less + 1 := ⟨fuel - 1, by
+      have : members.length + 2 ≤ fuel := needed
+      omega⟩
+    have sized : members.length + 1 ≤ less := by
+      have : members.length + 2 ≤ less + 1 := needed
+      omega
+    show value (less + 1) depth
+      ('{' :: (joined (members.map fun pair => member pair.1 pair.2.chars) ++ ['}']) ++ rest) = _
+    rw [List.cons_append, List.append_assoc, List.singleton_append]
+    cases members with
+    | nil =>
+      have deep : ¬depth > 128 := by omega
+      show value (less + 1) depth ('{' :: '}' :: rest) = _
+      unfold value
+      simp only [deep, ↓reduceIte, ws_cons '{' _ (by decide), ws_cons '}' _ (by decide)]
+      rfl
+    | cons pair more =>
+      have read := value_entries (((pair :: more).map fun pair => pair.2.entry pair.1)) depth less
+        rest (Nat.le_of_succ_le shallow) (fun wrong => nomatch wrong)
+        (fun entry inside => by
+          obtain ⟨found, held, rfl⟩ := List.mem_map.mp inside
+          exact (parts found held).1)
+        (fun entry inside => by
+          obtain ⟨found, held, rfl⟩ := List.mem_map.mp inside
+          exact found.2.entry_read found.1 (parts found held).2 (depth + 1) shallow)
+        (by
+          rw [List.map_map]
+          exact (names_back (pair :: more)).symm ▸ distinct)
+        (fun entry inside => by
+          obtain ⟨found, _, rfl⟩ := List.mem_map.mp inside
+          show 1 + ((pair :: more).map fun pair => pair.2.entry pair.1).length ≤ less
+          rw [List.length_map]
+          omega)
+      have fielded : ((pair :: more).map fun pair => pair.2.entry pair.1).map Entry.field =
+          (pair :: more).map fun pair => (pair.1, pair.2.value) := by
+        rw [List.map_map]
+        exact List.map_congr_left fun found _ =>
+          Prod.ext (String.ofList_toList (s := found.1)) rfl
+      rw [fielded, List.map_map] at read
+      exact read
+
+/-- **The parser reads the text of a request back as its value.** For every request whose
+names are of plain characters and differ at each level, whose strings are of plain
+characters and whose numbers are formed numerals with no exponent part: `parse` accepts the
+text, and the value it gives is the value of the request, with every member in its
+place. -/
+theorem parse_request (request : Request) (simple : request.Simple) :
+    parse (String.ofList request.chars) = .ok request.value := by
+  obtain ⟨parts, distinct⟩ := simple
+  unfold parse
+  rw [String.toList_ofList, String.length_ofList]
+  cases request with
+  | nil =>
+    have read : value (['{', '}'].length + 2) 0 ['{', '}'] = .ok (.object [], []) := by
+      show value (3 + 1) 0 ['{', '}'] = _
+      unfold value
+      simp only [Nat.not_lt.mpr (Nat.zero_le 128), ↓reduceIte, ws_cons '{' _ (by decide),
+        ws_cons '}' _ (by decide)]
+      rfl
+    show (do
+      let (v, rest) ← value (['{', '}'].length + 2) 0 ['{', '}']
+      unless (ws rest).isEmpty do throw "trailing JSON input"
+      return v) = _
+    rw [read]
+    rfl
+  | cons pair more =>
+    have sized : Request.chars (pair :: more) =
+        '{' :: (joined ((pair :: more).map fun pair => member pair.1 pair.2.chars) ++ ['}']) :=
+      rfl
+    have read := value_entries ((pair :: more).map fun pair => pair.2.entry pair.1) 0
+      ((Request.chars (pair :: more)).length + 1) [] (Nat.zero_le _) (fun wrong => nomatch wrong)
+      (fun entry inside => by
+        obtain ⟨found, held, rfl⟩ := List.mem_map.mp inside
+        exact (parts found held).1)
+      (fun entry inside => by
+        obtain ⟨found, held, rfl⟩ := List.mem_map.mp inside
+        exact part_read found.1 found.2 (parts found held).2 1 (by decide))
+      (by
+        rw [List.map_map]
+        exact (names_back (pair :: more)).symm ▸ distinct)
+      (fun entry inside => by
+        obtain ⟨found, held, rfl⟩ := List.mem_map.mp inside
+        have text := joined_length ((pair :: more).map fun pair => member pair.1 pair.2.chars)
+          (member found.1 found.2.chars) (List.mem_map.mpr ⟨found, held, rfl⟩)
+        have need := found.2.need_le
+        show found.2.need + ((pair :: more).map fun pair => pair.2.entry pair.1).length ≤ _
+        rw [sized]
+        simp only [List.length_map, List.length_cons, List.length_append, member] at text ⊢
+        omega)
+    have fielded : ((pair :: more).map fun pair => pair.2.entry pair.1).map Entry.field =
+        (pair :: more).map fun pair => (pair.1, pair.2.value) := by
+      rw [List.map_map]
+      exact List.map_congr_left fun found _ =>
+        Prod.ext (String.ofList_toList (s := found.1)) rfl
+    rw [fielded, List.map_map] at read
+    have whole : value ((Request.chars (pair :: more)).length + 2) 0
+        (Request.chars (pair :: more)) = .ok (Request.value (pair :: more), []) := read
+    show (do
+      let (v, rest) ← value ((Request.chars (pair :: more)).length + 2) 0
+        (Request.chars (pair :: more))
+      unless (ws rest).isEmpty do throw "trailing JSON input"
+      return v) = _
+    rw [whole]
+    rfl
+
+/-! ## The numeral of a natural number -/
+
+/-- The character of each of the ten decimal digits. -/
+def Numeral.figure : Fin 10 → Char
+  | 0 => '0'
+  | 1 => '1'
+  | 2 => '2'
+  | 3 => '3'
+  | 4 => '4'
+  | 5 => '5'
+  | 6 => '6'
+  | 7 => '7'
+  | 8 => '8'
+  | 9 => '9'
+
+/-- Every figure is a decimal digit, and its code less the code of `0` is its number. -/
+theorem Numeral.figure_digit :
+    ∀ digit : Fin 10, Numeral.Digit (Numeral.figure digit) ∧
+      (Numeral.figure digit).toNat - 48 = digit.val := by
+  show ∀ digit : Fin 10, (48 ≤ (Numeral.figure digit).toNat ∧
+    (Numeral.figure digit).toNat ≤ 57) ∧ (Numeral.figure digit).toNat - 48 = digit.val
+  decide
+
+/-- Only the figure of zero is `0`. -/
+private theorem Numeral.figure_zero :
+    ∀ digit : Fin 10, Numeral.figure digit = '0' → digit.val = 0 := by
+  decide
+
+/-- The decimal digits of a natural number, the most significant first, with no leading
+zero: one figure below ten, and otherwise the digits of the tenth part followed by the
+figure of the rest. -/
+def Numeral.digits (natural : Nat) : List Char :=
+  if small : natural < 10 then [Numeral.figure ⟨natural, small⟩]
+  else Numeral.digits (natural / 10) ++
+    [Numeral.figure ⟨natural % 10, Nat.mod_lt natural (by decide)⟩]
+termination_by natural
+decreasing_by omega
+
+/-- The numeral of a natural number: its decimal digits, with no sign, point or exponent
+part. -/
+def Numeral.natural (natural : Nat) : Numeral :=
+  ⟨false, Numeral.digits natural, none, none⟩
+
+/-- The digits of a natural number are decimal digits, there is at least one, and the first
+is `0` only for zero. -/
+private theorem Numeral.digits_shape (natural : Nat) :
+    (∀ c ∈ Numeral.digits natural, Numeral.Digit c) ∧ Numeral.digits natural ≠ [] ∧
+      ((Numeral.digits natural).head? = some '0' → natural = 0) := by
+  induction natural using Nat.strongRecOn with
+  | ind natural hold =>
+    unfold Numeral.digits
+    split
+    · rename_i small
+      refine ⟨fun c inside => ?_, fun wrong => (nomatch wrong), fun first => ?_⟩
+      · rw [List.mem_singleton.mp inside]
+        exact (Numeral.figure_digit ⟨natural, small⟩).1
+      · exact Numeral.figure_zero ⟨natural, small⟩ (Option.some.inj first)
+    · rename_i large
+      obtain ⟨all, nonempty, leading⟩ := hold (natural / 10) (by omega)
+      refine ⟨fun c inside => ?_, fun wrong => ?_, fun first => ?_⟩
+      · rcases List.mem_append.mp inside with before | last
+        · exact all c before
+        · rw [List.mem_singleton.mp last]
+          exact (Numeral.figure_digit _).1
+      · exact nonempty (List.append_eq_nil_iff.mp wrong).1
+      · cases shape : Numeral.digits (natural / 10) with
+        | nil => exact absurd shape nonempty
+        | cons head tail =>
+          rw [shape] at first leading
+          have zero := leading first
+          omega
+
+/-- **The numeral of a natural number is formed.** For every natural number. -/
+theorem Numeral.natural_formed (natural : Nat) : (Numeral.natural natural).Formed := by
+  obtain ⟨all, nonempty, leading⟩ := Numeral.digits_shape natural
+  refine ⟨?_, fun _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩
+  by_cases zero : natural = 0
+  · subst zero
+    exact .inl (by
+      show Numeral.digits 0 = ['0']
+      unfold Numeral.digits
+      rfl)
+  · exact .inr ⟨nonempty, all, fun first => zero (leading first)⟩
 
 /-- Consuming schema decoder; finishing requires every field to have an owner. -/
 abbrev Decoder := StateT (List (String × Value)) (Except String)

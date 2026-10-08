@@ -16,8 +16,8 @@ shortened and two depth frames, is at
 https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6051119525. This module reads
 the `params` object of each, as a value that `Acorn.Json.parse` gave, into a `State` and
 a `Depth` of `Acorn.Host.Microduck.Sensing`. It also reads a whole line of a daemon, a
-frame or the answer to a request (`Line.read`), and it gives the line of each command
-that a bridge sends (`Command.line`).
+notification or a response (`Line.read`), and it gives the line of every request that a
+host sends (`Command.line`, `Stream.line`).
 
 `State.read` and `Depth.read` give a frame or nothing. What each accepts and what it
 gives is stated member by member, by `State.Written` and `Depth.Written`: a proposition
@@ -114,65 +114,73 @@ number.
   relates this module to what a daemon sends: that a robot's daemon writes these names is
   checked only by reading its frames.
 
-**The line of a command.** `Command.line` is the one line of JSON that a host sends for
-each of the ten commands of `Acorn.Host.Microduck.Action`: a JSON-RPC request with the
-method `robot.enable` and the parameter `on` true, `robot.move` with `vx`, `vy` and
-`vyaw`, or `robot.do` with `skill`. The record of the methods and of one request of each
-is at https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895.
+**The requests of a host.** `Command.line id command` is the line of JSON that a host
+sends for one send of a command of `Acorn.Host.Microduck.Action`: a JSON-RPC request with
+the method `robot.enable` and the parameter `on` true, `robot.move` with `vx`, `vy` and
+`vyaw`, or `robot.do` with `skill`. `Stream.line id stream` is the request that subscribes
+to a stream, `robot.subscribe` with an empty parameters object or `tof.stream` with none.
+The record of the methods and of one request of each is at
+https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895.
 
-- Every command is a request with an id and not a notification. The record has the
-  daemon answer a request of each of the three methods; for a velocity it has both a
-  request, which was answered, and a notification, which is not.
-- The id is the number of the command among the ten (`Command.code`), so the id of an
-  answer names the command that was answered. Two commands have two numbers and every
-  number is below ten (`Command.code_injective`). Three limits: every send of one
-  velocity has the same id, so an answer names a command and not one send; a host's own
-  requests, such as the two that subscribe, must use ids of ten or more, or their answers
-  read as the answer to a command (the subscription of the record used the id 1); and no
-  request of the record has the id 0.
+- Every command is a request and not a notification. The record has the daemon answer a
+  request of each of the three methods; for a velocity it has both a request, which was
+  answered, and a notification, which is not.
+- The identifier of a request is given by the caller for each send, so two sends of one
+  command have two identifiers when the caller gives two, and an answer names one send.
+  `Command.code` is the index of a command among the ten and no part of a line.
 - A magnitude is not rendered from an integer. `Velocity.spelling` is a table of numerals,
   `0.3`, `1.5`, `-1.5` and `0.0`, and `AcornVerif.Decimal.spelling_twist` states that each
   writes the thousandths of `Velocity.twist` over a thousand, exactly.
-- `Command.line_asked` states, for each of the ten commands, that `Acorn.Json.parse` reads
-  the line and that the value is the request of the command (`Command.Asked`): an object
-  with exactly the members `jsonrpc`, `id`, `method` and `params`, the last with exactly
-  the parameters of the command, and the value of each. A line with one member or one
-  parameter more, such as the `toggle` that `robot.enable` also takes, is not such a
-  value. The proof evaluates the parser on the ten lines.
-- What that theorem is about is the assembly of a line. The method, the number, the name
-  of a skill and the numerals are tables of this module, which the line and the
-  specification both read, so that they are the daemon's is by reading the record. It is
-  a statement about the parser of this repository: that a daemon reads these lines so is
-  not stated. The record has the daemon answer requests of these three methods with other
-  ids and, for a velocity, other magnitudes, and refuse a `robot.move` with a parameter
-  that the method does not name.
+- A line is the text of a request value (`Command.request`, `Stream.request`), written by
+  `Acorn.Json.Request.chars` with no space. `Command.line_asked` and `Stream.line_asked`
+  state, for every identifier, command and stream, that `Acorn.Json.parse` reads the line
+  and that the value is the request (`Command.Asked`, `Stream.Asked`): an object with
+  exactly the members of the request, the version, the identifier, the method and the
+  parameters, the last with exactly the parameters of the command. A line with one member
+  or one parameter more, such as the `toggle` that `robot.enable` also takes, is not such
+  a value. No parser is evaluated in these proofs: they follow from
+  `Acorn.Json.parse_request`, which holds of every request.
+- The method, the name of a skill and the numerals are tables of this module, which the
+  request and its specification both read, so that they are the daemon's is by reading
+  the record. The two theorems are about the parser of this repository: that a daemon
+  reads these lines so is not stated. The record has the daemon answer requests of these
+  methods with other identifiers and, for a velocity, other magnitudes, and refuse a
+  `robot.move` with a parameter that the method does not name.
 
-**A line of a daemon.** `Line.read` reads a parsed line as one of five things.
+**A line of a daemon.** `Line.read` reads a parsed line as exactly one case of a JSON-RPC
+2.0 line (JSON-RPC Working Group, *JSON-RPC 2.0 Specification*, 2010, updated 2013,
+sections 4, 4.1, 5 and 5.1), and the result type has one constructor for each case, so
+that no later code takes one for another. In every case the member `jsonrpc` is the
+string `2.0`.
 
-- A state frame, exactly for a value whose `method` is `robot.state` and whose `params`
-  write the frame (`Line.read_state`), and a depth frame likewise for `tof.frame`
-  (`Line.read_depth`).
-- A refused frame of a stream, exactly for a notification of the stream whose `params`
-  write no frame (`Line.read_refused`). So a host can tell a stream that sends frames it
-  cannot read from a stream that sends nothing.
-- An answer, exactly for a value with no `method` that is a string, an `id` that is a
-  natural number or is missing or null, and a verdict (`Line.read_answer`). The verdict
-  is a refusal for a value with a member `error`, and otherwise what the boolean
-  `result.accepted` states (`Answered`). In the record, at
+- A notification has a member `method` that is a string and no member `id` (`Notified`).
+  It is read as a state frame or a depth frame when it is of that stream and its `params`
+  write the frame (`Line.read_state`, `Line.read_depth`), as an unread frame of the stream
+  when its `params` write none (`Line.read_unread`), and as a notice when it is of another
+  method (`Line.read_notice`). So a host can tell a stream that sends frames it cannot
+  read from a stream that sends nothing.
+- A response with a result has no member `method` and no member `error`, a natural number
+  as `id`, and a member `result` (`Resulted`, `Line.read_result`). The line carries the
+  boolean of the result's member `accepted`, or nothing when the result has no such
+  boolean. The record has `accepted` in the result of each of this host's requests.
+- A response with an error has no member `method` and no member `result`, an `id` that is
+  a natural number or null, and a member `error` that is an object with an integer `code`
+  and a string `message` (`Faulted`, `Line.read_fault`). In the record, at
   https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6058876518, the daemon
-  answers a request that it refuses at intake with an `error`, no `result` and the id of
-  the request, and a line that it cannot read as a request with an `error` and a null
-  id; the second is read as a refusal with no id. A member `error` that is null is a
-  refusal too: for this member null is not read as missing, so that no answer with an
-  error member is read as accepted.
-- `Line.other` for every other value: a notification of another method, a value with no
-  method and no verdict, a value with no method whose id is a string, a fraction or a
-  negative number, and a value that is no object.
+  answers a request that it refuses at intake so, with the identifier of the request, and
+  a line that it cannot read as a request with a null identifier.
+- Every other value is `Line.invalid` (`Line.read_invalid`): another version, a `method`
+  that is no string, a notification with an `id`, a response with no `id`, with both a
+  `result` and an `error` or with neither, an `error` of another shape, an `id` that is a
+  string, a fraction or a negative number, and a value that is no object. An `error` that
+  is null beside a `result` is in this case: it is not read as a refusal, and not as the
+  result either.
 
-Not built: the lines that subscribe to the two streams, the rule that makes one `Reply`
-of the answers to the commands of one release, the transport and the loop.
-`Acorn.Json.parse` reads a line, and no theorem here is about that parser except
-`Command.line_asked`, on ten texts.
+Not built: the transport and the executing loop, and what a host makes of the answers to
+the requests of one release, which `Acorn.Host.Microduck.Session` is to give.
+`Acorn.Json.parse` reads a line. The theorems here about that parser are
+`Command.line_asked` and `Stream.line_asked`, on the texts that a host writes; no theorem
+states what it reads of a line of a daemon.
 
 The lookup of a member searches the members of the object in order, and the reader of a
 state frame searches `safety` four times. The cost of reading a frame is not otherwise
@@ -1106,7 +1114,15 @@ theorem Depth.read_distances (json : Json.Value) (depth : Depth)
     rw [ite_eq_right other] at zoned
     exact zoned
 
-/-! ## The line of a command -/
+/-! ## The requests of a host -/
+
+/-- The two streams of the daemons. -/
+inductive Stream where
+  /-- The state of the body, from the control daemon. -/
+  | state
+  /-- The depth grid, from the depth daemon. -/
+  | depth
+  deriving DecidableEq
 
 /-- The spellings of the three magnitudes of a velocity, as the numerals of JSON numbers. -/
 structure Spelling where
@@ -1137,9 +1153,8 @@ def Skill.name : Skill → String
   | .kickLeft => "kick_left"
   | .kickRight => "kick_right"
 
-/-- The number of a command among the ten commands, from 0 to 9. It is the id of the
-command's request, so the id of an answer names the command that the daemon answered.
-It is not the index of an action. -/
+/-- The index of a command among the ten commands, from 0 to 9. It is no part of a request:
+the identifier of a request is given for each send. It is not the index of an action. -/
 def Command.code : Command → Nat
   | .enable => 0
   | .move .zero => 1
@@ -1182,42 +1197,61 @@ def Command.method : Command → String
   | .move _ => "robot.move"
   | .perform _ => "robot.do"
 
-/-- The parameters object of a command, as JSON text. -/
-def Command.params : Command → String
-  | .enable => "{\"on\":true}"
+/-- **The numerals of every velocity are formed, and none has an exponent part.** -/
+theorem Velocity.spelling_formed (velocity : Velocity) :
+    (velocity.spelling.forward.Formed ∧ velocity.spelling.forward.exponent = none) ∧
+      (velocity.spelling.left.Formed ∧ velocity.spelling.left.exponent = none) ∧
+      (velocity.spelling.turn.Formed ∧ velocity.spelling.turn.exponent = none) := by
+  have formed : ∀ numeral : Json.Numeral,
+      Json.Numeral.scan numeral.chars = some (numeral, []) → numeral.Formed :=
+    fun _ scanned => (Json.Numeral.scan_formed scanned).1
+  cases velocity <;>
+    exact ⟨⟨formed _ (by decide), rfl⟩, ⟨formed _ (by decide), rfl⟩, ⟨formed _ (by decide), rfl⟩⟩
+
+/-- The parameters object of a command. -/
+def Command.given : Command → Json.Part
+  | .enable => .object [("on", .flag true)]
   | .move velocity =>
-    "{\"vx\":" ++ String.ofList velocity.spelling.forward.chars ++
-      ",\"vy\":" ++ String.ofList velocity.spelling.left.chars ++
-      ",\"vyaw\":" ++ String.ofList velocity.spelling.turn.chars ++ "}"
-  | .perform skill => "{\"skill\":\"" ++ skill.name ++ "\"}"
+    .object [("vx", .number velocity.spelling.forward), ("vy", .number velocity.spelling.left),
+      ("vyaw", .number velocity.spelling.turn)]
+  | .perform skill => .object [("skill", .text skill.name)]
 
-/-- The line of a command: one JSON-RPC request, with no line end. Every command is sent
-as a request and not as a notification; the record has the daemon answer a request of
-each of the three methods. -/
-def Command.line (command : Command) : String :=
-  "{\"jsonrpc\":\"2.0\",\"id\":" ++ toString command.code ++ ",\"method\":\"" ++
-    command.method ++ "\",\"params\":" ++ command.params ++ "}"
+/-- The request of a command, for one send: the version of the protocol, the identifier
+that the caller gives this send, the method and the parameters. -/
+def Command.request (id : Nat) (command : Command) : Json.Request :=
+  [("jsonrpc", .scalar (.text "2.0")), ("id", .scalar (.number (Json.Numeral.natural id))),
+    ("method", .scalar (.text command.method)), ("params", command.given)]
 
-/-- The names of the members of an object, in order. -/
-private def names : Json.Value → Option (List String)
-  | .object fields => some (fields.map (·.1))
-  | _ => none
+/-- The line of one send of a command: the text of its request, with no space and no line
+end. Every command is sent as a request and not as a notification; the record has the
+daemon answer a request of each of the three methods. -/
+def Command.line (id : Nat) (command : Command) : String :=
+  String.ofList (command.request id).chars
+
+/-- The method that subscribes to a stream. -/
+def Stream.subscription : Stream → String
+  | .state => "robot.subscribe"
+  | .depth => "tof.stream"
+
+/-- The request that subscribes to a stream, for one send. The request of the state stream
+has an empty parameters object and states no rate, so the daemon sends a frame at every tick
+of its control loop; the request of the depth stream has no parameters. Both are as the
+record has them, but for the identifier and for the spaces between the members. -/
+def Stream.request (id : Nat) : Stream → Json.Request
+  | .state =>
+    [("jsonrpc", .scalar (.text "2.0")), ("id", .scalar (.number (Json.Numeral.natural id))),
+      ("method", .scalar (.text "robot.subscribe")), ("params", .object [])]
+  | .depth =>
+    [("jsonrpc", .scalar (.text "2.0")), ("id", .scalar (.number (Json.Numeral.natural id))),
+      ("method", .scalar (.text "tof.stream"))]
+
+/-- The line of one send of the request that subscribes to a stream. -/
+def Stream.line (id : Nat) (stream : Stream) : String :=
+  String.ofList (stream.request id).chars
 
 /-- The value is an object whose members have exactly the names, in order. -/
 def Named (json : Json.Value) (members : List String) : Prop :=
   ∃ fields : List (String × Json.Value), json = .object fields ∧ fields.map (·.1) = members
-
-/-- A value has names exactly when it is an object with those members, in order. -/
-private theorem names_iff (json : Json.Value) (members : List String) :
-    names json = some members ↔ Named json members := by
-  unfold Named
-  cases json with
-  | object fields =>
-    exact ⟨fun found => ⟨fields, rfl, Option.some.inj found⟩, fun ⟨_, same, mapped⟩ => by
-      cases same
-      exact congrArg some mapped⟩
-  | null | bool _ | number _ | string _ | array _ =>
-    exact ⟨fun found => (nomatch found), fun ⟨_, same, _⟩ => (nomatch same)⟩
 
 /-- The value is a number whose kept spelling is the spelling of the numeral, which is
 formed. It is the right side of `Acorn.Json.Value.numeral_iff`, with the numeral given. -/
@@ -1245,7 +1279,7 @@ of the command and no other. So a request with a member or a parameter more, suc
 `toggle` that the daemon's `robot.enable` also takes, is not the request of a command.
 The id, the method, the name of a skill and the numerals are those of the tables of this
 module, which the line is assembled from. -/
-structure Command.Asked (command : Command) (json : Json.Value) : Prop where
+structure Command.Asked (id : Nat) (command : Command) (json : Json.Value) : Prop where
   /-- The members are `jsonrpc`, `id`, `method` and `params`, in that order, and no other. -/
   members : Named json ["jsonrpc", "id", "method", "params"]
   /-- The member `params` is an object with the parameters of the command, in order, and
@@ -1253,82 +1287,138 @@ structure Command.Asked (command : Command) (json : Json.Value) : Prop where
   parameters : Within "params" Named json command.parameters
   /-- The member `jsonrpc` is the string `2.0`. -/
   version : Within "jsonrpc" Said json "2.0"
-  /-- The member `id` is the number of the command. -/
-  id : Within "id" Counted json command.code
+  /-- The member `id` is the identifier of the send. -/
+  id : Within "id" Counted json id
   /-- The member `method` is the method of the command. -/
   method : Within "method" Said json command.method
   /-- The member `params` holds the parameters of the command. -/
   given : command.Given json
 
-/-- The test that a value is the request of a command, by the readers of this module. -/
-private def Command.reads (command : Command) (json : Json.Value) : Bool :=
-  decide (names json = some ["jsonrpc", "id", "method", "params"]) &&
-  decide (within "params" names json = some command.parameters) &&
-  decide (within "jsonrpc" text json = some "2.0") &&
-    decide (within "id" count json = some command.code) &&
-      decide (within "method" text json = some command.method) &&
-        match command with
-        | .enable => decide (within "params" (within "on" flag) json = some true)
-        | .move velocity =>
-          decide (within "params" (within "vx" Json.Value.numeral) json =
-              some velocity.spelling.forward) &&
-            decide (within "params" (within "vy" Json.Value.numeral) json =
-                some velocity.spelling.left) &&
-              decide (within "params" (within "vyaw" Json.Value.numeral) json =
-                some velocity.spelling.turn)
-        | .perform skill => decide (within "params" (within "skill" text) json = some skill.name)
+/-- The names of the members of the request that subscribes to a stream, in order. -/
+def Stream.members : Stream → List String
+  | .state => ["jsonrpc", "id", "method", "params"]
+  | .depth => ["jsonrpc", "id", "method"]
 
-/-- A value that passes the test is the request of the command. -/
-private theorem Command.reads_asked (command : Command) (json : Json.Value)
-    (passed : command.reads json = true) : command.Asked json := by
-  unfold Command.reads at passed
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at passed
-  obtain ⟨⟨⟨⟨⟨members, parameters⟩, version⟩, id⟩, method⟩, given⟩ := passed
-  refine ⟨(names_iff json _).mp members, (within_iff names_iff _ json _).mp parameters,
-    (within_iff text_iff _ json _).mp version, (within_iff count_iff _ json _).mp id,
-    (within_iff text_iff _ json _).mp method, ?_⟩
-  cases command with
-  | enable =>
-    simp only [decide_eq_true_eq] at given
-    exact (within_iff (within_iff flag_iff _) _ json _).mp given
-  | move velocity =>
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at given
-    obtain ⟨⟨forward, left⟩, turn⟩ := given
-    exact ⟨(within_iff (within_iff Json.Value.numeral_iff _) _ json _).mp forward,
-      (within_iff (within_iff Json.Value.numeral_iff _) _ json _).mp left,
-      (within_iff (within_iff Json.Value.numeral_iff _) _ json _).mp turn⟩
-  | perform skill =>
-    simp only [decide_eq_true_eq] at given
-    exact (within_iff (within_iff text_iff _) _ json _).mp given
+/-- The value is the request that subscribes to the stream, for a send with the identifier:
+an object with exactly the members of that request, the version, the identifier and the
+method, and for the state stream a parameters object with no member. -/
+structure Stream.Asked (id : Nat) (stream : Stream) (json : Json.Value) : Prop where
+  /-- The members are those of the request, in order, and no other. -/
+  members : Named json stream.members
+  /-- The member `jsonrpc` is the string `2.0`. -/
+  version : Within "jsonrpc" Said json "2.0"
+  /-- The member `id` is the identifier of the send. -/
+  id : Within "id" Counted json id
+  /-- The member `method` is the method that subscribes. -/
+  method : Within "method" Said json stream.subscription
+  /-- The parameters object of the state stream has no member. -/
+  bare : stream = .state → Within "params" Named json []
 
-/-- **The line of every command is a JSON text of the command's request.** For each of the
-ten commands: `Acorn.Json.parse` reads the line, and the value it gives has the version,
-the number of the command as its id, the method and the parameters of the command. The
-proof evaluates the parser on the ten lines. -/
-theorem Command.line_asked (command : Command) :
-    ∃ json : Json.Value, Json.parse command.line = .ok json ∧ command.Asked json := by
-  have passed : (Json.parse command.line).toOption.map command.reads = some true := by
+/-- A name or a string whose characters are checked to be plain is of plain characters. -/
+private theorem plain (written : String)
+    (checked : (written.toList.all fun c => decide (Json.Plain c)) = true) :
+    ∀ c ∈ written.toList, Json.Plain c :=
+  fun c inside => of_decide_eq_true (List.all_eq_true.mp checked c inside)
+
+/-- The request of a command is one that its text writes as it is. -/
+private theorem Command.request_simple (id : Nat) (command : Command) :
+    (command.request id).Simple := by
+  refine ⟨fun pair inside => ?_, (by decide : ["jsonrpc", "id", "method", "params"].Nodup)⟩
+  simp only [Command.request, List.mem_cons, List.not_mem_nil, or_false] at inside
+  rcases inside with rfl | rfl | rfl | rfl
+  · exact ⟨plain "jsonrpc" rfl, plain "2.0" rfl⟩
+  · exact ⟨plain "id" rfl, Json.Numeral.natural_formed id, rfl⟩
+  · refine ⟨plain "method" rfl, ?_⟩
     cases command with
-    | enable => decide +kernel
-    | move velocity => cases velocity <;> decide +kernel
-    | perform skill => cases skill <;> decide +kernel
-  cases parsed : Json.parse command.line with
-  | error refusal =>
-    rw [parsed] at passed
-    exact nomatch passed
-  | ok json =>
-    rw [parsed] at passed
-    exact ⟨json, rfl, command.reads_asked json (Option.some.inj passed)⟩
+    | enable => exact plain "robot.enable" rfl
+    | move velocity => exact plain "robot.move" rfl
+    | perform skill => exact plain "robot.do" rfl
+  · refine ⟨plain "params" rfl, ?_⟩
+    cases command with
+    | enable =>
+      exact ⟨fun pair inside => by
+        cases List.mem_singleton.mp inside
+        exact ⟨plain "on" rfl, trivial⟩, (by decide : ["on"].Nodup)⟩
+    | move velocity =>
+      obtain ⟨forward, left, turn⟩ := velocity.spelling_formed
+      refine ⟨fun pair inside => ?_, (by decide : ["vx", "vy", "vyaw"].Nodup)⟩
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at inside
+      rcases inside with rfl | rfl | rfl
+      · exact ⟨plain "vx" rfl, forward⟩
+      · exact ⟨plain "vy" rfl, left⟩
+      · exact ⟨plain "vyaw" rfl, turn⟩
+    | perform skill =>
+      exact ⟨fun pair inside => by
+        cases List.mem_singleton.mp inside
+        exact ⟨plain "skill" rfl, by
+          cases skill
+          · exact plain "ground_pick" rfl
+          · exact plain "sit_toggle" rfl
+          · exact plain "roulade" rfl
+          · exact plain "kick_left" rfl
+          · exact plain "kick_right" rfl⟩,
+        (by decide : ["skill"].Nodup)⟩
+
+/-- The request that subscribes is one that its text writes as it is. -/
+private theorem Stream.request_simple (id : Nat) (stream : Stream) :
+    (stream.request id).Simple := by
+  cases stream with
+  | state =>
+    refine ⟨fun pair inside => ?_, (by decide : ["jsonrpc", "id", "method", "params"].Nodup)⟩
+    simp only [Stream.request, List.mem_cons, List.not_mem_nil, or_false] at inside
+    rcases inside with rfl | rfl | rfl | rfl
+    · exact ⟨plain "jsonrpc" rfl, plain "2.0" rfl⟩
+    · exact ⟨plain "id" rfl, Json.Numeral.natural_formed id, rfl⟩
+    · exact ⟨plain "method" rfl, plain "robot.subscribe" rfl⟩
+    · exact ⟨plain "params" rfl, fun _ wrong => (nomatch wrong), List.nodup_nil⟩
+  | depth =>
+    refine ⟨fun pair inside => ?_, (by decide : ["jsonrpc", "id", "method"].Nodup)⟩
+    simp only [Stream.request, List.mem_cons, List.not_mem_nil, or_false] at inside
+    rcases inside with rfl | rfl | rfl
+    · exact ⟨plain "jsonrpc" rfl, plain "2.0" rfl⟩
+    · exact ⟨plain "id" rfl, Json.Numeral.natural_formed id, rfl⟩
+    · exact ⟨plain "method" rfl, plain "tof.stream" rfl⟩
+
+/-- A member that the lookup finds is a member. -/
+private theorem held {name : String} {json inner : Json.Value}
+    (looked : json.member name = some inner) : Json.Value.Member name json inner :=
+  (Json.Value.member_iff name json inner).mp looked
+
+/-- **The line of every send of every command is a JSON text of that send's request.** For
+every identifier and each of the ten commands: `Acorn.Json.parse` reads the line, and the
+value it gives is the request of the command with the identifier. The parser is not
+evaluated: the line is the text of the request, and the parser reads the text of every
+request back as its value (`Acorn.Json.parse_request`). -/
+theorem Command.line_asked (id : Nat) (command : Command) :
+    ∃ json : Json.Value, Json.parse (command.line id) = .ok json ∧ command.Asked id json := by
+  refine ⟨(command.request id).value,
+    Json.parse_request (command.request id) (command.request_simple id), ?_⟩
+  refine ⟨⟨_, rfl, rfl⟩, ?_, ⟨_, held rfl, rfl⟩, ⟨_, held rfl, counted_natural id⟩,
+    ⟨_, held rfl, rfl⟩, ?_⟩
+  · cases command <;> exact ⟨_, held rfl, _, rfl, rfl⟩
+  · cases command with
+    | enable => exact ⟨_, held rfl, _, held rfl, rfl⟩
+    | move velocity =>
+      obtain ⟨forward, left, turn⟩ := velocity.spelling_formed
+      exact ⟨⟨_, held rfl, _, held rfl, forward.1, rfl⟩,
+        ⟨_, held rfl, _, held rfl, left.1, rfl⟩, ⟨_, held rfl, _, held rfl, turn.1, rfl⟩⟩
+    | perform skill => exact ⟨_, held rfl, _, held rfl, rfl⟩
+
+/-- **The line of every send that subscribes is a JSON text of that send's request.** For
+every identifier and each of the two streams. -/
+theorem Stream.line_asked (id : Nat) (stream : Stream) :
+    ∃ json : Json.Value, Json.parse (stream.line id) = .ok json ∧ stream.Asked id json := by
+  refine ⟨(stream.request id).value,
+    Json.parse_request (stream.request id) (stream.request_simple id), ?_⟩
+  cases stream with
+  | state =>
+    exact ⟨⟨_, rfl, rfl⟩, ⟨_, held rfl, rfl⟩, ⟨_, held rfl, counted_natural id⟩,
+      ⟨_, held rfl, rfl⟩, fun _ => ⟨_, held rfl, _, rfl, rfl⟩⟩
+  | depth =>
+    exact ⟨⟨_, rfl, rfl⟩, ⟨_, held rfl, rfl⟩, ⟨_, held rfl, counted_natural id⟩,
+      ⟨_, held rfl, rfl⟩, fun wrong => nomatch wrong⟩
 
 /-! ## A line of a daemon -/
-
-/-- The two streams of the daemons. -/
-inductive Stream where
-  /-- The state of the body, from the control daemon. -/
-  | state
-  /-- The depth grid, from the depth daemon. -/
-  | depth
-  deriving DecidableEq
 
 /-- The method of the notifications of a stream. -/
 def Stream.method : Stream → String
@@ -1340,291 +1430,630 @@ def Stream.Unwritten : Stream → Json.Value → Prop
   | .state, json => ∀ frame, ¬Within "params" State.Written json frame
   | .depth, json => ∀ frame, ¬Within "params" Depth.Written json frame
 
-/-- What a host reads of one line of a daemon: a frame of one of the two streams, a
-notification of a stream whose frame is refused, the answer to a request, or nothing it
-reads. -/
+/-- What a host reads of one line of a daemon. Each constructor is one case of a JSON-RPC
+2.0 line, and `invalid` is every value that is none of them. -/
 inductive Line where
-  /-- A `robot.state` notification whose frame is read. -/
+  /-- A notification `robot.state` whose parameters write the frame. -/
   | state (frame : State)
-  /-- A `tof.frame` notification whose frame is read. -/
+  /-- A notification `tof.frame` whose parameters write the frame. -/
   | depth (frame : Depth)
   /-- A notification of a stream whose parameters write no frame. -/
-  | refused (stream : Stream)
-  /-- The answer to a request, with the id of the request when the answer has one. -/
-  | answer (id : Option Nat) (reply : Reply)
-  /-- Every other line: a notification of another method, a value with no method and no
-  verdict, a value whose id is neither a natural number nor missing nor null, and a value
-  that is no object. -/
-  | other
+  | unread (stream : Stream)
+  /-- A notification of another method. -/
+  | notice
+  /-- A response with a result, for the request with the identifier. `accepted` is the
+  boolean of the result's member `accepted`, when the result is an object that has one. -/
+  | result (id : Nat) (accepted : Option Bool)
+  /-- A response with an error, for the request with the identifier, or with a null
+  identifier. -/
+  | fault (id : Option Nat)
+  /-- A value that is no JSON-RPC 2.0 notification and no response. -/
+  | invalid
 
-/-- The reply that a boolean of an answer states. -/
-private def replied (accepted : Bool) : Reply :=
-  if accepted then .accepted else .refused
+/-- The value has no member with the name. -/
+def Lacks (name : String) (json : Json.Value) : Prop :=
+  ∀ inner, ¬Json.Value.Member name json inner
 
-/-- The verdict of an answer: a refusal when the value has a member `error`, and otherwise
-what the boolean `result.accepted` states. -/
-private def verdict (json : Json.Value) : Option Reply :=
-  match json.member "error" with
-  | some _ => some .refused
-  | none => (within "result" (within "accepted" flag) json).map replied
+/-- The lookup finds nothing exactly when the value has no member with the name. -/
+private theorem lacks_iff (name : String) (json : Json.Value) :
+    json.member name = none ↔ Lacks name json := by
+  unfold Lacks
+  rw [Option.eq_none_iff_forall_ne_some]
+  exact ⟨fun none inner member => none inner ((Json.Value.member_iff name json inner).mpr member),
+    fun none inner looked => none inner ((Json.Value.member_iff name json inner).mp looked)⟩
 
-/-- The frame of a notification, by its method. -/
+/-- The member `jsonrpc` is the string `2.0`. -/
+def Versioned (json : Json.Value) : Prop :=
+  Within "jsonrpc" Said json "2.0"
+
+/-- The value is a notification of the method: the version is `2.0`, the member `method` is
+the string, and there is no member `id` (JSON-RPC 2.0, sections 4 and 4.1). -/
+def Notified (json : Json.Value) (method : String) : Prop :=
+  Versioned json ∧ Lacks "id" json ∧ Within "method" Said json method
+
+/-- The method of a notification. -/
+private def notified (json : Json.Value) : Option String :=
+  if within "jsonrpc" text json = some "2.0" then
+    match json.member "id" with
+    | none => within "method" text json
+    | some _ => none
+  else none
+
+/-- The method is read exactly of a notification of it. -/
+private theorem notified_iff (json : Json.Value) (method : String) :
+    notified json = some method ↔ Notified json method := by
+  unfold notified Notified Versioned
+  constructor
+  · intro read
+    split at read
+    · rename_i versioned
+      split at read
+      · rename_i bare
+        exact ⟨(within_iff text_iff _ json _).mp versioned, (lacks_iff "id" json).mp bare,
+          (within_iff text_iff _ json _).mp read⟩
+      · exact nomatch read
+    · exact nomatch read
+  · rintro ⟨versioned, bare, named⟩
+    simp only [(within_iff text_iff _ json _).mpr versioned, ↓reduceIte,
+      (lacks_iff "id" json).mpr bare]
+    exact (within_iff text_iff _ json _).mpr named
+
+/-- What a result says of acceptance: the boolean of its member `accepted`, or nothing when
+it has no such boolean. -/
+def Accepting (result : Json.Value) (accepted : Option Bool) : Prop :=
+  match accepted with
+  | some value => Within "accepted" Flagged result value
+  | none => ∀ value, ¬Within "accepted" Flagged result value
+
+/-- What a result says of acceptance, as read. -/
+private def accepting (result : Json.Value) : Option (Option Bool) :=
+  some (within "accepted" flag result)
+
+/-- The acceptance read is the one the result states. -/
+private theorem accepting_iff (result : Json.Value) (accepted : Option Bool) :
+    accepting result = some accepted ↔ Accepting result accepted := by
+  unfold accepting Accepting
+  rw [Option.some.injEq]
+  cases accepted with
+  | some value => exact within_iff flag_iff "accepted" result value
+  | none =>
+    rw [Option.eq_none_iff_forall_ne_some]
+    exact ⟨fun none value read => none value ((within_iff flag_iff _ result value).mpr read),
+      fun none value read => none value ((within_iff flag_iff _ result value).mp read)⟩
+
+/-- The value is a response with a result, for the request with the identifier: the version
+is `2.0`, there is no member `method` and no member `error`, the member `id` is the natural
+number, and the member `result` says the acceptance (JSON-RPC 2.0, section 5). -/
+def Resulted (json : Json.Value) (id : Nat) (accepted : Option Bool) : Prop :=
+  Versioned json ∧ Lacks "method" json ∧ Lacks "error" json ∧ Within "id" Counted json id ∧
+    Within "result" Accepting json accepted
+
+/-- The identifier and the acceptance of a response with a result. -/
+private def resulted (json : Json.Value) : Option (Nat × Option Bool) :=
+  if within "jsonrpc" text json = some "2.0" then
+    match json.member "method", json.member "error" with
+    | none, none =>
+      (within "id" count json).bind fun id =>
+        (within "result" accepting json).map fun accepted => (id, accepted)
+    | _, _ => none
+  else none
+
+/-- A result is read exactly of a response with a result. -/
+private theorem resulted_iff (json : Json.Value) (id : Nat) (accepted : Option Bool) :
+    resulted json = some (id, accepted) ↔ Resulted json id accepted := by
+  unfold resulted Resulted Versioned
+  constructor
+  · intro read
+    split at read
+    · rename_i versioned
+      split at read
+      · rename_i unnamed sound
+        obtain ⟨number, counted, rest⟩ := Option.bind_eq_some_iff.mp read
+        obtain ⟨said, stated, same⟩ := Option.map_eq_some_iff.mp rest
+        cases same
+        exact ⟨(within_iff text_iff _ json _).mp versioned, (lacks_iff "method" json).mp unnamed,
+          (lacks_iff "error" json).mp sound, (within_iff count_iff _ json _).mp counted,
+          (within_iff accepting_iff _ json _).mp stated⟩
+      · exact nomatch read
+    · exact nomatch read
+  · rintro ⟨versioned, unnamed, sound, counted, stated⟩
+    simp only [(within_iff text_iff _ json _).mpr versioned, ↓reduceIte,
+      (lacks_iff "method" json).mpr unnamed, (lacks_iff "error" json).mpr sound,
+      (within_iff count_iff _ json _).mpr counted, Option.bind_some,
+      (within_iff accepting_iff _ json _).mpr stated, Option.map_some]
+
+/-- The value is a number with no point and no exponent part: an integer, with a minus sign
+or without. -/
+def Integral (json : Json.Value) : Prop :=
+  ∃ numeral : Json.Numeral, numeral.Formed ∧ numeral.fraction = none ∧
+    numeral.exponent = none ∧ json = .number (String.ofList numeral.chars)
+
+/-- Whether a value is an integer. -/
+private def integral (json : Json.Value) : Bool :=
+  match json.numeral with
+  | some ⟨_, _, none, none⟩ => true
+  | _ => false
+
+/-- The test of an integer is the relation. -/
+private theorem integral_iff (json : Json.Value) : integral json = true ↔ Integral json := by
+  unfold integral Integral
+  constructor
+  · intro whole
+    cases scanned : json.numeral with
+    | none =>
+      rw [scanned] at whole
+      exact nomatch whole
+    | some numeral =>
+      rw [scanned] at whole
+      obtain ⟨negative, digits, fraction, exponent⟩ := numeral
+      cases fraction <;> cases exponent <;>
+        first
+        | (simp at whole; done)
+        | (obtain ⟨formed, same⟩ := (Json.Value.numeral_iff json _).mp scanned
+           exact ⟨_, formed, rfl, rfl, same⟩)
+  · rintro ⟨numeral, formed, pointless, bare, same⟩
+    obtain ⟨negative, digits, fraction, exponent⟩ := numeral
+    cases pointless
+    cases bare
+    rw [(Json.Value.numeral_iff json _).mpr ⟨formed, same⟩]
+
+/-- The value is an error object: its member `code` is an integer and its member `message`
+is a string (JSON-RPC 2.0, section 5.1). -/
+def Erring (error : Json.Value) : Prop :=
+  (∃ code, Json.Value.Member "code" error code ∧ Integral code) ∧
+    ∃ message, Within "message" Said error message
+
+/-- Whether a value is an error object. -/
+private def erring (error : Json.Value) : Bool :=
+  (match error.member "code" with
+    | some code => integral code
+    | none => false) && (within "message" text error).isSome
+
+/-- The test of an error object is the relation. -/
+private theorem erring_iff (error : Json.Value) : erring error = true ↔ Erring error := by
+  unfold erring Erring
+  rw [Bool.and_eq_true, Option.isSome_iff_exists]
+  constructor
+  · rintro ⟨coded, message, read⟩
+    cases looked : error.member "code" with
+    | none =>
+      rw [looked] at coded
+      exact nomatch coded
+    | some code =>
+      rw [looked] at coded
+      exact ⟨⟨code, held looked, (integral_iff code).mp coded⟩, message,
+        (within_iff text_iff _ error message).mp read⟩
+  · rintro ⟨⟨code, member, whole⟩, message, said⟩
+    rw [(Json.Value.member_iff "code" error code).mpr member]
+    exact ⟨(integral_iff code).mpr whole, message, (within_iff text_iff _ error message).mpr said⟩
+
+/-- The identifier of a response with an error: the member `id` is the natural number, or
+it is null and there is no identifier. -/
+def Identified (json : Json.Value) (id : Option Nat) : Prop :=
+  match id with
+  | some number => Within "id" Counted json number
+  | none => Json.Value.Member "id" json .null
+
+/-- The identifier of a response with an error. -/
+private def identified (json : Json.Value) : Option (Option Nat) :=
+  match json.member "id" with
+  | none => none
+  | some .null => some none
+  | some inner => (count inner).map some
+
+/-- The identifier is read exactly as the relation says. -/
+private theorem identified_iff (json : Json.Value) (id : Option Nat) :
+    identified json = some id ↔ Identified json id := by
+  have single : ∀ first second : Json.Value, json.member "id" = some first →
+      Json.Value.Member "id" json second → second = first := fun first second looked other =>
+    Option.some.inj (((Json.Value.member_iff "id" json second).mpr other).symm.trans looked)
+  have nothing : ¬Counted .null 0 ∧ ∀ number, ¬Counted .null number :=
+    ⟨fun ⟨_, _, wrong, _⟩ => (nomatch wrong), fun _ ⟨_, _, wrong, _⟩ => (nomatch wrong)⟩
+  unfold identified Identified
+  cases looked : json.member "id" with
+  | none =>
+    constructor
+    · intro wrong
+      exact nomatch wrong
+    · intro held
+      cases id with
+      | some number =>
+        obtain ⟨inner, member, _⟩ := held
+        rw [(Json.Value.member_iff "id" json inner).mpr member] at looked
+        exact nomatch looked
+      | none =>
+        rw [(Json.Value.member_iff "id" json .null).mpr held] at looked
+        exact nomatch looked
+  | some first =>
+    have member := held looked
+    by_cases empty : first = .null
+    · subst empty
+      constructor
+      · intro read
+        cases Option.some.inj read
+        exact member
+      · intro held
+        cases id with
+        | some number =>
+          obtain ⟨inner, other, counted⟩ := held
+          cases single _ inner looked other
+          exact absurd counted (nothing.2 number)
+        | none => rfl
+    · have filled : (match some first with
+          | none => none
+          | some .null => some none
+          | some inner => (count inner).map some) = (count first).map some := by
+        cases first <;> first | rfl | exact absurd rfl empty
+      rw [filled, Option.map_eq_some_iff]
+      constructor
+      · rintro ⟨number, counted, rfl⟩
+        exact ⟨first, member, (count_iff first number).mp counted⟩
+      · intro held
+        cases id with
+        | some number =>
+          obtain ⟨inner, other, counted⟩ := held
+          cases single _ inner looked other
+          exact ⟨number, (count_iff first number).mpr counted, rfl⟩
+        | none => exact absurd (single _ _ looked held).symm empty
+
+/-- The value is a response with an error: the version is `2.0`, there is no member `method`
+and no member `result`, the member `id` is a natural number or null, and the member `error`
+is an error object (JSON-RPC 2.0, sections 5 and 5.1). -/
+def Faulted (json : Json.Value) (id : Option Nat) : Prop :=
+  Versioned json ∧ Lacks "method" json ∧ Lacks "result" json ∧ Identified json id ∧
+    ∃ error, Json.Value.Member "error" json error ∧ Erring error
+
+/-- The identifier of a response with an error. -/
+private def faulted (json : Json.Value) : Option (Option Nat) :=
+  if within "jsonrpc" text json = some "2.0" then
+    match json.member "method", json.member "result", json.member "error" with
+    | none, none, some error => if erring error then identified json else none
+    | _, _, _ => none
+  else none
+
+/-- A fault is read exactly of a response with an error. -/
+private theorem faulted_iff (json : Json.Value) (id : Option Nat) :
+    faulted json = some id ↔ Faulted json id := by
+  unfold faulted Faulted Versioned
+  constructor
+  · intro read
+    split at read
+    · rename_i versioned
+      split at read
+      · rename_i error unnamed empty looked
+        split at read
+        · rename_i wrong
+          exact ⟨(within_iff text_iff _ json _).mp versioned, (lacks_iff "method" json).mp unnamed,
+            (lacks_iff "result" json).mp empty, (identified_iff json id).mp read, error,
+            held looked, (erring_iff error).mp wrong⟩
+        · exact nomatch read
+      · exact nomatch read
+    · exact nomatch read
+  · rintro ⟨versioned, unnamed, empty, held, error, member, wrong⟩
+    simp only [(within_iff text_iff _ json _).mpr versioned, ↓reduceIte,
+      (lacks_iff "method" json).mpr unnamed, (lacks_iff "result" json).mpr empty,
+      (Json.Value.member_iff "error" json error).mpr member, (erring_iff error).mpr wrong]
+    exact (identified_iff json id).mpr held
+
+/-- What a notification of a method is read as. -/
 private def framed (json : Json.Value) (method : String) : Line :=
   if method = "robot.state" then
     match within "params" State.read json with
     | some frame => .state frame
-    | none => .refused .state
+    | none => .unread .state
   else if method = "tof.frame" then
     match within "params" Depth.read json with
     | some frame => .depth frame
-    | none => .refused .depth
-  else .other
+    | none => .unread .depth
+  else .notice
 
-/-- What a value with no method is read as. -/
-private def unframed (json : Json.Value) : Line :=
-  match lacking "id" count json, verdict json with
-  | some id, some reply => .answer id reply
-  | _, _ => .other
-
-/-- What a host reads of a parsed line. A value with a member `method` that is a string
-is a notification: the frame of `params` for `robot.state` and for `tof.frame`. Every other
-value is read as an answer. -/
+/-- What a host reads of a parsed line: the frame of a notification of a stream, a
+notification of another method, a response with a result or with an error, and `invalid`
+for every other value. -/
 def Line.read (json : Json.Value) : Line :=
-  match within "method" text json with
+  match notified json with
   | some method => framed json method
-  | none => unframed json
+  | none =>
+    match resulted json with
+    | some (id, accepted) => .result id accepted
+    | none =>
+      match faulted json with
+      | some id => .fault id
+      | none => .invalid
 
-/-- The verdict of an answer: the value has a member `error` and the reply is a refusal, or
-it has none and the reply is what the boolean `result.accepted` states. -/
-def Answered (json : Json.Value) (reply : Reply) : Prop :=
-  ((∃ inner, Json.Value.Member "error" json inner) ∧ reply = .refused) ∨
-    ((∀ inner, ¬Json.Value.Member "error" json inner) ∧
-      ((Within "result" (Within "accepted" Flagged) json true ∧ reply = .accepted) ∨
-        (Within "result" (Within "accepted" Flagged) json false ∧ reply = .refused)))
+/-- A value with no member `method` is no notification. -/
+private theorem notified_none (json : Json.Value) (unnamed : Lacks "method" json) :
+    notified json = none := by
+  rw [Option.eq_none_iff_forall_ne_some]
+  intro method read
+  obtain ⟨_, _, inner, member, _⟩ := (notified_iff json method).mp read
+  exact unnamed inner member
 
-/-- A value has a verdict exactly when it is answered so. -/
-private theorem verdict_iff (json : Json.Value) (reply : Reply) :
-    verdict json = some reply ↔ Answered json reply := by
-  unfold verdict Answered
-  cases fault : json.member "error" with
-  | some inner =>
-    have member := (Json.Value.member_iff "error" json inner).mp fault
+/-- A value with a member `error` is no response with a result. -/
+private theorem resulted_none (json : Json.Value) (error : Json.Value)
+    (member : Json.Value.Member "error" json error) : resulted json = none := by
+  rw [Option.eq_none_iff_forall_ne_some]
+  rintro ⟨id, accepted⟩ read
+  exact ((resulted_iff json id accepted).mp read).2.2.1 error member
+
+/-- A notification is read as a frame, as an unread frame or as a notice. -/
+private theorem framed_cases (json : Json.Value) (method : String) :
+    (∀ id accepted, framed json method ≠ .result id accepted) ∧
+      (∀ id, framed json method ≠ .fault id) ∧ framed json method ≠ .invalid := by
+  unfold framed
+  refine ⟨fun id accepted same => ?_, fun id same => ?_, fun same => ?_⟩ <;>
+    (split at same
+     · split at same <;> exact nomatch same
+     · split at same
+       · split at same <;> exact nomatch same
+       · exact nomatch same)
+
+/-- A line that only a notification gives is read exactly of a notification that is read
+as it. -/
+private theorem read_framed (json : Json.Value) (line : Line)
+    (other : (∀ id accepted, line ≠ .result id accepted) ∧ (∀ id, line ≠ .fault id) ∧
+      line ≠ .invalid) :
+    Line.read json = line ↔ ∃ method, Notified json method ∧ framed json method = line := by
+  unfold Line.read
+  cases read : notified json with
+  | some method =>
     constructor
     · intro same
-      exact .inl ⟨⟨inner, member⟩, (Option.some.inj same).symm⟩
-    · rintro (⟨_, rfl⟩ | ⟨absent, _⟩)
-      · rfl
-      · exact absurd member (absent inner)
+      exact ⟨method, (notified_iff json method).mp read, same⟩
+    · rintro ⟨other, noted, same⟩
+      cases Option.some.inj (((notified_iff json other).mpr noted).symm.trans read)
+      exact same
   | none =>
-    have absent : ∀ inner, ¬Json.Value.Member "error" json inner := fun inner member => by
-      rw [(Json.Value.member_iff "error" json inner).mpr member] at fault
-      exact nomatch fault
-    have flags := fun value : Bool =>
-      within_iff (within_iff flag_iff "accepted") "result" json value
-    show (within "result" (within "accepted" flag) json).map replied = some reply ↔ _
-    rw [Option.map_eq_some_iff]
     constructor
-    · rintro ⟨accepted, read, rfl⟩
-      refine .inr ⟨absent, ?_⟩
-      cases accepted
-      · exact .inr ⟨(flags false).mp read, rfl⟩
-      · exact .inl ⟨(flags true).mp read, rfl⟩
-    · rintro (⟨⟨inner, member⟩, _⟩ | ⟨_, ⟨read, rfl⟩ | ⟨read, rfl⟩⟩)
-      · exact absurd member (absent inner)
-      · exact ⟨true, (flags true).mpr read, rfl⟩
-      · exact ⟨false, (flags false).mpr read, rfl⟩
+    · intro same
+      have same : (match resulted json with
+        | some (id, accepted) => Line.result id accepted
+        | none =>
+          match faulted json with
+          | some id => .fault id
+          | none => .invalid) = line := same
+      split at same
+      · exact absurd same.symm (other.1 _ _)
+      · split at same
+        · exact absurd same.symm (other.2.1 _)
+        · exact absurd same.symm other.2.2
+    · rintro ⟨method, noted, _⟩
+      rw [(notified_iff json method).mpr noted] at read
+      exact nomatch read
 
-/-- A value has no member `method` that is a string exactly when the reader of the method
-gives nothing. -/
-private theorem unnamed_iff (json : Json.Value) :
-    within "method" text json = none ↔ ∀ method, ¬Within "method" Said json method := by
-  rw [Option.eq_none_iff_forall_ne_some]
-  exact ⟨fun none method named => none method ((within_iff text_iff _ json method).mpr named),
-    fun none method named => none method ((within_iff text_iff _ json method).mp named)⟩
-
-/-- **A line is read as a state frame exactly when it is a `robot.state` notification whose
+/-- **A line is read as a state frame exactly when it is a notification `robot.state` whose
 parameters write the frame.** For every JSON value and state frame. -/
 theorem Line.read_state (json : Json.Value) (frame : State) :
     Line.read json = .state frame ↔
-      Within "method" Said json "robot.state" ∧ Within "params" State.Written json frame := by
-  have named := within_iff text_iff "method" json
+      Notified json "robot.state" ∧ Within "params" State.Written json frame := by
   have written := within_iff State.read_iff "params" json
-  unfold Line.read
-  cases method : within "method" text json with
-  | none =>
-    show unframed json = .state frame ↔ _
-    constructor
-    · intro same
-      unfold unframed at same
-      split at same <;> cases same
-    · rintro ⟨said, _⟩
-      rw [(named _).mpr said] at method
-      exact nomatch method
-  | some name =>
-    show framed json name = .state frame ↔ _
+  rw [read_framed json (.state frame) ⟨fun _ _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong),
+    fun wrong => (nomatch wrong)⟩]
+  constructor
+  · rintro ⟨method, noted, same⟩
+    unfold framed at same
+    split at same
+    · rename_i named
+      subst named
+      cases read : within "params" State.read json with
+      | none =>
+        rw [read] at same
+        exact nomatch same
+      | some held =>
+        rw [read] at same
+        cases same
+        exact ⟨noted, (written _).mp read⟩
+    · split at same
+      · split at same <;> exact nomatch same
+      · exact nomatch same
+  · rintro ⟨noted, frames⟩
+    refine ⟨_, noted, ?_⟩
     unfold framed
-    constructor
-    · intro same
-      split at same
-      · rename_i state
-        subst state
-        cases read : within "params" State.read json with
-        | none =>
-          rw [read] at same
-          exact nomatch same
-        | some found =>
-          rw [read] at same
-          cases same
-          exact ⟨(named _).mp method, (written _).mp read⟩
-      · split at same
-        · split at same <;> exact nomatch same
-        · exact nomatch same
-    · rintro ⟨said, frames⟩
-      cases Option.some.inj (((named _).mpr said).symm.trans method)
-      simp only [↓reduceIte, (written frame).mpr frames]
+    simp only [↓reduceIte, (written frame).mpr frames]
 
-/-- **A line is read as a depth frame exactly when it is a `tof.frame` notification whose
+/-- **A line is read as a depth frame exactly when it is a notification `tof.frame` whose
 parameters write the frame.** For every JSON value and depth frame. -/
 theorem Line.read_depth (json : Json.Value) (frame : Depth) :
     Line.read json = .depth frame ↔
-      Within "method" Said json "tof.frame" ∧ Within "params" Depth.Written json frame := by
-  have named := within_iff text_iff "method" json
+      Notified json "tof.frame" ∧ Within "params" Depth.Written json frame := by
   have written := within_iff Depth.read_iff "params" json
-  unfold Line.read
-  cases method : within "method" text json with
-  | none =>
-    show unframed json = .depth frame ↔ _
-    constructor
-    · intro same
-      unfold unframed at same
-      split at same <;> cases same
-    · rintro ⟨said, _⟩
-      rw [(named _).mpr said] at method
-      exact nomatch method
-  | some name =>
-    show framed json name = .depth frame ↔ _
+  rw [read_framed json (.depth frame) ⟨fun _ _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong),
+    fun wrong => (nomatch wrong)⟩]
+  constructor
+  · rintro ⟨method, noted, same⟩
+    unfold framed at same
+    split at same
+    · split at same <;> exact nomatch same
+    · split at same
+      · rename_i named
+        subst named
+        cases read : within "params" Depth.read json with
+        | none =>
+          rw [read] at same
+          exact nomatch same
+        | some held =>
+          rw [read] at same
+          cases same
+          exact ⟨noted, (written _).mp read⟩
+      · exact nomatch same
+  · rintro ⟨noted, frames⟩
+    refine ⟨_, noted, ?_⟩
     unfold framed
-    constructor
-    · intro same
-      split at same
-      · split at same <;> exact nomatch same
-      · split at same
-        · rename_i depth
-          subst depth
-          cases read : within "params" Depth.read json with
-          | none =>
-            rw [read] at same
-            exact nomatch same
-          | some found =>
-            rw [read] at same
-            cases same
-            exact ⟨(named _).mp method, (written _).mp read⟩
-        · exact nomatch same
-    · rintro ⟨said, frames⟩
-      cases Option.some.inj (((named _).mpr said).symm.trans method)
-      simp only [String.reduceEq, ↓reduceIte, (written frame).mpr frames]
+    simp only [String.reduceEq, ↓reduceIte, (written frame).mpr frames]
 
-/-- **A line is read as a refused frame of a stream exactly when it is a notification of
+/-- **A line is read as an unread frame of a stream exactly when it is a notification of
 the stream whose parameters write no frame.** For every JSON value and stream. -/
-theorem Line.read_refused (json : Json.Value) (stream : Stream) :
-    Line.read json = .refused stream ↔
-      Within "method" Said json stream.method ∧ stream.Unwritten json := by
-  have named := within_iff text_iff "method" json
+theorem Line.read_unread (json : Json.Value) (stream : Stream) :
+    Line.read json = .unread stream ↔ Notified json stream.method ∧ stream.Unwritten json := by
   have states := within_iff State.read_iff "params" json
   have depths := within_iff Depth.read_iff "params" json
-  unfold Line.read
-  cases method : within "method" text json with
-  | none =>
-    show unframed json = .refused stream ↔ _
-    constructor
-    · intro same
-      unfold unframed at same
-      split at same <;> cases same
-    · rintro ⟨said, _⟩
-      rw [(named _).mpr said] at method
-      exact nomatch method
-  | some name =>
-    show framed json name = .refused stream ↔ _
-    unfold framed
-    constructor
-    · intro same
-      split at same
-      · rename_i state
-        subst state
-        cases read : within "params" State.read json with
-        | some found =>
+  rw [read_framed json (.unread stream) ⟨fun _ _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong),
+    fun wrong => (nomatch wrong)⟩]
+  constructor
+  · rintro ⟨method, noted, same⟩
+    unfold framed at same
+    split at same
+    · rename_i named
+      subst named
+      cases read : within "params" State.read json with
+      | some held =>
+        rw [read] at same
+        exact nomatch same
+      | none =>
+        rw [read] at same
+        cases same
+        refine ⟨noted, fun frame written => ?_⟩
+        rw [(states frame).mpr written] at read
+        exact nomatch read
+    · split at same
+      · rename_i named
+        subst named
+        cases read : within "params" Depth.read json with
+        | some held =>
           rw [read] at same
           exact nomatch same
         | none =>
           rw [read] at same
           cases same
-          refine ⟨(named _).mp method, fun frame written => ?_⟩
-          rw [(states frame).mpr written] at read
+          refine ⟨noted, fun frame written => ?_⟩
+          rw [(depths frame).mpr written] at read
           exact nomatch read
-      · split at same
-        · rename_i depth
-          subst depth
-          cases read : within "params" Depth.read json with
-          | some found =>
-            rw [read] at same
-            exact nomatch same
-          | none =>
-            rw [read] at same
-            cases same
-            refine ⟨(named _).mp method, fun frame written => ?_⟩
-            rw [(depths frame).mpr written] at read
-            exact nomatch read
-        · exact nomatch same
-    · rintro ⟨said, unwritten⟩
-      cases Option.some.inj (((named _).mpr said).symm.trans method)
-      cases stream with
-      | state =>
-        have absent : within "params" State.read json = none :=
-          Option.eq_none_iff_forall_ne_some.mpr fun frame read =>
-            unwritten frame ((states frame).mp read)
-        simp only [Stream.method, ↓reduceIte, absent]
-      | depth =>
-        have absent : within "params" Depth.read json = none :=
-          Option.eq_none_iff_forall_ne_some.mpr fun frame read =>
-            unwritten frame ((depths frame).mp read)
-        simp only [Stream.method, String.reduceEq, ↓reduceIte, absent]
+      · exact nomatch same
+  · rintro ⟨noted, unwritten⟩
+    refine ⟨_, noted, ?_⟩
+    unfold framed
+    cases stream with
+    | state =>
+      have absent : within "params" State.read json = none :=
+        Option.eq_none_iff_forall_ne_some.mpr fun frame read =>
+          unwritten frame ((states frame).mp read)
+      simp only [Stream.method, ↓reduceIte, absent]
+    | depth =>
+      have absent : within "params" Depth.read json = none :=
+        Option.eq_none_iff_forall_ne_some.mpr fun frame read =>
+          unwritten frame ((depths frame).mp read)
+      simp only [Stream.method, String.reduceEq, ↓reduceIte, absent]
 
-/-- **A line is read as an answer exactly when it has no method, an id that digits alone
-spell or none, and a verdict.** For every JSON value, id and reply: the value has no member
-`method` that is a string, its member `id` is the natural number or is missing or null,
-and it is answered with the reply. -/
-theorem Line.read_answer (json : Json.Value) (id : Option Nat) (reply : Reply) :
-    Line.read json = .answer id reply ↔
-      (∀ method, ¬Within "method" Said json method) ∧ Lacking "id" Counted json id ∧
-        Answered json reply := by
-  have numbered := lacking_iff count_iff "id" json
-  unfold Line.read
-  cases method : within "method" text json with
-  | some name =>
-    constructor
-    · intro same
-      have same : framed json name = .answer id reply := same
-      unfold framed at same
+/-- **A line is read as a notice exactly when it is a notification of a method that is of
+neither stream.** For every JSON value. -/
+theorem Line.read_notice (json : Json.Value) :
+    Line.read json = .notice ↔
+      ∃ method, Notified json method ∧ method ≠ "robot.state" ∧ method ≠ "tof.frame" := by
+  rw [read_framed json .notice ⟨fun _ _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong),
+    fun wrong => (nomatch wrong)⟩]
+  constructor
+  · rintro ⟨method, noted, same⟩
+    unfold framed at same
+    split at same
+    · split at same <;> exact nomatch same
+    · rename_i state
       split at same
       · split at same <;> exact nomatch same
-      · split at same
-        · split at same <;> exact nomatch same
-        · exact nomatch same
-    · rintro ⟨unnamed, _⟩
-      rw [(unnamed_iff json).mpr unnamed] at method
-      exact nomatch method
-  | none =>
-    show unframed json = .answer id reply ↔ _
-    unfold unframed
+      · rename_i depth
+        exact ⟨method, noted, state, depth⟩
+  · rintro ⟨method, noted, state, depth⟩
+    refine ⟨method, noted, ?_⟩
+    unfold framed
+    simp only [state, depth, ↓reduceIte]
+
+/-- **A line is read as a result exactly when it is a response with that result.** For
+every JSON value, identifier and acceptance. -/
+theorem Line.read_result (json : Json.Value) (id : Nat) (accepted : Option Bool) :
+    Line.read json = .result id accepted ↔ Resulted json id accepted := by
+  unfold Line.read
+  constructor
+  · intro same
+    cases noted : notified json with
+    | some method =>
+      rw [noted] at same
+      exact absurd same ((framed_cases json method).1 id accepted)
+    | none =>
+      rw [noted] at same
+      cases read : resulted json with
+      | some pair =>
+        rw [read] at same
+        obtain ⟨number, stated⟩ := pair
+        cases same
+        exact (resulted_iff json id accepted).mp read
+      | none =>
+        rw [read] at same
+        cases wrong : faulted json <;> rw [wrong] at same <;> exact nomatch same
+  · intro held
+    rw [notified_none json held.2.1, (resulted_iff json id accepted).mpr held]
+
+/-- **A line is read as a fault exactly when it is a response with an error.** For every
+JSON value and identifier, or none for a null identifier. -/
+theorem Line.read_fault (json : Json.Value) (id : Option Nat) :
+    Line.read json = .fault id ↔ Faulted json id := by
+  unfold Line.read
+  constructor
+  · intro same
+    cases noted : notified json with
+    | some method =>
+      rw [noted] at same
+      exact absurd same ((framed_cases json method).2.1 id)
+    | none =>
+      rw [noted] at same
+      cases read : resulted json with
+      | some pair =>
+        rw [read] at same
+        exact nomatch same
+      | none =>
+        rw [read] at same
+        cases wrong : faulted json with
+        | none =>
+          rw [wrong] at same
+          exact nomatch same
+        | some other =>
+          rw [wrong] at same
+          cases same
+          exact (faulted_iff json id).mp wrong
+  · intro held
+    obtain ⟨error, member, _⟩ := held.2.2.2.2
+    rw [notified_none json held.2.1, resulted_none json error member,
+      (faulted_iff json id).mpr held]
+
+/-- **A line is invalid exactly when it is no notification and no response.** For every JSON
+value: the reader gives `Line.invalid` exactly when the value is a notification of no
+method, a response with no result and a response with no error. -/
+theorem Line.read_invalid (json : Json.Value) :
+    Line.read json = .invalid ↔
+      (∀ method, ¬Notified json method) ∧ (∀ id accepted, ¬Resulted json id accepted) ∧
+        ∀ id, ¬Faulted json id := by
+  unfold Line.read
+  cases noted : notified json with
+  | some method =>
     constructor
     · intro same
-      split at same
-      · rename_i found given counted judged
-        cases same
-        exact ⟨(unnamed_iff json).mp method, (numbered _).mp counted,
-          (verdict_iff json _).mp judged⟩
-      · exact nomatch same
-    · rintro ⟨_, counted, judged⟩
-      rw [(numbered id).mpr counted, (verdict_iff json reply).mpr judged]
+      exact absurd same (framed_cases json method).2.2
+    · intro none
+      exact absurd ((notified_iff json method).mp noted) (none.1 method)
+  | none =>
+    have unnoted : ∀ method, ¬Notified json method := fun method held => by
+      rw [(notified_iff json method).mpr held] at noted
+      exact nomatch noted
+    cases read : resulted json with
+    | some pair =>
+      obtain ⟨id, accepted⟩ := pair
+      constructor
+      · intro same
+        exact nomatch same
+      · intro none
+        exact absurd ((resulted_iff json id accepted).mp read) (none.2.1 id accepted)
+    | none =>
+      have unresulted : ∀ id accepted, ¬Resulted json id accepted := fun id accepted held => by
+        rw [(resulted_iff json id accepted).mpr held] at read
+        exact nomatch read
+      cases wrong : faulted json with
+      | some id =>
+        constructor
+        · intro same
+          exact nomatch same
+        · intro none
+          exact absurd ((faulted_iff json id).mp wrong) (none.2.2 id)
+      | none =>
+        exact ⟨fun _ => ⟨unnoted, unresulted, fun id held => by
+          rw [(faulted_iff json id).mpr held] at wrong
+          exact nomatch wrong⟩, fun _ => rfl⟩
 
 end Acorn.Host.Microduck
