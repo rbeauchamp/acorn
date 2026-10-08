@@ -693,8 +693,7 @@ theorem FreeDispatch.refresh_occupancy {shape : PatchShape} {config : Config}
           state.lifecycle.consumers.demons.rankingWeights).length := by
   rw [← rankAssignments_count dimension config state.lifecycle.consumers.demons.rankingWeights
     (state.lifecycle.consumers.skills.map (·.interest.held))]
-  congr 1
-  apply List.filter_congr
+  refine congrArg List.length (List.filter_congr ?_)
   intro slot _
   rw [state.refresh_targets slot]
   rfl
@@ -781,6 +780,8 @@ theorem FreeDispatch.refresh_questions {shape : PatchShape} {config : Config}
   | true =>
     rw [FreeDispatch.refreshModels_assign, FreeDispatch.rerankModels_skill]
     obtain ⟨_, _, _, keeps⟩ := state.refresh_keeps slot unit bonus holds ranked first
+    dsimp only
+    unfold FreeDispatch.refreshRanked
     exact FreeDispatch.fold_questions (List.finRange Acorn.FeatureConstants.skillCount) _
       state slot keeps
 
@@ -841,9 +842,14 @@ theorem FreeDispatch.refreshModels_retains {shape : PatchShape} {config : Config
     have kept := state.refresh_retains slot unit bonus holds ranked first
     obtain ⟨raised, interest, raises⟩ := kept.2.2.2.2
     have reranked := state.refreshRanked.rerankModels_skill slot
-    refine ⟨?_, kept.2.2.1, kept.2.2.2.1, raised, ?_, raises⟩
+    have preserved := state.refreshRanked.rerankModels_preserves
+    refine ⟨?_, ?_, ?_, raised, ?_, raises⟩
     · rw [reranked]
       exact kept.1
+    · rw [preserved.1]
+      exact kept.2.2.1
+    · rw [preserved.2.2.2.1]
+      exact kept.2.2.2.1
     · rw [reranked]
       exact interest
 
