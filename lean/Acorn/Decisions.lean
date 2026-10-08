@@ -13,6 +13,7 @@ import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
 import Acorn.Handcrafted.Microduck
 import Acorn.Host.Microduck.Bridge
+import Acorn.Host.Microduck.Session
 import Acorn.Host.Microduck.Wire
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
@@ -59,8 +60,8 @@ with one proved direction carries that direction alone. Five groups are register
   that ends in `_value`), the exact verdict on a part of the inputs (`capture_follows`, and
   `task_observed` in `AcornVerif.Decisions`), a set of accepted inputs beside a sound kind,
   which carries one accepted input (`schema_covers_empty`, `predicate_eval_programs`), or which
-  of several accepted results an input has (`microduck_outcome_judged`, for a verdict of four
-  outcomes whose kind states only which inputs are not refused, and `microduck_line_read`,
+  of several accepted results an input has (`microduck_outcome_judged`, for a verdict of five
+  outcomes whose kind states only which inputs the daemon accepted, and `microduck_line_read`,
   for the lines of a daemon that a host reads). That statement is a
   requirement with no kind, and the ownership audit requires it by name.
 * A function keeps a requirement with no kind where no kind is true of it, or where Regula
@@ -70,7 +71,7 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Twelve functions of this module have a contract and no kind. The reasons are four.
+Fourteen functions of this module have a contract and no kind. The reasons are four.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
   every configuration, and a complete or a two-way kind carries a refused input. The statement
@@ -83,7 +84,9 @@ Twelve functions of this module have a contract and no kind. The reasons are fou
   specification names none of those tests (https://github.com/rbeauchamp/regula/issues/270).
   These are `Checkpoint.saveBytes`, `Checkpoint.load`, `Features.Lifecycle.lessUseful`,
   `Features.Lifecycle.candidate`, `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`,
-  `Agent.restore` and `PredictionControl.advanceRaw`.
+  `Agent.restore`, `PredictionControl.advanceRaw`, and the two transitions
+  `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose input carries the
+  proof that the host is reached by the transitions.
 * The specification is about a function with tests that the decision runs.
   `PolicySnapshot.consistent` accepts the masses of `PolicySnapshot.probabilities`, which runs
   three word comparisons, and RG1009 refuses the kind.
@@ -229,7 +232,12 @@ only private lemmas of the proofs of `Host.Microduck.State.read_iff` and
 `microduck_depth` are their evidence. `Host.Microduck.Line.read` applies the same readers
 and private helpers of its own, one for each case of a line and the tests those apply, with
 the contract `microduck_line` as their evidence; private lemmas state each in the relations
-that the contract names.
+that the contract names. `Host.Microduck.Idle.sense` and
+`Host.Microduck.Awaiting.release` apply private transitions on what a host holds, with the
+contracts `microduck_sense` and `microduck_release`, which keep no kind, as their evidence, and
+`Host.Microduck.Idle.hear`, which is no decision, applies two private tests,
+`Host.Microduck.showing` and the test of `Host.Microduck.Sent.answer`;
+`Host.Microduck.Idle.hear_shown` and `Host.Microduck.Sent.answer_iff` state what each gives.
 
 What the list does not hold:
 
@@ -1237,29 +1245,31 @@ theorem pace_meets : Regula.ExecutableContract Pace.meets (fun meets =>
 
 attribute [regula_decision] Pace.meets
 
-/-- The outcome of a released Microduck action is not a refusal exactly when the daemon
-accepted the commands of the release (`Host.Microduck.Action.outcome_accepted`). The inputs
-are the action, the stated posture, the daemon's answer and the evidence. The specification
-is the answer, an input that the function reads by a match on its two constructors; it shares
-no test with the function's two comparisons, of the evidence and of the action's intent with
-the stated posture. What the kind adds to the definition is that neither of those produces a
-refusal or hides one. `microduck_outcome_judged` states which of the four outcomes a result
-is. -/
+/-- The outcome of a released Microduck action says that the daemon accepted the action, which
+is to be neither a refusal nor unanswered, exactly when the daemon's answer is the accepted
+one (`Host.Microduck.Action.outcome_accepted`). The inputs are the action, the stated posture,
+the daemon's answer and the evidence. The specification is the answer, an input that the
+function reads by a match on its three constructors; it shares no test with the function's
+two comparisons, of the evidence and of the action's intent with the stated posture. What the
+kind adds to the definition is that neither of those produces an acceptance: a pending answer
+gives no outcome that says the daemon accepted. `microduck_outcome_judged` states which of the
+five outcomes a result is. -/
 theorem microduck_outcome :
     Regula.ExecutableContract Host.Microduck.Action.outcome (fun outcome =>
-      Regula.Decides (· ≠ .refused)
+      Regula.Decides
+        (fun result : Host.Microduck.Outcome => result ≠ .refused ∧ result ≠ .unanswered)
         (fun input : ((Host.Microduck.Action × Bool) × Host.Microduck.Reply) × Bool =>
           input.1.2 = .accepted)
         (Function.uncurry (Function.uncurry (Function.uncurry outcome)))) :=
   ⟨decides
     (fun input =>
       Host.Microduck.Action.outcome_accepted input.1.1.1 input.1.1.2 input.1.2 input.2)
-    ⟨(((.still, false), .accepted), true), rfl⟩
-    ⟨(((.still, false), .refused), true), by decide⟩⟩
+    ⟨(((.still, false), .accepted), true), by decide⟩
+    ⟨(((.still, false), .pending), true), by decide⟩⟩
 
 attribute [regula_decision] Host.Microduck.Action.outcome
 
-/-- Which of its four outcomes a released Microduck action has: for every action, stated
+/-- Which of its five outcomes a released Microduck action has: for every action, stated
 posture, answer of the daemon, evidence and outcome, the function gives the outcome exactly
 when the specification `Host.Microduck.Action.Judged` holds of it
 (`Host.Microduck.Action.outcome_judged`). The specification is a disjunction of propositions
@@ -1701,6 +1711,77 @@ theorem json_parse_value :
       ∀ request : Json.Request, request.Simple →
         parse (String.ofList request.chars) = .ok request.value) :=
   ⟨Json.parse_request⟩
+
+/-- The test of what shows a Microduck action accepts exactly an action and a policy that
+the table `Host.Microduck.Action.Shown` pairs (`Host.Microduck.Action.shows_iff`). The
+specification is the table, a relation with one case for each pair, and shares no test with
+the function. The two inputs of the proof are standing still with the standing network,
+which is accepted, and standing still with the walking network, which is refused.
+
+**Not claimed:** that a body which names the policy executes the action, and that a body
+which executes the action names the policy in a frame that is heard in time. The forward
+velocity and the two turns share the walking network, and the table is declared from the
+labels of one observed run. -/
+theorem microduck_shows :
+    Regula.ExecutableContract Host.Microduck.Action.shows (fun shows =>
+      Regula.Decides (· = true)
+        (fun input : Host.Microduck.Action × Host.Microduck.Policy => input.1.Shown input.2)
+        (Function.uncurry shows)) :=
+  ⟨decides (fun input => Host.Microduck.Action.shows_iff input.1 input.2)
+    ⟨(.still, .stand), .still⟩
+    ⟨(.still, .walk), fun shown => nomatch shown⟩⟩
+
+attribute [regula_decision] Host.Microduck.Action.shows
+
+/-- The sensing of a percept gives one exactly for an instant and a host with no percept
+awaiting of which two things hold: a state frame is held with its pair, and the cycle of the
+instant is not before the first cycle that the last release allows
+(`Host.Microduck.Idle.sense_admitted`), for every instant and host. The statement is the
+guard of the function written as a proposition on what the host holds. That no percept
+awaits is in the type of the host. Both outcomes occur: a host that only started is
+refused, and a host that started and heard a state frame is accepted, which is how the
+instance of `Nonempty Host.Microduck.Awaiting` is made.
+
+The statement keeps no kind. The type of a host carries the proof that the host is reached
+by the transitions, which names every transition and so the tests that this one runs, and
+RG1009 refuses a kind over such an input (https://github.com/rbeauchamp/regula/issues/270).
+
+**Not claimed:** what the percept is built from and the state after it, which
+`Host.Microduck.Idle.sense_iff` states; that the frame held was heard since the last
+release, which `Host.Microduck.Awaiting.release_iff` states of the state a release gives;
+that an executing loop calls this transition; and that the frame held is recent on any
+clock, which no definition measures. -/
+theorem microduck_sense :
+    Regula.ExecutableContract Host.Microduck.Idle.sense (fun sense =>
+      ∀ (now : Instant) (idle : Host.Microduck.Idle),
+        (sense now idle).isSome = true ↔
+          (∃ pair, idle.calm.pair = some pair) ∧
+            idle.calm.cycle ≤ idle.calm.pace.index idle.calm.origin now) :=
+  ⟨Host.Microduck.Idle.sense_admitted⟩
+
+/-- The release of an action is admitted exactly for a cycle, an instant and a host with a
+percept awaiting such that the cycle is the awaited one and has started at the instant, for
+every action (`Host.Microduck.Awaiting.release_admitted`). The statement is the guard of the
+function written as a proposition on what the host holds. Both outcomes occur for every
+host with a percept awaiting, and one exists (`Nonempty Host.Microduck.Awaiting`): the
+release for its awaited cycle at the start of that cycle is accepted, and a release for the
+cycle after it is refused.
+
+The statement keeps no kind, for the reason given at `microduck_sense`.
+
+**Not claimed:** what is sent and what is recorded, which
+`Host.Microduck.Awaiting.release_iff` states; that the release is timely, which
+`Host.Microduck.Awaiting.release_fault` decides; and that an executing loop calls this
+transition. -/
+theorem microduck_release :
+    Regula.ExecutableContract Host.Microduck.Awaiting.release (fun release =>
+      ∀ (index : Nat) (now : Instant) (action : Host.Microduck.Action)
+        (awaiting : Host.Microduck.Awaiting),
+        (release index now action awaiting).isSome = true ↔
+          index = awaiting.poised.index ∧
+            (awaiting.poised.pace.boundary awaiting.poised.origin index).nanoseconds ≤
+              now.nanoseconds) :=
+  ⟨Host.Microduck.Awaiting.release_admitted⟩
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification

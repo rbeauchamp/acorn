@@ -79,17 +79,22 @@ daemon's smoothing of a command and of the body, and no assumption below states 
 
 ## What became of an action
 
-`Action.outcome` is what became of a released action, one of four outcomes that later
-code has to tell apart: `refused`, `unexecuted` (accepted, and the body did not show
-it), `unchanged` (accepted and shown, for a posture the body had, so no skill was sent)
-and `executed`. A refusal and a missing execution are read first, so an action that
-asks for the stated posture still reports them. The outcome is a refusal exactly when
-the daemon refused (`Action.outcome_accepted`). `Action.Judged` is the specification of
-all four outcomes, in propositions about the commands the release sent, and
+`Action.outcome` is what became of a released action, one of five outcomes that later
+code has to tell apart: `refused`, `unanswered` (the daemon's answer was not complete),
+`unexecuted` (accepted, and the body did not show it), `unchanged` (accepted and shown,
+for a posture the body had, so no skill was sent) and `executed`. The answer is a
+`Reply` of three states, pending, accepted and refused. A refusal, a pending answer and a
+missing execution are read first, so an action that asks for the stated posture still
+reports them. An outcome says that the daemon accepted the action exactly for an
+accepted answer (`Action.outcome_accepted`), and it is a refusal or unanswered exactly
+for a refused or a pending one (`Action.outcome_reply`). `Action.Judged` is the
+specification of all five outcomes, in propositions about the commands the release sent,
+and
 `Action.outcome_judged` states that the function gives an outcome exactly when the
 specification holds of it. `Bridge.outcome` reads the posture that the state holds from
 the release, so the commands and the outcome of one release read one posture. How
-sensing shows an action is not defined here: the outcome takes that fact as an input.
+sensing shows an action is not defined here: the outcome takes that fact as an input,
+and `Acorn.Host.Microduck.Session` gives it by a declared table of policy labels.
 
 ## Assumptions
 
@@ -102,15 +107,17 @@ These are assumptions of the use of the statements, proved nowhere:
 - the receipt follows the reading of the clock that a send is stamped with by at most
   the transit allowance of the keeping;
 - a reading of the clock, and a tick, at least every `Declared.gap`. That needs a reader
-  of the clock that runs while the agent's step computes, which is a property of a host
-  loop that is not built, and of the operating system's scheduling;
+  of the clock that runs while the agent's step computes, which is a property of an
+  executing host loop, which is not built, and of the operating system's scheduling;
 - the posture a caller states is the body's;
 - the declared duration of an action covers what the body takes for it.
 
-No executing code keeps a `Bridge`: the functions here are pure, and the host loop that
-calls them is not built (https://github.com/rbeauchamp/acorn/issues/95). A host owes
-that it senses the next percept at the cycle `Bridge.next` gives and no earlier; nothing
-in the state refuses an earlier release.
+No executing code keeps a `Bridge`: the functions here are pure.
+`Acorn.Host.Microduck.Session` holds one in the state of a host and calls them in its own
+pure transitions, which refuse a percept before the cycle that `Bridge.next` gives; the
+executing loop that calls those is not built
+(https://github.com/rbeauchamp/acorn/issues/95). Nothing in a `Bridge` itself refuses an
+earlier release.
 -/
 namespace Acorn.Host.Microduck
 
@@ -482,9 +489,11 @@ theorem Bridge.fault_named (pace : Pace) (keep : Keep) (origin : Instant)
 
 /-! ## What became of an action -/
 
-/-- The daemon's answer to the commands of a release: refused when it refused one. -/
+/-- The daemon's answer to the commands of a release, as far as it was heard. -/
 inductive Reply where
-  /-- The daemon accepted every command. -/
+  /-- An answer to a command of the release was not heard yet, and none refused. -/
+  | pending
+  /-- The daemon accepted every command of the release. -/
   | accepted
   /-- The daemon refused a command. -/
   | refused
@@ -501,15 +510,20 @@ inductive Outcome where
   | refused
   /-- The daemon accepted the action and the body did not show it. -/
   | unexecuted
+  /-- The daemon's answer to the action was not complete: it says neither that the daemon
+  accepted the action nor that it refused it. -/
+  | unanswered
   deriving DecidableEq
 
 /-- What became of an action released for a stated posture, from the daemon's answer and
-whether the body showed the action. A refusal and a missing execution are read before
-the posture. -/
+whether the body showed the action. A refusal, a pending answer and a missing execution
+are read before the posture, so an outcome that says the daemon accepted the action is
+given only for an accepted answer. -/
 def Action.outcome (action : Action) (sitting : Bool) (reply : Reply) (shown : Bool) :
     Outcome :=
   match reply with
   | .refused => .refused
+  | .pending => .unanswered
   | .accepted =>
     if shown then
       if action.intent = .posture sitting then .unchanged else .executed
@@ -530,6 +544,7 @@ that a posture action's release sent no toggle. -/
 def Action.Judged (action : Action) (sitting : Bool) (reply : Reply) (shown : Bool)
     (outcome : Outcome) : Prop :=
   (outcome = .refused ∧ reply = .refused) ∨
+    (outcome = .unanswered ∧ reply = .pending) ∨
     (outcome = .unexecuted ∧ reply = .accepted ∧ shown = false) ∨
     (outcome = .unchanged ∧ reply = .accepted ∧ shown = true ∧
       action.Postural ∧ Command.perform .sitToggle ∉ action.commands sitting) ∨
@@ -546,11 +561,23 @@ theorem Action.outcome_judged (action : Action) (sitting : Bool) (reply : Reply)
   unfold Action.Judged Action.Postural
   cases action <;> cases sitting <;> cases reply <;> cases shown <;> cases outcome <;> decide
 
-/-- **The outcome is a refusal exactly when the daemon refused.** For every action,
-stated posture, answer and evidence: neither the posture nor the evidence produces a
-refusal or hides one. -/
+/-- **The outcome says that the daemon accepted the action exactly for an accepted
+answer.** For every action, stated posture, answer and evidence: the outcome is neither a
+refusal nor unanswered, so it is one of the three that say the daemon accepted the action,
+exactly when the answer is the accepted one. Neither the posture nor the evidence produces
+an acceptance. -/
 theorem Action.outcome_accepted (action : Action) (sitting : Bool) (reply : Reply)
-    (shown : Bool) : action.outcome sitting reply shown ≠ .refused ↔ reply = .accepted := by
+    (shown : Bool) :
+    (action.outcome sitting reply shown ≠ .refused ∧
+        action.outcome sitting reply shown ≠ .unanswered) ↔ reply = .accepted := by
+  cases action <;> cases sitting <;> cases reply <;> cases shown <;> decide
+
+/-- **The outcome is a refusal exactly for a refused answer, and unanswered exactly for a
+pending one.** For every action, stated posture, answer and evidence. -/
+theorem Action.outcome_reply (action : Action) (sitting : Bool) (reply : Reply)
+    (shown : Bool) :
+    (action.outcome sitting reply shown = .refused ↔ reply = .refused) ∧
+      (action.outcome sitting reply shown = .unanswered ↔ reply = .pending) := by
   cases action <;> cases sitting <;> cases reply <;> cases shown <;> decide
 
 /-- **The outcome of a release reads that release's commands.** For every release,

@@ -21,11 +21,13 @@ fields and scales are authored in that host module. Each signal carries its decl
 origin in its value. The layout has no type of its own to carry one: its declaration is
 the entry of the register and the inventory of the departure audit.
 
-No executing code builds a percept: the host loop of this world is not built. A host
-owes the adapter four things, and no theorem here states that a host supplies them: the
-reading, what became of the preceding action, whether its release was late, and the
-state of the goal's latch, which starts disarmed and which `arm` advances at each
-reading.
+No executing code builds a percept: the executing host loop of this world is not built.
+A host owes the adapter four things: the reading, what became of the preceding action,
+whether its release was late, and the state of the goal's latch, which starts disarmed
+and which `arm` advances at each reading. `Acorn.Host.Microduck.Idle.sense` gives the
+four as pure definitions, with the latch held in the state of the host, so that the
+latch of every reachable host is the fold of `arm` over the readings it sensed
+(`Acorn.Host.Microduck.Reached.latch`).
 
 ## The interface value
 
@@ -66,9 +68,9 @@ A level is the count of whole steps from the least value of the scale of thousan
 it is never negative. The coder hashes a channel and a value into a feature and does not
 generalise between two values, so a step is the resolution the agent has of a quantity.
 The steps are authored numbers of this module. None has been qualified by an
-experiment. The four outcomes of an action and the case before any action have five
-values of their word (`became_injective`), so a refused action and an accepted action
-that was not executed are two words.
+experiment. The five outcomes of an action and the case before any action have six
+values of their word (`became_injective`), so a refused action, an accepted action that
+was not executed and an action whose answer was not complete are three words.
 
 Absence is a word and not a zero. The presence word of the rates, of the gain and of the
 depth frame is one when the reading has the quantity and zero when it does not
@@ -225,6 +227,7 @@ def became : Option Outcome → UInt64
   | some .unchanged => 2
   | some .refused => 3
   | some .unexecuted => 4
+  | some .unanswered => 5
 
 /-- The level of the gravity word for the upward component below which the trunk counts as
 upright: the level of -950 thousandths, which is 318. -/

@@ -13,6 +13,7 @@ import AcornVerif.GridCorrespondence
 import AcornVerif.DrawFirst
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Microduck.Sensing
+import Acorn.Host.Microduck.Session
 import Acorn.Host.Microduck.Wire
 import AcornVerif.Decimal
 
@@ -280,8 +281,15 @@ release plus the action's declared duration and a transit allowance:
 
 {statement Acorn.Host.Microduck.Action.next_covers}
 
-That a host senses the next percept at that cycle and no earlier is an obligation of a
-host loop, which is not built. A bridge's state stores the record of its release, and the
+That a host senses the next percept at that cycle and no earlier is in the pure
+transitions of a host: a percept is sensed only in a cycle that is not before that one, and
+from a state frame heard since the release ({decl}`Acorn.Host.Microduck.Idle.sense_iff`).
+A host is in one of two phases, each a type whose values are reached from the start by the
+transitions, and its verdict at every instant is the deadline rule's for its last step: a
+fault holds from the deadline to the release, the instant of the release included
+({decl}`Acorn.Host.Microduck.Awaiting.release_fault`), and the latch of the goal is the fold
+of the adapter's rule over the readings sensed ({decl}`Acorn.Host.Microduck.Reached.latch`).
+An executing loop that calls the transitions is not built. A bridge's state stores the record of its release, and the
 cycle of the next percept and the end of the hold are functions of that record, so
 {decl}`Acorn.Host.Microduck.Bridge.next_covers` holds of every state.
 {decl}`Acorn.Host.Microduck.Bridge.ticks_named` states that over any list of readings of

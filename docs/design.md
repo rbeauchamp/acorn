@@ -339,10 +339,10 @@ later release is less than `span + latency` cycles after the earlier one
 (`Pace.met_gap`).
 
 These are statements about the functions. No executing loop keeps a standing or
-reads a cycle or a latency, and no executing world declares a wall clock. A host loop
-of a wall-clock world is to compute its verdicts with `Pace.outcome`; nothing here
-states that a host senses a percept at the start of a cycle, or that a world keeps in
-force the action that a standing names.
+reads a cycle or a latency, and no executing world declares a wall clock. A host of a
+wall-clock world computes its verdicts with `Pace.outcome`; the pure transitions of the
+Microduck's host do, and no executing loop calls them yet. Nothing here states that a
+world keeps in force the action that a standing names.
 
 Operation in real time needs three more parts, and none is built:
 
@@ -625,7 +625,7 @@ skills and timing is in
 A client sends **intents**, never a joint command: a velocity, or a skill by name.
 The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
 0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
-for the client. Five parts of this world are built, as pure definitions:
+for the client. Six parts of this world are built, as pure definitions:
 [the action table](../lean/Acorn/Host/Microduck/Action.lean),
 [the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean),
 [what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
@@ -633,8 +633,10 @@ integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/D
 with its reader of one JSON number,
 [the readers of a line of the daemon and the line of each command](../lean/Acorn/Host/Microduck/Wire.lean),
 as JSON,
+[what a host holds between two events](../lean/Acorn/Host/Microduck/Session.lean) with
+its transitions,
 and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
-No host loop and no transport exist yet, so no code of Acorn reaches the simulator and no executing code
+No executing host loop and no transport exist yet, so no code of Acorn reaches the simulator and no executing code
 builds a percept of this world
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
@@ -792,27 +794,29 @@ on assumptions that are proved nowhere:
 - the receipt follows the reading of the clock a send is stamped with by at most the
   transit allowance;
 - a reading of the clock at least every 50 ms, which needs a reader that runs while
-  the agent's step computes. That is a property of a host loop that is not built, and
-  of the operating system's scheduling;
+  the agent's step computes. That is a property of an executing host loop, which is not
+  built, and of the operating system's scheduling;
 - that the posture a caller states is the body's. A wrong one sends the toggle the
   wrong way;
 - that the declared duration of an action covers what the body takes for it.
 
-**What became of an action.** `Action.outcome` gives one of four outcomes from the
+**What became of an action.** `Action.outcome` gives one of five outcomes from the
 stated posture, the daemon's answer and whether the body showed the action:
-`refused`, `unexecuted` (accepted, and the body did not show it), `unchanged`
-(accepted and shown, for a posture the body had, so no skill was sent) and
-`executed`. A refusal and a missing execution are read first, so an action that asks
-for the stated posture still reports them. `Action.Judged` is the specification, in
+`refused`, `unanswered` (the answer was not complete), `unexecuted` (accepted, and the
+body did not show it), `unchanged` (accepted and shown, for a posture the body had, so
+no skill was sent) and `executed`. The answer has three states: pending, accepted and
+refused. A refusal, a pending answer and a missing execution are read first, so an
+action that asks for the stated posture still reports them. `Action.Judged` is the specification, in
 propositions about the two facts and about the commands the release sent, and
 `Action.outcome_judged` states that the function gives an outcome exactly when the
-specification holds of it. The outcome is a refusal exactly when the daemon refused
-(`Action.outcome_accepted`); that is its registered decision kind, and the four-case
-statement is registered beside it. `Bridge.outcome` reads the
+specification holds of it. An outcome says that the daemon accepted the action exactly
+for an accepted answer (`Action.outcome_accepted`); that is its registered decision
+kind, and the five-case statement is registered beside it. `Bridge.outcome` reads the
 posture that the state holds from the release, so the commands and the outcome of
 one release read one posture (`Bridge.release_outcome`). A late release is not an
 outcome: it is the fault of [the deadline rule](#the-time-a-world-declares). How
-sensing shows an action is not defined yet.
+sensing shows an action is a declared table of policy labels, under "What a host
+holds" below.
 
 **What the body senses.** The daemons publish the state of the body at 50 Hz and an
 8 by 8 grid of depths at about 14 Hz, on one monotonic clock of their own, and a
@@ -952,6 +956,53 @@ invalid, an error member that is null beside a result included (`Line.read_state
 `Line.read_depth`, `Line.read_unread`, `Line.read_notice`, `Line.read_result`,
 `Line.read_fault`, `Line.read_invalid`). What a host does at an unread frame is not
 decided.
+
+**What a host holds, and its transitions.** A host has two phases, and each is a type:
+`Idle`, with no percept awaiting its action, and `Awaiting`, with one. Sensing takes an
+idle host to an awaiting one and a release takes it back, so a second percept over an
+awaited one and a release with nothing awaited cannot be written. Each type carries a
+proof that its state is reached from the start by the transitions (`Reached`, one
+constructor for each transition), so every value has a derivation and what holds of
+every derivation holds of every value.
+
+- Hearing a line keeps the latest state frame and the two latest depth frames. A
+  release holds the identifiers of its requests that are not answered, and a result or
+  a fault counts only for the release that holds its identifier (`Sent.answer_iff`).
+  The answer of a release has three states: refused when one of its requests was
+  refused, pending while one of its commands is not answered, accepted when all were
+  accepted (`Sent.reply_iff`). So an outcome that says the daemon accepted an action is
+  given only then, and a release that is still pending at the next percept reads
+  `unanswered`. The action is held as shown exactly when a state frame named a policy
+  that a declared table gives for it (`Idle.hear_shown`): the walking network for the
+  velocities that move, the standing network or the sitting label for standing still,
+  the label of each skill and of each posture. That evidence is weak: the forward
+  velocity and the turns share one label, a frame from before a command took effect can
+  show the action, and the next percept can be sensed before the label changes. How
+  often it is wrong, in either direction, is UNKNOWN until the simulator runs.
+- A state frame is paired with a depth frame only when the depth frame is stamped at or
+  before it: the later of the two latest depth frames that is. With none, the reading
+  has no depth, which the frame of the interface marks as absent. So the age of a depth
+  frame is the exact difference of two stamps (`Idle.sense_age`).
+- Sensing gives a percept only in a cycle that is not before the one the last release
+  allows, and from a state frame heard since that release, which it uses up
+  (`Idle.sense_iff`). The frame was heard after the release; it can have been made
+  before it. The percept is built by the adapter, with the latch of the goal that the
+  host holds: the latch of every reachable host is the fold of the adapter's `arm` over
+  the readings it sensed (`Reached.latch`), so after a near reading no percept is the
+  event of the goal until a clear one (`Idle.sense_held`).
+- A release names the cycle it answers and is admitted exactly when that is the awaited
+  one and has started (`Awaiting.release_iff`). Each command gets one of the host's
+  next unused identifiers, which no earlier release holds (`Awaiting.release_fresh`).
+- No standing is stored. The standing of an idle host at an instant is the one of its
+  last step, so the verdict of the host that a release returns is the deadline rule's
+  at every instant: a fault from the deadline to the release, the instant of the
+  release included, and during it the action of the release before, up to the end of
+  its hold (`Awaiting.release_standing`, `Awaiting.release_fault`, `Calm.fault_named`).
+- A reading of the clock sends the velocity again when the bridge says so, with a new
+  identifier, and changes nothing that the deadline rule reads (`Idle.tick_keeps`).
+
+No executing loop calls these transitions yet, and none of them reads a clock or a
+socket.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol
