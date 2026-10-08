@@ -806,36 +806,43 @@ measured quantity is the decimal text of a JSON number. The record of both strea
 from the observed run is in
 [a second comment of issue 95](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6051119525).
 A host keeps none of them as a float. A `Decimal` is a number as its text spells it:
-a sign, the digits as one natural number and a power of ten. A `Scale` declares how
-a field is kept: a number of decimal places, a least and a greatest value.
-`Decimal.fixed` converts by integer arithmetic in two steps, and each statement holds
-for every decimal and every scale:
+a sign, the digits as one natural number and a power of ten, with an exponent of
+any size. A `Scale` declares how a field is kept: a number of decimal places, a least
+and a greatest value. `Decimal.fixed` converts by integer arithmetic.
 
-- **Scaling and rounding.** The magnitude is taken in the unit of the scale and
-  rounded to the nearest natural number, a tie away from zero
-  (`Decimal.magnitude_nearest`), and no other natural number has that property
-  (`Decimal.magnitude_unique`). Less than half a unit is zero
-  (`Decimal.magnitude_zero`): the residues `1e-323` and `7.38787616182396e-14`, which
-  [the record of the run's timing](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895)
-  quotes, are zero in thousandths. The rounded value is that magnitude,
-  negated for a decimal with a minus sign (`Decimal.rounded_sign`).
-- **Saturation.** A rounded value below the scale gives its least value, one above
-  gives its greatest, and one inside is kept (`Decimal.fixed_below`,
-  `Decimal.fixed_above`, `Decimal.fixed_inside`). The result is a `Scale.Word`, whose
-  type holds the proof of its bounds.
+**What the conversion computes** is stated over the rational value of the decimal,
+in [the proof library](../lean/AcornVerif/Decimal.lean), with none of the
+conversion's arithmetic. `value` is the digits times ten to the exponent, negated
+for a minus sign. `Nearest x n` says that the integer `n` is within one half of `x`,
+and that where it is exactly one half away `x` is the nearer to zero; at most one
+integer is nearest (`Nearest.unique`). For every scale and every decimal, the result
+is the integer nearest to the value times ten to the places of the scale, saturated
+to the bounds of the scale (`fixed_nearest`). A height of 0.116 m is 116 in
+thousandths, the residues `1e-323` and `7.38787616182396e-14`, which
+[the record of the run's timing](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895)
+quotes, are zero, and an angle beyond 32.767 rad is 32,767. The result is a
+`Scale.Word`, whose type holds the proof of its bounds.
+
+**How it computes** without a power of ten of the exponent's size. Write the shift
+for the exponent plus the places of the scale. The conversion is the direct rounding
+followed by the saturation for every decimal (`Decimal.fixed_clamp`), and it decides
+two cases by comparing integers:
+
+- with no digits, or with the count of the digits plus the shift negative, the
+  rounded magnitude is zero (`Decimal.magnitude_vanishes`);
+- with digits and a shift of at least the width of the scale, which is the count of
+  the digits of its larger bound, the rounded magnitude is at least ten to that width
+  (`Decimal.magnitude_beyond`) and so beyond both bounds (`Scale.width_bound`): the
+  result is the least value for a minus sign and the greatest without one;
+- between the two it divides, and there the powers of ten it forms have exponents
+  below the width of the scale and of at most the count of the digits
+  (`Decimal.shift_between`).
+
+So `1e401` saturates and `1e-401` is zero, with no power of ten of 401 formed.
 
 Two scales are declared. `Declared.milli` keeps thousandths and saturates at plus and
-minus 32,767: a height of 0.116 m is 116, and an angle beyond 32.767 rad is 32,767.
-`Declared.range` keeps whole millimetres from 0 to 32,767. Each fits sixteen bits
-(`Declared.milli_sixteen`, `Declared.range_sixteen`). The exponent of a `Decimal` lies
-within 400 of zero, so the two powers of ten a conversion forms have exponents of at
-most 400 plus the places of the scale, and 400 (`Decimal.shift_bounded`): 403 and 400
-for the declared scales. The digits of a `Decimal` are not bounded by its type. The
-400 is a declaration: a text of at most 17 digits, counted from the first that is not
-zero, whose first such digit stands at a power of ten between -324 and 308, which is
-the range of the finite binary64 numbers, has an exponent between -340 and 308 once
-its point is removed. That is argued and not machine-checked, and that the daemon
-writes such texts is an assumption.
+minus 32,767. `Declared.range` keeps whole millimetres from 0 to 32,767. Each fits
+sixteen bits (`Declared.milli_sixteen`, `Declared.range_sixteen`).
 
 A `State` is one frame of the state stream: the angle of each of the fifteen joints
 and, when the daemon reports them, their rates; the direction of gravity and the
@@ -857,9 +864,14 @@ goal, is built on a reading by a module that does not exist; its channels and
 signals will be declared under departures D1 and D5 of the
 [learned-only binding](learned-only-binding.md), and what a reading leaves out that
 frame cannot carry. The function that reads the daemon's text into these types is
-not built either. It owes the name of each field, the order of each array, the
-tables of labels and of limit names, the refusal of an exponent outside the reach
-and of an unsigned integer that its type does not hold, and a limit on the digits.
+not built either, and it belongs with the reader of the daemon's text. It owes the
+name of each field, the order of each array, the tables of labels and of limit
+names, the refusal of an unsigned integer that its type does not hold, and the
+`Decimal` of each number's spelling. The spelling is the one the repository's JSON
+reader keeps: an optional minus sign, digits, an optional point with digits after
+it and an optional exponent. That reader refuses `1.` and `1e`, and every spelling
+it admits, negative zero among them, has a `Decimal`, so the conversion is total
+over what the reader can give.
 
 UNKNOWN, because the observed run did not exercise them: how long sitting down
 takes (the run recorded the label of the sitting network and not the time the body

@@ -13,6 +13,7 @@ import AcornVerif.GridCorrespondence
 import AcornVerif.DrawFirst
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Microduck.Sensing
+import AcornVerif.Decimal
 
 open Verso.Genre Manual
 open AcornSite
@@ -294,21 +295,25 @@ body's, and that a declared duration covers what the body takes.
 What the Microduck senses is kept as bounded integers, also as pure definitions that no
 executing code calls. The daemon reports a measured quantity as the decimal text of a JSON
 number, and {decl}`Acorn.Host.Microduck.Decimal.fixed` converts such a number to an integer
-of a declared scale by integer arithmetic alone.
-{decl}`Acorn.Host.Microduck.Decimal.magnitude_nearest` states the rounding of the
-magnitude, to the nearest unit of the scale with a tie away from zero, and
-{decl}`Acorn.Host.Microduck.Decimal.magnitude_unique` that no other natural number has the
-property:
+of a declared scale by integer arithmetic alone. What it computes is stated over the
+rational value of the decimal, {decl}`AcornVerif.Decimal.value`, and the predicate
+{decl}`AcornVerif.Decimal.Nearest`, which name none of the conversion's arithmetic: the
+result is the integer nearest to the value in the units of the scale, at a tie the one
+farther from zero, saturated to the bounds of the scale.
 
-{statement Acorn.Host.Microduck.Decimal.magnitude_nearest}
+{statement AcornVerif.Decimal.fixed_nearest}
 
-{decl}`Acorn.Host.Microduck.Decimal.fixed_below`,
-{decl}`Acorn.Host.Microduck.Decimal.fixed_above` and
-{decl}`Acorn.Host.Microduck.Decimal.fixed_inside` state the saturation, and the bounds of
-the result are part of its type. {decl}`Acorn.Host.Microduck.Reading.age_exact` states the
-age of the depth frame that a reading is paired with. The function that reads a frame of
-the daemon into these types is not built, so no theorem states that the text of a frame
-is read into them correctly.
+{decl}`AcornVerif.Decimal.Nearest.unique` states that at most one integer is nearest, and
+{decl}`AcornVerif.Decimal.rounded_nearest` that the rounding of the executed arithmetic is.
+The statement holds for an exponent of any size. The conversion decides by two comparisons
+of integers when a decimal rounds to zero and when it saturates
+({decl}`Acorn.Host.Microduck.Decimal.fixed_clamp`), and between them the powers of ten it
+forms are bounded by the scale and by the count of the digits
+({decl}`Acorn.Host.Microduck.Decimal.shift_between`). The bounds of the result are part of
+its type. {decl}`Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
+that a reading is paired with. The function that reads a frame of the daemon into these
+types is not built, so no theorem states that the text of a frame is read into them
+correctly.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting

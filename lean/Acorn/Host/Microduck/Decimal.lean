@@ -14,54 +14,81 @@ has two types and one conversion.
 
 A `Decimal` is a number as a JSON text spells one: a sign, the digits as one natural
 number, and a power of ten. Its value is the digits times ten to the exponent, negated
-when the sign says so. No float is involved: the conversion is integer arithmetic on
+when the sign says so. Every sign, natural number and integer exponent is a `Decimal`:
+the type refuses nothing. No float is involved: the conversion is integer arithmetic on
 those three parts.
 
 A `Scale` declares how a field is kept: the number of decimal places, and the least and
-the greatest value. `Decimal.fixed` is the conversion, in two steps.
+the greatest value. A `Scale.Word` is an integer with the proof that it lies between
+them, so the bounds of a result are part of its type and no theorem states them.
 
-- **Scaling and rounding** give `Decimal.rounded`, an integer. The magnitude is taken in
-  units of ten to the minus `places` and rounded to the nearest natural number, a tie
-  away from zero. `Decimal.magnitude_nearest` states that, and `Decimal.magnitude_unique`
-  that no other natural number has the property. Where the power of ten that takes the
-  decimal to those units is not negative, the magnitude is the digits times that power,
-  and nothing is rounded (`Decimal.magnitude_exact`). A magnitude under half a unit gives
-  zero (`Decimal.magnitude_zero`), so a residue such as `1e-323` is zero in thousandths.
-  The rounded value is the rounded magnitude, negated for a decimal with a minus sign: it
-  is not positive for such a decimal, and not negative for a decimal without one
-  (`Decimal.rounded_sign`).
-- **Saturation** gives the result. A rounded value below the least value of the scale
-  gives the least value, one above the greatest gives the greatest, and one between them
-  is kept (`Decimal.fixed_below`, `Decimal.fixed_above`, `Decimal.fixed_inside`). The
-  result of a scale that does not contain zero can have the other sign than the decimal.
+`Decimal.fixed` is the conversion. What it computes is stated in
+`AcornVerif.Decimal`, over the rational value of the decimal and with none of this
+module's arithmetic: the result is the integer nearest to the value times ten to the
+`places`, at a tie the one farther from zero, saturated to the bounds of the scale
+(`AcornVerif.Decimal.fixed_nearest`).
 
-The result is a `Scale.Word`, an integer with the proof that it lies between the least
-and the greatest value of its scale. The bounds are part of the type, so no theorem
-states them.
+**How it computes.** `Decimal.rounded` is that nearest integer by direct arithmetic,
+which raises ten to the size of the exponent, and `Scale.clamp` is the saturation. The
+conversion equals the one after the other for every decimal and every scale
+(`Decimal.fixed_clamp`), and it does not run `Decimal.rounded` on an exponent of any
+size. Write `shift` for the exponent plus the places. Two comparisons, of integers only,
+decide the outer cases:
 
-**What is bounded.** The exponent of a `Decimal` lies within `Decimal.reach`, 400, of
-zero. So of the two powers of ten that a conversion forms, one has an exponent of at
-most the reach plus the places of the scale, and the other of at most the reach
-(`Decimal.shift_bounded`). The places of a `Scale` and the digits of a `Decimal` are not
-bounded by their types.
+- **It rounds to zero** when there are no digits, or when the count of the digits plus
+  the shift is negative. The digits are less than ten to their count (`width_bound`), so
+  the magnitude is then under a tenth of a unit, and the rounded magnitude is zero
+  (`Decimal.magnitude_vanishes`).
+- **It saturates** when there are digits and the shift is at least the width of the
+  scale, which is the count of the digits of its larger bound. The rounded magnitude is
+  then at least ten to that width (`Decimal.magnitude_beyond`), which is above both
+  bounds (`Scale.width_bound`), and the result is the least value for a decimal with a
+  minus sign and the greatest for one without.
+- **Between the two** it does the arithmetic, and there the two powers of ten it forms
+  have exponents below the width of the scale, and of at most the count of the digits
+  of the decimal (`Decimal.shift_between`). So no power of ten it forms grows with the
+  size of the exponent. The cost of the conversion is not otherwise stated.
 
-The reach is a declaration, and this is its reason. Take a text whose digits, from the
-first that is not zero to the last, number at most 17, and whose first such digit stands
-at a power of ten between -324 and 308. With the point removed its exponent is between
--340 and 308, because removing the point lowers the exponent by at most 16. The finite
-binary64 numbers that are not zero have magnitudes from about 4.94 times ten to the -324
-to about 1.80 times ten to the 308, which is that range of powers. This is argued here
-and not machine-checked. That the daemon writes every number as such a text is an
-assumption. The function that reads a text into a `Decimal` is not built; it owes the
-refusal of an exponent outside the reach, and a limit on the digits.
+`width` is the count of the decimal digits of a natural number.
 
-No theorem here compares two decimals by their values, so that the conversion keeps
-their order is not stated.
+**The boundary.** The function that reads the spelling of a number into a `Decimal` is
+not built; it belongs with the reader of the daemon's text. The spelling it will read is
+the one `Acorn.Json.parse` keeps in `Acorn.Json.Value.number`: an optional minus sign,
+digits, an optional point with digits after it, and an optional exponent with an
+optional sign and digits. That reader refuses a spelling with no digit after a point or
+after an exponent mark, such as `1.` and `1e`. Every spelling it admits has a sign,
+digits that are one natural number and an integer exponent, and so has a `Decimal`,
+negative zero among them; this conversion is total over them. That the function which
+is not built gives the `Decimal` of the spelling is no theorem here.
+
+No theorem compares two decimals by their values, so that the conversion keeps their
+order is not stated.
 -/
 namespace Acorn.Host.Microduck
 
-/-- The distance from zero within which the exponent of a `Decimal` lies. -/
-def Decimal.reach : Nat := 400
+/-- The count of the decimal digits of a natural number, and one for zero. -/
+def width (value : Nat) : Nat :=
+  if small : value < 10 then 1 else width (value / 10) + 1
+termination_by value
+decreasing_by omega
+
+/-- **A natural number is less than ten to the count of its digits.** -/
+theorem width_bound (value : Nat) : value < 10 ^ width value := by
+  induction value using Nat.strongRecOn with
+  | ind value smaller =>
+    unfold width
+    split
+    · rename_i small
+      rw [Nat.pow_one]
+      exact small
+    · have inner := smaller (value / 10) (by omega)
+      rw [Nat.pow_succ]
+      omega
+
+/-- Every natural number has at least one digit. -/
+theorem width_positive (value : Nat) : 0 < width value := by
+  unfold width
+  split <;> omega
 
 /-- A number as a JSON text spells one. Its value is `digits` times ten to the
 `exponent`, negated when `negative`. -/
@@ -72,8 +99,6 @@ structure Decimal where
   digits : Nat
   /-- The power of ten that the digits are multiplied by. -/
   exponent : Int
-  /-- The exponent lies within the reach of zero. -/
-  bounded : exponent.natAbs ≤ Decimal.reach
 
 /-- How a field is kept as an integer. -/
 structure Scale where
@@ -90,35 +115,58 @@ structure Scale where
 abbrev Scale.Word (scale : Scale) : Type :=
   { value : Int // scale.low ≤ value ∧ value ≤ scale.high }
 
+/-- The count of the digits of the larger of the two bounds of a scale, by distance
+from zero. -/
+def Scale.width (scale : Scale) : Nat :=
+  Microduck.width (max scale.low.natAbs scale.high.natAbs)
+
+/-- **Both bounds of a scale are within ten to its width of zero.** -/
+theorem Scale.width_bound (scale : Scale) :
+    scale.low.natAbs < 10 ^ scale.width ∧ scale.high.natAbs < 10 ^ scale.width := by
+  have larger := Microduck.width_bound (max scale.low.natAbs scale.high.natAbs)
+  have left := Nat.le_max_left scale.low.natAbs scale.high.natAbs
+  have right := Nat.le_max_right scale.low.natAbs scale.high.natAbs
+  unfold Scale.width
+  constructor <;> omega
+
+/-- Saturation: an integer below the scale gives its least value, one above gives its
+greatest, and one inside is kept. -/
+def Scale.clamp (scale : Scale) (value : Int) : scale.Word :=
+  if below : value < scale.low then ⟨scale.low, Int.le_refl _, scale.ordered⟩
+  else if above : scale.high < value then ⟨scale.high, scale.ordered, Int.le_refl _⟩
+  else ⟨value, Int.not_lt.mp below, Int.not_lt.mp above⟩
+
+/-- **Saturation is the greater of the least value and the lesser of the greatest value
+and the integer.** For every scale and integer. -/
+theorem Scale.clamp_value (scale : Scale) (value : Int) :
+    (scale.clamp value).val = max scale.low (min scale.high value) := by
+  have ordered := scale.ordered
+  unfold Scale.clamp
+  split
+  · show scale.low = _
+    omega
+  · split
+    · show scale.high = _
+      omega
+    · show value = _
+      omega
+
 /-- The power of ten that takes a decimal to units of ten to the minus `places`. -/
 def Decimal.shift (decimal : Decimal) (places : Nat) : Int :=
   decimal.exponent + places
 
 /-- The magnitude of a decimal in units of ten to the minus `places`, rounded to the
-nearest natural number, a tie away from zero (`Decimal.magnitude_nearest`). -/
+nearest natural number, a tie away from zero. It raises ten to the size of the shift. -/
 def Decimal.magnitude (decimal : Decimal) (places : Nat) : Nat :=
   (2 * (decimal.digits * 10 ^ (decimal.shift places).toNat) +
       10 ^ (-decimal.shift places).toNat) /
     (2 * 10 ^ (-decimal.shift places).toNat)
 
-/-- **The powers of ten a conversion forms are bounded by the reach and the places.** For
-every decimal and number of places, of the two exponents that `Decimal.magnitude` raises
-ten to, one is at most the reach plus the places and the other at most the reach. -/
-theorem Decimal.shift_bounded (decimal : Decimal) (places : Nat) :
-    (decimal.shift places).toNat ≤ Decimal.reach + places ∧
-      (-decimal.shift places).toNat ≤ Decimal.reach := by
-  have bounded := decimal.bounded
-  unfold Decimal.shift
-  constructor <;> omega
-
-/-- **The magnitude is the nearest natural number, a tie away from zero.** For every
-decimal and number of places, write `scaled` for the digits times ten to the shift where
-the shift is positive, and `unit` for ten to the minus shift where it is negative, so
-that the magnitude of the decimal in the units of the scale is `scaled / unit`. Then
-twice the rounded magnitude times the unit is at most twice `scaled` plus the unit, which
-is less than twice the next natural number times the unit: the rounded magnitude differs
-from `scaled / unit` by at most one half, and at exactly one half it is the greater. -/
-theorem Decimal.magnitude_nearest (decimal : Decimal) (places : Nat) :
+/-- The two bounds of the division in `Decimal.magnitude`, in natural numbers: twice the
+magnitude times the divisor is at most twice the scaled digits plus the divisor, which is
+less than twice the next natural number times the divisor. `AcornVerif.Decimal` reads
+them as the rounding of the decimal's value. -/
+theorem Decimal.magnitude_bounds (decimal : Decimal) (places : Nat) :
     2 * decimal.magnitude places * 10 ^ (-decimal.shift places).toNat ≤
         2 * (decimal.digits * 10 ^ (decimal.shift places).toNat) +
           10 ^ (-decimal.shift places).toNat ∧
@@ -140,90 +188,108 @@ theorem Decimal.magnitude_nearest (decimal : Decimal) (places : Nat) :
   · rw [Nat.mul_right_comm]
     exact upper
 
-/-- **A shift that is not negative rounds nothing.** For every decimal and number of
-places whose shift is not negative, the magnitude is the digits times ten to the shift. -/
-theorem Decimal.magnitude_exact (decimal : Decimal) (places : Nat)
-    (whole : 0 ≤ decimal.shift places) :
-    decimal.magnitude places = decimal.digits * 10 ^ (decimal.shift places).toNat := by
+/-- **No digits, or a count of digits below the negated shift, is zero.** For every
+decimal and number of places: with no digits, or with the count of the digits plus the
+shift negative, the magnitude is zero. -/
+theorem Decimal.magnitude_vanishes (decimal : Decimal) (places : Nat)
+    (small : decimal.digits = 0 ∨
+      (width decimal.digits : Int) + decimal.shift places < 0) :
+    decimal.magnitude places = 0 := by
+  have unit : 0 < 10 ^ (-decimal.shift places).toNat := Nat.pow_pos (by decide)
+  unfold Decimal.magnitude
+  apply Nat.div_eq_of_lt
+  rcases small with none | far
+  · rw [none]
+    omega
+  · have count := width_bound decimal.digits
+    have whole : (decimal.shift places).toNat = 0 := by omega
+    have grows : 10 ^ (width decimal.digits + 1) ≤ 10 ^ (-decimal.shift places).toNat :=
+      Nat.pow_le_pow_right (by decide) (by omega)
+    rw [Nat.pow_succ] at grows
+    rw [whole, Nat.pow_zero, Nat.mul_one]
+    omega
+
+/-- **Digits and a shift of at least a bound give at least ten to that bound.** For every
+decimal with digits, number of places and bound: when the shift is at least the bound,
+the magnitude is at least ten to the bound. -/
+theorem Decimal.magnitude_beyond (decimal : Decimal) (places bound : Nat)
+    (present : decimal.digits ≠ 0) (far : (bound : Int) ≤ decimal.shift places) :
+    10 ^ bound ≤ decimal.magnitude places := by
   have none : (-decimal.shift places).toNat = 0 := by omega
+  have grows : 10 ^ bound ≤ 10 ^ (decimal.shift places).toNat :=
+    Nat.pow_le_pow_right (by decide) (by omega)
+  have scaled : 10 ^ (decimal.shift places).toNat ≤
+      decimal.digits * 10 ^ (decimal.shift places).toNat :=
+    Nat.le_mul_of_pos_left _ (Nat.pos_of_ne_zero present)
   unfold Decimal.magnitude
   rw [none, Nat.pow_zero, Nat.mul_one]
   omega
 
-/-- **No other natural number is nearest.** For every decimal and number of places, a
-natural number with the two bounds of `Decimal.magnitude_nearest` is the magnitude. -/
-theorem Decimal.magnitude_unique (decimal : Decimal) (places value : Nat)
-    (least : 2 * value * 10 ^ (-decimal.shift places).toNat ≤
-      2 * (decimal.digits * 10 ^ (decimal.shift places).toNat) +
-        10 ^ (-decimal.shift places).toNat)
-    (greatest : 2 * (decimal.digits * 10 ^ (decimal.shift places).toNat) +
-        10 ^ (-decimal.shift places).toNat <
-      2 * (value + 1) * 10 ^ (-decimal.shift places).toNat) :
-    decimal.magnitude places = value := by
-  rw [Nat.mul_comm 2, Nat.mul_assoc] at least
-  rw [Nat.mul_comm 2 (value + 1), Nat.mul_assoc] at greatest
-  exact Nat.div_eq_of_lt_le least greatest
-
-/-- **Less than half a unit is zero.** For every decimal and number of places: when twice
-the scaled digits are less than the unit, the magnitude is zero. -/
-theorem Decimal.magnitude_zero (decimal : Decimal) (places : Nat)
-    (small : 2 * (decimal.digits * 10 ^ (decimal.shift places).toNat) <
-      10 ^ (-decimal.shift places).toNat) :
-    decimal.magnitude places = 0 := by
-  unfold Decimal.magnitude
-  exact Nat.div_eq_of_lt (by omega)
-
 /-- A decimal in units of ten to the minus `places`, rounded to the nearest integer, a
-tie away from zero: the rounded magnitude with the sign of the decimal. -/
+tie away from zero: the rounded magnitude with the sign of the decimal. It raises ten to
+the size of the shift, and `Decimal.fixed` calls it between its two comparisons only. -/
 def Decimal.rounded (decimal : Decimal) (places : Nat) : Int :=
   if decimal.negative then -(decimal.magnitude places : Int) else decimal.magnitude places
 
-/-- **The rounded value is the rounded magnitude with the sign of the decimal.** Its
-distance from zero is the rounded magnitude; it is not positive for a decimal with a
-minus sign, and not negative for a decimal without one. It is zero for both when the
-magnitude rounds to zero. -/
-theorem Decimal.rounded_sign (decimal : Decimal) (places : Nat) :
-    (decimal.rounded places).natAbs = decimal.magnitude places ∧
-      (decimal.negative = true → decimal.rounded places ≤ 0) ∧
-      (decimal.negative = false → 0 ≤ decimal.rounded places) := by
-  unfold Decimal.rounded
-  cases decimal.negative
-  · exact ⟨Int.natAbs_natCast _, fun wrong => absurd wrong Bool.false_ne_true,
-      fun _ => Int.natCast_nonneg _⟩
-  · exact ⟨(Int.natAbs_neg _).trans (Int.natAbs_natCast _),
-      fun _ => Int.neg_nonpos_of_nonneg (Int.natCast_nonneg _),
-      fun wrong => absurd wrong.symm Bool.false_ne_true⟩
-
-/-- The conversion of a decimal to a word of a scale: scaled and rounded
-(`Decimal.rounded`), then saturated to the bounds of the scale. -/
+/-- The conversion of a decimal to a word of a scale: zero saturated when the decimal
+rounds to zero by the count of its digits, a bound of the scale when its shift alone
+puts it beyond both, and `Decimal.rounded` saturated between the two. -/
 def Decimal.fixed (scale : Scale) (decimal : Decimal) : scale.Word :=
-  if below : decimal.rounded scale.places < scale.low then
-    ⟨scale.low, Int.le_refl _, scale.ordered⟩
-  else if above : scale.high < decimal.rounded scale.places then
-    ⟨scale.high, scale.ordered, Int.le_refl _⟩
-  else ⟨decimal.rounded scale.places, Int.not_lt.mp below, Int.not_lt.mp above⟩
+  if decimal.digits = 0 ∨
+      (width decimal.digits : Int) + decimal.shift scale.places < 0 then
+    scale.clamp 0
+  else if (scale.width : Int) ≤ decimal.shift scale.places then
+    if decimal.negative then ⟨scale.low, Int.le_refl _, scale.ordered⟩
+    else ⟨scale.high, scale.ordered, Int.le_refl _⟩
+  else scale.clamp (decimal.rounded scale.places)
 
-/-- **A rounded value below the scale gives its least value.** -/
-theorem Decimal.fixed_below (scale : Scale) (decimal : Decimal)
-    (below : decimal.rounded scale.places < scale.low) :
-    (decimal.fixed scale).val = scale.low := by
-  simp only [Decimal.fixed, below, ↓reduceDIte]
-
-/-- **A rounded value above the scale gives its greatest value.** -/
-theorem Decimal.fixed_above (scale : Scale) (decimal : Decimal)
-    (above : scale.high < decimal.rounded scale.places) :
-    (decimal.fixed scale).val = scale.high := by
+/-- **The conversion is the rounding followed by the saturation.** For every scale and
+every decimal, with an exponent of any size. -/
+theorem Decimal.fixed_clamp (scale : Scale) (decimal : Decimal) :
+    decimal.fixed scale = scale.clamp (decimal.rounded scale.places) := by
   have ordered := scale.ordered
-  have least : ¬decimal.rounded scale.places < scale.low := by omega
-  simp only [Decimal.fixed, least, above, ↓reduceDIte]
+  have reach := scale.width_bound
+  unfold Decimal.fixed
+  split
+  · rename_i small
+    have zero := decimal.magnitude_vanishes scale.places small
+    unfold Decimal.rounded
+    rw [zero]
+    cases decimal.negative <;> rfl
+  · rename_i large
+    split
+    · rename_i far
+      have present : decimal.digits ≠ 0 := fun none => large (Or.inl none)
+      have beyond := decimal.magnitude_beyond scale.places scale.width present far
+      split
+      · rename_i minus
+        apply Subtype.ext
+        rw [Scale.clamp_value]
+        unfold Decimal.rounded
+        simp only [minus, ↓reduceIte]
+        omega
+      · rename_i plus
+        apply Subtype.ext
+        rw [Scale.clamp_value]
+        unfold Decimal.rounded
+        simp only [plus, Bool.false_eq_true, ↓reduceIte]
+        omega
+    · rfl
 
-/-- **A rounded value inside the scale is kept.** -/
-theorem Decimal.fixed_inside (scale : Scale) (decimal : Decimal)
-    (least : scale.low ≤ decimal.rounded scale.places)
-    (greatest : decimal.rounded scale.places ≤ scale.high) :
-    (decimal.fixed scale).val = decimal.rounded scale.places := by
-  have least : ¬decimal.rounded scale.places < scale.low := by omega
-  have greatest : ¬scale.high < decimal.rounded scale.places := by omega
-  simp only [Decimal.fixed, least, greatest, ↓reduceDIte]
+/-- **Between the two comparisons the powers of ten are small.** For every scale and
+decimal that the conversion neither rounds to zero by the count of the digits nor
+saturates by the shift, the two exponents that `Decimal.magnitude` raises ten to are
+below the width of the scale, and at most the count of the digits of the decimal. -/
+theorem Decimal.shift_between (scale : Scale) (decimal : Decimal)
+    (large : ¬(decimal.digits = 0 ∨
+      (width decimal.digits : Int) + decimal.shift scale.places < 0))
+    (near : ¬(scale.width : Int) ≤ decimal.shift scale.places) :
+    (decimal.shift scale.places).toNat < scale.width ∧
+      (-decimal.shift scale.places).toNat ≤ width decimal.digits := by
+  have count : ¬(width decimal.digits : Int) + decimal.shift scale.places < 0 :=
+    fun far => large (Or.inr far)
+  have some := width_positive (max scale.low.natAbs scale.high.natAbs)
+  unfold Scale.width at near ⊢
+  constructor <;> omega
 
 end Acorn.Host.Microduck
