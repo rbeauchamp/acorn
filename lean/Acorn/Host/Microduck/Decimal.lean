@@ -3,14 +3,14 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Init
+import Acorn.Json
 
 /-!
 # A decimal number, kept as a bounded integer
 
 The Microduck's control daemon reports a measured quantity as the decimal text of a JSON
 number. This module is where such a number becomes an integer of a declared range. It
-has two types and one conversion.
+has two types, one conversion and one reader of a JSON number.
 
 A `Decimal` is a number as a JSON text spells one: a sign, the digits as one natural
 number, and a power of ten. Its value is the digits times ten to the exponent, negated
@@ -62,15 +62,22 @@ number and divides nothing, and a count of decimal digits divides the number by 
 for each digit. Ten decimal digits are about eleven octal digits, so `d` is about a tenth
 more than the count of the decimal digits.
 
-**The boundary.** The function that reads the spelling of a number into a `Decimal` is
-not built; it belongs with the reader of the daemon's text. The spelling it will read is
-the one `Acorn.Json.parse` keeps in `Acorn.Json.Value.number`: an optional minus sign,
-digits, an optional point with digits after it, and an optional exponent with an
-optional sign and digits. That reader refuses a spelling with no digit after a point or
-after an exponent mark, such as `1.` and `1e`. Every spelling it admits has a sign,
-digits that are one natural number and an integer exponent, and so has a `Decimal`,
-negative zero among them; this conversion is total over them. That the function which
-is not built gives the `Decimal` of the spelling is no theorem here.
+**Reading a number.** `Decimal.read` gives the decimal of a JSON value. It reads the
+spelling that `Acorn.Json.parse` keeps in a number through `Acorn.Json.Value.numeral`,
+which is the scanner of that parser and no second reader of numbers, and takes
+`Decimal.ofNumeral` of the numeral: the sign, the digits before and after the point as
+one natural number (`spelled`), and the exponent lowered by the count of the digits after
+the point. A value is read exactly when it is a number with the spelling of a formed
+numeral (`Decimal.read_iff`): an optional minus sign, a single zero or digits with no
+leading zero, an optional point with at least one digit after it, and an optional
+exponent with an optional sign and at least one digit. So `1.` and `1e` have no decimal,
+and negative zero has one. The decimal of a formed numeral has the value that the numeral
+spells (`AcornVerif.Decimal.ofNumeral_value`), where that value is stated in the proof
+library by the place of each digit and with a table of the ten digits, and with neither
+`spelled` nor the code of a character. So the integer kept for a value that is read is the
+nearest to the number its spelling writes, in the units of the scale, a tie away from
+zero, saturated to the bounds of the scale (`AcornVerif.Decimal.read_nearest`). Reading a
+frame of the daemon, which has many numbers, is not built.
 
 No theorem compares two decimals by their values, so that the conversion keeps their
 order is not stated.
@@ -300,5 +307,72 @@ theorem Decimal.shift_between (scale : Scale) (decimal : Decimal)
   have some := width_positive (max scale.low.natAbs scale.high.natAbs)
   unfold Scale.width at near ⊢
   constructor <;> omega
+
+/-- The natural number that a run of digits spells: each digit adds its value to ten times
+what the digits before it spell. -/
+def spelled (digits : List Char) : Nat :=
+  digits.foldl (fun total c => 10 * total + (c.toNat - 48)) 0
+
+/-- The digits of a run, read from an earlier total: the total moves up by one place for
+each digit. -/
+theorem spelled_from (total : Nat) (digits : List Char) :
+    digits.foldl (fun total c => 10 * total + (c.toNat - 48)) total =
+      total * 10 ^ digits.length + spelled digits := by
+  unfold spelled
+  induction digits generalizing total with
+  | nil => simp only [List.foldl_nil, List.length_nil, Nat.pow_zero, Nat.mul_one, Nat.add_zero]
+  | cons head tail hold =>
+    have move : total * (10 ^ tail.length * 10) = 10 * total * 10 ^ tail.length := by
+      rw [Nat.mul_comm (10 ^ tail.length) 10, ← Nat.mul_assoc, Nat.mul_comm total 10]
+    rw [List.foldl_cons, List.foldl_cons, hold (10 * total + (head.toNat - 48)),
+      hold (10 * 0 + (head.toNat - 48)), List.length_cons, Nat.pow_succ, move, Nat.mul_zero,
+      Nat.zero_add, Nat.add_mul, Nat.add_assoc]
+
+/-- **Two runs of digits one after the other spell the first moved up by the length of the
+second, plus the second.** -/
+theorem spelled_append (first second : List Char) :
+    spelled (first ++ second) = spelled first * 10 ^ second.length + spelled second := by
+  unfold spelled
+  rw [List.foldl_append]
+  exact spelled_from _ second
+
+/-- The exponent that an exponent part spells, and zero without one. -/
+def power : Option Json.Exponent → Int
+  | none => 0
+  | some part =>
+    if part.sign = some true then -(spelled part.digits : Int) else spelled part.digits
+
+/-- The decimal of a numeral: its sign, the digits before and after the point as one
+natural number, and its exponent lowered by the count of the digits after the point. -/
+def Decimal.ofNumeral (numeral : Json.Numeral) : Decimal :=
+  ⟨numeral.negative, spelled (numeral.whole ++ numeral.fraction.getD []),
+    power numeral.exponent - (numeral.fraction.getD []).length⟩
+
+/-- The decimal of a JSON value: the decimal of its numeral, for a number whose kept
+spelling is the whole spelling of a JSON number, and nothing for every other value. -/
+def Decimal.read (value : Json.Value) : Option Decimal :=
+  value.numeral.map Decimal.ofNumeral
+
+/-- **A value is read as a decimal exactly when it is a number with the spelling of a
+formed numeral, and the decimal is that numeral's.** -/
+theorem Decimal.read_iff (value : Json.Value) (decimal : Decimal) :
+    Decimal.read value = some decimal ↔
+      ∃ numeral : Json.Numeral, numeral.Formed ∧
+        value = .number (String.ofList numeral.chars) ∧
+          Decimal.ofNumeral numeral = decimal := by
+  unfold Decimal.read
+  constructor
+  · intro found
+    cases scanned : value.numeral with
+    | none =>
+      rw [scanned] at found
+      exact nomatch found
+    | some numeral =>
+      rw [scanned] at found
+      obtain ⟨formed, same⟩ := (Json.Value.numeral_iff value numeral).mp scanned
+      exact ⟨numeral, formed, same, Option.some.inj found⟩
+  · rintro ⟨numeral, formed, same, rfl⟩
+    rw [(Json.Value.numeral_iff value numeral).mpr ⟨formed, same⟩]
+    rfl
 
 end Acorn.Host.Microduck

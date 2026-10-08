@@ -166,7 +166,9 @@ report of the definitions that have no contract is work of Regula
 * No theorem of the maintained libraries names the definition in its statement. This is the
   absence of a direct reference and nothing more. These are the command-line parsers of
   `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the JSON parser
-  `Json.parse` with its readers and private helpers, the viewer's envelope and map decoders,
+  `Json.parse` with its readers and private helpers (the scanner of a number
+  `Json.Numeral.scan` and the reader `Json.Value.numeral` have the contracts `json_scan` and
+  `json_numeral`), the viewer's envelope and map decoders,
   and the transitions and lookups that no theorem mentions. Kinds for the parsers against
   written grammars are the subject of https://github.com/rbeauchamp/acorn/issues/81. Most are
   functions between fixed types, `Host.Viewer.MapBytes.admit` and `Host.Viewer.decodeMapRuns`
@@ -215,6 +217,9 @@ of a depth frame that is not after its state frame; the ownership audit requires
 theorems by name. The contracts `microduck_near` and `microduck_clear` state the conjunction
 of the tests and not either test alone. Where no theorem names an applied definition, it
 has no contract of its own, and the contract of the decision that applies it is the evidence.
+The seven private scanners of the parts of a number, which `Json.Numeral.scan` applies, are
+in that case: only private lemmas of the proofs of `Json.Numeral.scan_formed` and
+`Json.Numeral.scan_chars` name them, and the contract `json_scan` is their evidence.
 
 What the list does not hold:
 
@@ -1345,6 +1350,89 @@ theorem microduck_clear :
       fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
 
 attribute [regula_decision] Handcrafted.Microduck.clear
+
+/-- The scanner of a number accepts only a text that starts with the spelling of a formed
+numeral (`Json.Numeral.scan_formed`): an optional minus sign, digits with no leading zero or
+a single zero, an optional point with at least one digit, and an optional exponent with at
+least one digit, the form of a number in RFC 8259, section 6. The specification is stated on
+the parts of a numeral and on the characters they spell, with the proposition
+`Json.Numeral.Digit` for a digit; the scanner tests a character with `Char.isDigit` of Lean's
+library. The accepted input of the proof is the text `0`.
+
+**Not claimed:** completeness. The scanner refuses `1.x`, which starts with the spelling
+`1`: after a point or an exponent mark it requires a digit. Which numeral and which rest an
+accepted text has is stated by `Json.Numeral.scan_formed`, and that the exact spelling of a
+formed numeral scans to that numeral with no rest by `Json.Numeral.scan_chars`. That the
+numeral is the longest one the text starts with is not stated. -/
+theorem json_scan :
+    Regula.ExecutableContract Json.Numeral.scan (fun scan =>
+      Regula.DecidesSoundly (fun found => found.isSome = true)
+        (fun text : List Char => ∃ (parts : Json.Numeral) (rest : List Char),
+          parts.Formed ∧ text = parts.chars ++ rest)
+        scan) :=
+  ⟨{ sound := fun text accepted => by
+       obtain ⟨⟨parts, rest⟩, same⟩ := Option.isSome_iff_exists.mp accepted
+       exact ⟨parts, rest, Json.Numeral.scan_formed same⟩
+     accepted := ⟨['0'], by decide⟩ }⟩
+
+attribute [regula_decision] Json.Numeral.scan
+
+/-- The reader of a number's spelling accepts a JSON value exactly when the value is a number
+whose kept spelling is the whole spelling of a formed numeral, `Json.Value.Numeric`
+(`Json.Value.numeral_iff`). The specification is stated on the parts of a numeral and on the
+characters they spell; the function scans the kept spelling with `Json.Numeral.scan`, the
+scanner of the JSON parser. The two inputs of the proof are the number with the spelling
+`0`, which is accepted, and null, which is refused.
+
+**Not claimed:** which numeral an accepted value has, which `Json.Value.numeral_iff` states;
+and that the parser keeps only such spellings in the numbers of a parsed text. -/
+theorem json_numeral :
+    Regula.ExecutableContract Json.Value.numeral
+      (Regula.Decides (fun found => found.isSome = true) Json.Value.Numeric) :=
+  ⟨decides
+    (fun value => by
+      constructor
+      · intro found
+        obtain ⟨parts, same⟩ := Option.isSome_iff_exists.mp found
+        exact ⟨parts, (Json.Value.numeral_iff value parts).mp same⟩
+      · rintro ⟨parts, formed⟩
+        rw [(Json.Value.numeral_iff value parts).mpr formed]
+        rfl)
+    ⟨.number (String.ofList ['0']), ⟨false, ['0'], none, none⟩,
+      ⟨Or.inl rfl, fun _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩, rfl⟩
+    ⟨.null, fun ⟨_, _, wrong⟩ => nomatch wrong⟩⟩
+
+attribute [regula_decision] Json.Value.numeral
+
+/-- The reader of a decimal accepts exactly the JSON values that the reader of a number's
+spelling accepts: a number whose kept spelling is the whole spelling of a formed numeral,
+`Json.Value.Numeric`, the specification of `json_numeral` (`Host.Microduck.Decimal.read_iff`).
+The two inputs of the proof are the number with the spelling `0`, which is accepted, and
+null, which is refused.
+
+**Not claimed:** which decimal an accepted value has. `Host.Microduck.Decimal.read_iff`
+states that it is `Host.Microduck.Decimal.ofNumeral` of the numeral, and
+`AcornVerif.Decimal.ofNumeral_value` that this decimal has the value the numeral writes. The
+kind states only which values are read. -/
+theorem microduck_decimal :
+    Regula.ExecutableContract Host.Microduck.Decimal.read
+      (Regula.Decides (fun found => found.isSome = true) Json.Value.Numeric) :=
+  ⟨decides
+    (fun value => by
+      constructor
+      · intro found
+        obtain ⟨decimal, same⟩ := Option.isSome_iff_exists.mp found
+        obtain ⟨parts, formed, spelling, _⟩ :=
+          (Host.Microduck.Decimal.read_iff value decimal).mp same
+        exact ⟨parts, formed, spelling⟩
+      · rintro ⟨parts, formed, spelling⟩
+        rw [(Host.Microduck.Decimal.read_iff value _).mpr ⟨parts, formed, spelling, rfl⟩]
+        rfl)
+    ⟨.number (String.ofList ['0']), ⟨false, ['0'], none, none⟩,
+      ⟨Or.inl rfl, fun _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩, rfl⟩
+    ⟨.null, fun ⟨_, _, wrong⟩ => nomatch wrong⟩⟩
+
+attribute [regula_decision] Host.Microduck.Decimal.read
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification
