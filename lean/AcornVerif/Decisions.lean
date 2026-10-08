@@ -39,9 +39,12 @@ in this library. Each contract states only what its theorem proves.
 No specification of a contract with a kind here names a test that its function runs:
 `Acorn.Decisions` states the rule and lists the propositions that take the place of the tests.
 The specification of `exp_saturation` names the strict order `Binary32.Less`. Regula's RG1009
-does not examine a statement with no kind, and two such statements here name the test
-`Host.Inventory.owns`, which their functions run: `goal_satisfied`, and `replay_certified`
-through `Achieved`.
+does not examine a statement with no kind, and three such statements here name the test
+`Host.Inventory.owns`, which their functions run: `goal_satisfied` in its craft clause, and
+`replay_certified` and `replay_check` through `Reaches` and `Achieved`. The flag
+`Host.World.goalSatisfied` runs that test through `Host.Goal.observe`, `Host.replayCertified`
+applies that flag to the final world of its replay, and `Host.ReplayCertificate.check` runs
+`Host.replayCertified`.
 
 Regula counts only a contract of the function's own library toward a decision registration,
 so the functions below carry no registration. The ownership audit requires each contract by
@@ -123,8 +126,8 @@ private theorem satisfied_achieved (goal : Host.Goal) (position : Host.Position)
 /-- A goal is reached from a world within a cap: some run of at least one and at most `cap`
 executed steps, from the world with the goal installed, ends in a world in which the goal is
 achieved. The end is stated on the final position, inventory and elapsed time, and it names no
-completion test. The run is a run of the executed world step, which is the subject of the
-claim. -/
+completion test. For a craft goal `Achieved` names the ownership test `Host.Inventory.owns`.
+The run is a run of the executed world step, which is the subject of the claim. -/
 def Reaches {config : Host.WorldConfig} (world : Host.World config) (goal : Host.Goal)
     (cap : Nat) : Prop :=
   ∃ (trace : List (Host.Action × Host.StepResult)) (final : Host.World config),
@@ -550,7 +553,11 @@ theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun e
 /-- The world's completion flag, for each family of installed goal, is exactly: the body in
 the goal box, the inventory holding the count, the time since installation reaching the
 duration; for a craft goal it is the ownership of the tool (`CurrentGoals.goalSatisfied_eq`
-with the four family theorems). The statement names no function that the flag applies. The
+with the four family theorems). The statement names neither the completion predicate
+`Host.TaskObservation.satisfied` nor `Host.Goal.observe`, which the flag applies. Its craft
+clause names the test `Host.Inventory.owns` and its collect clause names the count
+`Host.Inventory.count`, and the flag applies both through `Host.Goal.observe`. Its survive
+clause repeats the elapsed-time expression that `Host.World.taskObservation` computes. The
 world's type depends on the configuration, so it is a requirement with no kind. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
     ∀ (config : Host.WorldConfig) (world : Host.World config),
