@@ -147,11 +147,16 @@ https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895.
   methods with other identifiers and, for a velocity, other magnitudes, and refuse a
   `robot.move` with a parameter that the method does not name.
 
-**A line of a daemon.** `Line.read` reads a parsed line as exactly one case of a JSON-RPC
-2.0 line (JSON-RPC Working Group, *JSON-RPC 2.0 Specification*, 2010, updated 2013,
-sections 4, 4.1, 5 and 5.1), and the result type has one constructor for each case, so
-that no later code takes one for another. In every case the member `jsonrpc` is the
-string `2.0`.
+**A line of a daemon.** `Line.read` reads a parsed line by the criteria below, and the
+result type has one constructor for each case, so that no later code takes one for
+another. The criteria are taken from the JSON-RPC Working Group, *JSON-RPC 2.0
+Specification* (2010, updated 2013), sections 4, 4.1, 5 and 5.1. They are what the
+theorems state, and they are not the whole of that specification: a line that meets them
+need not be a valid JSON-RPC 2.0 line. They do not ask that the `params` of a
+notification be an object or an array, so a notification of a stream with `params` of
+`false` is an unread frame of that stream; they do not read the `data` of an error; and
+they refuse no member that the specification does not name. In every case the member
+`jsonrpc` is the string `2.0`.
 
 - A notification has a member `method` that is a string and no member `id` (`Notified`).
   It is read as a state frame or a depth frame when it is of that stream and its `params`
@@ -1430,8 +1435,9 @@ def Stream.Unwritten : Stream → Json.Value → Prop
   | .state, json => ∀ frame, ¬Within "params" State.Written json frame
   | .depth, json => ∀ frame, ¬Within "params" Depth.Written json frame
 
-/-- What a host reads of one line of a daemon. Each constructor is one case of a JSON-RPC
-2.0 line, and `invalid` is every value that is none of them. -/
+/-- What a host reads of one line of a daemon. Each constructor is one case of the
+criteria that `Notified`, `Resulted` and `Faulted` state, and `invalid` is every value
+that meets none of them. -/
 inductive Line where
   /-- A notification `robot.state` whose parameters write the frame. -/
   | state (frame : State)
@@ -1447,7 +1453,7 @@ inductive Line where
   /-- A response with an error, for the request with the identifier, or with a null
   identifier. -/
   | fault (id : Option Nat)
-  /-- A value that is no JSON-RPC 2.0 notification and no response. -/
+  /-- A value that is no notification and no response, by the criteria of this module. -/
   | invalid
 
 /-- The value has no member with the name. -/

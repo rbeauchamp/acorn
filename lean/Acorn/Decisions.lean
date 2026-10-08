@@ -1568,20 +1568,23 @@ theorem microduck_depth :
 attribute [regula_decision] Host.Microduck.Depth.read
 
 /-- The reader of a daemon's line gives a line that is not `Host.Microduck.Line.invalid`
-exactly for a value that is a JSON-RPC 2.0 notification or response: a notification of some
+exactly for a value that meets one of three declared criteria: a notification of some
 method (the version `2.0`, a string `method`, no member `id`), a response with a result (the
 version, no `method`, no `error`, a natural number as `id` and a member `result`), or a
 response with an error (the version, no `method`, no `result`, an `id` that is a natural
 number or null, and an `error` that is an object with an integer `code` and a string
-`message`). The rules are those of the JSON-RPC Working Group, *JSON-RPC 2.0 Specification*
-(2010, updated 2013), sections 4, 4.1, 5 and 5.1. The specification is stated with the
+`message`). The criteria are taken from the JSON-RPC Working Group, *JSON-RPC 2.0
+Specification* (2010, updated 2013), sections 4, 4.1, 5 and 5.1, and are not the whole of
+it: they do not ask that the `params` of a notification be an object or an array, and they
+refuse no further member. The specification is stated with the
 relations of `Host.Microduck.Wire` on the members of the value, and names no reader. The two
 inputs of the proof are an object with the version, an id and a result, which is read as a
 result, and null, which is invalid. `microduck_line_read` states which line each value is
 read as.
 
-**Not claimed:** that the text of a line parses to such a value, and that a daemon sends
-one. An independent statement of the relations on a number: the id is
+**Not claimed:** that a value which meets the criteria is a valid JSON-RPC 2.0 line; that
+the text of a line parses to such a value, and that a daemon sends one. An independent
+statement of the relations on a number: the id is
 `Host.Microduck.Counted` and the frames are written with `Host.Microduck.Counted` and
 `Host.Microduck.Scale.Kept`, as the docstrings of `microduck_state` and `microduck_depth`
 say. What a host does with a line. -/

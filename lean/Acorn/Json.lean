@@ -847,7 +847,7 @@ theorem Value.member_iff (name : String) (outer inner : Value) :
 
 A request that a host writes is a JSON object of two levels: its members are scalars
 (a string, a number by its numeral, a boolean) or one object of scalars. `Request.chars`
-is the text of such an object, with no space. `Request.parse_chars` states that `parse`
+is the text of such an object, with no space. `parse_request` states that `parse`
 reads that text back as the value of the request, for every request whose strings need no
 escape, whose numbers are formed numerals with no exponent part, and whose member names
 differ at each level. It is a statement about `parse` on a family of texts, and the first

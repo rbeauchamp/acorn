@@ -299,8 +299,6 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Microduck.Line.read),
   (`Acorn.Host.Microduck.Wire, `Acorn.Host.Microduck.Depth.read_distances,
     `Acorn.Host.Microduck.Depth.read),
-  (`Acorn.Decisions, `Acorn.Decisions.microduck_line_read,
-    `Acorn.Host.Microduck.Line.read),
   (`Acorn.Host.Microduck.Sensing, `Acorn.Host.Microduck.Reading.age_exact,
     `Acorn.Host.Microduck.Reading.age),
   (`Acorn.Host.Microduck.Sensing, `Acorn.Host.Microduck.Reading.age_ahead,

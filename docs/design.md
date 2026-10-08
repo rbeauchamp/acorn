@@ -937,9 +937,12 @@ both read as nothing measured. The object that holds the list of limit names mus
 an object. A depth frame must state eight rows and eight columns. A member that neither
 reader names is not read. The names of the members and the
 labels are those of the record of one observed run; no theorem relates them to what a
-daemon sends. `Line.read` reads a whole parsed line as exactly one case of a JSON-RPC
-2.0 line, with one constructor of its result for each case and one theorem for each
-constructor. A notification has the version `2.0`, a string method and no identifier:
+daemon sends. `Line.read` reads a whole parsed line by declared criteria, with one
+constructor of its result for each case and one theorem for each constructor. The
+criteria are taken from the JSON-RPC 2.0 specification and are not the whole of it: a
+line that meets them need not be valid by that specification, since the parameters of
+a notification can be any value and no further member is refused. A notification has
+the version `2.0`, a string method and no identifier:
 it is a state frame or a depth frame when its parameters write the frame, an unread
 frame of that stream when they write none, and a notice for another method. A response
 has no method and an identifier, and exactly one of a result and an error: a result

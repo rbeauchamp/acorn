@@ -401,7 +401,8 @@ that a reading is paired with. A parsed JSON value is read into these types by
 frame is read exactly when it is what the value writes, member by member
 (`Acorn.Host.Microduck.State.read_iff`, `Acorn.Host.Microduck.Depth.read_iff`).
 A whole parsed line is read by `Acorn.Host.Microduck.Line.read` as exactly one case
-of a JSON-RPC 2.0 line: a notification, as a frame of its stream or as a notice
+of declared criteria, which are taken from JSON-RPC 2.0 and are not the whole of it: a
+notification, as a frame of its stream or as a notice
 (`Acorn.Host.Microduck.Line.read_state`, `Acorn.Host.Microduck.Line.read_depth`),
 a response with a result or with an error (`Acorn.Host.Microduck.Line.read_result`,
 `Acorn.Host.Microduck.Line.read_fault`), and invalid for every other value
