@@ -106,10 +106,12 @@ is not registered here, and the ownership audit requires its contract in the sam
 certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified`
 are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
 statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
-No checker is complete, so `Host.regionBlocked` carries the sound kind. The other two keep a
-requirement with no kind: their statements are from before the forms for a dependent type, and
-kinds for the contracts of that module are remaining work of
-https://github.com/rbeauchamp/acorn/issues/105. `Host.walkableTile` carries the two-way kind.
+No checker is complete, so `Host.regionBlocked` carries the sound kind. The other two take an
+argument whose type depends on the configuration, and their contracts carry no kind. Regula
+v0.10.0 reads a kind for such a function through the fields of a structure and the erasures
+`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, and stating the kinds for the contracts
+of that module is remaining work of https://github.com/rbeauchamp/acorn/issues/105.
+`Host.walkableTile` carries the two-way kind.
 
 ## Tests that a specification does not share
 
@@ -2975,28 +2977,20 @@ theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval 
 
 attribute [regula_decision] ClockProgram.Predicate.eval
 
-/-- The clock-predicate evaluator, on the agreement-order and snapshot-order programs with
-equal leading clocks, accepts only the values the theorems state
-(`ClockProgram.agreementFollows_same`, `snapshotFollows_same`), and it accepts the
-snapshot-order program whenever the same process and run are not terminal, share a cycle
-and resolved more attempts (`ClockProgram.snapshotFollows_goal`). The sound kind
-`predicate_eval` carries one accepted input and does not state a set of accepted inputs, so
-this statement is a requirement with no kind beside it.
+/-- The clock-predicate evaluator accepts the snapshot-order program for every two snapshots
+with the same process marker, the same clock and the same cycle, whose previous snapshot is
+not stopped and whose next snapshot resolved more attempts
+(`ClockProgram.snapshotFollows_goal`). The sound kind `predicate_eval` states the soundness on
+the two order programs. It carries one accepted input and does not state a set of accepted
+inputs, so this statement is a requirement with no kind beside it.
 
-**Not claimed:** the verdict on other programs. -/
+**Not claimed:** the verdict on another input. -/
 theorem predicate_eval_programs :
     Regula.ExecutableContract @ClockProgram.Predicate.eval (fun eval =>
-    (∀ values : Fin 6 → Nat, values 0 = values 3 →
-      eval values ClockProgram.agreementFollows = true →
-        values 5 = 0 ∧ (values 4 < values 1 ∨ (values 1 = values 4 ∧ values 2 = 1))) ∧
-      (∀ values : Fin 14 → Nat, values 0 = values 7 →
-        eval values ClockProgram.snapshotFollows = true →
-          values 9 = 0 ∧ values 8 ≤ values 1) ∧
-      ∀ values : Fin 14 → Nat, values 0 = values 7 → values 1 = values 8 → values 9 = 0 →
-        values 3 = values 10 → values 11 < values 4 →
-          eval values ClockProgram.snapshotFollows = true) :=
-  ⟨⟨ClockProgram.agreementFollows_same, ClockProgram.snapshotFollows_same,
-    ClockProgram.snapshotFollows_goal⟩⟩
+    ∀ values : Fin 14 → Nat, values 0 = values 7 → values 1 = values 8 → values 9 = 0 →
+      values 3 = values 10 → values 11 < values 4 →
+        eval values ClockProgram.snapshotFollows = true) :=
+  ⟨ClockProgram.snapshotFollows_goal⟩
 
 /-- The arguments of `Features.candidateOfWeight`, in order. -/
 structure CandidateWeight where

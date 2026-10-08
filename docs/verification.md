@@ -507,8 +507,9 @@ proved in the proof library ([Regula issue
 kind is a statement that the Regula audit does not examine: that audit checks
 only that its theorem is proved about the executing definition. Such a statement
 can fix one direction only, and it need not show that both outcomes occur for
-its function. Kinds for these functions and for the statements of
-`lean/AcornVerif/Decisions.lean` are remaining work of [issue
+its function. Kinds for the functions whose kind Regula refuses or whose
+accepted input is proved in the proof library, and for the statements of
+`lean/AcornVerif/Decisions.lean`, are remaining work of [issue
 105](https://github.com/rbeauchamp/acorn/issues/105). A contract states only
 what its theorem proves.
 

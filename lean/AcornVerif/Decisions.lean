@@ -31,11 +31,11 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-The statements of this module with no kind about a function with a dependent type were stated
-when Regula had no kind for such a function. Regula v0.10.0 reads a kind for them through the
-fields of a structure and the erasures `Regula.Dependent.isSome` and `Regula.Dependent.isOk`,
-as `Acorn.Decisions` states them for the functions whose proofs need no proof library. Those
-kinds are remaining work of https://github.com/rbeauchamp/acorn/issues/105.
+The contracts of this module about a function with a dependent type carry no kind. Regula
+v0.10.0 reads a kind for such a function through the fields of a structure and the erasures
+`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, as `Acorn.Decisions` states them for the
+functions whose proofs need no proof library. Stating those kinds is remaining work of
+https://github.com/rbeauchamp/acorn/issues/105.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here for the same reason: their theorems are
