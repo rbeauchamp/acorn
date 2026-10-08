@@ -625,15 +625,17 @@ skills and timing is in
 A client sends **intents**, never a joint command: a velocity, or a skill by name.
 The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
 0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
-for the client. Four parts of this world are built, as pure definitions:
+for the client. Five parts of this world are built, as pure definitions:
 [the action table](../lean/Acorn/Host/Microduck/Action.lean),
 [the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean),
 [what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
 integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/Decimal.lean)
 with its reader of one JSON number,
+[the readers of a state frame and a depth frame](../lean/Acorn/Host/Microduck/Wire.lean)
+from the daemon's JSON,
 and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
-No host loop, no transport, no reader of a frame of the daemon and no wire form of a
-command exist yet, so no code of Acorn reaches the simulator and no executing code
+No host loop, no transport, no reader of a notification's envelope or of a reply and no
+wire form of a command exist yet, so no code of Acorn reaches the simulator and no executing code
 builds a percept of this world
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
@@ -901,11 +903,26 @@ one farther from zero, saturated to the bounds of the scale (`read_nearest`). No
 theorem states that every number of a parsed text has a numeral: that rests on the
 parser building a number in one place, from the spelling of a scanned numeral.
 
-The function that reads a frame of the daemon into a `State` or a `Depth` is not
-built. It owes the name of each field, the order of each array, the tables of labels
-and of limit names, the refusal of a gain or a status that its type does not hold,
-and what it does with a field for which `Decimal.read` gives nothing: a value that is
-no number, or a number with a kept spelling that is not a formed numeral.
+**Reading a frame of the daemon.** `State.read` and `Depth.read` read the parameters
+object of a state notification and of a depth notification, as a parsed JSON value,
+into a state frame and a depth frame. Each gives a frame or nothing, and a frame is
+refused whole: one member that is not read gives no frame. What each reader accepts and
+gives is a proposition for each field, which names the member the field is read from
+(`State.Written`, `Depth.Written`), and a frame is read exactly when it is written so
+(`State.read_iff`, `Depth.read_iff`). A number kept in a scale is the nearest integer
+to the number as the text writes it, saturated (`kept_nearest`). A stamp, a status, the
+gain and the stated numbers of rows and columns are natural numbers that digits alone
+spell, so `1.0` is refused there. An array has exactly its declared length. A string
+outside the ten policy labels is the policy `other`, by a table of labels that the
+function of names is proved equal to (`Policy.named_iff`). The joint rates, the gain
+and the list of limit names can be missing, and a missing member and a null member are
+both read as nothing measured. The object that holds the list of limit names must be
+an object. A depth frame must state eight rows and eight columns. A member that neither
+reader names is not read. The names of the members and the
+labels are those of the record of one observed run; no theorem relates them to what a
+daemon sends. The envelope of a notification, the reply to a request and the text of a
+command are not read or written yet, and what a host does at a refused frame is not
+decided.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol

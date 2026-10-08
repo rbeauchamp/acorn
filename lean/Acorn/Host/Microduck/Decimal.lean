@@ -76,8 +76,14 @@ spells (`AcornVerif.Decimal.ofNumeral_value`), where that value is stated in the
 library by the place of each digit and with a table of the ten digits, and with neither
 `spelled` nor the code of a character. So the integer kept for a value that is read is the
 nearest to the number its spelling writes, in the units of the scale, a tie away from
-zero, saturated to the bounds of the scale (`AcornVerif.Decimal.read_nearest`). Reading a
-frame of the daemon, which has many numbers, is not built.
+zero, saturated to the bounds of the scale (`AcornVerif.Decimal.read_nearest`).
+
+Two relations state what a reader of a frame keeps of one number, for
+`Acorn.Host.Microduck.Wire`. `Scale.Kept` is the word of a scale: the conversion of the
+decimal of a formed numeral that spells the value (`AcornVerif.Decimal.kept_nearest`
+states it as the nearest integer to what the numeral writes). `Counted` is a natural
+number: the value is spelled by digits alone, with no sign, point or exponent, and the
+digits spell the number (`AcornVerif.Decimal.counted_numberOf`).
 
 No theorem compares two decimals by their values, so that the conversion keeps their
 order is not stated.
@@ -374,5 +380,18 @@ theorem Decimal.read_iff (value : Json.Value) (decimal : Decimal) :
   · rintro ⟨numeral, formed, same, rfl⟩
     rw [(Json.Value.numeral_iff value numeral).mpr ⟨formed, same⟩]
     rfl
+
+/-- The word is what the scale keeps of the value: the value is a number with the spelling
+of a formed numeral, and the word is the conversion of that numeral's decimal. -/
+def Scale.Kept (scale : Scale) (json : Json.Value) (word : scale.Word) : Prop :=
+  ∃ numeral : Json.Numeral, numeral.Formed ∧
+    json = .number (String.ofList numeral.chars) ∧
+      (Decimal.ofNumeral numeral).fixed scale = word
+
+/-- The value is a number spelled by digits alone, a single zero or digits with no leading
+zero, and the digits spell the natural number. -/
+def Counted (json : Json.Value) (natural : Nat) : Prop :=
+  ∃ digits : List Char, (⟨false, digits, none, none⟩ : Json.Numeral).Formed ∧
+    json = .number (String.ofList digits) ∧ spelled digits = natural
 
 end Acorn.Host.Microduck

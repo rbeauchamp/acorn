@@ -34,7 +34,8 @@ with no width, as an `Instant` of `Acorn.Timing` is, and so is the age of a dept
 A field whose absence means that nothing was measured is an `Option`, and absence is
 not a zero. The joint rates are absent when the daemon does not report them and the
 servo gain is absent when the daemon sends null; both cases are read in the vendor's
-source, and every frame of the observed run had both. A reading has no depth frame
+source. The record of the observed run reports the rates in every frame, and the gains
+160 and 200. A reading has no depth frame
 before the first one arrives, or on a body with no depth sensor; the vendor's
 documentation says most bodies have none
 (https://github.com/rbeauchamp/acorn/issues/70#issuecomment-5976760764).
@@ -53,10 +54,11 @@ builds a frame of the interface on a reading, and declares its channels, its sig
 the event of its goal under departures D1, D5 and D8 of `docs/learned-only-binding.md`;
 what a reading leaves out, that frame cannot carry.
 
-This module defines no text form. The function that reads a frame of the daemon into
-these types is not built. It owes the name of each field, the order of each array, the
-table of labels behind `Policy` and of names behind `Limits`, and the refusal of a gain
-or a status that its type does not hold. Not kept, by decision: the time in
+This module defines no text form. `Acorn.Host.Microduck.Wire` reads a state frame and a
+depth frame from the daemon's JSON into these types. It states, member by member, what
+each field is read from: the name of each member, the order of each array, the table of
+labels behind `Policy` and of names behind `Limits`, and the refusal of a gain or a
+status that its type does not hold. Not kept, by decision: the time in
 seconds beside the stamp, the pose of each body link and of each sensor, the commanded
 joint positions, the head command, the orientation as a quaternion (the gravity
 direction holds the tilt, and the heading is arbitrary at each start), the motor

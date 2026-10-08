@@ -13,6 +13,7 @@ import AcornVerif.GridCorrespondence
 import AcornVerif.DrawFirst
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Microduck.Sensing
+import Acorn.Host.Microduck.Wire
 import AcornVerif.Decimal
 
 open Verso.Genre Manual
@@ -334,9 +335,12 @@ saturated to the bounds of the scale:
 No theorem states that every number of a parsed text is read: that rests on the parser,
 which builds a number in one place, from the spelling of a scanned numeral.
 {decl}`Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
-that a reading is paired with. The function that reads a frame of the daemon into these
-types is not built, so no theorem states that the text of a frame is read into them
-correctly.
+that a reading is paired with. A parsed JSON value is read into these types by
+{decl}`Acorn.Host.Microduck.State.read` and {decl}`Acorn.Host.Microduck.Depth.read`, and a
+frame is read exactly when it is what the value writes, member by member
+({decl}`Acorn.Host.Microduck.State.read_iff`, {decl}`Acorn.Host.Microduck.Depth.read_iff`).
+No theorem is about the parser of a line, the envelope of a notification or what a daemon
+sends, so none states that the text of a frame is read correctly.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
