@@ -47,17 +47,17 @@ theorem horizon_tail (discount : Discount) :
   apply (div_lt_iff₀ (by linarith : 0 < 1 - numerical32 discount.gamma)).mpr
   cases discount
   · rw [gamma_values]
-    change (7549747 / 8388608 : ℚ) ^ (100 * 2) < _
+    rw [show horizon Discount.g90 = 100 * 2 from rfl]
     have bound : (7549747 / 8388608 : ℚ) ^ 100 ≤ 1 / 30000 := by norm_num
     have grouped := block_power (7549747 / 8388608) (1 / 30000) 100 2 (by norm_num) bound
     exact lt_of_le_of_lt grouped (by norm_num)
   · rw [gamma_values]
-    change (15938355 / 16777216 : ℚ) ^ (100 * 4) < _
+    rw [show horizon Discount.g95 = 100 * 4 from rfl]
     have bound : (15938355 / 16777216 : ℚ) ^ 100 ≤ 7 / 1000 := by norm_num
     have grouped := block_power (15938355 / 16777216) (7 / 1000) 100 4 (by norm_num) bound
     exact lt_of_le_of_lt grouped (by norm_num)
   · rw [gamma_values]
-    change (4152361 / 4194304 : ℚ) ^ (100 * 20) < _
+    rw [show horizon Discount.g99 = 100 * 20 from rfl]
     have bound : (4152361 / 4194304 : ℚ) ^ 100 ≤ 367 / 1000 := by norm_num
     have grouped := block_power (4152361 / 4194304) (367 / 1000) 100 20 (by norm_num) bound
     exact lt_of_le_of_lt grouped (by norm_num)
