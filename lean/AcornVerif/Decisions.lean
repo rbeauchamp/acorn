@@ -36,15 +36,23 @@ The round trips of the composed checkpoint admissions, the goal completion predi
 translation and precision derivation are stated here for the same reason: their theorems are
 in this library. Each contract states only what its theorem proves.
 
-No specification of a contract with a kind here names a test that its function runs:
-`Acorn.Decisions` states the rule and lists the propositions that take the place of the tests.
-The specification of `exp_saturation` names the strict order `Binary32.Less`. Regula's RG1009
-does not examine a statement with no kind, and three such statements here name the test
-`Host.Inventory.owns`, which their functions run: `goal_satisfied` in its craft clause, and
-`replay_certified` and `replay_check` through `Reaches` and `Achieved`. The flag
+No specification of a contract with a kind here reaches a test that its function runs: Regula's
+RG1009 refuses such a contract, and `Acorn.Decisions` states the rule and lists the propositions
+that take the place of the tests. The specification of `exp_saturation` names the strict order
+`Binary32.Less`.
+
+RG1009 does not examine a statement with no kind, and statements with no kind here do reach
+tests that their functions run. This module keeps no list of them, and the examples that follow
+are not one. `goal_satisfied` names `Host.Inventory.owns` in its craft clause, and
+`replay_certified` and `replay_check` reach it through `Reaches` and `Achieved`: the flag
 `Host.World.goalSatisfied` runs that test through `Host.Goal.observe`, `Host.replayCertified`
 applies that flag to the final world of its replay, and `Host.ReplayCertificate.check` runs
-`Host.replayCertified`.
+`Host.replayCertified`. `payload_admit` and `candidate_load` name
+`FeatureProfile.checkpointSupported` in their hypothesis, and `admitHeader`, which both
+functions run, runs that test. `world_enterable` names `CurrentStep.passable`, which calls
+`Host.TileKind.walkable`, and `Host.World.enterable` decides `Host.TileKind.Walkable` through
+the instance that runs that test. A statement about runs of the executed world step, such as
+`advance_actions` through `CurrentStep.Trace`, reaches each test that the step runs.
 
 Regula counts only a contract of the function's own library toward a decision registration,
 so the functions below carry no registration. The ownership audit requires each contract by

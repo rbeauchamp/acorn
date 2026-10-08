@@ -111,8 +111,10 @@ specification that would name a test names the proposition: `inventory_craft` an
 The rule compares names. It refuses nothing for a shared function with a result that is
 neither `Bool` nor `BEq`, such as `Binary32.key`, `Binary32.magnitude` or `Host.terrain`: no
 type tells a function that a specification is about from one that prepares its input. Those
-functions stay a matter of review, and the account of the Regula audit lists them for each
-contract. The account does not list a projection function.
+functions stay a matter of review. For a contract with a kind, the account of the Regula audit
+names each such function where the specification reaches it first. It does not name a function
+that the specification reaches only through a named one, and it does not name a projection
+function.
 
 ## What is not registered
 

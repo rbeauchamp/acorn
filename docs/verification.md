@@ -449,8 +449,10 @@ refuses nothing for a projection function, so `inventory_craft` is not refused
 for the fields `Host.Inventory.axe` and `Host.Inventory.boat`, which its
 specification and its function both read. It refuses nothing for a shared
 function with another result than those two, such as `Binary32.key` or
-`Host.terrain`. Those functions stay a matter of review, and the account of
-the audit lists them for each contract; it does not list a projection function.
+`Host.terrain`. Those functions stay a matter of review. For a contract with a
+kind, the account of the audit names each such function where the specification
+reaches it first. It does not name a function that the specification reaches
+only through a named one, and it does not name a projection function.
 The module documentation of `lean/Acorn/Decisions.lean` names each proposition
 with its theorem.
 
