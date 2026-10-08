@@ -211,7 +211,8 @@ theorem Each.zip {α : Type} {Read : Json.Value → α → Prop} {values : List 
 /-- A list is read exactly when its values and the results correspond one to one, in
 order. For every reader and the relation it decides. -/
 private theorem collect_iff {α : Type} {read : Json.Value → Option α}
-    {Read : Json.Value → α → Prop} (each : ∀ value result, read value = some result ↔ Read value result)
+    {Read : Json.Value → α → Prop}
+    (each : ∀ value result, read value = some result ↔ Read value result)
     (values : List Json.Value) (results : List α) :
     collect read values = some results ↔ Each Read values results := by
   induction values generalizing results with
@@ -253,7 +254,8 @@ def Listed {α : Type} {size : Nat} (Read : Json.Value → α → Prop) (json : 
 /-- An array is read as a vector exactly when its values correspond to the entries one to
 one. For every size, reader and the relation it decides. -/
 private theorem vector_iff {α : Type} {size : Nat} {read : Json.Value → Option α}
-    {Read : Json.Value → α → Prop} (each : ∀ value result, read value = some result ↔ Read value result)
+    {Read : Json.Value → α → Prop}
+    (each : ∀ value result, read value = some result ↔ Read value result)
     (json : Json.Value) (results : Vector α size) :
     vector size read json = some results ↔ Listed Read json results := by
   unfold Listed
@@ -513,7 +515,8 @@ private def flag : Json.Value → Option Bool
   | _ => none
 
 /-- A value is read as a truth value exactly when it is that boolean. -/
-private theorem flag_iff (json : Json.Value) (value : Bool) : flag json = some value ↔ json = .bool value := by
+private theorem flag_iff (json : Json.Value) (value : Bool) :
+    flag json = some value ↔ json = .bool value := by
   cases json <;> simp [flag]
 
 /-- The text of a JSON value that is a string. -/
