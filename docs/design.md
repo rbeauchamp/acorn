@@ -937,13 +937,18 @@ disarmed. A near reading disarms it, a clear reading arms it, and any other read
 leaves it as it was (`arm_near`, `arm_clear`, `arm_keeps`). The event of the goal is
 a near reading while the goal is armed (`achieved_iff`); the reward is one at that
 event and zero otherwise. After a near reading no reading is the event until a clear
-one, whatever lies between (`arm_held`). So a return that wavers across 300 mm, a
-trunk that wavers across the upright threshold, a zone whose status changes, and a
-fall and a recovery in front of a wall give no second event: between two events a
-return has to move from under 300 mm to at least 400 mm. The record gives the noise
-of a depth as 3 mm plus 20 mm for each 4 m of range, read in the vendor's source and
-not observed. The four signals are nearness and the daemon's report of a fall, each
-at the horizons 0.9 and 0.99.
+one, whatever lies between (`arm_held`): two events need a clear reading between
+them. That is the whole guarantee. A reading is not clear while a zone of the two top
+rows has a valid return under 400 mm or a status other than 5 and 255, while the
+trunk is not upright, or while the depth frame is not fresh. So a return that wavers
+between 300 mm and 400 mm gives no second event, and neither does a trunk that
+wavers across the upright threshold in front of an obstacle. The record gives the
+noise of a depth as 3 mm plus 20 mm for each 4 m of range, read in the vendor's
+source and not observed. A reading whose top zones all have the status 255 is clear,
+so the guarantee says nothing against a sensor whose status drops out: every top
+zone at 255, then one valid return at 100 mm, then that zone at 255, then the return
+again, is two events with no retreat. The four signals are nearness and the daemon's
+report of a fall, each at the horizons 0.9 and 0.99.
 
 A minimum over the whole grid would read the floor: the observed run saw the lower
 rows return a bare floor at 0.41 to 3.35 m and the two top rows return nothing.
@@ -962,16 +967,20 @@ least favourable direction, the sensor is at least 196 mm above the floor for a
 standing body and 141 mm for a sitting one, so a flat floor is returned at more than
 370 mm. The assumptions are a flat floor, a gravity word that is a unit direction,
 the head at its rest pose, and a trunk whose origin stays at its standing or sitting
-height while it tilts. Nearness has no converse: at rest the lowest beam of the two
-top rows passes about 0.2 m above the floor at 300 mm, so a lower obstacle is never
-near.
+height while it tilts. Nearness has no converse: for a standing body with an upright
+trunk and the head at rest, the lowest beam of the two top rows passes about 0.2 m
+above the floor at 300 mm, so a lower obstacle is not near for such a body. A sitting
+body's sensor is lower, at 0.174 m, and so are its beams.
 
 UNKNOWN, because no run has measured them: how far the trunk tilts while the body
 walks, and so how often the body counts as upright then; where the standing and
 walking networks and each skill hold the head, which they drive; the height of the
 trunk during a skill; which status a robot's sensor sends for a usable return and
 for nothing in range; what the two top rows return on a slope, a step or a soft
-floor; and how often the event occurs for a body that does not approach anything. A
+floor; whether the status of a zone drops out at close range, so that a body at rest
+could collect events ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)
+records the measurement and what it decides); and how often the event occurs for a
+body that does not approach anything. A
 body with no depth sensor is never near and never clear, so this goal gives it no
 reward; a goal that needs no depth sensor is not built.
 

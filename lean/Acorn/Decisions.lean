@@ -1098,12 +1098,14 @@ the first sixteen symbols of the reading's frame, its two top rows, is at most 3
 (`Handcrafted.Microduck.near_symbols`). The specification reads the symbols that the frame
 gives the agent, through `Handcrafted.Microduck.symbols`, and states the three numbers as
 literals; the function reads the zones of the depth frame, with the declared numbers and
-Boolean tests on rows, statuses and distances. The two share no test, and a change of a
-declared number or of the symbol of a zone contradicts the statement. The two inputs of the
-proof are an upright reading whose every zone has a valid return at 100 mm, which is
-accepted, and a reading with no depth frame, which is refused. That an accepted reading is
-near an obstacle in the world is not stated: `docs/design.md` argues it for a flat floor,
-under assumptions. -/
+Boolean tests on rows, statuses and distances. The two share no test. The specification
+fixes which readings are accepted, through the class of symbols it names, and not the symbol
+of every zone: a change of a declared number, or of a symbol into or out of that class,
+contradicts the statement, and a change of a symbol inside or outside the class does not.
+The two inputs of the proof are an upright reading whose every zone has a valid return at
+100 mm, which is accepted, and a reading with no depth frame, which is refused. That an
+accepted reading is near an obstacle in the world is not stated: `docs/design.md` argues it
+for a flat floor, under assumptions. -/
 theorem microduck_near :
     Regula.ExecutableContract Handcrafted.Microduck.near (fun near =>
       Regula.Decides (· = true)
