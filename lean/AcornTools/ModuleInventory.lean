@@ -60,8 +60,9 @@ def projectModules : IO (Array Name) := do
 /-- The registration leaf of the executing library: Regula executable contracts about the
 executing definitions, and their decision registrations. It belongs to the `Acorn` library
 because Regula decides a registered function against the contracts of the function's own
-library. No module may import it, so no entry point links what it declares: specification
-predicates and two closed values. -/
+library. No module may import it, so no entry point links what it declares: theorems,
+specification predicates, the structures of the arguments of the functions with a dependent
+type, and closed values that are inputs of the witnesses of kinds. -/
 def decisionRegistry : Name := `Acorn.Decisions
 
 /-- Every current native module needs an actual object and compiler trace, even

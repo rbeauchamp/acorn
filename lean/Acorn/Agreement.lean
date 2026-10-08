@@ -29,7 +29,7 @@ def magnitudeUnits (value : Binary32) : Nat :=
 
 /-- Signed dyadic coordinate; both zero encodings have coordinate zero. -/
 def units (value : Binary32) : Int :=
-  if value.negative then -(magnitudeUnits value : Int) else magnitudeUnits value
+  if value.Negative then -(magnitudeUnits value : Int) else magnitudeUnits value
 
 /-- Exact squared discrepancy of the two encoded operands. -/
 def squaredUnits (forecast outcome : Binary32) : Nat :=
