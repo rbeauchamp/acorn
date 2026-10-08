@@ -629,9 +629,10 @@ for the client. Four parts of this world are built, as pure definitions:
 [the action table](../lean/Acorn/Host/Microduck/Action.lean),
 [the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean),
 [what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
-integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/Decimal.lean),
+integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/Decimal.lean)
+with its reader of one JSON number,
 and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
-No host loop, no transport, no reader of the daemon's text and no wire form of a
+No host loop, no transport, no reader of a frame of the daemon and no wire form of a
 command exist yet, so no code of Acorn reaches the simulator and no executing code
 builds a percept of this world
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
@@ -873,15 +874,38 @@ older (`Reading.age_ahead`). The two frames are stamped on the daemons' clock, a
 reaches the daemons from another machine reads another clock.
 
 The scales and the choice of fields are authored, and what a reading leaves out the
-frame of the interface cannot carry. The function that reads the daemon's text into
-these types is not built, and it belongs with the reader of the daemon's text. It owes the
-name of each field, the order of each array, the tables of labels and of limit
-names, the refusal of a gain or a status that its type does not hold, and the
-`Decimal` of each number's spelling. The spelling is the one the repository's JSON
-reader keeps: an optional minus sign, digits, an optional point with digits after
-it and an optional exponent. That reader refuses `1.` and `1e`, and every spelling
-it admits, negative zero among them, has a `Decimal`, so the conversion is total
-over what the reader can give.
+frame of the interface cannot carry.
+
+**Reading a number of the daemon's text.** The repository's JSON reader keeps the
+spelling of a number, and scans it into a `Numeral`, the parts of the spelling: a
+minus sign, the digits before the point, the digits after it and an exponent part.
+There is one scanner. The parser uses it, and `Value.numeral` scans a kept spelling
+again with it, so reading a number adds no second reader. A numeral is formed
+(`Numeral.Formed`) when it has the form of a number in the JSON standard (RFC 8259,
+section 6): the digits before the point are a single zero or digits with no leading
+zero, a point has at least one digit after it, and an exponent mark and its optional
+sign have at least one digit after them. Every scanned numeral is formed
+(`Numeral.scan_formed`), the spelling of a formed numeral scans to that numeral
+(`Numeral.scan_chars`), and a value has a numeral exactly when it is a number with
+the spelling of that numeral (`Value.numeral_iff`). `Decimal.read` gives the decimal
+of a JSON value: the sign, the digits before and after the point as one natural
+number, and the exponent lowered by the count of the digits after the point. It reads
+exactly the numbers whose spelling is that of a formed numeral (`Decimal.read_iff`),
+so `1.` and `1e` have no decimal and negative zero has one. The proof library states
+the number that a numeral writes without the reader's arithmetic: a digit by a table
+of the ten digits, a run of digits by the place of each, the whole part plus the
+fraction, times ten to the exponent. The decimal of a formed numeral has that value
+(`ofNumeral_value`), and so the integer kept for a JSON value that is read is the
+nearest to the number as the daemon wrote it, in the units of the scale, at a tie the
+one farther from zero, saturated to the bounds of the scale (`read_nearest`). No
+theorem states that every number of a parsed text has a numeral: that rests on the
+parser building a number in one place, from the spelling of a scanned numeral.
+
+The function that reads a frame of the daemon into a `State` or a `Depth` is not
+built. It owes the name of each field, the order of each array, the tables of labels
+and of limit names, the refusal of a gain or a status that its type does not hold,
+and what it does with a field for which `Decimal.read` gives nothing: a value that is
+no number, or a number with a kept spelling that is not a formed numeral.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol

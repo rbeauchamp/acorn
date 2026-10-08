@@ -8,6 +8,7 @@ import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Algebra.Order.Field.Power
 import Mathlib.Algebra.Order.Field.Rat
 import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
@@ -39,6 +40,17 @@ The proofs read the two natural-number bounds of the executed division
 (`Decimal.magnitude_bounds`) as bounds on a quotient of rationals, and use
 `Decimal.fixed_clamp` for the two cases that the conversion decides without the
 division.
+
+`written` is the rational number that the parts of a JSON numeral write. It reads a digit
+from a table of the ten digits (`digit`) and a run of digits by the place of each
+(`numberOf`), so it shares no arithmetic with the reader, which folds the codes of the
+characters from the left (`Acorn.Host.Microduck.spelled`). `ofNumeral_value` states that
+the decimal the reader builds from a formed numeral has that value, and `read_nearest`
+joins it to `fixed_nearest`: the integer kept for a JSON value that is read is the
+saturation of the integer nearest to what its spelling writes, in the units of the scale.
+Both are for formed numerals only: for a character that is no digit the table gives zero
+and the reader's arithmetic on the code can give another number, and no statement is made
+about a numeral with such a character.
 -/
 namespace AcornVerif.Decimal
 open Acorn.Host.Microduck
@@ -163,5 +175,134 @@ theorem fixed_nearest (scale : Scale) (decimal : Decimal) (nearest : ℤ)
     (decimal.fixed scale).val = max scale.low (min scale.high nearest) := by
   rw [Decimal.fixed_clamp, Scale.clamp_value,
     (rounded_nearest decimal scale.places).unique near]
+
+/-- The value of a decimal digit, by a table of the ten digits. Every other character has
+the value zero; a formed numeral has no other character. -/
+def digit : Char → ℕ
+  | '0' => 0
+  | '1' => 1
+  | '2' => 2
+  | '3' => 3
+  | '4' => 4
+  | '5' => 5
+  | '6' => 6
+  | '7' => 7
+  | '8' => 8
+  | '9' => 9
+  | _ => 0
+
+/-- The natural number that a run of digits writes, by the place of each digit: a digit
+counts its value times ten to the count of the digits after it. -/
+def numberOf : List Char → ℕ
+  | [] => 0
+  | head :: tail => digit head * 10 ^ tail.length + numberOf tail
+
+/-- The exponent that an exponent part writes: the number of its digits, negated after a
+minus sign, and zero where there is no exponent part. -/
+def exponentOf : Option Acorn.Json.Exponent → ℤ
+  | none => 0
+  | some ⟨_, some true, digits⟩ => -(numberOf digits : ℤ)
+  | some ⟨_, _, digits⟩ => numberOf digits
+
+/-- The rational number that a numeral writes: the digits before the point, plus the
+digits after it over ten to their count, times ten to the exponent, negated for a minus
+sign. It is stated with `digit`, `numberOf` and `exponentOf` of this module, and with no
+definition of the executing library except the fields of a numeral. -/
+def written (numeral : Acorn.Json.Numeral) : ℚ :=
+  (if numeral.negative then -1 else 1) *
+    ((numberOf numeral.whole : ℚ) +
+      (numberOf (numeral.fraction.getD []) : ℚ) /
+        (10 : ℚ) ^ (numeral.fraction.getD []).length) *
+    (10 : ℚ) ^ exponentOf numeral.exponent
+
+/-- The code of a decimal digit, less the code of `0`, is its value in the table. -/
+theorem digit_code (c : Char) (decimal : Acorn.Json.Numeral.Digit c) :
+    c.toNat - 48 = digit c := by
+  obtain ⟨low, high⟩ := decimal
+  have same : c = Char.ofNat c.toNat := (Char.ofNat_toNat c).symm
+  have code : c.toNat = 48 ∨ c.toNat = 49 ∨ c.toNat = 50 ∨ c.toNat = 51 ∨ c.toNat = 52 ∨
+      c.toNat = 53 ∨ c.toNat = 54 ∨ c.toNat = 55 ∨ c.toNat = 56 ∨ c.toNat = 57 := by omega
+  rcases code with at_ | at_ | at_ | at_ | at_ | at_ | at_ | at_ | at_ | at_ <;>
+    (rw [same, at_]; rfl)
+
+/-- **The left fold of the reader and the places of the specification give one number.**
+For every run of decimal digits, `spelled` is `numberOf`. -/
+theorem spelled_numberOf (digits : List Char)
+    (decimal : ∀ c ∈ digits, Acorn.Json.Numeral.Digit c) : spelled digits = numberOf digits := by
+  induction digits with
+  | nil => rfl
+  | cons head tail hold =>
+    have first := digit_code head (decimal head List.mem_cons_self)
+    have rest := hold fun c inside => decimal c (List.mem_cons_of_mem head inside)
+    have moved := spelled_from (10 * 0 + (head.toNat - 48)) tail
+    unfold spelled at moved ⊢
+    rw [List.foldl_cons, moved]
+    unfold spelled at rest
+    rw [rest, first, Nat.mul_zero, Nat.zero_add]
+    rfl
+
+/-- Every digit before the point of a formed numeral is a decimal digit. -/
+theorem formed_whole {numeral : Acorn.Json.Numeral} (formed : numeral.Formed) :
+    ∀ c ∈ numeral.whole, Acorn.Json.Numeral.Digit c := by
+  rcases formed.whole with zero | ⟨_, decimal, _⟩
+  · intro c inside
+    rw [zero, List.mem_singleton] at inside
+    rw [inside]
+    exact ⟨by decide, by decide⟩
+  · exact decimal
+
+/-- Every digit after the point of a formed numeral is a decimal digit. -/
+theorem formed_fraction {numeral : Acorn.Json.Numeral} (formed : numeral.Formed) :
+    ∀ c ∈ numeral.fraction.getD [], Acorn.Json.Numeral.Digit c := by
+  cases part : numeral.fraction with
+  | none => exact fun _ inside => nomatch inside
+  | some digits => exact (formed.fraction digits part).2
+
+/-- **The exponent the reader takes is the exponent the numeral writes.** For every formed
+numeral. -/
+theorem power_exponentOf {numeral : Acorn.Json.Numeral} (formed : numeral.Formed) :
+    power numeral.exponent = exponentOf numeral.exponent := by
+  cases part : numeral.exponent with
+  | none => rfl
+  | some exponent =>
+    obtain ⟨upper, sign, digits⟩ := exponent
+    have same := spelled_numberOf digits (formed.exponent _ part).2
+    unfold power exponentOf
+    rcases sign with _ | _ | _ <;> simp [same]
+
+/-- **The decimal of a formed numeral has the value that the numeral writes.** The reader
+takes the digits with the point removed, as one number by a left fold on the codes of the
+characters, times ten to the exponent lowered by the count of the digits after the point.
+For every formed numeral that is the whole part plus the fraction, times ten to the
+exponent, each read by the place of its digits. -/
+theorem ofNumeral_value (numeral : Acorn.Json.Numeral) (formed : numeral.Formed) :
+    value (Decimal.ofNumeral numeral) = written numeral := by
+  have positive : (10 : ℚ) ^ (numeral.fraction.getD []).length ≠ 0 := by positivity
+  have whole := spelled_numberOf numeral.whole (formed_whole formed)
+  have fraction := spelled_numberOf (numeral.fraction.getD []) (formed_fraction formed)
+  unfold value written Decimal.ofNumeral
+  simp only [spelled_append]
+  rw [zpow_sub₀ (by norm_num : (10 : ℚ) ≠ 0), zpow_natCast, power_exponentOf formed, whole,
+    fraction]
+  push_cast
+  field_simp
+
+/-- **The integer kept for a JSON number is the nearest to the number its spelling writes,
+in the units of the scale, a tie away from zero, saturated to the bounds of the scale.**
+For every scale and every JSON value that the reader gives a decimal for: the value is a
+number with the spelling of a formed numeral, and the conversion of the decimal is the
+saturation of the integer nearest to what that numeral writes times ten to the places of
+the scale. The statement names the spelling, `written`, `Nearest`, the bounds and the
+places. -/
+theorem read_nearest (scale : Scale) (json : Acorn.Json.Value) (decimal : Decimal)
+    (read : Decimal.read json = some decimal) :
+    ∃ numeral : Acorn.Json.Numeral, numeral.Formed ∧
+      json = .number (String.ofList numeral.chars) ∧
+        ∀ nearest : ℤ, Nearest (written numeral * (10 : ℚ) ^ scale.places) nearest →
+          (decimal.fixed scale).val = max scale.low (min scale.high nearest) := by
+  obtain ⟨numeral, formed, same, rfl⟩ := (Decimal.read_iff json decimal).mp read
+  refine ⟨numeral, formed, same, fun nearest near => ?_⟩
+  rw [← ofNumeral_value numeral formed] at near
+  exact fixed_nearest scale _ nearest near
 
 end AcornVerif.Decimal
