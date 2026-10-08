@@ -61,6 +61,21 @@ def TileKind.walkable : TileKind → Bool
   | .water | .mountain => false
   | .sand | .grass | .forest | .tree | .stone | .ore => true
 
+/-- Terrain that a body with no boat may enter: neither water nor a mountain. -/
+def TileKind.Walkable (kind : TileKind) : Prop := kind ≠ .water ∧ kind ≠ .mountain
+
+/-- The enterability table accepts exactly the terrain that a body with no boat may enter. -/
+theorem TileKind.walkable_iff (kind : TileKind) : kind.walkable = true ↔ kind.Walkable := by
+  cases kind <;> simp [TileKind.walkable, TileKind.Walkable]
+
+/-- The enterability table decides `Walkable`, so a function that decides it reads that
+table. -/
+instance (kind : TileKind) : Decidable kind.Walkable := decidable_of_iff _ kind.walkable_iff
+
+/-- The decision of `Walkable` is the entry of the enterability table. -/
+theorem TileKind.decide_walkable (kind : TileKind) : decide kind.Walkable = kind.walkable := by
+  cases kind <;> rfl
+
 /-- The complete terrain harvest table. -/
 def TileKind.harvestYield : TileKind → Option Item
   | .tree => some .wood | .stone => some .stone | .ore => some .gold
@@ -193,11 +208,11 @@ def floor32 (value : Binary32) : Binary32 :=
   let fraction := magnitude % 0x800000
   if exponent ≥ 150 then value
   else if exponent < 127 then
-    if value.negative && magnitude != 0 then ⟨0xbf800000⟩
-    else assemble32Word value.negative 0 0
+    if decide value.Negative && magnitude != 0 then ⟨0xbf800000⟩
+    else assemble32Word (decide value.Negative) 0 0
   else
-    assemble32Word value.negative exponent
-      (floorFractionShift value.negative fraction (150 - exponent))
+    assemble32Word (decide value.Negative) exponent
+      (floorFractionShift (decide value.Negative) fraction (150 - exponent))
 
 /-- Every raw input follows the field-level floor specification. -/
 theorem floor32_eq_spec (value : Binary32) : floor32 value = floor32Spec value := by
@@ -210,7 +225,7 @@ theorem floor32_eq_spec (value : Binary32) : floor32 value = floor32Spec value :
       value.magnitude % 2^23 := by rw [UInt64.toNat_mod, hm]; rfl
   unfold floor32 floor32Spec
   simp only [ge_iff_le, UInt64.le_iff_toNat_le, UInt64.lt_iff_toNat_lt,
-    UInt64.toNat_ofNat, he]
+    UInt64.toNat_ofNat, he, Binary32.decide_negative]
   by_cases high : 150 ≤ value.magnitude / 2^23
   · simp [high]
   have notExceptional : value.magnitude / 2^23 ≠ 255 := by omega
@@ -305,14 +320,14 @@ def fbm (position : Position) (seed : UInt64) (baseScale : Binary32) :
 
 /-- The actual band and dither decision, total for arbitrary machine field words. -/
 def classifyTerrain (position : Position) (seed : UInt64) (elevation moisture : Binary32) : TileKind :=
-  if elevation.less ⟨Acorn.Constants.band030Bits⟩ then .water
-  else if elevation.less ⟨Acorn.Constants.band0335Bits⟩ then .sand
-  else if elevation.less ⟨Acorn.Constants.band060Bits⟩ then .grass
-  else if elevation.less ⟨Acorn.Constants.band072Bits⟩ then
-    if (⟨Acorn.Constants.moist040Bits⟩ : Binary32).less moisture &&
+  if elevation.Less ⟨Acorn.Constants.band030Bits⟩ then .water
+  else if elevation.Less ⟨Acorn.Constants.band0335Bits⟩ then .sand
+  else if elevation.Less ⟨Acorn.Constants.band060Bits⟩ then .grass
+  else if elevation.Less ⟨Acorn.Constants.band072Bits⟩ then
+    if decide ((⟨Acorn.Constants.moist040Bits⟩ : Binary32).Less moisture) &&
         Rng.hash2 (coordinateWord position.x) (coordinateWord position.y) (seed ^^^ 7) % 100 < 60
     then .tree else .forest
-  else if elevation.less ⟨Acorn.Constants.band080Bits⟩ then
+  else if elevation.Less ⟨Acorn.Constants.band080Bits⟩ then
     if Rng.hash2 (coordinateWord position.x) (coordinateWord position.y) (seed ^^^ 9) % 100 < 10
     then .ore else .stone
   else .mountain

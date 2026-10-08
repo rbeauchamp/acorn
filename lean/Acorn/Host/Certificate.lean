@@ -70,6 +70,23 @@ def inRegion (cells : List Position) (tile : Position) : Bool :=
 def inBox (config : WorldConfig) (tile : Position) : Bool :=
   (BoxPosition.checked config tile.x.val tile.y.val).isSome
 
+/-- A tile inside the box the body moves in: each coordinate is at least zero and below the
+side of the box. -/
+def InBox (config : WorldConfig) (tile : Position) : Prop :=
+  (0 ≤ tile.x.val ∧ tile.x.val < config.side) ∧ (0 ≤ tile.y.val ∧ tile.y.val < config.side)
+
+/-- The box test accepts exactly the tiles inside the box. -/
+theorem inBox_iff (config : WorldConfig) (tile : Position) :
+    inBox config tile = true ↔ InBox config tile := by
+  unfold inBox InBox BoxPosition.checked
+  by_cases column : 0 ≤ tile.x.val ∧ tile.x.val < config.side
+  · by_cases row : 0 ≤ tile.y.val ∧ tile.y.val < config.side <;> simp [column, row]
+  · simp [column]
+
+/-- The box test decides `InBox`. -/
+instance (config : WorldConfig) (tile : Position) : Decidable (InBox config tile) :=
+  decidable_of_iff _ (inBox_iff config tile)
+
 /-- A tile whose static terrain the body cannot enter: a mountain, or water when the
 certificate is for a body without a boat. A terrain refusal is not counted as
 impassable. -/

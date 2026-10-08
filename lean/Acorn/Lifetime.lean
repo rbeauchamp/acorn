@@ -97,7 +97,7 @@ def sumUpdate (quantity : Quantity) (count : UInt64) (sum : Binary64) (value : B
   let value := quantity.range.saturate value
   let sum := sum.add (Conversion.widen value)
   let bound := maximumSum quantity count
-  (count, if bound.less sum then bound else sum)
+  (count, if bound.Less sum then bound else sum)
 
 /-- Every total comes from legal durable admission or the exact current write.
 This provenance is erased; it is not a retained observation history. -/

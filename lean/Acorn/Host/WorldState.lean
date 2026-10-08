@@ -198,7 +198,7 @@ def World.tileKind {config : WorldConfig} (world : World config) (position : Pos
 def World.enterable {config : WorldConfig} (world : World config) (position : Position) :
     Except WorldError Bool := do
   let kind ← world.tileKind position
-  return match kind with | .water => world.body.inventory.boat | other => other.walkable
+  return match kind with | .water => world.body.inventory.boat | other => decide other.Walkable
 
 /-- Food pickup removes every duplicate at the body position, preserving survivor order. -/
 def World.pickupFood {config : WorldConfig} (world : World config) : World config × UInt32 :=

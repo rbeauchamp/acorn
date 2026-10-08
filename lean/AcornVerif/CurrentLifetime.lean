@@ -218,7 +218,8 @@ theorem sumUpdate_legal (quantity written : Quantity) (count : UInt64) (sum : Bi
     intro zero
     rw [zero] at countPositive
     contradiction
-  change LegalSum quantity (addCount count 1) (if cap.less added then cap else added)
+  change LegalSum quantity (addCount count 1) (if cap.Less added then cap else added)
+  simp only [← Binary64.less_iff]
   unfold LegalSum
   split
   · refine ⟨capSafe.1, ?_, orderedCaps, fun zero => False.elim (empty zero)⟩

@@ -36,6 +36,24 @@ The round trips of the composed checkpoint admissions, the goal completion predi
 translation and precision derivation are stated here for the same reason: their theorems are
 in this library. Each contract states only what its theorem proves.
 
+No specification of a contract with a kind here reaches a test that its function runs: Regula's
+RG1009 refuses such a contract, and `Acorn.Decisions` states the rule and lists the propositions
+that take the place of the tests. The specification of `exp_saturation` names the strict order
+`Binary32.Less`.
+
+RG1009 does not examine a statement with no kind, and statements with no kind here do reach
+tests that their functions run. This module keeps no list of them, and the examples that follow
+are not one. `goal_satisfied` names `Host.Inventory.owns` in its craft clause, and
+`replay_certified` and `replay_check` reach it through `Reaches` and `Achieved`: the flag
+`Host.World.goalSatisfied` runs that test through `Host.Goal.observe`, `Host.replayCertified`
+applies that flag to the final world of its replay, and `Host.ReplayCertificate.check` runs
+`Host.replayCertified`. `payload_admit` and `candidate_load` name
+`FeatureProfile.checkpointSupported` in their hypothesis, and `admitHeader`, which both
+functions run, runs that test. `world_enterable` names `CurrentStep.passable`, which calls
+`Host.TileKind.walkable`, and `Host.World.enterable` decides `Host.TileKind.Walkable` through
+the instance that runs that test. A statement about runs of the executed world step, such as
+`advance_actions` through `CurrentStep.Trace`, reaches each test that the step runs.
+
 Regula counts only a contract of the function's own library toward a decision registration,
 so the functions below carry no registration. The ownership audit requires each contract by
 name instead, with a statement that still refers to the executing definition.
@@ -116,8 +134,8 @@ private theorem satisfied_achieved (goal : Host.Goal) (position : Host.Position)
 /-- A goal is reached from a world within a cap: some run of at least one and at most `cap`
 executed steps, from the world with the goal installed, ends in a world in which the goal is
 achieved. The end is stated on the final position, inventory and elapsed time, and it names no
-completion test. The run is a run of the executed world step, which is the subject of the
-claim. -/
+completion test. For a craft goal `Achieved` names the ownership test `Host.Inventory.owns`.
+The run is a run of the executed world step, which is the subject of the claim. -/
 def Reaches {config : Host.WorldConfig} (world : Host.World config) (goal : Host.Goal)
     (cap : Nat) : Prop :=
   ∃ (trace : List (Host.Action × Host.StepResult)) (final : Host.World config),
@@ -483,18 +501,22 @@ theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
 
 /-- The exponential classifier sends a word to reduction, with no saturated result, exactly
 when the word is finite and strictly between the underflow and the overflow thresholds
-(`CurrentExponential.expSaturation_ends`). -/
+(`CurrentExponential.expSaturation_ends`). The strict order is the proposition
+`Binary32.Less`, which names no test, and `Binary32.less_iff` connects it with the word
+comparison that the classifier runs. -/
 theorem exp_saturation : Regula.ExecutableContract Portable.expSaturation
     (Regula.Decides (· = none)
       (fun value : Binary32 => value.Finite ∧
-        (Binary32.mk Acorn.Constants.expUnderflowBits).less value = true ∧
-          value.less ⟨Acorn.Constants.expOverflowBits⟩ = true)) :=
+        (Binary32.mk Acorn.Constants.expUnderflowBits).Less value ∧
+          value.Less ⟨Acorn.Constants.expOverflowBits⟩)) :=
   ⟨{ sound := fun value admitted => by
        have ends := CurrentExponential.expSaturation_ends value
        rw [admitted] at ends
-       exact ends
+       exact ⟨ends.1, (Binary32.less_iff _ _).mp ends.2.1, (Binary32.less_iff _ _).mp ends.2.2⟩
      accepted := ⟨.zero, by decide⟩
      complete := fun value ⟨finite, above, below⟩ => by
+       have above := (Binary32.less_iff _ _).mpr above
+       have below := (Binary32.less_iff _ _).mpr below
        have ends := CurrentExponential.expSaturation_ends value
        cases saturated : Portable.expSaturation value with
        | none => rfl
@@ -539,7 +561,11 @@ theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun e
 /-- The world's completion flag, for each family of installed goal, is exactly: the body in
 the goal box, the inventory holding the count, the time since installation reaching the
 duration; for a craft goal it is the ownership of the tool (`CurrentGoals.goalSatisfied_eq`
-with the four family theorems). The statement names no function that the flag applies. The
+with the four family theorems). The statement names neither the completion predicate
+`Host.TaskObservation.satisfied` nor `Host.Goal.observe`, which the flag applies. Its craft
+clause names the test `Host.Inventory.owns` and its collect clause names the count
+`Host.Inventory.count`, and the flag applies both through `Host.Goal.observe`. Its survive
+clause repeats the elapsed-time expression that `Host.World.taskObservation` computes. The
 world's type depends on the configuration, so it is a requirement with no kind. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
     ∀ (config : Host.WorldConfig) (world : Host.World config),

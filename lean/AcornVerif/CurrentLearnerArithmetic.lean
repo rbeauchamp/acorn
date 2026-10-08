@@ -208,7 +208,7 @@ theorem word_unit_interval (word : Binary32) (finite : word.Finite)
   have magnitude : word.magnitude ≤ 0x3f800000 := by
     exact le_trans Nat.and_le_left bound
   have key : word.key = (word.magnitude : Int) := by
-    simp [Binary32.key, Binary32.negative, sign]
+    simp [Binary32.key_eq_negative, Binary32.negative, sign]
   let unit : Binary32 := ⟨0x3f800000⟩
   have unitValue : numerical32 unit = 1 := by
     dsimp only [unit]

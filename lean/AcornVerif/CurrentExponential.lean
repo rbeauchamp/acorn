@@ -305,8 +305,8 @@ theorem expSaturation_ends (value : Binary32) :
         rw [hlk] at hl
         change value.magnitude < 0x7f800000
         by_cases hs : value.negative = true
-        · simp only [Binary32.key, hs, ↓reduceIte] at hh hl
+        · simp only [Binary32.key_eq_negative, hs, ↓reduceIte] at hh hl
           omega
-        · simp only [Binary32.key, hs] at hh hl
+        · simp only [Binary32.key_eq_negative, hs] at hh hl
           omega
 end AcornVerif.CurrentExponential

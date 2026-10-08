@@ -42,15 +42,73 @@ def magnitude (x : Binary32) : Nat := (x.bits &&& 0x7fffffff).toNat
 /-- Sign-bit classification, including negative zero and signed NaNs. -/
 def negative (x : Binary32) : Bool := x.bits &&& 0x80000000 != 0
 
+/-- A word with its sign bit set: read as an unsigned number, it is at least `2 ^ 31`.
+Negative zero and the NaNs with that bit are such words. -/
+def Negative (x : Binary32) : Prop := 2 ^ 31 ≤ x.bits.toNat
+
+/-- The sign test accepts exactly the words with the sign bit set. -/
+theorem negative_iff (x : Binary32) : x.negative = true ↔ x.Negative := by
+  have bound := x.bits.toNat_lt
+  have quotient : (x.bits.toNat &&& 2 ^ 31) / 2 ^ 31 = x.bits.toNat / 2 ^ 31 := by
+    rw [Nat.and_div_two_pow, Nat.div_self (Nat.two_pow_pos 31), Nat.and_one_is_mod,
+      Nat.mod_eq_of_lt (by omega)]
+  have remainder : (x.bits.toNat &&& 2 ^ 31) % 2 ^ 31 = 0 := by
+    rw [Nat.and_mod_two_pow, Nat.mod_self, Nat.and_zero]
+  simp only [negative, Negative, bne_iff_ne, ne_eq, ← UInt32.toNat_inj, UInt32.toNat_and]
+  change ¬x.bits.toNat &&& 2 ^ 31 = 0 ↔ _
+  constructor
+  · intro set
+    omega
+  · intro high clear
+    omega
+
+/-- The sign test decides the sign bit, so a function that decides `Negative` runs that test. -/
+instance (x : Binary32) : Decidable x.Negative := decidable_of_iff _ (negative_iff x)
+
+/-- The decision of the sign bit is the verdict of the sign test. -/
+theorem decide_negative (x : Binary32) : decide x.Negative = x.negative := by
+  simp only [← negative_iff, Bool.decide_eq_true]
+
 /-- Ordered magnitude key; equal signed zeros have key zero. -/
 def key (x : Binary32) : Int :=
-  if x.negative then -(x.magnitude : Int) else x.magnitude
+  if x.Negative then -(x.magnitude : Int) else x.magnitude
+
+/-- The key, with the sign test in the place of the sign bit. -/
+theorem key_eq_negative (x : Binary32) :
+    x.key = if x.negative then -(x.magnitude : Int) else x.magnitude := by
+  unfold key
+  simp only [← negative_iff]
 
 /-- All and only encodings whose magnitude exceeds infinity. -/
 def isNaN (x : Binary32) : Bool := (x.bits &&& 0x7fffffff) > (0x7f800000 : UInt32)
 
 /-- Word NaN classification has the same exact magnitude specification. -/
 theorem isNaN_eq_magnitude (x : Binary32) : x.isNaN = decide (x.magnitude > 0x7f800000) := rfl
+
+/-- The magnitude field has 31 bits. -/
+theorem magnitude_lt (x : Binary32) : x.magnitude < 2 ^ 31 := by
+  unfold magnitude
+  rw [UInt32.toNat_and]
+  exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
+
+/-- A NaN encoding: the eight bits of the exponent field are all ones, and the fraction field
+of 23 bits is not zero. -/
+def IsNaN (x : Binary32) : Prop := x.magnitude / 2 ^ 23 = 255 ∧ x.magnitude % 2 ^ 23 ≠ 0
+
+/-- The NaN test accepts exactly the NaN encodings. -/
+theorem isNaN_iff (x : Binary32) : x.isNaN = true ↔ x.IsNaN := by
+  have bound := x.magnitude_lt
+  rw [isNaN_eq_magnitude, decide_eq_true_iff]
+  unfold IsNaN
+  constructor
+  · intro above
+    exact ⟨by omega, by omega⟩
+  · intro ⟨exponent, fraction⟩
+    omega
+
+/-- The NaN test decides the NaN encodings, so a function that decides `IsNaN` runs that
+test. -/
+instance (x : Binary32) : Decidable x.IsNaN := decidable_of_iff _ (isNaN_iff x)
 
 /-- Equality against a stored magnitude constant stays in fixed-width storage. -/
 def magnitudeEq (x : Binary32) (word : UInt32) : Bool := x.bits &&& 0x7fffffff == word
@@ -81,20 +139,51 @@ def less (left right : Binary32) : Bool :=
 encoding, including unordered NaNs and the two equal zero encodings. -/
 theorem less_eq_key (left right : Binary32) :
     left.less right = (!left.isNaN && !right.isNaN && decide (left.key < right.key)) := by
-  unfold less key negative
-  split <;> split <;> simp_all [magnitude, UInt32.lt_iff_toNat_lt]
+  have order (a b : Binary32) :
+      a.bits &&& 0x7fffffff < b.bits &&& 0x7fffffff ↔ a.magnitude < b.magnitude :=
+    UInt32.lt_iff_toNat_lt
+  have zero (a : Binary32) : a.bits &&& 0x7fffffff = 0 ↔ a.magnitude = 0 := by
+    rw [← UInt32.toNat_inj]
+    exact Iff.rfl
+  unfold less
+  rw [key_eq_negative, key_eq_negative]
+  change (!left.isNaN && !right.isNaN &&
+    (if left.negative then
+      if right.negative then decide (right.bits &&& 0x7fffffff < left.bits &&& 0x7fffffff)
+      else (left.bits &&& 0x7fffffff != 0 || right.bits &&& 0x7fffffff != 0)
+    else if right.negative then false
+    else decide (left.bits &&& 0x7fffffff < right.bits &&& 0x7fffffff))) = _
   congr 1
-  apply Bool.eq_iff_iff.mpr
-  simp only [Bool.or_eq_true, bne_iff_ne, decide_eq_true_eq]
-  have lz : left.bits &&& 0x7fffffff = 0 ↔
-      left.bits.toNat &&& 0x7fffffff = 0 := by
-    rw [← UInt32.toNat_inj]; rfl
-  have rz : right.bits &&& 0x7fffffff = 0 ↔
-      right.bits.toNat &&& 0x7fffffff = 0 := by
-    rw [← UInt32.toNat_inj]; rfl
-  simp only [ne_eq, lz, rz]
-  omega
+  cases left.negative <;> cases right.negative <;>
+    simp only [↓reduceIte, Bool.false_eq_true] <;> apply Bool.eq_iff_iff.mpr <;>
+    simp only [decide_eq_true_eq, Bool.or_eq_true, bne_iff_ne, ne_eq, order, zero,
+      Bool.false_eq_true, false_iff]
+  · constructor <;> intro _ <;> omega
+  · intro _
+    omega
+  · constructor
+    · intro _
+      omega
+    · intro below
+      by_cases none : left.magnitude = 0
+      · exact .inr (by omega)
+      · exact .inl none
+  · constructor <;> intro _ <;> omega
 
+/-- Strict numeric order of two words: neither is a NaN, and the signed keys are in strict
+order. The two zero encodings have one key, so neither is below the other. -/
+def Less (left right : Binary32) : Prop := ¬left.IsNaN ∧ ¬right.IsNaN ∧ left.key < right.key
+
+/-- Strict word comparison accepts exactly the pairs in strict numeric order. -/
+theorem less_iff (left right : Binary32) : left.less right = true ↔ left.Less right := by
+  rw [less_eq_key]
+  simp only [Less, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq, ← isNaN_iff,
+    Bool.not_eq_true, and_assoc]
+
+/-- Strict word comparison decides the strict numeric order, so a function that decides `Less`
+runs that comparison. -/
+instance (left right : Binary32) : Decidable (left.Less right) :=
+  decidable_of_iff _ (less_iff left right)
 
 /-- Positive zero's exact stored encoding. -/
 def zero : Binary32 := ⟨0⟩
@@ -105,9 +194,21 @@ def negate (x : Binary32) : Binary32 := ⟨x.bits ^^^ 0x80000000⟩
 /-- Total raw saturation in low-before-high order, even for unordered bounds.
 Only a finite ordered interval justifies a range guarantee. -/
 def saturate (value lower upper : Binary32) : Binary32 :=
-  if value.isNaN || value.less lower then lower
-  else if upper.less value then upper
+  if value.IsNaN then lower
+  else if value.Less lower then lower
+  else if upper.Less value then upper
   else value
+
+/-- Saturation, with the NaN test and the word comparison in the place of the propositions
+that they decide. -/
+theorem saturate_eq_less (value lower upper : Binary32) :
+    saturate value lower upper =
+      if value.isNaN || value.less lower then lower
+      else if upper.less value then upper
+      else value := by
+  unfold saturate
+  simp only [← isNaN_iff, ← less_iff]
+  cases value.isNaN <;> rfl
 
 /-- Symmetric raw projection; NaNs select positive zero before either bound. -/
 def project (value bound : Binary32) : Binary32 :=
@@ -129,7 +230,7 @@ def keyPositive (x : Binary32) : Bool := !x.negative && x.bits &&& 0x7fffffff !=
 theorem keyPositive_exact (x : Binary32) : x.keyPositive = true ↔ 0 < x.key := by
   simp only [keyPositive, Bool.and_eq_true, bne_iff_ne, ne_eq,
     ← UInt32.toNat_inj, UInt32.toNat_zero]
-  unfold key
+  rw [key_eq_negative]
   cases hn : x.negative <;> simp_all [magnitude] <;> omega
 
 /-- A word decision procedure for positive numerical state. -/
@@ -156,6 +257,32 @@ def magnitude (x : Binary64) : Nat := (x.bits &&& 0x7fffffffffffffff).toNat
 
 /-- Every binary64 NaN encoding, without payload canonicalization. -/
 def isNaN (x : Binary64) : Bool := (x.bits &&& 0x7fffffffffffffff) > (0x7ff0000000000000 : UInt64)
+
+/-- The magnitude field has 63 bits. -/
+theorem magnitude_lt (x : Binary64) : x.magnitude < 2 ^ 63 := by
+  unfold magnitude
+  rw [UInt64.toNat_and]
+  exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
+
+/-- A NaN encoding: the eleven bits of the exponent field are all ones, and the fraction field
+of 52 bits is not zero. -/
+def IsNaN (x : Binary64) : Prop := x.magnitude / 2 ^ 52 = 2047 ∧ x.magnitude % 2 ^ 52 ≠ 0
+
+/-- The NaN test accepts exactly the NaN encodings. -/
+theorem isNaN_iff (x : Binary64) : x.isNaN = true ↔ x.IsNaN := by
+  have bound := x.magnitude_lt
+  have classified : x.isNaN = decide (x.magnitude > 0x7ff0000000000000) := rfl
+  rw [classified, decide_eq_true_iff]
+  unfold IsNaN
+  constructor
+  · intro above
+    exact ⟨by omega, by omega⟩
+  · intro ⟨exponent, fraction⟩
+    omega
+
+/-- The NaN test decides the NaN encodings, so a function that decides `IsNaN` runs that
+test. -/
+instance (x : Binary64) : Decidable x.IsNaN := decidable_of_iff _ (isNaN_iff x)
 
 /-- Finite binary64 encoding, excluding infinity and every NaN payload. -/
 def Finite (x : Binary64) : Prop := x.magnitude < 0x7ff0000000000000

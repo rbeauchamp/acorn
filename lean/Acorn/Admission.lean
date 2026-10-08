@@ -109,7 +109,7 @@ theorem finite_between (range : Interval32) (value : Binary32)
   unfold Binary32.Finite at *
   cases hv : value.negative <;> cases hlower : range.lower.negative <;>
     cases hupper : range.upper.negative <;>
-    simp only [Binary32.key, hv, hlower, hupper, Bool.false_eq_true,
+    simp only [Binary32.key_eq_negative, hv, hlower, hupper, Bool.false_eq_true,
       ite_false, ite_true] at hl hu <;> omega
 
 /-- Total saturation, following the current low-before-high branch order.
@@ -120,7 +120,8 @@ def saturate (range : Interval32) (value : Binary32) : Binary32 :=
 /-- The actual saturation definition establishes the invariant for every word. -/
 theorem saturate_contains (range : Interval32) (value : Binary32) :
     range.Contains (range.saturate value) := by
-  unfold saturate Binary32.saturate
+  unfold saturate
+  rw [Binary32.saturate_eq_less]
   by_cases hn : value.isNaN = true
   · simp only [hn, Bool.true_or, ↓reduceIte]
     exact ⟨range.lowerFinite, Int.le_refl _, range.ordered⟩
@@ -145,7 +146,7 @@ theorem saturate_identity (range : Interval32) (value : Binary32)
   rcases h with ⟨hf, hl, hu⟩
   have hln : ¬ value.key < range.lower.key := by omega
   have hun : ¬ range.upper.key < value.key := by omega
-  simp [saturate, Binary32.saturate, Binary32.less_eq_key,
+  simp [saturate, Binary32.saturate_eq_less, Binary32.less_eq_key,
     Binary32.finite_not_nan value hf,
     Binary32.finite_not_nan range.lower range.lowerFinite,
     Binary32.finite_not_nan range.upper range.upperFinite, hln, hun]

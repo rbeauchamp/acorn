@@ -79,6 +79,46 @@ No checker is complete, so `Host.regionBlocked` carries the sound kind and the o
 arguments have a dependent type, a requirement with no kind. `Host.walkableTile` carries the
 two-way kind.
 
+## Tests that a specification does not share
+
+A kind compares a function with its specification as the two are defined now. Where the two
+call one test, a defect of that test changes the two sides together, and the proof of the kind
+can stay valid. Regula's RG1009 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/)
+therefore refuses a contract with a kind whose specification reaches a test that the function
+or the acceptance predicate also reaches. A test is a function with a result of `Bool`, or a
+definition with a result of `BEq`, outside Lean's own library. The projection function of a
+structure field is no test, whatever the type of the field: it reads stored data. So
+`inventory_craft` is not refused for the fields `Host.Inventory.axe` and `Host.Inventory.boat`,
+which `Host.Inventory.Owns` and `Host.Inventory.craft` both read. The rule reads the
+specification at any depth.
+
+Each such condition is a proposition, with a theorem that connects the test with it:
+
+* `Binary32.Negative`, the sign bit as a bound on the word, with `Binary32.negative_iff`;
+* `Binary32.IsNaN` and `Binary64.IsNaN`, a NaN by its exponent field and its fraction field,
+  with `Binary32.isNaN_iff` and `Binary64.isNaN_iff`;
+* `Binary32.Less` and `Binary64.Less`, the strict order by the signed keys of two words that
+  are not NaNs, with `Binary32.less_iff` and `Binary64.less_iff`;
+* `Host.TileKind.Walkable`, terrain that is neither water nor a mountain, with
+  `Host.TileKind.walkable_iff`;
+* `Host.Inventory.Owns`, the flag of the named tool, with `Host.Inventory.owns_iff`;
+* `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`.
+
+A function that a specification reaches decides the proposition in the place of the call of
+the test: the signed key `Binary32.key`, `Binary32.saturate`, `Lifetime.sumUpdate`,
+`Conversion.toI64Word`, `Host.floor32`, `Host.classifyTerrain` and `Host.World.enterable`. The
+instance of each proposition runs its test, so the executed comparison is the same one. A
+specification that would name a test names the proposition: `inventory_craft` and
+`region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
+
+The rule compares names. It refuses nothing for a shared function with a result that is
+neither `Bool` nor `BEq`, such as `Binary32.key`, `Binary32.magnitude` or `Host.terrain`: no
+type tells a function that a specification is about from one that prepares its input. Those
+functions stay a matter of review. For a contract with a kind, the account of the Regula audit
+names each such function where the specification reaches it first. It does not name a function
+that the specification reaches only through a named one, and it does not name a projection
+function.
+
 ## What is not registered
 
 The groups below are a list with no check of completeness: a new definition with a `Bool`,
@@ -748,18 +788,20 @@ theorem raw_energy_cost : Regula.ExecutableContract Host.Action.rawEnergyCost (f
 
 attribute [regula_decision] Host.Action.rawEnergyCost
 
-/-- Crafting accepts exactly an unowned tool whose recipe the inventory covers
-(`Host.Inventory.craft_exact`). -/
+/-- Crafting accepts exactly a tool that is not owned and whose recipe the inventory covers
+(`Host.Inventory.craft_exact`). Ownership is the proposition `Host.Inventory.Owns`, which
+names no test, and `Host.Inventory.owns_iff` connects it with the test that crafting runs. -/
 theorem inventory_craft : Regula.ExecutableContract Host.Inventory.craft (fun craft =>
     Regula.Decides (·.isOk = true)
       (fun input : Host.Inventory × Host.Craftable =>
-        input.1.owns input.2 = false ∧ input.2.recipe.1 ≤ input.1.wood.toNat ∧
+        ¬input.1.Owns input.2 ∧ input.2.recipe.1 ≤ input.1.wood.toNat ∧
           input.2.recipe.2 ≤ input.1.stone.toNat)
       (Function.uncurry craft)) :=
   ⟨decides
     (fun ⟨inventory, tool⟩ => by
-      show (inventory.craft tool).isOk = true ↔ inventory.owns tool = false ∧
+      show (inventory.craft tool).isOk = true ↔ ¬inventory.Owns tool ∧
         tool.recipe.1 ≤ inventory.wood.toNat ∧ tool.recipe.2 ≤ inventory.stone.toNat
+      rw [← inventory.owns_iff tool, Bool.not_eq_true]
       rcases recipe : tool.recipe with ⟨wood, stone⟩
       by_cases owned : inventory.owns tool = true
       · simp [Host.Inventory.craft, owned, Except.isOk, Except.toBool]
@@ -1114,14 +1156,7 @@ theorem box_member : Regula.ExecutableContract Host.inBox (fun test =>
         (0 ≤ input.2.x.val ∧ input.2.x.val < input.1.side) ∧
           (0 ≤ input.2.y.val ∧ input.2.y.val < input.1.side))
       (Function.uncurry test)) :=
-  ⟨decides
-    (fun input => by
-      show (Host.BoxPosition.checked input.1 input.2.x.val input.2.y.val).isSome = true ↔ _
-      unfold Host.BoxPosition.checked
-      by_cases column : 0 ≤ input.2.x.val ∧ input.2.x.val < input.1.side
-      · by_cases row : 0 ≤ input.2.y.val ∧ input.2.y.val < input.1.side <;>
-          simp [column, row]
-      · simp [column])
+  ⟨decides (fun input => Host.inBox_iff input.1 input.2)
     ⟨(⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩,
         ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩), by decide⟩
     ⟨(⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩,
@@ -1130,17 +1165,20 @@ theorem box_member : Regula.ExecutableContract Host.inBox (fun test =>
 attribute [regula_decision] Host.inBox
 
 /-- The cover test accepts exactly an absent tile, a listed tile and a tile outside the
-receiving box. -/
+receiving box. A tile outside the box is one that the proposition `Host.InBox` does not hold
+of; that proposition names no test, and `Host.inBox_iff` connects it with the test that the
+cover test runs. -/
 theorem region_covers : Regula.ExecutableContract Host.covered (fun test =>
     Regula.Decides (· = true)
       (fun input : (Host.WorldConfig × List Host.Position) × Option Host.Position =>
-        ∀ tile, input.2 = some tile → tile ∈ input.1.2 ∨ Host.inBox input.1.1 tile = false)
+        ∀ tile, input.2 = some tile → tile ∈ input.1.2 ∨ ¬Host.InBox input.1.1 tile)
       (Function.uncurry (Function.uncurry test))) :=
   ⟨decides
     (fun ⟨⟨config, cells⟩, candidate⟩ => by
       cases candidate with
       | none => simp [Function.uncurry, Host.covered]
-      | some tile => simp [Function.uncurry, Host.covered, Host.inRegion])
+      | some tile =>
+        simp [Function.uncurry, Host.covered, Host.inRegion, ← Host.inBox_iff])
     ⟨((⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩, []), none),
       fun _ absent => nomatch absent⟩
     ⟨((⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩, []),
@@ -1900,6 +1938,9 @@ attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidab
   Binary32.instDecidableFinite Binary64.instDecidableFinite Interval32.instDecidableContains
   Features.instDecidableRecent Features.instDecidableDominates Lifetime.instDecidableLegalSum
   Checkpoint.instDecidableValid Checkpoint.instDecidableOptionsValid
+  Binary32.instDecidableNegative Binary32.instDecidableIsNaN Binary32.instDecidableLess
+  Binary64.instDecidableIsNaN Binary64.instDecidableLess Host.instDecidableWalkable
+  Host.instDecidableOwns Host.instDecidableInBox
 
 /-! ## Decisions with a dependent type
 

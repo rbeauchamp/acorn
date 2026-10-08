@@ -558,7 +558,7 @@ theorem saturate_hull (value lower upper : Binary32) (lowerFinite : lower.Finite
     (value.saturate lower upper).Finite ∧
       |numerical32 (value.saturate lower upper)| ≤
         max |numerical32 lower| |numerical32 upper| := by
-  unfold Binary32.saturate
+  rw [Binary32.saturate_eq_less]
   split
   · exact ⟨lowerFinite, le_max_left _ _⟩
   · split
@@ -577,14 +577,14 @@ theorem saturate_hull (value lower upper : Binary32) (lowerFinite : lower.Finite
         have low : lower.magnitude < 0x7f800000 := lowerFinite
         have high : upper.magnitude < 0x7f800000 := upperFinite
         have lowKey : -(lower.magnitude : Int) ≤ lower.key := by
-          unfold Binary32.key
+          simp only [Binary32.key_eq_negative]
           split <;> omega
         have highKey : upper.key ≤ (upper.magnitude : Int) := by
-          unfold Binary32.key
+          simp only [Binary32.key_eq_negative]
           split <;> omega
         have valueKey : value.key = (value.magnitude : Int) ∨
             value.key = -(value.magnitude : Int) := by
-          unfold Binary32.key
+          simp only [Binary32.key_eq_negative]
           split
           · exact Or.inr rfl
           · exact Or.inl rfl
@@ -721,7 +721,7 @@ theorem saturate_numeric (value lower upper : Binary32) (finite : value.Finite)
       max (min (numerical32 value) (numerical32 upper)) (numerical32 lower) := by
   have low := numerical32_less value lower finite lowerFinite
   have high := numerical32_less upper value upperFinite finite
-  unfold Binary32.saturate
+  rw [Binary32.saturate_eq_less]
   rw [Binary32.finite_not_nan value finite, low, high]
   simp only [Bool.false_or, decide_eq_true_eq]
   split
