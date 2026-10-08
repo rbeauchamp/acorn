@@ -123,7 +123,12 @@ proof bridge imports; an exact hit avoids repeated provisioning. A changed impor
 restores the same locked dependencies and builds only the added modules.
 Admit restored dependencies and save newly provisioned dependencies before the
 project gate, so a project failure does not discard useful provisioning work.
-Project outputs still build cold under the fixed deadline. Reuse Lake's
+Project outputs still build cold in every CI run. Locally one fixed deadline
+bounds the cold build and every check. CI's verify job runs the command twice on
+one runner, each run under its own deadline: `./scripts/verify.sh build-executing`
+builds the executing library, the tools and the native objects, and the complete
+command reuses them where Lake's traces match. So in CI the cold build and the
+checks no longer share one deadline. Reuse Lake's
 source/toolchain-validated configuration trace and batch independent source
 hashes while checking every result's filename and digest. Neither mechanism
 reuses a previous verification result or substitutes a digest for correctness.
