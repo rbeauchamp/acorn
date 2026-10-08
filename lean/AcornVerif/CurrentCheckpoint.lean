@@ -80,7 +80,9 @@ theorem header_roundtrip (construction : AgentConstruction) (image : constructio
     Nat.mod_eq_of_lt (by have := construction.config.units.bounded; omega)
   have gain : RewardRate.admit image.image.gain.value = some image.image.gain :=
     Bounded32.admit_self image.image.gain
-  simp [admitHeader, imagePayload, supported, gain, units]
+  have resumable : construction.profile.Resumable :=
+    construction.profile.checkpoint_iff.mp supported
+  simp [admitHeader, imagePayload, supported, resumable, gain, units]
   rfl
 
 /-- Raw feature words reconstruct the exact saved progress, objectives and primary image. -/

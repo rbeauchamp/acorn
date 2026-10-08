@@ -103,6 +103,26 @@ theorem FeatureProfile.checkpoint_iff (profile : FeatureProfile) :
       profile.rate = .declared ∧ profile.subtasks = .learned := by
   simp [FeatureProfile.checkpointSupported, and_assoc]
 
+/-- A resumable profile, stated by its four discriminants: the profile whose state a
+checkpoint holds. -/
+def FeatureProfile.Resumable (profile : FeatureProfile) : Prop :=
+  profile.mode = .final ∧ profile.credit = .perStep ∧ profile.rate = .declared ∧
+    profile.subtasks = .learned
+
+/-- The resumable-profile test decides the proposition, so a function that decides
+`Resumable` runs that test. -/
+instance (profile : FeatureProfile) : Decidable profile.Resumable :=
+  decidable_of_iff (profile.checkpointSupported = true) profile.checkpoint_iff
+
+/-- The decision of the proposition is the verdict of the resumable-profile test. -/
+theorem FeatureProfile.decide_resumable (profile : FeatureProfile) :
+    decide profile.Resumable = profile.checkpointSupported := by
+  cases supported : profile.checkpointSupported with
+  | true => exact decide_eq_true (profile.checkpoint_iff.mp supported)
+  | false =>
+    exact decide_eq_false fun resumable =>
+      absurd (profile.checkpoint_iff.mpr resumable) (by rw [supported]; exact Bool.false_ne_true)
+
 /-- Initial objective identities preserve the declared current construction order. -/
 def FeatureProfile.interests (profile : FeatureProfile) (config : Features.Config) :
     Vector (Interest config) Acorn.FeatureConstants.skillCount :=

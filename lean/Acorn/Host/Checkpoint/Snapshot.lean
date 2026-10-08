@@ -99,7 +99,7 @@ def imagePayload (construction : AgentConstruction) (image : construction.Image)
       construction.config.seed, image.image.features.progress.clock,
       construction.criterion.tag.toUInt32, image.image.gain.value, construction.config.tilings,
       construction.config.units.count.toUInt32,
-      if construction.profile.checkpointSupported then 1 else 0, construction.order.tag⟩,
+      if construction.profile.Resumable then 1 else 0, construction.order.tag⟩,
     image.image.features.assignments.map (Assignment.words construction.dimension),
     image.image.features.primary, lifetimeWords image.image.lifetime,
     testerWords image.image.features.progress⟩

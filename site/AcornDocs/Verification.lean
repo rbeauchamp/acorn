@@ -448,8 +448,8 @@ with the {splice}`numberWord toolExecutables.length` tool executables; it is the
 
 `lean/Acorn/Decisions.lean` registers the library's decision functions for which
 a property of the accepted or refused result is proved. A decision function is
-an admission, parser or validity test: its result accepts or refuses an input.
-A registration is a Regula executable contract about the executing definition
+an admission, parser or validity test: its result accepts or refuses an input. A
+registration is a Regula executable contract about the executing definition
 itself, with the kind its proof establishes. A two-way kind states that the
 function accepts exactly the inputs that satisfy the written specification, with
 one accepted and one refused input as witnesses. Regula's decision attribute
@@ -469,17 +469,15 @@ documentation of `lean/Acorn/Decisions.lean` gives the four reasons: a function
 that accepts every input or whose accepted inputs no theorem states; an input
 that holds a state whose invariant names tests that the function runs ([Regula
 issue 270](https://github.com/rbeauchamp/regula/issues/270)); a specification
-about a function with such tests; and an accepted input whose acceptance is
-proved in the proof library ([Regula issue
+about a function with such tests; and kinds that are stated in the proof
+library, which Regula does not count toward a registration ([Regula issue
 271](https://github.com/rbeauchamp/regula/issues/271)). A requirement with no
 kind is a statement that the Regula audit does not examine: that audit checks
 only that its theorem is proved about the executing definition. Such a statement
 can fix one direction only, and it need not show that both outcomes occur for
-its function. Kinds for the functions whose kind Regula refuses or whose
-accepted input is proved in the proof library, and for the statements of
-`lean/AcornVerif/Decisions.lean`, are remaining work of [issue
-105](https://github.com/rbeauchamp/acorn/issues/105). A contract states only
-what its theorem proves.
+its function. Kinds for the functions of the second and the third reason are
+remaining work of [issue 105](https://github.com/rbeauchamp/acorn/issues/105). A
+contract states only what its theorem proves.
 
 A kind compares a function with its specification as the two are defined now.
 Where the two call one test, a defect of that test changes the two sides
@@ -490,24 +488,24 @@ function or the acceptance predicate also reaches. A test is a function with a
 result of `Bool`, or a definition of an instance of BEq, Lean's class of
 equality tests, outside Lean's own library. The projection function of a
 structure field is no test, whatever the type of the field: it reads stored
-data. The rule reads the specification at any depth. Acorn states
-each such condition as a proposition, with a theorem that connects the test with
-it: `Binary32.Negative` for the sign bit, `Binary32.IsNaN` and `Binary64.IsNaN`,
-the strict orders `Binary32.Less` and `Binary64.Less`, `Host.TileKind.Walkable`,
-`Host.Inventory.Owns` and `Host.InBox`. A function that a specification reaches,
-such as the signed key `Binary32.key`, decides the proposition through an
-instance that runs the test, so the executed comparison is the same one. The
-rule compares names: it does not find a copy of a test under a second name. It
-refuses nothing for a projection function, so `inventory_craft` is not refused
-for the fields `Host.Inventory.axe` and `Host.Inventory.boat`, which its
-specification and its function both read. It refuses nothing for a shared
-function with another result than those two, such as `Binary32.key` or
-`Host.terrain`. Those functions stay a matter of review. For a contract with a
-kind, the account of the audit names each such function where the specification
-reaches it first. It does not name a function that the specification reaches
-only through a named one, and it does not name a projection function.
-The module documentation of `lean/Acorn/Decisions.lean` names each proposition
-with its theorem.
+data. The rule reads the specification at any depth. Acorn states each such
+condition as a proposition, with a theorem that connects the test with it:
+`Binary32.Negative` for the sign bit, `Binary32.IsNaN` and `Binary64.IsNaN`, the
+strict orders `Binary32.Less` and `Binary64.Less`, `Host.TileKind.Walkable`,
+`Host.Inventory.Owns`, `Host.InBox` and `FeatureProfile.Resumable`. A function
+that a specification reaches, such as the signed key `Binary32.key`, decides the
+proposition through an instance that runs the test, so the executed comparison
+is the same one. The rule compares names: it does not find a copy of a test
+under a second name. It refuses nothing for a projection function, so
+`inventory_craft` is not refused for the fields `Host.Inventory.axe` and
+`Host.Inventory.boat`, which its specification and its function both read. It
+refuses nothing for a shared function with another result than those two, such
+as `Binary32.key` or `Host.terrain`. Those functions stay a matter of review.
+For a contract with a kind, the account of the audit names each such function
+where the specification reaches it first. It does not name a function that the
+specification reaches only through a named one, and it does not name a
+projection function. The module documentation of `lean/Acorn/Decisions.lean`
+names each proposition with its theorem.
 
 Regula's audit does not find a decision function that is not registered, and no
 check of Acorn does. The module documentation of `lean/Acorn/Decisions.lean`
@@ -516,20 +514,23 @@ result that carry no contract, with the reason for each group. That list has no
 check of completeness: a new definition with such a result can arrive with no
 contract and no entry. A report of the definitions with no contract is work of
 Regula ([issue 115](https://github.com/rbeauchamp/regula/issues/115)).
-`Acorn.Decisions`
-cannot register a function of another library, such as a NativeApp parser. No
-kind says that a specification is the intended one. `Acorn.Decisions` belongs to
-the Acorn library
-because Regula decides a registered function against the contracts of the
-function's own library. It is the only module that imports Regula's decision
-attribute. No module imports it, so no entry point links what it declares; the
-boundary audit admits it with the proof sources and refuses an import of it.
-`AcornVerif.Decisions` states the contracts whose proofs need the proof library.
-Regula does not count them toward a registration, so their functions are not
-registered, and the ownership audit requires each contract by name. Among them
-are the certificate checkers. No checker is complete, so each contract states
-what an accepted certificate establishes: the blocked checker carries the sound
-kind, and the replay and stance checkers a requirement with no kind.
+`Acorn.Decisions` cannot register a function of another library, such as a
+NativeApp parser. No kind says that a specification is the intended one.
+`Acorn.Decisions` belongs to the Acorn library because Regula decides a
+registered function against the contracts of the function's own library. It is
+the only module that imports Regula's decision attribute. No module imports it,
+so no entry point links what it declares; the boundary audit admits it with the
+proof sources and refuses an import of it. `AcornVerif.Decisions` states the
+contracts whose proofs need the proof library. Regula does not count them toward
+a registration, so their functions are not registered, and the ownership audit
+requires each contract by name. Among them are the certificate checkers. No
+checker is complete, so each contract states what an accepted certificate
+establishes: the blocked checker and the stance checker carry the sound kind.
+The replay checker keeps a requirement with no kind, because its specification
+is about runs of the executed world step, which the checker runs. The module
+documentation of `lean/AcornVerif/Decisions.lean` lists the functions of that
+module that keep no kind, with the reason for each and which of them are also
+remaining work of issue 105.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial

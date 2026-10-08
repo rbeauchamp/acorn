@@ -25,7 +25,7 @@ def wanderDeer {config : WorldConfig} (world : World config) (position : Positio
     let (dx, dy) := direction.delta
     let some candidate := position.translate dx dy | .error .coordinateOverflow
     let kind ← world.tileKind candidate
-    return (if kind.walkable then candidate else position, rng)
+    return (if kind.Walkable then candidate else position, rng)
   else return (position, rng)
 
 /-- Vector traversal retains deer order and exactly preserves population length. -/
