@@ -1532,8 +1532,8 @@ which is refused.
 number: `Host.Microduck.Counted` and `Host.Microduck.Signed` are written with
 `Host.Microduck.spelled` of the reader, so that the stated rows and columns are 8, that a
 distance is in its range and that a status is below 256 rest on that arithmetic here.
-`AcornVerif.Decimal.counted_numberOf` states `Counted` without it, and no theorem states
-`Signed` without it. That a line of the daemon gives such a value, as for
+`AcornVerif.Decimal.counted_numberOf` and `AcornVerif.Decimal.signed_numberOf` state the
+two relations without it. That a line of the daemon gives such a value, as for
 `microduck_state`. -/
 theorem microduck_depth :
     Regula.ExecutableContract Host.Microduck.Depth.read

@@ -21,9 +21,11 @@ gives is stated member by member, by `State.Written` and `Depth.Written`: a prop
 for each field, which names the member that the field is read from and relates the two.
 A frame is read exactly when it is written so (`State.read_iff`, `Depth.read_iff`, for
 every JSON value and every frame). The two specifications name no reader of this module:
-the readers are private. Two of the relations, on one number, are written with the
-arithmetic of `Acorn.Host.Microduck.Decimal`, and the proof library states them without
-it. The relations are these.
+the readers are private. Three of the relations, on one number (`Scale.Kept`, `Counted`
+and `Signed`), are written with the arithmetic of `Acorn.Host.Microduck.Decimal`, and the
+proof library states each without it (`AcornVerif.Decimal.kept_nearest`,
+`AcornVerif.Decimal.counted_numberOf`, `AcornVerif.Decimal.signed_numberOf`). The
+relations are these.
 
 - `Json.Value.Member` of `Acorn.Json`: the first member of an object with a name. `Within`
   requires the member. `Lacking` is a member of an object that can be missing: there is no
@@ -38,13 +40,14 @@ it. The relations are these.
   the distance of a depth zone with a valid return (`Ranged`, at most 32,767) and the stated
   numbers of rows and columns are read so
   (`AcornVerif.Decimal.counted_numberOf` states the number by the places of its digits).
-- `Signed`: the integer of a JSON number that digits with an optional minus sign spell,
-  with no point or exponent. The distance of a depth zone with no valid return must be one
-  from -32,768 to 32,767.
-- `Zoned`: the distance of a depth zone, by its status (`Depth.read_distances`).
   It is read from the numeral of the one scanner of `Acorn.Json` and not by
   `Acorn.Json.Value.natural`, which no theorem states the accepted spellings of and which
   refuses a number of two to the sixty-four or more.
+- `Signed`: the integer of a JSON number that digits with an optional minus sign spell,
+  with no point or exponent (`AcornVerif.Decimal.signed_numberOf` states the integer by
+  the places of its digits and its sign). The distance of a depth zone with no valid
+  return must be one from -32,768 to 32,767.
+- `Zoned`: the distance of a depth zone, by its status (`Depth.read_distances`).
 - `Listed`: an array whose values correspond to the entries of a vector one to one, in
   order (`Each`), so an array of another length is no vector (`Each.length`). `Texts` is
   an array of strings with the texts of a list, in order.
@@ -482,15 +485,6 @@ private def integer (json : Json.Value) : Option Int :=
   | some ⟨negative, whole, none, none⟩ =>
     some (if negative then -(spelled whole : Int) else spelled whole)
   | _ => none
-
-/-- The value is a number spelled by digits with an optional minus sign, a single zero or
-digits with no leading zero, with no point and no exponent, and the digits with their sign
-spell the integer. -/
-def Signed (json : Json.Value) (integer : Int) : Prop :=
-  ∃ (negative : Bool) (digits : List Char),
-    (⟨negative, digits, none, none⟩ : Json.Numeral).Formed ∧
-      json = .number (String.ofList (⟨negative, digits, none, none⟩ : Json.Numeral).chars) ∧
-        (if negative then -(spelled digits : Int) else spelled digits) = integer
 
 /-- A value has an integer exactly when digits with an optional minus sign spell it. -/
 private theorem integer_iff (json : Json.Value) (result : Int) :

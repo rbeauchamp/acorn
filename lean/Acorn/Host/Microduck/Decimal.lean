@@ -78,12 +78,14 @@ library by the place of each digit and with a table of the ten digits, and with 
 nearest to the number its spelling writes, in the units of the scale, a tie away from
 zero, saturated to the bounds of the scale (`AcornVerif.Decimal.read_nearest`).
 
-Two relations state what a reader of a frame keeps of one number, for
+Three relations state what a reader of a frame keeps of one number, for
 `Acorn.Host.Microduck.Wire`. `Scale.Kept` is the word of a scale: the conversion of the
 decimal of a formed numeral that spells the value (`AcornVerif.Decimal.kept_nearest`
 states it as the nearest integer to what the numeral writes). `Counted` is a natural
 number: the value is spelled by digits alone, with no sign, point or exponent, and the
-digits spell the number (`AcornVerif.Decimal.counted_numberOf`).
+digits spell the number (`AcornVerif.Decimal.counted_numberOf`). `Signed` is an integer:
+the value is spelled by digits with an optional minus sign, with no point or exponent,
+and the digits with their sign spell the integer (`AcornVerif.Decimal.signed_numberOf`).
 
 No theorem compares two decimals by their values, so that the conversion keeps their
 order is not stated.
@@ -393,5 +395,14 @@ zero, and the digits spell the natural number. -/
 def Counted (json : Json.Value) (natural : Nat) : Prop :=
   ∃ digits : List Char, (⟨false, digits, none, none⟩ : Json.Numeral).Formed ∧
     json = .number (String.ofList digits) ∧ spelled digits = natural
+
+/-- The value is a number spelled by digits with an optional minus sign, a single zero or
+digits with no leading zero, with no point and no exponent, and the digits with their sign
+spell the integer. -/
+def Signed (json : Json.Value) (integer : Int) : Prop :=
+  ∃ (negative : Bool) (digits : List Char),
+    (⟨negative, digits, none, none⟩ : Json.Numeral).Formed ∧
+      json = .number (String.ofList (⟨negative, digits, none, none⟩ : Json.Numeral).chars) ∧
+        (if negative then -(spelled digits : Int) else spelled digits) = integer
 
 end Acorn.Host.Microduck
