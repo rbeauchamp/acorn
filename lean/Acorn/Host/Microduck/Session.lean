@@ -548,10 +548,10 @@ def Idle.start (pace : Pace) (keep : Keep) (origin : Instant) : Idle :=
   ⟨Calm.start pace keep origin, [], [], .start pace keep origin⟩
 
 /-- One line of a daemon is heard while no percept awaits. A state frame replaces the
-latest one, paired with the latest depth frame that is not stamped after it, and is tested
-for showing the action of the last release. A depth frame becomes the latest one. A result
-or a fault with the identifier of a request of the last release answers it. Every other
-line changes nothing. -/
+latest one and is tested for showing the action of the last release; it is paired with a
+depth frame only when a percept is sensed (`Idle.sense`). A depth frame becomes the latest
+one, and the one before it the earlier one. A result or a fault with the identifier of a
+request of the last release answers it. Every other line changes nothing. -/
 def Idle.hear (idle : Idle) (line : Line) : Idle :=
   ⟨idle.calm.heard line,
     idle.reached.elim fun _ found => found.elim fun _ reached => ⟨_, _, reached.hear line⟩⟩
