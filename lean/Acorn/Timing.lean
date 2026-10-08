@@ -431,7 +431,7 @@ def Force.named (force : Force α) (rest : Option α) (now : Instant) : Option �
   | some lapse => if now.nanoseconds < lapse.nanoseconds then force.action else rest
 
 /-- What a host of a wall-clock world holds between two events, over the world's actions:
-the action in force and the percept, if any, whose action is not released yet. -/
+the force of the last release and the percept, if any, whose action is not released yet. -/
 inductive Standing (α : Type) where
   /-- No percept awaits its action. The force is the one of the last release. -/
   | idle (force : Force α)
