@@ -21,11 +21,13 @@ fields and scales are authored in that host module. Each signal carries its decl
 origin in its value. The layout has no type of its own to carry one: its declaration is
 the entry of the register and the inventory of the departure audit.
 
-No executing code builds a percept: the host loop of this world is not built. A host
-owes the adapter four things, and no theorem here states that a host supplies them: the
-reading, what became of the preceding action, whether its release was late, and the
-state of the goal's latch, which starts disarmed and which `arm` advances at each
-reading.
+No executing code builds a percept: the executing host loop of this world is not built.
+A host owes the adapter four things: the reading, what became of the preceding action,
+whether its release was late, and the state of the goal's latch, which starts disarmed
+and which `arm` advances at each reading. `Acorn.Host.Microduck.Idle.sense` gives the
+four as pure definitions, with the latch held in the state of the host, so that the
+latch of every reachable host is the fold of `arm` over the readings it sensed
+(`Acorn.Host.Microduck.Reached.latch`).
 
 ## The interface value
 
@@ -59,16 +61,16 @@ position carries at most one word of a frame (`entries_distinct`).
 | 43 | the four limit names | one bit for each |
 | 44 | whether the reading has a depth frame | 0 or 1 |
 | 45 | the age of the depth frame, when there is one | in steps of 20 ms, at most 25 |
-| 46 | what became of the preceding action | 0 before any action, then 1 to 4 |
+| 46 | what became of the preceding action | 0 before any action, then 1 to 5 |
 | 47 | whether the release of the preceding action was late | 0 or 1 |
 
 A level is the count of whole steps from the least value of the scale of thousandths, so
 it is never negative. The coder hashes a channel and a value into a feature and does not
 generalise between two values, so a step is the resolution the agent has of a quantity.
 The steps are authored numbers of this module. None has been qualified by an
-experiment. The four outcomes of an action and the case before any action have five
-values of their word (`became_injective`), so a refused action and an accepted action
-that was not executed are two words.
+experiment. The five outcomes of an action and the case before any action have six
+values of their word (`became_injective`), so a refused action, an accepted action that
+was not executed and an action whose answer was not complete are three words.
 
 Absence is a word and not a zero. The presence word of the rates, of the gain and of the
 depth frame is one when the reading has the quantity and zero when it does not
@@ -218,13 +220,15 @@ def flag (value : Bool) : UInt64 := if value then 1 else 0
 def limited (limits : Limits) : UInt64 :=
   flag limits.deadman + 2 * flag limits.range + 4 * flag limits.finite + 8 * flag limits.other
 
-/-- The code of what became of the preceding action: zero before any action. -/
+/-- The code of what became of the preceding action: zero before any action, and one to five
+for the five outcomes, five for an action whose answer was not complete. -/
 def became : Option Outcome → UInt64
   | none => 0
   | some .executed => 1
   | some .unchanged => 2
   | some .refused => 3
   | some .unexecuted => 4
+  | some .unanswered => 5
 
 /-- The level of the gravity word for the upward component below which the trunk counts as
 upright: the level of -950 thousandths, which is 318. -/
