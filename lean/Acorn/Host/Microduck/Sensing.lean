@@ -26,9 +26,10 @@ with the proof of its bounds. Two scales are declared, and each fits sixteen bit
 - `Declared.range` keeps whole millimetres from 0 to 32,767. It holds a depth, which
   the daemon writes as a signed sixteen-bit integer.
 
-A quantity that the daemon writes as an unsigned integer keeps a type of that width,
-with no scale: a stamp of the daemons' clock is a natural number, the servo gain is
-sixteen bits and the status of a depth zone is eight.
+A quantity that the daemon writes as an unsigned integer has no scale. The servo gain
+and the status of a depth zone keep the daemon's width, sixteen bits and eight. A stamp
+of the daemons' clock, which the daemon writes in sixty-four bits, is a natural number
+with no width, as an `Instant` of `Acorn.Timing` is, and so is the age of a depth frame.
 
 A field whose absence means that nothing was measured is an `Option`, and absence is
 not a zero. The joint rates are absent when the daemon does not report them and the
@@ -55,8 +56,8 @@ carry.
 
 This module defines no text form. The function that reads a frame of the daemon into
 these types is not built. It owes the name of each field, the order of each array, the
-table of labels behind `Policy` and of names behind `Limits`, and the refusal of an
-unsigned integer that its type does not hold. Not kept, by decision: the time in
+table of labels behind `Policy` and of names behind `Limits`, and the refusal of a gain
+or a status that its type does not hold. Not kept, by decision: the time in
 seconds beside the stamp, the pose of each body link and of each sensor, the commanded
 joint positions, the head command, the orientation as a quaternion (the gravity
 direction holds the tilt, and the heading is arbitrary at each start), the motor

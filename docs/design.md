@@ -876,7 +876,7 @@ signals will be declared under departures D1 and D5 of the
 frame cannot carry. The function that reads the daemon's text into these types is
 not built either, and it belongs with the reader of the daemon's text. It owes the
 name of each field, the order of each array, the tables of labels and of limit
-names, the refusal of an unsigned integer that its type does not hold, and the
+names, the refusal of a gain or a status that its type does not hold, and the
 `Decimal` of each number's spelling. The spelling is the one the repository's JSON
 reader keeps: an optional minus sign, digits, an optional point with digits after
 it and an optional exponent. That reader refuses `1.` and `1e`, and every spelling
