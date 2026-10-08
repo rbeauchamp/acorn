@@ -11,6 +11,7 @@ import Acorn.Host.Campaign
 import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
+import Acorn.Handcrafted.Microduck
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
@@ -1090,6 +1091,75 @@ theorem microduck_outcome_judged :
         outcome action sitting reply shown = result ↔
           action.Judged sitting reply shown result) :=
   ⟨Host.Microduck.Action.outcome_judged⟩
+
+/-- The Microduck world's goal test accepts a reading exactly when the upward component of
+gravity is below -950 thousandths, the depth frame is under half a second old, and one of
+the first sixteen symbols of the reading's frame, its two top rows, is at most 3
+(`Handcrafted.Microduck.near_symbols`). The specification reads the symbols that the frame
+gives the agent, through `Handcrafted.Microduck.symbols`, and states the three numbers as
+literals; the function reads the zones of the depth frame, with the declared numbers and
+Boolean tests on rows, statuses and distances. The two share no test, and a change of a
+declared number or of the symbol of a zone contradicts the statement. The two inputs of the
+proof are an upright reading whose every zone has a valid return at 100 mm, which is
+accepted, and a reading with no depth frame, which is refused. That an accepted reading is
+near an obstacle in the world is not stated: `docs/design.md` argues it for a flat floor,
+under assumptions. -/
+theorem microduck_near :
+    Regula.ExecutableContract Handcrafted.Microduck.near (fun near =>
+      Regula.Decides (· = true)
+        (fun reading : Host.Microduck.Reading =>
+          (reading.state.gravity.get 2).val < -950 ∧
+            (∃ age, reading.age = some age ∧ age < 500000000) ∧
+              ∃ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 ∧
+                ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ≤ 3)
+        near) :=
+  ⟨decides Handcrafted.Microduck.near_symbols
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
+        #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩,
+      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨100, by decide⟩, 5⟩⟩⟩,
+      (Handcrafted.Microduck.near_symbols _).mp (by decide)⟩
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩, none⟩,
+      fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.near
+
+/-- The Microduck world's clear test accepts a reading exactly when the upward component of
+gravity is below -950 thousandths, the depth frame is under half a second old, and each of
+the first sixteen symbols of the reading's frame is from 5 and below `0x1000`, or is `0x10FF`
+(`Handcrafted.Microduck.clear_symbols`): a valid return of at least 400 mm, or the status
+255. The specification reads the frame's symbols, as that of `microduck_near` does, and the
+function reads the zones of the depth frame. The two inputs of the proof are an upright
+reading whose every zone has the status 255, which is accepted, and a reading with no depth
+frame, which is refused. -/
+theorem microduck_clear :
+    Regula.ExecutableContract Handcrafted.Microduck.clear (fun clear =>
+      Regula.Decides (· = true)
+        (fun reading : Host.Microduck.Reading =>
+          (reading.state.gravity.get 2).val < -950 ∧
+            (∃ age, reading.age = some age ∧ age < 500000000) ∧
+              ∀ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 →
+                (5 ≤ ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ∧
+                    ((Handcrafted.Microduck.symbols reading.depth).get position).toNat <
+                      0x1000) ∨
+                  ((Handcrafted.Microduck.symbols reading.depth).get position).toNat = 0x10FF)
+        clear) :=
+  ⟨decides Handcrafted.Microduck.clear_symbols
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
+        #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩,
+      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨0, by decide⟩, 255⟩⟩⟩,
+      (Handcrafted.Microduck.clear_symbols _).mp (by decide)⟩
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩, none⟩,
+      fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.clear
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification

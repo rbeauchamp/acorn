@@ -48,11 +48,10 @@ not the `Instant` of a host's clock that `Acorn.Timing` counts cycles on: a host
 daemons' machine reads the same clock, and a host that reaches the daemons from another
 machine does not, so this module relates the two in no way.
 
-The two scales and the choice of the fields are authored. Nothing here reaches the
-agent, so nothing here is on its action path. A frame of the interface is built on a
-reading by a later module, which declares its channels and signals under departures D1
-and D5 of `docs/learned-only-binding.md`; what a reading leaves out, that frame cannot
-carry.
+The two scales and the choice of the fields are authored. `Acorn.Handcrafted.Microduck`
+builds a frame of the interface on a reading, and declares its channels, its signals and
+the event of its goal under departures D1, D5 and D8 of `docs/learned-only-binding.md`;
+what a reading leaves out, that frame cannot carry.
 
 This module defines no text form. The function that reads a frame of the daemon into
 these types is not built. It owes the name of each field, the order of each array, the
