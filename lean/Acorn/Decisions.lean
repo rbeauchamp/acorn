@@ -1093,15 +1093,19 @@ theorem microduck_outcome_judged :
   ⟨Host.Microduck.Action.outcome_judged⟩
 
 /-- The Microduck world's goal test accepts a reading exactly when the upward component of
-gravity is below -950 thousandths, the depth frame is under half a second old, and one of
-the first sixteen symbols of the reading's frame, its two top rows, is at most 3
-(`Handcrafted.Microduck.near_symbols`). The specification reads the symbols that the frame
-gives the agent, through `Handcrafted.Microduck.symbols`, and states the three numbers as
-literals; the function reads the zones of the depth frame, with the declared numbers and
-Boolean tests on rows, statuses and distances. The two share no test. The specification
-fixes which readings are accepted, through the class of symbols it names, and not the symbol
-of every zone: a change of a declared number, or of a symbol into or out of that class,
-contradicts the statement, and a change of a symbol inside or outside the class does not.
+gravity is below -967 thousandths, which is the gravity word of the frame below its level
+of -0.95 (`Handcrafted.Microduck.upright_iff`), the depth frame is younger than the declared
+`Handcrafted.Microduck.Declared.fresh`, and one of the first sixteen symbols of the
+reading's frame, its two top rows, is at most 3 (`Handcrafted.Microduck.near_symbols`). The
+specification reads the symbols that the frame gives the agent, through
+`Handcrafted.Microduck.symbols`, and states the gravity bound and the symbol bound as
+literals and the age bound as the declared constant, a number that both sides read; the
+function reads the zones of the depth frame, with the level of the gravity word, the
+declared numbers and Boolean tests on rows, statuses and distances. The two share no test.
+The specification fixes which readings are accepted, through the class of symbols it names,
+and not the symbol of every zone: a change of a declared number, or of a symbol into or out
+of that class, contradicts the statement, and a change of a symbol inside or outside the
+class does not.
 The two inputs of the proof are an upright reading whose every zone has a valid return at
 100 mm, which is accepted, and a reading with no depth frame, which is refused. That an
 accepted reading is near an obstacle in the world is not stated: `docs/design.md` argues it
@@ -1110,8 +1114,9 @@ theorem microduck_near :
     Regula.ExecutableContract Handcrafted.Microduck.near (fun near =>
       Regula.Decides (· = true)
         (fun reading : Host.Microduck.Reading =>
-          (reading.state.gravity.get 2).val < -950 ∧
-            (∃ age, reading.age = some age ∧ age < 500000000) ∧
+          (reading.state.gravity.get 2).val < -967 ∧
+            (∃ age, reading.age = some age ∧
+              age < Handcrafted.Microduck.Declared.fresh) ∧
               ∃ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 ∧
                 ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ≤ 3)
         near) :=
@@ -1130,8 +1135,10 @@ theorem microduck_near :
 attribute [regula_decision] Handcrafted.Microduck.near
 
 /-- The Microduck world's clear test accepts a reading exactly when the upward component of
-gravity is below -950 thousandths, the depth frame is under half a second old, and each of
-the first sixteen symbols of the reading's frame is from 5 and below `0x1000`, or is `0x10FF`
+gravity is below -967 thousandths, which is the gravity word of the frame below its level
+of -0.95 (`Handcrafted.Microduck.upright_iff`), the depth frame is younger than the declared
+`Handcrafted.Microduck.Declared.fresh`, and each of the first sixteen symbols of the
+reading's frame is from 5 and below `0x1000`, or is `0x10FF`
 (`Handcrafted.Microduck.clear_symbols`): a valid return of at least 400 mm, or the status
 255. The specification reads the frame's symbols, as that of `microduck_near` does, and the
 function reads the zones of the depth frame. The two inputs of the proof are an upright
@@ -1141,8 +1148,9 @@ theorem microduck_clear :
     Regula.ExecutableContract Handcrafted.Microduck.clear (fun clear =>
       Regula.Decides (· = true)
         (fun reading : Host.Microduck.Reading =>
-          (reading.state.gravity.get 2).val < -950 ∧
-            (∃ age, reading.age = some age ∧ age < 500000000) ∧
+          (reading.state.gravity.get 2).val < -967 ∧
+            (∃ age, reading.age = some age ∧
+              age < Handcrafted.Microduck.Declared.fresh) ∧
               ∀ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 →
                 (5 ≤ ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ∧
                     ((Handcrafted.Microduck.symbols reading.depth).get position).toNat <

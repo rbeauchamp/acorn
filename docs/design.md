@@ -885,7 +885,7 @@ over what the reader can give.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol
-array, four signals after the agent's own reward question, ten actions, at most 49
+array, four signals after the agent's own reward question, ten actions, at most 48
 words, prediction feedback channels from `0x50`, and the timing of a wall clock with
 the declared pace (`interface_timing`). Its ten actions (`interface_actions`) are the
 positions of the action table; `Action.index` and `Action.named` are inverse to each
@@ -903,14 +903,14 @@ trunk in centimetres, the label of what drove the tick, the daemon's two reports
 a fall, the servo gain in steps of 8, the four limit names as bits, and the age of
 the depth frame in steps of 20 ms up to half a second. Two more words are host
 events: what became of the preceding action, and whether its release was late, which
-is the fault of [the deadline rule](#the-time-a-world-declares). A last word says
-whether the trunk is upright. The coder hashes a channel and a value into one
-feature and does not generalise between two values, so a step is the resolution the
-agent has of a quantity. The steps are authored and no experiment has qualified
-them. Each position of the layout carries at most one word (`entries_distinct`), two
-positions have two channels (`channel_injective`), and no word is on a prediction
-feedback channel (`channel_clear`). A refused action and an accepted action that was
-not executed are two values of their word (`became_injective`).
+is the fault of [the deadline rule](#the-time-a-world-declares). The coder hashes a
+channel and a value into one feature and does not generalise between two values, so a
+step is the resolution the agent has of a quantity. The steps are authored and no
+experiment has qualified them. Each position of the layout carries at most one word
+(`entries_distinct`), two positions have two channels (`channel_injective`), and no
+word is on a prediction feedback channel (`channel_clear`). A refused action and an
+accepted action that was not executed are two values of their word
+(`became_injective`).
 
 Absence is a word and not a zero. The rates, the gain and the depth frame can be
 missing; each has a presence word, which is one when the reading has the quantity
@@ -927,10 +927,16 @@ when its trunk is upright, its depth frame is under half a second old, and a zon
 of the two top rows has a valid return under 300 mm. It is clear of obstacles when
 the trunk is upright, the depth frame is as fresh, and every zone of the two top
 rows has the status 255, which the simulator sends for nothing in range, or a valid
-return of at least 400 mm. The trunk is upright when the upward component of the
-gravity direction is below -0.95. Both tests are functions of what the frame gives
-the agent, which are the upright word, the age word and the symbols of the two top
-rows (`near_symbols`, `clear_symbols`), and no reading is both (`near_clear`).
+return of at least 400 mm. The trunk is upright when the gravity word of the frame
+for the upward component, on position 33, is below the level of -0.95, which is 318
+(`entries_gravity`). In thousandths that is an upward component below -967
+(`upright_iff`): a level is a step of 0.1 counted from the least value of the scale,
+so the levels do not separate -0.95 from -0.967, and a reading whose upward component
+is from -967 to -951 thousandths is not upright. The depth frame is fresh exactly
+when the age word of the frame is below its cap (`fresh_level`). So both tests are
+functions of what the frame gives the agent: the gravity word, the age word and the
+symbols of the two top rows (`near_symbols`, `clear_symbols`). No reading is both
+(`near_clear`).
 
 The goal has a latch, which a host holds between two percepts and which starts
 disarmed. A near reading disarms it, a clear reading arms it, and any other reading
@@ -960,12 +966,12 @@ is 0.116 m above the floor for a standing body and 0.061 m for a sitting one. On
 axis the lower edge of row 1 points 2.95 degrees below the horizontal, and the roll
 adds at most 1.1 degrees at the side of the row, so no beam of the two top rows
 points more than 4.1 degrees below the horizontal at rest. An upright trunk is
-tilted by less than 18.2 degrees and a tilt lowers a beam by at most its own angle,
-so no such beam points more than 22.3 degrees below the horizontal, and a flat floor
-is returned at more than 2.63 times the height of the sensor. At that tilt, in the
-least favourable direction, the sensor is at least 196 mm above the floor for a
-standing body and 141 mm for a sitting one, so a flat floor is returned at more than
-370 mm. The assumptions are a flat floor, a gravity word that is a unit direction,
+tilted by less than 14.8 degrees and a tilt lowers a beam by at most its own angle,
+so no such beam points more than 18.9 degrees below the horizontal, and a flat floor
+is returned at more than 3.08 times the height of the sensor. At that tilt, in the
+least favourable direction, the sensor is at least 203 mm above the floor for a
+standing body and 148 mm for a sitting one, so a flat floor is returned at more than
+450 mm. The assumptions are a flat floor, a gravity word that is a unit direction,
 the head at its rest pose, and a trunk whose origin stays at its standing or sitting
 height while it tilts. Nearness has no converse: for a standing body with an upright
 trunk and the head at rest, the lowest beam of the two top rows passes about 0.2 m

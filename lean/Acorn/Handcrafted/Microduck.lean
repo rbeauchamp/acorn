@@ -30,7 +30,7 @@ reading.
 ## The interface value
 
 `interface` has the 64 zones of a depth frame as its symbol array, four signals after the
-agent's own reward question, ten actions, at most 49 words, prediction feedback channels
+agent's own reward question, ten actions, at most 48 words, prediction feedback channels
 from `0x50`, and the timing of a wall clock with the declared pace (`interface_timing`).
 Its count of actions is ten (`interface_actions`), the positions of the action table of
 `Acorn.Host.Microduck.Action`, whose `Action.index` and `Action.named` are inverse to
@@ -38,8 +38,8 @@ each other.
 
 ## The words
 
-A frame has one word for each kept quantity of a reading, two for host events and one for
-the upright test. A word is a position of the layout and a value; `channel` gives the
+A frame has one word for each kept quantity of a reading and two for host events. A word
+is a position of the layout and a value; `channel` gives the
 channel of a position, from `0x100`. No such channel is a prediction feedback channel
 (`channel_clear`), two positions have two channels (`channel_injective`), and each
 position carries at most one word of a frame (`entries_distinct`).
@@ -61,7 +61,6 @@ position carries at most one word of a frame (`entries_distinct`).
 | 45 | the age of the depth frame, when there is one | in steps of 20 ms, at most 25 |
 | 46 | what became of the preceding action | 0 before any action, then 1 to 4 |
 | 47 | whether the release of the preceding action was late | 0 or 1 |
-| 48 | whether the trunk is upright | 0 or 1 |
 
 A level is the count of whole steps from the least value of the scale of thousandths, so
 it is never negative. The coder hashes a channel and a value into a feature and does not
@@ -94,10 +93,15 @@ The body is **near** an obstacle when its trunk is upright, its depth frame is u
 half a second old, and a zone of the two top rows has a valid return under 300 mm. It is
 **clear** of obstacles when the trunk is upright, the depth frame is as fresh, and every
 zone of the two top rows has the status 255, which the simulator sends for nothing in
-range, or a valid return of at least 400 mm. The trunk is upright when the upward
-component of the gravity direction is below -0.95. Both tests are functions of what the
-frame gives the agent: the upright word, the age word and the symbols of the two top
-rows (`near_symbols`, `clear_symbols`). No reading is both (`near_clear`).
+range, or a valid return of at least 400 mm. The trunk is upright when the gravity word
+of the frame for the upward component, on position 33, is below the level of -0.95, which
+is 318 (`entries_gravity`). In thousandths that is an upward component below -967
+(`upright_iff`): a level is a step of 0.1 counted from the least value of the scale, so
+the levels do not separate -0.95 from -0.967, and a reading whose upward component is
+from -967 to -951 thousandths is not upright. The depth frame is fresh exactly when the
+age word of the frame is below its cap (`fresh_level`). So both tests are functions of
+what the frame gives the agent: the gravity word, the age word and the symbols of the two
+top rows (`near_symbols`, `clear_symbols`). No reading is both (`near_clear`).
 
 The goal has a latch. A near reading disarms it, a clear reading arms it, and any other
 reading leaves it as it was (`arm_near`, `arm_clear`, `arm_keeps`). The event of the
@@ -134,12 +138,12 @@ trunk is 0.116 m above the floor for a standing body and 0.061 m for a sitting o
 (https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895). On the axis the
 lower edge of row 1 points 2.95 degrees below the horizontal, and the roll adds at most
 1.1 degrees at the side of the row, so no beam of the two top rows points more than 4.1
-degrees below the horizontal at rest. An upright trunk is tilted by less than 18.2
+degrees below the horizontal at rest. An upright trunk is tilted by less than 14.8
 degrees, and a tilt lowers a beam by at most its own angle, so no such beam points more
-than 22.3 degrees below the horizontal, and a flat floor is returned at more than 2.63
-times the height of the sensor. At a tilt of 18.2 degrees in the least favourable
-direction the sensor is at least 196 mm above the floor for a standing body and 141 mm
-for a sitting one, so a flat floor is returned at more than 370 mm. The argument assumes
+than 18.9 degrees below the horizontal, and a flat floor is returned at more than 3.08
+times the height of the sensor. At a tilt of 14.8 degrees in the least favourable
+direction the sensor is at least 203 mm above the floor for a standing body and 148 mm
+for a sitting one, so a flat floor is returned at more than 450 mm. The argument assumes
 a flat floor, a gravity word that is a unit direction, the head at its rest pose, and a
 trunk whose origin stays at its standing or sitting height while it tilts.
 
@@ -169,7 +173,7 @@ def channel (index : Fin 256) : UInt64 := 0x100 + index.val.toUInt64
 /-- The level of a thousandth: the count of whole steps from the least value of the
 scale. -/
 def level (step : Nat) (word : Host.Microduck.Declared.milli.Word) : UInt64 :=
-  ((word.val + 32767).toNat / step).toUInt64
+  ((word.val - Host.Microduck.Declared.milli.low).toNat / step).toUInt64
 
 /-- The step of the level of a joint angle: a tenth of a radian. -/
 def Declared.angle : Nat := 100
@@ -222,14 +226,14 @@ def became : Option Outcome → UInt64
   | some .refused => 3
   | some .unexecuted => 4
 
-/-- The thousandth of the upward component of gravity below which the trunk counts as
-upright. -/
-def Declared.upright : Int := -950
+/-- The level of the gravity word for the upward component below which the trunk counts as
+upright: the level of -950 thousandths, which is 318. -/
+def Declared.upright : UInt64 := level Declared.share ⟨-950, by decide⟩
 
-/-- Whether the trunk is upright: the upward component of the gravity direction is below
-`Declared.upright`. -/
+/-- Whether the trunk is upright: the gravity word of the frame for the upward component
+is below `Declared.upright`. -/
 def upright (state : State) : Bool :=
-  decide ((state.gravity.get 2).val < Declared.upright)
+  decide (level Declared.share (state.gravity.get 2) < Declared.upright)
 
 /-- The words of the joint angles, on positions 0 to 14. -/
 def jointEntries (state : State) : List (Fin 256 × UInt64) :=
@@ -267,7 +271,7 @@ def ageEntries : Option Nat → List (Fin 256 × UInt64)
 
 /-- Every word of a frame as a position of the layout and a value: the body, then the
 two host events, which are what became of the preceding action and whether its release
-was late, then whether the trunk is upright. -/
+was late. -/
 def entries (reading : Reading) (outcome : Option Outcome) (late : Bool) :
     List (Fin 256 × UInt64) :=
   jointEntries reading.state ++ rateEntries reading.state.speeds ++
@@ -276,14 +280,14 @@ def entries (reading : Reading) (outcome : Option Outcome) (late : Bool) :
       (40, flag reading.state.limp)] ++
     gainEntries reading.state.gain ++ [(43, limited reading.state.limits)] ++
     ageEntries reading.age ++
-    [(46, became outcome), (47, flag late), (48, flag (upright reading.state))]
+    [(46, became outcome), (47, flag late)]
 
 /-- The words of a frame. -/
 def words (reading : Reading) (outcome : Option Outcome) (late : Bool) : List SensorWord :=
   (entries reading outcome late).map fun entry => ⟨channel entry.1, entry.2⟩
 
 /-- Most words of one frame. -/
-def wordBound : Nat := 49
+def wordBound : Nat := 48
 
 /-- The symbol array: the 64 zones of a depth frame. -/
 def shape : PatchShape := ⟨64, by decide, by decide⟩
@@ -310,8 +314,9 @@ def Declared.near : Int := 300
 /-- The distance in millimetres from which a return in the two top rows counts as clear. -/
 def Declared.clear : Int := 400
 
-/-- The age in nanoseconds under which a depth frame counts as fresh: half a second. -/
-def Declared.fresh : Nat := 500000000
+/-- The age in nanoseconds under which a depth frame counts as fresh: the age at which the
+age word of a frame reaches its cap, half a second. -/
+def Declared.fresh : Nat := Declared.stale * Declared.oldest
 
 /-- Whether a reading has a fresh depth frame: it has one, and its age is under
 `Declared.fresh`. -/
@@ -368,7 +373,7 @@ def cumulants (reading : Reading) : Cumulants signals :=
 abbrev actions : Word.Count := ⟨10, by decide⟩
 
 /-- The Microduck world's interface: the 64 zones of a depth frame as the symbol array,
-four signals after the agent's reward question, ten actions, at most 49 words, prediction
+four signals after the agent's reward question, ten actions, at most 48 words, prediction
 feedback channels from `0x50`, and the timing of a wall clock with the declared pace. -/
 abbrev interface : Interface :=
   ⟨shape, signals, actions, wordBound, 0x50, .wallClock Host.Microduck.Declared.pace⟩
@@ -536,16 +541,57 @@ theorem symbol_distant (cell : Cell) :
       · exact Or.inr (by rw [none]; decide)
       · exact absurd valid other
 
+/-- **The trunk is upright exactly when the upward component of gravity is below -967
+thousandths.** A level is a step of a tenth counted from the least value of the scale, and
+the level of -950 thousandths is 318, so a level is below it exactly for a value below
+-967. -/
+theorem upright_iff (state : State) :
+    upright state = true ↔ (state.gravity.get 2).val < -967 := by
+  have bounds : -32767 ≤ (state.gravity.get 2).val ∧ (state.gravity.get 2).val ≤ 32767 :=
+    (state.gravity.get 2).property
+  unfold upright Declared.upright level
+  rw [decide_eq_true_iff, UInt64.lt_iff_toNat_lt, Nat.toUInt64_eq, Nat.toUInt64_eq,
+    UInt64.toNat_ofNat', UInt64.toNat_ofNat']
+  show ((state.gravity.get 2).val - -32767).toNat / 100 % 2 ^ 64 <
+    ((-950 : Int) - -32767).toNat / 100 % 2 ^ 64 ↔ _
+  omega
+
+/-- **The depth frame is fresh exactly when the age word of the frame is below its cap.**
+For every reading: it has a fresh depth frame exactly when it has a depth frame whose age
+word, the value on position 45, is below `Declared.oldest`. -/
+theorem fresh_level (reading : Reading) :
+    fresh reading = true ↔
+      ∃ age, reading.age = some age ∧
+        min (age / Declared.stale) Declared.oldest < Declared.oldest := by
+  unfold fresh
+  cases reading.age with
+  | none =>
+    exact ⟨fun young => absurd young (by decide), fun ⟨_, absent, _⟩ => nomatch absent⟩
+  | some age =>
+    have cap : age < Declared.fresh ↔
+        min (age / Declared.stale) Declared.oldest < Declared.oldest := by
+      unfold Declared.fresh Declared.stale Declared.oldest
+      omega
+    show decide (age < Declared.fresh) = true ↔ _
+    rw [decide_eq_true_iff, cap]
+    constructor
+    · intro capped
+      exact ⟨age, rfl, capped⟩
+    · rintro ⟨other, same, capped⟩
+      rw [Option.some.inj same]
+      exact capped
+
 /-- The body is near an obstacle exactly when the trunk is upright, the depth frame is
 fresh, and a zone of its two top rows has a valid return under the declared distance. -/
 theorem near_iff (reading : Reading) :
     near reading = true ↔
-      (reading.state.gravity.get 2).val < Declared.upright ∧
+      (reading.state.gravity.get 2).val < -967 ∧
         (∃ age, reading.age = some age ∧ age < Declared.fresh) ∧
           ∃ depth, reading.depth = some depth ∧ ∃ row column : Fin 8, row.val < 2 ∧
             (depth.zone row column).status = 5 ∧
               (depth.zone row column).distance.val < Declared.near := by
-  unfold near upright fresh close
+  rw [← upright_iff]
+  unfold near fresh close
   cases reading.age <;> cases reading.depth <;>
     simp [and_assoc]
 
@@ -554,13 +600,14 @@ fresh, and every zone of its two top rows has the status 255 or a valid return o
 the declared distance. -/
 theorem clear_iff (reading : Reading) :
     clear reading = true ↔
-      (reading.state.gravity.get 2).val < Declared.upright ∧
+      (reading.state.gravity.get 2).val < -967 ∧
         (∃ age, reading.age = some age ∧ age < Declared.fresh) ∧
           ∃ depth, reading.depth = some depth ∧ ∀ row column : Fin 8, row.val < 2 →
             (depth.zone row column).status = 255 ∨
               ((depth.zone row column).status = 5 ∧
                 Declared.clear ≤ (depth.zone row column).distance.val) := by
-  unfold clear upright fresh distant
+  rw [← upright_iff]
+  unfold clear fresh distant
   cases reading.age with
   | none => cases reading.depth <;> simp
   | some age =>
@@ -579,13 +626,13 @@ theorem clear_iff (reading : Reading) :
         · exact Or.inl low
 
 /-- **The goal test, read from the frame's symbols.** For every reading: the body is near an
-obstacle exactly when the upward component of gravity is below -950 thousandths, the
+obstacle exactly when the upward component of gravity is below -967 thousandths, the
 depth frame is under half a second old, and one of the first sixteen symbols of the frame,
 which are its two top rows, is at most 3. -/
 theorem near_symbols (reading : Reading) :
     near reading = true ↔
-      (reading.state.gravity.get 2).val < -950 ∧
-        (∃ age, reading.age = some age ∧ age < 500000000) ∧
+      (reading.state.gravity.get 2).val < -967 ∧
+        (∃ age, reading.age = some age ∧ age < Declared.fresh) ∧
           ∃ position : Fin shape.inputs, position.val < 16 ∧
             ((symbols reading.depth).get position).toNat ≤ 3 := by
   rw [near_iff]
@@ -612,13 +659,13 @@ theorem near_symbols (reading : Reading) :
         by show position.val / 8 < 2; omega, (symbol_close _).mp small⟩
 
 /-- **The clear test, read from the frame's symbols.** For every reading: the body is
-clear of obstacles exactly when the upward component of gravity is below -950
+clear of obstacles exactly when the upward component of gravity is below -967
 thousandths, the depth frame is under half a second old, and each of the first sixteen
 symbols of the frame is from 5 and below `0x1000`, or is `0x10FF`. -/
 theorem clear_symbols (reading : Reading) :
     clear reading = true ↔
-      (reading.state.gravity.get 2).val < -950 ∧
-        (∃ age, reading.age = some age ∧ age < 500000000) ∧
+      (reading.state.gravity.get 2).val < -967 ∧
+        (∃ age, reading.age = some age ∧ age < Declared.fresh) ∧
           ∀ position : Fin shape.inputs, position.val < 16 →
             (5 ≤ ((symbols reading.depth).get position).toNat ∧
                 ((symbols reading.depth).get position).toNat < 0x1000) ∨
@@ -716,6 +763,20 @@ theorem arm_held (armed : Bool) (first : Reading) (later : List Reading) (next :
   unfold achieved
   rw [disarmed]
   rfl
+
+/-- **The word the upright test reads is the gravity word of the frame on position 33.**
+For every reading and host event, the frame has on that position the level of the upward
+component of gravity. -/
+theorem entries_gravity (reading : Reading) (outcome : Option Outcome) (late : Bool) :
+    ((33 : Fin 256), level Declared.share (reading.state.gravity.get 2)) ∈
+      entries reading outcome late := by
+  have trunk : ((33 : Fin 256), level Declared.share (reading.state.gravity.get 2)) ∈
+      trunkEntries reading.state := by
+    unfold trunkEntries
+    exact List.mem_append_left _ (List.mem_append_left _
+      (List.mem_map.mpr ⟨2, List.mem_finRange 2, rfl⟩))
+  unfold entries
+  simp only [List.mem_append, trunk, or_true, true_or]
 
 /-- The presence words of a frame: the word on position 30 is one with rates and zero
 without, and likewise the word on position 41 for the gain and the word on position 44 for
