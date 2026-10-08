@@ -77,10 +77,10 @@ jobs:
         timeout-minutes: 2
         # A restored cache already holds elan, and then this step downloads
         # nothing. Otherwise curl's own limits end the download: no attempt lasts
-        # more than 30 seconds, and curl retries only a failure in the first 60,
-        # after a 2-second wait, so it exits within 92 seconds with its error. The
-        # archive is admitted by its SHA-256 before anything in it runs, and the
-        # installer downloads no toolchain.
+        # more than 30 seconds and none starts more than 62 seconds after the
+        # first began, so curl exits within 92 seconds with its error. The archive
+        # is admitted by its SHA-256 before anything in it runs, and the installer
+        # downloads no toolchain.
         run: |
           if [[ ! -x "$HOME/.elan/bin/elan" ]]; then
             archive="$RUNNER_TEMP/elan.tar.gz"
@@ -222,10 +222,10 @@ jobs:
         timeout-minutes: 2
         # A restored cache already holds elan, and then this step downloads
         # nothing. Otherwise curl's own limits end the download: no attempt lasts
-        # more than 30 seconds, and curl retries only a failure in the first 60,
-        # after a 2-second wait, so it exits within 92 seconds with its error. The
-        # archive is admitted by its SHA-256 before anything in it runs, and the
-        # installer downloads no toolchain.
+        # more than 30 seconds and none starts more than 62 seconds after the
+        # first began, so curl exits within 92 seconds with its error. The archive
+        # is admitted by its SHA-256 before anything in it runs, and the installer
+        # downloads no toolchain.
         run: |
           if [[ ! -x "$HOME/.elan/bin/elan" ]]; then
             archive="$RUNNER_TEMP/elan.tar.gz"
