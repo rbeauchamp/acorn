@@ -35,18 +35,18 @@ conversion equals the one after the other for every decimal and every scale
 Write `shift` for the exponent plus the places. The two comparisons, of integers only,
 decide the outer cases:
 
-- **It rounds to zero** when there are no digits, or when the count of the digits plus
-  the shift is negative. The digits are less than ten to their count (`width_bound`), so
+- **It rounds to zero** when there are no digits, or when the width of the digits plus
+  the shift is negative. The digits are less than ten to their width (`width_bound`), so
   the magnitude is then under a tenth of a unit, and the rounded magnitude is zero
   (`Decimal.magnitude_vanishes`).
 - **It saturates** when there are digits and the shift is at least the width of the
-  scale, which is the count of the digits of its larger bound. The rounded magnitude is
+  scale, which is the width of its larger bound. The rounded magnitude is
   then at least ten to that width (`Decimal.magnitude_beyond`), which is above both
   bounds (`Scale.width_bound`), and the result is the least value for a decimal with a
   minus sign and the greatest for one without.
 - **Between the two** it does the arithmetic, which forms two powers of ten: one that
   multiplies the digits and one that divides. Write `w` for the width of the scale and
-  `d` for the count of the digits of the decimal. The exponent of the first is below
+  `d` for the width of the digits of the decimal. The exponent of the first is below
   `w`, and the exponent of the second is at most `d` (`Decimal.shift_between`): the
   largest powers are ten to the `w - 1` in the numerator and ten to the `d` in the
   denominator. So what the conversion forms is bounded by the scale and by the length
@@ -54,7 +54,13 @@ decide the outer cases:
   `w` is 5: `1e1` forms ten to the 4, and `1000000000e-13` forms ten to the 10. The cost
   of the conversion is not otherwise stated.
 
-`width` is the count of the decimal digits of a natural number.
+`width` is the count of the octal digits of a natural number, and one for zero: one more
+than a third of its binary logarithm, rounded down. A number is less than eight to that
+count, and so less than ten to it (`width_bound`). The comparisons use it where the count
+of the decimal digits would serve, because it is read from the binary length of the
+number and divides nothing, and a count of decimal digits divides the number by ten once
+for each digit. Ten decimal digits are about eleven octal digits, so `d` is about a tenth
+more than the count of the decimal digits.
 
 **The boundary.** The function that reads the spelling of a number into a `Decimal` is
 not built; it belongs with the reader of the daemon's text. The spelling it will read is
@@ -71,29 +77,27 @@ order is not stated.
 -/
 namespace Acorn.Host.Microduck
 
-/-- The count of the decimal digits of a natural number, and one for zero. -/
+/-- The count of the octal digits of a natural number, and one for zero: one more than a
+third of its binary logarithm, rounded down. It is read from the binary length of the
+number, with no division of the number. -/
 def width (value : Nat) : Nat :=
-  if small : value < 10 then 1 else width (value / 10) + 1
-termination_by value
-decreasing_by omega
+  value.log2 / 3 + 1
 
-/-- **A natural number is less than ten to the count of its digits.** -/
+/-- **A natural number is less than ten to its width.** It is less than two to its binary
+length, which is at most eight to the width. -/
 theorem width_bound (value : Nat) : value < 10 ^ width value := by
-  induction value using Nat.strongRecOn with
-  | ind value smaller =>
-    unfold width
-    split
-    · rename_i small
-      rw [Nat.pow_one]
-      exact small
-    · have inner := smaller (value / 10) (by omega)
-      rw [Nat.pow_succ]
-      omega
+  have binary : value < 2 ^ (value.log2 + 1) := Nat.lt_log2_self
+  have octal : 2 ^ (value.log2 + 1) ≤ (2 ^ 3) ^ width value := by
+    rw [← Nat.pow_mul]
+    exact Nat.pow_le_pow_right (by decide) (by unfold width; omega)
+  have ten : (2 ^ 3) ^ width value ≤ 10 ^ width value :=
+    Nat.pow_le_pow_left (by decide) _
+  exact Nat.lt_of_lt_of_le binary (Nat.le_trans octal ten)
 
-/-- Every natural number has at least one digit. -/
+/-- The width of every natural number is at least one. -/
 theorem width_positive (value : Nat) : 0 < width value := by
   unfold width
-  split <;> omega
+  omega
 
 /-- A number as a JSON text spells one. Its value is `digits` times ten to the
 `exponent`, negated when `negative`. -/
@@ -120,8 +124,7 @@ structure Scale where
 abbrev Scale.Word (scale : Scale) : Type :=
   { value : Int // scale.low ≤ value ∧ value ≤ scale.high }
 
-/-- The count of the digits of the larger of the two bounds of a scale, by distance
-from zero. -/
+/-- The width of the larger of the two bounds of a scale, by distance from zero. -/
 def Scale.width (scale : Scale) : Nat :=
   Microduck.width (max scale.low.natAbs scale.high.natAbs)
 
@@ -193,8 +196,8 @@ theorem Decimal.magnitude_bounds (decimal : Decimal) (places : Nat) :
   · rw [Nat.mul_right_comm]
     exact upper
 
-/-- **No digits, or a count of digits below the negated shift, is zero.** For every
-decimal and number of places: with no digits, or with the count of the digits plus the
+/-- **No digits, or a width of the digits below the negated shift, is zero.** For every
+decimal and number of places: with no digits, or with the width of the digits plus the
 shift negative, the magnitude is zero. -/
 theorem Decimal.magnitude_vanishes (decimal : Decimal) (places : Nat)
     (small : decimal.digits = 0 ∨
@@ -237,7 +240,7 @@ def Decimal.rounded (decimal : Decimal) (places : Nat) : Int :=
   if decimal.negative then -(decimal.magnitude places : Int) else decimal.magnitude places
 
 /-- The conversion of a decimal to a word of a scale: zero saturated when the decimal
-rounds to zero by the count of its digits, a bound of the scale when its shift alone
+rounds to zero by the width of its digits, a bound of the scale when its shift alone
 puts it beyond both, and `Decimal.rounded` saturated between the two. -/
 def Decimal.fixed (scale : Scale) (decimal : Decimal) : scale.Word :=
   if decimal.digits = 0 ∨
@@ -282,10 +285,10 @@ theorem Decimal.fixed_clamp (scale : Scale) (decimal : Decimal) :
     · rfl
 
 /-- **Between the two comparisons each power of ten has its bound.** For every scale and
-decimal that the conversion neither rounds to zero by the count of the digits nor
+decimal that the conversion neither rounds to zero by the width of the digits nor
 saturates by the shift: the exponent of the power of ten that multiplies the digits in
 `Decimal.magnitude` is below the width of the scale, and the exponent of the power that
-divides is at most the count of the digits of the decimal. -/
+divides is at most the width of the digits of the decimal. -/
 theorem Decimal.shift_between (scale : Scale) (decimal : Decimal)
     (large : ¬(decimal.digits = 0 ∨
       (width decimal.digits : Int) + decimal.shift scale.places < 0))

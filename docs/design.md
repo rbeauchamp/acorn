@@ -828,17 +828,22 @@ bound. Write the shift for the exponent plus the places of the scale. The conver
 followed by the saturation for every decimal (`Decimal.fixed_clamp`), and it decides
 two cases by comparing integers:
 
-- with no digits, or with the count of the digits plus the shift negative, the
+- with no digits, or with the width of the digits plus the shift negative, the
   rounded magnitude is zero (`Decimal.magnitude_vanishes`);
-- with digits and a shift of at least the width of the scale, which is the count of
-  the digits of its larger bound, the rounded magnitude is at least ten to that width
+- with digits and a shift of at least the width of the scale, which is the width of
+  its larger bound, the rounded magnitude is at least ten to that width
   (`Decimal.magnitude_beyond`) and so beyond both bounds (`Scale.width_bound`): the
   result is the least value for a minus sign and the greatest without one;
 - between the two it divides, and forms two powers of ten: one that multiplies the
-  digits and one that divides. With `w` the width of the scale and `d` the count of
+  digits and one that divides. With `w` the width of the scale and `d` the width of
   the digits, the exponent of the first is below `w` and the exponent of the second
   is at most `d` (`Decimal.shift_between`), so the largest powers are ten to the
   `w - 1` in the numerator and ten to the `d` in the denominator.
+
+The width of a natural number is the count of its octal digits, and one for zero: one
+more than a third of its binary logarithm, rounded down. A number is less than ten to
+its width, and the width is read from the binary length of the number, so neither
+comparison divides the digits by ten. Ten decimal digits are about eleven octal digits.
 
 What the conversion forms is therefore bounded by the scale and by the length of the
 digits, and not by the size of the exponent: `1e401` saturates and `1e-401` is zero

@@ -309,7 +309,7 @@ The statement holds for an exponent of any size. The conversion decides by two c
 of integers when a decimal rounds to zero and when it saturates
 ({decl}`Acorn.Host.Microduck.Decimal.fixed_clamp`), and between them it forms two powers
 of ten: the exponent of the one that multiplies the digits is below the width of the
-scale, and the exponent of the one that divides is at most the count of the digits
+scale, and the exponent of the one that divides is at most the width of the digits
 ({decl}`Acorn.Host.Microduck.Decimal.shift_between`). The bounds of the result are part of
 its type. {decl}`Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
 that a reading is paired with. The function that reads a frame of the daemon into these
