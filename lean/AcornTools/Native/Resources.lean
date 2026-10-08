@@ -322,7 +322,7 @@ def roots : Array (Name × Nat) :=
     (`Acorn.Binary32.instDecidableFinite, 9), (`Acorn.Binary64.instDecidableFinite, 9),
     (`Acorn.Interval32.orderedDecidable, 70),
     (`Acorn.Interval32.instDecidableContains, 112), (`Acorn.Interval32.saturate, 114), (`Acorn.Conversion.toI64, 64),
-    (`Acorn.Host.coordinateCast, 132), (`Acorn.Features.durationRemaining, 132)]
+    (`Acorn.Host.coordinateCast, 143), (`Acorn.Features.durationRemaining, 132)]
 
 /-- Read actual compiler-owned once declarations. The closed-term cache is
 not persistent across imports, so the standalone audit uses emitted C and the

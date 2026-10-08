@@ -76,8 +76,7 @@ Fourteen functions of this module have a contract and no kind. The reasons are f
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
   every configuration, and a complete or a two-way kind carries a refused input. The statement
   of `Host.World.step` is a property of the world that an accepted step returns, and no
-  theorem states which steps succeed. The same holds of `Host.terrain`, whose statement, in
-  `AcornVerif.Decisions`, is about what the readers of its result do with it.
+  theorem states which steps succeed.
 * The input holds a state whose invariant names tests that the function runs. Regula reads the
   type of the input of a specification, so RG1009
   (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses the kind although the
@@ -112,7 +111,9 @@ statement about runs of the executed world step, proved in `AcornVerif.CurrentCe
 No checker is complete, so `Host.regionBlocked` and `Host.stanceCertified` carry the sound
 kind. `Host.replayCertified` keeps a requirement with no kind: its specification is about runs
 of the executed world step, which the checker runs. `Host.walkableTile` carries the two-way
-kind.
+kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind` and
+`Host.World.enterable` carry the two-way kind there too, because their refusals are stated
+through the exact floor of `AcornVerif.CurrentFloor`.
 
 ## Tests that a specification does not share
 
@@ -143,8 +144,8 @@ Each such condition is a proposition, with a theorem that connects the test with
 
 A function that a specification reaches decides the proposition in the place of the call of
 the test: the signed key `Binary32.key`, `Binary32.saturate`, `Agreement.units`,
-`Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`,
-`Conversion.toI64Word`, `Host.floor32`, `Host.classifyTerrain` and `Host.World.enterable`. The
+`Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`, `Conversion.toI64Word`,
+`Host.floor32`, `Host.coordinateCast`, `Host.classifyTerrain` and `Host.World.enterable`. The
 instance of each proposition runs its test, so the executed comparison is the same one. A
 specification that would name a test names the proposition: `inventory_craft` and
 `region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
