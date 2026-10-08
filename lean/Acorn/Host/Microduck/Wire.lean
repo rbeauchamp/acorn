@@ -127,7 +127,6 @@ https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895.
   answered, and a notification, which is not.
 - The identifier of a request is given by the caller for each send, so two sends of one
   command have two identifiers when the caller gives two, and an answer names one send.
-  `Command.code` is the index of a command among the ten and no part of a line.
 - A magnitude is not rendered from an integer. `Velocity.spelling` is a table of numerals,
   `0.3`, `1.5`, `-1.5` and `0.0`, and `AcornVerif.Decimal.spelling_twist` states that each
   writes the thousandths of `Velocity.twist` over a thousand, exactly.
@@ -1157,44 +1156,6 @@ def Skill.name : Skill → String
   | .roulade => "roulade"
   | .kickLeft => "kick_left"
   | .kickRight => "kick_right"
-
-/-- The index of a command among the ten commands, from 0 to 9. It is no part of a request:
-the identifier of a request is given for each send. It is not the index of an action. -/
-def Command.code : Command → Nat
-  | .enable => 0
-  | .move .zero => 1
-  | .move .forward => 2
-  | .move .left => 3
-  | .move .right => 4
-  | .perform .groundPick => 5
-  | .perform .sitToggle => 6
-  | .perform .roulade => 7
-  | .perform .kickLeft => 8
-  | .perform .kickRight => 9
-
-/-- **Two commands with one number are one command, and every number is below ten.** -/
-theorem Command.code_injective (first second : Command) :
-    first.code < 10 ∧ (first.code = second.code → first = second) := by
-  cases first with
-  | enable =>
-    cases second with
-    | enable => exact ⟨by decide, fun _ => rfl⟩
-    | move velocity => cases velocity <;> exact ⟨by decide, fun same => nomatch same⟩
-    | perform skill => cases skill <;> exact ⟨by decide, fun same => nomatch same⟩
-  | move one =>
-    cases one <;> cases second with
-    | enable => exact ⟨by decide, fun same => nomatch same⟩
-    | move velocity => cases velocity <;> first
-      | exact ⟨by decide, fun _ => rfl⟩
-      | exact ⟨by decide, fun same => nomatch same⟩
-    | perform skill => cases skill <;> exact ⟨by decide, fun same => nomatch same⟩
-  | perform one =>
-    cases one <;> cases second with
-    | enable => exact ⟨by decide, fun same => nomatch same⟩
-    | move velocity => cases velocity <;> exact ⟨by decide, fun same => nomatch same⟩
-    | perform skill => cases skill <;> first
-      | exact ⟨by decide, fun _ => rfl⟩
-      | exact ⟨by decide, fun same => nomatch same⟩
 
 /-- The method of the daemon that a command calls. -/
 def Command.method : Command → String

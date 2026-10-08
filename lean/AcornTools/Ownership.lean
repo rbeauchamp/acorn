@@ -267,8 +267,6 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Microduck.Velocity.spelling),
   (`AcornVerif.Decimal, `AcornVerif.Decimal.spelling_twist,
     `Acorn.Host.Microduck.Velocity.spelling),
-  (`Acorn.Host.Microduck.Wire, `Acorn.Host.Microduck.Command.code_injective,
-    `Acorn.Host.Microduck.Command.code),
   (`Acorn.Json, `Acorn.Json.parse_request,
     `Acorn.Json.parse),
   (`Acorn.Json, `Acorn.Json.Numeral.scan_append,
