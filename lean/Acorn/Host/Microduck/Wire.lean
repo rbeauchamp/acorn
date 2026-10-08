@@ -3,10 +3,11 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Microduck.Sensing
 
 /-!
-# The Microduck's JSON text, read into the proved types
+# The Microduck's JSON text: frames and answers read, commands written
 
 The Microduck's daemons send each frame of their two streams as one line of JSON: a
 `robot.state` notification for the state of the body and a `tof.frame` notification for
@@ -14,7 +15,9 @@ the depth grid. The record of both, with a state frame whose list of body links 
 shortened and two depth frames, is at
 https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6051119525. This module reads
 the `params` object of each, as a value that `Acorn.Json.parse` gave, into a `State` and
-a `Depth` of `Acorn.Host.Microduck.Sensing`.
+a `Depth` of `Acorn.Host.Microduck.Sensing`. It also reads a whole line of a daemon, a
+frame or the answer to a request (`Line.read`), and it gives the line of each command
+that a bridge sends (`Command.line`).
 
 `State.read` and `Depth.read` give a frame or nothing. What each accepts and what it
 gives is stated member by member, by `State.Written` and `Depth.Written`: a proposition
@@ -111,9 +114,65 @@ number.
   relates this module to what a daemon sends: that a robot's daemon writes these names is
   checked only by reading its frames.
 
-Not built: the envelope of a notification (its method and its `params`), the reply to a
-request, and the text of a command. `Acorn.Json.parse` reads the line, and no theorem
-here is about that parser.
+**The line of a command.** `Command.line` is the one line of JSON that a host sends for
+each of the ten commands of `Acorn.Host.Microduck.Action`: a JSON-RPC request with the
+method `robot.enable` and the parameter `on` true, `robot.move` with `vx`, `vy` and
+`vyaw`, or `robot.do` with `skill`. The record of the methods and of one request of each
+is at https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895.
+
+- Every command is a request with an id and not a notification. The record has the
+  daemon answer a request of each of the three methods; for a velocity it has both a
+  request, which was answered, and a notification, which is not.
+- The id is the number of the command among the ten (`Command.code`), so the id of an
+  answer names the command that was answered. Two commands have two numbers and every
+  number is below ten (`Command.code_injective`). Three limits: every send of one
+  velocity has the same id, so an answer names a command and not one send; a host's own
+  requests, such as the two that subscribe, must use ids of ten or more, or their answers
+  read as the answer to a command (the subscription of the record used the id 1); and no
+  request of the record has the id 0.
+- A magnitude is not rendered from an integer. `Velocity.spelling` is a table of numerals,
+  `0.3`, `1.5`, `-1.5` and `0.0`, and `AcornVerif.Decimal.spelling_twist` states that each
+  writes the thousandths of `Velocity.twist` over a thousand, exactly.
+- `Command.line_asked` states, for each of the ten commands, that `Acorn.Json.parse` reads
+  the line and that the value is the request of the command (`Command.Asked`): an object
+  with exactly the members `jsonrpc`, `id`, `method` and `params`, the last with exactly
+  the parameters of the command, and the value of each. A line with one member or one
+  parameter more, such as the `toggle` that `robot.enable` also takes, is not such a
+  value. The proof evaluates the parser on the ten lines.
+- What that theorem is about is the assembly of a line. The method, the number, the name
+  of a skill and the numerals are tables of this module, which the line and the
+  specification both read, so that they are the daemon's is by reading the record. It is
+  a statement about the parser of this repository: that a daemon reads these lines so is
+  not stated. The record has the daemon answer requests of these three methods with other
+  ids and, for a velocity, other magnitudes, and refuse a `robot.move` with a parameter
+  that the method does not name.
+
+**A line of a daemon.** `Line.read` reads a parsed line as one of five things.
+
+- A state frame, exactly for a value whose `method` is `robot.state` and whose `params`
+  write the frame (`Line.read_state`), and a depth frame likewise for `tof.frame`
+  (`Line.read_depth`).
+- A refused frame of a stream, exactly for a notification of the stream whose `params`
+  write no frame (`Line.read_refused`). So a host can tell a stream that sends frames it
+  cannot read from a stream that sends nothing.
+- An answer, exactly for a value with no `method` that is a string, an `id` that is a
+  natural number or is missing or null, and a verdict (`Line.read_answer`). The verdict
+  is a refusal for a value with a member `error`, and otherwise what the boolean
+  `result.accepted` states (`Answered`). In the record, at
+  https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6058876518, the daemon
+  answers a request that it refuses at intake with an `error`, no `result` and the id of
+  the request, and a line that it cannot read as a request with an `error` and a null
+  id; the second is read as a refusal with no id. A member `error` that is null is a
+  refusal too: for this member null is not read as missing, so that no answer with an
+  error member is read as accepted.
+- `Line.other` for every other value: a notification of another method, a value with no
+  method and no verdict, a value with no method whose id is a string, a fraction or a
+  negative number, and a value that is no object.
+
+Not built: the lines that subscribe to the two streams, the rule that makes one `Reply`
+of the answers to the commands of one release, the transport and the loop.
+`Acorn.Json.parse` reads a line, and no theorem here is about that parser except
+`Command.line_asked`, on ten texts.
 
 The lookup of a member searches the members of the object in order, and the reader of a
 state frame searches `safety` four times. The cost of reading a frame is not otherwise
@@ -514,20 +573,28 @@ private def flag : Json.Value → Option Bool
   | .bool value => some value
   | _ => none
 
+/-- The value is the boolean. -/
+def Flagged (json : Json.Value) (value : Bool) : Prop :=
+  json = .bool value
+
 /-- A value is read as a truth value exactly when it is that boolean. -/
 private theorem flag_iff (json : Json.Value) (value : Bool) :
-    flag json = some value ↔ json = .bool value := by
-  cases json <;> simp [flag]
+    flag json = some value ↔ Flagged json value := by
+  cases json <;> simp [flag, Flagged]
 
 /-- The text of a JSON value that is a string. -/
 private def text : Json.Value → Option String
   | .string value => some value
   | _ => none
 
+/-- The value is the string with the text. -/
+def Said (json : Json.Value) (value : String) : Prop :=
+  json = .string value
+
 /-- A value is read as a text exactly when it is that string. -/
 private theorem text_iff (json : Json.Value) (value : String) :
-    text json = some value ↔ json = .string value := by
-  cases json <;> simp [text]
+    text json = some value ↔ Said json value := by
+  cases json <;> simp [text, Said]
 
 /-- The texts of an array of strings, in order. -/
 private def texts : Json.Value → Option (List String)
@@ -536,8 +603,7 @@ private def texts : Json.Value → Option (List String)
 
 /-- The value is an array of strings, and the texts are those strings in order. -/
 def Texts (json : Json.Value) (names : List String) : Prop :=
-  ∃ values : List Json.Value, json = .array values ∧
-    Each (fun value name => value = .string name) values names
+  ∃ values : List Json.Value, json = .array values ∧ Each Said values names
 
 /-- A value is read as texts exactly when it is the array of those strings. -/
 private theorem texts_iff (json : Json.Value) (names : List String) :
@@ -664,7 +730,7 @@ private def Policy.read (json : Json.Value) : Option Policy :=
 
 /-- The value is a string, and the policy is the one the table of labels gives for it. -/
 def Driven (json : Json.Value) (policy : Policy) : Prop :=
-  ∃ label : String, json = .string label ∧ Policy.Labelled label policy
+  ∃ label : String, Said json label ∧ Policy.Labelled label policy
 
 /-- A value is read as a policy exactly when it is a string that the policy is labelled
 with. -/
@@ -744,10 +810,9 @@ structure State.Written (json : Json.Value) (state : State) : Prop where
   /-- The policy is the one that the string of `policy` labels. -/
   policy : Within "policy" Driven json state.policy
   /-- The fall report is the boolean of `safety.fallen`. -/
-  fallen : Within "safety" (Within "fallen" fun inner value => inner = .bool value) json
-    state.fallen
+  fallen : Within "safety" (Within "fallen" Flagged) json state.fallen
   /-- The limp report is the boolean of `safety.limp`. -/
-  limp : Within "safety" (Within "limp" fun inner value => inner = .bool value) json state.limp
+  limp : Within "safety" (Within "limp" Flagged) json state.limp
   /-- The gain is the natural number of `safety.gain`, below 65,536, and absent when that
   member is missing or null. -/
   gain : Within "safety"
@@ -1040,5 +1105,526 @@ theorem Depth.read_distances (json : Json.Value) (depth : Depth)
   · intro other
     rw [ite_eq_right other] at zoned
     exact zoned
+
+/-! ## The line of a command -/
+
+/-- The spellings of the three magnitudes of a velocity, as the numerals of JSON numbers. -/
+structure Spelling where
+  /-- The forward speed, in metres per second. -/
+  forward : Json.Numeral
+  /-- The speed to the left, in metres per second. -/
+  left : Json.Numeral
+  /-- The turning rate to the left, in radians per second. -/
+  turn : Json.Numeral
+
+/-- The numeral `0.0`. -/
+def nought : Json.Numeral := ⟨false, ['0'], some ['0'], none⟩
+
+/-- How each velocity of the table is written: `0.3` forward, and `1.5` and `-1.5` of
+turn. `AcornVerif.Decimal.spelling_twist` states that each numeral writes the thousandths
+of `Velocity.twist`, over a thousand. -/
+def Velocity.spelling : Velocity → Spelling
+  | .zero => ⟨nought, nought, nought⟩
+  | .forward => ⟨⟨false, ['0'], some ['3'], none⟩, nought, nought⟩
+  | .left => ⟨nought, nought, ⟨false, ['1'], some ['5'], none⟩⟩
+  | .right => ⟨nought, nought, ⟨true, ['1'], some ['5'], none⟩⟩
+
+/-- The name that a request gives a skill. -/
+def Skill.name : Skill → String
+  | .groundPick => "ground_pick"
+  | .sitToggle => "sit_toggle"
+  | .roulade => "roulade"
+  | .kickLeft => "kick_left"
+  | .kickRight => "kick_right"
+
+/-- The number of a command among the ten commands, from 0 to 9. It is the id of the
+command's request, so the id of an answer names the command that the daemon answered.
+It is not the index of an action. -/
+def Command.code : Command → Nat
+  | .enable => 0
+  | .move .zero => 1
+  | .move .forward => 2
+  | .move .left => 3
+  | .move .right => 4
+  | .perform .groundPick => 5
+  | .perform .sitToggle => 6
+  | .perform .roulade => 7
+  | .perform .kickLeft => 8
+  | .perform .kickRight => 9
+
+/-- **Two commands with one number are one command, and every number is below ten.** -/
+theorem Command.code_injective (first second : Command) :
+    first.code < 10 ∧ (first.code = second.code → first = second) := by
+  cases first with
+  | enable =>
+    cases second with
+    | enable => exact ⟨by decide, fun _ => rfl⟩
+    | move velocity => cases velocity <;> exact ⟨by decide, fun same => nomatch same⟩
+    | perform skill => cases skill <;> exact ⟨by decide, fun same => nomatch same⟩
+  | move one =>
+    cases one <;> cases second with
+    | enable => exact ⟨by decide, fun same => nomatch same⟩
+    | move velocity => cases velocity <;> first
+      | exact ⟨by decide, fun _ => rfl⟩
+      | exact ⟨by decide, fun same => nomatch same⟩
+    | perform skill => cases skill <;> exact ⟨by decide, fun same => nomatch same⟩
+  | perform one =>
+    cases one <;> cases second with
+    | enable => exact ⟨by decide, fun same => nomatch same⟩
+    | move velocity => cases velocity <;> exact ⟨by decide, fun same => nomatch same⟩
+    | perform skill => cases skill <;> first
+      | exact ⟨by decide, fun _ => rfl⟩
+      | exact ⟨by decide, fun same => nomatch same⟩
+
+/-- The method of the daemon that a command calls. -/
+def Command.method : Command → String
+  | .enable => "robot.enable"
+  | .move _ => "robot.move"
+  | .perform _ => "robot.do"
+
+/-- The parameters object of a command, as JSON text. -/
+def Command.params : Command → String
+  | .enable => "{\"on\":true}"
+  | .move velocity =>
+    "{\"vx\":" ++ String.ofList velocity.spelling.forward.chars ++
+      ",\"vy\":" ++ String.ofList velocity.spelling.left.chars ++
+      ",\"vyaw\":" ++ String.ofList velocity.spelling.turn.chars ++ "}"
+  | .perform skill => "{\"skill\":\"" ++ skill.name ++ "\"}"
+
+/-- The line of a command: one JSON-RPC request, with no line end. Every command is sent
+as a request and not as a notification; the record has the daemon answer a request of
+each of the three methods. -/
+def Command.line (command : Command) : String :=
+  "{\"jsonrpc\":\"2.0\",\"id\":" ++ toString command.code ++ ",\"method\":\"" ++
+    command.method ++ "\",\"params\":" ++ command.params ++ "}"
+
+/-- The names of the members of an object, in order. -/
+private def names : Json.Value → Option (List String)
+  | .object fields => some (fields.map (·.1))
+  | _ => none
+
+/-- The value is an object whose members have exactly the names, in order. -/
+def Named (json : Json.Value) (members : List String) : Prop :=
+  ∃ fields : List (String × Json.Value), json = .object fields ∧ fields.map (·.1) = members
+
+/-- A value has names exactly when it is an object with those members, in order. -/
+private theorem names_iff (json : Json.Value) (members : List String) :
+    names json = some members ↔ Named json members := by
+  unfold Named
+  cases json with
+  | object fields =>
+    exact ⟨fun found => ⟨fields, rfl, Option.some.inj found⟩, fun ⟨_, same, mapped⟩ => by
+      cases same
+      exact congrArg some mapped⟩
+  | null | bool _ | number _ | string _ | array _ =>
+    exact ⟨fun found => (nomatch found), fun ⟨_, same, _⟩ => (nomatch same)⟩
+
+/-- The value is a number whose kept spelling is the spelling of the numeral, which is
+formed. It is the right side of `Acorn.Json.Value.numeral_iff`, with the numeral given. -/
+def Numbered (json : Json.Value) (numeral : Json.Numeral) : Prop :=
+  numeral.Formed ∧ json = .number (String.ofList numeral.chars)
+
+/-- The names of the parameters of a command, in the order of its line. -/
+def Command.parameters : Command → List String
+  | .enable => ["on"]
+  | .move _ => ["vx", "vy", "vyaw"]
+  | .perform _ => ["skill"]
+
+/-- What the parameters of a command's request are, as a parsed value. -/
+def Command.Given : Command → Json.Value → Prop
+  | .enable, json => Within "params" (Within "on" Flagged) json true
+  | .move velocity, json =>
+    Within "params" (Within "vx" Numbered) json velocity.spelling.forward ∧
+      Within "params" (Within "vy" Numbered) json velocity.spelling.left ∧
+        Within "params" (Within "vyaw" Numbered) json velocity.spelling.turn
+  | .perform skill, json => Within "params" (Within "skill" Said) json skill.name
+
+/-- The value is the request of the command: an object with the four members `jsonrpc`,
+`id`, `method` and `params` and no other, whose `params` is an object with the parameters
+of the command and no other. So a request with a member or a parameter more, such as the
+`toggle` that the daemon's `robot.enable` also takes, is not the request of a command.
+The id, the method, the name of a skill and the numerals are those of the tables of this
+module, which the line is assembled from. -/
+structure Command.Asked (command : Command) (json : Json.Value) : Prop where
+  /-- The members are `jsonrpc`, `id`, `method` and `params`, in that order, and no other. -/
+  members : Named json ["jsonrpc", "id", "method", "params"]
+  /-- The member `params` is an object with the parameters of the command, in order, and
+  no other. -/
+  parameters : Within "params" Named json command.parameters
+  /-- The member `jsonrpc` is the string `2.0`. -/
+  version : Within "jsonrpc" Said json "2.0"
+  /-- The member `id` is the number of the command. -/
+  id : Within "id" Counted json command.code
+  /-- The member `method` is the method of the command. -/
+  method : Within "method" Said json command.method
+  /-- The member `params` holds the parameters of the command. -/
+  given : command.Given json
+
+/-- The test that a value is the request of a command, by the readers of this module. -/
+private def Command.reads (command : Command) (json : Json.Value) : Bool :=
+  decide (names json = some ["jsonrpc", "id", "method", "params"]) &&
+  decide (within "params" names json = some command.parameters) &&
+  decide (within "jsonrpc" text json = some "2.0") &&
+    decide (within "id" count json = some command.code) &&
+      decide (within "method" text json = some command.method) &&
+        match command with
+        | .enable => decide (within "params" (within "on" flag) json = some true)
+        | .move velocity =>
+          decide (within "params" (within "vx" Json.Value.numeral) json =
+              some velocity.spelling.forward) &&
+            decide (within "params" (within "vy" Json.Value.numeral) json =
+                some velocity.spelling.left) &&
+              decide (within "params" (within "vyaw" Json.Value.numeral) json =
+                some velocity.spelling.turn)
+        | .perform skill => decide (within "params" (within "skill" text) json = some skill.name)
+
+/-- A value that passes the test is the request of the command. -/
+private theorem Command.reads_asked (command : Command) (json : Json.Value)
+    (passed : command.reads json = true) : command.Asked json := by
+  unfold Command.reads at passed
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at passed
+  obtain ⟨⟨⟨⟨⟨members, parameters⟩, version⟩, id⟩, method⟩, given⟩ := passed
+  refine ⟨(names_iff json _).mp members, (within_iff names_iff _ json _).mp parameters,
+    (within_iff text_iff _ json _).mp version, (within_iff count_iff _ json _).mp id,
+    (within_iff text_iff _ json _).mp method, ?_⟩
+  cases command with
+  | enable =>
+    simp only [decide_eq_true_eq] at given
+    exact (within_iff (within_iff flag_iff _) _ json _).mp given
+  | move velocity =>
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at given
+    obtain ⟨⟨forward, left⟩, turn⟩ := given
+    exact ⟨(within_iff (within_iff Json.Value.numeral_iff _) _ json _).mp forward,
+      (within_iff (within_iff Json.Value.numeral_iff _) _ json _).mp left,
+      (within_iff (within_iff Json.Value.numeral_iff _) _ json _).mp turn⟩
+  | perform skill =>
+    simp only [decide_eq_true_eq] at given
+    exact (within_iff (within_iff text_iff _) _ json _).mp given
+
+/-- **The line of every command is a JSON text of the command's request.** For each of the
+ten commands: `Acorn.Json.parse` reads the line, and the value it gives has the version,
+the number of the command as its id, the method and the parameters of the command. The
+proof evaluates the parser on the ten lines. -/
+theorem Command.line_asked (command : Command) :
+    ∃ json : Json.Value, Json.parse command.line = .ok json ∧ command.Asked json := by
+  have passed : (Json.parse command.line).toOption.map command.reads = some true := by
+    cases command with
+    | enable => decide +kernel
+    | move velocity => cases velocity <;> decide +kernel
+    | perform skill => cases skill <;> decide +kernel
+  cases parsed : Json.parse command.line with
+  | error refusal =>
+    rw [parsed] at passed
+    exact nomatch passed
+  | ok json =>
+    rw [parsed] at passed
+    exact ⟨json, rfl, command.reads_asked json (Option.some.inj passed)⟩
+
+/-! ## A line of a daemon -/
+
+/-- The two streams of the daemons. -/
+inductive Stream where
+  /-- The state of the body, from the control daemon. -/
+  | state
+  /-- The depth grid, from the depth daemon. -/
+  | depth
+  deriving DecidableEq
+
+/-- The method of the notifications of a stream. -/
+def Stream.method : Stream → String
+  | .state => "robot.state"
+  | .depth => "tof.frame"
+
+/-- The parameters of the value write no frame of the stream. -/
+def Stream.Unwritten : Stream → Json.Value → Prop
+  | .state, json => ∀ frame, ¬Within "params" State.Written json frame
+  | .depth, json => ∀ frame, ¬Within "params" Depth.Written json frame
+
+/-- What a host reads of one line of a daemon: a frame of one of the two streams, a
+notification of a stream whose frame is refused, the answer to a request, or nothing it
+reads. -/
+inductive Line where
+  /-- A `robot.state` notification whose frame is read. -/
+  | state (frame : State)
+  /-- A `tof.frame` notification whose frame is read. -/
+  | depth (frame : Depth)
+  /-- A notification of a stream whose parameters write no frame. -/
+  | refused (stream : Stream)
+  /-- The answer to a request, with the id of the request when the answer has one. -/
+  | answer (id : Option Nat) (reply : Reply)
+  /-- Every other line: a notification of another method, a value with no method and no
+  verdict, a value whose id is neither a natural number nor missing nor null, and a value
+  that is no object. -/
+  | other
+
+/-- The reply that a boolean of an answer states. -/
+private def replied (accepted : Bool) : Reply :=
+  if accepted then .accepted else .refused
+
+/-- The verdict of an answer: a refusal when the value has a member `error`, and otherwise
+what the boolean `result.accepted` states. -/
+private def verdict (json : Json.Value) : Option Reply :=
+  match json.member "error" with
+  | some _ => some .refused
+  | none => (within "result" (within "accepted" flag) json).map replied
+
+/-- The frame of a notification, by its method. -/
+private def framed (json : Json.Value) (method : String) : Line :=
+  if method = "robot.state" then
+    match within "params" State.read json with
+    | some frame => .state frame
+    | none => .refused .state
+  else if method = "tof.frame" then
+    match within "params" Depth.read json with
+    | some frame => .depth frame
+    | none => .refused .depth
+  else .other
+
+/-- What a value with no method is read as. -/
+private def unframed (json : Json.Value) : Line :=
+  match lacking "id" count json, verdict json with
+  | some id, some reply => .answer id reply
+  | _, _ => .other
+
+/-- What a host reads of a parsed line. A value with a member `method` that is a string
+is a notification: the frame of `params` for `robot.state` and for `tof.frame`. Every other
+value is read as an answer. -/
+def Line.read (json : Json.Value) : Line :=
+  match within "method" text json with
+  | some method => framed json method
+  | none => unframed json
+
+/-- The verdict of an answer: the value has a member `error` and the reply is a refusal, or
+it has none and the reply is what the boolean `result.accepted` states. -/
+def Answered (json : Json.Value) (reply : Reply) : Prop :=
+  ((∃ inner, Json.Value.Member "error" json inner) ∧ reply = .refused) ∨
+    ((∀ inner, ¬Json.Value.Member "error" json inner) ∧
+      ((Within "result" (Within "accepted" Flagged) json true ∧ reply = .accepted) ∨
+        (Within "result" (Within "accepted" Flagged) json false ∧ reply = .refused)))
+
+/-- A value has a verdict exactly when it is answered so. -/
+private theorem verdict_iff (json : Json.Value) (reply : Reply) :
+    verdict json = some reply ↔ Answered json reply := by
+  unfold verdict Answered
+  cases fault : json.member "error" with
+  | some inner =>
+    have member := (Json.Value.member_iff "error" json inner).mp fault
+    constructor
+    · intro same
+      exact .inl ⟨⟨inner, member⟩, (Option.some.inj same).symm⟩
+    · rintro (⟨_, rfl⟩ | ⟨absent, _⟩)
+      · rfl
+      · exact absurd member (absent inner)
+  | none =>
+    have absent : ∀ inner, ¬Json.Value.Member "error" json inner := fun inner member => by
+      rw [(Json.Value.member_iff "error" json inner).mpr member] at fault
+      exact nomatch fault
+    have flags := fun value : Bool =>
+      within_iff (within_iff flag_iff "accepted") "result" json value
+    show (within "result" (within "accepted" flag) json).map replied = some reply ↔ _
+    rw [Option.map_eq_some_iff]
+    constructor
+    · rintro ⟨accepted, read, rfl⟩
+      refine .inr ⟨absent, ?_⟩
+      cases accepted
+      · exact .inr ⟨(flags false).mp read, rfl⟩
+      · exact .inl ⟨(flags true).mp read, rfl⟩
+    · rintro (⟨⟨inner, member⟩, _⟩ | ⟨_, ⟨read, rfl⟩ | ⟨read, rfl⟩⟩)
+      · exact absurd member (absent inner)
+      · exact ⟨true, (flags true).mpr read, rfl⟩
+      · exact ⟨false, (flags false).mpr read, rfl⟩
+
+/-- A value has no member `method` that is a string exactly when the reader of the method
+gives nothing. -/
+private theorem unnamed_iff (json : Json.Value) :
+    within "method" text json = none ↔ ∀ method, ¬Within "method" Said json method := by
+  rw [Option.eq_none_iff_forall_ne_some]
+  exact ⟨fun none method named => none method ((within_iff text_iff _ json method).mpr named),
+    fun none method named => none method ((within_iff text_iff _ json method).mp named)⟩
+
+/-- **A line is read as a state frame exactly when it is a `robot.state` notification whose
+parameters write the frame.** For every JSON value and state frame. -/
+theorem Line.read_state (json : Json.Value) (frame : State) :
+    Line.read json = .state frame ↔
+      Within "method" Said json "robot.state" ∧ Within "params" State.Written json frame := by
+  have named := within_iff text_iff "method" json
+  have written := within_iff State.read_iff "params" json
+  unfold Line.read
+  cases method : within "method" text json with
+  | none =>
+    show unframed json = .state frame ↔ _
+    constructor
+    · intro same
+      unfold unframed at same
+      split at same <;> cases same
+    · rintro ⟨said, _⟩
+      rw [(named _).mpr said] at method
+      exact nomatch method
+  | some name =>
+    show framed json name = .state frame ↔ _
+    unfold framed
+    constructor
+    · intro same
+      split at same
+      · rename_i state
+        subst state
+        cases read : within "params" State.read json with
+        | none =>
+          rw [read] at same
+          exact nomatch same
+        | some found =>
+          rw [read] at same
+          cases same
+          exact ⟨(named _).mp method, (written _).mp read⟩
+      · split at same
+        · split at same <;> exact nomatch same
+        · exact nomatch same
+    · rintro ⟨said, frames⟩
+      cases Option.some.inj (((named _).mpr said).symm.trans method)
+      simp only [↓reduceIte, (written frame).mpr frames]
+
+/-- **A line is read as a depth frame exactly when it is a `tof.frame` notification whose
+parameters write the frame.** For every JSON value and depth frame. -/
+theorem Line.read_depth (json : Json.Value) (frame : Depth) :
+    Line.read json = .depth frame ↔
+      Within "method" Said json "tof.frame" ∧ Within "params" Depth.Written json frame := by
+  have named := within_iff text_iff "method" json
+  have written := within_iff Depth.read_iff "params" json
+  unfold Line.read
+  cases method : within "method" text json with
+  | none =>
+    show unframed json = .depth frame ↔ _
+    constructor
+    · intro same
+      unfold unframed at same
+      split at same <;> cases same
+    · rintro ⟨said, _⟩
+      rw [(named _).mpr said] at method
+      exact nomatch method
+  | some name =>
+    show framed json name = .depth frame ↔ _
+    unfold framed
+    constructor
+    · intro same
+      split at same
+      · split at same <;> exact nomatch same
+      · split at same
+        · rename_i depth
+          subst depth
+          cases read : within "params" Depth.read json with
+          | none =>
+            rw [read] at same
+            exact nomatch same
+          | some found =>
+            rw [read] at same
+            cases same
+            exact ⟨(named _).mp method, (written _).mp read⟩
+        · exact nomatch same
+    · rintro ⟨said, frames⟩
+      cases Option.some.inj (((named _).mpr said).symm.trans method)
+      simp only [String.reduceEq, ↓reduceIte, (written frame).mpr frames]
+
+/-- **A line is read as a refused frame of a stream exactly when it is a notification of
+the stream whose parameters write no frame.** For every JSON value and stream. -/
+theorem Line.read_refused (json : Json.Value) (stream : Stream) :
+    Line.read json = .refused stream ↔
+      Within "method" Said json stream.method ∧ stream.Unwritten json := by
+  have named := within_iff text_iff "method" json
+  have states := within_iff State.read_iff "params" json
+  have depths := within_iff Depth.read_iff "params" json
+  unfold Line.read
+  cases method : within "method" text json with
+  | none =>
+    show unframed json = .refused stream ↔ _
+    constructor
+    · intro same
+      unfold unframed at same
+      split at same <;> cases same
+    · rintro ⟨said, _⟩
+      rw [(named _).mpr said] at method
+      exact nomatch method
+  | some name =>
+    show framed json name = .refused stream ↔ _
+    unfold framed
+    constructor
+    · intro same
+      split at same
+      · rename_i state
+        subst state
+        cases read : within "params" State.read json with
+        | some found =>
+          rw [read] at same
+          exact nomatch same
+        | none =>
+          rw [read] at same
+          cases same
+          refine ⟨(named _).mp method, fun frame written => ?_⟩
+          rw [(states frame).mpr written] at read
+          exact nomatch read
+      · split at same
+        · rename_i depth
+          subst depth
+          cases read : within "params" Depth.read json with
+          | some found =>
+            rw [read] at same
+            exact nomatch same
+          | none =>
+            rw [read] at same
+            cases same
+            refine ⟨(named _).mp method, fun frame written => ?_⟩
+            rw [(depths frame).mpr written] at read
+            exact nomatch read
+        · exact nomatch same
+    · rintro ⟨said, unwritten⟩
+      cases Option.some.inj (((named _).mpr said).symm.trans method)
+      cases stream with
+      | state =>
+        have absent : within "params" State.read json = none :=
+          Option.eq_none_iff_forall_ne_some.mpr fun frame read =>
+            unwritten frame ((states frame).mp read)
+        simp only [Stream.method, ↓reduceIte, absent]
+      | depth =>
+        have absent : within "params" Depth.read json = none :=
+          Option.eq_none_iff_forall_ne_some.mpr fun frame read =>
+            unwritten frame ((depths frame).mp read)
+        simp only [Stream.method, String.reduceEq, ↓reduceIte, absent]
+
+/-- **A line is read as an answer exactly when it has no method, an id that digits alone
+spell or none, and a verdict.** For every JSON value, id and reply: the value has no member
+`method` that is a string, its member `id` is the natural number or is missing or null,
+and it is answered with the reply. -/
+theorem Line.read_answer (json : Json.Value) (id : Option Nat) (reply : Reply) :
+    Line.read json = .answer id reply ↔
+      (∀ method, ¬Within "method" Said json method) ∧ Lacking "id" Counted json id ∧
+        Answered json reply := by
+  have numbered := lacking_iff count_iff "id" json
+  unfold Line.read
+  cases method : within "method" text json with
+  | some name =>
+    constructor
+    · intro same
+      have same : framed json name = .answer id reply := same
+      unfold framed at same
+      split at same
+      · split at same <;> exact nomatch same
+      · split at same
+        · split at same <;> exact nomatch same
+        · exact nomatch same
+    · rintro ⟨unnamed, _⟩
+      rw [(unnamed_iff json).mpr unnamed] at method
+      exact nomatch method
+  | none =>
+    show unframed json = .answer id reply ↔ _
+    unfold unframed
+    constructor
+    · intro same
+      split at same
+      · rename_i found given counted judged
+        cases same
+        exact ⟨(unnamed_iff json).mp method, (numbered _).mp counted,
+          (verdict_iff json _).mp judged⟩
+      · exact nomatch same
+    · rintro ⟨_, counted, judged⟩
+      rw [(numbered id).mpr counted, (verdict_iff json reply).mpr judged]
 
 end Acorn.Host.Microduck

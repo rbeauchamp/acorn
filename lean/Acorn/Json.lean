@@ -106,6 +106,7 @@ structure Exponent where
   sign : Option Bool
   /-- The digits of the exponent. -/
   digits : List Char
+  deriving DecidableEq
 
 /-- A JSON number in the parts of its spelling. -/
 structure Numeral where
@@ -117,6 +118,7 @@ structure Numeral where
   fraction : Option (List Char)
   /-- The exponent part, if the spelling has one. -/
   exponent : Option Exponent
+  deriving DecidableEq
 
 /-- The characters of the sign of an exponent. -/
 def Exponent.signChars : Option Bool → List Char

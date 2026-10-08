@@ -30,8 +30,8 @@ whether these magnitudes move a robot is UNKNOWN.
 velocities, one of five skills. It is a closed finite type. It has no constructor for
 cutting power, shutting down or rebooting, and `Command.enable` takes no argument, so
 no value asks to disable the policy; a velocity is one of the table's four, so no value
-carries another magnitude. This module gives no wire form: the function that renders a
-command, which is not built, owes the method and the parameters of each constructor.
+carries another magnitude. This module gives no wire form: `Command.line` of
+`Acorn.Host.Microduck.Wire` is the line of each command, with its method and parameters.
 The release of an action sends velocities and skills only (`Action.commands_powered`),
 so the enable command is the bridge's own.
 

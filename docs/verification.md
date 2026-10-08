@@ -400,8 +400,14 @@ that a reading is paired with. A parsed JSON value is read into these types by
 `Acorn.Host.Microduck.State.read` and `Acorn.Host.Microduck.Depth.read`, and a
 frame is read exactly when it is what the value writes, member by member
 (`Acorn.Host.Microduck.State.read_iff`, `Acorn.Host.Microduck.Depth.read_iff`).
-No theorem is about the parser of a line, the envelope of a notification or what a daemon
-sends, so none states that the text of a frame is read correctly.
+A whole parsed line is read by `Acorn.Host.Microduck.Line.read`, as a frame of a
+notification of that method or as the answer to a request
+(`Acorn.Host.Microduck.Line.read_state`, `Acorn.Host.Microduck.Line.read_depth`,
+`Acorn.Host.Microduck.Line.read_answer`), and the parser of this repository reads the
+line of each of the ten commands as the request of that command
+(`Acorn.Host.Microduck.Command.line_asked`). No other theorem is about the parser of a
+line and none is about what a daemon sends or accepts, so none states that the text of a
+frame is read correctly.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
