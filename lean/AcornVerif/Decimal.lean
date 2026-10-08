@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Host.Microduck.Decimal
+import Acorn.Host.Microduck.Wire
 import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Algebra.Order.Field.Power
 import Mathlib.Algebra.Order.Field.Rat
@@ -59,6 +59,10 @@ a scale keeps of a JSON value is the saturation of an integer that is nearest to
 spelling writes, and `kept_nearest` gives that integer. A natural number counted from a
 value is the number that its digits, which are decimal digits alone, write by their
 places, and an integer is that number negated after a minus sign.
+
+`spelling_twist` is about what a host writes: each numeral in the line of a velocity
+command is formed, and it writes the integer of the action table's magnitude divided by
+a thousand, exactly, for each of the four velocities.
 -/
 namespace AcornVerif.Decimal
 open Acorn.Host.Microduck
@@ -355,5 +359,28 @@ theorem signed_numberOf (json : Acorn.Json.Value) (integer : ℤ)
   obtain ⟨negative, digits, formed, same, rfl⟩ := signed
   refine ⟨negative, digits, formed_whole formed, same, ?_⟩
   rw [spelled_numberOf digits (formed_whole formed)]
+
+/-- **Each magnitude of a velocity is written as its thousandths over a thousand.** For
+each of the four velocities of the table and each of its three magnitudes: the numeral
+that a command's line writes is formed, and the number it writes is the integer of
+`Velocity.twist` divided by a thousand. So the line of a velocity asks for exactly the
+magnitudes of the table: zero, 0.3 m/s forward, or 1.5 rad/s of turn to one side. Each
+numeral is formed because the scanner gives it back from its own spelling
+(`Acorn.Json.Numeral.scan_formed`). -/
+theorem spelling_twist (velocity : Velocity) :
+    (velocity.spelling.forward.Formed ∧
+        written velocity.spelling.forward = (velocity.twist.forward : ℚ) / 1000) ∧
+      (velocity.spelling.left.Formed ∧
+        written velocity.spelling.left = (velocity.twist.left : ℚ) / 1000) ∧
+      (velocity.spelling.turn.Formed ∧
+        written velocity.spelling.turn = (velocity.twist.turn : ℚ) / 1000) := by
+  have formed : ∀ numeral : Acorn.Json.Numeral,
+      Acorn.Json.Numeral.scan numeral.chars = some (numeral, []) → numeral.Formed :=
+    fun _ scanned => (Acorn.Json.Numeral.scan_formed scanned).1
+  cases velocity <;>
+    refine ⟨⟨formed _ (by decide), ?_⟩, ⟨formed _ (by decide), ?_⟩,
+      ⟨formed _ (by decide), ?_⟩⟩ <;>
+    norm_num [written, numberOf, digit, exponentOf, Velocity.spelling, nought,
+      Velocity.twist]
 
 end AcornVerif.Decimal

@@ -339,8 +339,23 @@ that a reading is paired with. A parsed JSON value is read into these types by
 {decl}`Acorn.Host.Microduck.State.read` and {decl}`Acorn.Host.Microduck.Depth.read`, and a
 frame is read exactly when it is what the value writes, member by member
 ({decl}`Acorn.Host.Microduck.State.read_iff`, {decl}`Acorn.Host.Microduck.Depth.read_iff`).
-No theorem is about the parser of a line, the envelope of a notification or what a daemon
-sends, so none states that the text of a frame is read correctly.
+A whole parsed line is read by {decl}`Acorn.Host.Microduck.Line.read` as exactly one case
+of declared criteria, which are taken from JSON-RPC 2.0 and are not the whole of it: a
+notification, as a frame of its stream or as a notice
+({decl}`Acorn.Host.Microduck.Line.read_state`, {decl}`Acorn.Host.Microduck.Line.read_depth`),
+a response with a result or with an error ({decl}`Acorn.Host.Microduck.Line.read_result`,
+{decl}`Acorn.Host.Microduck.Line.read_fault`), and invalid for every other value
+({decl}`Acorn.Host.Microduck.Line.read_invalid`).
+
+A host writes each request as the text of a JSON value of two levels, and the parser of
+this repository reads the text of every such value back as the value:
+
+{statement Acorn.Json.parse_request}
+
+So for every identifier and command the parser reads the line of a send as the request of
+that send ({decl}`Acorn.Host.Microduck.Command.line_asked`). This is the one theorem about
+the parser. No theorem states what it reads of a line of a daemon, and none is about what a
+daemon sends or accepts, so none states that the text of a frame is read correctly.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting

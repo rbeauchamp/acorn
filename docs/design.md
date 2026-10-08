@@ -631,11 +631,10 @@ for the client. Five parts of this world are built, as pure definitions:
 [what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
 integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/Decimal.lean)
 with its reader of one JSON number,
-[the readers of a state frame and a depth frame](../lean/Acorn/Host/Microduck/Wire.lean)
-from the daemon's JSON,
+[the readers of a line of the daemon and the line of each command](../lean/Acorn/Host/Microduck/Wire.lean),
+as JSON,
 and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
-No host loop, no transport, no reader of a notification's envelope or of a reply and no
-wire form of a command exist yet, so no code of Acorn reaches the simulator and no executing code
+No host loop and no transport exist yet, so no code of Acorn reaches the simulator and no executing code
 builds a percept of this world
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
@@ -694,9 +693,17 @@ bridge's state refuses an earlier release.
 of the table's four velocities, one of five skills. It is a closed finite type. It
 has no constructor for cutting power, shutting down or rebooting, the enable command
 takes no argument, so no value asks to disable the policy, and no value carries a
-velocity outside the table (the daemon does not clamp a velocity). The wire form of
-a command is not defined: the function that renders one owes the method and the
-parameters of each constructor. The release of an action sends velocities and skills
+velocity outside the table (the daemon does not clamp a velocity). `Command.line` is
+the line of JSON of one send of a command: a request with the method and the
+parameters of the record, and an identifier that the caller gives for each send, so
+that an answer names one send and not a kind of command. Each magnitude of a velocity
+is a numeral of a table, proved to write the thousandths of the action table over a
+thousand exactly (`spelling_twist`). A line is the text of a request value, and the
+parser of this repository reads the text of every such value back as the value
+(`parse_request`, the first theorem about that parser on a family of texts), so for
+every identifier and command it reads the line as the request, with exactly its
+members and its parameters and no other (`Command.line_asked`); that a daemon reads
+them so is not stated. The release of an action sends velocities and skills
 only (`Action.commands_powered`), so the enable command is the bridge's own. Every
 release sends a velocity first (`Action.commands_head`): a skill and a posture are
 released with the zero velocity. The daemon exposes sitting and standing as one
@@ -930,8 +937,20 @@ both read as nothing measured. The object that holds the list of limit names mus
 an object. A depth frame must state eight rows and eight columns. A member that neither
 reader names is not read. The names of the members and the
 labels are those of the record of one observed run; no theorem relates them to what a
-daemon sends. The envelope of a notification, the reply to a request and the text of a
-command are not read or written yet, and what a host does at a refused frame is not
+daemon sends. `Line.read` reads a whole parsed line by declared criteria, with one
+constructor of its result for each case and one theorem for each constructor. The
+criteria are taken from the JSON-RPC 2.0 specification and are not the whole of it: a
+line that meets them need not be valid by that specification, since the parameters of
+a notification can be any value and no further member is refused. A notification has
+the version `2.0`, a string method and no identifier:
+it is a state frame or a depth frame when its parameters write the frame, an unread
+frame of that stream when they write none, and a notice for another method. A response
+has no method and an identifier, and exactly one of a result and an error: a result
+carries the boolean of its accepted member, and an error is an object with an integer
+code and a string message, with an identifier that can be null. Every other value is
+invalid, an error member that is null beside a result included (`Line.read_state`,
+`Line.read_depth`, `Line.read_unread`, `Line.read_notice`, `Line.read_result`,
+`Line.read_fault`, `Line.read_invalid`). What a host does at an unread frame is not
 decided.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
