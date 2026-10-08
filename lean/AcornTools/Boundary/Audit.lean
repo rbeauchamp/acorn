@@ -55,11 +55,18 @@ interface instance. -/
 def gridOwners : Array Name := #[`Acorn.Handcrafted.Observation, `Acorn.Handcrafted.Cumulants,
   `Acorn.Handcrafted.GridWorld]
 
+/-- The declared module bound to the Microduck world: its interface instance with its
+adapter. -/
+def microduckOwners : Array Name := #[`Acorn.Handcrafted.Microduck]
+
+/-- Declared modules bound to one world. -/
+def worldOwners : Array Name := gridOwners ++ microduckOwners
+
 /-- Every other declared module imports no world: the composed agent, its profiles and its
 world-independent declarations. A newly added declared module is world-independent until
-it is listed as a grid owner. -/
+it is listed as an owner of a world. -/
 def worldIndependent (name : Name) : Bool :=
-  (`Acorn.Handcrafted).isPrefixOf name && !gridOwners.contains name
+  (`Acorn.Handcrafted).isPrefixOf name && !worldOwners.contains name
 
 /-- The proof module that states Regula contracts whose proofs need the proof library. It
 alone among the proof modules imports Regula's contract type. -/
@@ -82,7 +89,8 @@ def generatorExcluded (imported : Name) : Bool :=
 
 /-- Only host/composition owners may use the pinned standard containers and IO support.
 A world-independent declared module reaches learned modules and its own kind only, so
-the composed agent cannot name a host or grid type, directly or through an import.
+the composed agent cannot name a type of a host or of a world, directly or through an
+import.
 Proof imports name their actual dependencies; Mathlib and FloatLib umbrella imports
 needlessly load an entire library or tactic collection into each compiler process.
 FloatLib modules are admitted for the bridge alone, and Regula's contract type for the proof

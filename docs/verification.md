@@ -122,9 +122,12 @@ refuses a native replacement. Every proof passes through the kernel.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
-owned by one, unless it is one of the grid world's own declared modules:
-Acorn.Handcrafted.Observation, Acorn.Handcrafted.Cumulants and Acorn.Handcrafted.GridWorld. The last of
-them binds the grid world to the agent's interface.
+owned by one, unless it is one of a world's own declared modules. The grid world's are
+Acorn.Handcrafted.Observation, Acorn.Handcrafted.Cumulants and Acorn.Handcrafted.GridWorld. The Microduck
+world's is Acorn.Handcrafted.Microduck,
+which binds that world to the interface; no executing code builds its percepts, and no
+theorem states what it feeds a learner. The last of the grid world's modules binds the
+grid world to the agent's interface.
 `Acorn.Handcrafted.Agent.grid_inputs` states what that binding feeds each
 learner, in terms of the host's own channel, signal and potential definitions, for
 every agent state, observation and reward word:

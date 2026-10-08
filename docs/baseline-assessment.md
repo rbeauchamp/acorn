@@ -446,8 +446,9 @@ F-E left its feature-construction end inert until U3.
   as observations no decision reads (`act_learners`), and the evaluation mode
   `withoutReachRelation` is named for the grid world's reach relation, which only
   the grid adapter omits from its frame
-  words. No second world instantiates the interface yet, so that another world fits
-  it is a design claim, not an observation.
+  words. A second world, the Microduck, has an instance of the interface and an
+  adapter, as definitions; no executing loop runs an agent in it, so that an agent
+  learns in another world is not an observation.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
   way", and imagined outcomes "are then evaluated by the value functions"

@@ -34,6 +34,7 @@ def modules : List (Name × List Departure) :=
    (`Acorn.Handcrafted.Cumulants, [.cumulants]),
    (`Acorn.Handcrafted.GridWorld, [.featureChannels, .spatialPotentials, .cumulants,
      .achievementEvent]),
+   (`Acorn.Handcrafted.Microduck, [.featureChannels, .cumulants, .achievementEvent]),
    (`Acorn.Handcrafted.FeatureProfile, [.featureChannels, .spatialPotentials, .explorationRate,
      .featureTester]),
    (`Acorn.Handcrafted.TemporalProfile, [.spatialPotentials, .explorationRate]),
