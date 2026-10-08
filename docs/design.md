@@ -623,12 +623,14 @@ skills and timing is in
 A client sends **intents**, never a joint command: a velocity, or a skill by name.
 The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
 0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
-for the client. Two parts of this world are built, as pure definitions:
-[the action table](../lean/Acorn/Host/Microduck/Action.lean) and
-[the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean). No interface value,
-no frame, no host loop, no transport and no wire form of a command exist yet, so no
-code of Acorn reaches the simulator
-([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
+for the client. Three parts of this world are built, as pure definitions:
+[the action table](../lean/Acorn/Host/Microduck/Action.lean),
+[the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean) and
+[what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
+integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/Decimal.lean).
+No interface value, no frame, no host loop, no transport, no reader of the daemon's
+text and no wire form of a command exist yet, so no code of Acorn reaches the
+simulator ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
 **The daemon's networks are the world's actuation interface.** Every intent is
 executed by a network inside the daemon, which holds the only write handle to the
@@ -797,6 +799,89 @@ posture that the state holds from the release, so the commands and the outcome o
 one release read one posture (`Bridge.release_outcome`). A late release is not an
 outcome: it is the fault of [the deadline rule](#the-time-a-world-declares). How
 sensing shows an action is not defined yet.
+
+**What the body senses.** The daemons publish the state of the body at 50 Hz and an
+8 by 8 grid of depths at about 14 Hz, on one monotonic clock of their own, and a
+measured quantity is the decimal text of a JSON number. The record of both streams
+from the observed run is in
+[a second comment of issue 95](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6051119525).
+A host keeps none of them as a float. A `Decimal` is a number as its text spells it:
+a sign, the digits as one natural number and a power of ten, with an exponent of
+any size. A `Scale` declares how a field is kept: a number of decimal places, a least
+and a greatest value. `Decimal.fixed` converts by integer arithmetic.
+
+**What the conversion computes** is stated over the rational value of the decimal,
+in [the proof library](../lean/AcornVerif/Decimal.lean), with none of the
+conversion's arithmetic. `value` is the digits times ten to the exponent, negated
+for a minus sign. `Nearest x n` says that the integer `n` is within one half of `x`,
+and that where it is exactly one half away `x` is the nearer to zero; at most one
+integer is nearest (`Nearest.unique`). For every scale and every decimal, the result
+is the integer nearest to the value times ten to the places of the scale, saturated
+to the bounds of the scale (`fixed_nearest`). A height of 0.116 m is 116 in
+thousandths, the residues `1e-323` and `7.38787616182396e-14`, which
+[the record of the run's timing](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895)
+quotes, are zero, and an angle beyond 32.767 rad is 32,767. The result is a
+`Scale.Word`, whose type holds the proof of its bounds.
+
+**How it computes** with powers of ten that the scale and the length of the digits
+bound. Write the shift for the exponent plus the places of the scale. The conversion is the direct rounding
+followed by the saturation for every decimal (`Decimal.fixed_clamp`), and it decides
+two cases by comparing integers:
+
+- with no digits, or with the width of the digits plus the shift negative, the
+  rounded magnitude is zero (`Decimal.magnitude_vanishes`);
+- with digits and a shift of at least the width of the scale, which is the width of
+  its larger bound, the rounded magnitude is at least ten to that width
+  (`Decimal.magnitude_beyond`) and so beyond both bounds (`Scale.width_bound`): the
+  result is the least value for a minus sign and the greatest without one;
+- between the two it divides, and forms two powers of ten: one that multiplies the
+  digits and one that divides. With `w` the width of the scale and `d` the width of
+  the digits, the exponent of the first is below `w` and the exponent of the second
+  is at most `d` (`Decimal.shift_between`), so the largest powers are ten to the
+  `w - 1` in the numerator and ten to the `d` in the denominator.
+
+The width of a natural number is the count of its octal digits, and one for zero: one
+more than a third of its binary logarithm, rounded down. A number is less than ten to
+its width, and the width is read from the binary length of the number, so neither
+comparison divides the digits by ten. Ten decimal digits are about eleven octal digits.
+
+What the conversion forms is therefore bounded by the scale and by the length of the
+digits, and not by the size of the exponent: `1e401` saturates and `1e-401` is zero
+with no power of ten formed. For thousandths in sixteen bits `w` is 5, so `1e1`
+forms ten to the 4 and `1000000000e-13` forms ten to the 10.
+
+Two scales are declared. `Declared.milli` keeps thousandths and saturates at plus and
+minus 32,767. `Declared.range` keeps whole millimetres from 0 to 32,767. Each fits
+sixteen bits (`Declared.milli_sixteen`, `Declared.range_sixteen`).
+
+A `State` is one frame of the state stream: the angle of each of the fifteen joints
+and, when the daemon reports them, their rates; the direction of gravity and the
+turning rate in the frame of the trunk; the height of the trunk by the daemon's
+odometry; the label of what drove the tick; the daemon's reports of a fall; the
+servo gain, which can be null; and the names of what limited the daemon's commands.
+A `Depth` is one frame of the depth stream: 64 zones, each a distance in millimetres
+and the sensor's status byte. A field whose absence means that nothing was measured
+is an `Option`, and absence is not a zero. A `Reading` pairs a state frame with a
+depth frame, if there is one, and states the age of that depth frame: the time from
+it to the state frame (`Reading.age_exact`), and zero when the depth frame is not the
+older (`Reading.age_ahead`). The two frames are stamped on the daemons' clock, a
+`Stamp`. It is a type apart from the `Instant` of a host's clock, because a host that
+reaches the daemons from another machine reads another clock.
+
+The scales and the choice of fields are authored, and nothing here is an input of
+the agent yet. The frame of the interface, with its channels, symbols, signals and
+goal, is built on a reading by a module that does not exist; its channels and
+signals will be declared under departures D1 and D5 of the
+[learned-only binding](learned-only-binding.md), and what a reading leaves out that
+frame cannot carry. The function that reads the daemon's text into these types is
+not built either, and it belongs with the reader of the daemon's text. It owes the
+name of each field, the order of each array, the tables of labels and of limit
+names, the refusal of a gain or a status that its type does not hold, and the
+`Decimal` of each number's spelling. The spelling is the one the repository's JSON
+reader keeps: an optional minus sign, digits, an optional point with digits after
+it and an optional exponent. That reader refuses `1.` and `1e`, and every spelling
+it admits, negative zero among them, has a `Decimal`, so the conversion is total
+over what the reader can give.
 
 UNKNOWN, because the observed run did not exercise them: how long sitting down
 takes (the run recorded the label of the sitting network and not the time the body

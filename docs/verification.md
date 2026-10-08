@@ -336,6 +336,36 @@ theorems: the daemon's expiry of a velocity, the time from a send to the daemon'
 the gap between two readings of the host's clock, that the posture a caller states is the
 body's, and that a declared duration covers what the body takes.
 
+What the Microduck senses is kept as bounded integers, also as pure definitions that no
+executing code calls. The daemon reports a measured quantity as the decimal text of a JSON
+number, and `Acorn.Host.Microduck.Decimal.fixed` converts such a number to an integer
+of a declared scale by integer arithmetic alone. What it computes is stated over the
+rational value of the decimal, `AcornVerif.Decimal.value`, and the predicate
+`AcornVerif.Decimal.Nearest`, which name none of the conversion's arithmetic: the
+result is the integer nearest to the value in the units of the scale, at a tie the one
+farther from zero, saturated to the bounds of the scale.
+
+```lean
+theorem AcornVerif.Decimal.fixed_nearest (scale : Acorn.Host.Microduck.Scale)
+  (decimal : Acorn.Host.Microduck.Decimal) (nearest : ℤ)
+  (near :
+    AcornVerif.Decimal.Nearest (AcornVerif.Decimal.value decimal * 10 ^ scale.places) nearest) :
+  ↑(Acorn.Host.Microduck.Decimal.fixed scale decimal) = max scale.low (min scale.high nearest)
+```
+
+`AcornVerif.Decimal.Nearest.unique` states that at most one integer is nearest, and
+`AcornVerif.Decimal.rounded_nearest` that the rounding of the executed arithmetic is.
+The statement holds for an exponent of any size. The conversion decides by two comparisons
+of integers when a decimal rounds to zero and when it saturates
+(`Acorn.Host.Microduck.Decimal.fixed_clamp`), and between them it forms two powers
+of ten: the exponent of the one that multiplies the digits is below the width of the
+scale, and the exponent of the one that divides is at most the width of the digits
+(`Acorn.Host.Microduck.Decimal.shift_between`). The bounds of the result are part of
+its type. `Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
+that a reading is paired with. The function that reads a frame of the daemon into these
+types is not built, so no theorem states that the text of a frame is read into them
+correctly.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine

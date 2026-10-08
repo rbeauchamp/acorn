@@ -159,7 +159,9 @@ report of the definitions that have no contract is work of Regula
   dispatch of the step order `act-then-learn` (`Handcrafted.TemporalControl.drawFirst`) is in
   this group, as selection is: it returns no state when a declared potential has no source,
   and `Handcrafted.TemporalControl.drawFirst_total` states that it returns one from every
-  aligned state.
+  aligned state. The age of the depth frame of a Microduck reading
+  (`Host.Microduck.Reading.age`) is in this group too: it refuses nothing, and it is absent
+  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`).
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
