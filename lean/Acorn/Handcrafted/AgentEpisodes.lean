@@ -75,7 +75,9 @@ theorem _root_.Acorn.Features.FreeDispatch.refreshModels_closing_slot
     (state.refreshModels assign).closing.map (·.slot) = state.closing.map (·.slot) := by
   cases assign with
   | false => rfl
-  | true => exact state.refresh_closing_slot
+  | true =>
+    rw [FreeDispatch.refreshModels_assign, state.refreshRanked.rerankModels_preserves.2.1]
+    exact state.refresh_closing_slot
 
 /-- Primitive selection creates no active option and preserves the supplied closing event. -/
 theorem TemporalControl.primitive_episodes (state : TemporalControl interface profile config criterion dimension)
