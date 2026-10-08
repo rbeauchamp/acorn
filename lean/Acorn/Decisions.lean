@@ -79,26 +79,24 @@ Twelve functions of this module have a contract and no kind. The reasons are fou
   type of the input of a specification, so RG1009
   (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses the kind although the
   specification names none of those tests (https://github.com/rbeauchamp/regula/issues/270).
-  These are
-  `Checkpoint.saveBytes`, `Features.Lifecycle.lessUseful`, `Features.Lifecycle.candidate`,
-  `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`, `Agent.restore` and
-  `PredictionControl.advanceRaw`.
+  These are `Checkpoint.saveBytes`, `Checkpoint.load`, `Features.Lifecycle.lessUseful`,
+  `Features.Lifecycle.candidate`, `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`,
+  `Agent.restore` and `PredictionControl.advanceRaw`.
 * The specification is about a function with tests that the decision runs.
   `PolicySnapshot.consistent` accepts the masses of `PolicySnapshot.probabilities`, which runs
   three word comparisons, and RG1009 refuses the kind.
-* A sound kind carries an accepted input, and the acceptance is proved in the proof library.
-  `Checkpoint.load` and `FeatureProfile.admit` refuse under a profile that is not resumable,
-  which is proved here, and they accept what a resumable construction saved, which is proved
-  in `AcornVerif`. Regula
-  does not count a contract of that library toward a registration of this one
-  (https://github.com/rbeauchamp/regula/issues/271).
+* The kinds of the function are stated in the proof library. `FeatureProfile.admit` has a sound
+  kind and a complete kind in `AcornVerif.Decisions`, because their accepted inputs need a
+  round trip that is proved there. Regula does not count a contract of that library toward a
+  registration of this one (https://github.com/rbeauchamp/regula/issues/271), so the function
+  is not registered, and its refusal statement here keeps no kind.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
 fix one direction only, and it need not show that both outcomes occur for its function.
 RG1009 does not read its specification. Each docstring says what its statement gives and what
-it does not claim. Kinds for the functions of the last three reasons are remaining work of
-https://github.com/rbeauchamp/acorn/issues/105.
+it does not claim. Kinds for the functions of the second and the third reason are remaining
+work of https://github.com/rbeauchamp/acorn/issues/105.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
 counts only a contract of the function's own library toward a registration, so such a function
@@ -106,12 +104,10 @@ is not registered here, and the ownership audit requires its contract in the sam
 certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified`
 are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
 statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
-No checker is complete, so `Host.regionBlocked` carries the sound kind. The other two take an
-argument whose type depends on the configuration, and their contracts carry no kind. Regula
-v0.10.0 reads a kind for such a function through the fields of a structure and the erasures
-`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, and stating the kinds for the contracts
-of that module is remaining work of https://github.com/rbeauchamp/acorn/issues/105.
-`Host.walkableTile` carries the two-way kind.
+No checker is complete, so `Host.regionBlocked` and `Host.stanceCertified` carry the sound
+kind. `Host.replayCertified` keeps a requirement with no kind: its specification is about runs
+of the executed world step, which the checker runs. `Host.walkableTile` carries the two-way
+kind.
 
 ## Tests that a specification does not share
 
@@ -136,11 +132,13 @@ Each such condition is a proposition, with a theorem that connects the test with
 * `Host.TileKind.Walkable`, terrain that is neither water nor a mountain, with
   `Host.TileKind.walkable_iff`;
 * `Host.Inventory.Owns`, the flag of the named tool, with `Host.Inventory.owns_iff`;
+* `FeatureProfile.Resumable`, the four discriminants of the profile whose state a checkpoint
+  holds, with `FeatureProfile.checkpoint_iff`;
 * `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`.
 
 A function that a specification reaches decides the proposition in the place of the call of
 the test: the signed key `Binary32.key`, `Binary32.saturate`, `Agreement.units`,
-`Lifetime.sumUpdate`,
+`Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`,
 `Conversion.toI64Word`, `Host.floor32`, `Host.classifyTerrain` and `Host.World.enterable`. The
 instance of each proposition runs its test, so the executed comparison is the same one. A
 specification that would name a test names the proposition: `inventory_craft` and
@@ -686,11 +684,7 @@ attribute [regula_decision] Agreement.Ratio.admit
 
 /-! ## Agent construction and checkpoint admission -/
 
-/-- A resumable profile, stated by its four discriminants: the profile whose state a
-checkpoint holds. -/
-def Resumable (profile : FeatureProfile) : Prop :=
-  profile.mode = .final ∧ profile.credit = .perStep ∧ profile.rate = .declared ∧
-    profile.subtasks = .learned
+open Handcrafted.FeatureProfile (Resumable)
 
 /-- The executed resumable-profile test accepts exactly a resumable profile. -/
 private theorem resumable_iff (profile : FeatureProfile) :
@@ -2285,7 +2279,7 @@ attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidab
   Checkpoint.instDecidableValid Checkpoint.instDecidableOptionsValid
   Binary32.instDecidableNegative Binary32.instDecidableIsNaN Binary32.instDecidableLess
   Binary64.instDecidableIsNaN Binary64.instDecidableLess Host.instDecidableWalkable
-  Host.instDecidableOwns Host.instDecidableInBox
+  Host.instDecidableOwns Host.instDecidableInBox Handcrafted.instDecidableResumable
 
 /-! ## Decisions with a dependent type
 
@@ -2364,8 +2358,9 @@ structure SquaredAdmit where
 
 /-- Squared-discrepancy admission accepts exactly two finite words whose squared discrepancy
 is within the squared envelope. `Agreement.squaredUnits` is the measured quantity, which the
-admission also computes; `AcornVerif.Decisions.squared_admit_accepts` states acceptance against
-the real discrepancy of the two words. `squared_admit_value` states the admitted sample. -/
+admission also computes; `AcornVerif.Decisions.squared_admit_exact` states the two-way kind
+against the rational discrepancy of the two words. `squared_admit_value` states the admitted
+sample. -/
 theorem squared_admit : Regula.ExecutableContract Agreement.admitSquared (fun admit =>
     Regula.Decides (· = true)
       (fun input : SquaredAdmit => input.forecast.Finite ∧ input.outcome.Finite ∧
@@ -2767,10 +2762,11 @@ of the bytes that a resumable construction saved is `checkpoint_load_accepts` in
 `AcornVerif.Decisions`. The specification names the four discriminants of the profile and
 no function that loading calls.
 
-The statement keeps no kind. A sound kind carries an input that the function accepts, and the
-acceptance of a saved image is proved in the proof library, whose contracts Regula does not
-count toward a registration of this library. A kind for this function is remaining work of
-https://github.com/rbeauchamp/acorn/issues/105.
+The statement keeps no kind. Regula v0.10.0 refuses a kind for this function under RG1009
+(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds an agent state, an
+invariant of that state names tests that loading runs, and the rule reads the type of the
+input (https://github.com/rbeauchamp/regula/issues/270). The specification names none of
+those tests.
 
 **Not claimed:** which other byte lists a resumable construction refuses. -/
 theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
@@ -2976,10 +2972,11 @@ theorem agent_restore : Regula.ExecutableContract @Agent.restore (fun restore =>
 under a resumable profile is `profile_admit_accepts` in `AcornVerif.Decisions`. The
 specification names the four discriminants of the profile.
 
-The statement keeps no kind. A sound kind carries an input that the function accepts, and the
-acceptance of the feature words of an image is proved in the proof library, whose contracts
-Regula does not count toward a registration of this library. A kind for this function is
-remaining work of https://github.com/rbeauchamp/acorn/issues/105. -/
+The statement keeps no kind here. The kinds of the function are `profile_admit_sound` and
+`profile_admit_accepts` in `AcornVerif.Decisions`: the accepted input of the sound kind needs
+a round trip that is proved in the proof library. Regula does not count a contract of that
+library toward a registration of this one (https://github.com/rbeauchamp/regula/issues/271),
+so the function is not registered. -/
 theorem profile_admit : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
     (∀ (profile : FeatureProfile) {actions : Word.Count} (config : Features.Config)
       (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}
