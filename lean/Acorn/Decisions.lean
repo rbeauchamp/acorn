@@ -112,8 +112,8 @@ No checker is complete, so `Host.regionBlocked` and `Host.stanceCertified` carry
 kind. `Host.replayCertified` keeps a requirement with no kind: its specification is about runs
 of the executed world step, which the checker runs. `Host.walkableTile` carries the two-way
 kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind` and
-`Host.World.enterable` carry the two-way kind there too, because their refusals are stated
-through the exact floor of `AcornVerif.CurrentFloor`.
+`Host.World.enterable` carry the two-way kind there too, because the proof of their refusals
+needs the exact floor of `AcornVerif.CurrentFloor`.
 
 ## Tests that a specification does not share
 
@@ -145,7 +145,7 @@ Each such condition is a proposition, with a theorem that connects the test with
 A function that a specification reaches decides the proposition in the place of the call of
 the test: the signed key `Binary32.key`, `Binary32.saturate`, `Agreement.units`,
 `Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`, `Conversion.toI64Word`,
-`Host.floor32`, `Host.coordinateCast`, `Host.classifyTerrain` and `Host.World.enterable`. The
+`Host.floor32`, `Host.castWord`, `Host.classifyTerrain` and `Host.World.enterable`. The
 instance of each proposition runs its test, so the executed comparison is the same one. A
 specification that would name a test names the proposition: `inventory_craft` and
 `region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
