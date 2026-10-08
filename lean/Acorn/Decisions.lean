@@ -13,6 +13,7 @@ import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
 import Acorn.Handcrafted.Microduck
 import Acorn.Host.Microduck.Bridge
+import Acorn.Host.Microduck.Wire
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.GoalProtocol
@@ -165,8 +166,9 @@ report of the definitions that have no contract is work of Regula
   absence of a direct reference and nothing more. These are the command-line parsers of
   `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the JSON parser
   `Json.parse` with its readers and private helpers (the scanner of a number
-  `Json.Numeral.scan` and the reader `Json.Value.numeral` have the contracts `json_scan` and
-  `json_numeral`), the viewer's envelope and map decoders,
+  `Json.Numeral.scan`, the reader `Json.Value.numeral` and the member lookup
+  `Json.Value.member` have the contracts `json_scan`, `json_numeral` and `json_member`), the
+  viewer's envelope and map decoders,
   and the transitions and lookups that no theorem mentions. Kinds for the parsers against
   written grammars are the subject of https://github.com/rbeauchamp/acorn/issues/81. Most are
   functions between fixed types, `Host.Viewer.MapBytes.admit` and `Host.Viewer.decodeMapRuns`
@@ -217,7 +219,12 @@ of the tests and not either test alone. Where no theorem names an applied defini
 has no contract of its own, and the contract of the decision that applies it is the evidence.
 The seven private scanners of the parts of a number, which `Json.Numeral.scan` applies, are
 in that case: only private lemmas of the proofs of `Json.Numeral.scan_formed` and
-`Json.Numeral.scan_chars` name them, and the contract `json_scan` is their evidence.
+`Json.Numeral.scan_chars` name them, and the contract `json_scan` is their evidence. The
+private readers of the parts of a frame in `Host.Microduck.Wire`, which
+`Host.Microduck.State.read` and `Host.Microduck.Depth.read` apply, are in that case too:
+only private lemmas of the proofs of `Host.Microduck.State.read_iff` and
+`Host.Microduck.Depth.read_iff` name them, and the contracts `microduck_state` and
+`microduck_depth` are their evidence.
 
 What the list does not hold:
 
@@ -1427,6 +1434,133 @@ theorem microduck_decimal :
     ⟨.null, fun ⟨_, _, wrong⟩ => nomatch wrong⟩⟩
 
 attribute [regula_decision] Host.Microduck.Decimal.read
+
+/-- The member lookup accepts exactly a name and a value that is an object with a member of
+that name (`Json.Value.member_iff`). The specification `Json.Value.Member` is stated on the
+list of the members: some members with other names, then the member, then the rest. The two
+inputs of the proof are a name with an object whose one member has it, which is accepted,
+and a name with null, which is refused.
+
+**Not claimed:** which value an accepted input has, which `Json.Value.member_iff` states: the
+first member with the name. -/
+theorem json_member :
+    Regula.ExecutableContract Json.Value.member (fun member =>
+      Regula.Decides (fun found => found.isSome = true)
+        (fun input : String × Json.Value =>
+          ∃ inner : Json.Value, Json.Value.Member input.1 input.2 inner)
+        (Function.uncurry member)) :=
+  ⟨decides
+    (fun input => by
+      show (input.2.member input.1).isSome = true ↔ _
+      constructor
+      · intro found
+        obtain ⟨inner, same⟩ := Option.isSome_iff_exists.mp found
+        exact ⟨inner, (Json.Value.member_iff input.1 input.2 inner).mp same⟩
+      · rintro ⟨inner, member⟩
+        rw [(Json.Value.member_iff input.1 input.2 inner).mpr member]
+        rfl)
+    ⟨("a", .object [("a", .null)]), .null, [], [], rfl, fun _ wrong => (nomatch wrong)⟩
+    ⟨("a", .null), fun ⟨_, _, _, wrong, _⟩ => nomatch wrong⟩⟩
+
+attribute [regula_decision] Json.Value.member
+
+/-- The reader of a state frame accepts exactly a JSON value that writes some state frame,
+member by member (`Host.Microduck.State.read_iff`). The specification
+`Host.Microduck.State.Written` names the member that each field is read from and states the
+field by a relation on that member: the natural number that digits alone spell, the word a
+scale keeps of a number, an array of exactly fifteen or three of those, a boolean, the
+policy that the table of labels gives a string, and the limits that a list of names
+states. The two inputs of the proof are an object with the eight members that the reader
+requires and none of the three that can be missing, which is accepted, and null, which is
+refused.
+
+**Not claimed:** which state frame an accepted value has, which
+`Host.Microduck.State.read_iff` states. An independent statement of the two relations on a
+number: `Host.Microduck.Counted` and `Host.Microduck.Scale.Kept` are written with the
+arithmetic of the reader (`Host.Microduck.spelled`, `Host.Microduck.Decimal.ofNumeral`,
+`Host.Microduck.Decimal.fixed`), so which numbers are below 65,536 rests on that arithmetic
+here, and `AcornVerif.Decimal.counted_numberOf` and `AcornVerif.Decimal.kept_nearest` state
+the two without it. That a line of the daemon gives such a value: the parser of the line
+and the envelope of the notification stand between the two and no theorem is about either,
+and what the daemon writes is a fact about the daemon. Anything about a member that the
+reader does not name. -/
+theorem microduck_state :
+    Regula.ExecutableContract Host.Microduck.State.read
+      (Regula.Decides (fun found => found.isSome = true)
+        (fun json : Json.Value => ∃ state, Host.Microduck.State.Written json state)) :=
+  ⟨decides
+    (fun json => by
+      constructor
+      · intro found
+        obtain ⟨state, same⟩ := Option.isSome_iff_exists.mp found
+        exact ⟨state, (Host.Microduck.State.read_iff json state).mp same⟩
+      · rintro ⟨state, written⟩
+        rw [(Host.Microduck.State.read_iff json state).mpr written]
+        rfl)
+    ⟨.object [("t_ns", .number "0"), ("joints", .array (List.replicate 15 (.number "0"))),
+        ("safety", .object [("gravity", .array (List.replicate 3 (.number "0"))),
+          ("fallen", .bool false), ("limp", .bool false)]),
+        ("imu", .object [("gyro", .array (List.replicate 3 (.number "0")))]),
+        ("odom", .object [("position", .array (List.replicate 3 (.number "0")))]),
+        ("policy", .string "stand"), ("move", .object [])], by
+      have written : ∀ json : Json.Value, (Host.Microduck.State.read json).isSome = true →
+          ∃ state, Host.Microduck.State.Written json state := fun json found =>
+        (Option.isSome_iff_exists.mp found).imp fun state same =>
+          (Host.Microduck.State.read_iff json state).mp same
+      exact written _ (by decide)⟩
+    ⟨.null, fun ⟨_, written⟩ => by
+      obtain ⟨_, ⟨_, _, wrong, _⟩, _⟩ := written.taken
+      exact nomatch wrong⟩⟩
+
+attribute [regula_decision] Host.Microduck.State.read
+
+/-- The reader of a depth frame accepts exactly a JSON value that writes some depth frame,
+member by member (`Host.Microduck.Depth.read_iff`). The specification
+`Host.Microduck.Depth.Written` says that the value states eight rows and eight columns, and
+names the member that the stamp, the sixty-four distances and the sixty-four statuses are
+read from, each by a relation on that member. No number of a depth frame is rounded or
+saturated, and a status is a natural number below 256 that digits alone spell. A distance
+is read by the status of its zone (`Host.Microduck.Depth.read_distances`): with the status
+5, a valid return, it is a natural number of at most 32,767 that digits alone spell; with
+another status it is an integer from -32,768 to 32,767, and the zone keeps 0, because no
+consumer reads the distance of a zone without a valid return. The two inputs of the proof
+are an object with the five members that the reader requires, which is accepted, and null,
+which is refused.
+
+**Not claimed:** which depth frame an accepted value has, which
+`Host.Microduck.Depth.read_iff` states. An independent statement of the relation on a
+number: `Host.Microduck.Counted` and `Host.Microduck.Signed` are written with
+`Host.Microduck.spelled` of the reader, so that the stated rows and columns are 8, that a
+distance is in its range and that a status is below 256 rest on that arithmetic here.
+`AcornVerif.Decimal.counted_numberOf` and `AcornVerif.Decimal.signed_numberOf` state the
+two relations without it. That a line of the daemon gives such a value, as for
+`microduck_state`. -/
+theorem microduck_depth :
+    Regula.ExecutableContract Host.Microduck.Depth.read
+      (Regula.Decides (fun found => found.isSome = true)
+        (fun json : Json.Value => ∃ depth, Host.Microduck.Depth.Written json depth)) :=
+  ⟨decides
+    (fun json => by
+      constructor
+      · intro found
+        obtain ⟨depth, same⟩ := Option.isSome_iff_exists.mp found
+        exact ⟨depth, (Host.Microduck.Depth.read_iff json depth).mp same⟩
+      · rintro ⟨depth, written⟩
+        rw [(Host.Microduck.Depth.read_iff json depth).mpr written]
+        rfl)
+    ⟨.object [("rows", .number "8"), ("cols", .number "8"), ("t_ns", .number "0"),
+        ("distance_mm", .array (List.replicate 64 (.number "0"))),
+        ("status", .array (List.replicate 64 (.number "255")))], by
+      have written : ∀ json : Json.Value, (Host.Microduck.Depth.read json).isSome = true →
+          ∃ depth, Host.Microduck.Depth.Written json depth := fun json found =>
+        (Option.isSome_iff_exists.mp found).imp fun depth same =>
+          (Host.Microduck.Depth.read_iff json depth).mp same
+      exact written _ (by decide)⟩
+    ⟨.null, fun ⟨_, written⟩ => by
+      obtain ⟨_, ⟨_, _, wrong, _⟩, _⟩ := written.taken
+      exact nomatch wrong⟩⟩
+
+attribute [regula_decision] Host.Microduck.Depth.read
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification

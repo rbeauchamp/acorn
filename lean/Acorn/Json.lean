@@ -787,6 +787,43 @@ def Value.optional : Value → Option Value
   | .null => none
   | v => some v
 
+/-- The value of the first member of an object that has the name, and nothing for an
+object with no such member and for a value that is no object. It consumes nothing, so a
+reader can take some members of an object and leave the others. `parse` refuses an object
+with two members of one name, so in a parsed text the first is the only one. -/
+def Value.member (name : String) : Value → Option Value
+  | .object fields => (fields.find? fun field => field.1 = name).map (·.2)
+  | _ => none
+
+/-- `inner` is the value of the first member of the object `outer` that has the name: the
+members of the object are some members with other names, then the member, then the rest. -/
+def Value.Member (name : String) (outer inner : Value) : Prop :=
+  ∃ before after : List (String × Value),
+    outer = .object (before ++ (name, inner) :: after) ∧ ∀ field ∈ before, field.1 ≠ name
+
+/-- **The member read is the first member with the name.** For every name and every two
+values. -/
+theorem Value.member_iff (name : String) (outer inner : Value) :
+    outer.member name = some inner ↔ Value.Member name outer inner := by
+  unfold Value.Member
+  cases outer with
+  | object fields =>
+    unfold Value.member
+    rw [Option.map_eq_some_iff]
+    constructor
+    · rintro ⟨⟨key, value⟩, found, rfl⟩
+      obtain ⟨named, before, after, rfl, others⟩ := List.find?_eq_some_iff_append.mp found
+      have same : key = name := by simpa using named
+      subst same
+      exact ⟨before, after, rfl, fun field inside => by simpa using others field inside⟩
+    · rintro ⟨before, after, same, others⟩
+      cases same
+      exact ⟨(name, inner), List.find?_eq_some_iff_append.mpr
+        ⟨by simp, before, after, rfl, fun field inside => by simpa using others field inside⟩,
+        rfl⟩
+  | null | bool _ | number _ | string _ | array _ =>
+    exact ⟨fun found => (nomatch found), fun ⟨_, _, same, _⟩ => (nomatch same)⟩
+
 /-- Consuming schema decoder; finishing requires every field to have an owner. -/
 abbrev Decoder := StateT (List (String × Value)) (Except String)
 

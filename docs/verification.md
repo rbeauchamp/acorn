@@ -396,9 +396,12 @@ theorem AcornVerif.Decimal.read_nearest (scale : Acorn.Host.Microduck.Scale) (js
 No theorem states that every number of a parsed text is read: that rests on the parser,
 which builds a number in one place, from the spelling of a scanned numeral.
 `Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
-that a reading is paired with. The function that reads a frame of the daemon into these
-types is not built, so no theorem states that the text of a frame is read into them
-correctly.
+that a reading is paired with. A parsed JSON value is read into these types by
+`Acorn.Host.Microduck.State.read` and `Acorn.Host.Microduck.Depth.read`, and a
+frame is read exactly when it is what the value writes, member by member
+(`Acorn.Host.Microduck.State.read_iff`, `Acorn.Host.Microduck.Depth.read_iff`).
+No theorem is about the parser of a line, the envelope of a notification or what a daemon
+sends, so none states that the text of a frame is read correctly.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting

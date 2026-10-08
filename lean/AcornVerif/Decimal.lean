@@ -51,6 +51,14 @@ saturation of the integer nearest to what its spelling writes, in the units of t
 Both are for formed numerals only: for a character that is no digit the table gives zero
 and the reader's arithmetic on the code can give another number, and no statement is made
 about a numeral with such a character.
+
+`kept_nearest`, `counted_numberOf` and `signed_numberOf` state the same of the three
+relations on one number that the reader of a frame is specified with, which are written
+with the reader's arithmetic. A word that
+a scale keeps of a JSON value is the saturation of an integer that is nearest to what the
+spelling writes, and `kept_nearest` gives that integer. A natural number counted from a
+value is the number that its digits, which are decimal digits alone, write by their
+places, and an integer is that number negated after a minus sign.
 -/
 namespace AcornVerif.Decimal
 open Acorn.Host.Microduck
@@ -304,5 +312,48 @@ theorem read_nearest (scale : Scale) (json : Acorn.Json.Value) (decimal : Decima
   refine ⟨numeral, formed, same, fun nearest near => ?_⟩
   rw [← ofNumeral_value numeral formed] at near
   exact fixed_nearest scale _ nearest near
+
+/-- **A kept word is the nearest to the number the spelling writes, in the units of the
+scale, a tie away from zero, saturated to the bounds of the scale.** For every scale,
+JSON value and word that the scale keeps of the value: the value is a number with the
+spelling of a formed numeral, an integer is nearest to what that numeral writes times ten
+to the places of the scale, and the word is the saturation of that integer. At most one
+integer is nearest (`Nearest.unique`). -/
+theorem kept_nearest (scale : Scale) (json : Acorn.Json.Value) (word : scale.Word)
+    (kept : scale.Kept json word) :
+    ∃ numeral : Acorn.Json.Numeral, numeral.Formed ∧
+      json = .number (String.ofList numeral.chars) ∧
+        ∃ nearest : ℤ, Nearest (written numeral * (10 : ℚ) ^ scale.places) nearest ∧
+          word.val = max scale.low (min scale.high nearest) := by
+  obtain ⟨numeral, formed, same, rfl⟩ := kept
+  refine ⟨numeral, formed, same, (Decimal.ofNumeral numeral).rounded scale.places, ?_, ?_⟩
+  · rw [← ofNumeral_value numeral formed]
+    exact rounded_nearest _ _
+  · rw [Decimal.fixed_clamp, Scale.clamp_value]
+
+/-- **A counted number is the number that its digits write by their places.** For every
+JSON value and natural number counted from it: the value is a number whose spelling is
+decimal digits alone, and those digits write the number. -/
+theorem counted_numberOf (json : Acorn.Json.Value) (natural : ℕ)
+    (counted : Counted json natural) :
+    ∃ digits : List Char, (∀ c ∈ digits, Acorn.Json.Numeral.Digit c) ∧
+      json = .number (String.ofList digits) ∧ numberOf digits = natural := by
+  obtain ⟨digits, formed, same, rfl⟩ := counted
+  exact ⟨digits, formed_whole formed, same,
+    (spelled_numberOf digits (formed_whole formed)).symm⟩
+
+/-- **A signed integer is the number that its digits write by their places, negated after
+a minus sign.** For every JSON value and integer that it spells: the value is the number
+spelled by a sign and decimal digits, with no point and no exponent, and the integer is
+the number those digits write, negated when the sign is negative. -/
+theorem signed_numberOf (json : Acorn.Json.Value) (integer : ℤ)
+    (signed : Signed json integer) :
+    ∃ (negative : Bool) (digits : List Char), (∀ c ∈ digits, Acorn.Json.Numeral.Digit c) ∧
+      json =
+        .number (String.ofList (⟨negative, digits, none, none⟩ : Acorn.Json.Numeral).chars) ∧
+        (if negative then -(numberOf digits : ℤ) else numberOf digits) = integer := by
+  obtain ⟨negative, digits, formed, same, rfl⟩ := signed
+  refine ⟨negative, digits, formed_whole formed, same, ?_⟩
+  rw [spelled_numberOf digits (formed_whole formed)]
 
 end AcornVerif.Decimal
