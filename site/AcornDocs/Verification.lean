@@ -314,7 +314,23 @@ of integers when a decimal rounds to zero and when it saturates
 of ten: the exponent of the one that multiplies the digits is below the width of the
 scale, and the exponent of the one that divides is at most the width of the digits
 ({decl}`Acorn.Host.Microduck.Decimal.shift_between`). The bounds of the result are part of
-its type. {decl}`Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
+its type.
+
+{decl}`Acorn.Host.Microduck.Decimal.read` gives the decimal of one JSON value. It scans the
+spelling that the JSON parser keeps with the parser's own scanner,
+{decl}`Acorn.Json.Numeral.scan`, and reads exactly the numbers whose spelling is the whole
+spelling of a numeral that has the form of a number in RFC 8259, section 6
+({decl}`Acorn.Host.Microduck.Decimal.read_iff`). The number that a numeral writes,
+{decl}`AcornVerif.Decimal.written`, is stated by a table of the ten digits and the place of
+each digit, with none of the reader's arithmetic. The integer kept for a value that is read
+is nearest to that number in the units of the scale, at a tie the one farther from zero,
+saturated to the bounds of the scale:
+
+{statement AcornVerif.Decimal.read_nearest}
+
+No theorem states that every number of a parsed text is read: that rests on the parser,
+which builds a number in one place, from the spelling of a scanned numeral.
+{decl}`Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
 that a reading is paired with. The function that reads a frame of the daemon into these
 types is not built, so no theorem states that the text of a frame is read into them
 correctly.
