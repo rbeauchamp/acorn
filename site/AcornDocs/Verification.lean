@@ -12,6 +12,8 @@ import AcornVerif.CurrentConstants
 import AcornVerif.GridCorrespondence
 import AcornVerif.DrawFirst
 import Acorn.Host.Microduck.Bridge
+import Acorn.Host.Microduck.Sensing
+import AcornVerif.Decimal
 
 open Verso.Genre Manual
 open AcornSite
@@ -156,9 +158,12 @@ refuses a native replacement. Every proof passes through the kernel.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
-owned by one, unless it is one of the grid world's own declared modules:
-{splice}`proseList (AcornBoundaryAudit.gridOwners.toList.map toString)`. The last of
-them binds the grid world to the agent's interface.
+owned by one, unless it is one of a world's own declared modules. The grid world's are
+{splice}`proseList (AcornBoundaryAudit.gridOwners.toList.map toString)`. The Microduck
+world's is {splice}`proseList (AcornBoundaryAudit.microduckOwners.toList.map toString)`,
+which binds that world to the interface; no executing code builds its percepts, and no
+theorem states what it feeds a learner. The last of the grid world's modules binds the
+grid world to the agent's interface.
 {decl}`Acorn.Handcrafted.Agent.grid_inputs` states what that binding feeds each
 learner, in terms of the host's own channel, signal and potential definitions, for
 every agent state, observation and reward word:
@@ -289,6 +294,30 @@ velocity inside its hold. Five things are assumptions of those statements' use a
 theorems: the daemon's expiry of a velocity, the time from a send to the daemon's receipt,
 the gap between two readings of the host's clock, that the posture a caller states is the
 body's, and that a declared duration covers what the body takes.
+
+What the Microduck senses is kept as bounded integers, also as pure definitions that no
+executing code calls. The daemon reports a measured quantity as the decimal text of a JSON
+number, and {decl}`Acorn.Host.Microduck.Decimal.fixed` converts such a number to an integer
+of a declared scale by integer arithmetic alone. What it computes is stated over the
+rational value of the decimal, {decl}`AcornVerif.Decimal.value`, and the predicate
+{decl}`AcornVerif.Decimal.Nearest`, which name none of the conversion's arithmetic: the
+result is the integer nearest to the value in the units of the scale, at a tie the one
+farther from zero, saturated to the bounds of the scale.
+
+{statement AcornVerif.Decimal.fixed_nearest}
+
+{decl}`AcornVerif.Decimal.Nearest.unique` states that at most one integer is nearest, and
+{decl}`AcornVerif.Decimal.rounded_nearest` that the rounding of the executed arithmetic is.
+The statement holds for an exponent of any size. The conversion decides by two comparisons
+of integers when a decimal rounds to zero and when it saturates
+({decl}`Acorn.Host.Microduck.Decimal.fixed_clamp`), and between them it forms two powers
+of ten: the exponent of the one that multiplies the digits is below the width of the
+scale, and the exponent of the one that divides is at most the width of the digits
+({decl}`Acorn.Host.Microduck.Decimal.shift_between`). The bounds of the result are part of
+its type. {decl}`Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
+that a reading is paired with. The function that reads a frame of the daemon into these
+types is not built, so no theorem states that the text of a frame is read into them
+correctly.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting

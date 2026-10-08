@@ -66,10 +66,12 @@ preceding transition. A frame has three parts, one for each kind of learner inpu
 - **symbols**, an array of 64-bit codes that the generated projection features
   sample. Every interface declares its shape and every frame fills it. The
   interface design's requirement R1, that a world may supply no symbol array, is
-  deferred until an instance needs it and its feature-construction semantics is
-  decided; [issue #95](https://github.com/rbeauchamp/acorn/issues/95) tracks it,
-  with the first instance that may need it. A world with only words can lay those words' codes over symbol
-  positions, as the grid world does with its task context;
+  deferred until its feature-construction semantics is decided;
+  [issue #95](https://github.com/rbeauchamp/acorn/issues/95) tracks it. A world with
+  only words can lay those words' codes over symbol positions, as the grid world does
+  with its task context. The Microduck world's symbols are its depth zones, and for a
+  body with no depth sensor its frames fill every position with one constant, so every
+  generated unit is constant there;
 - **signals**, one number per prediction question the world declares.
 
 A frame also carries the world's declared subtask potentials, which only the
@@ -623,11 +625,15 @@ skills and timing is in
 A client sends **intents**, never a joint command: a velocity, or a skill by name.
 The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
 0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
-for the client. Two parts of this world are built, as pure definitions:
-[the action table](../lean/Acorn/Host/Microduck/Action.lean) and
-[the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean). No interface value,
-no frame, no host loop, no transport and no wire form of a command exist yet, so no
-code of Acorn reaches the simulator
+for the client. Four parts of this world are built, as pure definitions:
+[the action table](../lean/Acorn/Host/Microduck/Action.lean),
+[the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean),
+[what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
+integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/Decimal.lean),
+and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
+No host loop, no transport, no reader of the daemon's text and no wire form of a
+command exist yet, so no code of Acorn reaches the simulator and no executing code
+builds a percept of this world
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
 **The daemon's networks are the world's actuation interface.** Every intent is
@@ -797,6 +803,192 @@ posture that the state holds from the release, so the commands and the outcome o
 one release read one posture (`Bridge.release_outcome`). A late release is not an
 outcome: it is the fault of [the deadline rule](#the-time-a-world-declares). How
 sensing shows an action is not defined yet.
+
+**What the body senses.** The daemons publish the state of the body at 50 Hz and an
+8 by 8 grid of depths at about 14 Hz, on one monotonic clock of their own, and a
+measured quantity is the decimal text of a JSON number. The record of both streams
+from the observed run is in
+[a second comment of issue 95](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6051119525).
+A host keeps none of them as a float. A `Decimal` is a number as its text spells it:
+a sign, the digits as one natural number and a power of ten, with an exponent of
+any size. A `Scale` declares how a field is kept: a number of decimal places, a least
+and a greatest value. `Decimal.fixed` converts by integer arithmetic.
+
+**What the conversion computes** is stated over the rational value of the decimal,
+in [the proof library](../lean/AcornVerif/Decimal.lean), with none of the
+conversion's arithmetic. `value` is the digits times ten to the exponent, negated
+for a minus sign. `Nearest x n` says that the integer `n` is within one half of `x`,
+and that where it is exactly one half away `x` is the nearer to zero; at most one
+integer is nearest (`Nearest.unique`). For every scale and every decimal, the result
+is the integer nearest to the value times ten to the places of the scale, saturated
+to the bounds of the scale (`fixed_nearest`). A height of 0.116 m is 116 in
+thousandths, the residues `1e-323` and `7.38787616182396e-14`, which
+[the record of the run's timing](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895)
+quotes, are zero, and an angle beyond 32.767 rad is 32,767. The result is a
+`Scale.Word`, whose type holds the proof of its bounds.
+
+**How it computes** with powers of ten that the scale and the length of the digits
+bound. Write the shift for the exponent plus the places of the scale. The conversion is the direct rounding
+followed by the saturation for every decimal (`Decimal.fixed_clamp`), and it decides
+two cases by comparing integers:
+
+- with no digits, or with the width of the digits plus the shift negative, the
+  rounded magnitude is zero (`Decimal.magnitude_vanishes`);
+- with digits and a shift of at least the width of the scale, which is the width of
+  its larger bound, the rounded magnitude is at least ten to that width
+  (`Decimal.magnitude_beyond`) and so beyond both bounds (`Scale.width_bound`): the
+  result is the least value for a minus sign and the greatest without one;
+- between the two it divides, and forms two powers of ten: one that multiplies the
+  digits and one that divides. With `w` the width of the scale and `d` the width of
+  the digits, the exponent of the first is below `w` and the exponent of the second
+  is at most `d` (`Decimal.shift_between`), so the largest powers are ten to the
+  `w - 1` in the numerator and ten to the `d` in the denominator.
+
+The width of a natural number is the count of its octal digits, and one for zero: one
+more than a third of its binary logarithm, rounded down. A number is less than ten to
+its width, and the width is read from the binary length of the number, so neither
+comparison divides the digits by ten. Ten decimal digits are about eleven octal digits.
+
+What the conversion forms is therefore bounded by the scale and by the length of the
+digits, and not by the size of the exponent: `1e401` saturates and `1e-401` is zero
+with no power of ten formed. For thousandths in sixteen bits `w` is 5, so `1e1`
+forms ten to the 4 and `1000000000e-13` forms ten to the 10.
+
+Two scales are declared. `Declared.milli` keeps thousandths and saturates at plus and
+minus 32,767. `Declared.range` keeps whole millimetres from 0 to 32,767. Each fits
+sixteen bits (`Declared.milli_sixteen`, `Declared.range_sixteen`).
+
+A `State` is one frame of the state stream: the angle of each of the fifteen joints
+and, when the daemon reports them, their rates; the direction of gravity and the
+turning rate in the frame of the trunk; the height of the trunk by the daemon's
+odometry; the label of what drove the tick; the daemon's reports of a fall; the
+servo gain, which can be null; and the names of what limited the daemon's commands.
+A `Depth` is one frame of the depth stream: 64 zones, each a distance in millimetres
+and the sensor's status byte. A field whose absence means that nothing was measured
+is an `Option`, and absence is not a zero. A `Reading` pairs a state frame with a
+depth frame, if there is one, and states the age of that depth frame: the time from
+it to the state frame (`Reading.age_exact`), and zero when the depth frame is not the
+older (`Reading.age_ahead`). The two frames are stamped on the daemons' clock, a
+`Stamp`. It is a type apart from the `Instant` of a host's clock, because a host that
+reaches the daemons from another machine reads another clock.
+
+The scales and the choice of fields are authored, and what a reading leaves out the
+frame of the interface cannot carry. The function that reads the daemon's text into
+these types is not built, and it belongs with the reader of the daemon's text. It owes the
+name of each field, the order of each array, the tables of labels and of limit
+names, the refusal of a gain or a status that its type does not hold, and the
+`Decimal` of each number's spelling. The spelling is the one the repository's JSON
+reader keeps: an optional minus sign, digits, an optional point with digits after
+it and an optional exponent. That reader refuses `1.` and `1e`, and every spelling
+it admits, negative zero among them, has a `Decimal`, so the conversion is total
+over what the reader can give.
+
+**The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
+this world's instance of the interface: the 64 zones of a depth frame as its symbol
+array, four signals after the agent's own reward question, ten actions, at most 48
+words, prediction feedback channels from `0x50`, and the timing of a wall clock with
+the declared pace (`interface_timing`). Its ten actions (`interface_actions`) are the
+positions of the action table; `Action.index` and `Action.named` are inverse to each
+other (`Action.named_index`, `Action.index_named`). The adapter that builds a frame
+is authored, and it is a locus of three departures of the
+[learned-only binding](learned-only-binding.md): the channels and symbols (D1), the
+signals (D5) and the event of the goal (D8). It authors no subtask potential, so
+every potential of a frame is false, and a profile whose subtasks are declared has
+none that can hold in this world.
+
+A frame has one word for each kept quantity of a reading: the angle of each joint
+in steps of 0.1 rad, its rate in steps of 0.5 rad/s, the gravity direction in steps
+of 0.1, the turning rate of the trunk in steps of 0.25 rad/s, the height of the
+trunk in centimetres, the label of what drove the tick, the daemon's two reports of
+a fall, the servo gain in steps of 8, the four limit names as bits, and the age of
+the depth frame in steps of 20 ms up to half a second. Two more words are host
+events: what became of the preceding action, and whether its release was late, which
+is the fault of [the deadline rule](#the-time-a-world-declares). The coder hashes a
+channel and a value into one feature and does not generalise between two values, so a
+step is the resolution the agent has of a quantity. The steps are authored and no
+experiment has qualified them. Each position of the layout carries at most one word
+(`entries_distinct`), two positions have two channels (`channel_injective`), and no
+word is on a prediction feedback channel (`channel_clear`). A refused action and an
+accepted action that was not executed are two values of their word
+(`became_injective`).
+
+Absence is a word and not a zero. The rates, the gain and the depth frame can be
+missing; each has a presence word, which is one when the reading has the quantity
+and zero when it does not (`entries_presence`), and a reading without the quantity
+has no word on its positions (`entries_rates`, `entries_gain`, `entries_depth`). The
+symbol of a depth zone with a valid return is one more than its distance in whole
+decimetres, and the symbol of a zone with another status is `0x1000` plus the
+status, so a symbol is below `0x1000` exactly for a valid return (`symbol_valid`).
+With no depth frame every symbol is one value that no zone has (`symbols_missing`,
+`symbol_present`).
+
+**The goal is computed from the body's own sensing.** The body is near an obstacle
+when its trunk is upright, its depth frame is under half a second old, and a zone
+of the two top rows has a valid return under 300 mm. It is clear of obstacles when
+the trunk is upright, the depth frame is as fresh, and every zone of the two top
+rows has the status 255, which the simulator sends for nothing in range, or a valid
+return of at least 400 mm. The trunk is upright when the gravity word of the frame
+for the upward component, on position 33, is below the level of -0.95, which is 318
+(`entries_gravity`). In thousandths that is an upward component below -967
+(`upright_iff`): a level is a step of 0.1 counted from the least value of the scale,
+so the levels do not separate -0.95 from -0.967, and a reading whose upward component
+is from -967 to -951 thousandths is not upright. The depth frame is fresh exactly
+when the age word of the frame is below its cap (`fresh_level`). So both tests are
+functions of what the frame gives the agent: the gravity word, the age word and the
+symbols of the two top rows (`near_symbols`, `clear_symbols`). No reading is both
+(`near_clear`).
+
+The goal has a latch, which a host holds between two percepts and which starts
+disarmed. A near reading disarms it, a clear reading arms it, and any other reading
+leaves it as it was (`arm_near`, `arm_clear`, `arm_keeps`). The event of the goal is
+a near reading while the goal is armed (`achieved_iff`); the reward is one at that
+event and zero otherwise. After a near reading no reading is the event until a clear
+one, whatever lies between (`arm_held`): two events need a clear reading between
+them. That is the whole guarantee. A reading is not clear while a zone of the two top
+rows has a valid return under 400 mm or a status other than 5 and 255, while the
+trunk is not upright, or while the depth frame is not fresh. So a return that wavers
+between 300 mm and 400 mm gives no second event, and neither does a trunk that
+wavers across the upright threshold in front of an obstacle. The record gives the
+noise of a depth as 3 mm plus 20 mm for each 4 m of range, read in the vendor's
+source and not observed. A reading whose top zones all have the status 255 is clear,
+so the guarantee says nothing against a sensor whose status drops out: every top
+zone at 255, then one valid return at 100 mm, then that zone at 255, then the return
+again, is two events with no retreat. The four signals are nearness and the daemon's
+report of a fall, each at the horizons 0.9 and 0.99.
+
+A minimum over the whole grid would read the floor: the observed run saw the lower
+rows return a bare floor at 0.41 to 3.35 m and the two top rows return nothing.
+That a flat floor is not read as near is argued from the record's geometry and is
+not machine-checked. The sensor is 0.082 m forward, 0.021 m to the left and 0.113 m
+up from the origin of the trunk, pitched 14.2 degrees down and rolled 2.8 degrees at
+rest; its field of view is 45 degrees over eight rows; and the origin of the trunk
+is 0.116 m above the floor for a standing body and 0.061 m for a sitting one. On the
+axis the lower edge of row 1 points 2.95 degrees below the horizontal, and the roll
+adds at most 1.1 degrees at the side of the row, so no beam of the two top rows
+points more than 4.1 degrees below the horizontal at rest. An upright trunk is
+tilted by less than 14.8 degrees and a tilt lowers a beam by at most its own angle,
+so no such beam points more than 18.9 degrees below the horizontal, and a flat floor
+is returned at more than 3.08 times the height of the sensor. At that tilt, in the
+least favourable direction, the sensor is at least 203 mm above the floor for a
+standing body and 148 mm for a sitting one, so a flat floor is returned at more than
+450 mm. The assumptions are a flat floor, a gravity word that is a unit direction,
+the head at its rest pose, and a trunk whose origin stays at its standing or sitting
+height while it tilts. Nearness has no converse: for a standing body with an upright
+trunk and the head at rest, the lowest beam of the two top rows passes about 0.2 m
+above the floor at 300 mm, so a lower obstacle is not near for such a body. A sitting
+body's sensor is lower, at 0.174 m, and so are its beams.
+
+UNKNOWN, because no run has measured them: how far the trunk tilts while the body
+walks, and so how often the body counts as upright then; where the standing and
+walking networks and each skill hold the head, which they drive; the height of the
+trunk during a skill; which status a robot's sensor sends for a usable return and
+for nothing in range; what the two top rows return on a slope, a step or a soft
+floor; whether the status of a zone drops out at close range, so that a body at rest
+could collect events ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)
+records the measurement and what it decides); and how often the event occurs for a
+body that does not approach anything. A
+body with no depth sensor is never near and never clear, so this goal gives it no
+reward; a goal that needs no depth sensor is not built.
 
 UNKNOWN, because the observed run did not exercise them: how long sitting down
 takes (the run recorded the label of the sitting network and not the time the body

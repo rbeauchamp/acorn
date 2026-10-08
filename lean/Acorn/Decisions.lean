@@ -11,6 +11,7 @@ import Acorn.Host.Campaign
 import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
+import Acorn.Handcrafted.Microduck
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
@@ -191,14 +192,26 @@ report of the definitions that have no contract is work of Regula
   dispatch of the step order `act-then-learn` (`Handcrafted.TemporalControl.drawFirst`) is in
   this group, as selection is: it returns no state when a declared potential has no source,
   and `Handcrafted.TemporalControl.drawFirst_total` states that it returns one from every
-  aligned state.
+  aligned state. The age of the depth frame of a Microduck reading
+  (`Host.Microduck.Reading.age`) is in this group too: it refuses nothing, and it is absent
+  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`). Four
+  definitions of the Microduck adapter are in this group as well: the tests
+  `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, the event of the goal
+  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. One definition is the exception:
+the end of this module states those. Four definitions are the exception.
 `AgentConstruction.State.restore`, which `Checkpoint.load` applies, is the restoration of the
 agent on the admitted image (`AgentConstruction.State.restore_agent`), and the restoration of
-the agent has the contract `agent_restore`. Where no theorem names an applied definition, it
+the agent has the contract `agent_restore`. `Handcrafted.Microduck.upright` and
+`Handcrafted.Microduck.fresh`, which `Handcrafted.Microduck.near` and
+`Handcrafted.Microduck.clear` apply, and `Host.Microduck.Reading.age`, which `fresh` applies,
+have no contract. `Handcrafted.Microduck.upright_iff` and `Handcrafted.Microduck.fresh_level`
+state the inputs that each test accepts, and `Host.Microduck.Reading.age_exact` states the age
+of a depth frame that is not after its state frame; the ownership audit requires the three
+theorems by name. The contracts `microduck_near` and `microduck_clear` state the conjunction
+of the tests and not either test alone. Where no theorem names an applied definition, it
 has no contract of its own, and the contract of the decision that applies it is the evidence.
 
 What the list does not hold:
@@ -1250,6 +1263,86 @@ theorem microduck_outcome_judged :
         outcome action sitting reply shown = result ↔
           action.Judged sitting reply shown result) :=
   ⟨Host.Microduck.Action.outcome_judged⟩
+
+/-- The Microduck world's goal test accepts a reading exactly when the upward component of
+gravity is below -967 thousandths, which is the gravity word of the frame below its level
+of -0.95 (`Handcrafted.Microduck.upright_iff`), the depth frame is younger than the declared
+`Handcrafted.Microduck.Declared.fresh`, and one of the first sixteen symbols of the
+reading's frame, its two top rows, is at most 3 (`Handcrafted.Microduck.near_symbols`). The
+specification reads the symbols that the frame gives the agent, through
+`Handcrafted.Microduck.symbols`, and states the gravity bound and the symbol bound as
+literals and the age bound as the declared constant, a number that both sides read; the
+function reads the zones of the depth frame, with the level of the gravity word, the
+declared numbers and Boolean tests on rows, statuses and distances. The two share no test.
+The specification fixes which readings are accepted, through the class of symbols it names,
+and not the symbol of every zone: a change of the level that the gravity word must stay
+below, of the declared distance, or of a symbol into or out of that class, contradicts the
+statement. A change of a symbol inside or outside the class does not, and a change of the
+age bound does not, because both sides read the declared constant.
+The two inputs of the proof are an upright reading whose every zone has a valid return at
+100 mm, which is accepted, and a reading with no depth frame, which is refused. That an
+accepted reading is near an obstacle in the world is not stated: `docs/design.md` argues it
+for a flat floor, under assumptions. -/
+theorem microduck_near :
+    Regula.ExecutableContract Handcrafted.Microduck.near (fun near =>
+      Regula.Decides (· = true)
+        (fun reading : Host.Microduck.Reading =>
+          (reading.state.gravity.get 2).val < -967 ∧
+            (∃ age, reading.age = some age ∧
+              age < Handcrafted.Microduck.Declared.fresh) ∧
+              ∃ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 ∧
+                ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ≤ 3)
+        near) :=
+  ⟨decides Handcrafted.Microduck.near_symbols
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
+        #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩,
+      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨100, by decide⟩, 5⟩⟩⟩,
+      (Handcrafted.Microduck.near_symbols _).mp (by decide)⟩
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩, none⟩,
+      fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.near
+
+/-- The Microduck world's clear test accepts a reading exactly when the upward component of
+gravity is below -967 thousandths, which is the gravity word of the frame below its level
+of -0.95 (`Handcrafted.Microduck.upright_iff`), the depth frame is younger than the declared
+`Handcrafted.Microduck.Declared.fresh`, and each of the first sixteen symbols of the
+reading's frame is from 5 and below `0x1000`, or is `0x10FF`
+(`Handcrafted.Microduck.clear_symbols`): a valid return of at least 400 mm, or the status
+255. The specification reads the frame's symbols, as that of `microduck_near` does, and the
+function reads the zones of the depth frame. The two inputs of the proof are an upright
+reading whose every zone has the status 255, which is accepted, and a reading with no depth
+frame, which is refused. -/
+theorem microduck_clear :
+    Regula.ExecutableContract Handcrafted.Microduck.clear (fun clear =>
+      Regula.Decides (· = true)
+        (fun reading : Host.Microduck.Reading =>
+          (reading.state.gravity.get 2).val < -967 ∧
+            (∃ age, reading.age = some age ∧
+              age < Handcrafted.Microduck.Declared.fresh) ∧
+              ∀ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 →
+                (5 ≤ ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ∧
+                    ((Handcrafted.Microduck.symbols reading.depth).get position).toNat <
+                      0x1000) ∨
+                  ((Handcrafted.Microduck.symbols reading.depth).get position).toNat = 0x10FF)
+        clear) :=
+  ⟨decides Handcrafted.Microduck.clear_symbols
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
+        #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩,
+      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨0, by decide⟩, 255⟩⟩⟩,
+      (Handcrafted.Microduck.clear_symbols _).mp (by decide)⟩
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩, none⟩,
+      fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.clear
 
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification

@@ -139,6 +139,42 @@ inductive Action where
   | roll
   deriving DecidableEq
 
+/-- The position of an action in the table, which is its number at the interface between
+the agent and this world. -/
+def Action.index : Action → Fin 10
+  | .still => 0
+  | .forward => 1
+  | .turnLeft => 2
+  | .turnRight => 3
+  | .sit => 4
+  | .stand => 5
+  | .kickLeft => 6
+  | .kickRight => 7
+  | .pick => 8
+  | .roll => 9
+
+/-- The action at a position of the table. -/
+def Action.named : Fin 10 → Action
+  | 0 => .still
+  | 1 => .forward
+  | 2 => .turnLeft
+  | 3 => .turnRight
+  | 4 => .sit
+  | 5 => .stand
+  | 6 => .kickLeft
+  | 7 => .kickRight
+  | 8 => .pick
+  | 9 => .roll
+
+/-- **Every action is the one at its own position.** -/
+theorem Action.named_index (action : Action) : Action.named action.index = action := by
+  cases action <;> rfl
+
+/-- **Every position of the table is the position of its action**, so the ten positions
+and the ten actions correspond one to one. -/
+theorem Action.index_named : ∀ position : Fin 10, (Action.named position).index = position := by
+  decide
+
 /-- What an action asks of the body. -/
 inductive Intent where
   /-- A velocity, which the daemon lets expire. -/
