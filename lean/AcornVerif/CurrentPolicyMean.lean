@@ -1223,7 +1223,7 @@ theorem meanWord_spec (lower upper : Binary32) (eps all tied : Binary64) (tiedCo
     have low₂ := mul_le_mul_of_nonneg_left allBetween.1 rate.1
     have high₁ := mul_le_mul_of_nonneg_left tiedBetween.2 complementNonnegative
     have high₂ := mul_le_mul_of_nonneg_left allBetween.2 rate.1
-    constructor <;> nlinarith
+    constructor <;> linarith
   have wideSize : |numerical64 ((((Binary64.ofUInt64 1).sub eps).mul
       (tied.div (Binary64.ofUInt64 tiedCount.toUInt64))).add
         (eps.mul (all.div (Binary64.ofUInt64 actions))))| ≤ 8192 * (2 : ℚ) ^ k := by

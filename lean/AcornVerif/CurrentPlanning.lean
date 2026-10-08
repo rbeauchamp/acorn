@@ -667,7 +667,7 @@ theorem allowance_small (ranked : RankedFeatures dimension)
   unfold termRadius
   constructor
   · positivity
-  · nlinarith
+  · linarith
 
 /-- The binary64 total of one outcome value, for every model state: finite, within one
 term allowance per occupied position plus `2^(-16)` of the exact sum of the stored
@@ -1238,7 +1238,7 @@ theorem greedy_mean_close (snapshot : PolicySnapshot count)
   rw [abs_mul, abs_mul, abs_of_nonneg complement, abs_of_nonneg rateBounds.1] at triangle
   have first := mul_le_mul_of_nonneg_left best complement
   have second := mul_le_mul_of_nonneg_left mean rateBounds.1
-  nlinarith
+  linarith
 
 /-- `greedyMean` of finite words, written over the action index: the greatest word is
 the maximum over actions and the list sum is the sum over actions. -/
@@ -1773,7 +1773,7 @@ theorem complete_budget (dimension : Dimension) (large : 1024 ≤ dimension.capa
   have sixteen : 2 ^ 4 ≤ 2 ^ rankExponent dimension := Nat.pow_le_pow_right (by decide) wide
   have grows := Nat.mul_le_mul_right (2 ^ rankExponent dimension) sixteen
   rw [Nat.pow_add, ← square] at capacity
-  nlinarith
+  linarith
 
 /-- For 16 384 feature slots the transition parts of all options, deviation learners
 included, hold 13 056 weights: within one weight vector. -/

@@ -295,7 +295,7 @@ theorem model_round_exact_error (spec : Format) (sign : Sign) (mantissa : Nat) (
     (2:ℚ)^(exponent+shift) -
     signCoefficient sign * mantissa * (2:ℚ)^exponent| ≤ (2:ℚ)^(exponent+shift)/2
   rw [he, abs_le]
-  cases sign <;> simp only [signCoefficient] <;> constructor <;> nlinarith
+  cases sign <;> simp only [signCoefficient] <;> constructor <;> linarith
 /-- Padding a significand with zero bits and compensating its exponent preserves its signed dyadic
   value. -/
 theorem dyadic_padding_exact (sign : Sign) (mantissa shift : Nat) (exponent : Int) :

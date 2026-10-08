@@ -123,7 +123,7 @@ theorem cap_positive (quantity : Quantity) (count : UInt64) (positive : 0 < coun
       numerical64 (Conversion.widen quantity.bound) ≤ (2 : ℚ) ^ (82 : Int) := by
     have countUpper := (abs_le.mp countBound.2.1).2
     norm_num at countUpper ⊢
-    nlinarith [mul_le_mul countUpper scalar.2.2 (by linarith) (by norm_num)]
+    linarith [mul_le_mul countUpper scalar.2.2 (by linarith) (by norm_num)]
   have relative := mul_positive_relative _ _ countBound.1
     (Conversion.widen_finite quantity.bound scalar.1) lower upper
   have error := abs_le.mp relative.2
@@ -133,7 +133,7 @@ theorem cap_positive (quantity : Quantity) (count : UInt64) (positive : 0 < coun
   norm_num at countUpper ⊢
   have product := mul_le_mul countUpper scalar.2.2 (by linarith) (by norm_num)
   dsimp only [maximumSum]
-  nlinarith
+  linarith
 
 /-- Every count cap is finite and nonnegative, including the exactly empty total. -/
 theorem cap_bounds (quantity : Quantity) (count : UInt64) :
@@ -150,7 +150,7 @@ theorem cap_bounds (quantity : Quantity) (count : UInt64) :
     have cap := cap_positive quantity count positive
     have scalar := quantity_bound quantity
     have countLower := (count_nonnegative count).2 positive
-    exact ⟨cap.1, by nlinarith [cap.2.1], cap.2.2.2⟩
+    exact ⟨cap.1, by linarith [cap.2.1], cap.2.2.2⟩
 
 /-- Narrower per-channel history caps remain below the receiving widest quantity cap. -/
 theorem cap_monotone (left right : Quantity) (ordered : left.bound.key ≤ right.bound.key)
@@ -169,7 +169,7 @@ theorem cap_monotone (left right : Quantity) (ordered : left.bound.key ≤ right
       have product := mul_le_mul_of_nonneg_left separated (le_of_lt (by linarith :
         0 < numerical64 (Binary64.ofUInt64 count)))
       have scalar := quantity_bound left
-      nlinarith [leftCap.2.2.1, rightCap.2.1]
+      linarith [leftCap.2.2.1, rightCap.2.1]
 
 /-- Reading projection supplies the finite nonnegative observation consumed by the machine sum. -/
 theorem reading_bounds (quantity : Quantity) (value : Binary32) :
