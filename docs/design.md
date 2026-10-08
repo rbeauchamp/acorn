@@ -623,12 +623,14 @@ skills and timing is in
 A client sends **intents**, never a joint command: a velocity, or a skill by name.
 The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
 0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
-for the client. Two parts of this world are built, as pure definitions:
-[the action table](../lean/Acorn/Host/Microduck/Action.lean) and
-[the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean). No interface value,
-no frame, no host loop, no transport and no wire form of a command exist yet, so no
-code of Acorn reaches the simulator
-([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
+for the client. Three parts of this world are built, as pure definitions:
+[the action table](../lean/Acorn/Host/Microduck/Action.lean),
+[the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean) and
+[what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
+integers through [a conversion from decimal text](../lean/Acorn/Host/Microduck/Decimal.lean).
+No interface value, no frame, no host loop, no transport, no reader of the daemon's
+text and no wire form of a command exist yet, so no code of Acorn reaches the
+simulator ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
 **The daemon's networks are the world's actuation interface.** Every intent is
 executed by a network inside the daemon, which holds the only write handle to the
@@ -797,6 +799,67 @@ posture that the state holds from the release, so the commands and the outcome o
 one release read one posture (`Bridge.release_outcome`). A late release is not an
 outcome: it is the fault of [the deadline rule](#the-time-a-world-declares). How
 sensing shows an action is not defined yet.
+
+**What the body senses.** The daemons publish the state of the body at 50 Hz and an
+8 by 8 grid of depths at about 14 Hz, on one monotonic clock of their own, and a
+measured quantity is the decimal text of a JSON number. The record of both streams
+from the observed run is in
+[a second comment of issue 95](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6051119525).
+A host keeps none of them as a float. A `Decimal` is a number as its text spells it:
+a sign, the digits as one natural number and a power of ten. A `Scale` declares how
+a field is kept: a number of decimal places, a least and a greatest value.
+`Decimal.fixed` converts by integer arithmetic in two steps, and each statement holds
+for every decimal and every scale:
+
+- **Scaling and rounding.** The magnitude is taken in the unit of the scale and
+  rounded to the nearest natural number, a tie away from zero
+  (`Decimal.magnitude_nearest`), and no other natural number has that property
+  (`Decimal.magnitude_unique`). Less than half a unit is zero
+  (`Decimal.magnitude_zero`): the residues `1e-323` and `7.38787616182396e-14`, which
+  [the record of the run's timing](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895)
+  quotes, are zero in thousandths. The rounded value is that magnitude,
+  negated for a decimal with a minus sign (`Decimal.rounded_sign`).
+- **Saturation.** A rounded value below the scale gives its least value, one above
+  gives its greatest, and one inside is kept (`Decimal.fixed_below`,
+  `Decimal.fixed_above`, `Decimal.fixed_inside`). The result is a `Scale.Word`, whose
+  type holds the proof of its bounds.
+
+Two scales are declared. `Declared.milli` keeps thousandths and saturates at plus and
+minus 32,767: a height of 0.116 m is 116, and an angle beyond 32.767 rad is 32,767.
+`Declared.range` keeps whole millimetres from 0 to 32,767. Each fits sixteen bits
+(`Declared.milli_sixteen`, `Declared.range_sixteen`). The exponent of a `Decimal` lies
+within 400 of zero, so the two powers of ten a conversion forms have exponents of at
+most 400 plus the places of the scale, and 400 (`Decimal.shift_bounded`): 403 and 400
+for the declared scales. The digits of a `Decimal` are not bounded by its type. The
+400 is a declaration: a text of at most 17 digits, counted from the first that is not
+zero, whose first such digit stands at a power of ten between -324 and 308, which is
+the range of the finite binary64 numbers, has an exponent between -340 and 308 once
+its point is removed. That is argued and not machine-checked, and that the daemon
+writes such texts is an assumption.
+
+A `State` is one frame of the state stream: the angle of each of the fifteen joints
+and, when the daemon reports them, their rates; the direction of gravity and the
+turning rate in the frame of the trunk; the height of the trunk by the daemon's
+odometry; the label of what drove the tick; the daemon's reports of a fall; the
+servo gain, which can be null; and the names of what limited the daemon's commands.
+A `Depth` is one frame of the depth stream: 64 zones, each a distance in millimetres
+and the sensor's status byte. A field whose absence means that nothing was measured
+is an `Option`, and absence is not a zero. A `Reading` pairs a state frame with a
+depth frame, if there is one, and states the age of that depth frame: the time from
+it to the state frame (`Reading.age_exact`), and zero when the depth frame is not the
+older (`Reading.age_ahead`). The two frames are stamped on the daemons' clock, a
+`Stamp`. It is a type apart from the `Instant` of a host's clock, because a host that
+reaches the daemons from another machine reads another clock.
+
+The scales and the choice of fields are authored, and nothing here is an input of
+the agent yet. The frame of the interface, with its channels, symbols, signals and
+goal, is built on a reading by a module that does not exist; its channels and
+signals will be declared under departures D1 and D5 of the
+[learned-only binding](learned-only-binding.md), and what a reading leaves out that
+frame cannot carry. The function that reads the daemon's text into these types is
+not built either. It owes the name of each field, the order of each array, the
+tables of labels and of limit names, the refusal of an exponent outside the reach
+and of an unsigned integer that its type does not hold, and a limit on the digits.
 
 UNKNOWN, because the observed run did not exercise them: how long sitting down
 takes (the run recorded the label of the sitting network and not the time the body

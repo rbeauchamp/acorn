@@ -336,6 +336,33 @@ theorems: the daemon's expiry of a velocity, the time from a send to the daemon'
 the gap between two readings of the host's clock, that the posture a caller states is the
 body's, and that a declared duration covers what the body takes.
 
+What the Microduck senses is kept as bounded integers, also as pure definitions that no
+executing code calls. The daemon reports a measured quantity as the decimal text of a JSON
+number, and `Acorn.Host.Microduck.Decimal.fixed` converts such a number to an integer
+of a declared scale by integer arithmetic alone.
+`Acorn.Host.Microduck.Decimal.magnitude_nearest` states the rounding of the
+magnitude, to the nearest unit of the scale with a tie away from zero, and
+`Acorn.Host.Microduck.Decimal.magnitude_unique` that no other natural number has the
+property:
+
+```lean
+theorem Acorn.Host.Microduck.Decimal.magnitude_nearest (decimal : Acorn.Host.Microduck.Decimal)
+  (places : ℕ) :
+  2 * decimal.magnitude places * 10 ^ (-decimal.shift places).toNat ≤
+      2 * (decimal.digits * 10 ^ (decimal.shift places).toNat) +
+        10 ^ (-decimal.shift places).toNat ∧
+    2 * (decimal.digits * 10 ^ (decimal.shift places).toNat) + 10 ^ (-decimal.shift places).toNat <
+      2 * (decimal.magnitude places + 1) * 10 ^ (-decimal.shift places).toNat
+```
+
+`Acorn.Host.Microduck.Decimal.fixed_below`,
+`Acorn.Host.Microduck.Decimal.fixed_above` and
+`Acorn.Host.Microduck.Decimal.fixed_inside` state the saturation, and the bounds of
+the result are part of its type. `Acorn.Host.Microduck.Reading.age_exact` states the
+age of the depth frame that a reading is paired with. The function that reads a frame of
+the daemon into these types is not built, so no theorem states that the text of a frame
+is read into them correctly.
+
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
 mathematics with explicit hypotheses. `Acorn.Constants` owns the shared machine

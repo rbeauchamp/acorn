@@ -12,6 +12,7 @@ import AcornVerif.CurrentConstants
 import AcornVerif.GridCorrespondence
 import AcornVerif.DrawFirst
 import Acorn.Host.Microduck.Bridge
+import Acorn.Host.Microduck.Sensing
 
 open Verso.Genre Manual
 open AcornSite
@@ -289,6 +290,25 @@ velocity inside its hold. Five things are assumptions of those statements' use a
 theorems: the daemon's expiry of a velocity, the time from a send to the daemon's receipt,
 the gap between two readings of the host's clock, that the posture a caller states is the
 body's, and that a declared duration covers what the body takes.
+
+What the Microduck senses is kept as bounded integers, also as pure definitions that no
+executing code calls. The daemon reports a measured quantity as the decimal text of a JSON
+number, and {decl}`Acorn.Host.Microduck.Decimal.fixed` converts such a number to an integer
+of a declared scale by integer arithmetic alone.
+{decl}`Acorn.Host.Microduck.Decimal.magnitude_nearest` states the rounding of the
+magnitude, to the nearest unit of the scale with a tie away from zero, and
+{decl}`Acorn.Host.Microduck.Decimal.magnitude_unique` that no other natural number has the
+property:
+
+{statement Acorn.Host.Microduck.Decimal.magnitude_nearest}
+
+{decl}`Acorn.Host.Microduck.Decimal.fixed_below`,
+{decl}`Acorn.Host.Microduck.Decimal.fixed_above` and
+{decl}`Acorn.Host.Microduck.Decimal.fixed_inside` state the saturation, and the bounds of
+the result are part of its type. {decl}`Acorn.Host.Microduck.Reading.age_exact` states the
+age of the depth frame that a reading is paired with. The function that reads a frame of
+the daemon into these types is not built, so no theorem states that the text of a frame
+is read into them correctly.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
