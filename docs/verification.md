@@ -275,23 +275,62 @@ a wall clock with a declared cycle and a latency in cycles.
 it waits. For a wall-clock declaration, `Acorn.Pace.meets_index` states the verdict
 on the instant an action is released at: the deadline is met exactly when the release
 falls in a cycle before the one the deadline starts. `Acorn.Pace.outcome` gives, for
-what a host holds and an instant, the action in force and whether a fault holds.
-`Acorn.Pace.step_fault` states that in one step a fault holds exactly from the
-deadline to the release, and `Acorn.Pace.step_holds` that the preceding action is
-in force at every instant of the fault:
+what a host holds, a world's default and an instant, the action in force and whether a
+fault holds. `Acorn.Pace.step_fault` states that in one step a fault holds exactly
+from the deadline to the release:
 
 ```lean
-theorem Acorn.Pace.step_fault {α : Type} (pace : Acorn.Pace) (origin : Acorn.Instant) (prior : Option α)
-  (index : ℕ) (released : Acorn.Instant) (chosen : α) (now : Acorn.Instant) :
-  (pace.outcome origin (Acorn.Standing.during prior index released chosen now) now).fault = true ↔
+theorem Acorn.Pace.step_fault {α : Type} (pace : Acorn.Pace) (origin : Acorn.Instant) (rest : Option α)
+  (prior : Acorn.Force α) (index : ℕ) (released : Acorn.Instant) (chosen : Acorn.Force α)
+  (now : Acorn.Instant) :
+  (pace.outcome origin rest (Acorn.Standing.during prior index released chosen now) now).fault =
+      true ↔
     (pace.deadline origin index).nanoseconds ≤ now.nanoseconds ∧
       now.nanoseconds ≤ released.nanoseconds
 ```
 
-`Acorn.Pace.step_faultless` states that no instant has a fault exactly when the
-release meets the deadline. An instant is a natural number of nanoseconds, so this
-arithmetic is exact. The statements are about these functions: no executing loop keeps a
-standing or reads a cycle or a latency, and no executing world declares a wall clock.
+`Acorn.Pace.step_holds` states that the preceding action is in force at every
+instant of the fault at which it has not lapsed, which is every instant in a world whose
+actions do not lapse, and `Acorn.Pace.step_lapsed` that from its lapse the fault has
+the world's default. `Acorn.Pace.step_faultless` states that no instant has a fault
+exactly when the release meets the deadline. An instant is a natural number of
+nanoseconds, so this arithmetic is exact. The statements are about these functions: no
+executing loop keeps a standing or reads a cycle or a latency, and no executing world
+declares a wall clock.
+
+The Microduck world has an action table and a bridge's state, as pure definitions that no
+executing loop calls. The type of the commands a bridge can send is closed: enable, one of
+four velocities, one of five skills. `Acorn.Host.Microduck.Action.commands_powered`
+states that the release of an action never sends the enable command.
+`Acorn.Host.Microduck.Action.next_covers` states, for every release, timely or
+late, that the cycle the next percept is computed to have starts no earlier than the
+release plus the action's declared duration and a transit allowance:
+
+```lean
+theorem Acorn.Host.Microduck.Action.next_covers (action : Acorn.Host.Microduck.Action) (pace : Acorn.Pace)
+  (transit : ℕ) (origin : Acorn.Instant) (index : ℕ) (released : Acorn.Instant) :
+  released.nanoseconds + action.duration + transit ≤
+    (pace.boundary origin (action.next pace transit origin index released)).nanoseconds
+```
+
+That a host senses the next percept at that cycle and no earlier is an obligation of a
+host loop, which is not built. A bridge's state stores the record of its release, and the
+cycle of the next percept and the end of the hold are functions of that record, so
+`Acorn.Host.Microduck.Bridge.next_covers` holds of every state.
+`Acorn.Host.Microduck.Bridge.ticks_named` states that over any list of readings of
+the clock every command sent is the velocity of the action that the standing after the
+release names at that reading, and `Acorn.Host.Microduck.Bridge.tick_lapsed` that
+from the end of the hold that standing names the world's default and nothing is sent. At
+the instant of a release itself the deadline rule still names the preceding action, by its
+convention that an action is in force after the instant of its release.
+`Acorn.Host.Microduck.Bridge.fault_named`
+states the action in force during a fault: the preceding action up to the end of its
+hold, and the default from it. `Acorn.Host.Microduck.Bridge.tick_fresh` and
+`Acorn.Host.Microduck.Bridge.Fresh.age` bound the age of the last send of a
+velocity inside its hold. Five things are assumptions of those statements' use and not
+theorems: the daemon's expiry of a velocity, the time from a send to the daemon's receipt,
+the gap between two readings of the host's clock, that the posture a caller states is the
+body's, and that a declared duration covers what the body takes.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
