@@ -32,7 +32,8 @@ every field of a structure of its arguments, and about `Regula.Dependent.isSome`
 `Regula.Dependent.isOk` of it where the result type depends on the input. A statement of what
 a kind does not state stands beside it as a requirement with no kind: the value of an accepted
 result, under the name of the kind with `_value`, or a set of refused inputs beside a one-way
-kind, under the name of the kind with `_refused` or as `interest_potential_declared`.
+kind, under the name of the kind with `_refused`. `interest_potential_declared` states
+pointwise a class of refused inputs that the two-way kind `interest_potential` also gives.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
@@ -1222,32 +1223,44 @@ structure InterestPotential where
   /-- The declared potentials. -/
   declared : DeclaredPotentials
 
-/-- A learned interest accepts every source of declared potentials
-(`CurrentTemporal.learned_potential`). The refused input is a declared interest with a source
-of another origin. `interest_potential_declared` states that class of refused inputs.
-
-**Not claimed:** soundness. No theorem states the verdict of a declared interest on a source
-of its own origin. -/
+/-- The potential of an interest accepts exactly a learned interest, with every source of
+declared potentials (`CurrentTemporal.learned_potential`), and a declared interest with a
+source of its own origin (`CurrentTemporal.declared_refusal` for a source of another origin).
+The specification states the interest by its constructors and the origin by an equation. The
+accepted input is a declared interest with a source of its own origin, and the refused input
+is a declared interest with a source of another origin. -/
 theorem interest_potential : Regula.ExecutableContract @Interest.potential (fun potential =>
-    Regula.DecidesCompletely (·.isSome = true)
-      (fun input : InterestPotential => ∃ assignment, input.interest = .learned assignment)
+    Regula.Decides (·.isSome = true)
+      (fun input : InterestPotential => (∃ assignment, input.interest = .learned assignment) ∨
+        ∃ origin tag, input.interest = .declared origin tag ∧ origin = input.declared.origin)
       (fun input : InterestPotential =>
         @potential input.config input.dimension input.interest input.features
           input.declared)) :=
-  ⟨{ complete := fun input ⟨assignment, learned⟩ => by
-       rw [learned]
-       rfl
-     refused := ⟨⟨bank, narrow, .declared .spatialPotentials ⟨0, by decide⟩, .empty narrow,
-       ⟨.cumulants, .replicate _ false⟩⟩, fun accepted => by
-         have accepted : ((Interest.declared (config := bank) .spatialPotentials
-           ⟨0, by decide⟩).potential (SwiftTd.ActiveSet.empty narrow)
-             ⟨.cumulants, .replicate _ false⟩).isSome = true := accepted
-         rw [CurrentTemporal.declared_refusal _ _ _ _ (by decide)] at accepted
-         exact absurd accepted (by decide)⟩ }⟩
+  ⟨decides
+    (fun ⟨config, _, interest, features, declared⟩ => by
+      change (interest.potential features declared).isSome = true ↔
+        (∃ assignment, interest = .learned assignment) ∨
+          ∃ origin tag, interest = .declared origin tag ∧ origin = declared.origin
+      cases interest with
+      | learned assignment => exact ⟨fun _ => .inl ⟨assignment, rfl⟩, fun _ => rfl⟩
+      | declared origin tag =>
+        by_cases same : origin = declared.origin
+        · rw [show (Interest.declared (config := config) origin tag).potential features
+            declared = some (declared.values.get tag) from ite_eq_left same]
+          exact ⟨fun _ => .inr ⟨origin, tag, rfl, same⟩, fun _ => rfl⟩
+        · rw [CurrentTemporal.declared_refusal origin tag features declared same]
+          refine ⟨fun accepted => absurd accepted (by decide), ?_⟩
+          rintro (⟨_, ⟨⟩⟩ | ⟨_, _, ⟨⟩, matched⟩)
+          exact absurd matched same)
+    ⟨⟨bank, narrow, .declared .cumulants ⟨0, by decide⟩, .empty narrow,
+      ⟨.cumulants, .replicate _ false⟩⟩, .inr ⟨.cumulants, ⟨0, by decide⟩, rfl, rfl⟩⟩
+    ⟨⟨bank, narrow, .declared .spatialPotentials ⟨0, by decide⟩, .empty narrow,
+      ⟨.cumulants, .replicate _ false⟩⟩, by rintro (⟨_, ⟨⟩⟩ | ⟨_, _, ⟨⟩, ⟨⟩⟩)⟩⟩
 
 /-- A declared interest refuses a source of declared potentials with another origin
-(`CurrentTemporal.declared_refusal`). A complete kind does not state a set of refused inputs,
-so this statement is a requirement with no kind beside the kind `interest_potential`. -/
+(`CurrentTemporal.declared_refusal`). This requirement with no kind states that class of
+refused inputs pointwise, about the arguments of the function; the two-way kind
+`interest_potential` also gives it. -/
 theorem interest_potential_declared : Regula.ExecutableContract @Interest.potential
     (fun potential =>
     ∀ {config : Features.Config} {dimension : Dimension} (origin : Departure)
