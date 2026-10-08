@@ -118,8 +118,8 @@ correspondence arguments connecting the required guarantees to the new execution
 
 Keep contributor verification economical within its full admission contract.
 CI caches only pinned dependencies, keyed by runner image family, architecture,
-toolchain, dependency manifest and the set of FloatLib modules the proof bridge
-imports; an exact hit avoids repeated provisioning. A changed import set
+elan release, toolchain, dependency manifest and the set of FloatLib modules the
+proof bridge imports; an exact hit avoids repeated provisioning. A changed import set
 restores the same locked dependencies and builds only the added modules.
 Admit restored dependencies and save newly provisioned dependencies before the
 project gate, so a project failure does not discard useful provisioning work.

@@ -9,6 +9,15 @@ permissions:
 concurrency:
   group: verify-${{ github.ref }}
   cancel-in-progress: true
+env:
+  # The elan release for x64 Linux. The SHA-256 of its archive admits the download
+  # and is part of the dependency cache key, so a restored cache holds this elan.
+  ELAN_VERSION: 4.2.4
+  ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+# Every step that reaches the network declares timeout-minutes, so a stalled
+# transfer fails that step at its own limit and never holds a job to the job's.
+# Each limit exceeds the slowest time observed for its step. No step continues
+# after a failure.
 jobs:
   verify:
     # The standard public Ubuntu runner has four CPUs and 16 GB RAM; the cold suite
@@ -19,17 +28,30 @@ jobs:
       ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        timeout-minutes: 2
         with:
           ref: ${{ env.ACORN_VERIFY_SHA }}
           persist-credentials: false
           fetch-depth: 1
       - name: Confirm checked-out commit
         run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
-      - name: Provision system tools
+      - name: Admit the runner image's system packages
+        # The image provides these, so the step installs nothing and uses no
+        # network. libc6-dev, gcc, g++, make and dpkg-dev are everything the
+        # build-essential metapackage depends on. A missing package fails the
+        # step with its name.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck coreutils elan
+          status=0
+          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl shellcheck coreutils; do
+            if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) == 'install ok installed' ]]; then
+              dpkg-query -W -f='${Package} ${Version}\n' "$package"
+            else
+              echo "::error::The runner image does not provide $package."
+              status=1
+            fi
+          done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          exit "$status"
       - name: Identify the FloatLib modules the proof bridge imports
         id: bridge
         # The import lines select what the FloatLib step below builds, so they
@@ -41,17 +63,44 @@ jobs:
       - name: Restore pinned dependencies only
         id: dependencies
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        timeout-minutes: 6
         with:
           path: |
             ~/.elan
             lean/.lake/packages
-          key: lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
+          key: lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
           # A changed import set restores the same locked dependencies, builds
           # only the added modules below and saves them under the new key.
           restore-keys: |
-            lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
+            lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
+      - name: Provision pinned elan
+        timeout-minutes: 2
+        # A restored cache already holds elan, and then this step downloads
+        # nothing. Otherwise curl's own limits end the download: no attempt lasts
+        # more than 30 seconds and none starts more than 62 seconds after the
+        # first began, so curl exits within 92 seconds with its error. The archive
+        # is admitted by its SHA-256 before anything in it runs, and the installer
+        # downloads no toolchain.
+        run: |
+          if [[ ! -x "$HOME/.elan/bin/elan" ]]; then
+            archive="$RUNNER_TEMP/elan.tar.gz"
+            curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+              --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 --retry-max-time 60 \
+              --output "$archive" \
+              "https://github.com/leanprover/elan/releases/download/v$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz"
+            sha256sum --check --strict <<< "$ELAN_SHA256  $archive"
+            tar -xzf "$archive" -C "$RUNNER_TEMP" elan-init
+            "$RUNNER_TEMP/elan-init" -y --no-modify-path --default-toolchain none
+          fi
+          version="$(elan --version)"
+          echo "$version"
+          if [[ $version != "elan $ELAN_VERSION "* ]]; then
+            echo "::error::elan is not the pinned release $ELAN_VERSION."
+            exit 1
+          fi
       - name: Provision pinned Lean, Mathlib and Regula
         if: steps.dependencies.outputs.cache-hit != 'true'
+        timeout-minutes: 15
         working-directory: lean
         # The upstream cache can omit modules; Lake compiles only those it lacks.
         # Regula's lint driver and audit worker are compiled here, so both jobs
@@ -70,6 +119,7 @@ jobs:
       - name: Save admitted dependencies before project verification
         if: steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        timeout-minutes: 5
         with:
           path: |
             ~/.elan
@@ -83,6 +133,7 @@ jobs:
       - name: Restore pinned Verso dependencies only
         id: verso
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        timeout-minutes: 3
         with:
           path: |
             lean/.lake/packages/verso
@@ -91,6 +142,7 @@ jobs:
             lean/.lake/packages/illuminate
           key: verso-deps-v2-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('site/lean-toolchain', 'site/lake-manifest.json') }}
       - name: Provision pinned Verso
+        timeout-minutes: 12
         working-directory: site
         # Verso precompiles its modules, so the documents load VersoManual's shared
         # library, which the library's default target does not build. This step
@@ -101,6 +153,7 @@ jobs:
       - name: Save pinned Verso dependencies before project verification
         if: steps.verso.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        timeout-minutes: 3
         with:
           path: |
             lean/.lake/packages/verso
@@ -120,17 +173,30 @@ jobs:
       ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        timeout-minutes: 2
         with:
           ref: ${{ env.ACORN_VERIFY_SHA }}
           persist-credentials: false
           fetch-depth: 1
       - name: Confirm checked-out commit
         run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
-      - name: Provision system tools
+      - name: Admit the runner image's system packages
+        # The image provides these, so the step installs nothing and uses no
+        # network. libc6-dev, gcc, g++, make and dpkg-dev are everything the
+        # build-essential metapackage depends on. A missing package fails the
+        # step with its name.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck coreutils elan
+          status=0
+          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl shellcheck coreutils; do
+            if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) == 'install ok installed' ]]; then
+              dpkg-query -W -f='${Package} ${Version}\n' "$package"
+            else
+              echo "::error::The runner image does not provide $package."
+              status=1
+            fi
+          done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          exit "$status"
       - name: Identify the FloatLib modules the proof bridge imports
         id: bridge
         # The import lines select what the FloatLib step below builds, so they
@@ -142,17 +208,44 @@ jobs:
       - name: Restore pinned dependencies only
         id: dependencies
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        timeout-minutes: 6
         with:
           path: |
             ~/.elan
             lean/.lake/packages
-          key: lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
+          key: lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
           # A changed import set restores the same locked dependencies, builds
           # only the added modules below and saves them under the new key.
           restore-keys: |
-            lean-deps-v3-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
+            lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
+      - name: Provision pinned elan
+        timeout-minutes: 2
+        # A restored cache already holds elan, and then this step downloads
+        # nothing. Otherwise curl's own limits end the download: no attempt lasts
+        # more than 30 seconds and none starts more than 62 seconds after the
+        # first began, so curl exits within 92 seconds with its error. The archive
+        # is admitted by its SHA-256 before anything in it runs, and the installer
+        # downloads no toolchain.
+        run: |
+          if [[ ! -x "$HOME/.elan/bin/elan" ]]; then
+            archive="$RUNNER_TEMP/elan.tar.gz"
+            curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+              --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 --retry-max-time 60 \
+              --output "$archive" \
+              "https://github.com/leanprover/elan/releases/download/v$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz"
+            sha256sum --check --strict <<< "$ELAN_SHA256  $archive"
+            tar -xzf "$archive" -C "$RUNNER_TEMP" elan-init
+            "$RUNNER_TEMP/elan-init" -y --no-modify-path --default-toolchain none
+          fi
+          version="$(elan --version)"
+          echo "$version"
+          if [[ $version != "elan $ELAN_VERSION "* ]]; then
+            echo "::error::elan is not the pinned release $ELAN_VERSION."
+            exit 1
+          fi
       - name: Provision pinned Lean, Mathlib and Regula
         if: steps.dependencies.outputs.cache-hit != 'true'
+        timeout-minutes: 15
         working-directory: lean
         # The upstream cache can omit modules; Lake compiles only those it lacks.
         # Regula's lint driver and audit worker are compiled here, so both jobs
@@ -171,6 +264,7 @@ jobs:
       - name: Save admitted dependencies before the audit
         if: steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        timeout-minutes: 5
         with:
           path: |
             ~/.elan
