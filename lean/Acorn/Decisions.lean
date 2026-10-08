@@ -1518,16 +1518,18 @@ attribute [regula_decision] Host.Microduck.State.read
 member by member (`Host.Microduck.Depth.read_iff`). The specification
 `Host.Microduck.Depth.Written` says that the value states eight rows and eight columns, and
 names the member that the stamp, the sixty-four distances and the sixty-four statuses are
-read from, each by a relation on that member. The two inputs of the proof are an object
+read from, each by a relation on that member. Every number of a depth frame is a natural
+number that digits alone spell, and none is rounded or saturated: a distance is at most
+32,767 (`Host.Microduck.Depth.read_distances`) and a status is below 256. The two inputs of the proof are an object
 with the five members that the reader requires, which is accepted, and null, which is
 refused.
 
 **Not claimed:** which depth frame an accepted value has, which
-`Host.Microduck.Depth.read_iff` states. An independent statement of the two relations on a
-number, as for `microduck_state`: that the stated rows and columns are 8 and that a status
-is below 256 rest on the arithmetic of the reader here, and
-`AcornVerif.Decimal.counted_numberOf` and `AcornVerif.Decimal.kept_nearest` state the two
-relations without it. That a line of the daemon gives such a value, as for
+`Host.Microduck.Depth.read_iff` states. An independent statement of the relation on a
+number: `Host.Microduck.Counted` is written with `Host.Microduck.spelled` of the reader, so
+that the stated rows and columns are 8, that a distance is at most 32,767 and that a status
+is below 256 rest on that arithmetic here, and `AcornVerif.Decimal.counted_numberOf` states
+the relation without it. That a line of the daemon gives such a value, as for
 `microduck_state`. -/
 theorem microduck_depth :
     Regula.ExecutableContract Host.Microduck.Depth.read

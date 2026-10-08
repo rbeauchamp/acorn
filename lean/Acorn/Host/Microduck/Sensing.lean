@@ -24,7 +24,8 @@ with the proof of its bounds. Two scales are declared, and each fits sixteen bit
   thousandths. It holds angles in radians, rates in radians per second, the components
   of the gravity direction, and a height in metres.
 - `Declared.range` keeps whole millimetres from 0 to 32,767. It holds a depth, which
-  the daemon writes as a signed sixteen-bit integer.
+  the daemon writes as a signed sixteen-bit integer. A depth is read as that integer and
+  nothing is converted: the reader refuses a frame with a depth outside the range.
 
 A quantity that the daemon writes as an unsigned integer has no scale. The servo gain
 and the status of a depth zone keep the daemon's width, sixteen bits and eight. A stamp

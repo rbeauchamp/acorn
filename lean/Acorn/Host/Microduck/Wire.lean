@@ -34,8 +34,9 @@ it. The relations are these.
   `Acorn.Host.Microduck.Decimal`. It is the integer nearest to the number as the text
   writes it, in the units of the scale, saturated (`AcornVerif.Decimal.kept_nearest`).
 - `Counted`: the natural number of a JSON number that digits alone spell, with no sign,
-  point or exponent, so `1.0` and `1e3` are not counted. The stamps, the statuses, the gain
-  and the stated numbers of rows and columns are read so
+  point or exponent, so `1.0` and `1e3` are not counted. The stamps, the statuses, the gain,
+  the distances of a depth frame (`Ranged`, at most 32,767) and the stated numbers of rows
+  and columns are read so
   (`AcornVerif.Decimal.counted_numberOf` states the number by the places of its digits).
   It is read from the numeral of the one scanner of `Acorn.Json` and not by
   `Acorn.Json.Value.natural`, which no theorem states the accepted spellings of and which
@@ -63,11 +64,21 @@ whose `move` is an object with no list has no limit.
 **What a depth frame is read from.** `rows` and `cols` must both be the number 8, since
 the reader lays the sixty-four zones out row by row in eight columns and a frame of
 another shape would be laid out wrongly. The stamp from `t_ns`; the distances from
-`distance_mm`, sixty-four numbers kept as whole millimetres from 0 to 32,767, so a
-negative distance is kept as 0; the statuses from `status`, sixty-four natural numbers
-below 256. The record gives a distance as a sixteen-bit integer. The reader takes any
-JSON number there and rounds it, so `2.5` is kept as 3, where a status of `5.0` is
-refused.
+`distance_mm`, sixty-four whole numbers of millimetres from 0 to 32,767; the statuses from
+`status`, sixty-four natural numbers below 256.
+
+**Which numbers are converted and which are read exactly.** The daemon writes a real
+quantity as a decimal fraction: the joint angles and rates, the gravity direction, the
+turning rates and the position of the odometry. For these, and for these only, the
+rounding and the saturation of the thousandths scale are the declared rule
+(`Scale.Kept`). Every quantity that the daemon writes as an integer is read exactly, by
+`Counted`, and a frame with another spelling there is refused and not repaired: the two
+stamps, the gain, the stated rows and columns, the statuses and the distances. The record
+gives a distance as a signed sixteen-bit integer, so a distance is a number of at most
+32,767 that digits alone spell: a frame with a distance of `65536`, of `2.5` or of `-1`
+is refused whole (`Depth.read_distances`), whatever the status of the zone says. The two
+reports of a state frame are booleans and its policy is a string, and neither is a
+number.
 
 **Decisions and their limits.**
 
@@ -170,6 +181,19 @@ theorem Each.length {α : Type} {Read : Json.Value → α → Prop} {values : Li
   induction each with
   | nil => rfl
   | cons _ _ hold => rw [List.length_cons, List.length_cons, hold]
+
+/-- Where values and results correspond, the relation holds of every value with some
+result. -/
+theorem Each.left {α : Type} {Read : Json.Value → α → Prop} {values : List Json.Value}
+    {results : List α} (each : Each Read values results) :
+    ∀ value ∈ values, ∃ result, Read value result := by
+  induction each with
+  | nil => exact fun _ inside => nomatch inside
+  | cons first _ hold =>
+    intro value inside
+    rcases List.mem_cons.mp inside with rfl | later
+    · exact ⟨_, first⟩
+    · exact hold value later
 
 /-- A list is read exactly when its values and the results correspond one to one, in
 order. For every reader and the relation it decides. -/
@@ -406,6 +430,39 @@ private theorem register_iff (json : Json.Value) (result : UInt16) :
     refine ⟨result.toNat, (count_iff json _).mpr counted, ?_⟩
     simp only [result.toNat_lt, ↓reduceIte]
     exact congrArg some (UInt16.ofNat_toNat)
+
+/-- The distance of a JSON value: its natural number, when that is at most 32,767. The
+result is the bounded integer itself. Nothing is rounded and nothing is saturated: a
+number with a sign, a point or an exponent has no distance, and a larger number has
+none. -/
+private def distance (json : Json.Value) : Option Declared.range.Word :=
+  (count json).bind fun natural =>
+    if inside : natural ≤ 32767 then
+      some ⟨natural, Int.natCast_nonneg natural, Int.ofNat_le.mpr inside⟩
+    else none
+
+/-- The value is a number that digits alone spell, and the digits spell the distance: a
+whole number of millimetres from 0 to 32,767, with no sign, no point and no exponent. -/
+def Ranged (json : Json.Value) (distance : Declared.range.Word) : Prop :=
+  ∃ natural : Nat, Counted json natural ∧ (natural : Int) = distance.val
+
+/-- A value is read as a distance exactly when digits alone spell the distance. So a
+negative number, a fraction and a number above 32,767 are no distance. -/
+private theorem distance_iff (json : Json.Value) (result : Declared.range.Word) :
+    distance json = some result ↔ Ranged json result := by
+  unfold distance Ranged
+  rw [Option.bind_eq_some_iff]
+  constructor
+  · rintro ⟨natural, counted, sized⟩
+    split at sized
+    · cases Option.some.inj sized
+      exact ⟨natural, (count_iff json natural).mp counted, rfl⟩
+    · exact nomatch sized
+  · rintro ⟨natural, counted, same⟩
+    have inside : natural ≤ 32767 := Int.ofNat_le.mp (same ▸ result.property.2)
+    refine ⟨natural, (count_iff json natural).mpr counted, ?_⟩
+    simp only [inside, ↓reduceDIte]
+    exact congrArg some (Subtype.ext same)
 
 /-- The truth value of a JSON value that is `true` or `false`. -/
 private def flag : Json.Value → Option Bool
@@ -713,14 +770,15 @@ private theorem Cell.joined {size : Nat} (cells : Vector Cell size) :
 
 /-- The depth frame that the parameters of a `tof.frame` notification hold. Nothing when
 the frame does not state eight rows and eight columns, and when a member that the frame
-keeps is missing or is not read. -/
+keeps is missing or is not read. A frame with one distance that is not a whole number of
+millimetres from 0 to 32,767 is refused whole. -/
 def Depth.read (json : Json.Value) : Option Depth :=
   (within "rows" count json).bind fun rows =>
   (within "cols" count json).bind fun columns =>
     if rows = 8 then
       if columns = 8 then
         (within "t_ns" stamp json).bind fun taken =>
-        (within "distance_mm" (vector 64 Declared.range.read) json).bind fun distances =>
+        (within "distance_mm" (vector 64 distance) json).bind fun distances =>
         (within "status" (vector 64 byte) json).map fun statuses =>
           ⟨taken, Vector.zipWith Cell.mk distances statuses⟩
       else none
@@ -728,7 +786,8 @@ def Depth.read (json : Json.Value) : Option Depth :=
 
 /-- What a depth frame keeps of the parameters of a `tof.frame` notification, member by
 member. It names the member that each field is read from, and no reader of this module.
-`Counted` and `Scale.Kept` are written with the arithmetic of the decimal module. -/
+`Counted` is written with the arithmetic of the decimal module. No number of a depth frame
+is rounded or saturated. -/
 structure Depth.Written (json : Json.Value) (depth : Depth) : Prop where
   /-- The frame states eight rows. -/
   rows : Within "rows" Counted json 8
@@ -737,10 +796,9 @@ structure Depth.Written (json : Json.Value) (depth : Depth) : Prop where
   /-- The stamp is the natural number of `t_ns`. -/
   taken : Within "t_ns" (fun inner (taken : Stamp) => Counted inner taken.nanoseconds) json
     depth.taken
-  /-- The distances of the zones are the sixty-four numbers of `distance_mm`, in order, in
-  whole millimetres. -/
-  distances : Within "distance_mm" (Listed Declared.range.Kept) json
-    (depth.cells.map (·.distance))
+  /-- The distances of the zones are the sixty-four numbers of `distance_mm`, in order:
+  each a whole number of millimetres from 0 to 32,767 that digits alone spell. -/
+  distances : Within "distance_mm" (Listed Ranged) json (depth.cells.map (·.distance))
   /-- The statuses of the zones are the sixty-four natural numbers of `status`, in order,
   each below 256. -/
   statuses : Within "status" (Listed fun inner (status : UInt8) => Counted inner status.toNat)
@@ -750,7 +808,7 @@ structure Depth.Written (json : Json.Value) (depth : Depth) : Prop where
 member.** For every JSON value and every depth frame. -/
 theorem Depth.read_iff (json : Json.Value) (depth : Depth) :
     Depth.read json = some depth ↔ Depth.Written json depth := by
-  have ranges := @vector_iff _ 64 _ _ Declared.range.read_iff
+  have ranges := @vector_iff _ 64 _ _ distance_iff
   have bytes := @vector_iff _ 64 _ _ byte_iff
   unfold Depth.read
   simp only [Option.bind_eq_some_iff]
@@ -782,5 +840,19 @@ theorem Depth.read_iff (json : Json.Value) (depth : Depth) :
       depth.cells.map (·.distance), (within_iff ranges _ json _).mpr written.distances,
       depth.cells.map (·.status), (within_iff bytes _ json _).mpr written.statuses, ?_⟩
     rw [Cell.joined]
+
+/-- **Every distance of a depth frame that is read is a whole number of millimetres that
+is not negative and that sixteen signed bits hold.** For every JSON value that is read as
+a depth frame: its member `distance_mm` is an array, and every value of the array is a
+number that digits alone spell, of at most 32,767. So a frame with a distance of `65536`,
+of `2.5` or of `-1` is not read, whatever its status says. -/
+theorem Depth.read_distances (json : Json.Value) (depth : Depth)
+    (read : Depth.read json = some depth) :
+    ∃ values : List Json.Value, Json.Value.Member "distance_mm" json (.array values) ∧
+      ∀ value ∈ values, ∃ natural : Nat, Counted value natural ∧ natural ≤ 32767 := by
+  obtain ⟨_, member, values, rfl, each⟩ := ((Depth.read_iff json depth).mp read).distances
+  refine ⟨values, member, fun value inside => ?_⟩
+  obtain ⟨word, natural, counted, same⟩ := each.left value inside
+  exact ⟨natural, counted, Int.ofNat_le.mp (same ▸ word.property.2)⟩
 
 end Acorn.Host.Microduck

@@ -910,9 +910,15 @@ refused whole: one member that is not read gives no frame. What each reader acce
 gives is a proposition for each field, which names the member the field is read from
 (`State.Written`, `Depth.Written`), and a frame is read exactly when it is written so
 (`State.read_iff`, `Depth.read_iff`). A number kept in a scale is the nearest integer
-to the number as the text writes it, saturated (`kept_nearest`). A stamp, a status, the
-gain and the stated numbers of rows and columns are natural numbers that digits alone
-spell, so `1.0` is refused there. An array has exactly its declared length. A string
+to the number as the text writes it, saturated (`kept_nearest`): that is the declared
+rule for the real quantities, which are the joint angles and rates, the gravity
+direction, the turning rates and the position of the odometry. Every quantity that the
+daemon writes as an integer is read exactly and never repaired: a stamp, a status, the
+gain, the stated numbers of rows and columns and a distance of a depth zone are natural
+numbers that digits alone spell, so `1.0` is refused there. A distance is at most
+32,767, the width the daemon states for it without the sign, and a frame with a
+negative distance, a fraction or a larger number is refused whole
+(`Depth.read_distances`). An array has exactly its declared length. A string
 outside the ten policy labels is the policy `other`, by a table of labels that the
 function of names is proved equal to (`Policy.named_iff`). The joint rates, the gain
 and the list of limit names can be missing, and a missing member and a null member are
