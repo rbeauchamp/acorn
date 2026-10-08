@@ -31,8 +31,8 @@ module's arithmetic: the result is the integer nearest to the value times ten to
 **How it computes.** `Decimal.rounded` is that nearest integer by direct arithmetic,
 which raises ten to the size of the exponent, and `Scale.clamp` is the saturation. The
 conversion equals the one after the other for every decimal and every scale
-(`Decimal.fixed_clamp`), and it does not run `Decimal.rounded` on an exponent of any
-size. Write `shift` for the exponent plus the places. Two comparisons, of integers only,
+(`Decimal.fixed_clamp`), and it runs `Decimal.rounded` only between two comparisons.
+Write `shift` for the exponent plus the places. The two comparisons, of integers only,
 decide the outer cases:
 
 - **It rounds to zero** when there are no digits, or when the count of the digits plus
@@ -44,10 +44,15 @@ decide the outer cases:
   then at least ten to that width (`Decimal.magnitude_beyond`), which is above both
   bounds (`Scale.width_bound`), and the result is the least value for a decimal with a
   minus sign and the greatest for one without.
-- **Between the two** it does the arithmetic, and there the two powers of ten it forms
-  have exponents below the width of the scale, and of at most the count of the digits
-  of the decimal (`Decimal.shift_between`). So no power of ten it forms grows with the
-  size of the exponent. The cost of the conversion is not otherwise stated.
+- **Between the two** it does the arithmetic, which forms two powers of ten: one that
+  multiplies the digits and one that divides. Write `w` for the width of the scale and
+  `d` for the count of the digits of the decimal. The exponent of the first is below
+  `w`, and the exponent of the second is at most `d` (`Decimal.shift_between`): the
+  largest powers are ten to the `w - 1` in the numerator and ten to the `d` in the
+  denominator. So what the conversion forms is bounded by the scale and by the length
+  of the digits, and not by the size of the exponent. With thousandths in sixteen bits,
+  `w` is 5: `1e1` forms ten to the 4, and `1000000000e-13` forms ten to the 10. The cost
+  of the conversion is not otherwise stated.
 
 `width` is the count of the decimal digits of a natural number.
 
@@ -276,10 +281,11 @@ theorem Decimal.fixed_clamp (scale : Scale) (decimal : Decimal) :
         omega
     · rfl
 
-/-- **Between the two comparisons the powers of ten are small.** For every scale and
+/-- **Between the two comparisons each power of ten has its bound.** For every scale and
 decimal that the conversion neither rounds to zero by the count of the digits nor
-saturates by the shift, the two exponents that `Decimal.magnitude` raises ten to are
-below the width of the scale, and at most the count of the digits of the decimal. -/
+saturates by the shift: the exponent of the power of ten that multiplies the digits in
+`Decimal.magnitude` is below the width of the scale, and the exponent of the power that
+divides is at most the count of the digits of the decimal. -/
 theorem Decimal.shift_between (scale : Scale) (decimal : Decimal)
     (large : ¬(decimal.digits = 0 ∨
       (width decimal.digits : Int) + decimal.shift scale.places < 0))

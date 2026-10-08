@@ -823,8 +823,8 @@ thousandths, the residues `1e-323` and `7.38787616182396e-14`, which
 quotes, are zero, and an angle beyond 32.767 rad is 32,767. The result is a
 `Scale.Word`, whose type holds the proof of its bounds.
 
-**How it computes** without a power of ten of the exponent's size. Write the shift
-for the exponent plus the places of the scale. The conversion is the direct rounding
+**How it computes** with powers of ten that the scale and the length of the digits
+bound. Write the shift for the exponent plus the places of the scale. The conversion is the direct rounding
 followed by the saturation for every decimal (`Decimal.fixed_clamp`), and it decides
 two cases by comparing integers:
 
@@ -834,11 +834,16 @@ two cases by comparing integers:
   the digits of its larger bound, the rounded magnitude is at least ten to that width
   (`Decimal.magnitude_beyond`) and so beyond both bounds (`Scale.width_bound`): the
   result is the least value for a minus sign and the greatest without one;
-- between the two it divides, and there the powers of ten it forms have exponents
-  below the width of the scale and of at most the count of the digits
-  (`Decimal.shift_between`).
+- between the two it divides, and forms two powers of ten: one that multiplies the
+  digits and one that divides. With `w` the width of the scale and `d` the count of
+  the digits, the exponent of the first is below `w` and the exponent of the second
+  is at most `d` (`Decimal.shift_between`), so the largest powers are ten to the
+  `w - 1` in the numerator and ten to the `d` in the denominator.
 
-So `1e401` saturates and `1e-401` is zero, with no power of ten of 401 formed.
+What the conversion forms is therefore bounded by the scale and by the length of the
+digits, and not by the size of the exponent: `1e401` saturates and `1e-401` is zero
+with no power of ten formed. For thousandths in sixteen bits `w` is 5, so `1e1`
+forms ten to the 4 and `1000000000e-13` forms ten to the 10.
 
 Two scales are declared. `Declared.milli` keeps thousandths and saturates at plus and
 minus 32,767. `Declared.range` keeps whole millimetres from 0 to 32,767. Each fits
