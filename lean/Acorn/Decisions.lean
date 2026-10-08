@@ -162,14 +162,24 @@ report of the definitions that have no contract is work of Regula
   and `Handcrafted.TemporalControl.drawFirst_total` states that it returns one from every
   aligned state. The age of the depth frame of a Microduck reading
   (`Host.Microduck.Reading.age`) is in this group too: it refuses nothing, and it is absent
-  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`).
+  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`). Four
+  definitions of the Microduck adapter are in this group as well: the tests
+  `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, the event of the goal
+  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. One definition is the exception:
+the end of this module states those. Four definitions are the exception.
 `AgentConstruction.State.restore`, which `Checkpoint.load` applies, is the restoration of the
 agent on the admitted image (`AgentConstruction.State.restore_agent`), and the restoration of
-the agent has the contract `agent_restore`. Where no theorem names an applied definition, it
+the agent has the contract `agent_restore`. `Handcrafted.Microduck.upright` and
+`Handcrafted.Microduck.fresh`, which `Handcrafted.Microduck.near` and
+`Handcrafted.Microduck.clear` apply, and `Host.Microduck.Reading.age`, which `fresh` applies,
+have no contract. `Handcrafted.Microduck.upright_iff` and `Handcrafted.Microduck.fresh_level`
+state the inputs that each test accepts, and `Host.Microduck.Reading.age_exact` states the age
+of a depth frame that is not after its state frame; the ownership audit requires the three
+theorems by name. The contracts `microduck_near` and `microduck_clear` state the conjunction
+of the tests and not either test alone. Where no theorem names an applied definition, it
 has no contract of its own, and the contract of the decision that applies it is the evidence.
 
 What the list does not hold:
