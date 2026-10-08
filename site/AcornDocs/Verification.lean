@@ -54,8 +54,12 @@ the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
 The [CI workflow](../.github/workflows/verify.yml) runs on GitHub's standard
-`ubuntu-24.04` x64 image. Dependency caches include the Ubuntu release and
-runner architecture. Automatic local setup supports macOS and Ubuntu/Debian Linux.
+`ubuntu-24.04` x64 image. It installs no system package: it admits by name the
+packages that image provides, and takes elan from a release pinned by the SHA-256
+of its archive, which the dependency cache keeps. Every workflow step that
+reaches the network has its own time limit, so a stalled download fails that
+step. Dependency caches include the Ubuntu release and runner architecture.
+Automatic local setup supports macOS and Ubuntu/Debian Linux.
 
 For manual setup, install macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
