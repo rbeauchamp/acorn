@@ -1224,7 +1224,7 @@ theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind
 
 /-- A paid action that succeeds either found the energy short, rested and set the exhausted
 flag, or spent the cost of the action with the exhausted flag clear
-(`CurrentStep.payAndAct_outcome`). The world's type depends on the configuration, and the
+(`CurrentStep.payAndAct_outcome`). No theorem states the actions that it accepts, and the
 statement has no kind.
 
 **Not claimed:** the effect of the action on the body. `CurrentStep.payAndAct_outcome` states
@@ -1257,7 +1257,7 @@ def Moves {config : Host.WorldConfig} (world : Host.World config) (action : Host
 
 /-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
 body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
-hypotheses are the predicate `Moves`. The world's type depends on the configuration, and the
+hypotheses are the predicate `Moves`. No theorem states the actions that it accepts, and the
 statement has no kind.
 
 **Not claimed:** that some input satisfies the hypotheses. -/
