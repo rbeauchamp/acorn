@@ -88,9 +88,10 @@ The kinds of the checkpoint admissions name the writers of the forms that they r
 the admissions do not call.
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
-tests that their functions run. `replay_certified`, `replay_check` and `advance_actions` reach
-each test that the world step runs, through `CurrentStep.Trace`. `task_observed` names
-`Host.Inventory.owns` in its craft clause.
+tests that their functions run. This module keeps no list of them, and the examples that follow
+are not one. `replay_certified`, `replay_check` and `advance_actions` reach each test that the
+world step runs, through `CurrentStep.Trace`. `task_observed` names `Host.Inventory.owns` in its
+craft clause.
 
 Regula counts only a contract of the function's own library toward a decision registration,
 so the functions below carry no registration. The ownership audit requires each contract by

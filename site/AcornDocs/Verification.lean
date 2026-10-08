@@ -527,7 +527,10 @@ requires each contract by name. Among them are the certificate checkers. No
 checker is complete, so each contract states what an accepted certificate
 establishes: the blocked checker and the stance checker carry the sound kind.
 The replay checker keeps a requirement with no kind, because its specification
-is about runs of the executed world step, which the checker runs.
+is about runs of the executed world step, which the checker runs. The module
+documentation of `lean/AcornVerif/Decisions.lean` lists the functions of that
+module that keep no kind, with the reason for each and which of them are also
+remaining work of issue 105.
 
 The driver builds every claimed module with warnings as failures, then inspects
 the compiled environments. It rejects holes, project axioms, unsafe or partial
