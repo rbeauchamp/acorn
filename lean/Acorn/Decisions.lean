@@ -264,8 +264,9 @@ theorems beside each definition.
 
 This module declares theorems, specification predicates, the structures of the arguments of
 the functions with a dependent type, and closed values that are inputs of the witnesses of
-kinds: `wide` and `last` for the terrain, and the values of the section "Closed inputs of the
-kinds with a dependent type".
+kinds: `wide` and `last` for the terrain, the values of the section "Closed inputs of the
+kinds with a dependent type", and `sourced`, `spot`, `sixteen` and `single` of the section
+"Classifiers and lookups".
 No executable and no other module imports it, so no entry point links those definitions, and
 the registration attribute's module, which imports Lean's elaborator, is linked into no
 native entry point.
