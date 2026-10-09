@@ -55,6 +55,7 @@ import AcornVerif.CurrentTemporal
 import AcornVerif.TemporalSupport
 import AcornVerif.CurrentFloor
 import AcornVerif.CurrentTerrain
+import AcornVerif.CurrentActions
 import AcornVerif.CurrentWorld
 import AcornVerif.CurrentRunner
 import AcornVerif.CurrentStep

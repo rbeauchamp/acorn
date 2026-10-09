@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Regula.Contract
 import AcornVerif.AgreementTelemetryPrecision
+import AcornVerif.CurrentActions
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentExponential
@@ -37,7 +38,9 @@ kind, under the name of the kind with `_refused`. `interest_potential_declared` 
 pointwise a class of refused inputs that the two-way kind `interest_potential` also gives.
 `world_enterable`, `tile_kind` and `terrain_read` keep their names beside the kinds of the
 terrain: the verdict of an accepted entry, the refusal of a refused tile, and what the readers
-of the terrain do with its result.
+of the terrain do with its result. `pay_and_act` and `perform_action` keep their names beside
+the kinds of the paid actions: what an accepted paid action does with the energy, and where an
+accepted move puts the body.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
@@ -50,7 +53,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Six functions of this module have a contract and no kind. The reasons are three.
+Four functions of this module have a contract and no kind. The reasons are two.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -61,12 +64,8 @@ Six functions of this module have a contract and no kind. The reasons are three.
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
   `Checkpoint.load`.
-* No theorem states the set of the inputs that the function accepts. The statements of
-  `Host.payAndAct` and `Host.performAction` are properties of the result of an accepted
-  action.
 
-Kinds for the functions of the first two reasons are remaining work of
-https://github.com/rbeauchamp/acorn/issues/105.
+Kinds for these functions are remaining work of https://github.com/rbeauchamp/acorn/issues/105.
 
 ## Tests that a specification does not share
 
@@ -93,6 +92,16 @@ and none of them is a test. The kinds of its two readers also share `Host.WorldC
 the type of their world argument reads. The floor, the saturating cast and the checked successor
 of the lattice coordinate are not shared: `CurrentTerrain.PastLast` bounds the exact value of the
 quotient in their place.
+
+The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
+the side of the box `Host.WorldConfig.side`, and the kind of `Host.payAndAct` also shares the
+phase of the day `Host.World.dayPhase`, which the cost of an action reads; none of them is a
+test. `CurrentActions.ActionAdmits` states the tile that an action reads by equations on the
+coordinates and the box indices and by the constructors of the action and the direction, and
+`CurrentActions.Cost` states the cost by the constructors of the action and the constants of
+`FeatureConstants`. They name no direction table, offset table, checked translation, box
+admission, facing position or cost function. The paid action compares the action with a
+harvest by its derived `BEq`; the specification states that comparison as an equality.
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
 tests that their functions run. This module keeps no list of them, and the examples that follow
@@ -169,6 +178,10 @@ def initialWords (profile : FeatureProfile) : RawFeatureImage Grid.actions narro
   featureWords (construction profile)
     (snapshotImage (construction profile) (AgentConstruction.initial _)).image
 
+/-- The image of the initial agent of the resumable construction. -/
+def initialImage : (construction resumable).Image :=
+  snapshotImage (construction resumable) (AgentConstruction.initial _)
+
 /-- The payload of the initial agent of the resumable construction. -/
 def initialPayload : Payload narrow :=
   imagePayload (construction resumable)
@@ -226,28 +239,6 @@ theorem sum_admit_value : Regula.ExecutableContract admitSum (fun admit =>
     ∀ (quantity : Quantity) (record : SumCount quantity),
       admit quantity (sumWords record) = some record) :=
   ⟨fun _ => CurrentCheckpoint.sum_roundtrip⟩
-
-/-- An image whose overall reward total is a NaN word, with every other field zero. -/
-def refusedLifetime : LifetimeWords :=
-  ⟨(0, ⟨0x7ff8000000000000⟩), .replicate _ (0, ⟨0⟩), .replicate _ (0, ⟨0⟩),
-    .replicate _ (0, ⟨0⟩), .replicate _ .zero, .replicate _ .zero, .replicate _ (0, ⟨0⟩),
-    .replicate _ .initial, .replicate _ (0, 0, 0), .replicate _ (.replicate _ (0, 0, 0))⟩
-
-/-- Lifetime admission accepts every word image of a durable lifetime record whose option
-counters are valid with no active option (`CurrentCheckpoint.lifetime_roundtrip`), and it
-refuses an image whose overall reward total is a NaN word.
-
-**Not claimed:** that every accepted image is the word image of such a record. -/
-theorem lifetime_admit : Regula.ExecutableContract admitLifetime
-    (Regula.DecidesCompletely (·.isSome = true) (fun raw =>
-      ∃ record : Durable demonLayout, OptionsValid record.options none ∧
-        raw = lifetimeWords record)) :=
-  ⟨{ complete := fun raw ⟨record, valid, written⟩ => by
-       rw [written, CurrentCheckpoint.lifetime_roundtrip record valid]
-       rfl
-     refused := ⟨refusedLifetime, by
-       have illegal : ¬LegalSum .reward 0 ⟨0x7ff8000000000000⟩ := by decide
-       simp [admitLifetime, admitSum, SumCount.admit, refusedLifetime, illegal]⟩ }⟩
 
 /-! ## Certificate checkers -/
 
@@ -395,18 +386,6 @@ private theorem offset_delta {direction : Host.Direction} {dx dy : Int}
     (offset : Offset direction dx dy) : direction.delta = (dx, dy) := by
   rcases offset with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ <;> rfl
 
-/-- A position is determined by its two coordinates. -/
-private theorem position_ext {first second : Host.Position}
-    (column : first.x.val = second.x.val) (row : first.y.val = second.y.val) :
-    first = second := by
-  cases first with
-  | mk firstX firstY =>
-    cases second with
-    | mk secondX secondY =>
-      congr
-      · exact Subtype.ext column
-      · exact Subtype.ext row
-
 /-- What an accepted stance shows, in every world of the configuration, for the offset of one
 move in the direction: a paid harvest from the stance, facing the direction, yields the item,
 when the tile one offset ahead holds a standing tree for a wood stance; a paid move in the
@@ -452,7 +431,7 @@ private theorem stance_sound {config : Host.WorldConfig} {stance : Host.BoxPosit
   refine ⟨fun world next events ahead column row standing faced grown stepped paid => ?_,
     fun world next action events heads column row stepped paid => ?_, ?_⟩
   · have same : stance.facingPosition direction = ahead :=
-      position_ext (by rw [column, ← first]; rfl) (by rw [row, ← second]; rfl)
+      CurrentActions.position_ext (by rw [column, ← first]; rfl) (by rw [row, ← second]; rfl)
     exact CurrentCertificates.stance_harvest accepted world next events standing faced
       (by rw [same]; exact grown) stepped paid
   · exact CurrentCertificates.stance_enter accepted world next action events
@@ -463,7 +442,7 @@ private theorem stance_sound {config : Host.WorldConfig} {stance : Host.BoxPosit
     obtain ⟨column, row⟩ := CurrentCertificates.translate_some _ _ _ _ moved
     refine ⟨approach, by rw [← first]; exact column, by rw [← second]; exact row,
       fun world tile tileColumn tileRow => ?_⟩
-    have same : tile = approach.position := position_ext tileColumn tileRow
+    have same : tile = approach.position := CurrentActions.position_ext tileColumn tileRow
     rw [same]
     exact CurrentCertificates.walkable_enterable world approach.position walkable
 
@@ -653,12 +632,13 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
 
 Each admission below composes the admissions of its parts, and its round trip is proved in
 `CurrentCheckpoint`. The kind of an admission states which inputs it accepts. It is two-way for
-the demon columns, whose admitted list holds the input words unchanged, and complete for the
-feature image, the payload and the candidate, where no theorem states that an accepted input is
-a written one. The type of a result depends on the receiving construction or on the discounts,
-so each kind is about `Regula.Dependent.isSome` or `Regula.Dependent.isOk` of the function. The
-value that an admission returns is a separate requirement with no kind, under the name of the
-kind with `_value`. -/
+the demon columns and the lifetime image, whose admitted values hold the input words unchanged,
+and complete for the feature image, the payload and the candidate, where no theorem states that
+an accepted input is a written one. Apart from the lifetime admission, the type of a result
+depends on the receiving construction or on the discounts, so each kind is about
+`Regula.Dependent.isSome` or `Regula.Dependent.isOk` of the function, and the value that the
+admission returns is a separate requirement with no kind, under the name of the kind with
+`_value`. -/
 
 /-- The arguments of `Checkpoint.admitDemons`, in order. -/
 structure DemonsAdmit where
@@ -737,6 +717,119 @@ theorem demons_admit_value : Regula.ExecutableContract admitDemons (fun admit =>
       admit discounts (demonColumns records).sums.toList (demonColumns records).returns.toList
         (demonColumns records).errors.toList = some records) :=
   ⟨fun _ => CurrentCheckpoint.demons_roundtrip⟩
+
+/-- An image whose overall reward total is a NaN word, with every other field zero. -/
+def refusedLifetime : LifetimeWords :=
+  ⟨(0, ⟨0x7ff8000000000000⟩), .replicate _ (0, ⟨0⟩), .replicate _ (0, ⟨0⟩),
+    .replicate _ (0, ⟨0⟩), .replicate _ .zero, .replicate _ .zero, .replicate _ (0, ⟨0⟩),
+    .replicate _ .initial, .replicate _ (0, 0, 0), .replicate _ (.replicate _ (0, 0, 0))⟩
+
+/-- An admitted goal aggregate holds the three input counters unchanged. -/
+private theorem goal_written {words : GoalWords} {record : GoalTotals}
+    (admitted : admitGoal words = some record) : words = goalWords record := by
+  unfold admitGoal at admitted
+  split at admitted
+  · cases admitted
+    rfl
+  · exact nomatch admitted
+
+/-- A list that an admission accepts element by element holds the written words of the
+admitted list, when each admitted element holds the written words of its value. -/
+private theorem list_written {α β : Type} {encode : α → β} {admit : β → Option α}
+    (written : ∀ {word : β} {value : α}, admit word = some value → word = encode value) :
+    ∀ (words : List β) (values : List α), words.mapM admit = some values →
+      words = values.map encode
+  | [], values, admitted => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at admitted
+    subst admitted
+    rfl
+  | word :: words, values, admitted => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at admitted
+    obtain ⟨value, first, rest, others, built⟩ := admitted
+    subst built
+    rw [List.map_cons, ← written first, ← list_written written words rest others]
+
+/-- A vector that an admission accepts element by element holds the written words of the
+admitted vector, when each admitted element holds the written words of its value. -/
+private theorem vector_written {α β : Type} {count : Nat} {encode : α → β}
+    {admit : β → Option α}
+    (written : ∀ {word : β} {value : α}, admit word = some value → word = encode value)
+    {words : Vector β count} {values : Vector α count} (admitted : words.mapM admit = some values) :
+    words = values.map encode := by
+  have arrays : words.toArray.mapM admit = some values.toArray := by
+    rw [← Vector.toArray_mapM, admitted]
+    rfl
+  have lists : words.toList.mapM admit = some values.toList := by
+    rw [← Vector.toList_toArray, ← Vector.toList_toArray, ← Array.toList_mapM, arrays]
+    rfl
+  apply Vector.toList_inj.mp
+  rw [Vector.toList_map]
+  exact list_written written _ _ lists
+
+/-- An admitted lifetime image holds the words of the durable record that admission returns,
+and the option counters of that record are valid with no active option. Each part of the
+admission admits its words without changing one (`sum_written`, `demons_written`,
+`goal_written`), and the option counters are stored as read. -/
+private theorem lifetime_written {raw : LifetimeWords} {record : Durable demonLayout}
+    (admitted : admitLifetime raw = some record) :
+    OptionsValid record.options none ∧ raw = lifetimeWords record := by
+  unfold admitLifetime at admitted
+  simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at admitted
+  obtain ⟨reward, rewardAdmitted, family, familyAdmitted, history, historyAdmitted, demons,
+    demonsAdmitted, errorHistory, errorHistoryAdmitted, goals, goalsAdmitted, cycles,
+    cyclesAdmitted, built⟩ := admitted
+  split at built
+  · rename_i valid
+    cases built
+    obtain ⟨sums, returns, errors⟩ := demons_written _ _ _ _ _ demonsAdmitted
+    have rewardWords := sum_written rewardAdmitted
+    have familyWords := vector_written (admit := admitSum .reward)
+      (encode := sumWords (quantity := .reward)) sum_written familyAdmitted
+    have historyWords := vector_written (admit := admitSum .reward)
+      (encode := sumWords (quantity := .reward)) sum_written historyAdmitted
+    have errorHistoryWords := vector_written (admit := admitSum (.squaredError .g99))
+      (encode := sumWords (quantity := .squaredError .g99)) sum_written errorHistoryAdmitted
+    have goalsWords := vector_written (admit := admitGoal) (encode := goalWords) goal_written
+      goalsAdmitted
+    have cyclesWords := vector_written
+      (admit := fun row : Vector GoalWords Acorn.FeatureConstants.cycleBins => row.mapM admitGoal)
+      (encode := fun row : Vector GoalTotals Acorn.FeatureConstants.cycleBins => row.map goalWords)
+      (fun admitted => vector_written (admit := admitGoal) (encode := goalWords) goal_written
+        admitted) cyclesAdmitted
+    refine ⟨valid, (show raw = ⟨raw.reward, raw.rewardByFamily, raw.rewardHistory,
+      raw.squaredErrors, raw.returns, raw.errors, raw.errorHistory, raw.options, raw.goals,
+      raw.goalCycles⟩ from rfl).trans ?_⟩
+    rw [rewardWords, familyWords, historyWords, Vector.toList_inj.mp sums,
+      Vector.toList_inj.mp returns, Vector.toList_inj.mp errors, errorHistoryWords, goalsWords,
+      cyclesWords]
+    rfl
+  · exact nomatch built
+
+/-- Lifetime admission accepts exactly the word image of a durable lifetime record whose
+option counters are valid with no active option. An accepted image is the image of the record
+that admission returns (`lifetime_written`), and the image of every such record is accepted
+(`CurrentCheckpoint.lifetime_roundtrip`). The accepted input is the image of the lifetime
+record of the initial agent of the resumable construction. The refused input is an image whose
+overall reward total is a NaN word. -/
+theorem lifetime_admit : Regula.ExecutableContract admitLifetime
+    (Regula.Decides (·.isSome = true) (fun raw =>
+      ∃ record : Durable demonLayout, OptionsValid record.options none ∧
+        raw = lifetimeWords record)) :=
+  ⟨decides
+    (fun raw => ⟨fun accepted => by
+        obtain ⟨record, admitted⟩ := Option.isSome_iff_exists.mp accepted
+        exact ⟨record, lifetime_written admitted⟩,
+      fun ⟨record, valid, written⟩ => by
+        rw [written, CurrentCheckpoint.lifetime_roundtrip record valid]
+        rfl⟩)
+    ⟨lifetimeWords initialImage.image.lifetime, initialImage.image.lifetime,
+      initialImage.image.episodes, rfl⟩
+    ⟨refusedLifetime, fun ⟨record, valid, written⟩ => by
+      have admitted := CurrentCheckpoint.lifetime_roundtrip record valid
+      rw [← written] at admitted
+      have illegal : ¬LegalSum .reward 0 ⟨0x7ff8000000000000⟩ := by decide
+      simp [admitLifetime, admitSum, SumCount.admit, refusedLifetime, illegal] at admitted⟩⟩
 
 /-- The arguments of `Features.FeatureImage.admit`, in order. -/
 structure FeatureImageAdmit where
@@ -1222,10 +1315,95 @@ theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind
       repeat' split
       all_goals simp⟩
 
+/-! ## Refusals of the paid actions
+
+A paid action reads the terrain of at most one tile: the tile one step ahead of a move when that
+tile is in the box, and the tile that the body faces for a harvest
+(`CurrentActions.ActionAdmits`). Its effect is refused exactly when the terrain refuses that
+tile, and the paid action exactly when, in addition, the energy pays its cost
+(`CurrentActions.Affords`). The witnesses of the two kinds are a harvest in the empty world of
+`wideAt` at the noise scales of two and of one half, whose body faces the tile `faced`. A
+generator that read every scale as one would fail each kind: at the scale one it admits that
+tile. -/
+
+/-- The arguments of `Host.performAction` and `Host.payAndAct`, in order. -/
+structure WorldAction where
+  /-- The world configuration. -/
+  config : Host.WorldConfig
+  /-- The world. -/
+  world : Host.World config
+  /-- The action. -/
+  action : Host.Action
+
+/-- The tile north of the center of the box of `wide`, which the body of an empty world of
+`wideAt` faces. -/
+def faced : Host.Position := ⟨⟨2 ^ 62 - 1, by decide⟩, ⟨2 ^ 62 - 2, by decide⟩⟩
+
+/-- A harvest in the empty world of `wideAt` reads the tile `faced`. -/
+private theorem harvest_faced (scale : Binary32) :
+    CurrentActions.ActionAdmits (Host.World.empty (wideAt scale)) .harvest ↔
+      CurrentTerrain.LatticeAdmits faced scale := by
+  have column : ((Host.World.empty (wideAt scale)).body.position.x.val : Int) =
+      ((Host.World.empty wide).body.position.x.val : Int) := rfl
+  have row : ((Host.World.empty (wideAt scale)).body.position.y.val : Int) =
+      ((Host.World.empty wide).body.position.y.val : Int) := rfl
+  have center : ((Host.World.empty wide).body.position.x.val : Int) = 2 ^ 62 - 1 ∧
+      ((Host.World.empty wide).body.position.y.val : Int) = 2 ^ 62 - 1 := by decide
+  constructor
+  · intro admits
+    exact admits faced (by rw [column, center.1]; decide) (by rw [row, center.2]; decide)
+  · intro admits tile tileColumn tileRow
+    have same : tile = faced :=
+      CurrentActions.position_ext (by rw [tileColumn, column, center.1]; decide)
+        (by rw [tileRow, row, center.2]; decide)
+    rw [same]
+    exact admits
+
+/-- The energy of the body of the empty world of `wideAt` at the scale one half pays for a
+harvest: at the clock zero with a day of length one the phase is the fifth, and the cost four is
+below the full energy. -/
+private theorem harvest_paid :
+    CurrentActions.Affords (Host.World.empty (wideAt ⟨0x3f000000⟩)) .harvest :=
+  ⟨FeatureConstants.harvestCost * FeatureConstants.nightMultiplier,
+    .inl ⟨rfl, by decide, rfl⟩, by decide⟩
+
+/-- A paid action's effect is refused exactly when the terrain refuses the tile that the action
+reads (`CurrentActions.performAction_isOk`): the tile one step ahead of a move when that tile is
+in the box, and the tile that the body faces for a harvest. The other actions read no tile. The
+accepted input is a harvest in the empty world of `wideAt` at the scale two, and the refused
+input is that harvest at the scale one half. -/
+theorem perform_action_lattice : Regula.ExecutableContract @Host.performAction (fun perform =>
+    Regula.Decides (· = true)
+      (fun input : WorldAction => CurrentActions.ActionAdmits input.world input.action)
+      (Regula.Dependent.isOk fun input : WorldAction =>
+        @perform input.config input.world input.action)) :=
+  ⟨decides (fun input => CurrentActions.performAction_isOk input.world input.action)
+    ⟨⟨wideAt ⟨0x40000000⟩, Host.World.empty _, .harvest⟩,
+      (harvest_faced ⟨0x40000000⟩).mpr (by decide +kernel)⟩
+    ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, .harvest⟩,
+      fun admits => absurd ((harvest_faced ⟨0x3f000000⟩).mp admits) (by decide +kernel)⟩⟩
+
+/-- A paid action is refused exactly when the energy pays its cost and the terrain refuses the
+tile that the action reads (`CurrentActions.payAndAct_isOk`). An action that the energy does not
+pay for rests the body and is accepted. The witnesses are those of `perform_action_lattice`,
+where the energy pays for the harvest. -/
+theorem pay_and_act_lattice : Regula.ExecutableContract @Host.payAndAct (fun pay =>
+    Regula.Decides (· = true)
+      (fun input : WorldAction =>
+        CurrentActions.Affords input.world input.action →
+          CurrentActions.ActionAdmits input.world input.action)
+      (Regula.Dependent.isOk fun input : WorldAction =>
+        @pay input.config input.world input.action)) :=
+  ⟨decides (fun input => CurrentActions.payAndAct_isOk input.world input.action)
+    ⟨⟨wideAt ⟨0x40000000⟩, Host.World.empty _, .harvest⟩,
+      fun _ => (harvest_faced ⟨0x40000000⟩).mpr (by decide +kernel)⟩
+    ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, .harvest⟩, fun admits =>
+      absurd ((harvest_faced ⟨0x3f000000⟩).mp (admits harvest_paid)) (by decide +kernel)⟩⟩
+
 /-- A paid action that succeeds either found the energy short, rested and set the exhausted
 flag, or spent the cost of the action with the exhausted flag clear
-(`CurrentStep.payAndAct_outcome`). No theorem states the actions that it accepts, and the
-statement has no kind.
+(`CurrentStep.payAndAct_outcome`). The statement is a requirement with no kind beside the kind
+`pay_and_act_lattice`, which states the refused actions.
 
 **Not claimed:** the effect of the action on the body. `CurrentStep.payAndAct_outcome` states
 it through the relation `CurrentStep.Performed`. -/
@@ -1257,8 +1435,8 @@ def Moves {config : Host.WorldConfig} (world : Host.World config) (action : Host
 
 /-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
 body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
-hypotheses are the predicate `Moves`. No theorem states the actions that it accepts, and the
-statement has no kind.
+hypotheses are the predicate `Moves`. The statement is a requirement with no kind beside the kind
+`perform_action_lattice`, which states the refused actions.
 
 **Not claimed:** that some input satisfies the hypotheses. -/
 theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perform =>
