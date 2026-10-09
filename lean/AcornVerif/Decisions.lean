@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Regula.Contract
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentActions
+import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentExponential
@@ -1856,6 +1857,33 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
       CurrentCheckpoint.save_load construction source receiver supported
     rw [loaded]
     rfl⟩
+
+/-- Each event that the agent accepts satisfies the contract of its edge: an act runs the
+agent's step and returns its decision, the bookkeeping events keep the learners, a clear
+returns the initial agent, a restore returns the restored agent and a stop keeps the state
+(`CurrentAgent.edge_contract`). `Acorn.Decisions.agent_input` states which events it accepts,
+and keeps no kind for the reason given there; this statement is a requirement with no kind
+beside it. -/
+theorem agent_input_edges : Regula.ExecutableContract @Agent.input (fun input =>
+    ∀ {profile config criterion dimension planning}
+      (before after : Agent Grid.interface profile config criterion dimension planning)
+      (event : AgentInput config criterion dimension) (stopped : Bool),
+      input before event = .ok (after, stopped) → CurrentAgent.EdgeContract before event after) :=
+  ⟨fun before after event stopped executed =>
+    CurrentAgent.edge_contract before after event stopped executed⟩
+
+/-- An accepted compiled fold from cold initialization follows a safe path from the initial
+agent: every intermediate agent keeps the invariant, and each edge satisfies its contract
+(`CurrentAgent.native_prefix`). `Acorn.Decisions.agent_execute` states the kind; a kind does
+not state the value of a result, so this statement is a requirement with no kind beside it. -/
+theorem execute_prefix : Regula.ExecutableContract AgentConstruction.execute (fun execute =>
+    ∀ (admitted : DefaultConstruction) (finalState : admitted.construction.State)
+      (events : List (AgentInput admitted.construction.config admitted.construction.criterion
+        admitted.construction.dimension)) (stopped : Bool),
+      execute admitted events = .ok (finalState, stopped) →
+        CurrentAgent.SafePath admitted.construction.initial.agent events finalState.agent
+          stopped) :=
+  ⟨CurrentAgent.native_prefix⟩
 
 /-- The arguments of `Agreement.admitSquared`, in order. -/
 structure SquaredAdmit where

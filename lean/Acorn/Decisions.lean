@@ -71,7 +71,7 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Fourteen functions of this module have a contract and no kind. The reasons are four.
+Eighteen functions of this module have a contract and no kind. The reasons are four.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
   every configuration, and a complete or a two-way kind carries a refused input. The statement
@@ -83,7 +83,8 @@ Fourteen functions of this module have a contract and no kind. The reasons are f
   specification names none of those tests (https://github.com/rbeauchamp/regula/issues/270).
   These are `Checkpoint.saveBytes`, `Checkpoint.load`, `Features.Lifecycle.lessUseful`,
   `Features.Lifecycle.candidate`, `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`,
-  `Agent.restore`, `PredictionControl.advanceRaw`, and the two transitions
+  `Agent.restore`, `Agent.input`, `Agent.runPrefix`, `DefaultConstruction.runPrefix`,
+  `AgentConstruction.State.restore`, `PredictionControl.advanceRaw`, and the two transitions
   `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose input carries the
   proof that the host is reached by the transitions.
 * The specification is about a function with tests that the decision runs.
@@ -4820,5 +4821,347 @@ theorem ranked_position_value : Regula.ExecutableContract @RankedFeatures.positi
       obtain ⟨located, returned⟩ := RankedFeatures.position_complete ranked found feature holds
       rw [returned, RankedFeatures.slot_unique ranked located found feature
         (RankedFeatures.position_slot ranked feature located returned) holds]⟩
+
+/-! ## The executing invocation, the named action and the agent's event folds
+
+`TemporalControl.activeSlot` and `Force.named` are lookups: each carries a two-way kind about
+whether its result holds a value and, beside it, a statement of the value. The agent's event
+operation refuses only a restore event that the profile cannot restore, and its folds stop at
+the first refusal or stop; the statement of each is exact, and it keeps no kind where its input
+holds an agent state. -/
+
+/-- The arguments of `Handcrafted.TemporalControl.activeSlot`, in order. -/
+structure ActiveSlot where
+  /-- The world interface. -/
+  interface : Interface
+  /-- The research profile. -/
+  profile : FeatureProfile
+  /-- The bank configuration. -/
+  config : Features.Config
+  /-- The criterion. -/
+  criterion : Criterion
+  /-- The feature space. -/
+  dimension : Dimension
+  /-- The temporal state. -/
+  state : TemporalControl interface profile config criterion dimension
+
+/-- The temporal state of the grid interface, the resumable profile, `bank` and `narrow` before
+any step, with the given dispatch phase. -/
+def phased (phase : Occupancy (OptionActivation true) (CommittedRun Grid.interface.actions true)) :
+    TemporalControl Grid.interface ⟨.final, .perStep, .declared, .learned⟩ bank .discounted narrow :=
+  let initial := TemporalControl.initial Grid.interface ⟨.final, .perStep, .declared, .learned⟩ bank
+    .discounted narrow
+  { initial with runtime := { initial.runtime with
+      references := { initial.runtime.references with phase := phase } } }
+
+/-- A temporal state has an executing invocation exactly when its dispatch phase holds a live
+option, or a committed run that holds the option whose draw began it.
+`active_slot_value` states the slot. -/
+theorem active_slot : Regula.ExecutableContract @TemporalControl.activeSlot (fun active =>
+    Regula.Decides (·.isSome = true)
+      (fun input : ActiveSlot =>
+        (∃ slot activation, input.state.runtime.references.phase = .option slot activation) ∨
+          ∃ run, input.state.runtime.references.phase = .exploring run ∧ run.origin ≠ none)
+      (fun input : ActiveSlot => @active input.interface input.profile input.config
+        input.criterion input.dimension input.state)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨interface, profile, config, criterion, dimension, state⟩
+      show (state.runtime.references.phase.executing).isSome = true ↔ _
+      rcases state.runtime.references.phase with _ | run | ⟨slot, activation⟩
+      · simp [Occupancy.executing]
+      · cases origin : run.origin <;> simp [Occupancy.executing, origin]
+      · simp [Occupancy.executing])
+    ⟨⟨Grid.interface, _, bank, .discounted, narrow, phased (.option ⟨0, by decide⟩ (.first true false))⟩,
+      .inl ⟨⟨0, by decide⟩, .first true false, rfl⟩⟩
+    ⟨⟨Grid.interface, _, bank, .discounted, narrow, phased .idle⟩, fun specified => by
+      rcases specified with ⟨_, _, same⟩ | ⟨_, same, _⟩ <;> exact nomatch same⟩⟩
+
+attribute [regula_decision] TemporalControl.activeSlot
+
+/-- The executing invocation of a temporal state is the slot of its live option, or of the
+option that its committed run holds (`occupancy_executing_value` on its dispatch phase). A kind
+does not state the value of a result, so this statement is a requirement with no kind beside
+the kind `active_slot`. -/
+theorem active_slot_value : Regula.ExecutableContract @TemporalControl.activeSlot (fun active =>
+    ∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension)
+      (slot : Fin Acorn.FeatureConstants.skillCount),
+      active state = some slot ↔
+        (∃ activation, state.runtime.references.phase = .option slot activation) ∨
+          ∃ run activation, state.runtime.references.phase = .exploring run ∧
+            run.origin = some (slot, activation)) :=
+  ⟨fun state slot => occupancy_executing_value.1 state.runtime.references.phase slot⟩
+
+/-- The arguments of `Force.named`, in order. -/
+structure ForceNamed where
+  /-- The type of the world's actions. -/
+  action : Type
+  /-- The force of the last release. -/
+  force : Force action
+  /-- The world's default action. -/
+  rest : Option action
+  /-- The instant. -/
+  now : Instant
+
+/-- A force names an action at an instant exactly when the action it names is present: the
+released action while it is in force, with no lapse or before the lapse, and the world's
+default from the lapse on. `force_named_value` states the action that it names. -/
+theorem force_named : Regula.ExecutableContract @Force.named (fun named =>
+    Regula.Decides (· = true)
+      (fun input : ForceNamed =>
+        ((input.force.lapse = none ∨ ∃ lapse, input.force.lapse = some lapse ∧
+            input.now.nanoseconds < lapse.nanoseconds) ∧ input.force.action ≠ none) ∨
+          ((∃ lapse, input.force.lapse = some lapse ∧
+            lapse.nanoseconds ≤ input.now.nanoseconds) ∧ input.rest ≠ none))
+      (Regula.Dependent.isSome fun input : ForceNamed =>
+        @named input.action input.force input.rest input.now)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨α, ⟨action, lapse⟩, rest, now⟩
+      show (Force.named ⟨action, lapse⟩ rest now).isSome = true ↔ _
+      rcases lapse with _ | lapse
+      · cases action <;> simp [Force.named]
+      · by_cases early : now.nanoseconds < lapse.nanoseconds
+        · have late : ¬lapse.nanoseconds ≤ now.nanoseconds := Nat.not_le.mpr early
+          cases action <;> simp [Force.named, early, late]
+        · have late : lapse.nanoseconds ≤ now.nanoseconds := Nat.le_of_not_lt early
+          cases rest <;> simp [Force.named, early, late])
+    ⟨⟨Unit, ⟨some (), none⟩, none, ⟨0⟩⟩, .inl ⟨.inl rfl, nofun⟩⟩
+    ⟨⟨Unit, ⟨none, none⟩, none, ⟨0⟩⟩, by simp⟩⟩
+
+attribute [regula_decision] Force.named
+
+/-- A force names the released action while it is in force, and the world's default from its
+lapse on (`Force.named_lasting`, `Force.named_lapse`). A kind does not state the value of a
+result, so this statement is a requirement with no kind beside the kind `force_named`. -/
+theorem force_named_value : Regula.ExecutableContract @Force.named (fun named =>
+    ∀ {α : Type} (force : Force α) (rest : Option α) (now : Instant),
+      (force.lapse = none → named force rest now = force.action) ∧
+        ∀ lapse, force.lapse = some lapse →
+          named force rest now = if now.nanoseconds < lapse.nanoseconds then force.action
+            else rest) :=
+  ⟨fun force rest now => ⟨Force.named_lasting force rest now,
+    fun lapse lapses => Force.named_lapse force rest now lapse lapses⟩⟩
+
+/-- Every restore event of a list of events has a stop before it: no restore event comes before
+the first stop. -/
+def RestoreFree {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
+    (events : List (AgentInput config criterion dimension)) : Prop :=
+  ∀ (before after : List (AgentInput config criterion dimension)) image,
+    events = before ++ .restore image :: after → .stop ∈ before
+
+private theorem restoreFree_nil {config : Features.Config} {criterion : Criterion}
+    {dimension : Dimension} : RestoreFree ([] : List (AgentInput config criterion dimension)) :=
+  fun before after image same => by simp at same
+
+private theorem restoreFree_stop {config : Features.Config} {criterion : Criterion}
+    {dimension : Dimension} (rest : List (AgentInput config criterion dimension)) :
+    RestoreFree (.stop :: rest) := fun before after image same => by
+  cases before with
+  | nil => simp at same
+  | cons head tail =>
+    simp only [List.cons_append, List.cons.injEq] at same
+    rw [← same.1]
+    exact List.mem_cons_self
+
+private theorem restore_not_free {config : Features.Config} {criterion : Criterion}
+    {dimension : Dimension} (image : AgentImage Grid.interface config criterion dimension)
+    (rest : List (AgentInput config criterion dimension)) :
+    ¬RestoreFree (.restore image :: rest) := fun free => by
+  have stopped := free [] rest image rfl
+  simp at stopped
+
+private theorem restoreFree_cons {config : Features.Config} {criterion : Criterion}
+    {dimension : Dimension} (event : AgentInput config criterion dimension)
+    (rest : List (AgentInput config criterion dimension)) (notStop : event ≠ .stop)
+    (notRestore : ∀ image, event ≠ .restore image) :
+    RestoreFree (event :: rest) ↔ RestoreFree rest := by
+  constructor
+  · intro free before after image same
+    have stopped := free (event :: before) after image (by rw [same]; rfl)
+    rcases List.mem_cons.mp stopped with head | inside
+    · exact absurd head.symm notStop
+    · exact inside
+  · intro free before after image same
+    cases before with
+    | nil =>
+      simp only [List.nil_append, List.cons.injEq] at same
+      exact absurd same.1 (notRestore image)
+    | cons head tail =>
+      simp only [List.cons_append, List.cons.injEq] at same
+      exact List.mem_cons_of_mem _ (free tail after image same.2)
+
+/-- An event that the agent accepts without stopping continues the fold from its next state. -/
+private theorem runPrefix_continue {profile : FeatureProfile} {config : Features.Config}
+    {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
+    (state next : Agent Grid.interface profile config criterion dimension planning)
+    (event : AgentInput config criterion dimension) (rest : List (AgentInput config criterion dimension))
+    (accepted : state.input event = .ok (next, false)) :
+    state.runPrefix (event :: rest) = next.runPrefix rest := by
+  simp [Agent.runPrefix, accepted, bind, Except.bind]
+
+/-- The fold over events accepts exactly under a profile that restores images, or when every
+restore event has a stop before it. -/
+private theorem runPrefix_isOk {profile : FeatureProfile} {config : Features.Config}
+    {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection} :
+    ∀ (events : List (AgentInput config criterion dimension))
+      (state : Agent Grid.interface profile config criterion dimension planning),
+      (state.runPrefix events).isOk = true ↔ Resumable profile ∨ RestoreFree events
+  | [], state => by simp [Agent.runPrefix, restoreFree_nil, Except.isOk, Except.toBool]
+  | event :: rest, state => by
+    cases event with
+    | stop => simp [Agent.runPrefix, Agent.input, bind, Except.bind, pure, Except.pure,
+        restoreFree_stop, Except.isOk, Except.toBool]
+    | restore image =>
+      have accepts := agent_restore.1 state image
+      cases restored : state.restore image with
+      | none =>
+        rw [restored] at accepts
+        simp [Agent.runPrefix, Agent.input, restored, bind, Except.bind, Except.isOk,
+          Except.toBool, restore_not_free] at accepts ⊢
+        exact accepts
+      | some next =>
+        rw [restored] at accepts
+        have resumable : Resumable profile := accepts.mp rfl
+        rw [runPrefix_continue state next _ rest (by simp [Agent.input, restored])]
+        exact ⟨fun _ => .inl resumable, fun _ => (runPrefix_isOk rest next).mpr (.inl resumable)⟩
+    | act observation result =>
+      rw [runPrefix_continue state _ _ rest rfl, runPrefix_isOk rest]
+      exact or_congr_right (restoreFree_cons _ rest (by simp) (by simp)).symm
+    | environment family reward =>
+      rw [runPrefix_continue state _ _ rest rfl, runPrefix_isOk rest]
+      exact or_congr_right (restoreFree_cons _ rest (by simp) (by simp)).symm
+    | attempt family cycle steps achieved =>
+      rw [runPrefix_continue state _ _ rest rfl, runPrefix_isOk rest]
+      exact or_congr_right (restoreFree_cons _ rest (by simp) (by simp)).symm
+    | clear =>
+      rw [runPrefix_continue state _ _ rest rfl, runPrefix_isOk rest]
+      exact or_congr_right (restoreFree_cons _ rest (by simp) (by simp)).symm
+
+/-- The event operation accepts every event but a restore event under a profile that does not
+restore images (`agent_restore`). The specification names the four discriminants of the profile
+and the restore event.
+
+The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
+(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/), as an audit of the kind stated
+with its witnesses showed: the input holds an agent state, the rule reads the type of the input
+(https://github.com/rbeauchamp/regula/issues/270), and that type reaches eleven tests that the
+operation also runs: `Binary32.isNaN`, `Binary64.isNaN`, `Binary32.isZero`, `Binary32.less`,
+`Binary64.less`, `Binary32.lessOrEqual`, `Binary32.magnitudeEq`, `Binary32.negative`,
+`Binary32.numericallyEqual`, `SwiftTd.nextReady` and `FeatureProfile.usesHierarchy`. The
+specification names none of them. `AcornVerif.Decisions.agent_input_edges` states what each
+accepted event does. -/
+theorem agent_input : Regula.ExecutableContract @Agent.input (fun input =>
+    ∀ {profile config criterion dimension planning}
+      (state : Agent Grid.interface profile config criterion dimension planning)
+      (event : AgentInput config criterion dimension),
+      (input state event).isOk = true ↔ Resumable profile ∨ ∀ image, event ≠ .restore image) :=
+  ⟨fun state event => by
+    cases event with
+    | restore image =>
+      have accepts := agent_restore.1 state image
+      cases restored : state.restore image with
+      | none =>
+        rw [restored] at accepts
+        simp [Agent.input, restored, Except.isOk, Except.toBool] at accepts ⊢
+        exact accepts
+      | some next =>
+        rw [restored] at accepts
+        simp only [Agent.input, restored]
+        exact ⟨fun _ => .inl (accepts.mp rfl), fun _ => rfl⟩
+    | stop => simp [Agent.input, Except.isOk, Except.toBool]
+    | act observation result => simp [Agent.input, Except.isOk, Except.toBool]
+    | environment family reward => simp [Agent.input, Except.isOk, Except.toBool]
+    | attempt family cycle steps achieved => simp [Agent.input, Except.isOk, Except.toBool]
+    | clear => simp [Agent.input, Except.isOk, Except.toBool]⟩
+
+/-- The fold over events accepts exactly under a profile that restores images, or when every
+restore event has a stop before it (`agent_input`, `Agent.stop_suffix`).
+
+The statement keeps no kind: an audit of the kind refused it under RG1009 with the eleven
+shared tests that `agent_input` names. -/
+theorem agent_run_prefix : Regula.ExecutableContract @Agent.runPrefix (fun run =>
+    ∀ {profile config criterion dimension planning}
+      (state : Agent Grid.interface profile config criterion dimension planning)
+      (events : List (AgentInput config criterion dimension)),
+      (run state events).isOk = true ↔ Resumable profile ∨ RestoreFree events) :=
+  ⟨fun state events => runPrefix_isOk events state⟩
+
+/-- A result of a fold over events is a success exactly when its image under a map is. -/
+private theorem isOk_map {ε α β : Type} (f : α → β) (result : Except ε α) :
+    (result.map f).isOk = result.isOk := by
+  cases result <;> rfl
+
+/-- The fold of a construction of the default order accepts exactly what the agent's fold
+accepts (`DefaultConstruction.runPrefix_agent`, `agent_run_prefix`).
+
+The statement keeps no kind: its input holds a state of the construction, which holds an agent
+state, and an audit of the kind refused it under RG1009 with the eleven shared tests that
+`agent_input` names. -/
+theorem default_run_prefix : Regula.ExecutableContract DefaultConstruction.runPrefix (fun run =>
+    ∀ (admitted : DefaultConstruction) (state : admitted.construction.State)
+      (events : List (AgentInput admitted.construction.config admitted.construction.criterion
+        admitted.construction.dimension)),
+      (run admitted state events).isOk = true ↔
+        Resumable admitted.construction.profile ∨ RestoreFree events) :=
+  ⟨fun admitted state events => by
+    have same := congrArg Except.isOk (admitted.runPrefix_agent state events)
+    rw [isOk_map] at same
+    rw [same]
+    exact runPrefix_isOk events state.agent⟩
+
+/-- Restoration of a state of a construction accepts exactly under a resumable profile
+(`AgentConstruction.State.restore_agent`, `agent_restore`).
+
+The statement keeps no kind: its input holds a state of the construction, which holds an agent
+state, and an audit of the kind refused it under RG1009 with the eleven shared tests that
+`agent_input` names. -/
+theorem state_restore : Regula.ExecutableContract @AgentConstruction.State.restore
+    (fun restore =>
+      ∀ {construction : AgentConstruction} (state : construction.State)
+        (image : construction.Image),
+        (restore state image).isSome = true ↔ Resumable construction.profile) :=
+  ⟨fun state image => by
+    have same := congrArg Option.isSome (state.restore_agent image)
+    rw [Option.isSome_map] at same
+    rw [same]
+    exact agent_restore.1 state.agent image.image⟩
+
+/-- The arguments of `Handcrafted.AgentConstruction.execute`, in order. -/
+structure Execute where
+  /-- The construction of the default order. -/
+  admitted : DefaultConstruction
+  /-- The agent's events. -/
+  events : List (AgentInput admitted.construction.config admitted.construction.criterion
+    admitted.construction.dimension)
+
+/-- A construction of the default order with the primitive-only profile, which restores no
+image, over `bank` and `narrow`. -/
+def primitiveOnly : DefaultConstruction :=
+  ⟨⟨⟨.primitiveOnly, .perStep, .declared, .learned⟩, .discounted, .none, .learnThenAct, bank,
+    narrow⟩, rfl⟩
+
+/-- The compiled fold from cold initialization accepts exactly under a profile that restores
+images, or when every restore event has a stop before it (`default_run_prefix`). The accepted
+input is the empty list of events; the refused input is one restore event under `primitiveOnly`,
+of the image of its own initial state. -/
+theorem agent_execute : Regula.ExecutableContract AgentConstruction.execute (fun execute =>
+    Regula.Decides (· = true)
+      (fun input : Execute => Resumable input.admitted.construction.profile ∨
+        RestoreFree input.events)
+      (Regula.Dependent.isOk fun input : Execute => execute input.admitted input.events)) :=
+  ⟨decides
+    (fun input => default_run_prefix.1 input.admitted input.admitted.construction.initial
+      input.events)
+    ⟨⟨primitiveOnly, []⟩, .inr restoreFree_nil⟩
+    ⟨⟨primitiveOnly, [.restore (Checkpoint.snapshotImage primitiveOnly.construction
+        primitiveOnly.construction.initial).image]⟩, fun specified => by
+      rcases specified with resumable | free
+      · exact absurd resumable (by decide)
+      · exact restore_not_free _ [] free⟩⟩
+
+attribute [regula_decision] AgentConstruction.execute
+
 
 end Acorn.Decisions
