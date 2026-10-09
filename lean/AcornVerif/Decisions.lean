@@ -96,13 +96,12 @@ quotient in their place.
 The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
 the side of the box `Host.WorldConfig.side`, and the kind of `Host.payAndAct` also shares the
 phase of the day `Host.World.dayPhase`, which the cost of an action reads; none of them is a
-test. `CurrentActions.ActionAdmits` states the tile
-that an action reads by equations on the coordinates and the box indices and by the constructors
-of the action and the direction, and `CurrentActions.Cost` states the cost by the constructors of
-the action and the constants of `FeatureConstants`. They name no direction table, offset table,
-checked translation, box admission, facing position or cost function. The paid action compares
-the action with a harvest by its derived `BEq`; the specification states that comparison as an
-equality.
+test. `CurrentActions.ActionAdmits` states the tile that an action reads by equations on the
+coordinates and the box indices and by the constructors of the action and the direction, and
+`CurrentActions.Cost` states the cost by the constructors of the action and the constants of
+`FeatureConstants`. They name no direction table, offset table, checked translation, box
+admission, facing position or cost function. The paid action compares the action with a
+harvest by its derived `BEq`; the specification states that comparison as an equality.
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
 tests that their functions run. This module keeps no list of them, and the examples that follow
