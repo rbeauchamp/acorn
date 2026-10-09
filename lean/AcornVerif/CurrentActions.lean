@@ -78,7 +78,7 @@ def Affords {config : WorldConfig} (world : World config) (action : Action) : Pr
   ∃ cost, Cost action world.dayPhase.val cost ∧ cost ≤ world.body.energy.val
 
 /-- A position is determined by its two coordinates. -/
-private theorem position_ext {first second : Position}
+theorem position_ext {first second : Position}
     (column : first.x.val = second.x.val) (row : first.y.val = second.y.val) :
     first = second := by
   cases first with

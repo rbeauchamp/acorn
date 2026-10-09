@@ -387,18 +387,6 @@ private theorem offset_delta {direction : Host.Direction} {dx dy : Int}
     (offset : Offset direction dx dy) : direction.delta = (dx, dy) := by
   rcases offset with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ <;> rfl
 
-/-- A position is determined by its two coordinates. -/
-private theorem position_ext {first second : Host.Position}
-    (column : first.x.val = second.x.val) (row : first.y.val = second.y.val) :
-    first = second := by
-  cases first with
-  | mk firstX firstY =>
-    cases second with
-    | mk secondX secondY =>
-      congr
-      · exact Subtype.ext column
-      · exact Subtype.ext row
-
 /-- What an accepted stance shows, in every world of the configuration, for the offset of one
 move in the direction: a paid harvest from the stance, facing the direction, yields the item,
 when the tile one offset ahead holds a standing tree for a wood stance; a paid move in the
@@ -444,7 +432,7 @@ private theorem stance_sound {config : Host.WorldConfig} {stance : Host.BoxPosit
   refine ⟨fun world next events ahead column row standing faced grown stepped paid => ?_,
     fun world next action events heads column row stepped paid => ?_, ?_⟩
   · have same : stance.facingPosition direction = ahead :=
-      position_ext (by rw [column, ← first]; rfl) (by rw [row, ← second]; rfl)
+      CurrentActions.position_ext (by rw [column, ← first]; rfl) (by rw [row, ← second]; rfl)
     exact CurrentCertificates.stance_harvest accepted world next events standing faced
       (by rw [same]; exact grown) stepped paid
   · exact CurrentCertificates.stance_enter accepted world next action events
@@ -455,7 +443,7 @@ private theorem stance_sound {config : Host.WorldConfig} {stance : Host.BoxPosit
     obtain ⟨column, row⟩ := CurrentCertificates.translate_some _ _ _ _ moved
     refine ⟨approach, by rw [← first]; exact column, by rw [← second]; exact row,
       fun world tile tileColumn tileRow => ?_⟩
-    have same : tile = approach.position := position_ext tileColumn tileRow
+    have same : tile = approach.position := CurrentActions.position_ext tileColumn tileRow
     rw [same]
     exact CurrentCertificates.walkable_enterable world approach.position walkable
 
@@ -1366,8 +1354,9 @@ private theorem harvest_faced (scale : Binary32) :
   · intro admits
     exact admits faced (by rw [column, center.1]; decide) (by rw [row, center.2]; decide)
   · intro admits tile tileColumn tileRow
-    have same : tile = faced := position_ext (by rw [tileColumn, column, center.1]; decide)
-      (by rw [tileRow, row, center.2]; decide)
+    have same : tile = faced :=
+      CurrentActions.position_ext (by rw [tileColumn, column, center.1]; decide)
+        (by rw [tileRow, row, center.2]; decide)
     rw [same]
     exact admits
 

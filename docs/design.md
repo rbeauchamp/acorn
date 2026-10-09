@@ -437,8 +437,9 @@ at every cap (`blocked_infeasible`). The owners of the table's theorems are the
 [step proofs](../lean/AcornVerif/CurrentStep.lean),
 [terrain proofs](../lean/AcornVerif/CurrentTerrain.lean),
 [goal proofs](../lean/AcornVerif/CurrentGoals.lean),
-[curriculum proofs](../lean/AcornVerif/CurrentCurriculum.lean) and
-[spawn proofs](../lean/AcornVerif/CurrentSpawn.lean).
+[curriculum proofs](../lean/AcornVerif/CurrentCurriculum.lean),
+[spawn proofs](../lean/AcornVerif/CurrentSpawn.lean) and
+[action proofs](../lean/AcornVerif/CurrentActions.lean).
 
 ### What a certificate establishes about one seed
 
