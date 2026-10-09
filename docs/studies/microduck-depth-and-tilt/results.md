@@ -52,11 +52,15 @@ the physical robot or its sensor.
 ## Records
 
 The record of session T, 19.2 MB as written and 5.6 MB compressed, is over the protocol's limit
-of 2 MB, so the task keeps it outside the repository and the repository holds its SHA-256 and
+of 2 MB, so it is kept outside the repository, unpublished, as written, in the owner's private
+study archive (file study-6/originals/session-T.tsv), which the repository's owner holds and
+keeps until deciding otherwise. The repository holds its SHA-256 and
 [an extract](observations/r1/session-T-extract.tsv) with the clock, the phase and the upward
 component of each state frame, as the protocol fixes. The protocol's analysis reads the full
 record, not the extract; the reader of the extract in the addendum prints, for the three
-phases, the same lines as the analysis did.
+phases, the same lines as the analysis did. A reader can follow the protocol's canonical
+analysis, which reads the full record, only through the extract and its reader; the full record
+is not public.
 
 ## Deviation from the protocol
 
@@ -64,6 +68,17 @@ The protocol has the records committed compressed with gzip. The repository's co
 refuses archives, so the record of session D (561 KB) and the vendor script's output are
 committed uncompressed, byte for byte; their hashes in the [manifest](observations/r1/manifest-sha256.txt)
 are those of the records as written. Nothing else of the run departs from the protocol.
+
+The protocol was registered by the signed commit 3c9afd7c1af770638267aacd82058e1839d06be7,
+committed at 2026-10-09T09:48:40Z, about an hour before the run began at 10:51:47Z, on a branch
+that was not published before the run. Publication rebased that branch onto the main branch,
+and the change reaches the main branch as one squash commit dated after the run; neither
+carries 3c9afd7c. The protocol as published has the SHA-256 that the identity file records as
+run (fb00446c71d8a353999c6810507feba332a4c07180cf02ef726a6b8903653619), so its bytes are those
+of revision 1; a hash establishes integrity, not the time of registration, so the published
+history alone cannot show that the protocol preceded the run, and nothing independent attests
+the time of the commit. The commit 3c9afd7c is kept in the repository under the tag
+microduck-depth-and-tilt-r1-registered.
 
 ## Addendum, 2026-10-09, after the second reading of the change
 

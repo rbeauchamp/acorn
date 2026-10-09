@@ -1275,7 +1275,7 @@ level that moves the cutoff of acceptance away from -967 contradicts the stateme
 keeps it does not, such as a step of 200 with the declared level of -950 thousandths, which is
 then 159. The two inputs of the proof are a state whose upward
 component is -1000 thousandths, which is accepted, and one whose upward component is 0, which
-is refused. That an accepted state is a trunk tilted by less than 14.65 degrees is argued in
+is refused. That an accepted state is a trunk tilted by less than 14.8 degrees is argued in
 `docs/design.md`, not stated here. -/
 theorem microduck_upright :
     Regula.ExecutableContract Handcrafted.Microduck.upright (fun upright =>
