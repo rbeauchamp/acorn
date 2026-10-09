@@ -264,8 +264,9 @@ theorems beside each definition.
 
 This module declares theorems, specification predicates, the structures of the arguments of
 the functions with a dependent type, and closed values that are inputs of the witnesses of
-kinds: `wide` and `last` for the terrain, and the values of the section "Closed inputs of the
-kinds with a dependent type".
+kinds: `wide` and `last` for the terrain, the values of the section "Closed inputs of the
+kinds with a dependent type", and `sourced`, `spot`, `sixteen` and `single` of the section
+"Classifiers and lookups".
 No executable and no other module imports it, so no entry point links those definitions, and
 the registration attribute's module, which imports Lean's elaborator, is linked into no
 native entry point.
@@ -4218,5 +4219,549 @@ theorem next_ready : Regula.ExecutableContract @SwiftTd.nextReady (fun next =>
     ⟨⟨narrow, .retire ⟨0, by decide⟩, false⟩, by simp⟩⟩
 
 attribute [regula_decision] SwiftTd.nextReady
+
+/-! ## Classifiers and lookups
+
+Each function below has a theorem of the executing library about its result and returns a
+verdict: a test with a `Bool` result, or a lookup whose result is absent exactly when the input
+holds nothing to return. The kind of a lookup is about whether its result holds a value. -/
+
+/-- The arguments of `Features.Occupancy.free`, in order. -/
+structure OccupancyFree where
+  /-- The type of a live option's state. -/
+  activation : Type
+  /-- The type of a committed exploratory run. -/
+  exploration : Type
+  /-- The occupancy of the dispatch boundary. -/
+  occupancy : Occupancy activation exploration
+
+/-- A boundary is free exactly when its occupancy is idle: it holds neither a live option nor
+a committed exploratory run. -/
+theorem occupancy_free : Regula.ExecutableContract @Occupancy.free (fun free =>
+    Regula.Decides (· = true) (fun input : OccupancyFree => input.occupancy = .idle)
+      (fun input : OccupancyFree => @free input.activation input.exploration input.occupancy)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨activation, exploration, occupancy⟩
+      cases occupancy <;> simp [Occupancy.free])
+    ⟨⟨Unit, Unit, .idle⟩, rfl⟩ ⟨⟨Unit, Unit, .exploring ()⟩, nofun⟩⟩
+
+attribute [regula_decision] Occupancy.free
+
+/-- The ranking assigns the subtasks exactly under a profile whose subtasks are learned. -/
+theorem ranks_subtasks : Regula.ExecutableContract FeatureProfile.ranksSubtasks (fun ranks =>
+    Regula.Decides (· = true) (fun profile : FeatureProfile => profile.subtasks = .learned)
+      ranks) :=
+  ⟨decides
+    (fun profile => by
+      rcases profile with ⟨mode, credit, rate, subtasks⟩
+      cases subtasks <;> simp [FeatureProfile.ranksSubtasks])
+    ⟨⟨.final, .perStep, .declared, .learned⟩, rfl⟩
+    ⟨⟨.final, .perStep, .declared, .spatial⟩, nofun⟩⟩
+
+attribute [regula_decision] FeatureProfile.ranksSubtasks
+
+/-- A profile uses the option hierarchy exactly when its mode is not primitive-only. -/
+theorem uses_hierarchy : Regula.ExecutableContract FeatureProfile.usesHierarchy (fun uses =>
+    Regula.Decides (· = true) (fun profile : FeatureProfile => profile.mode ≠ .primitiveOnly)
+      uses) :=
+  ⟨decides
+    (fun profile => by
+      rcases profile with ⟨mode, credit, rate, subtasks⟩
+      cases mode <;> simp [FeatureProfile.usesHierarchy])
+    ⟨⟨.final, .perStep, .declared, .learned⟩, nofun⟩
+    ⟨⟨.primitiveOnly, .perStep, .declared, .learned⟩, fun other => other rfl⟩⟩
+
+attribute [regula_decision] FeatureProfile.usesHierarchy
+
+/-- A channel is reserved exactly when it is the first feedback channel plus a position of the
+layout, in wrapping word arithmetic. -/
+private theorem reserved_iff (interface : Interface) (channel : UInt64) :
+    interface.reserved channel = true ↔ ∃ position : Nat,
+      position < interface.layout.length ∧ channel = interface.feedback + position.toUInt64 := by
+  unfold Interface.reserved
+  rw [decide_eq_true_iff]
+  constructor
+  · intro inside
+    refine ⟨(channel - interface.feedback).toNat, inside, ?_⟩
+    apply UInt64.toNat_inj.mp
+    simp only [UInt64.toNat_add, UInt64.toNat_sub, Nat.toUInt64, UInt64.toNat_ofNat']
+    have := channel.toNat_lt
+    have := interface.feedback.toNat_lt
+    omega
+  · rintro ⟨position, inside, rfl⟩
+    have word : (interface.feedback + position.toUInt64 - interface.feedback).toNat =
+        position % 2 ^ 64 := by
+      simp only [UInt64.toNat_add, UInt64.toNat_sub, Nat.toUInt64, UInt64.toNat_ofNat']
+      have := interface.feedback.toNat_lt
+      omega
+    rw [word]
+    exact Nat.lt_of_le_of_lt (Nat.mod_le _ _) inside
+
+/-- A channel is reserved exactly when it is the interface's first feedback channel plus the
+position of a question of the layout, in wrapping word arithmetic (`reserved_iff`). The
+accepted input is the first feedback channel of the grid interface; the refused input is the
+channel before it. -/
+theorem interface_reserved : Regula.ExecutableContract Interface.reserved (fun reserved =>
+    Regula.Decides (· = true)
+      (fun input : Interface × UInt64 => ∃ position : Nat,
+        position < input.1.layout.length ∧ input.2 = input.1.feedback + position.toUInt64)
+      (Function.uncurry reserved)) :=
+  ⟨.of_iff (fun input => reserved_iff input.1 input.2)
+    ⟨(Grid.interface, Grid.interface.feedback), by decide⟩
+    ⟨(Grid.interface, Grid.interface.feedback - 1), by decide⟩⟩
+
+attribute [regula_decision] Interface.reserved
+
+/-- The arguments of `Features.OptionActivation.learning`, in order. -/
+structure ActivationLearning where
+  /-- The learning mode of the activation's type. -/
+  mode : Bool
+  /-- The activation. -/
+  activation : OptionActivation mode
+
+/-- An activation learns exactly when the mode of its type is learning. -/
+theorem activation_learning : Regula.ExecutableContract @OptionActivation.learning
+    (fun learning =>
+      Regula.Decides (· = true) (fun input : ActivationLearning => input.mode = true)
+        (fun input : ActivationLearning => @learning input.mode input.activation)) :=
+  ⟨decides (fun _ => Iff.rfl) ⟨⟨true, .first true false⟩, rfl⟩
+    ⟨⟨false, .first false false⟩, nofun⟩⟩
+
+attribute [regula_decision] OptionActivation.learning
+
+/-- A decision of the meta action space with the given source: the first action, zero values
+and masses, no exploration, no meta decision, and no start or end of an option. -/
+def sourced (source : TemporalSource) : TemporalDecision metaCount :=
+  ⟨source, firstAction metaCount, .replicate _ .zero, .replicate _ .zero, false,
+    .replicate _ .zero, none, none, none⟩
+
+/-- The arguments of `Features.TemporalDecision.own`, in order. -/
+structure DecisionOwn where
+  /-- The action count. -/
+  actions : Word.Count
+  /-- The decision. -/
+  decision : TemporalDecision actions
+
+/-- A decision uses primitive credit exactly when no option's own draw selected its action. -/
+theorem decision_own : Regula.ExecutableContract @TemporalDecision.own (fun own =>
+    Regula.Decides (· = true)
+      (fun input : DecisionOwn => ∀ slot, input.decision.source ≠ .option slot)
+      (fun input : DecisionOwn => @own input.actions input.decision)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨actions, decision⟩
+      cases source : decision.source <;> simp [TemporalDecision.own, source])
+    ⟨⟨metaCount, sourced .primitive⟩, fun _ => nofun⟩
+    ⟨⟨metaCount, sourced (.option ⟨0, by decide⟩)⟩, fun other => other ⟨0, by decide⟩ rfl⟩⟩
+
+attribute [regula_decision] TemporalDecision.own
+
+/-- The arguments of `Handcrafted.askedBy`, in order. -/
+structure AskedBy where
+  /-- The action count. -/
+  actions : Word.Count
+  /-- The decision of the frame. -/
+  decision : TemporalDecision actions
+  /-- The option. -/
+  index : Fin Acorn.FeatureConstants.skillCount
+  /-- The option's off-policy trajectory, if any. -/
+  following : Option Following
+
+/-- A frame's action was selected with an option's own distribution exactly when the option
+drew it, or the option follows a live trajectory: a stored trajectory whose live flag is set. -/
+theorem asked_by : Regula.ExecutableContract @askedBy (fun asked =>
+    Regula.Decides (· = true)
+      (fun input : AskedBy => input.decision.source = .option input.index ∨
+        ∃ age previous, input.following = some ⟨age, true, previous⟩)
+      (fun input : AskedBy => @asked input.actions input.decision input.index input.following)) :=
+  ⟨.of_iff
+    (fun input => by
+      rcases input with ⟨actions, decision, index, following⟩
+      rcases following with _ | ⟨age, live, previous⟩
+      · simp [askedBy]
+      · cases live <;> simp [askedBy])
+    ⟨⟨metaCount, sourced (.option ⟨0, by decide⟩), ⟨0, by decide⟩, none⟩, by decide⟩
+    ⟨⟨metaCount, sourced .primitive, ⟨0, by decide⟩, none⟩, by decide⟩⟩
+
+attribute [regula_decision] askedBy
+
+/-- Meta action zero delegates to primitive control, and every other meta action names a
+skill. `skill_of_meta_value` states the skill that it names. -/
+theorem skill_of_meta : Regula.ExecutableContract skillOfMeta (fun skill =>
+    Regula.Decides (·.isSome = true)
+      (fun action : Action metaCount.word.toNat => action.val ≠ 0) skill) :=
+  ⟨.of_iff
+    (fun action => by
+      unfold skillOfMeta
+      by_cases zero : action.val = 0 <;> simp [zero])
+    ⟨⟨1, by decide⟩, by decide⟩ ⟨⟨0, by decide⟩, by decide⟩⟩
+
+attribute [regula_decision] skillOfMeta
+
+/-- Each meta action other than zero names the skill one below it: an action names exactly the
+skill whose index plus one is the action's. A kind does not state the value of a result, so
+this statement is a requirement with no kind beside the kind `skill_of_meta`. -/
+theorem skill_of_meta_value : Regula.ExecutableContract skillOfMeta (fun skill =>
+    ∀ (action : Action metaCount.word.toNat) (named : Fin Acorn.FeatureConstants.skillCount),
+      skill action = some named ↔ action.val = named.val + 1) :=
+  ⟨fun action named => by
+    unfold skillOfMeta
+    by_cases zero : action.val = 0
+    · simp [zero]
+    · simp only [zero, ↓reduceDIte, Option.some.injEq, Fin.ext_iff]
+      constructor <;> intro same <;> omega⟩
+
+/-- The arguments of `Features.ExploratoryRun.serve`, in order. -/
+structure RunServe where
+  /-- The action count. -/
+  count : Word.Count
+  /-- The committed run. -/
+  run : ExploratoryRun count
+
+/-- A committed run serves an action exactly while it has an action remaining.
+`run_serve_value` states the action and the run that follow. -/
+theorem run_serve : Regula.ExecutableContract @ExploratoryRun.serve (fun serve =>
+    Regula.Decides (· = true) (fun input : RunServe => 0 < input.run.remaining.val)
+      (Regula.Dependent.isSome fun input : RunServe => @serve input.count input.run)) :=
+  ⟨present (fun _ => dite_isSome _)
+    ⟨⟨metaCount, ⟨firstAction metaCount, ⟨1, by decide⟩⟩⟩, by decide⟩
+    ⟨⟨metaCount, ⟨firstAction metaCount, ⟨0, by decide⟩⟩⟩, by decide⟩⟩
+
+attribute [regula_decision] ExploratoryRun.serve
+
+/-- A run serves exactly its committed action, and the run it continues with has the same
+action and one action fewer remaining (`ExploratoryRun.serve_exact`, `ExploratoryRun.spent`).
+A kind does not state the value of a result, so this statement is a requirement with no kind
+beside the kind `run_serve`. -/
+theorem run_serve_value : Regula.ExecutableContract @ExploratoryRun.serve (fun serve =>
+    ∀ {count : Word.Count} (run next : ExploratoryRun count) (action : Action count.word.toNat),
+      serve run = some (action, next) ↔ 0 < run.remaining.val ∧ action = run.action ∧
+        next.action = run.action ∧ next.remaining.val + 1 = run.remaining.val) :=
+  ⟨fun run next action => by
+    constructor
+    · intro served
+      refine ⟨Nat.pos_of_ne_zero fun spent => ?_, ExploratoryRun.serve_exact run next action served⟩
+      rw [(ExploratoryRun.spent run).mpr spent] at served
+      contradiction
+    · rintro ⟨remaining, rfl, same, fewer⟩
+      obtain ⟨nextAction, nextRemaining⟩ := next
+      dsimp only at same fewer
+      subst same
+      simp only [ExploratoryRun.serve, remaining, ↓reduceDIte, Option.some.injEq, Prod.mk.injEq,
+        ExploratoryRun.mk.injEq, true_and]
+      apply Fin.ext
+      dsimp only
+      omega⟩
+
+/-- The arguments of `Features.Occupancy.executing`, in order. -/
+structure OccupancyExecuting where
+  /-- The action count. -/
+  actions : Word.Count
+  /-- The learning mode. -/
+  mode : Bool
+  /-- The occupancy of the dispatch boundary. -/
+  occupancy : Occupancy (OptionActivation mode) (CommittedRun actions mode)
+
+/-- A dispatch occupancy has an executing invocation exactly when it holds a live option, or
+a committed run that holds the option whose draw began it. `occupancy_executing_value` states
+the slot. -/
+theorem occupancy_executing : Regula.ExecutableContract @Occupancy.executing (fun executing =>
+    Regula.Decides (·.isSome = true)
+      (fun input : OccupancyExecuting =>
+        (∃ slot activation, input.occupancy = .option slot activation) ∨
+          ∃ run : CommittedRun input.actions input.mode,
+            input.occupancy = .exploring run ∧ run.origin ≠ none)
+      (fun input : OccupancyExecuting =>
+        @executing input.actions input.mode input.occupancy)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨actions, mode, occupancy⟩
+      rcases occupancy with _ | run | ⟨slot, activation⟩
+      · simp [Occupancy.executing]
+      · cases origin : run.origin <;> simp [Occupancy.executing, origin]
+      · simp [Occupancy.executing])
+    ⟨⟨metaCount, true, .option ⟨0, by decide⟩ (.first true false)⟩,
+      .inl ⟨⟨0, by decide⟩, .first true false, rfl⟩⟩
+    ⟨⟨metaCount, true, .idle⟩, fun specified => by
+      rcases specified with ⟨_, _, same⟩ | ⟨_, same, _⟩ <;> exact nomatch same⟩⟩
+
+attribute [regula_decision] Occupancy.executing
+
+/-- The executing invocation is the slot of the live option, or the slot of the option that a
+committed run holds. A kind does not state the value of a result, so this statement is a
+requirement with no kind beside the kind `occupancy_executing`. -/
+theorem occupancy_executing_value : Regula.ExecutableContract @Occupancy.executing
+    (fun executing =>
+      ∀ {actions : Word.Count} {mode : Bool}
+        (occupancy : Occupancy (OptionActivation mode) (CommittedRun actions mode))
+        (slot : Fin Acorn.FeatureConstants.skillCount),
+        executing occupancy = some slot ↔ (∃ activation, occupancy = .option slot activation) ∨
+          ∃ run activation, occupancy = .exploring run ∧ run.origin = some (slot, activation)) :=
+  ⟨fun occupancy slot => by
+    rcases occupancy with _ | run | ⟨held, activation⟩
+    · simp [Occupancy.executing]
+    · cases origin : run.origin with
+      | none => simp [Occupancy.executing, origin]
+      | some found =>
+        obtain ⟨origin', activation⟩ := found
+        simp [Occupancy.executing, origin]
+    · simp [Occupancy.executing]⟩
+
+/-- The candidate of the one unit of `bank`, with the bonus `spark`. -/
+def spot : Candidate bank := ⟨⟨0, by decide⟩, spark⟩
+
+/-- The arguments of `Features.best`, in order. -/
+structure BestOf where
+  /-- The bank configuration. -/
+  config : Features.Config
+  /-- The candidates. -/
+  items : List (Candidate config)
+
+/-- A scan finds a best candidate exactly when it has a candidate to scan. `best_of_value`
+states which candidate it finds. -/
+theorem best_of : Regula.ExecutableContract @best (fun scan =>
+    Regula.Decides (· = true) (fun input : BestOf => input.items ≠ [])
+      (Regula.Dependent.isSome fun input : BestOf => @scan input.config input.items)) :=
+  ⟨present
+    (fun input => by
+      rcases input with ⟨config, items⟩
+      cases items <;> simp [best])
+    ⟨⟨bank, [spot]⟩, by decide⟩ ⟨⟨bank, []⟩, by decide⟩⟩
+
+attribute [regula_decision] best
+
+/-- A scan returns one of its candidates that dominates every candidate: the largest key, and
+on equal keys the lowest unit (`best_spec`). A kind does not state the value of a result, so
+this statement is a requirement with no kind beside the kind `best_of`. -/
+theorem best_of_value : Regula.ExecutableContract @best (fun scan =>
+    ∀ {config : Features.Config} (items : List (Candidate config)) (winner : Candidate config),
+      scan items = some winner → winner ∈ items ∧ ∀ candidate ∈ items, winner.Dominates candidate) :=
+  ⟨best_spec⟩
+
+/-- The arguments of `Features.Assignment.retain`, in order. -/
+structure AssignmentRetain where
+  /-- The bank configuration. -/
+  config : Features.Config
+  /-- The ranked candidates. -/
+  chosen : List (Candidate config)
+  /-- The held objective. -/
+  assignment : Assignment config
+
+/-- A held objective is retained exactly when it selects a unit that some ranked candidate
+names. `assignment_retain_value` states the objective that it keeps. -/
+theorem assignment_retain : Regula.ExecutableContract @Assignment.retain (fun retain =>
+    Regula.Decides (· = true)
+      (fun input : AssignmentRetain => ∃ unit bonus, input.assignment = .selected unit bonus ∧
+        ∃ candidate ∈ input.chosen, candidate.unit = unit)
+      (Regula.Dependent.isSome fun input : AssignmentRetain =>
+        @retain input.config input.chosen input.assignment)) :=
+  ⟨.of_iff
+    (fun input => by
+      rcases input with ⟨config, chosen, assignment⟩
+      cases assignment <;> simp [Regula.Dependent.isSome, Assignment.retain, List.find?_isSome])
+    ⟨⟨bank, [spot], chosen⟩, by decide⟩ ⟨⟨bank, [], chosen⟩, by decide⟩⟩
+
+attribute [regula_decision] Assignment.retain
+
+/-- A retained objective keeps its unit, and its bonus is the larger, by its unsigned word, of
+the held bonus and the score of the first ranked candidate that names the unit. The two
+conditions on the bonus determine it. A kind does not state the value of a result, so this
+statement is a requirement with no kind beside the kind `assignment_retain`. -/
+theorem assignment_retain_value : Regula.ExecutableContract @Assignment.retain (fun retain =>
+    ∀ {config : Features.Config} (before after : List (Candidate config))
+      (candidate : Candidate config) (unit : Fin config.units.count) (bonus : Bonus),
+      candidate.unit = unit → (∀ earlier ∈ before, earlier.unit ≠ unit) →
+        ∃ raised, retain (before ++ candidate :: after) (.selected unit bonus) =
+            some (.selected unit raised) ∧ (raised = bonus ∨ raised = candidate.score) ∧
+          bonus.value.bits.toNat ≤ raised.value.bits.toNat ∧
+          candidate.score.value.bits.toNat ≤ raised.value.bits.toNat) :=
+  ⟨fun before after candidate unit bonus named earlier => by
+    have first : (before ++ candidate :: after).find? (·.unit == unit) = some candidate :=
+      List.find?_eq_some_iff_append.mpr ⟨by simp [named],
+        before, after, rfl, fun other inside => by simp [earlier other inside]⟩
+    refine ⟨bonus.max candidate.score, by simp [Assignment.retain, first], ?_,
+      Bonus.le_max bonus candidate.score⟩
+    unfold Bonus.max
+    split
+    · exact .inr rfl
+    · exact .inl rfl⟩
+
+/-- The arguments of `Features.kept`, in order. -/
+structure KeptSlot where
+  /-- The bank configuration. -/
+  config : Features.Config
+  /-- The held objectives, one per slot. -/
+  held : Vector (Assignment config) Acorn.FeatureConstants.skillCount
+  /-- The ranked candidates. -/
+  chosen : List (Candidate config)
+  /-- The slot. -/
+  slot : Fin Acorn.FeatureConstants.skillCount
+
+/-- A slot keeps an objective exactly when it selects a unit that some ranked candidate names
+and that no earlier slot selects. -/
+private theorem kept_iff {config : Features.Config}
+    (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+    (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount) :
+    (kept held chosen slot).isSome = true ↔ ∃ unit bonus, held[slot.val] = .selected unit bonus ∧
+      (∃ candidate ∈ chosen, candidate.unit = unit) ∧
+      ∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val →
+        ∀ earlier, held[other.val] ≠ .selected unit earlier := by
+  unfold kept
+  split
+  · rename_i taken
+    simp only [Option.isSome_none, Bool.false_eq_true, false_iff, not_exists, not_and]
+    intro unit bonus selected _ free
+    obtain ⟨other, -, sameEarlier⟩ := List.any_eq_true.mp taken
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at sameEarlier
+    obtain ⟨earlierSlot, same⟩ := sameEarlier
+    rw [selected] at same
+    cases earlier : held[other.val] with
+    | neutral => simp [earlier, Assignment.same] at same
+    | selected otherUnit otherBonus =>
+      simp only [earlier, Assignment.same, beq_iff_eq] at same
+      exact free other earlierSlot otherBonus (by rw [earlier, same])
+  · rename_i untaken
+    cases selected : held[slot.val] with
+    | neutral => simp [Assignment.retain]
+    | selected unit bonus =>
+      simp only [Assignment.retain, Option.isSome_map, List.find?_isSome, beq_iff_eq,
+        Assignment.selected.injEq]
+      constructor
+      · intro named
+        refine ⟨unit, bonus, ⟨rfl, rfl⟩, named, fun other earlierSlot earlier same => ?_⟩
+        apply untaken
+        apply List.any_eq_true.mpr
+        refine ⟨other, List.mem_finRange _, ?_⟩
+        simp [earlierSlot, same, selected, Assignment.same]
+      · rintro ⟨_, _, ⟨rfl, rfl⟩, named, _⟩
+        exact named
+
+/-- A slot keeps its retained objective exactly when the objective selects a unit that some
+ranked candidate names and that no earlier slot selects (`kept_iff`). The accepted input is
+the first slot of `bank`'s objectives, which holds `chosen` while its unit is ranked; the
+refused input is the second slot, which holds the neutral objective. `kept_slot_value` states
+the objective that it keeps. -/
+theorem kept_slot : Regula.ExecutableContract @kept (fun keep =>
+    Regula.Decides (· = true)
+      (fun input : KeptSlot => ∃ unit bonus, input.held[input.slot.val] = .selected unit bonus ∧
+        (∃ candidate ∈ input.chosen, candidate.unit = unit) ∧
+        ∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < input.slot.val →
+          ∀ earlier, input.held[other.val] ≠ .selected unit earlier)
+      (Regula.Dependent.isSome fun input : KeptSlot =>
+        @keep input.config input.held input.chosen input.slot)) :=
+  ⟨.of_iff (fun input => kept_iff input.held input.chosen input.slot)
+    ⟨⟨bank, #v[chosen, .neutral, .neutral], [spot], ⟨0, by decide⟩⟩, by decide⟩
+    ⟨⟨bank, #v[chosen, .neutral, .neutral], [spot], ⟨1, by decide⟩⟩, by decide⟩⟩
+
+attribute [regula_decision] kept
+
+/-- A slot returns nothing when an earlier slot selects its unit, and otherwise returns the
+retained objective of its held one (`assignment_retain_value`). A kind does not state the
+value of a result, so this statement is a requirement with no kind beside the kind
+`kept_slot`. -/
+theorem kept_slot_value : Regula.ExecutableContract @kept (fun keep =>
+    ∀ {config : Features.Config}
+      (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
+      (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount),
+      ((∃ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val ∧
+          ∃ unit bonus earlier, held[slot.val] = .selected unit bonus ∧
+            held[other.val] = .selected unit earlier) →
+        keep held chosen slot = none) ∧
+      ((∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val →
+          ∀ unit bonus earlier, held[slot.val] = .selected unit bonus →
+            held[other.val] ≠ .selected unit earlier) →
+        keep held chosen slot = held[slot.val].retain chosen)) :=
+  ⟨fun held chosen slot => by
+    constructor
+    · rintro ⟨other, earlierSlot, unit, bonus, earlier, selected, before⟩
+      unfold kept
+      have taken : ((List.finRange Acorn.FeatureConstants.skillCount).any fun other =>
+          decide (other.val < slot.val) && held[other.val].same held[slot.val]) = true :=
+        List.any_eq_true.mpr ⟨other, List.mem_finRange _, by
+          simp [earlierSlot, selected, before, Assignment.same]⟩
+      simp only [taken, ↓reduceIte]
+    · intro fresh
+      unfold kept
+      split
+      · rename_i taken
+        obtain ⟨other, -, sameEarlier⟩ := List.any_eq_true.mp taken
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at sameEarlier
+        obtain ⟨earlierSlot, same⟩ := sameEarlier
+        cases selected : held[slot.val] with
+        | neutral => simp [Assignment.retain]
+        | selected unit bonus =>
+          rw [selected] at same
+          cases before : held[other.val] with
+          | neutral => simp [before, Assignment.same] at same
+          | selected otherUnit otherBonus =>
+            simp only [before, Assignment.same, beq_iff_eq] at same
+            exact absurd (by rw [before, same]) (fresh other earlierSlot unit bonus otherBonus selected)
+      · rfl⟩
+
+/-- The feature space with sixteen indices: the smallest power of two whose ranked part has a
+position besides the reserved last one. -/
+def sixteen : Dimension := ⟨16, by decide, ⟨4, rfl⟩, by decide⟩
+
+/-- The ranking of `sixteen` that holds its first index at the first position. -/
+def single : RankedFeatures sixteen :=
+  .ofSlots (Vector.ofFn fun position => if position.val = 0 then some ⟨0, by decide⟩ else none)
+    (by decide)
+    (index_distinct _ fun first second _ left right => by
+      apply Fin.ext
+      simp only [Vector.getElem_ofFn] at left right
+      by_cases zero : first.val = 0 <;> by_cases other : second.val = 0 <;> simp_all)
+
+/-- The arguments of `Features.RankedFeatures.position`, in order. -/
+structure RankedPosition where
+  /-- The feature space. -/
+  dimension : Dimension
+  /-- The ranking. -/
+  ranked : RankedFeatures dimension
+  /-- The looked-up index. -/
+  feature : FeatIdx dimension
+
+/-- A lookup finds a position exactly when some position of the ranking holds the index: a
+returned position holds it (`RankedFeatures.position_slot`), and every held index is found
+(`RankedFeatures.position_complete`). The specification reads the slots and not the table.
+The accepted input is the first index of `single`; the refused input is the same index of the
+empty ranking. `ranked_position_value` states the position that it returns. -/
+theorem ranked_position : Regula.ExecutableContract @RankedFeatures.position (fun position =>
+    Regula.Decides (· = true)
+      (fun input : RankedPosition => ∃ held : RankIdx input.dimension,
+        input.ranked.slots[held.val] = some input.feature)
+      (Regula.Dependent.isSome fun input : RankedPosition =>
+        @position input.dimension input.ranked input.feature)) :=
+  ⟨present
+    (fun input => ⟨fun accepted => by
+        obtain ⟨found, located⟩ := Option.isSome_iff_exists.mp accepted
+        exact ⟨found, RankedFeatures.position_slot _ _ _ located⟩,
+      fun ⟨held, holds⟩ => by
+        obtain ⟨found, located⟩ := RankedFeatures.position_complete _ held _ holds
+        rw [located]
+        rfl⟩)
+    ⟨⟨sixteen, single, ⟨0, by decide⟩⟩, ⟨0, by decide⟩, by decide⟩
+    ⟨⟨sixteen, .empty sixteen, ⟨0, by decide⟩⟩, fun ⟨_, holds⟩ => by
+      simp [RankedFeatures.empty, RankedFeatures.ofSlots] at holds⟩⟩
+
+attribute [regula_decision] RankedFeatures.position
+
+/-- A lookup returns exactly the position that holds the index: a returned position holds it
+(`RankedFeatures.position_slot`), and a position that holds it is the one returned, since no
+index is held at two positions (`RankedFeatures.position_complete`,
+`RankedFeatures.slot_unique`). A kind does not state the value of a result, so this statement
+is a requirement with no kind beside the kind `ranked_position`. -/
+theorem ranked_position_value : Regula.ExecutableContract @RankedFeatures.position
+    (fun position =>
+      ∀ {dimension : Dimension} (ranked : RankedFeatures dimension) (feature : FeatIdx dimension)
+        (found : RankIdx dimension),
+        position ranked feature = some found ↔ ranked.slots[found.val] = some feature) :=
+  ⟨fun ranked feature found => by
+    constructor
+    · exact RankedFeatures.position_slot ranked feature found
+    · intro holds
+      obtain ⟨located, returned⟩ := RankedFeatures.position_complete ranked found feature holds
+      rw [returned, RankedFeatures.slot_unique ranked located found feature
+        (RankedFeatures.position_slot ranked feature located returned) holds]⟩
 
 end Acorn.Decisions
