@@ -158,10 +158,12 @@ so a lower obstacle is not near for such a body. A sitting body's sensor is lowe
 
 The study microduck-depth-and-tilt (docs/studies/microduck-depth-and-tilt) measured two
 quantities in the simulator: every state frame of a scripted walk forward and of turns on a
-bare floor was upright, the trunk tilting by at most 4.9 degrees, and at rest in front of a
-wall no clear frame came between two near ones. The bound of an upright trunk does not move
-to the next level of the gravity word, at which a sitting body could read a flat floor as
-near (the study's protocol makes the argument). In the simulator a zone's status is 255 only
+bare floor was upright, the trunk tilting by at most 4.9 degrees in the frames the analysis
+kept and 5.1 degrees in the forward phase's first second, and at rest in front of a wall no
+clear frame came between two near ones. The bound of an upright trunk does not move to the
+next level of the gravity word: a sitting body pitched forward by 29.8 degrees, upright at
+that level, meets a flat floor at 237 mm along the centre rays of row 1, under the assumptions
+above (the study's results give the pose). In the simulator a zone's status is 255 only
 when its ray meets nothing within 4 m, so it does not drop out at close range.
 
 UNKNOWN, because no run has measured them: how far a learning agent's actions, skills and

@@ -1270,8 +1270,10 @@ theorem microduck_outcome_judged :
 gravity is below -967 thousandths, which is the gravity word of the frame below its level of
 -0.95 (`Handcrafted.Microduck.upright_iff`). The specification compares the stored
 thousandths with a literal; the function compares the level of the gravity word with the
-declared level, so the two share no test, and a change of the declared level or of the step of
-a level contradicts the statement. The two inputs of the proof are a state whose upward
+declared level, so the two share no test. A change of the declared level or of the step of a
+level that moves the cutoff of acceptance away from -967 contradicts the statement; one that
+keeps it does not, such as a step of 200 with the declared level of -950 thousandths, which is
+then 159. The two inputs of the proof are a state whose upward
 component is -1000 thousandths, which is accepted, and one whose upward component is 0, which
 is refused. That an accepted state is a trunk tilted by less than 14.65 degrees is argued in
 `docs/design.md`, not stated here. -/

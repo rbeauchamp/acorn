@@ -1167,9 +1167,12 @@ body's sensor is lower, at 0.174 m, and so are its beams.
 
 The study [microduck-depth-and-tilt](studies/microduck-depth-and-tilt/results.md)
 measured two of these in the simulator. In a scripted walk forward at 0.3 m/s and turns at
-1.5 rad/s on a bare floor, every state frame was upright, the trunk tilted by at most 4.9
-degrees; the bound does not move to the next level, which would let a sitting body read a
-flat floor as near (the study's protocol makes the argument). At rest in front of a wall of
+1.5 rad/s on a bare floor, every state frame was upright; in the frames its analysis kept,
+from a second after each phase's first frame, the trunk tilted by at most 4.9 degrees, and
+5.1 degrees in the forward phase's first second. The bound does not move to the next level:
+a sitting body pitched forward by 29.8 degrees, upright at that level, meets a flat floor at
+237 mm along the centre rays of row 1, under the assumptions above (the study's results give
+the pose). At rest in front of a wall of
 the apartment scene no clear frame came between two near ones in a minute. In the
 simulator a zone's status is 255 only when its ray meets nothing within 4 m, read in the
 vendor's source, so its status cannot drop out at close range; a zone can still change as
