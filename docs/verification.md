@@ -304,12 +304,12 @@ instant of the fault at which it has not lapsed, which is every instant in a wor
 actions do not lapse, and `Acorn.Pace.step_lapsed` that from its lapse the fault has
 the world's default. `Acorn.Pace.step_faultless` states that no instant has a fault
 exactly when the release meets the deadline. An instant is a natural number of
-nanoseconds, so this arithmetic is exact. The statements are about these functions: no
-executing loop keeps a standing or reads a cycle or a latency, and no executing world
-declares a wall clock.
+nanoseconds, so this arithmetic is exact. The statements are about these functions. The
+grid world declares no wall clock; the Microduck's world declares one, and its host keeps a
+standing in its pure transitions.
 
-The Microduck world has an action table and a bridge's state, as pure definitions that no
-executing loop calls. The type of the commands a bridge can send is closed: enable, one of
+The Microduck world has an action table and a bridge's state, as pure definitions, which the
+host's transitions call. The type of the commands a bridge can send is closed: enable, one of
 four velocities, one of five skills. `Acorn.Host.Microduck.Action.commands_powered`
 states that the release of an action never sends the enable command.
 `Acorn.Host.Microduck.Action.next_covers` states, for every release, timely or
@@ -334,7 +334,7 @@ transitions, and its verdict at every instant is the deadline rule's for its las
 fault holds from the deadline to the release, the instant of the release included
 (`Acorn.Host.Microduck.Awaiting.release_fault`), and the latch of the goal is the fold
 of the adapter's rule over the readings sensed (`Acorn.Host.Microduck.Reached.latch`).
-The pure core of the host's loop calls the transitions with the agent's two step parts, and the action released for a percept is the agent's choice on it (`Acorn.Host.Microduck.Loop.step_release`); no driver runs it yet. A bridge's state stores the record of its release, and the
+The pure core of the host's loop calls the transitions with the agent's two step parts, and the action released for a percept is the agent's choice on it (`Acorn.Host.Microduck.Loop.step_release`). The executable `microduck-host` runs that loop over three nc child processes, the trusted transport, at readings of the monotonic clock, and hands it a finished choice or learning only after the runtime answered that its task finished, with the reading taken after that; it is effects, with no theorem of its own. A bridge's state stores the record of its release, and the
 cycle of the next percept and the end of the hold are functions of that record, so
 `Acorn.Host.Microduck.Bridge.next_covers` holds of every state.
 `Acorn.Host.Microduck.Bridge.ticks_named` states that over any list of readings of
@@ -533,7 +533,7 @@ skip it as Lake's build directory.
 
 `lean/foundation_manifest.json` states what is audited. A claim names the
 strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
-NativeApp and Bootstrap, with the eleven application executables, claim Regula's
+NativeApp and Bootstrap, with the twelve application executables, claim Regula's
 standard-logical profile: propext, Quot.sound and Classical.choice, and no other
 axiom. No stricter profile is attainable, because Lean's core definitions of
 binary32 and binary64 arithmetic depend on Classical.choice, as do the Mathlib

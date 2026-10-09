@@ -437,7 +437,8 @@ F-E left its feature-construction end inert until U3.
   ([design](design.md#the-two-parts-of-a-step)); every value that either native
   loop returns agrees with one pure fold of whole steps, in its run state and
   outcome or in its refusal with the learned stage of a refused pass
-  (`runAttempt_complete`), and no executing world runs on a wall clock. One is carried by the frame: the host's achievement flag still ends an
+  (`runAttempt_complete`); the Microduck's world runs on a wall clock, through the
+  pure loop that the executable `microduck-host` drives. One is carried by the frame: the host's achievement flag still ends an
   option, as a field that the coder does not read (`frame_congr`); it is declared
   as departure [D8](learned-only-binding.md#d8--achievement-event--step-10). Two
   are inside the agent's own modules, which import no world: the lifetime
@@ -447,7 +448,8 @@ F-E left its feature-construction end inert until U3.
   `withoutReachRelation` is named for the grid world's reach relation, which only
   the grid adapter omits from its frame
   words. A second world, the Microduck, has an instance of the interface and an
-  adapter, as definitions; no executing loop runs an agent in it, so that an agent
+  adapter, and the executable `microduck-host` runs the agent in it against the
+  vendor's simulator; no run of it is recorded as a measurement, so that an agent
   learns in another world is not an observation.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the

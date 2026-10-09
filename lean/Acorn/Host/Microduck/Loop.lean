@@ -14,7 +14,8 @@ reads its clock, senses a percept when a cycle is due, gives the percept to the 
 releases the action the agent chose and lets the agent learn, while the world goes on. This
 module is the loop's core, with no effect: a state, the events a driver hands it, each with
 a reading of the clock, and one step for each event, which returns the next state and the
-lines to send. The driver that reads a clock and sockets and runs the loop is not built here.
+lines to send. The driver that reads a clock and sockets and runs the loop is
+`Acorn.Host.Microduck.Driver`, over the transport of `Acorn.Host.Microduck.Transport`.
 
 **The stages make the illegal states unrepresentable.** A loop is in one of three stages
 (`Stage`): `ready`, with no percept awaiting and the agent free to take one; `choosing`, with

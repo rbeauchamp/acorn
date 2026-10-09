@@ -338,17 +338,18 @@ cycle and the later one meets its deadline, for percepts `span` cycles apart, th
 later release is less than `span + latency` cycles after the earlier one
 (`Pace.met_gap`).
 
-These are statements about the functions. No executing loop keeps a standing or
-reads a cycle or a latency, and no executing world declares a wall clock. A host of a
-wall-clock world computes its verdicts with `Pace.outcome`; the pure transitions of the
-Microduck's host do, and no executing loop calls them yet. Nothing here states that a
-world keeps in force the action that a standing names.
+These are statements about the functions. A host of a wall-clock world computes its
+verdicts with `Pace.outcome`; the pure transitions of the Microduck's host do, and the
+executable `microduck-host` (`Acorn.Host.Microduck.Driver`) runs them on the monotonic
+clock, through the loop of `Acorn.Host.Microduck.Loop`, which counts every release at or
+after its deadline. Nothing here states that a world keeps in force the action that a
+standing names.
 
-Operation in real time needs three more parts, and none is built:
+Operation in real time needs three more parts. The first is built for the Microduck's
+world:
 
 - a driver of a host loop for a world on a wall clock, which reads the declared timing and
-  counts a missed deadline as a fault; the Microduck's loop has a pure core
-  (`Acorn.Host.Microduck.Loop`) and no driver
+  counts a missed deadline as a fault: `microduck-host`
   ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
 - a bound of the work of each part of a step;
 - the exact save and restore of the agent. An exact saved image of the agent is
@@ -642,8 +643,9 @@ as JSON,
 its transitions,
 [the pure core of the host's loop](../lean/Acorn/Host/Microduck/Loop.lean),
 and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
-No driver of the loop and no transport exist yet, so no code of Acorn reaches the simulator and no executing code
-builds a percept of this world
+[The transport](../lean/Acorn/Host/Microduck/Transport.lean) and
+[the driver of the loop](../lean/Acorn/Host/Microduck/Driver.lean) make the executable
+`microduck-host`, which runs the agent against the simulator's daemons
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
 **The daemon's networks are the world's actuation interface.** Every intent is
@@ -1050,7 +1052,20 @@ invalid line is counted and changes nothing else (`Stage.react_refused`). The st
 finished choice releases its action at every instant, since the release of the awaited
 cycle is admitted from the last step on (`Loop.step_release`), and the counts hold one
 percept for each percept sensed and a release for each but the one awaited (`Ran.counts`).
-No driver calls the loop yet, and none of these reads a clock or a socket.
+None of these reads a clock or a socket.
+
+**The driver and the transport.** `Acorn.Host.Microduck.Transport` is the trusted
+boundary: one child process `/usr/bin/nc -U <socket>` for each of the three connections
+(commands and answers, the state stream, the depth stream), whose output lines reader
+tasks append to one list in the order read; nothing in it parses a line. The executable
+`microduck-host` (`Acorn.Host.Microduck.Driver`) holds a `Loop` and changes it only with
+`Loop.step`, at readings of the monotonic clock: in each pass every line heard, then a
+finished task only after IO.hasFinished answered true for the task the loop holds, with
+the reading taken after that answer, then a tick every 20 ms; the lines a step returns go
+to their connections in order before the next step. It cannot make its thread read the
+clock at least every `Declared.gap`, which the declared keeping assumes, so it counts the
+gaps between two ticks above it and reports the largest, with one telemetry line for each
+change of stage.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol
