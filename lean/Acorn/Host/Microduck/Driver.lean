@@ -58,7 +58,8 @@ ticks above `Declared.gap` and keeps the largest, in its telemetry.
 **Telemetry**, on standard output, one line for each change of the loop's stage, with the
 instant in nanoseconds from the origin: `sensed` with the cycle of the percept, the daemon's
 answer to the release before it as heard by then and whether a depth frame is held, `released`
-with the cycle, the action, whether the release was late and the number of commands sent, and
+with the cycle, the action, whether the release was late and the number of commands sent,
+`learning` when the lines of the release were sent and the agent's learning starts, and
 `learned`; then one closing line with why the run ended, the steps, the loop's counts and the
 gaps of the ticker. A refusal of the options is reported on standard error with the exit
 status 2, and a failure of the transport, or a connection that ended before the duration,
@@ -177,6 +178,7 @@ def changes {stepper : Stepper State Choice} {initial : State} (origin : Nat)
       | some release => release.record.action.label
       | none => "none"
     [s!"released\t{instant}\t{awaiting.poised.index}\t{action}\t{idle.calm.late}\t{sent}"]
+  | .released .., .learning .. => [s!"learning\t{instant}"]
   | _, _ => []
 
 /-- The closing line of a run, at the reading at which the driver ended it. -/

@@ -1,0 +1,9 @@
+study: microduck-depth-and-tilt
+protocol revision: 1, registered by commit 3c9afd7c1af770638267aacd82058e1839d06be7
+protocol sha256 as run: fb00446c71d8a353999c6810507feba332a4c07180cf02ef726a6b8903653619
+session program sha256 (block 3 of the protocol, written to session.py): a0d599e86198b8262fac6b81016c4bee41974df8c519b27a05ae66817eb9f320
+analysis program sha256 (block 5 of the protocol): 66551110f8468717daa0c96fcd0cc4b97abbe63e0d1095dc80970591676bfbca
+sessions run: 2026-10-09T10:51:47Z to 2026-10-09T10:55:06Z, session T on the default (bare floor) scene, then session D on the apartment scene
+simulator: pollen-robotics/microduck 9136aa4ee88e81edf2bcaf3527e90b65da25f1eb, pollen-robotics/microduck_rl 1f2e4afcf33fbc75172b893c82fb66da9e3fc7ea, rustc 1.99.0, policies pollen-robotics/microduck-policies v5
+machine: the owner's Mac (Apple silicon, macOS), under the load of the other jobs of the fleet at the time
+records: session-T.tsv is kept by the task outside the repository (5.6 MB compressed); session-T-extract.tsv is an extract of it; every other record is committed uncompressed, byte for byte (the corpus audit refuses archives)

@@ -1,0 +1,24 @@
+[36m==[0m down
+[36m==[0m building the daemons from HEAD
+[36m==[0m no policy set here — fetching the official one
+[36m==[0m rendering duck-a a voice
+[36m==[0m starting the body from /Users/richard/.treehouse/acorn-0ccbc9/1/acorn/.scratch/duck-sim/src/microduck_rl — a MuJoCo window should open
+[36m==[0m starting tofd
+[36m==[0m starting configd
+[36m==[0m starting updaterd
+[36m==[0m starting robotd
+[36m==[0m standing up
+robot     healthy
+  loop      49.8 of 50.0 Hz · 308 ticks · 0 missed · last 15 ms ago
+  bus       ok
+[36m==[0m duck-a: standing (trunk 0.116 m, gravity z -1.000)
+
+  Your duck is up. From here:
+
+    scripts/duck-sim drive        walk it forward, then stop
+    scripts/duck-sim ctl health   or anything else robotctl does
+    scripts/duck-sim ctl robot do roulade
+    scripts/duck-sim log          what the daemon is saying
+    scripts/duck-sim ctl account login    reach it from anywhere, like a real duck
+    scripts/duck-sim down
+
