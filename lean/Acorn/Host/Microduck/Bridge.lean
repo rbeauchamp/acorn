@@ -107,15 +107,15 @@ These are assumptions of the use of the statements, proved nowhere:
 - the receipt follows the reading of the clock that a send is stamped with by at most
   the transit allowance of the keeping;
 - a reading of the clock, and a tick, at least every `Declared.gap`. That needs a reader
-  of the clock that runs while the agent's step computes, which is a property of an
-  executing host loop, which is not built, and of the operating system's scheduling;
+  of the clock that runs while the agent's step computes, which is a property of the
+  driver of the host's loop, which is not built, and of the operating system's scheduling;
 - the posture a caller states is the body's;
 - the declared duration of an action covers what the body takes for it.
 
 No executing code keeps a `Bridge`: the functions here are pure.
 `Acorn.Host.Microduck.Session` holds one in the state of a host and calls them in its own
-pure transitions, which refuse a percept before the cycle that `Bridge.next` gives; the
-executing loop that calls those is not built
+pure transitions, which refuse a percept before the cycle that `Bridge.next` gives;
+`Acorn.Host.Microduck.Loop` calls those in a pure loop, and no driver runs it
 (https://github.com/rbeauchamp/acorn/issues/95). Nothing in a `Bridge` itself refuses an
 earlier release.
 -/

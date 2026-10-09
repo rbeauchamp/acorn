@@ -13,8 +13,8 @@ The Microduck's world moves on a wall clock. A host of that world hears lines of
 daemons, senses a percept at the start of a cycle, releases the action that the agent
 chose, and reads its clock between releases. This module is the state a host holds
 between those events and one pure transition for each event. It reads no clock, no socket
-and no agent: an executing loop that calls these transitions in the order of time is not
-built, and nothing here states that one does.
+and no agent: `Acorn.Host.Microduck.Loop` calls these transitions in a pure loop, no driver
+runs that loop yet, and nothing here states that one does.
 
 **Two phases, two types.** An `Idle` is a host with no percept awaiting its action: before
 the first percept, and between a release and the next percept. An `Awaiting` is a host
@@ -1233,6 +1233,37 @@ theorem Awaiting.tick_keeps (now : Instant) (awaiting : Awaiting) :
       (awaiting.tick now).1.poised.sitting = awaiting.poised.sitting ∧
       (awaiting.tick now).1.poised.standing = awaiting.poised.standing :=
   Poised.ticked_keeps now awaiting.poised
+
+/-- **Hearing a line while a percept awaits keeps everything but the depth frames held.**
+For every host with a percept awaiting and every line: the settings, the next identifier,
+the release before the percept, the latch, the awaited cycle and the held posture are as
+before. -/
+theorem Awaiting.hear_keeps (awaiting : Awaiting) (line : Line) :
+    (awaiting.hear line).poised.pace = awaiting.poised.pace ∧
+      (awaiting.hear line).poised.keep = awaiting.poised.keep ∧
+      (awaiting.hear line).poised.origin = awaiting.poised.origin ∧
+      (awaiting.hear line).poised.next = awaiting.poised.next ∧
+      (awaiting.hear line).poised.last = awaiting.poised.last ∧
+      (awaiting.hear line).poised.armed = awaiting.poised.armed ∧
+      (awaiting.hear line).poised.index = awaiting.poised.index ∧
+      (awaiting.hear line).poised.sitting = awaiting.poised.sitting := by
+  show (awaiting.poised.heard line).pace = _ ∧ _
+  cases line <;> exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- **A refused frame and an invalid line change nothing in a host with no percept
+awaiting.** For every such host and every stream: hearing a notification of the stream whose
+frame was refused, or an invalid line, gives the host back. -/
+theorem Idle.hear_refused (idle : Idle) (stream : Stream) :
+    idle.hear (.unread stream) = idle ∧ idle.hear .invalid = idle := by
+  obtain ⟨calm, _⟩ := idle
+  exact ⟨rfl, rfl⟩
+
+/-- **A refused frame and an invalid line change nothing in a host with a percept
+awaiting.** For every such host and every stream. -/
+theorem Awaiting.hear_refused (awaiting : Awaiting) (stream : Stream) :
+    awaiting.hear (.unread stream) = awaiting ∧ awaiting.hear .invalid = awaiting := by
+  obtain ⟨poised, _⟩ := awaiting
+  exact ⟨rfl, rfl⟩
 
 /-- **While a percept awaits, what is sent is the velocity of the action that the deadline
 rule names, up to the end of its hold.** For every instant and host with a percept awaiting.

@@ -346,8 +346,9 @@ world keeps in force the action that a standing names.
 
 Operation in real time needs three more parts, and none is built:
 
-- a host loop for a world on a wall clock, which reads the declared timing and
-  counts a missed deadline as a fault
+- a driver of a host loop for a world on a wall clock, which reads the declared timing and
+  counts a missed deadline as a fault; the Microduck's loop has a pure core
+  (`Acorn.Host.Microduck.Loop`) and no driver
   ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
 - a bound of the work of each part of a step;
 - the exact save and restore of the agent. An exact saved image of the agent is
@@ -639,8 +640,9 @@ with its reader of one JSON number,
 as JSON,
 [what a host holds between two events](../lean/Acorn/Host/Microduck/Session.lean) with
 its transitions,
+[the pure core of the host's loop](../lean/Acorn/Host/Microduck/Loop.lean),
 and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
-No executing host loop and no transport exist yet, so no code of Acorn reaches the simulator and no executing code
+No driver of the loop and no transport exist yet, so no code of Acorn reaches the simulator and no executing code
 builds a percept of this world
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
@@ -798,7 +800,7 @@ on assumptions that are proved nowhere:
 - the receipt follows the reading of the clock a send is stamped with by at most the
   transit allowance;
 - a reading of the clock at least every 50 ms, which needs a reader that runs while
-  the agent's step computes. That is a property of an executing host loop, which is not
+  the agent's step computes. That is a property of the driver of the host's loop, which is not
   built, and of the operating system's scheduling;
 - that the posture a caller states is the body's. A wrong one sends the toggle the
   wrong way;
@@ -1014,8 +1016,41 @@ every derivation holds of every value.
   the velocity of the action that the deadline rule names in force, up to the end of its
   hold, and nothing from then (`Awaiting.tick_named`).
 
-No executing loop calls these transitions yet, and none of them reads a clock or a
-socket.
+**The loop's core.** `Acorn.Host.Microduck.Loop` composes these transitions with the
+agent's two step parts, with no effect: a driver hands it events (a line heard, a tick of
+the clock, a finished choice, a finished learning), each with a reading of the clock, and
+each step returns the next state and the lines to send. A stage is `ready`, `choosing` or
+`learning`, and `choosing` is the only stage that holds an awaiting host, so a percept
+awaits exactly while the agent chooses and no percept is sensed while the agent chooses or
+learns. A `Loop` holds a stage with a derivation from its start (`Ran`) for its stepper and
+its starting agent, as the host's two phases hold theirs, so a task of a loop computes the
+stepper's part on what the loop sensed and no other value exists (`Loop.agent`). The
+instant of a step is the later of the reading and the instant of the last step
+(`Loop.at_later`), so a loop's instants do not go back and are never before its host's
+origin, and `Idle.sense` is the only test of sensing. The agent's parts are tasks that the
+runtime spawns from a `Stepper`'s functions, once each, so the action released for a
+percept is the stepper's choice on it (`Stage.step_sense`, `Loop.step_release`);
+`Stepper.ofAgent` binds the agent under `actThenLearn`, whose two parts compose to
+`Agent.actOrdered` (`Stepper.ofAgent_step`). The driver's trusted contract is to hand a
+finished choice or a finished learning only once IO.hasFinished holds of its task, with
+the reading of the clock taken after that: a step told early reads the task's value all the
+same but records the earlier reading as the instant of the release, so its lateness and the
+hold and cycle times that follow are not meaningful. This is observed against the
+simulator, not proved: told early, 59 releases waited 550 to 758 ms for the choice, all
+reached the daemon after their deadline and none was counted late (run `live-early`);
+told after IO.hasFinished, all 36 releases that reached the daemon after their deadline
+were counted late, and the late flag equalled "instant at or after the deadline" on every
+release (run `live-slow`; its other 5 releases were told early by injected events). A tick
+reaches the host's own tick in every stage, so the velocity of the last release is sent again while the agent computes
+(`Stage.step_tick`). After its opening requests the loop sends exactly the lines of the
+commands that the host's tick and release return, on the control connection
+(`Stage.step_sends`), each with an identifier of at least `opening`, so no answer to an
+opening request is attributed to a command (`Stage.step_fresh`). A refused frame or an
+invalid line is counted and changes nothing else (`Stage.react_refused`). The step of a
+finished choice releases its action at every instant, since the release of the awaited
+cycle is admitted from the last step on (`Loop.step_release`), and the counts hold one
+percept for each percept sensed and a release for each but the one awaited (`Ran.counts`).
+No driver calls the loop yet, and none of these reads a clock or a socket.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol
