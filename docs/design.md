@@ -1165,15 +1165,25 @@ trunk and the head at rest, the lowest beam of the two top rows passes about 0.2
 above the floor at 300 mm, so a lower obstacle is not near for such a body. A sitting
 body's sensor is lower, at 0.174 m, and so are its beams.
 
-UNKNOWN, because no run has measured them: how far the trunk tilts while the body
-walks, and so how often the body counts as upright then; where the standing and
-walking networks and each skill hold the head, which they drive; the height of the
-trunk during a skill; which status a robot's sensor sends for a usable return and
-for nothing in range; what the two top rows return on a slope, a step or a soft
-floor; whether the status of a zone drops out at close range, so that a body at rest
-could collect events ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)
-records the measurement and what it decides); and how often the event occurs for a
-body that does not approach anything. A
+The study [microduck-depth-and-tilt](studies/microduck-depth-and-tilt/results.md)
+measured two of these in the simulator. In a scripted walk forward at 0.3 m/s and turns at
+1.5 rad/s on a bare floor, every state frame was upright; in the frames its analysis kept,
+from a second after each phase's first frame, the trunk tilted by at most 4.9 degrees, and
+5.1 degrees in the forward phase's first second. The bound does not move to the next level:
+a sitting body pitched forward by 29.8 degrees, upright at that level, meets a flat floor at
+237 mm along the centre rays of row 1, under the assumptions above (the study's results give
+the pose). At rest in front of a wall of
+the apartment scene no clear frame came between two near ones in a minute. In the
+simulator a zone's status is 255 only when its ray meets nothing within 4 m, read in the
+vendor's source, so its status cannot drop out at close range; a zone can still change as
+a ray crosses an obstacle's edge.
+
+UNKNOWN, because no run has measured them: how far a learning agent's actions, skills and
+falls tilt the trunk; where the standing and walking networks and each skill hold the
+head, which they drive; the height of the trunk during a skill; which status a robot's
+sensor sends for a usable return and for nothing in range, and whether it drops out at
+close range; what the two top rows return on a slope, a step or a soft floor; and how
+often the event occurs for a body that does not approach anything. A
 body with no depth sensor is never near and never clear, so this goal gives it no
 reward; a goal that needs no depth sensor is not built.
 

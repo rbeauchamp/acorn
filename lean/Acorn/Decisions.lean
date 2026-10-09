@@ -204,25 +204,25 @@ report of the definitions that have no contract is work of Regula
   and `Handcrafted.TemporalControl.drawFirst_total` states that it returns one from every
   aligned state. The age of the depth frame of a Microduck reading
   (`Host.Microduck.Reading.age`) is in this group too: it refuses nothing, and it is absent
-  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`). Four
-  definitions of the Microduck adapter are in this group as well: the tests
-  `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, the event of the goal
+  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`). Two
+  definitions of the Microduck adapter are in this group as well: the event of the goal
   `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. Four definitions are the exception.
+the end of this module states those. Two definitions are the exception.
 `AgentConstruction.State.restore`, which `Checkpoint.load` applies, is the restoration of the
 agent on the admitted image (`AgentConstruction.State.restore_agent`), and the restoration of
-the agent has the contract `agent_restore`. `Handcrafted.Microduck.upright` and
+the agent has the contract `agent_restore`. `Host.Microduck.Reading.age`, which
+`Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
+states the age of a depth frame that is not after its state frame, and the ownership audit
+requires it by name. The tests `Handcrafted.Microduck.upright` and
 `Handcrafted.Microduck.fresh`, which `Handcrafted.Microduck.near` and
-`Handcrafted.Microduck.clear` apply, and `Host.Microduck.Reading.age`, which `fresh` applies,
-have no contract. `Handcrafted.Microduck.upright_iff` and `Handcrafted.Microduck.fresh_level`
-state the inputs that each test accepts, and `Host.Microduck.Reading.age_exact` states the age
-of a depth frame that is not after its state frame; the ownership audit requires the three
-theorems by name. The contracts `microduck_near` and `microduck_clear` state the conjunction
-of the tests and not either test alone. Where no theorem names an applied definition, it
-has no contract of its own, and the contract of the decision that applies it is the evidence.
+`Handcrafted.Microduck.clear` apply, are registered decisions with the contracts
+`microduck_upright` and `microduck_fresh`, beside the contracts `microduck_near` and
+`microduck_clear`, which state the conjunction of the tests. Where no theorem names an
+applied definition, it has no contract of its own, and the contract of the decision that
+applies it is the evidence.
 The seven private scanners of the parts of a number, which `Json.Numeral.scan` applies, are
 in that case: only private lemmas of the proofs of `Json.Numeral.scan_formed` and
 `Json.Numeral.scan_chars` name them, and the contract `json_scan` is their evidence. The
@@ -1266,6 +1266,63 @@ theorem microduck_outcome_judged :
         outcome action sitting reply shown = result ↔
           action.Judged sitting reply shown result) :=
   ⟨Host.Microduck.Action.outcome_judged⟩
+
+/-- The Microduck world's upright test accepts a state exactly when the upward component of
+gravity is below -967 thousandths, which is the gravity word of the frame below its level of
+-0.95 (`Handcrafted.Microduck.upright_iff`). The specification compares the stored
+thousandths with a literal; the function compares the level of the gravity word with the
+declared level, so the two share no test. A change of the declared level or of the step of a
+level that moves the cutoff of acceptance away from -967 contradicts the statement; one that
+keeps it does not, such as a step of 200 with the declared level of -950 thousandths, which is
+then 159. The two inputs of the proof are a state whose upward
+component is -1000 thousandths, which is accepted, and one whose upward component is 0, which
+is refused. That an accepted state is a trunk tilted by less than 14.8 degrees is argued in
+`docs/design.md`, not stated here. -/
+theorem microduck_upright :
+    Regula.ExecutableContract Handcrafted.Microduck.upright (fun upright =>
+      Regula.Decides (· = true)
+        (fun state : Host.Microduck.State => (state.gravity.get 2).val < -967)
+        upright) :=
+  ⟨decides Handcrafted.Microduck.upright_iff
+    ⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
+        #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩, by decide⟩
+    ⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩, by decide⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.upright
+
+/-- The Microduck world's freshness test accepts a reading exactly when it has a depth frame
+whose age word, the level of its age in steps of `Handcrafted.Microduck.Declared.stale` capped
+at `Handcrafted.Microduck.Declared.oldest`, is below that cap
+(`Handcrafted.Microduck.fresh_level`). The specification reads the age word that the frame
+gives the agent; the function compares the age with the declared bound in nanoseconds, so the
+two share no test. The two inputs of the proof are a reading whose depth frame and state frame
+are stamped at the same instant, whose age is 0, which is accepted, and a reading with no depth
+frame, which is refused. -/
+theorem microduck_fresh :
+    Regula.ExecutableContract Handcrafted.Microduck.fresh (fun fresh =>
+      Regula.Decides (· = true)
+        (fun reading : Host.Microduck.Reading =>
+          ∃ age, reading.age = some age ∧
+            min (age / Handcrafted.Microduck.Declared.stale)
+                Handcrafted.Microduck.Declared.oldest <
+              Handcrafted.Microduck.Declared.oldest)
+        fresh) :=
+  ⟨decides Handcrafted.Microduck.fresh_level
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩,
+      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨0, by decide⟩, 255⟩⟩⟩,
+      ⟨0, rfl, by decide⟩⟩
+    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
+        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+        ⟨false, false, false, false⟩⟩, none⟩,
+      fun ⟨_, absent, _⟩ => nomatch absent⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.fresh
 
 /-- The Microduck world's goal test accepts a reading exactly when the upward component of
 gravity is below -967 thousandths, which is the gravity word of the frame below its level

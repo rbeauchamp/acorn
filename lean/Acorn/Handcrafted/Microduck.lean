@@ -156,15 +156,23 @@ rest, the lowest beam of the two top rows passes about 0.2 m above the floor at 
 so a lower obstacle is not near for such a body. A sitting body's sensor is lower, at
 0.174 m, and so are its beams.
 
-UNKNOWN, because no run has measured them: how far the trunk tilts while the body walks,
-and so how often the body counts as upright then; where the standing and walking
-networks and each skill hold the head, which they drive; the height of the trunk during
-a skill; which status a robot's sensor sends for a usable return and for nothing in
-range; what the two top rows return on a slope, a step or a soft floor; whether the
-status of a zone drops out at close range, so that a body at rest could collect events
-(https://github.com/rbeauchamp/acorn/issues/95 records the measurement and what it
-decides); and how often the event occurs for a body that does not approach anything. A body with no depth sensor
-is never near and never clear, so this goal gives it no reward.
+The study microduck-depth-and-tilt (docs/studies/microduck-depth-and-tilt) measured two
+quantities in the simulator: every state frame of a scripted walk forward and of turns on a
+bare floor was upright, the trunk tilting by at most 4.9 degrees in the frames the analysis
+kept and 5.1 degrees in the forward phase's first second, and at rest in front of a wall no
+clear frame came between two near ones. The bound of an upright trunk does not move to the
+next level of the gravity word: a sitting body pitched forward by 29.8 degrees, upright at
+that level, meets a flat floor at 237 mm along the centre rays of row 1, under the assumptions
+above (the study's results give the pose). In the simulator a zone's status is 255 only
+when its ray meets nothing within 4 m, so it does not drop out at close range.
+
+UNKNOWN, because no run has measured them: how far a learning agent's actions, skills and
+falls tilt the trunk; where the standing and walking networks and each skill hold the head,
+which they drive; the height of the trunk during a skill; which status a robot's sensor sends
+for a usable return and for nothing in range, and whether it drops out at close range; what
+the two top rows return on a slope, a step or a soft floor; and how often the event occurs
+for a body that does not approach anything. A body with no depth sensor is never near and
+never clear, so this goal gives it no reward.
 -/
 namespace Acorn.Handcrafted.Microduck
 open Features
