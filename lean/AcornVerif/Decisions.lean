@@ -642,14 +642,15 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
 /-! ## Checkpoint admissions
 
 Each admission below composes the admissions of its parts, and its round trip is proved in
-`CurrentCheckpoint`. The kind of an admission states which inputs it accepts. It is two-way for
-the demon columns and the lifetime image, whose admitted values hold the input words unchanged,
-and complete for the feature image, the payload and the candidate, where no theorem states that
-an accepted input is a written one. Apart from the lifetime admission, the type of a result
-depends on the receiving construction or on the discounts, so each kind is about
-`Regula.Dependent.isSome` or `Regula.Dependent.isOk` of the function, and the value that the
-admission returns is a separate requirement with no kind, under the name of the kind with
-`_value`. -/
+`CurrentCheckpoint`. The kind of an admission states which inputs it accepts, and each admission
+has a two-way kind: an accepted input is the written form of the value that it returns. The
+demon columns and the lifetime image hold the input words unchanged, the feature image holds the
+words of the receiver and of the admitted parts (`features_written`), and the payload and the
+candidate are the forms of the image that they return (`payload_written`, `candidate_written`).
+Apart from the lifetime admission, the type of a result depends on the receiving construction or
+on the discounts, so each kind is about `Regula.Dependent.isSome` or `Regula.Dependent.isOk` of
+the function, and the value that the admission returns is a separate requirement with no kind,
+under the name of the kind with `_value`. -/
 
 /-- The arguments of `Checkpoint.admitDemons`, in order. -/
 structure DemonsAdmit where

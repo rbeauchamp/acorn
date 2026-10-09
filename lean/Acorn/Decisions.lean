@@ -91,9 +91,9 @@ Fourteen functions of this module have a contract and no kind. The reasons are f
   three word comparisons, and RG1009 refuses the kind.
 * The kinds of the function are stated in the proof library. `FeatureProfile.admit` has a sound
   kind, a complete kind and a two-way kind in `AcornVerif.Decisions`, because their accepted
-  inputs need a round trip that is proved there. Regula does not count a contract of that library toward a
-  registration of this one (https://github.com/rbeauchamp/regula/issues/271), so the function
-  is not registered, and its refusal statement here keeps no kind.
+  inputs need a round trip that is proved there. Regula does not count a contract of that
+  library toward a registration of this one (https://github.com/rbeauchamp/regula/issues/271),
+  so the function is not registered, and its refusal statement here keeps no kind.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
