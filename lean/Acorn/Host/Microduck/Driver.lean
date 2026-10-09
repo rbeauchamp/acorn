@@ -31,20 +31,23 @@ no line was taken. The lines that a step returns go to their connections in the 
 returned, by `Transport.send`, before the next step, and nothing else writes to a connection.
 A step that releases an action is followed at once by `Event.sent`, at a reading taken after
 the lines of the release were sent, and the loop starts the agent's learning only at that
-event, so the action reaches the transport before the second part of the step begins.
+event, so the action reaches the transport before the second part of the step begins. A send
+that fails stops the sending: the lines after it are not sent, `Event.sent` is not handed, the
+step's changes of stage are written with the number of lines sent, and the run ends.
 The commands that can be sent are those of the command type, which has no relax, no shutdown
 and no disable: at the end of a run the host sends nothing more, and the daemon replaces the
 last velocity by zero at its expiry.
 
-**The end of a run.** The loop stops at the end of a pass when a connection's output has
-ended, a send or a step has failed, or the duration has passed. A step that fails is not kept:
-the loop and the count of steps stay those before it, and the driver keeps the first failure.
-Every reader records the reading at which it ended, and the transport keeps the earliest. The
-driver decides how the run ended only after the transport has stopped every connection and
-joined every reader (`Transport.within`): closed when a reader ended before the deadline,
-whenever the driver noticed it and whatever failed after it, and by its duration otherwise. A
-run that did not close raises its kept failure, if it has one, in place of the closing line.
-The closing line, written after that decision, carries a reading taken when the loop stopped.
+**The end of a run.** The loop stops at once when a send fails, and at the end of a pass when
+a connection's output has ended or the duration has passed. A failed send is the only failure
+the driver catches, and it takes it as the end of the send's connection; every other failure,
+a write of the telemetry included, is raised through `Transport.within`, which stops every
+connection. Every reader records the reading at which it ended, and the transport keeps the
+earliest. The driver decides how the run ended only after the transport has stopped every
+connection and joined every reader (`Transport.within`): closed when a send failed, or when a
+reader ended before the deadline and at or before the reading taken when the loop stopped, and
+by its duration otherwise. The ends that the stop's own kills cause come after that reading, so
+they never count. The closing line, written after that decision, carries that reading.
 
 **The clock.** The declared keeping assumes a reading of the clock, and a tick, at least every
 `Declared.gap`. The driver cannot enforce that: the operating system schedules its thread. It
@@ -135,7 +138,7 @@ def Ticker.tick (ticker : Ticker) (reading : Nat) : Ticker :=
 inductive Ending where
   /-- Its duration passed. -/
   | duration
-  /-- The output of a connection ended. -/
+  /-- A send failed, or the output of a connection ended before the deadline. -/
   | closed
 
 /-- The name of an ending in the telemetry. -/
@@ -198,49 +201,56 @@ def Loop.finished {stepper : Stepper State Choice} {initial : State}
   | .ready _ _ => return none
   | .released _ _ => return none
 
-/-- One step of the loop at a reading, and the number of steps taken: the lines it returns are
-sent in order, and its changes of stage are written to the telemetry. When the step released
-an action, the event that says its lines were sent follows at once, at a reading taken after
-they were sent, and starts the agent's learning (`Stage.step_sent`). -/
+/-- Send lines in order, and say how many were sent. A send that fails stops the sending, and
+the lines after it are not sent; this is the only place that catches a failure of a send. -/
+private def sendAll (transport : Transport) (sends : List Send) : IO Nat := do
+  let mut sent := 0
+  for send in sends do
+    try transport.send send
+    catch _ => return sent
+    sent := sent + 1
+  return sent
+
+/-- One step of the loop at a reading, the number of steps taken, and whether every line was
+sent: the lines it returns are sent in order until one fails (`sendAll`), and its changes of
+stage are written to the telemetry with the number of lines sent. When the step released an
+action and every line of the release was sent, the event that says so follows at once, at a
+reading taken after they were sent, and starts the agent's learning (`Stage.step_sent`); when
+a send failed, that event is not handed. -/
 private def advance {stepper : Stepper State Choice} {initial : State} (transport : Transport)
     (out : IO.FS.Stream) (origin : Nat) (loop : Loop stepper initial) (reading : Nat)
-    (event : Event) : IO (Loop stepper initial × Nat) := do
-  let deliver : Loop stepper initial → Loop stepper initial → List Send → IO Unit :=
+    (event : Event) : IO (Loop stepper initial × Nat × Bool) := do
+  let deliver : Loop stepper initial → Loop stepper initial → List Send → IO Bool :=
     fun before after sends => do
-      for send in sends do
-        transport.send send
-      let lines := changes origin before after sends.length
+      let sent ← sendAll transport sends
+      let lines := changes origin before after sent
       unless lines.isEmpty do
         for line in lines do
           out.putStrLn line
         out.flush
+      return sent == sends.length
   let (next, sends) := loop.step ⟨reading⟩ event
-  deliver loop next sends
+  unless ← deliver loop next sends do
+    return (next, 1, false)
   match next.stage with
   | .released _ _ =>
     let (learning, more) := next.step ⟨← IO.monoNanosNow⟩ .sent
-    deliver next learning more
-    return (learning, 2)
-  | _ => return (next, 1)
+    return (learning, 2, ← deliver next learning more)
+  | _ => return (next, 1, true)
 
 /-- Run the loop with a stepper and its starting agent over the transport, for a duration in
-seconds, writing the telemetry to a stream, and say why the run ended. A failed send of the
-opening requests or a failed step ends the loop at the end of its pass, with the loop and the
-count of steps before the failed step. The ending is decided after the transport has stopped
-every connection and joined every reader, from the earliest reading at which a reader ended
-against the deadline; a run that did not close raises its first failure, if it has one, in
-place of the closing line, which is written only after that decision. -/
+seconds, writing the telemetry to a stream, and say why the run ended. A failed send ends the
+loop at once, with the loop of the step that failed to send; every other failure is raised.
+The ending is decided after the transport has stopped every connection and joined every
+reader: closed when a send failed, or when the earliest reading at which a reader ended is
+before the deadline and at or before the reading taken when the loop stopped, and by its
+duration otherwise. Only then is the closing line written. -/
 def drive (stepper : Stepper State Choice) (initial : State) (control depth : System.FilePath)
     (seconds : Nat) (out : IO.FS.Stream) : IO Ending := do
   let (run, earliest) ← Transport.within control depth fun transport => do
     let origin ← IO.monoNanosNow
     let (start, opening) := Loop.start stepper initial Declared.pace Declared.keep ⟨origin⟩
-    let mut failure : Option IO.Error := none
-    try
-      for send in opening do
-        transport.send send
-    catch error =>
-      failure := some error
+    let mut failed := (← sendAll transport opening) != opening.length
     out.putStrLn s!"start\t0\torigin={origin}\topening={opening.length}"
     out.flush
     let deadline := origin + seconds * 1000000000
@@ -248,50 +258,51 @@ def drive (stepper : Stepper State Choice) (initial : State) (control depth : Sy
     let mut steps := 0
     let mut ticker : Ticker := ⟨origin, 0, 0⟩
     let mut nextTick := origin + tickPeriod
-    repeat
+    while !failed do
       let lines ← transport.take
       for text in lines do
-        try
-          let (next, taken) ← advance transport out origin loop (← IO.monoNanosNow) (.heard text)
-          loop := next
-          steps := steps + taken
-        catch error =>
-          if failure.isNone then failure := some error
+        let (next, taken, delivered) ←
+          advance transport out origin loop (← IO.monoNanosNow) (.heard text)
+        loop := next
+        steps := steps + taken
+        unless delivered do
+          failed := true
+          break
+      if failed then
+        break
       match ← loop.finished with
       | some event =>
-        try
-          let (next, taken) ← advance transport out origin loop (← IO.monoNanosNow) event
-          loop := next
-          steps := steps + taken
-        catch error =>
-          if failure.isNone then failure := some error
+        let (next, taken, delivered) ← advance transport out origin loop (← IO.monoNanosNow) event
+        loop := next
+        steps := steps + taken
+        unless delivered do
+          failed := true
+          break
       | none => pure ()
       let now ← IO.monoNanosNow
       if nextTick ≤ now then
-        try
-          let (next, taken) ← advance transport out origin loop now .tick
-          loop := next
-          steps := steps + taken
-        catch error =>
-          if failure.isNone then failure := some error
+        let (next, taken, delivered) ← advance transport out origin loop now .tick
+        loop := next
+        steps := steps + taken
         ticker := ticker.tick now
         nextTick := now + tickPeriod
-      match failure, ← transport.firstEnd with
-      | none, none =>
+        unless delivered do
+          failed := true
+          break
+      match ← transport.firstEnd with
+      | some _ => break
+      | none =>
         if deadline ≤ now then
           break
-      | _, _ => break
       if lines.isEmpty then
         IO.sleep 1
     let finished ← IO.monoNanosNow
-    return (origin, deadline, finished, loop, steps, ticker, failure)
-  let (origin, deadline, finished, loop, steps, ticker, failure) := run
-  let ending := match earliest with
-    | some ended => if ended < deadline then Ending.closed else .duration
-    | none => .duration
-  match ending, failure with
-  | .duration, some error => throw error
-  | _, _ => pure ()
+    return (origin, deadline, finished, loop, steps, ticker, failed)
+  let (origin, deadline, finished, loop, steps, ticker, failed) := run
+  let ended := match earliest with
+    | some reading => decide (reading < deadline ∧ reading ≤ finished)
+    | none => false
+  let ending := if failed || ended then Ending.closed else .duration
   out.putStrLn (closing origin finished loop ending steps ticker)
   out.flush
   return ending
