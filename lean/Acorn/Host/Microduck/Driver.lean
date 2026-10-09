@@ -29,9 +29,18 @@ contract the loop's module states; then a tick, when the reading has reached the
 next tick, every `tickPeriod`; then the end of the run when it is due; and a sleep of 1 ms when
 no line was taken. The lines that a step returns go to their connections in the order
 returned, by `Transport.send`, before the next step, and nothing else writes to a connection.
+A step that releases an action is followed at once by `Event.sent`, at a reading taken after
+the lines of the release were sent, and the loop starts the agent's learning only at that
+event, so the action reaches the transport before the second part of the step begins.
 The commands that can be sent are those of the command type, which has no relax, no shutdown
 and no disable: at the end of a run the host sends nothing more, and the daemon replaces the
 last velocity by zero at its expiry.
+
+**The end of a run.** A run ends when a connection's output has ended or its duration has
+passed. A connection that ended before the deadline ends the run as closed even when the
+driver notices it after the deadline, since the transport records the reading at which the
+first connection ended (`Transport.firstEnd`); one that ended at or after the deadline ends it
+by its duration. The closing line carries the reading at which the driver ended the run.
 
 **The clock.** The declared keeping assumes a reading of the clock, and a tick, at least every
 `Declared.gap`. The driver cannot enforce that: the operating system schedules its thread. It
@@ -156,18 +165,18 @@ def changes {stepper : Stepper State Choice} {initial : State} (origin : Nat)
   | .ready .., .choosing awaiting _ => [sensed awaiting]
   | .learning .., .choosing awaiting _ => [s!"learned\t{instant}", sensed awaiting]
   | .learning .., .ready .. => [s!"learned\t{instant}"]
-  | .choosing awaiting _, .learning idle _ =>
+  | .choosing awaiting _, .released idle _ =>
     let action := match idle.calm.last with
       | some release => release.record.action.label
       | none => "none"
     [s!"released\t{instant}\t{awaiting.poised.index}\t{action}\t{idle.calm.late}\t{sent}"]
   | _, _ => []
 
-/-- The closing line of a run. -/
-def closing {stepper : Stepper State Choice} {initial : State} (origin : Nat)
+/-- The closing line of a run, at the reading at which the driver ended it. -/
+def closing {stepper : Stepper State Choice} {initial : State} (origin finished : Nat)
     (loop : Loop stepper initial) (ending : Ending) (steps : Nat) (ticker : Ticker) : String :=
   let counts := loop.counts
-  s!"end\t{loop.last.nanoseconds - origin}\t{ending.label}\tsteps={steps}" ++
+  s!"end\t{finished - origin}\t{ending.label}\tsteps={steps}" ++
     s!"\tsensed={counts.sensed}\treleased={counts.released}\tlate={counts.late}" ++
     s!"\tunread-state={counts.unreadState}\tunread-depth={counts.unreadDepth}" ++
     s!"\tinvalid={counts.invalid}\tlargest-tick-gap={ticker.largest}" ++
@@ -175,28 +184,40 @@ def closing {stepper : Stepper State Choice} {initial : State} (origin : Nat)
 
 /-- The event of a finished task of the loop: `chosen` when the loop chooses and the runtime
 answers that its choice has finished, `learned` when it learns and its learning has finished,
-and none otherwise. A driver takes the reading for the event after this answer. -/
+and none otherwise; a released loop awaits `Event.sent`, which the driver hands after the
+lines of the release. A driver takes the reading for the event after this answer. -/
 def Loop.finished {stepper : Stepper State Choice} {initial : State}
     (loop : Loop stepper initial) : BaseIO (Option Event) :=
   match loop.stage with
   | .choosing _ choice => do return if (← IO.hasFinished choice) then some .chosen else none
   | .learning _ agent => do return if (← IO.hasFinished agent) then some .learned else none
   | .ready _ _ => return none
+  | .released _ _ => return none
 
-/-- One step of the loop at a reading: the lines it returns are sent in order, and its changes
-of stage are written to the telemetry. -/
+/-- One step of the loop at a reading, and the number of steps taken: the lines it returns are
+sent in order, and its changes of stage are written to the telemetry. When the step released
+an action, the event that says its lines were sent follows at once, at a reading taken after
+they were sent, and starts the agent's learning (`Stage.step_sent`). -/
 private def advance {stepper : Stepper State Choice} {initial : State} (transport : Transport)
     (out : IO.FS.Stream) (origin : Nat) (loop : Loop stepper initial) (reading : Nat)
-    (event : Event) : IO (Loop stepper initial) := do
+    (event : Event) : IO (Loop stepper initial × Nat) := do
+  let deliver : Loop stepper initial → Loop stepper initial → List Send → IO Unit :=
+    fun before after sends => do
+      for send in sends do
+        transport.send send
+      let lines := changes origin before after sends.length
+      unless lines.isEmpty do
+        for line in lines do
+          out.putStrLn line
+        out.flush
   let (next, sends) := loop.step ⟨reading⟩ event
-  for send in sends do
-    transport.send send
-  let lines := changes origin loop next sends.length
-  unless lines.isEmpty do
-    for line in lines do
-      out.putStrLn line
-    out.flush
-  return next
+  deliver loop next sends
+  match next.stage with
+  | .released _ _ =>
+    let (learning, more) := next.step ⟨← IO.monoNanosNow⟩ .sent
+    deliver next learning more
+    return (learning, 2)
+  | _ => return (next, 1)
 
 /-- Run the loop with a stepper and its starting agent over the transport, for a duration in
 seconds, writing the telemetry to a stream, and say why the run ended. -/
@@ -215,31 +236,38 @@ def drive (stepper : Stepper State Choice) (initial : State) (control depth : Sy
     let mut ticker : Ticker := ⟨origin, 0, 0⟩
     let mut nextTick := origin + tickPeriod
     let mut ending := Ending.duration
+    let mut finished := origin
     repeat
       let lines ← transport.take
       for text in lines do
-        loop ← advance transport out origin loop (← IO.monoNanosNow) (.heard text)
-        steps := steps + 1
+        let (next, taken) ← advance transport out origin loop (← IO.monoNanosNow) (.heard text)
+        loop := next
+        steps := steps + taken
       match ← loop.finished with
       | some event =>
-        loop ← advance transport out origin loop (← IO.monoNanosNow) event
-        steps := steps + 1
+        let (next, taken) ← advance transport out origin loop (← IO.monoNanosNow) event
+        loop := next
+        steps := steps + taken
       | none => pure ()
       let now ← IO.monoNanosNow
       if nextTick ≤ now then
-        loop ← advance transport out origin loop now .tick
-        steps := steps + 1
+        let (next, taken) ← advance transport out origin loop now .tick
+        loop := next
+        steps := steps + taken
         ticker := ticker.tick now
         nextTick := now + tickPeriod
-      if deadline ≤ now then
-        ending := .duration
+      finished := now
+      match ← transport.firstEnd with
+      | some ended =>
+        ending := if ended < deadline then .closed else .duration
         break
-      if 0 < (← transport.endedReaders) then
-        ending := .closed
-        break
+      | none =>
+        if deadline ≤ now then
+          ending := .duration
+          break
       if lines.isEmpty then
         IO.sleep 1
-    out.putStrLn (closing origin loop ending steps ticker)
+    out.putStrLn (closing origin finished loop ending steps ticker)
     out.flush
     return ending
 

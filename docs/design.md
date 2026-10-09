@@ -1021,10 +1021,13 @@ every derivation holds of every value.
 **The loop's core.** `Acorn.Host.Microduck.Loop` composes these transitions with the
 agent's two step parts, with no effect: a driver hands it events (a line heard, a tick of
 the clock, a finished choice, a finished learning), each with a reading of the clock, and
-each step returns the next state and the lines to send. A stage is `ready`, `choosing` or
-`learning`, and `choosing` is the only stage that holds an awaiting host, so a percept
-awaits exactly while the agent chooses and no percept is sensed while the agent chooses or
-learns. A `Loop` holds a stage with a derivation from its start (`Ran`) for its stepper and
+each step returns the next state and the lines to send. A stage is `ready`, `choosing`,
+`released` or `learning`, and `choosing` is the only stage that holds an awaiting host, so a
+percept awaits exactly while the agent chooses and no percept is sensed while the agent
+chooses, is released or learns. A finished choice releases the action and returns its lines
+with no task; the agent's learning starts only at the event that says those lines were sent
+(`Stage.step_sent`, `Stage.step_learning`), so the second part of a step follows the action's
+send, the order `actThenLearn`. A `Loop` holds a stage with a derivation from its start (`Ran`) for its stepper and
 its starting agent, as the host's two phases hold theirs, so a task of a loop computes the
 stepper's part on what the loop sensed and no other value exists (`Loop.agent`). The
 instant of a step is the later of the reading and the instant of the last step

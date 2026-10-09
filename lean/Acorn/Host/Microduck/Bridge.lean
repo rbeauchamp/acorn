@@ -113,8 +113,8 @@ These are assumptions of the use of the statements, proved nowhere:
 - the posture a caller states is the body's;
 - the declared duration of an action covers what the body takes for it.
 
-No executing code keeps a `Bridge`: the functions here are pure.
-`Acorn.Host.Microduck.Session` holds one in the state of a host and calls them in its own
+The functions here are pure. `Acorn.Host.Microduck.Session` holds a `Bridge`, the record of
+the last release, in the state of a host and calls them in its own
 pure transitions, which refuse a percept before the cycle that `Bridge.next` gives;
 `Acorn.Host.Microduck.Loop` calls those in a pure loop, which the executable of
 `Acorn.Host.Microduck.Driver` runs (https://github.com/rbeauchamp/acorn/issues/95). Nothing in a `Bridge` itself refuses an

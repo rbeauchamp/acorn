@@ -128,8 +128,8 @@ refuse a declared module that imports a host module, or references a declaration
 owned by one, unless it is one of a world's own declared modules. The grid world's are
 Acorn.Handcrafted.Observation, Acorn.Handcrafted.Cumulants and Acorn.Handcrafted.GridWorld. The Microduck
 world's is Acorn.Handcrafted.Microduck,
-which binds that world to the interface; no executing code builds its percepts, and no
-theorem states what it feeds a learner. The last of the grid world's modules binds the
+which binds that world to the interface; the host's sensing builds its percepts, which the
+executable microduck-host runs, and no theorem states what it feeds a learner. The last of the grid world's modules binds the
 grid world to the agent's interface.
 `Acorn.Handcrafted.Agent.grid_inputs` states what that binding feeds each
 learner, in terms of the host's own channel, signal and potential definitions, for
@@ -352,8 +352,8 @@ theorems: the daemon's expiry of a velocity, the time from a send to the daemon'
 the gap between two readings of the host's clock, that the posture a caller states is the
 body's, and that a declared duration covers what the body takes.
 
-What the Microduck senses is kept as bounded integers, also as pure definitions that no
-executing code calls. The daemon reports a measured quantity as the decimal text of a JSON
+What the Microduck senses is kept as bounded integers, also as pure definitions, which the
+readers of a daemon's line call when the executable microduck-host hears a frame. The daemon reports a measured quantity as the decimal text of a JSON
 number, and `Acorn.Host.Microduck.Decimal.fixed` converts such a number to an integer
 of a declared scale by integer arithmetic alone. What it computes is stated over the
 rational value of the decimal, `AcornVerif.Decimal.value`, and the predicate

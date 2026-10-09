@@ -17,13 +17,16 @@ a reading of the clock, and one step for each event, which returns the next stat
 lines to send. The driver that reads a clock and sockets and runs the loop is
 `Acorn.Host.Microduck.Driver`, over the transport of `Acorn.Host.Microduck.Transport`.
 
-**The stages make the illegal states unrepresentable.** A loop is in one of three stages
+**The stages make the illegal states unrepresentable.** A loop is in one of four stages
 (`Stage`): `ready`, with no percept awaiting and the agent free to take one; `choosing`, with
-a percept awaiting while the agent computes the first part of its step; `learning`, with the
-action released while the agent computes the second part. A percept awaits exactly while the
+a percept awaiting while the agent computes the first part of its step; `released`, with the
+action released and its lines to be sent, and the second part not started; `learning`, with
+those lines sent while the agent computes the second part. A percept awaits exactly while the
 agent chooses, since `choosing` is the only stage that holds an `Awaiting`, and no percept is
-sensed while the agent chooses or learns, since sensing happens only in `ready`. So the agent
-takes one step at a time, in the order of its two parts.
+sensed while the agent chooses, is released or learns, since sensing happens only in `ready`.
+So the agent takes one step at a time, in the order of its two parts, and the second part
+starts only after the action is sent to the world, the order `actThenLearn`
+(`Stage.step_learning`).
 
 **A loop is sealed by its run.** A `Loop` holds a stage, its counts and the instant of its
 last step, with a derivation (`Ran`) from its start by steps at instants that do not go back,
@@ -40,7 +43,9 @@ as `Task.spawn` of that function on its inputs, so the runtime computes it apart
 loop while the loop goes on hearing lines and reading the clock, and its value is the
 function's value: the action released for a percept is the stepper's action of its choice on
 that percept (`Stage.step_sense`, `Loop.step_release`). A step runs each transition once, so
-it spawns each task once, and it returns the percept it sensed. A driver only says that a task
+it spawns each task once, and it returns the percept it sensed. The release spawns no task:
+the learning task is spawned by the event `Event.sent`, which says the lines of the release
+were sent (`Stage.step_sent`). A driver only says that a task
 has finished, with `Event.chosen` or `Event.learned`, and its contract is to say so only once
 `IO.hasFinished` holds of the task, with the reading of the clock taken after that, since the
 step releases at the instant of its reading. A step told early reads the task's value all the
@@ -82,11 +87,13 @@ counts; nothing repairs it.
 stepper's two parts over the percepts sensed, in order (`Loop.agent`); the step of a finished
 choice releases the stepper's action of it, since the release of the awaited cycle is
 admitted at every instant from the last step on (`Loop.step_release`); and the counts hold one
-percept for each percept sensed and a release for each but the one awaited (`Ran.counts`).
+percept for each percept sensed and a release for each but the one a choosing loop awaits
+(`Ran.counts`).
 
 **Trusted, and not stated.** That a driver hands the events in the order they happened, with
 readings of one monotonic clock, each `Event.chosen` and `Event.learned` only once its task
-has finished and with a reading taken after that; that the runtime computes a task's value;
+has finished and with a reading taken after that, and `Event.sent` only after it has sent the
+lines that the release returned; that the runtime computes a task's value;
 when a task finishes; and every effect of sending a line. A reading before the instant of the last step
 is taken as that instant, so the statements here hold of every sequence of readings, and only
 the timing of the world depends on the clock. The loop counts late releases; how many a run
@@ -225,7 +232,11 @@ inductive Stage (State Choice : Type) where
   | ready (idle : Idle) (agent : State)
   /-- A percept awaits, and the agent computes the first part of its step. -/
   | choosing (awaiting : Awaiting) (choice : Task Choice)
-  /-- The action is released, and the agent computes the second part of its step. -/
+  /-- The action is released and its lines are to be sent; the agent has not started the
+  second part of its step. -/
+  | released (idle : Idle) (choice : Task Choice)
+  /-- The lines of the release were sent, and the agent computes the second part of its
+  step. -/
   | learning (idle : Idle) (agent : Task State)
 
 /-- What a driver hands the loop. -/
@@ -236,6 +247,8 @@ inductive Event where
   | tick
   /-- The agent's choice has finished. -/
   | chosen
+  /-- The lines of the release have been sent. -/
+  | sent
   /-- The agent's learning has finished. -/
   | learned
 
@@ -259,6 +272,7 @@ def Stage.attend (stepper : Stepper State Choice) (now : Instant) (stage : Stage
         { counts with sensed := counts.sensed + 1 }, some sensed.percept)
     | none => (.ready idle agent, counts, none)
   | .choosing awaiting choice => (.choosing awaiting choice, counts, none)
+  | .released idle choice => (.released idle choice, counts, none)
   | .learning idle agent => (.learning idle agent, counts, none)
 
 /-- A line is heard in a stage: the host the stage holds hears it, and the agent's task is
@@ -266,11 +280,14 @@ kept. -/
 def Stage.hear (line : Line) : Stage State Choice → Stage State Choice
   | .ready idle agent => .ready (idle.hear line) agent
   | .choosing awaiting choice => .choosing (awaiting.hear line) choice
+  | .released idle choice => .released (idle.hear line) choice
   | .learning idle agent => .learning (idle.hear line) agent
 
 /-- What an event makes of a stage, before a percept is sensed: the next stage, the counts
 and the lines to send. A text heard is read once, and its line goes to the host and to the
-counts. A release that the host refuses leaves the stage as it was; no loop meets one
+counts. A finished choice releases its action and returns the lines of the release, and the
+second part of the agent's step starts only at the event that says those lines were sent. A
+release that the host refuses leaves the stage as it was; no loop meets one
 (`Loop.step_release`). -/
 def Stage.react (stepper : Stepper State Choice) (now : Instant) :
     Event → Stage State Choice → Counts → Stage State Choice × Counts × List Send
@@ -281,22 +298,31 @@ def Stage.react (stepper : Stepper State Choice) (now : Instant) :
     (.ready (idle.tick now).1 agent, counts, commandLines (idle.tick now).2.toList)
   | .tick, .choosing awaiting choice, counts =>
     (.choosing (awaiting.tick now).1 choice, counts, commandLines (awaiting.tick now).2.toList)
+  | .tick, .released idle choice, counts =>
+    (.released (idle.tick now).1 choice, counts, commandLines (idle.tick now).2.toList)
   | .tick, .learning idle agent, counts =>
     (.learning (idle.tick now).1 agent, counts, commandLines (idle.tick now).2.toList)
   | .chosen, .choosing awaiting choice, counts =>
     match awaiting.release awaiting.poised.index now (stepper.action choice.get) with
     | some (idle, commands) =>
-      (.learning idle (Task.spawn fun _ => stepper.learn choice.get),
+      (.released idle choice,
         { counts with
           released := counts.released + 1
           late := counts.late + if idle.calm.late then 1 else 0 },
         commandLines commands)
     | none => (.choosing awaiting choice, counts, [])
   | .chosen, .ready idle agent, counts => (.ready idle agent, counts, [])
+  | .chosen, .released idle choice, counts => (.released idle choice, counts, [])
   | .chosen, .learning idle agent, counts => (.learning idle agent, counts, [])
+  | .sent, .released idle choice, counts =>
+    (.learning idle (Task.spawn fun _ => stepper.learn choice.get), counts, [])
+  | .sent, .ready idle agent, counts => (.ready idle agent, counts, [])
+  | .sent, .choosing awaiting choice, counts => (.choosing awaiting choice, counts, [])
+  | .sent, .learning idle agent, counts => (.learning idle agent, counts, [])
   | .learned, .learning idle agent, counts => (.ready idle agent.get, counts, [])
   | .learned, .ready idle agent, counts => (.ready idle agent, counts, [])
   | .learned, .choosing awaiting choice, counts => (.choosing awaiting choice, counts, [])
+  | .learned, .released idle choice, counts => (.released idle choice, counts, [])
 
 /-- What one step makes of a stage and its counts. -/
 structure Stepped (State Choice : Type) where
@@ -334,6 +360,8 @@ theorem Stage.step_sends (stepper : Stepper State Choice) (now : Instant) (event
         ((∃ idle agent, stage = .ready idle agent ∧ (idle.tick now).2 = some (id, command)) ∨
           (∃ awaiting choice, stage = .choosing awaiting choice ∧
             (awaiting.tick now).2 = some (id, command)) ∨
+          (∃ idle choice, stage = .released idle choice ∧
+            (idle.tick now).2 = some (id, command)) ∨
           (∃ idle agent, stage = .learning idle agent ∧
             (idle.tick now).2 = some (id, command)))) ∨
         (event = .chosen ∧ ∃ awaiting choice idle commands,
@@ -369,10 +397,14 @@ theorem Stage.step_sends (stepper : Stepper State Choice) (now : Instant) (event
       obtain ⟨linked, id, command, text, result⟩ := ticked _ sent
       exact ⟨linked, id, command, text,
         .inl ⟨rfl, .inr (.inl ⟨awaiting, choice, rfl, result⟩)⟩⟩
+    | released idle choice =>
+      obtain ⟨linked, id, command, text, result⟩ := ticked _ sent
+      exact ⟨linked, id, command, text,
+        .inl ⟨rfl, .inr (.inr (.inl ⟨idle, choice, rfl, result⟩))⟩⟩
     | learning idle agent =>
       obtain ⟨linked, id, command, text, result⟩ := ticked _ sent
       exact ⟨linked, id, command, text,
-        .inl ⟨rfl, .inr (.inr ⟨idle, agent, rfl, result⟩)⟩⟩
+        .inl ⟨rfl, .inr (.inr (.inr ⟨idle, agent, rfl, result⟩))⟩⟩
   | chosen =>
     cases stage with
     | choosing awaiting choice =>
@@ -384,7 +416,9 @@ theorem Stage.step_sends (stepper : Stepper State Choice) (now : Instant) (event
           .inr ⟨rfl, awaiting, choice, idle, commands, rfl, released, member⟩⟩
       · exact nomatch sent
     | ready idle agent => simp [Stage.react] at sent
+    | released idle choice => simp [Stage.react] at sent
     | learning idle agent => simp [Stage.react] at sent
+  | sent => cases stage <;> simp [Stage.react] at sent
   | learned => cases stage <;> simp [Stage.react] at sent
 
 /-- **A percept due at the step's instant starts the stepper's choice on it.** For every step
@@ -431,37 +465,106 @@ theorem Stage.react_refused (stepper : Stepper State Choice) (now : Instant) (te
   | choosing awaiting choice =>
     show (Stage.choosing (awaiting.hear (Line.ofText text)) choice, _, _) = _
     rw [awaited awaiting]
+  | released idle choice =>
+    show (Stage.released (idle.hear (Line.ofText text)) choice, _, _) = _
+    rw [idled idle]
   | learning idle agent =>
     show (Stage.learning (idle.hear (Line.ofText text)) agent, _, _) = _
     rw [idled idle]
 
-/-- **A finished choice releases the stepper's action of it, and the agent learns from the
-same choice.** For every choosing stage and every instant at which the host admits the
-release of the awaited cycle with that action: after the step the stage learns, with the host
-that the release returned and the task of the stepper's learning from the choice, the step
-sends the lines of the commands of the release and senses nothing, and it counts one release
-more, and one late release more when the release is late. -/
+/-- **A finished choice releases the stepper's action of it, and starts no learning.** For
+every choosing stage and every instant at which the host admits the release of the awaited
+cycle with that action: after the step the stage is released, with the host that the release
+returned and the same choice, the step sends the lines of the commands of the release and
+senses nothing, and it counts one release more, and one late release more when the release is
+late. No task of the agent's second part exists after this step (`Stage.step_learning`). -/
 theorem Stage.step_release (stepper : Stepper State Choice) (now : Instant)
     (awaiting : Awaiting) (choice : Task Choice) (counts : Counts) (idle : Idle)
     (commands : List (Nat × Command))
     (released : awaiting.release awaiting.poised.index now (stepper.action choice.get) =
       some (idle, commands)) :
-    ∃ agent,
-      (Stage.step stepper now .chosen (.choosing awaiting choice) counts).stage =
-          .learning idle agent ∧
-        agent.get = stepper.learn choice.get ∧
-        (Stage.step stepper now .chosen (.choosing awaiting choice) counts).sends =
-          commandLines commands ∧
-        (Stage.step stepper now .chosen (.choosing awaiting choice) counts).sensed = none ∧
-        (Stage.step stepper now .chosen (.choosing awaiting choice) counts).counts.released =
-          counts.released + 1 ∧
-        (Stage.step stepper now .chosen (.choosing awaiting choice) counts).counts.late =
-          counts.late + if idle.calm.late then 1 else 0 := by
-  refine ⟨Task.spawn fun _ => stepper.learn choice.get, ?_, rfl, ?_, ?_, ?_, ?_⟩ <;>
-    simp only [Stage.step, Stage.react, released, Stage.attend]
+    (Stage.step stepper now .chosen (.choosing awaiting choice) counts).stage =
+        .released idle choice ∧
+      (Stage.step stepper now .chosen (.choosing awaiting choice) counts).sends =
+        commandLines commands ∧
+      (Stage.step stepper now .chosen (.choosing awaiting choice) counts).sensed = none ∧
+      (Stage.step stepper now .chosen (.choosing awaiting choice) counts).counts.released =
+        counts.released + 1 ∧
+      (Stage.step stepper now .chosen (.choosing awaiting choice) counts).counts.late =
+        counts.late + if idle.calm.late then 1 else 0 := by
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> simp only [Stage.step, Stage.react, released, Stage.attend]
 
-/-- **A tick reaches the host in every stage.** For every instant and counts: in a choosing or
-learning stage the host after a tick is the host's own tick, the task is kept, and the lines
+/-- **The agent learns from the released choice once its lines are sent.** For every released
+stage: the event that says the lines of the release were sent starts the task of the stepper's
+learning from the same choice, sends nothing, senses nothing and counts nothing. -/
+theorem Stage.step_sent (stepper : Stepper State Choice) (now : Instant) (idle : Idle)
+    (choice : Task Choice) (counts : Counts) :
+    ∃ agent, (Stage.step stepper now .sent (.released idle choice) counts).stage =
+        .learning idle agent ∧
+      agent.get = stepper.learn choice.get ∧
+      (Stage.step stepper now .sent (.released idle choice) counts).sends = [] ∧
+      (Stage.step stepper now .sent (.released idle choice) counts).sensed = none ∧
+      (Stage.step stepper now .sent (.released idle choice) counts).counts = counts :=
+  ⟨Task.spawn fun _ => stepper.learn choice.get, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- Sensing never leads to a learning stage that was not there before it. -/
+private theorem attend_learning (stepper : Stepper State Choice) (now : Instant)
+    (stage : Stage State Choice) (counts : Counts) (idle : Idle) (agent : Task State)
+    (entered : (Stage.attend stepper now stage counts).1 = .learning idle agent) :
+    stage = .learning idle agent := by
+  cases stage with
+  | ready host held =>
+    simp only [Stage.attend] at entered
+    split at entered <;> simp at entered
+  | choosing awaiting choice => simp [Stage.attend] at entered
+  | released host choice => simp [Stage.attend] at entered
+  | learning host task => simpa [Stage.attend] using entered
+
+/-- **The second part of the agent's step starts only after the lines of its release were
+sent.** For every step that leads to a learning stage from a stage that was not learning: the
+event is the one that says the lines of the release were sent, the stage before it was released
+with the same host, and the task computes the stepper's learning from the released choice. With
+`Stage.step_release`, the lines of a release are returned by an earlier step than the one that
+starts the learning; a driver hands `Event.sent` after it has sent them. -/
+theorem Stage.step_learning (stepper : Stepper State Choice) (now : Instant) (event : Event)
+    (stage : Stage State Choice) (counts : Counts) (idle : Idle) (agent : Task State)
+    (entered : (Stage.step stepper now event stage counts).stage = .learning idle agent)
+    (fresh : ∀ idle agent, stage ≠ .learning idle agent) :
+    event = .sent ∧ ∃ choice, stage = .released idle choice ∧
+      agent.get = stepper.learn choice.get := by
+  have reacted := attend_learning stepper now (Stage.react stepper now event stage counts).1
+    (Stage.react stepper now event stage counts).2.1 idle agent entered
+  cases event with
+  | heard text =>
+    cases stage with
+    | learning host task => exact absurd rfl (fresh host task)
+    | _ => simp [Stage.react, Stage.hear] at reacted
+  | tick =>
+    cases stage with
+    | learning host task => exact absurd rfl (fresh host task)
+    | _ => simp [Stage.react] at reacted
+  | chosen =>
+    cases stage with
+    | choosing awaiting choice =>
+      simp only [Stage.react] at reacted
+      split at reacted <;> simp at reacted
+    | learning host task => exact absurd rfl (fresh host task)
+    | _ => simp [Stage.react] at reacted
+  | sent =>
+    cases stage with
+    | released host choice =>
+      simp only [Stage.react, Stage.learning.injEq] at reacted
+      obtain ⟨rfl, rfl⟩ := reacted
+      exact ⟨rfl, choice, rfl, rfl⟩
+    | learning host task => exact absurd rfl (fresh host task)
+    | _ => simp [Stage.react] at reacted
+  | learned =>
+    cases stage with
+    | learning host task => exact absurd rfl (fresh host task)
+    | _ => simp [Stage.react] at reacted
+
+/-- **A tick reaches the host in every stage.** For every instant and counts: in a choosing,
+released or learning stage the host after a tick is the host's own tick, the task is kept, and the lines
 sent are those of the command the tick returned; in a ready stage the same holds of the stage
 before a percept is sensed. So the velocity of the last release is sent again while the agent
 computes. -/
@@ -471,6 +574,11 @@ theorem Stage.step_tick (stepper : Stepper State Choice) (now : Instant) (counts
           .choosing (awaiting.tick now).1 choice ∧
         (Stage.step stepper now .tick (.choosing awaiting choice) counts).sends =
           commandLines (awaiting.tick now).2.toList) ∧
+      (∀ idle choice,
+        (Stage.step stepper now .tick (.released idle choice) counts).stage =
+            .released (idle.tick now).1 choice ∧
+          (Stage.step stepper now .tick (.released idle choice) counts).sends =
+            commandLines (idle.tick now).2.toList) ∧
       (∀ idle agent,
         (Stage.step stepper now .tick (.learning idle agent) counts).stage =
             .learning (idle.tick now).1 agent ∧
@@ -481,7 +589,7 @@ theorem Stage.step_tick (stepper : Stepper State Choice) (now : Instant) (counts
             .ready (idle.tick now).1 agent ∧
           (Stage.step stepper now .tick (.ready idle agent) counts).sends =
             commandLines (idle.tick now).2.toList) :=
-  ⟨fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩⟩
+  ⟨fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩⟩
 
 /-- The command a tick of an idle host sends has the host's next unused identifier. -/
 private theorem idle_tick_fresh (idle : Idle) (now : Instant) (id : Nat) (command : Command)
@@ -514,10 +622,11 @@ theorem Stage.step_fresh (stepper : Stepper State Choice) (now : Instant) (event
     Stage.step_sends stepper now event stage counts send sent
   refine ⟨id, command, text, ?_⟩
   rcases origin with
-    ⟨_, ⟨idle, _, _, ticked⟩ | ⟨awaiting, _, _, ticked⟩ | ⟨idle, _, _, ticked⟩⟩ |
-      ⟨_, awaiting, _, idle, commands, _, released, member⟩
+    ⟨_, ⟨idle, _, _, ticked⟩ | ⟨awaiting, _, _, ticked⟩ | ⟨idle, _, _, ticked⟩ |
+      ⟨idle, _, _, ticked⟩⟩ | ⟨_, awaiting, _, idle, commands, _, released, member⟩
   · exact idle_tick_fresh idle now id command ticked
   · exact awaiting_tick_fresh awaiting now id command ticked
+  · exact idle_tick_fresh idle now id command ticked
   · exact idle_tick_fresh idle now id command ticked
   · obtain ⟨readings, issued, reached⟩ := awaiting.reached
     exact ((Awaiting.release_fresh _ now _ awaiting idle commands released readings issued
@@ -556,6 +665,11 @@ def Held (stepper : Stepper State Choice) (initial : State)
       counts.sensed = percepts.length ∧ counts.released + 1 = percepts.length ∧
       (awaiting.poised.pace.boundary awaiting.poised.origin awaiting.poised.index).nanoseconds ≤
         last.nanoseconds
+  | .released idle choice, counts =>
+    (∃ earlier percept, percepts = earlier ++ [percept] ∧
+      choice.get = stepper.choose (stepper.after initial earlier) percept) ∧
+      counts.sensed = percepts.length ∧ counts.released = percepts.length ∧
+      idle.calm.origin.nanoseconds ≤ last.nanoseconds
   | .learning idle agent, counts =>
     agent.get = stepper.after initial percepts ∧ counts.sensed = percepts.length ∧
       counts.released = percepts.length ∧ idle.calm.origin.nanoseconds ≤ last.nanoseconds
@@ -572,6 +686,9 @@ private theorem Held.later {stepper : Stepper State Choice} {initial : State}
     obtain ⟨agreed, sensed, released, begun⟩ := held
     exact ⟨agreed, sensed, released, Nat.le_trans begun later⟩
   | choosing awaiting choice =>
+    obtain ⟨chose, sensed, released, begun⟩ := held
+    exact ⟨chose, sensed, released, Nat.le_trans begun later⟩
+  | released idle choice =>
     obtain ⟨chose, sensed, released, begun⟩ := held
     exact ⟨chose, sensed, released, Nat.le_trans begun later⟩
   | learning idle agent =>
@@ -625,6 +742,12 @@ private theorem react_held (stepper : Stepper State Choice) (initial : State)
           (awaiting.hear (Line.ofText text)).poised.index).nanoseconds ≤ now.nanoseconds
         rw [paced, started, indexed]
         exact Nat.le_trans begun later
+    | released idle choice =>
+      obtain ⟨chose, sensed, released, begun⟩ := held
+      refine ⟨chose, keptSensed.trans sensed, keptReleased.trans released, ?_⟩
+      show (idle.hear (Line.ofText text)).calm.origin.nanoseconds ≤ now.nanoseconds
+      rw [(idle.hear_keeps (Line.ofText text)).2.2.1]
+      exact Nat.le_trans begun later
     | learning idle agent =>
       obtain ⟨agreed, sensed, released, begun⟩ := held
       refine ⟨agreed, keptSensed.trans sensed, keptReleased.trans released, ?_⟩
@@ -647,6 +770,12 @@ private theorem react_held (stepper : Stepper State Choice) (initial : State)
         (awaiting.tick now).1.poised.index).nanoseconds ≤ now.nanoseconds
       rw [paced, started, indexed]
       exact Nat.le_trans begun later
+    | released idle choice =>
+      obtain ⟨chose, sensed, released, begun⟩ := held
+      refine ⟨chose, sensed, released, ?_⟩
+      show (idle.tick now).1.calm.origin.nanoseconds ≤ now.nanoseconds
+      rw [(Idle.tick_keeps now idle).2.2.2.1]
+      exact Nat.le_trans begun later
     | learning idle agent =>
       obtain ⟨agreed, sensed, released, begun⟩ := held
       refine ⟨agreed, sensed, released, ?_⟩
@@ -661,12 +790,7 @@ private theorem react_held (stepper : Stepper State Choice) (initial : State)
       | some pair =>
         obtain ⟨idle, commands⟩ := pair
         simp only [Stage.react, result]
-        refine ⟨?_, sensed, released, ?_⟩
-        · show stepper.learn choice.get = stepper.after initial percepts
-          rw [parts, chose]
-          unfold Stepper.after
-          rw [List.foldl_append]
-          rfl
+        refine ⟨⟨earlier, percept, parts, chose⟩, sensed, released, ?_⟩
         · show idle.calm.origin.nanoseconds ≤ now.nanoseconds
           obtain ⟨_, _, calm, _⟩ :=
             (Awaiting.release_iff _ _ _ awaiting idle commands).mp result
@@ -679,12 +803,27 @@ private theorem react_held (stepper : Stepper State Choice) (initial : State)
         rw [result] at admitted
         simp at admitted
     | ready idle agent => exact held.later later
+    | released idle choice => exact held.later later
+    | learning idle agent => exact held.later later
+  | sent =>
+    cases stage with
+    | released idle choice =>
+      obtain ⟨⟨earlier, percept, parts, chose⟩, sensed, released, begun⟩ := held
+      refine ⟨?_, sensed, released, Nat.le_trans begun later⟩
+      show stepper.learn choice.get = stepper.after initial percepts
+      rw [parts, chose]
+      unfold Stepper.after
+      rw [List.foldl_append]
+      rfl
+    | ready idle agent => exact held.later later
+    | choosing awaiting choice => exact held.later later
     | learning idle agent => exact held.later later
   | learned =>
     cases stage with
     | learning idle agent => exact held.later later
     | ready idle agent => exact held.later later
     | choosing awaiting choice => exact held.later later
+    | released idle choice => exact held.later later
 
 /-- Sensing keeps what a reached stage holds, with the percept sensed appended. -/
 private theorem attend_held (stepper : Stepper State Choice) (initial : State)
@@ -710,6 +849,9 @@ private theorem attend_held (stepper : Stepper State Choice) (initial : State)
       · rw [List.length_append, released]
         rfl
   | choosing awaiting choice =>
+    simp only [Stage.attend, Option.toList_none, List.append_nil]
+    exact held
+  | released idle choice =>
     simp only [Stage.attend, Option.toList_none, List.append_nil]
     exact held
   | learning idle agent =>
@@ -738,8 +880,8 @@ theorem Ran.held {stepper : Stepper State Choice} {initial : State}
 /-- **The agent of a reached stage is the agent after its whole steps on the percepts
 sensed.** For every reached stage: when ready, the agent it holds is the fold of the
 stepper's two parts over the percepts sensed, in order, from the starting agent; when
-learning, its task computes that agent; and when choosing, its task computes the stepper's
-choice on the last percept by the agent after the ones before. -/
+learning, its task computes that agent; and when choosing or released, its choice computes the
+stepper's choice on the last percept by the agent after the ones before. -/
 theorem Ran.agent {stepper : Stepper State Choice} {initial : State}
     {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last : Instant}
     {stage : Stage State Choice} {counts : Counts}
@@ -749,10 +891,14 @@ theorem Ran.agent {stepper : Stepper State Choice} {initial : State}
         agent.get = stepper.after initial percepts) ∧
       (∀ awaiting choice, stage = .choosing awaiting choice →
         ∃ earlier percept, percepts = earlier ++ [percept] ∧
+          choice.get = stepper.choose (stepper.after initial earlier) percept) ∧
+      (∀ idle choice, stage = .released idle choice →
+        ∃ earlier percept, percepts = earlier ++ [percept] ∧
           choice.get = stepper.choose (stepper.after initial earlier) percept) := by
   have held := ran.held
   refine ⟨fun idle agent same => ?_, fun idle agent same => ?_,
-    fun awaiting choice same => ?_⟩ <;> rw [same] at held
+    fun awaiting choice same => ?_, fun idle choice same => ?_⟩ <;> rw [same] at held
+  · exact held.1
   · exact held.1
   · exact held.1
   · exact held.1
@@ -787,6 +933,9 @@ theorem Ran.counts {stepper : Stepper State Choice} {initial : State}
     obtain ⟨_, sensed, released, _⟩ := held
     exact ⟨sensed, by omega, by omega⟩
   | choosing awaiting choice =>
+    obtain ⟨_, sensed, released, _⟩ := held
+    exact ⟨sensed, by omega, by omega⟩
+  | released idle choice =>
     obtain ⟨_, sensed, released, _⟩ := held
     exact ⟨sensed, by omega, by omega⟩
   | learning idle agent =>
@@ -845,29 +994,28 @@ def Loop.step {stepper : Stepper State Choice} {initial : State} (loop : Loop st
       loop.reached.elim fun _ ran => ⟨_, ran.step now (loop.at_later reading).1 event⟩⟩,
     stepped.sends)
 
-/-- **The step of a finished choice releases the stepper's action of it, and the agent learns
-from the same choice.** For every loop that chooses and every reading of the clock: the host
-admits the release of the awaited cycle with the stepper's action of the choice at the step's
-instant, and after the step the loop learns, with the host that the release returned and the
-task of the stepper's learning from the choice, and it sends the lines of the commands of the
-release. -/
+/-- **The step of a finished choice releases the stepper's action of it.** For every loop that
+chooses and every reading of the clock: the host admits the release of the awaited cycle with
+the stepper's action of the choice at the step's instant, and after the step the loop is
+released, with the host that the release returned and the same choice, and it sends the lines
+of the commands of the release. The agent's learning from that choice starts at the event that
+says those lines were sent (`Stage.step_sent`), and at no other (`Stage.step_learning`). -/
 theorem Loop.step_release {stepper : Stepper State Choice} {initial : State}
     (loop : Loop stepper initial) (reading : Instant) (awaiting : Awaiting)
     (choice : Task Choice) (choosing : loop.stage = .choosing awaiting choice) :
     ∃ idle commands,
       awaiting.release awaiting.poised.index (loop.at reading) (stepper.action choice.get) =
           some (idle, commands) ∧
-        ∃ agent, (loop.step reading .chosen).1.stage = .learning idle agent ∧
-          agent.get = stepper.learn choice.get ∧
-          (loop.step reading .chosen).2 = commandLines commands := by
+        (loop.step reading .chosen).1.stage = .released idle choice ∧
+        (loop.step reading .chosen).2 = commandLines commands := by
   obtain ⟨_, ran⟩ := loop.reached
   obtain ⟨⟨idle, commands⟩, released⟩ := Option.isSome_iff_exists.mp
     (ran.release awaiting choice choosing (loop.at reading) (loop.at_later reading).1
       (stepper.action choice.get))
-  obtain ⟨agent, stage, learned, sends, _⟩ :=
+  obtain ⟨stage, sends, _⟩ :=
     Stage.step_release stepper (loop.at reading) awaiting choice loop.counts idle commands
       released
-  refine ⟨idle, commands, released, agent, ?_, learned, ?_⟩
+  refine ⟨idle, commands, released, ?_, ?_⟩
   · show (Stage.step stepper (loop.at reading) .chosen loop.stage loop.counts).stage = _
     rw [choosing]
     exact stage
@@ -879,8 +1027,8 @@ theorem Loop.step_release {stepper : Stepper State Choice} {initial : State}
 For every loop there are the percepts of a run from its start to it, as many as it counted,
 such that: when ready, the agent it holds is the fold of the stepper's two parts over them,
 in order, from the starting agent; when learning, its task computes that agent; and when
-choosing, its task computes the stepper's choice on the last of them by the agent after the
-ones before. -/
+choosing or released, its choice computes the stepper's choice on the last of them by the
+agent after the ones before. -/
 theorem Loop.agent {stepper : Stepper State Choice} {initial : State}
     (loop : Loop stepper initial) :
     ∃ percepts, Ran stepper initial percepts loop.last loop.stage loop.counts ∧
@@ -889,6 +1037,9 @@ theorem Loop.agent {stepper : Stepper State Choice} {initial : State}
       (∀ idle agent, loop.stage = .learning idle agent →
         agent.get = stepper.after initial percepts) ∧
       (∀ awaiting choice, loop.stage = .choosing awaiting choice →
+        ∃ earlier percept, percepts = earlier ++ [percept] ∧
+          choice.get = stepper.choose (stepper.after initial earlier) percept) ∧
+      (∀ idle choice, loop.stage = .released idle choice →
         ∃ earlier percept, percepts = earlier ++ [percept] ∧
           choice.get = stepper.choose (stepper.after initial earlier) percept) := by
   obtain ⟨percepts, ran⟩ := loop.reached

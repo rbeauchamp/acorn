@@ -55,19 +55,20 @@ structure Transport where
   private depth : Connection
   /-- The lines heard and not yet taken, in the order the readers appended them. -/
   private heard : Std.Mutex (Array String)
-  /-- The readers that have ended: at the end of a child's output, or at a failure to read
-  it. -/
-  private ended : Std.Mutex Nat
+  /-- The reading of the monotonic clock at which the first reader ended, at the end of its
+  child's output or at a failure to read it, if one has. -/
+  private ended : Std.Mutex (Option Nat)
 
 /-- A line without its line breaks. A line of a daemon is one JSON value, whose strings
 escape a line break, so a line break in it can only be the end of the line. -/
 private def unbroken (line : String) : String :=
   String.ofList (line.toList.filter (· != '\n'))
 
-/-- Read a child's output to its end, or to a failure, appending every nonempty line. The
-reader counts itself ended however it stops. -/
+/-- Read a child's output to its end, or to a failure, appending every nonempty line. However
+the reader stops, it records the reading of the clock at which it stopped, unless an earlier
+reader's is recorded. -/
 private def readLines (input : IO.FS.Stream) (heard : Std.Mutex (Array String))
-    (ended : Std.Mutex Nat) : IO Unit := do
+    (ended : Std.Mutex (Option Nat)) : IO Unit := do
   try
     repeat
       if ← IO.checkCanceled then return
@@ -77,24 +78,29 @@ private def readLines (input : IO.FS.Stream) (heard : Std.Mutex (Array String))
       unless text.isEmpty do
         heard.atomically (modify (·.push text))
   finally
-    ended.atomically (modify (· + 1))
+    let stopped ← IO.monoNanosNow
+    ended.atomically (modify fun first => some (first.getD stopped))
 
 /-- Start a connection to a socket: its child and the reader of its output. -/
 private def Connection.start (socket : System.FilePath) (heard : Std.Mutex (Array String))
-    (ended : Std.Mutex Nat) : IO Connection := do
+    (ended : Std.Mutex (Option Nat)) : IO Connection := do
   let child ← IO.Process.spawn
     { connectionPipes with cmd := "/usr/bin/nc", args := #["-U", socket.toString] }
   let reader ← IO.asTask (readLines (IO.FS.Stream.ofHandle child.stdout) heard ended)
     (prio := .dedicated)
   return ⟨child, reader⟩
 
-/-- End a connection: cancel its reader, kill and reap its child when it still runs, and
-wait for the reader, whose read then ends at the closed output. A failure of the reader is
-not raised here: the count of ended readers already holds it. -/
+/-- End a connection: cancel its reader, kill its child unless a probe shows it has exited,
+reap it, and then wait for the reader, whose read ends at the closed output. A failed probe
+counts as a child still running, and a failed kill does not stop the reaping, which waits for
+the child to exit. A failure to reap the child is raised, and the reader is then not waited
+for, since its output may still be open. A failure of the reader is not raised here: the
+transport has recorded when it ended. -/
 private def Connection.stop (connection : Connection) : IO Unit := do
   IO.cancel connection.reader
-  if (← connection.child.tryWait).isNone then
-    connection.child.kill
+  let exited ← (do return (← connection.child.tryWait).isSome).tryCatch fun _ => pure false
+  unless exited do
+    try connection.child.kill catch _ => pure ()
     let _ ← connection.child.wait
   let _ ← IO.wait connection.reader
 
@@ -123,8 +129,9 @@ def Transport.send (transport : Transport) (send : Send) : IO Unit := do
 def Transport.take (transport : Transport) : BaseIO (Array String) :=
   transport.heard.atomically (modifyGet fun lines => (lines, #[]))
 
-/-- How many of the three readers have ended. -/
-def Transport.endedReaders (transport : Transport) : BaseIO Nat :=
+/-- The reading of the monotonic clock at which the first of the three readers ended, if one
+has. -/
+def Transport.firstEnd (transport : Transport) : BaseIO (Option Nat) :=
   transport.ended.atomically get
 
 /-- Run a body with the three connections of a host open: the control and the state
@@ -134,7 +141,7 @@ and when a later connection fails to start. -/
 def Transport.within {α : Type} (control depth : System.FilePath)
     (body : Transport → IO α) : IO α := do
   let heard ← Std.Mutex.new #[]
-  let ended ← Std.Mutex.new 0
+  let ended ← Std.Mutex.new none
   let first ← Connection.start control heard ended
   let second ← (Connection.start control heard ended).tryCatch fun error => do
     Connection.stopAll [first]
