@@ -36,11 +36,12 @@ The commands that can be sent are those of the command type, which has no relax,
 and no disable: at the end of a run the host sends nothing more, and the daemon replaces the
 last velocity by zero at its expiry.
 
-**The end of a run.** A run ends when a connection's output has ended or its duration has
-passed. A connection that ended before the deadline ends the run as closed even when the
-driver notices it after the deadline, since the transport records the reading at which the
-first connection ended (`Transport.firstEnd`); one that ended at or after the deadline ends it
-by its duration. The closing line carries the reading at which the driver ended the run.
+**The end of a run.** The loop stops when a connection's output has ended or the duration has
+passed. Every reader records the reading at which it ended, and the transport keeps the
+earliest. The driver decides how the run ended only after the transport has stopped every
+connection and joined every reader (`Transport.within`): closed when a reader ended before
+the deadline, whenever the driver noticed it, and by its duration otherwise. The closing line,
+written after that, carries a reading taken when the loop stopped.
 
 **The clock.** The declared keeping assumes a reading of the clock, and a tick, at least every
 `Declared.gap`. The driver cannot enforce that: the operating system schedules its thread. It
@@ -220,10 +221,13 @@ private def advance {stepper : Stepper State Choice} {initial : State} (transpor
   | _ => return (next, 1)
 
 /-- Run the loop with a stepper and its starting agent over the transport, for a duration in
-seconds, writing the telemetry to a stream, and say why the run ended. -/
+seconds, writing the telemetry to a stream, and say why the run ended. The ending is decided
+after the transport has stopped every connection and joined every reader, from the earliest
+reading at which a reader ended against the deadline, and only then is the closing line
+written. -/
 def drive (stepper : Stepper State Choice) (initial : State) (control depth : System.FilePath)
-    (seconds : Nat) (out : IO.FS.Stream) : IO Ending :=
-  Transport.within control depth fun transport => do
+    (seconds : Nat) (out : IO.FS.Stream) : IO Ending := do
+  let (run, earliest) ← Transport.within control depth fun transport => do
     let origin ← IO.monoNanosNow
     let (start, opening) := Loop.start stepper initial Declared.pace Declared.keep ⟨origin⟩
     for send in opening do
@@ -235,8 +239,6 @@ def drive (stepper : Stepper State Choice) (initial : State) (control depth : Sy
     let mut steps := 0
     let mut ticker : Ticker := ⟨origin, 0, 0⟩
     let mut nextTick := origin + tickPeriod
-    let mut ending := Ending.duration
-    let mut finished := origin
     repeat
       let lines ← transport.take
       for text in lines do
@@ -256,20 +258,22 @@ def drive (stepper : Stepper State Choice) (initial : State) (control depth : Sy
         steps := steps + taken
         ticker := ticker.tick now
         nextTick := now + tickPeriod
-      finished := now
       match ← transport.firstEnd with
-      | some ended =>
-        ending := if ended < deadline then .closed else .duration
-        break
+      | some _ => break
       | none =>
         if deadline ≤ now then
-          ending := .duration
           break
       if lines.isEmpty then
         IO.sleep 1
-    out.putStrLn (closing origin finished loop ending steps ticker)
-    out.flush
-    return ending
+    let finished ← IO.monoNanosNow
+    return (origin, deadline, finished, loop, steps, ticker)
+  let (origin, deadline, finished, loop, steps, ticker) := run
+  let ending := match earliest with
+    | some ended => if ended < deadline then Ending.closed else .duration
+    | none => .duration
+  out.putStrLn (closing origin finished loop ending steps ticker)
+  out.flush
+  return ending
 
 /-- Run the agent of the options over the transport for their duration, writing the telemetry
 to standard output, and say why the run ended: the construction of the options, bound by

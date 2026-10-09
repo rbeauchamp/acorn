@@ -65,8 +65,9 @@ private def unbroken (line : String) : String :=
   String.ofList (line.toList.filter (· != '\n'))
 
 /-- Read a child's output to its end, or to a failure, appending every nonempty line. However
-the reader stops, it records the reading of the clock at which it stopped, unless an earlier
-reader's is recorded. -/
+the reader stops, it records the reading of the clock at which it stopped, and the transport
+keeps the earliest of the readings recorded, whatever the order in which the readers record
+them. -/
 private def readLines (input : IO.FS.Stream) (heard : Std.Mutex (Array String))
     (ended : Std.Mutex (Option Nat)) : IO Unit := do
   try
@@ -79,7 +80,9 @@ private def readLines (input : IO.FS.Stream) (heard : Std.Mutex (Array String))
         heard.atomically (modify (·.push text))
   finally
     let stopped ← IO.monoNanosNow
-    ended.atomically (modify fun first => some (first.getD stopped))
+    ended.atomically (modify fun earliest => some (match earliest with
+      | some earlier => min earlier stopped
+      | none => stopped))
 
 /-- Start a connection to a socket: its child and the reader of its output. -/
 private def Connection.start (socket : System.FilePath) (heard : Std.Mutex (Array String))
@@ -90,19 +93,36 @@ private def Connection.start (socket : System.FilePath) (heard : Std.Mutex (Arra
     (prio := .dedicated)
   return ⟨child, reader⟩
 
+/-- How many times a connection's cleanup tries to reap its child. -/
+private def reapAttempts : Nat := 3
+
 /-- End a connection: cancel its reader, kill its child unless a probe shows it has exited,
-reap it, and then wait for the reader, whose read ends at the closed output. A failed probe
-counts as a child still running, and a failed kill does not stop the reaping, which waits for
-the child to exit. A failure to reap the child is raised, and the reader is then not waited
-for, since its output may still be open. A failure of the reader is not raised here: the
-transport has recorded when it ended. -/
+reap it, and wait for its reader. A failed probe counts as a child still running, and a failed
+kill does not stop the reaping. A failed reaping is tried again, up to `reapAttempts` times.
+The reader is waited for in every case: the kill makes the child exit, which closes its
+output, so the reader's read ends; if the kill failed and the child still runs, the wait lasts
+until the child exits, and the connection stays owned until then. A reaping that failed every
+time is raised after the reader has been joined. A failure of the reader is not raised here:
+the transport has recorded when it ended. -/
 private def Connection.stop (connection : Connection) : IO Unit := do
   IO.cancel connection.reader
   let exited ← (do return (← connection.child.tryWait).isSome).tryCatch fun _ => pure false
+  let mut failure : Option IO.Error := none
   unless exited do
     try connection.child.kill catch _ => pure ()
-    let _ ← connection.child.wait
+    let mut reaped := false
+    for _ in [0:reapAttempts] do
+      unless reaped do
+        try
+          let _ ← connection.child.wait
+          reaped := true
+          failure := none
+        catch error =>
+          failure := some error
   let _ ← IO.wait connection.reader
+  match failure with
+  | some error => throw error
+  | none => pure ()
 
 /-- End every connection of a list, in order, each even when an earlier one failed to end;
 the first failure is raised after all of them. -/
@@ -129,17 +149,19 @@ def Transport.send (transport : Transport) (send : Send) : IO Unit := do
 def Transport.take (transport : Transport) : BaseIO (Array String) :=
   transport.heard.atomically (modifyGet fun lines => (lines, #[]))
 
-/-- The reading of the monotonic clock at which the first of the three readers ended, if one
-has. -/
+/-- The earliest reading of the monotonic clock at which one of the three readers ended, among
+the readers that have recorded theirs, if one has. -/
 def Transport.firstEnd (transport : Transport) : BaseIO (Option Nat) :=
   transport.ended.atomically get
 
 /-- Run a body with the three connections of a host open: the control and the state
 connection on the state daemon's socket, and the depth connection on the depth daemon's.
 Every connection that was started is stopped when the body ends, by a result or by an error,
-and when a later connection fails to start. -/
+and when a later connection fails to start. The body's result comes with the earliest reading
+at which a reader ended, read after every connection was stopped and every reader joined, so
+it holds every reader's end. -/
 def Transport.within {α : Type} (control depth : System.FilePath)
-    (body : Transport → IO α) : IO α := do
+    (body : Transport → IO α) : IO (α × Option Nat) := do
   let heard ← Std.Mutex.new #[]
   let ended ← Std.Mutex.new none
   let first ← Connection.start control heard ended
@@ -149,8 +171,8 @@ def Transport.within {α : Type} (control depth : System.FilePath)
   let third ← (Connection.start depth heard ended).tryCatch fun error => do
     Connection.stopAll [first, second]
     throw error
-  try body ⟨first, second, third, heard, ended⟩
-  finally
-    Connection.stopAll [first, second, third]
+  let result ← tryFinally (body ⟨first, second, third, heard, ended⟩)
+    (Connection.stopAll [first, second, third])
+  return (result, ← ended.atomically get)
 
 end Acorn.Host.Microduck
