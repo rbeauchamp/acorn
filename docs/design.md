@@ -338,17 +338,18 @@ cycle and the later one meets its deadline, for percepts `span` cycles apart, th
 later release is less than `span + latency` cycles after the earlier one
 (`Pace.met_gap`).
 
-These are statements about the functions. No executing loop keeps a standing or
-reads a cycle or a latency, and no executing world declares a wall clock. A host of a
-wall-clock world computes its verdicts with `Pace.outcome`; the pure transitions of the
-Microduck's host do, and no executing loop calls them yet. Nothing here states that a
-world keeps in force the action that a standing names.
+These are statements about the functions. A host of a wall-clock world computes its
+verdicts with `Pace.outcome`; the pure transitions of the Microduck's host do, and the
+executable `microduck-host` (`Acorn.Host.Microduck.Driver`) runs them on the monotonic
+clock, through the loop of `Acorn.Host.Microduck.Loop`, which counts every release at or
+after its deadline. Nothing here states that a world keeps in force the action that a
+standing names.
 
-Operation in real time needs three more parts, and none is built:
+Operation in real time needs three more parts. The first is built for the Microduck's
+world:
 
 - a driver of a host loop for a world on a wall clock, which reads the declared timing and
-  counts a missed deadline as a fault; the Microduck's loop has a pure core
-  (`Acorn.Host.Microduck.Loop`) and no driver
+  counts a missed deadline as a fault: `microduck-host`
   ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
 - a bound of the work of each part of a step;
 - the exact save and restore of the agent. An exact saved image of the agent is
@@ -630,7 +631,7 @@ skills and timing is in
 A client sends **intents**, never a joint command: a velocity, or a skill by name.
 The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
 0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
-for the client. Six parts of this world are built, as pure definitions:
+for the client. Seven parts of this world are built, as pure definitions:
 [the action table](../lean/Acorn/Host/Microduck/Action.lean),
 [the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean),
 [what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
@@ -642,8 +643,9 @@ as JSON,
 its transitions,
 [the pure core of the host's loop](../lean/Acorn/Host/Microduck/Loop.lean),
 and [the interface value with the frame of a reading](../lean/Acorn/Handcrafted/Microduck.lean).
-No driver of the loop and no transport exist yet, so no code of Acorn reaches the simulator and no executing code
-builds a percept of this world
+[The transport](../lean/Acorn/Host/Microduck/Transport.lean) and
+[the driver of the loop](../lean/Acorn/Host/Microduck/Driver.lean) make the executable
+`microduck-host`, which runs the agent against the simulator's daemons
 ([issue #95](https://github.com/rbeauchamp/acorn/issues/95)).
 
 **The daemon's networks are the world's actuation interface.** Every intent is
@@ -1018,11 +1020,14 @@ every derivation holds of every value.
 
 **The loop's core.** `Acorn.Host.Microduck.Loop` composes these transitions with the
 agent's two step parts, with no effect: a driver hands it events (a line heard, a tick of
-the clock, a finished choice, a finished learning), each with a reading of the clock, and
-each step returns the next state and the lines to send. A stage is `ready`, `choosing` or
-`learning`, and `choosing` is the only stage that holds an awaiting host, so a percept
-awaits exactly while the agent chooses and no percept is sensed while the agent chooses or
-learns. A `Loop` holds a stage with a derivation from its start (`Ran`) for its stepper and
+the clock, a finished choice, the lines of a release sent, a finished learning), each with
+a reading of the clock, and each step returns the next state and the lines to send. A stage
+is `ready`, `choosing`, `released` or `learning`, and `choosing` is the only stage that
+holds an awaiting host, so a percept awaits exactly while the agent chooses and no percept
+is sensed while the agent chooses, is released or learns. A finished choice releases the
+action and returns its lines with no task; the agent's learning starts only at the event
+that says those lines were sent (`Stage.step_sent`, `Stage.step_learning`), so the second
+part of a step follows the action's send, the order `actThenLearn`. A `Loop` holds a stage with a derivation from its start (`Ran`) for its stepper and
 its starting agent, as the host's two phases hold theirs, so a task of a loop computes the
 stepper's part on what the loop sensed and no other value exists (`Loop.agent`). The
 instant of a step is the later of the reading and the instant of the last step
@@ -1050,7 +1055,20 @@ invalid line is counted and changes nothing else (`Stage.react_refused`). The st
 finished choice releases its action at every instant, since the release of the awaited
 cycle is admitted from the last step on (`Loop.step_release`), and the counts hold one
 percept for each percept sensed and a release for each but the one awaited (`Ran.counts`).
-No driver calls the loop yet, and none of these reads a clock or a socket.
+None of these reads a clock or a socket.
+
+**The driver and the transport.** `Acorn.Host.Microduck.Transport` is the trusted
+boundary: one child process `/usr/bin/nc -U <socket>` for each of the three connections
+(commands and answers, the state stream, the depth stream), whose output lines reader
+tasks append to one list in the order read; nothing in it parses a line. The executable
+`microduck-host` (`Acorn.Host.Microduck.Driver`) holds a `Loop` and changes it only with
+`Loop.step`, at readings of the monotonic clock: in each pass every line heard, then a
+finished task only after IO.hasFinished answered true for the task the loop holds, with
+the reading taken after that answer, then a tick every 20 ms; the lines a step returns go
+to their connections in order before the next step. It cannot make its thread read the
+clock at least every `Declared.gap`, which the declared keeping assumes, so it counts the
+gaps between two ticks above it and reports the largest, with one telemetry line for each
+change of stage.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol

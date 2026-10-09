@@ -224,6 +224,12 @@ lean_exe «world-native» where
   root := `Acorn.WorldDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
+/-- The host of the Microduck's world: the agent's loop driven over three `nc` connections
+to the simulated daemons, with telemetry on standard output. -/
+lean_exe «microduck-host» where
+  root := `Acorn.Host.Microduck.Driver
+  moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+
 /-- Generator-only certificate tool: proposes certificates for selecting properties of a
 seed and prints what the checkers accept. The boundary audit keeps the agent composition,
 the campaign runner and the comparator out of its import closure. That closure holds the

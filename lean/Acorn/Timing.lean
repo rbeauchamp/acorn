@@ -88,11 +88,13 @@ it (`IO.monoNanosNow`), so this arithmetic is exact and has no word bound. An in
 a count of cycles are different types, so neither takes the other's place in a function
 of this section.
 
-The statements are about these functions. The one executing world, the grid world,
-declares `synchronized`. A host of a wall-clock world computes its verdicts with
+The statements are about these functions. The grid world declares `synchronized`, and
+the Microduck's world a wall clock with its declared pace
+(`Acorn.Handcrafted.Microduck.interface_timing`). A host of a wall-clock world computes its verdicts with
 `Pace.outcome`: the host states of `Acorn.Host.Microduck.Session` define their standing
-as `Standing.during` of their last step and do so in their pure transitions, and no
-executing loop calls them yet (https://github.com/rbeauchamp/acorn/issues/95). Nothing
+as `Standing.during` of their last step and do so in their pure transitions, which the
+executable of `Acorn.Host.Microduck.Driver` runs through its loop
+(https://github.com/rbeauchamp/acorn/issues/95). Nothing
 here states that a world keeps in force the action that a standing names.
 -/
 namespace Acorn

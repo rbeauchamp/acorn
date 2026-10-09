@@ -136,7 +136,7 @@ def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiati
 /-- Only these admitted host boundaries may create or inspect native subprocesses. -/
 def processOwners : Array Name := #[`Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
   `Acorn.Host.Viewer.RunDirectory, `Acorn.Host.Viewer.ProcessOwner,
-  `Acorn.Host.Viewer.NativeResources, `NativeApp.Viewer]
+  `Acorn.Host.Viewer.NativeResources, `Acorn.Host.Microduck.Transport, `NativeApp.Viewer]
 
 /-- Native effects cannot be smuggled into learned modules through Init aliases. -/
 def capabilityAllowed (owner dependency : Name) : Bool :=

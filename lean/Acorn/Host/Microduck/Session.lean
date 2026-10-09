@@ -13,8 +13,8 @@ The Microduck's world moves on a wall clock. A host of that world hears lines of
 daemons, senses a percept at the start of a cycle, releases the action that the agent
 chose, and reads its clock between releases. This module is the state a host holds
 between those events and one pure transition for each event. It reads no clock, no socket
-and no agent: `Acorn.Host.Microduck.Loop` calls these transitions in a pure loop, no driver
-runs that loop yet, and nothing here states that one does.
+and no agent: `Acorn.Host.Microduck.Loop` calls these transitions in a pure loop, which the
+executable of `Acorn.Host.Microduck.Driver` runs, and nothing here states that it does.
 
 **Two phases, two types.** An `Idle` is a host with no percept awaiting its action: before
 the first percept, and between a release and the next percept. An `Awaiting` is a host

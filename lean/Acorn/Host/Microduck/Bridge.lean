@@ -108,15 +108,16 @@ These are assumptions of the use of the statements, proved nowhere:
   the transit allowance of the keeping;
 - a reading of the clock, and a tick, at least every `Declared.gap`. That needs a reader
   of the clock that runs while the agent's step computes, which is a property of the
-  driver of the host's loop, which is not built, and of the operating system's scheduling;
+  driver of the host's loop, `Acorn.Host.Microduck.Driver`, and of the operating system's
+  scheduling: the driver counts the gaps above it and does not prevent them;
 - the posture a caller states is the body's;
 - the declared duration of an action covers what the body takes for it.
 
-No executing code keeps a `Bridge`: the functions here are pure.
-`Acorn.Host.Microduck.Session` holds one in the state of a host and calls them in its own
+The functions here are pure. `Acorn.Host.Microduck.Session` holds a `Bridge`, the record of
+the last release, in the state of a host and calls them in its own
 pure transitions, which refuse a percept before the cycle that `Bridge.next` gives;
-`Acorn.Host.Microduck.Loop` calls those in a pure loop, and no driver runs it
-(https://github.com/rbeauchamp/acorn/issues/95). Nothing in a `Bridge` itself refuses an
+`Acorn.Host.Microduck.Loop` calls those in a pure loop, which the executable of
+`Acorn.Host.Microduck.Driver` runs (https://github.com/rbeauchamp/acorn/issues/95). Nothing in a `Bridge` itself refuses an
 earlier release.
 -/
 namespace Acorn.Host.Microduck

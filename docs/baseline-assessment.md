@@ -423,21 +423,22 @@ F-E left its feature-construction end inert until U3.
   [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
   host's step under the default step order, construction and restoration equal to a
   frozen composition over host observations (`act_eq`, `callback_eq`, `initial_eq`,
-  `restore_eq`). Five bindings
-  to the grid world remain. Three are to its way of running. One of those is
+  `restore_eq`). Four bindings
+  to the grid world remain. Two are to its way of running. One of those is
   outside the interface: a saved image is not an exact image of the agent (the
-  option models and the off-policy questions start afresh). One is a declaration
-  with no second case in execution: the grid world declares that it waits for the
-  agent (`Grid.interface_timing`), an interface can declare a wall clock with a
-  cycle and a latency ([design](design.md#the-time-a-world-declares)), and no
-  host loop reads such a declaration. The step itself is two functions, and under the `plan-after-act` and
+  option models and the off-policy questions start afresh). Its timing is not one:
+  the grid world declares that it waits for the agent (`Grid.interface_timing`),
+  the Microduck's world declares a wall clock with a cycle and a latency
+  (`Microduck.interface_timing`, [design](design.md#the-time-a-world-declares)),
+  and the executable `microduck-host` runs that world's host loop at the declared
+  pace. The step itself is two functions, and under the `plan-after-act` and
   `act-then-learn` step orders a host releases the action between them, with
   planning after the action and, under `act-then-learn`, every write that reads the
   reward after it as well
   ([design](design.md#the-two-parts-of-a-step)); every value that either native
   loop returns agrees with one pure fold of whole steps, in its run state and
   outcome or in its refusal with the learned stage of a refused pass
-  (`runAttempt_complete`), and no executing world runs on a wall clock. One is carried by the frame: the host's achievement flag still ends an
+  (`runAttempt_complete`). One is carried by the frame: the host's achievement flag still ends an
   option, as a field that the coder does not read (`frame_congr`); it is declared
   as departure [D8](learned-only-binding.md#d8--achievement-event--step-10). Two
   are inside the agent's own modules, which import no world: the lifetime
@@ -447,7 +448,8 @@ F-E left its feature-construction end inert until U3.
   `withoutReachRelation` is named for the grid world's reach relation, which only
   the grid adapter omits from its frame
   words. A second world, the Microduck, has an instance of the interface and an
-  adapter, as definitions; no executing loop runs an agent in it, so that an agent
+  adapter, and the executable `microduck-host` runs the agent in it against the
+  vendor's simulator; no run of it is recorded as a measurement, so that an agent
   learns in another world is not an observation.
 - **Models.** The Alberta Plan's base agent has a transition model that "predicts
   the state at the time the option terminates and the cumulative reward along the
