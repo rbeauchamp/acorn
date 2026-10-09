@@ -631,7 +631,7 @@ skills and timing is in
 A client sends **intents**, never a joint command: a velocity, or a skill by name.
 The daemon replaces a velocity by zero when it is 500 ms old, a skill runs for
 0.5 to 2.8 s and is not interrupted, a command can be refused, and nothing waits
-for the client. Six parts of this world are built, as pure definitions:
+for the client. Seven parts of this world are built, as pure definitions:
 [the action table](../lean/Acorn/Host/Microduck/Action.lean),
 [the bridge's state](../lean/Acorn/Host/Microduck/Bridge.lean),
 [what the body senses](../lean/Acorn/Host/Microduck/Sensing.lean), kept as bounded
