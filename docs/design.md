@@ -1030,7 +1030,14 @@ origin, and `Idle.sense` is the only test of sensing. The agent's parts are task
 runtime spawns from a `Stepper`'s functions, once each, so the action released for a
 percept is the stepper's choice on it (`Stage.step_sense`, `Loop.step_release`);
 `Stepper.ofAgent` binds the agent under `actThenLearn`, whose two parts compose to
-`Agent.actOrdered` (`Stepper.ofAgent_step`). A tick reaches the host's own tick in every
+`Agent.actOrdered` (`Stepper.ofAgent_step`). The driver's trusted contract is to hand a
+finished choice or a finished learning only once `IO.hasFinished` holds of its task, with
+the reading of the clock taken after that: a step told early reads the task's value all the
+same but records the earlier reading as the instant of the release, so its lateness and the
+hold and cycle times that follow are not meaningful. This is observed against the
+simulator, not proved: told early, 59 releases waited 550 to 758 ms for the choice, all
+reached the daemon after their deadline and none was counted late (run `live-early`);
+told after `IO.hasFinished`, 39 of 41 were counted late (run `live-slow`). A tick reaches the host's own tick in every
 stage, so the velocity of the last release is sent again while the agent computes
 (`Stage.step_tick`). After its opening requests the loop sends exactly the lines of the
 commands that the host's tick and release return, on the control connection

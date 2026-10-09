@@ -40,8 +40,14 @@ loop while the loop goes on hearing lines and reading the clock, and its value i
 function's value: the action released for a percept is the stepper's action of its choice on
 that percept (`Stage.step_sense`, `Loop.step_release`). A step runs each transition once, so
 it spawns each task once, and it returns the percept it sensed. A driver only says that a task
-has finished, with `Event.chosen` or `Event.learned`; when it says so early, the step waits
-for the task. `Stepper.ofAgent` is the agent of this repository under the step order
+has finished, with `Event.chosen` or `Event.learned`, and its contract is to say so only once
+`IO.hasFinished` holds of the task, with the reading of the clock taken after that, since the
+step releases at the instant of its reading. A step told early reads the task's value all the
+same, but records the earlier reading as the instant of the release, so its lateness and the
+hold and cycle times that follow are not meaningful. Observed, not proved, against the
+simulator: told early, 59 releases waited 550 to 758 ms for the choice, all reached the daemon
+after their deadline and none was counted late (run `live-early`); told after `IO.hasFinished`,
+39 of 41 were counted late (run `live-slow`). `Stepper.ofAgent` is the agent of this repository under the step order
 `actThenLearn`, whose two parts compose to `Agent.actOrdered` (`Stepper.ofAgent_step`).
 
 **Every event goes through the host's own transitions.** A line goes through `Idle.hear` or
@@ -76,8 +82,9 @@ admitted at every instant from the last step on (`Loop.step_release`); and the c
 percept for each percept sensed and a release for each but the one awaited (`Ran.counts`).
 
 **Trusted, and not stated.** That a driver hands the events in the order they happened, with
-readings of one monotonic clock; that the runtime computes a task's value; when a task
-finishes; and every effect of sending a line. A reading before the instant of the last step
+readings of one monotonic clock, each `Event.chosen` and `Event.learned` only once its task
+has finished and with a reading taken after that; that the runtime computes a task's value;
+when a task finishes; and every effect of sending a line. A reading before the instant of the last step
 is taken as that instant, so the statements here hold of every sequence of readings, and only
 the timing of the world depends on the clock. The loop counts late releases; how many a run
 has is a measurement.
