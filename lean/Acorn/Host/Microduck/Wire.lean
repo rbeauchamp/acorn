@@ -180,7 +180,8 @@ they refuse no member that the specification does not name. In every case the me
   is null beside a `result` is in this case: it is not read as a refusal, and not as the
   result either.
 
-Not built: the transport and the executing loop. What a host makes of the answers to
+Not built: the transport and the driver of the host's loop, whose pure core is
+`Acorn.Host.Microduck.Loop`. What a host makes of the answers to
 the requests of one release is in `Acorn.Host.Microduck.Session`.
 `Acorn.Json.parse` reads a line. The theorems here about that parser are
 `Command.line_asked` and `Stream.line_asked`, on the texts that a host writes; no theorem

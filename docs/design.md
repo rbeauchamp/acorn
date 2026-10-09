@@ -346,8 +346,9 @@ world keeps in force the action that a standing names.
 
 Operation in real time needs three more parts, and none is built:
 
-- a host loop for a world on a wall clock, which reads the declared timing and
-  counts a missed deadline as a fault
+- a driver of a host loop for a world on a wall clock, which reads the declared timing and
+  counts a missed deadline as a fault; the Microduck's loop has a pure core
+  (`Acorn.Host.Microduck.Loop`) and no driver
   ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
 - a bound of the work of each part of a step;
 - the exact save and restore of the agent. An exact saved image of the agent is
@@ -799,7 +800,7 @@ on assumptions that are proved nowhere:
 - the receipt follows the reading of the clock a send is stamped with by at most the
   transit allowance;
 - a reading of the clock at least every 50 ms, which needs a reader that runs while
-  the agent's step computes. That is a property of an executing host loop, which is not
+  the agent's step computes. That is a property of the driver of the host's loop, which is not
   built, and of the operating system's scheduling;
 - that the posture a caller states is the body's. A wrong one sends the toggle the
   wrong way;
@@ -1031,13 +1032,13 @@ runtime spawns from a `Stepper`'s functions, once each, so the action released f
 percept is the stepper's choice on it (`Stage.step_sense`, `Loop.step_release`);
 `Stepper.ofAgent` binds the agent under `actThenLearn`, whose two parts compose to
 `Agent.actOrdered` (`Stepper.ofAgent_step`). The driver's trusted contract is to hand a
-finished choice or a finished learning only once `IO.hasFinished` holds of its task, with
+finished choice or a finished learning only once IO.hasFinished holds of its task, with
 the reading of the clock taken after that: a step told early reads the task's value all the
 same but records the earlier reading as the instant of the release, so its lateness and the
 hold and cycle times that follow are not meaningful. This is observed against the
 simulator, not proved: told early, 59 releases waited 550 to 758 ms for the choice, all
 reached the daemon after their deadline and none was counted late (run `live-early`);
-told after `IO.hasFinished`, all 36 releases that reached the daemon after their deadline
+told after IO.hasFinished, all 36 releases that reached the daemon after their deadline
 were counted late, and the late flag equalled "instant at or after the deadline" on every
 release (run `live-slow`; its other 5 releases were told early by injected events). A tick
 reaches the host's own tick in every stage, so the velocity of the last release is sent again while the agent computes

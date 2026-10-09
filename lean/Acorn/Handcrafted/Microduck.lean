@@ -21,7 +21,8 @@ fields and scales are authored in that host module. Each signal carries its decl
 origin in its value. The layout has no type of its own to carry one: its declaration is
 the entry of the register and the inventory of the departure audit.
 
-No executing code builds a percept: the executing host loop of this world is not built.
+No executing code builds a percept: the host loop of this world has a pure core,
+`Acorn.Host.Microduck.Loop`, and no driver runs it.
 A host owes the adapter four things: the reading, what became of the preceding action,
 whether its release was late, and the state of the goal's latch, which starts disarmed
 and which `arm` advances at each reading. `Acorn.Host.Microduck.Idle.sense` gives the
