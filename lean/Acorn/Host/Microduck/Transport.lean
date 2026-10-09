@@ -93,36 +93,18 @@ private def Connection.start (socket : System.FilePath) (heard : Std.Mutex (Arra
     (prio := .dedicated)
   return ⟨child, reader⟩
 
-/-- How many times a connection's cleanup tries to reap its child. -/
-private def reapAttempts : Nat := 3
-
-/-- End a connection: cancel its reader, kill its child unless a probe shows it has exited,
-reap it, and wait for its reader. A failed probe counts as a child still running, and a failed
-kill does not stop the reaping. A failed reaping is tried again, up to `reapAttempts` times.
-The reader is waited for in every case: the kill makes the child exit, which closes its
-output, so the reader's read ends; if the kill failed and the child still runs, the wait lasts
-until the child exits, and the connection stays owned until then. A reaping that failed every
-time is raised after the reader has been joined. A failure of the reader is not raised here:
-the transport has recorded when it ended. -/
+/-- End a connection: cancel its reader, kill its child, ignoring a failed kill, wait once for
+the child to exit, join the reader, and then raise the wait's failure, if any. The kill makes
+the child exit, which closes its output, so the reader's read ends; if the kill failed and the
+child still runs, the wait lasts until the child exits. A failure of the reader is not raised
+here: the transport has recorded when it ended. -/
 private def Connection.stop (connection : Connection) : IO Unit := do
   IO.cancel connection.reader
-  let exited ← (do return (← connection.child.tryWait).isSome).tryCatch fun _ => pure false
-  let mut failure : Option IO.Error := none
-  unless exited do
-    try connection.child.kill catch _ => pure ()
-    let mut reaped := false
-    for _ in [0:reapAttempts] do
-      unless reaped do
-        try
-          let _ ← connection.child.wait
-          reaped := true
-          failure := none
-        catch error =>
-          failure := some error
-  let _ ← IO.wait connection.reader
-  match failure with
-  | some error => throw error
-  | none => pure ()
+  try connection.child.kill catch _ => pure ()
+  try
+    discard connection.child.wait
+  finally
+    discard (IO.wait connection.reader)
 
 /-- End every connection of a list, in order, each even when an earlier one failed to end;
 the first failure is raised after all of them. -/
