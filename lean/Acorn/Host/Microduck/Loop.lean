@@ -47,8 +47,10 @@ same, but records the earlier reading as the instant of the release, so its late
 hold and cycle times that follow are not meaningful. Observed, not proved, against the
 simulator: told early, 59 releases waited 550 to 758 ms for the choice, all reached the daemon
 after their deadline and none was counted late (run `live-early`); told after `IO.hasFinished`,
-39 of 41 were counted late (run `live-slow`). `Stepper.ofAgent` is the agent of this repository under the step order
-`actThenLearn`, whose two parts compose to `Agent.actOrdered` (`Stepper.ofAgent_step`).
+all 36 releases that reached the daemon after their deadline were counted late, and the late
+flag equalled "instant at or after the deadline" on every release (run `live-slow`; its other
+5 releases were told early by injected events). `Stepper.ofAgent` is the agent of this
+repository under the step order `actThenLearn`, whose two parts compose to `Agent.actOrdered` (`Stepper.ofAgent_step`).
 
 **Every event goes through the host's own transitions.** A line goes through `Idle.hear` or
 `Awaiting.hear`, after `Line.read` of the value that `Json.parse` gives its text, read once
