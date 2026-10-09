@@ -56,7 +56,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Four functions of this module have a contract and no kind. The reasons are two.
+Five functions of this module have a contract and no kind. The reasons are two.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -66,7 +66,8 @@ Four functions of this module have a contract and no kind. The reasons are two.
   propositions in the place of those tests.
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
-  `Checkpoint.load`.
+  `Checkpoint.load` and `Agent.input`. For `Agent.input`, an audit of the kind stated with its
+  witnesses named the eleven shared tests that `Acorn.Decisions.agent_input` lists.
 
 Kinds for these functions are remaining work of https://github.com/rbeauchamp/acorn/issues/105.
 

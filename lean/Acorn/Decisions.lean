@@ -197,8 +197,10 @@ report of the definitions that have no contract is work of Regula
   worlds, agents, goals and bounds as structures and propositions, so they declare no
   definition with such a result.
 * A theorem names the definition and no contract states it. These are transitions of the
-  world, of the attempt and campaign runners, of the temporal controller and of the agent
-  prefix, and selections and predicates of the feature library. This module makes no
+  world, of the attempt runner and of the temporal controller, and the readers of the lines and
+  the phases of a Microduck host (`Host.Microduck.Line.stateFrame`,
+  `Host.Microduck.Line.depthFrame`, `Host.Microduck.Phase.armed`, `Host.Microduck.Phase.last`
+  and `Host.Microduck.fitting`). This module makes no
   statement about what a caller does with the result of such a definition. The draw-first
   dispatch of the step order `act-then-learn` (`Handcrafted.TemporalControl.drawFirst`) is in
   this group, as selection is: it returns no state when a declared potential has no source,
@@ -211,10 +213,8 @@ report of the definitions that have no contract is work of Regula
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. Two definitions are the exception.
-`AgentConstruction.State.restore`, which `Checkpoint.load` applies, is the restoration of the
-agent on the admitted image (`AgentConstruction.State.restore_agent`), and the restoration of
-the agent has the contract `agent_restore`. `Host.Microduck.Reading.age`, which
+the end of this module states those. One definition is the exception.
+`Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
 requires it by name. The tests `Handcrafted.Microduck.upright` and
@@ -4848,7 +4848,8 @@ structure ActiveSlot where
 /-- The temporal state of the grid interface, the resumable profile, `bank` and `narrow` before
 any step, with the given dispatch phase. -/
 def phased (phase : Occupancy (OptionActivation true) (CommittedRun Grid.interface.actions true)) :
-    TemporalControl Grid.interface ⟨.final, .perStep, .declared, .learned⟩ bank .discounted narrow :=
+    TemporalControl Grid.interface ⟨.final, .perStep, .declared, .learned⟩ bank .discounted
+      narrow :=
   let initial := TemporalControl.initial Grid.interface ⟨.final, .perStep, .declared, .learned⟩ bank
     .discounted narrow
   { initial with runtime := { initial.runtime with
@@ -4872,7 +4873,8 @@ theorem active_slot : Regula.ExecutableContract @TemporalControl.activeSlot (fun
       · simp [Occupancy.executing]
       · cases origin : run.origin <;> simp [Occupancy.executing, origin]
       · simp [Occupancy.executing])
-    ⟨⟨Grid.interface, _, bank, .discounted, narrow, phased (.option ⟨0, by decide⟩ (.first true false))⟩,
+    ⟨⟨Grid.interface, _, bank, .discounted, narrow,
+        phased (.option ⟨0, by decide⟩ (.first true false))⟩,
       .inl ⟨⟨0, by decide⟩, .first true false, rfl⟩⟩
     ⟨⟨Grid.interface, _, bank, .discounted, narrow, phased .idle⟩, fun specified => by
       rcases specified with ⟨_, _, same⟩ | ⟨_, same, _⟩ <;> exact nomatch same⟩⟩
@@ -4996,7 +4998,8 @@ private theorem restoreFree_cons {config : Features.Config} {criterion : Criteri
 private theorem runPrefix_continue {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
     (state next : Agent Grid.interface profile config criterion dimension planning)
-    (event : AgentInput config criterion dimension) (rest : List (AgentInput config criterion dimension))
+    (event : AgentInput config criterion dimension)
+    (rest : List (AgentInput config criterion dimension))
     (accepted : state.input event = .ok (next, false)) :
     state.runPrefix (event :: rest) = next.runPrefix rest := by
   simp [Agent.runPrefix, accepted, bind, Except.bind]
