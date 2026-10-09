@@ -85,6 +85,33 @@ theorem header_roundtrip (construction : AgentConstruction) (image : constructio
   simp [admitHeader, imagePayload, supported, resumable, gain, units]
   rfl
 
+/-- Raw feature words reconstruct the exact saved progress, objectives and primary image of
+every feature image of every receiving bank, criterion and feature space. -/
+theorem features_roundtrip {actions : Word.Count} (config : Features.Config)
+    (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}
+    (features : FeatureImage actions config criterion dimension discounts) :
+    FeatureImage.admit config criterion dimension
+      (⟨config.seed, config.tilings, config.units.count.toUInt32.toUInt16,
+        dimension.capacity.toUInt32, criterion.tag.toUInt32.toUInt8, features.progress.clock,
+        (testerWords features.progress).progress,
+        features.assignments.map (Assignment.words dimension), features.primary⟩ :
+        RawFeatureImage actions dimension discounts) = some features := by
+  have units : config.units.count.toUInt32.toUInt16.toNat = config.units.count := by
+    have := config.units.bounded
+    change (config.units.count % 2^32) % 2^16 = config.units.count
+    omega
+  have capacity : dimension.capacity.toUInt32.toNat = dimension.capacity :=
+    Nat.mod_eq_of_lt dimension.wordBound
+  have tag : criterion.tag.toUInt32.toUInt8 = criterion.tag := by
+    cases criterion <;> rfl
+  simp only [FeatureImage.admit, units, capacity, tag]
+  simp only [bne_self_eq_false, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+  rw [show (testerWords features.progress).progress = features.progress.words from rfl,
+    Progress.words_roundtrip]
+  simp only [bind, Option.bind]
+  rw [vector_roundtrip _ _ (Assignment.words_roundtrip dimension)]
+  simp [(Assignment.distinct_iff _).mpr features.distinct]
+
 /-- Raw feature words reconstruct the exact saved progress, objectives and primary image. -/
 theorem feature_roundtrip (construction : AgentConstruction)
     (image : AgentImage Grid.interface construction.config construction.criterion
@@ -95,24 +122,9 @@ theorem feature_roundtrip (construction : AgentConstruction)
        construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
        image.features.progress.clock, (testerWords image.features.progress).progress,
        image.features.assignments.map (Assignment.words construction.dimension),
-       image.features.primary⟩ = some image.features := by
-  have units : construction.config.units.count.toUInt32.toUInt16.toNat =
-    construction.config.units.count := by
-    have := construction.config.units.bounded
-    change (construction.config.units.count % 2^32) % 2^16 = construction.config.units.count
-    omega
-  have capacity : construction.dimension.capacity.toUInt32.toNat = construction.dimension.capacity
-    :=
-    Nat.mod_eq_of_lt construction.dimension.wordBound
-  have criterion : construction.criterion.tag.toUInt32.toUInt8 = construction.criterion.tag := by
-    cases construction.criterion <;> rfl
-  simp only [FeatureImage.admit, units, capacity, criterion]
-  simp only [bne_self_eq_false, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
-  rw [show (testerWords image.features.progress).progress = image.features.progress.words from rfl,
-    Progress.words_roundtrip]
-  simp only [bind, Option.bind]
-  rw [vector_roundtrip _ _ (Assignment.words_roundtrip construction.dimension)]
-  simp [(Assignment.distinct_iff _).mpr image.features.distinct]
+       image.features.primary⟩ = some image.features :=
+  features_roundtrip construction.config construction.criterion construction.dimension
+    image.features
 
 /-- Full admission preserves every image of a construction, including both signed-zero
 encodings: the admission of the payload of an image is that image. -/

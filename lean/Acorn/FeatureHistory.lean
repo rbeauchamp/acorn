@@ -70,6 +70,15 @@ theorem Event.words_roundtrip {config : Config} (event : Event config) :
   have exactWord : event.unit.val.toUInt16.toNat = event.unit.val := Nat.mod_eq_of_lt bound
   simp only [Event.admit, Event.words, exactWord, event.unit.isLt, ↓reduceDIte]
 
+/-- An admitted word pair is the word pair of the event that admission returns. -/
+theorem Event.admit_words {config : Config} (raw : UInt64 × UInt16) (event : Event config)
+    (admitted : Event.admit config raw = some event) : raw = event.words := by
+  unfold Event.admit at admitted
+  split at admitted
+  · cases admitted
+    simp [Event.words]
+  · contradiction
+
 /-- Contribution utilities are finite and nonnegative at storage. -/
 def utilityRange : Interval32 where
   lower := .zero
@@ -114,6 +123,19 @@ def UnitState.admit (raw : UnitWords) : Option UnitState :=
 /-- Every stored unit survives its own words. -/
 theorem UnitState.words_roundtrip (unit : UnitState) : UnitState.admit unit.words = some unit := by
   simp [UnitState.admit, UnitState.words, Bounded32.admit_self]
+
+/-- An admitted unit image is the image of the unit that admission returns. -/
+theorem UnitState.admit_words (raw : UnitWords) (unit : UnitState)
+    (admitted : UnitState.admit raw = some unit) : raw = unit.words := by
+  unfold UnitState.admit at admitted
+  cases legal : Bounded32.admit utilityRange raw.2.2 with
+  | none =>
+    rw [legal] at admitted
+    contradiction
+  | some utility =>
+    rw [legal] at admitted
+    cases admitted
+    rw [UnitState.words, (Bounded32.admit_exact _ _ _ legal).1]
 
 /-- The stored latest event, if any, is no later than the clock. -/
 def Recent {config : Config} (clock : UInt64) : Option (Event config) → Prop
@@ -287,6 +309,27 @@ theorem admitLast_roundtrip {config : Config} (last : Option (Event config)) :
       simp [Prod.ext_iff]
     simp [admitLast, lastWords, tag, Event.words_roundtrip]
 
+/-- An admitted word triple is the word triple of the latest event that admission returns. -/
+theorem admitLast_words {config : Config} (raw : LastWords) (last : Option (Event config))
+    (admitted : admitLast config raw = some last) : raw = lastWords last := by
+  unfold admitLast at admitted
+  split at admitted
+  · rename_i absent
+    cases admitted
+    exact absent
+  · split at admitted
+    · rename_i present
+      cases found : Event.admit config raw.2 with
+      | none =>
+        rw [found] at admitted
+        contradiction
+      | some event =>
+        rw [found] at admitted
+        cases admitted
+        show raw = (1, event.words)
+        rw [← Event.admit_words raw.2 event found, ← present]
+    · contradiction
+
 /-- Raw durable tester words apart from the clock, which the header carries. -/
 structure ProgressWords where
   /-- Generator continuation. -/
@@ -351,6 +394,43 @@ theorem Progress.words_roundtrip {config : Config} (progress : Progress config) 
       exact absurd ⟨progress.born, progress.recent⟩ absent
   · rename_i absent
     exact absurd ⟨by simp, progress.credit.isLt⟩ absent
+
+/-- An admitted per-unit word list is the word list of the units that admission returns. -/
+theorem units_admit_words : ∀ (raw : List UnitWords) (units : List UnitState),
+    raw.mapM UnitState.admit = some units → raw = units.map UnitState.words
+  | [], units, admitted => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at admitted
+    subst admitted
+    rfl
+  | word :: words, units, admitted => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at admitted
+    obtain ⟨unit, first, rest, others, built⟩ := admitted
+    subst built
+    rw [List.map_cons, ← UnitState.admit_words word unit first,
+      ← units_admit_words words rest others]
+
+/-- An admitted tester image holds the clock and the words of the state that admission
+returns: every unit's words, the credit, the latest event and the two counters. -/
+theorem Progress.admit_words {config : Config} (clock : UInt64) (raw : ProgressWords)
+    (progress : Progress config) (admitted : Progress.admit config clock raw = some progress) :
+    clock = progress.clock ∧ raw = progress.words := by
+  obtain ⟨stream, credit, replaced, lastRaw, unitsRaw⟩ := raw
+  unfold Progress.admit at admitted
+  simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at admitted
+  obtain ⟨units, unitsAdmitted, last, lastAdmitted, built⟩ := admitted
+  split at built
+  · split at built
+    · cases built
+      have unitsWords := units_admit_words unitsRaw units unitsAdmitted
+      have lastWords := admitLast_words lastRaw last lastAdmitted
+      subst unitsWords lastWords
+      have creditWord : credit.toNat.toUInt32 = credit :=
+        UInt32.toNat_inj.mp (Nat.mod_eq_of_lt credit.toNat_lt)
+      refine ⟨rfl, ?_⟩
+      simp [Progress.words, creditWord]
+    · contradiction
+  · contradiction
 
 /-- The live bank and its origins cannot disagree. -/
 structure Representation (shape : PatchShape) (config : Config) where

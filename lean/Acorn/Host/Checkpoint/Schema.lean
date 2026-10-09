@@ -217,4 +217,140 @@ def payloadCodec (dimension : Dimension) : Codec (Payload dimension) :=
     (fun (header, assignments, primary, lifetime, tester) => ⟨header, assignments, primary, lifetime, tester⟩)
     (fun p => (p.header, p.assignments, p.primary, p.lifetime, p.tester)) (by intro p; rfl)
 
+/-! ## Canonical decoding
+
+Every codec of the format reads back only the bytes that it writes. Each one is built from
+canonical codecs by pairs, fixed vectors and representation changes that lose nothing, and
+the count of the unit list is the length of the list it reads. -/
+
+/-- The header codec is canonical. -/
+theorem headerCodec_canonical : headerCodec.Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical u32Codec_canonical (Codec.pair_canonical u32Codec_canonical
+      (Codec.pair_canonical u32Codec_canonical (Codec.pair_canonical u64Codec_canonical
+      (Codec.pair_canonical u64Codec_canonical (Codec.pair_canonical u32Codec_canonical
+      (Codec.pair_canonical binary32Codec_canonical (Codec.pair_canonical u64Codec_canonical
+      (Codec.pair_canonical u32Codec_canonical
+        (Codec.pair_canonical u32Codec_canonical u32Codec_canonical))))))))))
+    fun _ => rfl
+
+/-- The assignment codec is canonical. -/
+theorem assignmentCodec_canonical : assignmentCodec.Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical u32Codec_canonical (Codec.pair_canonical u32Codec_canonical
+      (Codec.pair_canonical u32Codec_canonical u32Codec_canonical)))
+    fun _ => rfl
+
+/-- The codec of one primary learner is canonical. -/
+theorem knowledgeCodec_canonical (dimension : Dimension) : (knowledgeCodec dimension).Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical (vectorCodec_canonical binary32Codec_canonical _)
+      (vectorCodec_canonical binary32Codec_canonical _))
+    fun _ => rfl
+
+/-- The codec of the demon blocks is canonical for every horizon layout. -/
+theorem demonImagesCodec_canonical (dimension : Dimension) :
+    ∀ discounts : List Discount, (demonImagesCodec dimension discounts).Canonical
+  | [] => Codec.iso_canonical unitCodec_canonical fun _ => rfl
+  | _ :: rest =>
+    Codec.iso_canonical
+      (Codec.pair_canonical (knowledgeCodec_canonical dimension)
+        (demonImagesCodec_canonical dimension rest))
+      fun _ => rfl
+
+/-- The codec of the primary image is canonical. -/
+theorem primaryCodec_canonical (dimension : Dimension) : (primaryCodec dimension).Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical (vectorCodec_canonical (knowledgeCodec_canonical dimension) _)
+      (Codec.pair_canonical (vectorCodec_canonical (knowledgeCodec_canonical dimension) _)
+      (Codec.pair_canonical
+        (vectorCodec_canonical (vectorCodec_canonical (knowledgeCodec_canonical dimension) _) _)
+        (demonImagesCodec_canonical dimension demonLayout))))
+    fun _ => rfl
+
+/-- The codec of one total is canonical. -/
+theorem sumCodec_canonical : sumCodec.Canonical :=
+  Codec.pair_canonical u64Codec_canonical binary64Codec_canonical
+
+/-- The codec of the option counters is canonical. -/
+theorem episodesCodec_canonical : episodesCodec.Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical u64Codec_canonical
+      (Codec.pair_canonical u64Codec_canonical (vectorCodec_canonical u64Codec_canonical _)))
+    fun _ => rfl
+
+/-- The codec of one goal aggregate is canonical. -/
+theorem goalCodec_canonical : goalCodec.Canonical :=
+  Codec.pair_canonical u64Codec_canonical
+    (Codec.pair_canonical u64Codec_canonical u64Codec_canonical)
+
+/-- The lifetime codec is canonical. -/
+theorem lifetimeCodec_canonical : lifetimeCodec.Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical sumCodec_canonical
+      (Codec.pair_canonical (vectorCodec_canonical sumCodec_canonical _)
+      (Codec.pair_canonical (vectorCodec_canonical sumCodec_canonical _)
+      (Codec.pair_canonical (vectorCodec_canonical sumCodec_canonical _)
+      (Codec.pair_canonical (vectorCodec_canonical binary32Codec_canonical _)
+      (Codec.pair_canonical (vectorCodec_canonical binary32Codec_canonical _)
+      (Codec.pair_canonical (vectorCodec_canonical sumCodec_canonical _)
+      (Codec.pair_canonical (vectorCodec_canonical episodesCodec_canonical _)
+      (Codec.pair_canonical (vectorCodec_canonical goalCodec_canonical _)
+        (vectorCodec_canonical (vectorCodec_canonical goalCodec_canonical _) _))))))))))
+    fun _ => rfl
+
+/-- The codec of the latest replacement is canonical. -/
+theorem lastCodec_canonical : lastCodec.Canonical :=
+  Codec.pair_canonical u32Codec_canonical
+    (Codec.pair_canonical u64Codec_canonical u16Codec_canonical)
+
+/-- The codec of one unit is canonical. -/
+theorem unitStateCodec_canonical : unitStateCodec.Canonical :=
+  Codec.pair_canonical u64Codec_canonical
+    (Codec.pair_canonical u64Codec_canonical binary32Codec_canonical)
+
+/-- The unit-list codec is canonical: the count that it reads is the length of the list that
+it returns. -/
+theorem unitListCodec_canonical : unitListCodec.Canonical := by
+  intro bytes value rest decoded
+  cases counted : u32Codec.decode bytes with
+  | none => simp [unitListCodec, counted] at decoded
+  | some found =>
+    obtain ⟨count, tail⟩ := found
+    simp only [unitListCodec, counted, bind, Option.bind] at decoded
+    split at decoded
+    · split at decoded
+      · contradiction
+      · rename_i units suffix listed
+        simp only [Option.some.injEq, Prod.mk.injEq] at decoded
+        obtain ⟨rfl, rfl⟩ := decoded
+        have length := decodeList_length unitStateCodec count.toNat tail units suffix listed
+        obtain ⟨read, unitsRead, tailRead⟩ :=
+          decodeListInto_written unitStateCodec_canonical count.toNat tail [] units suffix listed
+        simp only [List.reverse_nil, List.nil_append] at unitsRead
+        have countWord : units.length.toUInt32 = count := by
+          rw [length]
+          exact UInt32.toNat_inj.mp (Nat.mod_eq_of_lt count.toNat_lt)
+        rw [u32Codec_canonical _ _ _ counted]
+        simp only [unitListCodec, countWord, List.append_assoc]
+        rw [tailRead, ← unitsRead]
+    · contradiction
+
+/-- The tester codec is canonical. -/
+theorem testerCodec_canonical : testerCodec.Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical u64Codec_canonical (Codec.pair_canonical u32Codec_canonical
+      (Codec.pair_canonical u64Codec_canonical
+        (Codec.pair_canonical lastCodec_canonical unitListCodec_canonical))))
+    fun _ => rfl
+
+/-- The payload codec is canonical. -/
+theorem payloadCodec_canonical (dimension : Dimension) : (payloadCodec dimension).Canonical :=
+  Codec.iso_canonical
+    (Codec.pair_canonical headerCodec_canonical
+      (Codec.pair_canonical (vectorCodec_canonical assignmentCodec_canonical _)
+      (Codec.pair_canonical (primaryCodec_canonical dimension)
+        (Codec.pair_canonical lifetimeCodec_canonical testerCodec_canonical))))
+    fun _ => rfl
+
 end Acorn.Checkpoint

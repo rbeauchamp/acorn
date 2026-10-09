@@ -43,4 +43,36 @@ theorem roundtrip (dimension : Dimension) (payload : Payload dimension) :
   rw [checksum]
   simp [List.length_append]
 
+/-- Decoding reads only the bytes that the writer writes: an accepted byte list is the
+encoding of the payload that decoding returns (`payloadCodec_canonical`, and the checksum
+and the empty suffix that decoding requires). -/
+theorem decode_written (dimension : Dimension) (bytes : List UInt8) (payload : Payload dimension)
+    (decoded : decode dimension bytes = some payload) : bytes = encode dimension payload := by
+  unfold decode at decoded
+  split at decoded
+  · contradiction
+  · rename_i framed
+    simp only [bne_iff_ne, ne_eq, Decidable.not_not] at framed
+    cases body : (payloadCodec dimension).decode (bytes.drop magic.length) with
+    | none => simp [body] at decoded
+    | some found =>
+      obtain ⟨read, tail⟩ := found
+      cases trailer : u64Codec.decode tail with
+      | none => simp [body, trailer] at decoded
+      | some found =>
+        obtain ⟨checksum, trailing⟩ := found
+        simp only [body, trailer, bind, Option.bind] at decoded
+        split at decoded
+        · contradiction
+        · rename_i checked
+          cases decoded
+          simp only [Bool.or_eq_true, Bool.not_eq_true', Bool.not_eq_false, List.isEmpty_iff,
+            bne_iff_ne, ne_eq, not_or, Decidable.not_not] at checked
+          obtain ⟨rfl, sum⟩ := checked
+          have signed := payloadCodec_canonical dimension _ _ _ body
+          rw [signed, List.length_append, Nat.add_sub_cancel, List.take_left] at sum
+          rw [← List.take_append_drop magic.length bytes, framed, signed,
+            u64Codec_canonical _ _ _ trailer, sum]
+          simp [encode]
+
 end Acorn.Checkpoint
