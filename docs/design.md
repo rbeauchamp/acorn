@@ -1459,7 +1459,10 @@ two byte strings that differ in one byte (`CurrentCheckpoint.relabeled_unloaded`
 `Rng.fnv_byte`). The same edit together with the checksum of the edited bytes is
 admitted by the loader of the other order (`CurrentCheckpoint.relabeled_loaded`).
 `CurrentCheckpoint.saved_admitted_order` is about bytes that a save of this
-project wrote.
+project wrote. The loader of a resumable construction accepts exactly the
+encodings of the payloads of that construction's images (`Decisions.candidate_load`):
+every codec of the format reads back only the bytes that it writes
+(`Checkpoint.decode_written`), and each admission keeps every word that it reads.
 
 Theorems say what a value under another index gives. A state gives the agent's
 step of that index's order on the same learner state

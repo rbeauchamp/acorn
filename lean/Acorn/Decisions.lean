@@ -90,10 +90,10 @@ Fourteen functions of this module have a contract and no kind. The reasons are f
   `PolicySnapshot.consistent` accepts the masses of `PolicySnapshot.probabilities`, which runs
   three word comparisons, and RG1009 refuses the kind.
 * The kinds of the function are stated in the proof library. `FeatureProfile.admit` has a sound
-  kind and a complete kind in `AcornVerif.Decisions`, because their accepted inputs need a
-  round trip that is proved there. Regula does not count a contract of that library toward a
-  registration of this one (https://github.com/rbeauchamp/regula/issues/271), so the function
-  is not registered, and its refusal statement here keeps no kind.
+  kind, a complete kind and a two-way kind in `AcornVerif.Decisions`, because their accepted
+  inputs need a round trip that is proved there. Regula does not count a contract of that
+  library toward a registration of this one (https://github.com/rbeauchamp/regula/issues/271),
+  so the function is not registered, and its refusal statement here keeps no kind.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
@@ -413,6 +413,11 @@ def plan : Host.CampaignPlan 1 := ⟨1, by decide, 1, by decide, 1, 0, by decide
 /-- A checkpoint writer of interval two at phase zero. -/
 def writer : Host.WritableCheckpoint :=
   (Host.WritableCheckpoint.admit ⟨""⟩ 2 .missing).get (by decide)
+
+/-- The ranked construction of the default representation, with the discounted criterion,
+expectation planning and the learn-then-act order. -/
+def ranked : AgentConstruction :=
+  AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation .learnThenAct
 
 /-- The feature space with two indices. -/
 def double : Dimension := ⟨2, by decide, ⟨1, rfl⟩, by decide⟩
@@ -798,33 +803,6 @@ theorem header_admit : Regula.ExecutableContract Checkpoint.admitHeader (fun adm
 
 attribute [regula_decision] Checkpoint.admitHeader
 
-/-- A decoded fixed-width word is the encoding of its value, followed by the returned
-suffix. -/
-private theorem decodeNat_written (width : Nat) (bytes : List UInt8) (value : Nat)
-    (rest : List UInt8) (decoded : Checkpoint.decodeNat width bytes = some (value, rest)) :
-    bytes = Checkpoint.encodeNat width value ++ rest := by
-  induction width generalizing bytes value rest with
-  | zero =>
-    simp only [Checkpoint.decodeNat, Option.some.injEq, Prod.mk.injEq] at decoded
-    simp [Checkpoint.encodeNat, decoded.2]
-  | succ width ih =>
-    cases bytes with
-    | nil => simp [Checkpoint.decodeNat, Checkpoint.byteCodec] at decoded
-    | cons digit bytes =>
-      simp only [Checkpoint.decodeNat, Checkpoint.byteCodec, bind, Option.bind] at decoded
-      cases highEq : Checkpoint.decodeNat width bytes with
-      | none => simp [highEq] at decoded
-      | some high =>
-        simp only [highEq, Option.some.injEq, Prod.mk.injEq] at decoded
-        have tail := ih bytes high.1 high.2 highEq
-        have small := digit.toNat_lt
-        have quotient : value / 256 = high.1 := by omega
-        have low : UInt8.ofNat value = digit := by
-          apply UInt8.toNat_inj.mp
-          show value % 256 = digit.toNat
-          omega
-        rw [Checkpoint.encodeNat, low, quotient, List.cons_append, ← decoded.2, ← tail]
-
 /-- Fixed-width word decoding accepts exactly the encodings of a word below the width's
 bound, followed by any suffix (`Checkpoint.nat_roundtrip`, `Checkpoint.decodeNat_bound`). -/
 theorem nat_decode : Regula.ExecutableContract Checkpoint.decodeNat (fun decode =>
@@ -835,7 +813,7 @@ theorem nat_decode : Regula.ExecutableContract Checkpoint.decodeNat (fun decode 
   ⟨{ sound := fun input accepted => by
        obtain ⟨⟨value, rest⟩, decoded⟩ := Option.isSome_iff_exists.mp accepted
        exact ⟨value, rest, Checkpoint.decodeNat_bound _ _ _ _ decoded,
-         decodeNat_written _ _ _ _ decoded⟩
+         Checkpoint.decodeNat_written _ _ _ _ decoded⟩
      accepted := ⟨(0, []), rfl⟩
      complete := fun input ⟨value, suffix, bound, written⟩ => by
        show (Checkpoint.decodeNat input.1 input.2).isSome = true
@@ -2745,18 +2723,8 @@ theorem squared_admit_value : Regula.ExecutableContract Agreement.admitSquared (
         sample.val = Agreement.squaredUnits forecast outcome) :=
   ⟨Agreement.admitSquared_exact⟩
 
-/-- An admitted word pair is the word pair of its event. -/
-private theorem event_words {config : Features.Config} (raw : UInt64 × UInt16)
-    (event : Event config) (admitted : Event.admit config raw = some event) :
-    raw = event.words := by
-  unfold Event.admit at admitted
-  split at admitted
-  · cases admitted
-    simp [Event.words]
-  · contradiction
-
 /-- Event admission accepts exactly the word pairs of the events of the receiving bank
-(`Event.words_roundtrip`, and `event_words` for the converse). `event_admit_value` states the
+(`Event.words_roundtrip`, and `Event.admit_words` for the converse). `event_admit_value` states the
 event that it returns. -/
 theorem event_admit : Regula.ExecutableContract Event.admit (fun admit =>
     Regula.Decides (· = true)
@@ -2764,7 +2732,7 @@ theorem event_admit : Regula.ExecutableContract Event.admit (fun admit =>
         ∃ event : Event input.1, input.2 = event.words)
       (Regula.Dependent.isSome fun input : Features.Config × (UInt64 × UInt16) =>
         admit input.1 input.2)) :=
-  ⟨.of_iff (fun input => written (fun _ => Event.words_roundtrip _) event_words input.2)
+  ⟨.of_iff (fun input => written (fun _ => Event.words_roundtrip _) Event.admit_words input.2)
     ⟨(bank, (0, 0)), by decide⟩ ⟨(bank, (0, 1)), by decide⟩⟩
 
 attribute [regula_decision] Event.admit
@@ -2777,30 +2745,8 @@ theorem event_admit_value : Regula.ExecutableContract Event.admit (fun admit =>
       admit config event.words = some event) :=
   ⟨fun _ => Event.words_roundtrip⟩
 
-/-- An admitted word triple is the word triple of its latest event. -/
-private theorem last_words {config : Features.Config} (raw : LastWords)
-    (last : Option (Event config)) (admitted : admitLast config raw = some last) :
-    raw = lastWords last := by
-  unfold admitLast at admitted
-  split at admitted
-  · rename_i absent
-    cases admitted
-    exact absent
-  · split at admitted
-    · rename_i present
-      cases found : Event.admit config raw.2 with
-      | none =>
-        rw [found] at admitted
-        contradiction
-      | some event =>
-        rw [found] at admitted
-        cases admitted
-        show raw = (1, event.words)
-        rw [← event_words raw.2 event found, ← present]
-    · contradiction
-
 /-- Latest-event admission accepts exactly the word triples of a latest event, present or
-absent (`admitLast_roundtrip`, and `last_words` for the converse). `last_admit_value` states
+absent (`admitLast_roundtrip`, and `admitLast_words` for the converse). `last_admit_value` states
 the value that it returns. -/
 theorem last_admit : Regula.ExecutableContract admitLast (fun admit =>
     Regula.Decides (· = true)
@@ -2808,7 +2754,7 @@ theorem last_admit : Regula.ExecutableContract admitLast (fun admit =>
         ∃ last : Option (Event input.1), input.2 = lastWords last)
       (Regula.Dependent.isSome fun input : Features.Config × LastWords =>
         admit input.1 input.2)) :=
-  ⟨.of_iff (fun input => written (fun _ => admitLast_roundtrip _) last_words input.2)
+  ⟨.of_iff (fun input => written (fun _ => admitLast_roundtrip _) admitLast_words input.2)
     ⟨(bank, (0, 0, 0)), by decide⟩ ⟨(bank, (2, 0, 0)), by decide⟩⟩
 
 attribute [regula_decision] admitLast
@@ -2830,22 +2776,28 @@ structure ProgressAdmit where
   /-- The words of the tester state. -/
   raw : ProgressWords
 
-/-- Tester admission accepts the words of every legal tester state under its own clock
-(`Progress.words_roundtrip`), and it refuses an image with no unit for a bank of one unit.
-`progress_admit_value` states the state that it returns.
-
-**Not claimed:** soundness. No theorem states that every accepted image is the word image of
-a legal state. -/
+/-- Tester admission accepts exactly the words of a legal tester state under its own clock
+(`Progress.words_roundtrip`, and `Progress.admit_words` for the converse). The accepted input
+is the image of one unit born at clock zero with zero utility, for a bank of one unit; the
+refused input is an image with no unit for that bank. `progress_admit_value` states the state
+that it returns. -/
 theorem progress_admit : Regula.ExecutableContract Progress.admit (fun admit =>
-    Regula.DecidesCompletely (· = true)
+    Regula.Decides (· = true)
       (fun input : ProgressAdmit => ∃ progress : Progress input.config,
         input.clock = progress.clock ∧ input.raw = progress.words)
       (Regula.Dependent.isSome fun input : ProgressAdmit =>
         admit input.config input.clock input.raw)) :=
-  ⟨reads
-    (fun input progress written => by
-      rw [written.1, written.2, Progress.words_roundtrip]
-      rfl)
+  ⟨.of_iff
+    (fun input => by
+      change (Progress.admit input.config input.clock input.raw).isSome = true ↔ _
+      constructor
+      · intro accepted
+        obtain ⟨progress, admitted⟩ := Option.isSome_iff_exists.mp accepted
+        exact ⟨progress, Progress.admit_words _ _ _ admitted⟩
+      · rintro ⟨progress, clock, words⟩
+        rw [clock, words, Progress.words_roundtrip]
+        rfl)
+    ⟨⟨bank, 0, ⟨0, 0, 0, (0, 0, 0), [(0, 0, .zero)]⟩⟩, by decide⟩
     ⟨⟨bank, 0, ⟨0, 0, 0, (0, 0, 0), []⟩⟩, by decide⟩⟩
 
 attribute [regula_decision] Progress.admit
@@ -2867,23 +2819,21 @@ structure AssignmentAdmit where
   /-- The four words. -/
   raw : AssignmentWords
 
-/-- Assignment admission accepts the words of every stored assignment of the receiving bank
-(`Assignment.words_roundtrip`), and it refuses a word image with a tag that is neither zero
-nor one. `assignment_admit_value` states the assignment that it returns.
-
-**Not claimed:** soundness. No theorem states that every accepted image is the word image of
-an assignment. -/
+/-- Assignment admission accepts exactly the words of a stored assignment of the receiving
+bank (`Assignment.words_roundtrip`, and `Assignment.admit_words` for the converse). The
+accepted input is the words of the neutral assignment; the refused input is a word image with
+a tag that is neither zero nor one. `assignment_admit_value` states the assignment that it
+returns. -/
 theorem assignment_admit : Regula.ExecutableContract Assignment.admit (fun admit =>
-    Regula.DecidesCompletely (· = true)
+    Regula.Decides (· = true)
       (fun input : AssignmentAdmit => ∃ assignment : Assignment input.config,
         input.raw = assignment.words input.dimension)
       (Regula.Dependent.isSome fun input : AssignmentAdmit =>
         admit input.dimension input.config input.raw)) :=
-  ⟨reads
-    (fun input assignment written => by
-      rw [written, Assignment.words_roundtrip]
-      rfl)
-    ⟨⟨narrow, bank, ⟨2, 0, 0, 0⟩⟩, by decide⟩⟩
+  ⟨.of_iff
+    (fun input => written (fun _ => Assignment.words_roundtrip input.dimension _)
+      (Assignment.admit_words input.dimension) input.raw)
+    ⟨⟨narrow, bank, ⟨0, 0, 0, 0⟩⟩, by decide⟩ ⟨⟨narrow, bank, ⟨2, 0, 0, 0⟩⟩, by decide⟩⟩
 
 attribute [regula_decision] Assignment.admit
 
@@ -3065,22 +3015,25 @@ theorem sse_line : Regula.ExecutableContract sseLine (fun admit =>
 
 attribute [regula_decision] sseLine
 
-/-- Frame decoding accepts the encoding of every payload of the receiving dimension
-(`Checkpoint.roundtrip`), and it refuses the empty byte list. `checkpoint_decode_value` states
-the payload that it returns.
-
-**Not claimed:** soundness. No theorem states that every accepted byte list is the encoding
-of a payload. -/
+/-- Frame decoding accepts exactly the encodings of the payloads of the receiving dimension
+(`Checkpoint.roundtrip`, and `Checkpoint.decode_written` for the converse: every codec of the
+format reads back only the bytes that it writes). The accepted input is the encoding of the
+payload that the construction `ranked` saves from its initial state; the refused input
+is the empty byte list. `checkpoint_decode_value` states the payload that it returns. -/
 theorem checkpoint_decode : Regula.ExecutableContract Checkpoint.decode (fun decode =>
-    Regula.DecidesCompletely (· = true)
+    Regula.Decides (· = true)
       (fun input : Dimension × List UInt8 => ∃ payload : Checkpoint.Payload input.1,
         input.2 = Checkpoint.encode input.1 payload)
       (Regula.Dependent.isSome fun input : Dimension × List UInt8 =>
         decode input.1 input.2)) :=
-  ⟨reads
-    (fun input payload written => by
-      rw [written, Checkpoint.roundtrip]
-      rfl)
+  ⟨.of_iff
+    (fun input => written (fun _ => Checkpoint.roundtrip input.1 _)
+      (Checkpoint.decode_written input.1) input.2)
+    ⟨(ranked.dimension, Checkpoint.encode ranked.dimension
+        (Checkpoint.snapshot ranked ranked.initial)), by
+      change (Checkpoint.decode _ _).isSome = true
+      rw [Checkpoint.roundtrip]
+      rfl⟩
     ⟨(narrow, []), by decide⟩⟩
 
 attribute [regula_decision] Checkpoint.decode
@@ -3260,22 +3213,21 @@ structure AssignmentUsing where
   /-- The four words. -/
   raw : AssignmentWords
 
-/-- Identity-or-refusal restoration accepts the words of every assignment under the receiving
-slot function (`Assignment.wordsUsing_roundtrip`), and it refuses a word image with a tag that
-is neither zero nor one. `assignment_admit_using_value` states the assignment that it returns.
-
-**Not claimed:** soundness. No theorem states that every accepted image is the word image of
-an assignment. -/
+/-- Identity-or-refusal restoration accepts exactly the words of an assignment under the
+receiving slot function (`Assignment.wordsUsing_roundtrip`, and `Assignment.admitUsing_words`
+for the converse). The accepted input is the words of the neutral assignment; the refused
+input is a word image with a tag that is neither zero nor one.
+`assignment_admit_using_value` states the assignment that it returns. -/
 theorem assignment_admit_using : Regula.ExecutableContract Assignment.admitUsing (fun admit =>
-    Regula.DecidesCompletely (· = true)
+    Regula.Decides (· = true)
       (fun input : AssignmentUsing => ∃ assignment : Assignment input.config,
         input.raw = Assignment.wordsUsing input.slot assignment)
       (Regula.Dependent.isSome fun input : AssignmentUsing =>
         admit input.dimension input.config input.slot input.raw)) :=
-  ⟨reads
-    (fun input assignment written => by
-      rw [written, Assignment.wordsUsing_roundtrip]
-      rfl)
+  ⟨.of_iff
+    (fun input => written (fun _ => Assignment.wordsUsing_roundtrip input.dimension input.slot _)
+      (Assignment.admitUsing_words input.dimension input.slot) input.raw)
+    ⟨⟨narrow, bank, fun _ => ⟨0, by decide⟩, ⟨0, 0, 0, 0⟩⟩, by decide⟩
     ⟨⟨narrow, bank, fun _ => ⟨0, by decide⟩, ⟨2, 0, 0, 0⟩⟩, by decide⟩⟩
 
 attribute [regula_decision] Assignment.admitUsing
@@ -3324,15 +3276,15 @@ theorem agent_restore : Regula.ExecutableContract @Agent.restore (fun restore =>
     cases supported : profile.checkpointSupported <;> simp [Agent.restore, supported]⟩
 
 /-- Profile admission refuses every feature image under a profile that is not resumable
-(`FeatureProfile.unsupported_refuses`). The acceptance of the feature words of an agent image
-under a resumable profile is `profile_admit_accepts` in `AcornVerif.Decisions`. The
-specification names the four discriminants of the profile.
+(`FeatureProfile.unsupported_refuses`). What it accepts under a resumable profile is
+`profile_admit_exact` in `AcornVerif.Decisions`. The specification names the four
+discriminants of the profile.
 
-The statement keeps no kind here. The kinds of the function are `profile_admit_sound` and
-`profile_admit_accepts` in `AcornVerif.Decisions`: the accepted input of the sound kind needs
-a round trip that is proved in the proof library. Regula does not count a contract of that
-library toward a registration of this one (https://github.com/rbeauchamp/regula/issues/271),
-so the function is not registered. -/
+The statement keeps no kind here. The kinds of the function are `profile_admit_sound`,
+`profile_admit_accepts` and `profile_admit_exact` in `AcornVerif.Decisions`: their accepted
+inputs need a round trip that is proved in the proof library. Regula does not count a
+contract of that library toward a registration of this one
+(https://github.com/rbeauchamp/regula/issues/271), so the function is not registered. -/
 theorem profile_admit : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
     (∀ (profile : FeatureProfile) {actions : Word.Count} (config : Features.Config)
       (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}

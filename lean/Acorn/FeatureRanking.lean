@@ -74,6 +74,24 @@ theorem Bonus.admit_self (bonus : Bonus) : Bonus.admit bonus.value = some bonus 
   have positive : Bonus.ofWeight bonus.weight = some bonus := dite_eq_left bonus.positive
   rw [Bonus.admit, admitted, Option.bind_some, positive]
 
+/-- An admitted bonus holds the word that admission reads. -/
+theorem Bonus.admit_value {raw : Binary32} {bonus : Bonus}
+    (admitted : Bonus.admit raw = some bonus) : bonus.value = raw := by
+  unfold Bonus.admit at admitted
+  cases weight : Prediction.admit .g99 raw with
+  | none =>
+    rw [weight] at admitted
+    simp at admitted
+  | some held =>
+    rw [weight] at admitted
+    change Bonus.ofWeight held = some bonus at admitted
+    by_cases positive : 0 < held.value.key
+    · rw [show Bonus.ofWeight held = some ⟨held, positive⟩ from dite_eq_left positive] at admitted
+      cases admitted
+      exact (Bounded32.admit_exact _ _ _ weight).1
+    · rw [show Bonus.ofWeight held = none from dite_eq_right positive] at admitted
+      contradiction
+
 /-- Assignment identity binds a bank unit; its held bonus is payload, not identity.
 The feature slot is derived from the receiving seed and dimension, never an
 independent field. -/
@@ -192,6 +210,53 @@ theorem Assignment.wordsUsing_roundtrip (dimension : Dimension) {config : Config
     exact congrArg (fun result : Option Bonus => result.map (Assignment.selected unit))
       (Bonus.admit_self bonus)
 
+/-- An admitted word image is the word image of the assignment that admission returns under
+the same slot function. -/
+theorem Assignment.admitUsing_words (dimension : Dimension) {config : Config}
+    (slot : Fin config.units.count → FeatIdx dimension) (raw : AssignmentWords)
+    (assignment : Assignment config)
+    (admitted : Assignment.admitUsing dimension config slot raw = some assignment) :
+    raw = Assignment.wordsUsing slot assignment := by
+  obtain ⟨tag, unit, feature, bonus⟩ := raw
+  unfold Assignment.admitUsing at admitted
+  split at admitted
+  · rename_i neutral
+    split at admitted
+    · rename_i blank
+      cases admitted
+      simp only [beq_iff_eq, Bool.and_eq_true] at neutral blank
+      obtain ⟨⟨rfl, rfl⟩, rfl⟩ := blank
+      subst neutral
+      rfl
+    · contradiction
+  · split at admitted
+    · rename_i selected
+      split at admitted
+      · rename_i bound
+        dsimp only at admitted
+        split at admitted
+        · rename_i slotted
+          cases held : Bonus.admit ⟨bonus⟩ with
+          | none =>
+            rw [held] at admitted
+            simp at admitted
+          | some value =>
+            rw [held] at admitted
+            cases admitted
+            simp only [beq_iff_eq] at selected slotted
+            subst selected
+            have unitWord : unit.toNat.toUInt32 = unit :=
+              UInt32.toNat_inj.mp (Nat.mod_eq_of_lt unit.toNat_lt)
+            have featureWord : (slot ⟨unit.toNat, bound⟩).val.toUInt32 = feature := by
+              rw [slotted]
+              exact UInt32.toNat_inj.mp (Nat.mod_eq_of_lt feature.toNat_lt)
+            have bonusWord : value.value.bits = bonus :=
+              congrArg Binary32.bits (Bonus.admit_value held)
+            simp only [Assignment.wordsUsing, unitWord, featureWord, bonusWord]
+        · contradiction
+      · contradiction
+    · contradiction
+
 /-- Canonical assignment words derive their slot from the receiving bank. -/
 def Assignment.words (dimension : Dimension) {config : Config} : Assignment config → AssignmentWords :=
   Assignment.wordsUsing (unitFeature dimension config)
@@ -205,6 +270,13 @@ theorem Assignment.words_roundtrip (dimension : Dimension) {config : Config}
     (assignment : Assignment config) :
     Assignment.admit dimension config (assignment.words dimension) = some assignment :=
   Assignment.wordsUsing_roundtrip dimension (unitFeature dimension config) assignment
+
+/-- An admitted word image is the word image of the assignment that admission returns. -/
+theorem Assignment.admit_words (dimension : Dimension) {config : Config} (raw : AssignmentWords)
+    (assignment : Assignment config)
+    (admitted : Assignment.admit dimension config raw = some assignment) :
+    raw = assignment.words dimension :=
+  Assignment.admitUsing_words dimension (unitFeature dimension config) raw assignment admitted
 
 /-- A positive legal Demon-0 weight is a legal prediction word without projection. -/
 theorem weight_bonus_legal (weight : Weight (.discounted .g99)) (positive : 0 < weight.value.key) :
