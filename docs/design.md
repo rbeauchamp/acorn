@@ -1017,24 +1017,30 @@ every derivation holds of every value.
 
 **The loop's core.** `Acorn.Host.Microduck.Loop` composes these transitions with the
 agent's two step parts, with no effect: a driver hands it events (a line heard, a tick of
-the clock, a finished choice, a finished learning), each at an instant it read, and each
-step returns the next state and the lines to send. A loop is `ready`, `choosing` or
+the clock, a finished choice, a finished learning), each with a reading of the clock, and
+each step returns the next state and the lines to send. A stage is `ready`, `choosing` or
 `learning`, and `choosing` is the only stage that holds an awaiting host, so a percept
 awaits exactly while the agent chooses and no percept is sensed while the agent chooses or
-learns. The agent's parts are tasks that the runtime spawns from a `Stepper`'s functions,
-so the action released for a percept is the stepper's choice on it (`Loop.step_sense`,
-`Loop.step_release`); `Stepper.ofAgent` binds the agent under `actThenLearn`, whose two
-parts compose to `Agent.actOrdered` (`Stepper.ofAgent_step`). A tick reaches the host's own
-tick in every stage, so the velocity of the last release is sent again while the agent
-computes (`Loop.step_tick`). After its opening requests the loop sends exactly the lines of
-the commands that the host's tick and release return, on the control connection
-(`Loop.step_sends`), each with an identifier of at least `opening`, so no answer to an
-opening request is attributed to a command (`Loop.step_fresh`). A refused frame or an
-invalid line is counted and changes nothing else (`Loop.react_refused`). Of every loop
-reached from its start by steps at instants that do not go back (`Ran`): the agent it holds
-is the fold of the two parts over the percepts sensed (`Ran.agent`), the release of the
-awaited cycle is admitted from the last step on (`Ran.release`), and no release is refused
-(`Ran.counts`). No driver calls the loop yet, and none of these reads a clock or a socket.
+learns. A `Loop` holds a stage with a derivation from its start (`Ran`) for its stepper and
+its starting agent, as the host's two phases hold theirs, so a task of a loop computes the
+stepper's part on what the loop sensed and no other value exists (`Loop.agent`). The
+instant of a step is the later of the reading and the instant of the last step
+(`Loop.at_later`), so a loop's instants do not go back and are never before its host's
+origin, and `Idle.sense` is the only test of sensing. The agent's parts are tasks that the
+runtime spawns from a `Stepper`'s functions, once each, so the action released for a
+percept is the stepper's choice on it (`Stage.step_sense`, `Loop.step_release`);
+`Stepper.ofAgent` binds the agent under `actThenLearn`, whose two parts compose to
+`Agent.actOrdered` (`Stepper.ofAgent_step`). A tick reaches the host's own tick in every
+stage, so the velocity of the last release is sent again while the agent computes
+(`Stage.step_tick`). After its opening requests the loop sends exactly the lines of the
+commands that the host's tick and release return, on the control connection
+(`Stage.step_sends`), each with an identifier of at least `opening`, so no answer to an
+opening request is attributed to a command (`Stage.step_fresh`). A refused frame or an
+invalid line is counted and changes nothing else (`Stage.react_refused`). The step of a
+finished choice releases its action at every instant, since the release of the awaited
+cycle is admitted from the last step on (`Loop.step_release`), and the counts hold one
+percept for each percept sensed and a release for each but the one awaited (`Ran.counts`).
+No driver calls the loop yet, and none of these reads a clock or a socket.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol
