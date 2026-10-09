@@ -220,8 +220,9 @@ requires it by name. The tests `Handcrafted.Microduck.upright` and
 `Handcrafted.Microduck.fresh`, which `Handcrafted.Microduck.near` and
 `Handcrafted.Microduck.clear` apply, are registered decisions with the contracts
 `microduck_upright` and `microduck_fresh`, beside the contracts `microduck_near` and
-`microduck_clear`, which state the conjunction of the tests. Where no theorem names an applied definition, it
-has no contract of its own, and the contract of the decision that applies it is the evidence.
+`microduck_clear`, which state the conjunction of the tests. Where no theorem names an
+applied definition, it has no contract of its own, and the contract of the decision that
+applies it is the evidence.
 The seven private scanners of the parts of a number, which `Json.Numeral.scan` applies, are
 in that case: only private lemmas of the proofs of `Json.Numeral.scan_formed` and
 `Json.Numeral.scan_chars` name them, and the contract `json_scan` is their evidence. The
