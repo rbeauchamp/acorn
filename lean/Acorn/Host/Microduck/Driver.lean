@@ -250,8 +250,9 @@ def drive (stepper : Stepper State Choice) (initial : State) (control depth : Sy
   let (run, earliest) ← Transport.within control depth fun transport => do
     let origin ← IO.monoNanosNow
     let (start, opening) := Loop.start stepper initial Declared.pace Declared.keep ⟨origin⟩
-    let mut failed := (← sendAll transport opening) != opening.length
-    out.putStrLn s!"start\t0\torigin={origin}\topening={opening.length}"
+    let sent ← sendAll transport opening
+    let mut failed := sent != opening.length
+    out.putStrLn s!"start\t0\torigin={origin}\topening={sent}"
     out.flush
     let deadline := origin + seconds * 1000000000
     let mut loop := start
