@@ -534,6 +534,7 @@ theorem best_spec (snapshot : PolicySnapshot count)
     (finite : ∀ action, (snapshot.values.get action).Finite) :
     (∃ action, snapshot.best = snapshot.values.get action) ∧
       ∀ action, numerical32 (snapshot.values.get action) ≤ numerical32 snapshot.best := by
+  rw [PolicySnapshot.best_less]
   have words := snapshot_words snapshot
   have allFinite : ∀ word ∈ snapshot.values.get (firstAction count) ::
       snapshot.values.toList.drop 1, word.Finite := by

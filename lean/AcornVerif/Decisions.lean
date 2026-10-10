@@ -12,6 +12,7 @@ import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentExponential
 import AcornVerif.CurrentRunner
+import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentTerrain
 import AcornVerif.Endurance
@@ -50,10 +51,12 @@ follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
-library, and so are the correspondence of the comparator with the agent's attempt and the bounds
-of the comparator's campaigns. The accepted inputs of three host transitions and the two-way kind
-of `Host.Released.environment` are stated here because the observation of their inputs succeeds
-by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem proves.
+library, and so are the kinds of the count and of the rule of the spawn search, the result of
+the search, an accepted input of world generation, the correspondence of the comparator with
+the agent's attempt and the bounds of the comparator's campaigns. The accepted inputs of the
+observation, of finishing and of the fold, and the two-way kind of `Host.Released.environment`,
+are stated here because the observation of their inputs succeeds by the terrain admission of
+`CurrentTerrain`. Each contract states only what its theorem proves.
 
 ## Statements that keep no kind
 
@@ -62,7 +65,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Twelve functions of this module have a contract and no kind. The reasons are four. Two more,
+Fourteen functions of this module have a contract and no kind. The reasons are five. Two more,
 `Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
 their statements say what their results are.
 
@@ -78,16 +81,21 @@ their statements say what their results are.
   specifications quantify over agent images whose learners name the stored-word check
   `NumericState.resumable` that the admissions run.
 * The statement gives an accepted input of a host transition whose statement in
-  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish` and
-  `Host.Attempt.complete`. No theorem states which observations or
-  steps succeed, and a specification of the accepted inputs would name `Host.World.observe` or
-  `Host.World.step`, which run tests that these functions run.
+  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
+  `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
+  steps succeed or which configurations initialize, and a specification of the accepted inputs
+  would name `Host.World.observe`, `Host.World.step` or `Host.World.tileKind`, which run tests
+  that these functions run.
 * The statement relates the comparator to the agent's attempt, or bounds where a campaign ends
   unfinished: `Host.BaselineAttempt.tick`, `Host.runBaselineCampaign` and
   `Host.runRandomBaseline`. Their acceptance is the world step's or world generation's, and no
   theorem states which steps succeed or which configurations initialize. The comparator's
   campaign also refuses as unfinished when its fuel runs out, and the random baseline also
   refuses at campaign admission and on an unbounded plan.
+* The statement is about the result of the spawn search of world generation, `Host.selectSpawn`,
+  and carries an accepted input. The search stops at the first rich candidate of its spiral, so
+  which tiles it reads depends on the kinds and walkability of the tiles before, and no theorem
+  states which worlds it accepts.
 
 Kinds for the functions of the first two reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
@@ -106,8 +114,11 @@ or stored fields to state it by. `Attained` states a goal on the box indices, th
 fields and the clock of the world, with no observation, no count reader and no embedding of a
 box position. `Harvests` states the tiles of a stance by equations on indices and coordinates
 and the move by `Offset` and `Heads`, with no offset table, no facing position and no checked
-translation. `squared_admit_exact` states the discrepancy of two words by their rational
-values, with no unit map. A private lemma beside each connects the reader with the statement.
+translation. `SquareAdmits` states the tiles of a square by equations on the coordinates, with
+no checked translation, and the kind of the spawn rule states the box by bounds on the
+coordinates, with no box admission. `squared_admit_exact` states the discrepancy of two words by
+their rational values, with no unit map. A private lemma beside each connects the reader with
+the statement.
 
 The kind of `sum_admit` names the writer `sumWords` of the form that it reads, which the
 admission does not call.
@@ -128,6 +139,12 @@ coordinates and the box indices and by the constructors of the action and the di
 `FeatureConstants`. They name no direction table, offset table, checked translation, box
 admission, facing position or cost function. The paid action compares the action with a
 harvest by its derived `BEq`; the specification states that comparison as an equality.
+
+The kinds of the count and of the rule of the spawn search share the same quotient through
+`CurrentTerrain.LatticeAdmits`, and `Host.WorldConfig.side`, which the type of their world
+argument reads and which bounds the coordinates of the rule's box; none of them is a test. They
+name neither the comparison of tile kinds by their derived `BEq` that the count runs nor the
+walkability test `Host.TileKind.walkable` that the rule runs, which refuse nothing.
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
 tests that their functions run. This module keeps no list of them, and the examples that follow
@@ -1528,6 +1545,428 @@ theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBasel
         ↓reduceIte],
     fun config seed spec plan admitted bounded =>
       CurrentRunner.baseline_finishes config seed spec plan admitted bounded⟩⟩
+
+/-! ## The spawn search of world generation
+
+A count of a kind near a position has no early exit: it translates every tile of its square and
+reads the kind of each. It is refused exactly when a tile of the square leaves the signed range or
+the value noise refuses it (`SquareAdmits`). The spawn rule skips a coordinate outside the box,
+and inside the box it reads both counts within four tiles and the kind of the coordinate, which
+lies in their square, before it tests walkability. It is refused exactly when the coordinate is
+inside the box and the value noise does not admit its square of radius four. The count and the
+rule carry the two-way kind. The theorems of `AcornVerif.CurrentSpawn` state what a successful
+count, a successful application of the rule and a successful spawn search return; the statements
+of the count and of the rule stand beside their kinds under the names of the kinds with
+`_value`. The search keeps a requirement with no kind with an accepted input, and
+`world_initial_accepts` gives an accepted input of world generation.
+
+The search and world generation accept the configuration `oneTile`: a box of one tile, no deer
+and the noise scale one. The spiral of its box has one candidate, the center of the box, and the
+value noise admits the square of radius four around it (`center_square`): each of its eighty-one
+tiles is in the signed range, and the quotients of its coordinates, `-4` to `4`, by the four
+octave scales of the noise scale are not past the last coordinate. The kernel evaluates those
+quotients, of nine coordinates by four scales, and not the terrain. A loop over a range in
+`Except` succeeds where every pass succeeds (`forIn_range_isOk`), which carries the success of
+each pass through the loops of the count and of the search. A loop that succeeds and whose
+every successful pass yields ran a successful pass at each index (`forIn_range_passes`), which
+carries the success of the count back to each tile of its square. The placement of the deer
+runs no pass at the deer cap zero. -/
+
+/-- A bind succeeds where its first part succeeds and its rest succeeds on every value. -/
+private theorem bind_isOk {ε α β : Type} (first : Except ε α) (rest : α → Except ε β)
+    (accepted : first.isOk = true) (each : ∀ value, (rest value).isOk = true) :
+    (first >>= rest).isOk = true := by
+  obtain ⟨value, same⟩ := ok_of_isOk accepted
+  rw [same]
+  exact each value
+
+/-- A bind that succeeds ran its first part successfully. -/
+private theorem isOk_of_bind {ε α β : Type} {first : Except ε α} {rest : α → Except ε β}
+    (accepted : (first >>= rest).isOk = true) : first.isOk = true := by
+  cases first with
+  | error refusal => exact accepted
+  | ok value => rfl
+
+/-- A loop over a list of consecutive indices in `Except` succeeds where every pass at an index
+below the bound succeeds. -/
+private theorem forIn_range'_isOk {ε σ : Type} (count : Nat)
+    (body : Nat → σ → Except ε (ForInStep σ))
+    (each : ∀ index state, index < count → (body index state).isOk = true) :
+    ∀ (remaining start : Nat) (init : σ), start + remaining = count →
+      (forIn (List.range' start remaining 1) init body).isOk = true
+  | 0, start, init, _ => by simp [Except.isOk, Except.toBool, pure, Except.pure]
+  | remaining + 1, start, init, total => by
+    rw [List.range'_succ, List.forIn_cons]
+    obtain ⟨next, taken⟩ := ok_of_isOk (each start init (by omega))
+    rw [taken]
+    cases next with
+    | done after => rfl
+    | yield after =>
+      exact forIn_range'_isOk count body each remaining (start + 1) after (by omega)
+
+/-- A loop over a range in `Except` succeeds where every pass succeeds. -/
+private theorem forIn_range_isOk {ε σ : Type} (count : Nat) (init : σ)
+    (body : Nat → σ → Except ε (ForInStep σ))
+    (each : ∀ index state, index < count → (body index state).isOk = true) :
+    (forIn [:count] init body).isOk = true := by
+  rw [Std.Legacy.Range.forIn_eq_forIn_range']
+  have size : ([:count] : Std.Legacy.Range).size = count := by simp [Std.Legacy.Range.size]
+  rw [size]
+  exact forIn_range'_isOk count body each count 0 init (by omega)
+
+/-- A loop over a range in `Except` that succeeds, and whose every successful pass yields, ran a
+successful pass at each index below the bound (`CurrentSpawn.forIn_range_indexed`). -/
+private theorem forIn_range_passes {ε σ : Type} (count : Nat) (init : σ)
+    (body : Nat → σ → Except ε (ForInStep σ))
+    (yields : ∀ index state next, body index state = .ok next → ∃ after, next = .yield after)
+    (accepted : (forIn [:count] init body).isOk = true) :
+    ∀ index, index < count → ∃ state, (body index state).isOk = true := by
+  obtain ⟨result, finished⟩ := ok_of_isOk accepted
+  refine (CurrentSpawn.forIn_range_indexed count
+    (fun passed _ => ∀ index, index < passed → ∃ state, (body index state).isOk = true)
+    (fun _ => False) body ?_ init result (fun _ below => absurd below (Nat.not_lt_zero _))
+    finished).elim False.elim id
+  intro index state next _ held taken
+  refine ⟨fun _ _ earlier below => ?_, fun after done => ?_⟩
+  · by_cases before : earlier < index
+    · exact held earlier before
+    · have same : earlier = index := by omega
+      exact ⟨state, by rw [same, taken]; rfl⟩
+  · obtain ⟨other, yielded⟩ := yields index state next taken
+    rw [done] at yielded
+    cases yielded
+
+/-- The value noise admits at a scale every tile of the `(2 r + 1) × (2 r + 1)` square within `r`
+of the coordinates `x` and `y`, each of which is in the signed range: for every row and column
+below `2 r + 1` there is a tile whose coordinates are `x` plus `column - r` and `y` plus
+`row - r`, and the value noise admits it. The tiles are stated by equations on the coordinates,
+with no checked translation. -/
+def SquareAdmits (x y : Int) (radius : Nat) (scale : Binary32) : Prop :=
+  ∀ row column, row < 2 * radius + 1 → column < 2 * radius + 1 → ∃ tile : Host.Position,
+    tile.x.val = x + ((column : Int) - radius) ∧ tile.y.val = y + ((row : Int) - radius) ∧
+      CurrentTerrain.LatticeAdmits tile scale
+
+/-- A count of a kind near a position succeeds where the value noise admits its square: each
+tile translates inside the signed range (`CurrentCertificates.translate_of_eq`), and the world
+accepts its kind (`CurrentTerrain.tileKind_isOk`). -/
+private theorem countKindNear_isOk {config : Host.WorldConfig} (world : Host.World config)
+    (position : Host.Position) (radius : Nat) (kind : Host.TileKind)
+    (admits : SquareAdmits position.x.val position.y.val radius config.raw.baseScale) :
+    (Host.countKindNear world position radius kind).isOk = true := by
+  unfold Host.countKindNear
+  dsimp only
+  refine bind_isOk _ _ ?_ fun _ => rfl
+  refine forIn_range_isOk _ _ _ fun row state rowBound => ?_
+  refine bind_isOk _ _ ?_ fun _ => rfl
+  refine forIn_range_isOk _ _ _ fun column count columnBound => ?_
+  obtain ⟨tile, tileColumn, tileRow, admitted⟩ := admits row column rowBound columnBound
+  have translated := CurrentCertificates.translate_of_eq _ _ _ _ tileColumn tileRow
+  obtain ⟨found, located⟩ := ok_of_isOk ((CurrentTerrain.tileKind_isOk world tile).mpr admitted)
+  simp only [translated, located, bind, Except.bind]
+  split <;> rfl
+
+/-- A count of a kind near a position that succeeds read every tile of its square: the passes of
+its two loops always yield, so the pass at each row and column succeeded, which translated the
+tile inside the signed range (`CurrentCertificates.translate_some`) and found its kind
+(`CurrentTerrain.tileKind_isOk`). -/
+private theorem countKindNear_admits {config : Host.WorldConfig} (world : Host.World config)
+    (position : Host.Position) (radius : Nat) (kind : Host.TileKind)
+    (accepted : (Host.countKindNear world position radius kind).isOk = true) :
+    SquareAdmits position.x.val position.y.val radius config.raw.baseScale := by
+  unfold Host.countKindNear at accepted
+  dsimp only at accepted
+  intro row column rowBound columnBound
+  obtain ⟨state, rowPass⟩ := forIn_range_passes _ _ _
+    (fun _ _ next taken => by
+      obtain ⟨sum, -, rest⟩ := CurrentSpawn.bind_ok _ _ _ taken
+      simp only [pure, Except.pure, Except.ok.injEq] at rest
+      exact ⟨sum, rest.symm⟩)
+    (isOk_of_bind accepted) row rowBound
+  obtain ⟨count, columnPass⟩ := forIn_range_passes _ _ _
+    (fun _ _ next taken => by
+      split at taken
+      · obtain ⟨_, -, rest⟩ := CurrentSpawn.bind_ok _ _ _ taken
+        split at rest <;>
+          simp only [pure, Except.pure, Except.ok.injEq] at rest <;> exact ⟨_, rest.symm⟩
+      · simp [bind, Except.bind] at taken)
+    (isOk_of_bind rowPass) column columnBound
+  split at columnPass
+  · rename_i tile translated
+    obtain ⟨tileColumn, tileRow⟩ := CurrentCertificates.translate_some _ _ _ _ translated
+    exact ⟨tile, tileColumn, tileRow,
+      (CurrentTerrain.tileKind_isOk world tile).mp (isOk_of_bind columnPass)⟩
+  · simp [bind, Except.bind, Except.isOk, Except.toBool] at columnPass
+
+/-- A coordinate that box admission accepts is inside the box, and its box position embeds as
+that coordinate. -/
+private theorem checked_some {config : Host.WorldConfig} {x y : Int}
+    {position : Host.BoxPosition config}
+    (admitted : Host.BoxPosition.checked config x y = some position) :
+    (0 ≤ x ∧ x < config.side ∧ 0 ≤ y ∧ y < config.side) ∧
+      position.position.x.val = x ∧ position.position.y.val = y := by
+  unfold Host.BoxPosition.checked at admitted
+  split at admitted
+  · split at admitted
+    · rename_i column row
+      cases admitted
+      exact ⟨⟨column.1, column.2, row.1, row.2⟩, Int.toNat_of_nonneg column.1,
+        Int.toNat_of_nonneg row.1⟩
+    · cases admitted
+  · cases admitted
+
+/-- The spawn rule succeeds exactly where the coordinate is outside the box, or the value noise
+admits the square of radius four around it: inside the box the rule reads both counts within
+four tiles (`countKindNear_isOk`, `countKindNear_admits`) and the kind of the coordinate, the
+center of that square, before it tests walkability. -/
+private theorem considerSpawn_iff {config : Host.WorldConfig} (world : Host.World config)
+    (x y : Int) (best : Option (Host.SpawnCandidate config)) :
+    (Host.considerSpawn world x y best).isOk = true ↔
+      ¬(0 ≤ x ∧ x < config.side ∧ 0 ≤ y ∧ y < config.side) ∨
+        SquareAdmits x y 4 config.raw.baseScale := by
+  unfold Host.considerSpawn
+  cases admitted : Host.BoxPosition.checked config x y with
+  | none =>
+    refine ⟨fun _ => .inl fun ⟨column, columnBound, row, rowBound⟩ => ?_, fun _ => rfl⟩
+    simp [Host.BoxPosition.checked, column, columnBound, row, rowBound] at admitted
+  | some position =>
+    obtain ⟨inside, column, row⟩ := checked_some admitted
+    simp only
+    constructor
+    · intro accepted
+      have admits := countKindNear_admits world position.position 4 .tree (isOk_of_bind accepted)
+      rw [column, row] at admits
+      exact .inr admits
+    · rintro (outside | admits)
+      · exact absurd inside outside
+      · rw [← column, ← row] at admits
+        obtain ⟨tile, tileColumn, tileRow, admitted⟩ := admits 4 4 (by decide) (by decide)
+        have center : tile = position.position :=
+          CurrentActions.position_ext (by omega) (by omega)
+        rw [center] at admitted
+        refine bind_isOk _ _ (countKindNear_isOk _ _ _ _ admits) fun _ => ?_
+        refine bind_isOk _ _ (countKindNear_isOk _ _ _ _ admits) fun _ => ?_
+        refine bind_isOk _ _ ((CurrentTerrain.tileKind_isOk _ _).mpr admitted) fun _ => ?_
+        split <;> rfl
+
+/-- The arguments of `Host.countKindNear`, in order. -/
+structure KindSquare where
+  /-- The world configuration. -/
+  config : Host.WorldConfig
+  /-- The world. -/
+  world : Host.World config
+  /-- The center of the square. -/
+  position : Host.Position
+  /-- The radius of the square. -/
+  radius : Nat
+  /-- The kind that the count counts. -/
+  kind : Host.TileKind
+
+/-- A count of a kind near a position is refused exactly when a tile of its square leaves the
+signed range or the value noise refuses the tile at the base scale of the world: the count has
+no early exit, so it reads every tile of its square (`countKindNear_isOk`,
+`countKindNear_admits`). The accepted input is the count of trees within radius zero of the body
+position of the empty world of `wide`, whose one tile is that position: its quotients by the four
+octave scales are below the last coordinate, and the kernel evaluates them and not the terrain.
+The refused input is that count at `last`, whose quotient by the first octave scale is past the
+last coordinate. -/
+theorem spawn_count : Regula.ExecutableContract @Host.countKindNear (fun count =>
+    Regula.Decides (·.isOk = true)
+      (fun input : KindSquare => SquareAdmits input.position.x.val input.position.y.val
+        input.radius input.config.raw.baseScale)
+      (fun input : KindSquare =>
+        @count input.config input.world input.position input.radius input.kind)) :=
+  ⟨decides
+    (fun input => ⟨countKindNear_admits input.world input.position input.radius input.kind,
+      countKindNear_isOk input.world input.position input.radius input.kind⟩)
+    ⟨⟨wide, Host.World.empty wide, (Host.World.empty wide).body.position.position, 0, .tree⟩, by
+      change SquareAdmits (Host.World.empty wide).body.position.position.x.val
+        (Host.World.empty wide).body.position.position.y.val 0 wide.raw.baseScale
+      intro row column rowBound columnBound
+      exact ⟨(Host.World.empty wide).body.position.position, by omega, by omega,
+        by decide +kernel⟩⟩
+    ⟨⟨wide, Host.World.empty wide, last, 0, .tree⟩, fun admits => by
+      have square : SquareAdmits last.x.val last.y.val 0 wide.raw.baseScale := admits
+      obtain ⟨tile, tileColumn, tileRow, admitted⟩ := square 0 0 (by decide) (by decide)
+      have same : tile = last := CurrentActions.position_ext (by omega) (by omega)
+      rw [same] at admitted
+      exact absurd admitted (by decide +kernel)⟩⟩
+
+/-- A successful count of a kind near a position is the number of tiles of that kind among the
+`(2 r + 1) × (2 r + 1)` tiles within `r` of the position (`CurrentSpawn.countKindNear_eq`). The
+statement is a requirement with no kind beside the kind `spawn_count`, which states the refused
+counts. -/
+theorem spawn_count_value : Regula.ExecutableContract @Host.countKindNear (fun count =>
+    ∀ {config} (world : Host.World config) (position : Host.Position) (radius found : Nat)
+      (kind : Host.TileKind), count world position radius kind = .ok found →
+        found = CurrentSpawn.squareCount world position radius kind (2 * radius + 1)) :=
+  ⟨fun world position radius found kind counted =>
+    CurrentSpawn.countKindNear_eq world position radius found kind counted⟩
+
+/-- The arguments of `Host.considerSpawn`, in order. -/
+structure SpawnCoordinate where
+  /-- The world configuration. -/
+  config : Host.WorldConfig
+  /-- The world. -/
+  world : Host.World config
+  /-- The horizontal coordinate of the candidate. -/
+  x : Int
+  /-- The vertical coordinate of the candidate. -/
+  y : Int
+  /-- The best candidate so far. -/
+  best : Option (Host.SpawnCandidate config)
+
+/-- The spawn rule is refused exactly when the coordinate is inside the box and a tile within
+four tiles of it leaves the signed range or the value noise refuses the tile at the base scale of
+the world (`considerSpawn_iff`). The box is stated by bounds on the coordinates. The accepted
+input is the coordinate `-1, 0` outside the box of `wide`. The refused input is the coordinate
+`2 ^ 63 - 2, 0` inside that box, whose square reaches past the last coordinate. -/
+theorem spawn_consider : Regula.ExecutableContract @Host.considerSpawn (fun consider =>
+    Regula.Decides (· = true)
+      (fun input : SpawnCoordinate =>
+        ¬(0 ≤ input.x ∧ input.x < input.config.side ∧ 0 ≤ input.y ∧
+            input.y < input.config.side) ∨
+          SquareAdmits input.x input.y 4 input.config.raw.baseScale)
+      (Regula.Dependent.isOk fun input : SpawnCoordinate =>
+        @consider input.config input.world input.x input.y input.best)) :=
+  ⟨decides (fun input => considerSpawn_iff input.world input.x input.y input.best)
+    ⟨⟨wide, Host.World.empty wide, -1, 0, none⟩,
+      .inl fun ⟨nonnegative, _⟩ => absurd nonnegative (by decide)⟩
+    ⟨⟨wide, Host.World.empty wide, 2 ^ 63 - 2, 0, none⟩, fun
+      | .inl outside => outside ⟨by decide, by decide, by decide, by decide⟩
+      | .inr admits => by
+        have square : SquareAdmits (2 ^ 63 - 2) 0 4 wide.raw.baseScale := admits
+        obtain ⟨tile, tileColumn, -, -⟩ := square 4 8 (by decide) (by decide)
+        have bound := tile.x.property.2
+        rw [tileColumn] at bound
+        omega⟩⟩
+
+/-- Every successful application of the spawn rule is one of the outcomes that
+`CurrentSpawn.Considered` lists (`CurrentSpawn.considerSpawn_outcome`). The statement is a
+requirement with no kind beside the kind `spawn_consider`, which states the refused
+applications. -/
+theorem spawn_consider_value : Regula.ExecutableContract @Host.considerSpawn (fun consider =>
+    ∀ {config} (world : Host.World config) (x y : Int)
+      (best selected : Option (Host.SpawnCandidate config)) (finished : Bool),
+      consider world x y best = .ok (selected, finished) →
+        CurrentSpawn.Considered world x y best selected finished) :=
+  ⟨fun world x y best selected finished considered =>
+    CurrentSpawn.considerSpawn_outcome world x y best selected finished considered⟩
+
+/-- A world configuration whose box is one tile, with no deer and the noise scale one. -/
+def oneTile : Host.WorldConfig :=
+  ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+
+/-- Each coordinate from `-4` to `4` has a quotient by each octave scale of the noise scale one
+that is not past the last coordinate. The kernel evaluates the thirty-six quotients. -/
+private theorem near_admits : ∀ offset : Fin 9, ∀ octave : Fin 4,
+    ¬CurrentTerrain.PastLast
+      ((Host.coordinateFloatWord (Int64.ofInt ((offset.val : Int) - 4))).div
+        (CurrentTerrain.octaveScale ⟨0x3f800000⟩ octave.val)) := by
+  decide +kernel
+
+/-- The value noise of `oneTile` admits every tile within four tiles of the center of its box,
+the coordinate `0, 0` (`near_admits`). -/
+private theorem center_square : SquareAdmits 0 0 4 oneTile.raw.baseScale := by
+  intro row column rowBound columnBound
+  refine ⟨⟨⟨(column : Int) - 4, by omega⟩, ⟨(row : Int) - 4, by omega⟩⟩, ?_, ?_, ?_⟩
+  · change (column : Int) - 4 = (0 : Int) + ((column : Int) - (4 : Nat))
+    omega
+  · change (row : Int) - 4 = (0 : Int) + ((row : Int) - (4 : Nat))
+    omega
+  · exact fun octave below =>
+      ⟨near_admits ⟨column, columnBound⟩ ⟨octave, below⟩,
+        near_admits ⟨row, rowBound⟩ ⟨octave, below⟩⟩
+
+/-- The spawn rule succeeds at the center of the box of `oneTile`, whatever the best candidate
+so far (`considerSpawn_iff`, `center_square`). -/
+private theorem consider_center (best : Option (Host.SpawnCandidate oneTile)) :
+    (Host.considerSpawn (Host.World.empty oneTile) 0 0 best).isOk = true :=
+  (considerSpawn_iff _ _ _ _).mpr (.inr center_square)
+
+/-- The spawn search succeeds in the empty world of `oneTile`: its spiral has the radius zero
+and the offset zero alone, whose candidate is the center of the box (`consider_center`). -/
+private theorem select_oneTile : (Host.selectSpawn (Host.World.empty oneTile)).isOk = true := by
+  unfold Host.selectSpawn
+  dsimp only
+  refine bind_isOk _ _ ?_ fun _ => ?_
+  · refine forIn_range_isOk _ _ _ fun radius state radiusBound => ?_
+    refine bind_isOk _ _ ?_ fun _ => ?_
+    · refine forIn_range_isOk _ _ _ fun direction state _ => ?_
+      refine bind_isOk _ _ ?_ fun _ => ?_
+      · refine forIn_range_isOk _ _ _ fun offset state offsetBound => ?_
+        have side : oneTile.side = 1 := rfl
+        have radiusZero : radius = 0 := by rw [side] at radiusBound; omega
+        subst radiusZero
+        have offsetZero : offset = 0 := by omega
+        subst offsetZero
+        have column : Host.Coordinate.checked
+            (((oneTile.side / 2 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
+                ((0 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
+                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = some ⟨0, by decide⟩ := by
+          simp only [side, Nat.cast_zero, mul_zero, sub_self, add_zero]
+          rfl
+        have row : Host.Coordinate.checked
+            (((oneTile.side / 2 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
+                ((0 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
+                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = some ⟨0, by decide⟩ := by
+          simp only [side, Nat.cast_zero, mul_zero, sub_self, add_zero]
+          rfl
+        rw [column, row]
+        dsimp only
+        refine bind_isOk _ _ (consider_center _) fun _ => ?_
+        split <;> rfl
+      · split <;> rfl
+    · split <;> rfl
+  · split <;> rfl
+
+/-- The placement of the deer succeeds in the empty world of `oneTile`: at the deer cap zero its
+loop runs no pass. -/
+private theorem deer_oneTile : (Host.initializeDeer (Host.World.empty oneTile)).isOk = true := by
+  unfold Host.initializeDeer
+  dsimp only
+  refine bind_isOk _ _ (forIn_range_isOk _ _ _ fun index _ bound => ?_) fun _ => rfl
+  exact absurd bound (Nat.not_lt_zero index)
+
+/-- A spawn that the search returns is a walkable tile whose trees plus stone within four tiles
+are at least two; or no tile of the box is rich, and the spawn is a walkable tile whose score no
+scored candidate of the box exceeds, or the center of the box when no tile is walkable
+(`CurrentSpawn.selectSpawn_post`). The search accepts the empty world of `oneTile`
+(`select_oneTile`).
+
+The statement keeps no kind. The search stops at the first rich candidate of its spiral, so
+which tiles it reads depends on the kinds and walkability of the tiles before, and no theorem
+states which worlds it accepts. -/
+theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =>
+    (∀ {config} (world : Host.World config) (spawn : Host.BoxPosition config),
+      select world = .ok spawn →
+        CurrentSpawn.Exited world spawn ∨
+          ((∀ tile, ¬CurrentSpawn.Rich world tile) ∧
+            ((∃ chosen, CurrentSpawn.Scored world chosen ∧ chosen.position = spawn ∧
+                ∀ other, CurrentSpawn.Scored world other → other.score ≤ chosen.score) ∨
+              (spawn = Host.BoxPosition.center config ∧
+                ∀ tile, ¬CurrentSpawn.Walkable world tile)))) ∧
+      ∃ (config : Host.WorldConfig) (world : Host.World config), (select world).isOk = true) :=
+  ⟨⟨fun world spawn selected => CurrentSpawn.selectSpawn_post world spawn selected,
+    ⟨oneTile, Host.World.empty oneTile, select_oneTile⟩⟩⟩
+
+/-- World generation accepts the configuration `oneTile`: its spawn search succeeds
+(`select_oneTile`), and at the deer cap zero the placement of the deer runs no pass
+(`deer_oneTile`). `Acorn.Decisions.world_initial` states what an initial world holds and keeps
+no kind for the reason given there; this statement is a requirement with no kind beside it, and
+a function that refuses every configuration fails it.
+
+**Not claimed:** which other configurations initialize, or that the spawn search returns a spawn
+for every seed. -/
+theorem world_initial_accepts : Regula.ExecutableContract Host.World.initial (fun initial =>
+    (initial oneTile).isOk = true) :=
+  ⟨by
+    unfold Host.World.initial
+    dsimp only
+    exact bind_isOk _ _ select_oneTile fun _ => bind_isOk _ _ deer_oneTile fun _ => rfl⟩
 
 /-! ## Learner admissions -/
 

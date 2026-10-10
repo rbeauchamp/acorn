@@ -511,19 +511,19 @@ a value, with the value forgotten. A statement of the value of an accepted
 result stands beside such a kind as a requirement with no kind. A function keeps
 a requirement with no kind where no kind is true of it or where Regula refuses
 the kind, and the ownership audit requires the contract by name. The module
-documentation of `lean/Acorn/Decisions.lean` gives the four reasons: a function
+documentation of `lean/Acorn/Decisions.lean` gives the three reasons: a function
 that accepts every input or whose accepted inputs no theorem states; an input
 that holds a state whose invariant names tests that the function runs ([Regula
-issue 270](https://github.com/rbeauchamp/regula/issues/270)); a specification
-about a function with such tests; and kinds that are stated in the proof
-library, which Regula does not count toward a registration ([Regula issue
-271](https://github.com/rbeauchamp/regula/issues/271)). A requirement with no
-kind is a statement that the Regula audit does not examine: that audit checks
-only that its theorem is proved about the executing definition. Such a statement
-can fix one direction only, and it need not show that both outcomes occur for
-its function. Kinds for the functions of the second and the third reason are
-remaining work of [issue 105](https://github.com/rbeauchamp/acorn/issues/105). A
-contract states only what its theorem proves.
+issue 270](https://github.com/rbeauchamp/regula/issues/270)); and kinds that are
+stated in the proof library, which Regula does not count toward a registration
+([Regula issue 271](https://github.com/rbeauchamp/regula/issues/271)). A
+requirement with no kind is a statement that the Regula audit does not examine:
+that audit checks only that its theorem is proved about the executing
+definition. Such a statement can fix one direction only, and it need not show
+that both outcomes occur for its function. Kinds for the functions of the second
+reason are remaining work of
+[issue 105](https://github.com/rbeauchamp/acorn/issues/105). A contract states
+only what its theorem proves.
 
 A kind compares a function with its specification as the two are defined now.
 Where the two call one test, a defect of that test changes the two sides
@@ -535,14 +535,12 @@ result of `Bool`, or a definition of an instance of BEq, Lean's class of
 equality tests, outside Lean's own library. The projection function of a
 structure field is no test, whatever the type of the field: it reads stored
 data. The rule reads the specification at any depth. Acorn states each such
-condition as a proposition, with a theorem that connects the test with it:
-`Binary32.Negative` for the sign bit, `Binary32.IsNaN` and `Binary64.IsNaN`, the
-strict orders `Binary32.Less` and `Binary64.Less`, `Host.TileKind.Walkable`,
-`Host.Inventory.Owns`, `Host.InBox` and `FeatureProfile.Resumable`. A function
-that a specification reaches, such as the signed key `Binary32.key`, decides the
-proposition through an instance that runs the test, so the executed comparison
-is the same one. The rule compares names: it does not find a copy of a test
-under a second name. It refuses nothing for a projection function, so
+condition as a proposition, with a theorem that connects the test with it, such
+as `Binary32.Negative` for the sign bit or the strict order `Binary32.Less`. A
+function that a specification reaches, such as the signed key `Binary32.key`,
+decides the proposition through an instance that runs the test, so the executed
+comparison is the same one. The rule compares names: it does not find a copy of
+a test under a second name. It refuses nothing for a projection function, so
 `inventory_craft` is not refused for the fields `Host.Inventory.axe` and
 `Host.Inventory.boat`, which its specification and its function both read. It
 refuses nothing for a shared function with another result than those two, such
