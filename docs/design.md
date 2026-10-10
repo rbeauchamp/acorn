@@ -292,31 +292,44 @@ every agent state and every percept, under the two orders whose first part is
 selection, `learn-then-act` and `plan-after-act`
 ([definitions](../lean/AcornVerif/Resource/StepWork.lean),
 `AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
-order). This is the bound the deadline of a world on a wall clock needs: the action
-is released after the first part.
+order). The deadline of a world on a wall clock needs a bound of the first part,
+because the action is released after it. In word operations the bound holds under a
+hypothesis: if each site's stretch of compiled code runs at most a given number of
+word operations (`AcornVerif.Resource.Twin.SiteBounds`), the first part runs at most
+the bound at those numbers (`choose_words`). No theorem derives the word operations of
+a site yet, so a deadline argument from this bound carries that hypothesis.
 
 **What is counted.** Work is a count of the operations of the compiled definitions
 in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
 code whose work is a constant of the compiled code, costs its own constant
-([sites](../lean/AcornVerif/Resource/Sites.lean)). The bound holds for every
-assignment of costs to sites; no theorem derives the cost of a site in word
-operations, and the scalar operations that the native resource audit bounds are
-the only operations with an extracted cost. Allocation, reference counting, the
-copy of a shared array when it is written
+([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
+sites. Allocation, reference counting, the copy of a shared array when it is written
 ([#84](https://github.com/rbeauchamp/acorn/issues/84)), cache behaviour and time
 are not counted.
 
-**How the count follows the executed code.** A twin of an executed definition is a
-computation that carries its work beside its value
-([cost semantics](../lean/AcornVerif/Resource/Work.lean)). Each loop combinator's
-value is the executed library loop over the same collection, and its work is the sum
-of its visits over that collection. Each twin of a loop states that its value is the
-executed definition's: by definitional unfolding, or, for a recursion of Acorn's own, by induction on
-the same recursion (`firstLoopRun_val`, `secondLoopRun_val`, `rankedRun_val`). The
-twins of the options and of selection follow the control flow of the executed
-definitions on the values those compute and charge the twin of each operation they
-call; their correspondence with the executed definition is by reading, because those
-definitions build their results through private constructors and proofs.
+**How the count follows the executed code.** The learner's executed definitions are
+the values of their costed definitions ([cost semantics](../lean/Acorn/Cost.lean)):
+`NumericState.step` is the value of `NumericState.stepCosted`, and so are the
+prediction, both loops, a trajectory's start, a terminal step, a planning step, a
+release, a retirement, the ordered sums and the fresh transient record. A costed
+definition's work is a proposition, which the compiler erases, so the definition
+compiles to the code of its value: the generated C of each converted definition is
+the code it had before, up to the renaming of the definition and its local variables.
+The loops the learner's bounds count are therefore the loops that run, under one
+discipline that no theorem states, because Lean gives a pure term no operational
+meaning: each loop runs in a loop combinator or a costed definition, and each path of a
+recursion passes a charge. [Regula issue 333](https://github.com/rbeauchamp/regula/issues/333)
+proposes to check that discipline.
+
+The other definitions of the first part are not costed yet. Each has a twin that
+carries its work beside its value ([twins](../lean/AcornVerif/Resource/Work.lean)):
+the twin's value is the executed definition's, by definitional unfolding, by
+induction on the same recursion (`rankedRun_val`), or, where the definition builds
+its result through a private constructor and proofs, by reading. A value theorem
+does not tie a twin's work to the executed code, since a twin of the same value with
+less work would satisfy it. For those definitions the bound is a bound of the twins,
+and it bounds the executed code through the reading of each twin's loops and charges
+against the definition.
 
 **What bounds each loop.** The frame's active features are at most
 `tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is

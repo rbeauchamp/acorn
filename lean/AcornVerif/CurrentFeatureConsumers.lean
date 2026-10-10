@@ -38,7 +38,7 @@ theorem retire_absent {config : Acorn.Config} {dimension : Dimension}
     (state : NumericState config dimension) (feature : FeatIdx dimension)
     (unique : state.transient.eligible.toList.Nodup) :
     feature ∉ (state.retireIndex feature).transient.eligible := by
-  unfold NumericState.retireIndex
+  rw [NumericState.retireIndex_def]
   split
   · rename_i pos found
     obtain ⟨valid, same, _⟩ := Array.findIdx?_eq_some_iff_getElem.mp found
@@ -75,7 +75,7 @@ theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
   subst reader
   have cleared := retire_registers before.2.state feature
   have rails : (before.2.state.retireIndex feature).rails = before.2.state.rails := by
-    unfold NumericState.retireIndex
+    rw [NumericState.retireIndex_def]
     split <;> simp only [NumericState.writeBetaValue, NumericState.writeWeight,
       NumericState.clearFeatureRegisters, NumericState.writeZ, NumericState.writeP,
       NumericState.writeZBar, NumericState.writeDeltaWeight, NumericState.writeZDelta,

@@ -97,7 +97,7 @@ theorem retireIndex_weight_other (state : NumericState config dimension)
     (idx other : FeatIdx dimension) (different : other ≠ idx) :
     (state.retireIndex idx).weights.get other = state.weights.get other := by
   have distinct : idx.val ≠ other.val := fun same => different (Fin.ext same.symm)
-  unfold NumericState.retireIndex
+  rw [NumericState.retireIndex_def]
   split <;> simp [NumericState.removeEligibleAt, NumericState.clearFeatureRegisters,
     NumericState.writeZ, NumericState.writeP, NumericState.writeZBar,
     NumericState.writeDeltaWeight, NumericState.writeZDelta, NumericState.writeH,
@@ -110,7 +110,7 @@ theorem retireIndex_weight_other (state : NumericState config dimension)
 theorem retireIndex_predict (state : NumericState config dimension) (idx : FeatIdx dimension)
     (features : ActiveSet dimension) (absent : idx ∉ features.indices) :
     (state.retireIndex idx).predict features = state.predict features := by
-  simp only [NumericState.predict, NumericState.linearPrediction_eq_sumFrom]
+  simp only [NumericState.predict_def, NumericState.linearPrediction_eq_sumFrom]
   congr 1
   apply List.map_congr_left
   intro other member
@@ -124,7 +124,7 @@ theorem retireIndex_prediction (state : NumericState config dimension) (idx : Fe
     (state.retireIndex idx).predict features = Binary32.sumFrom .zero
       (features.indices.map fun other =>
         if other = idx then Binary32.zero else (state.weights.get other).value) := by
-  simp only [NumericState.predict, NumericState.linearPrediction_eq_sumFrom]
+  simp only [NumericState.predict_def, NumericState.linearPrediction_eq_sumFrom]
   congr 1
   apply List.map_congr_left
   intro other _
@@ -149,7 +149,7 @@ theorem retire_step_error (state : NumericState config dimension) (idx : FeatIdx
   refine ⟨?_, ?_⟩
   · simp only [CurrentLearner.step_observation, retireIndex_prediction,
       (CurrentLearner.retire_registers state idx).2.2.2.1]
-  · simp only [CurrentLearner.step_observation, NumericState.predict,
+  · simp only [CurrentLearner.step_observation, NumericState.predict_def,
       NumericState.linearPrediction_eq_sumFrom]
 
 /-- Without the retired slot in the input, the next TD error is unchanged bit for bit. -/
@@ -177,9 +177,9 @@ theorem controller_retire_values {actions : Nat}
     refine ⟨rfl, rfl, ?_⟩
     intro action
     have same := retireIndex_prediction learners[action.val].state idx features
-    simp only [NumericState.predict] at same
+    simp only [NumericState.predict_def] at same
     simpa [Features.Controller.predictAll, Features.Controller.retire, Features.Managed.retire,
-      Features.Managed.apply, Entry.apply] using same
+      Features.Managed.apply, Entry.apply_def] using same
 
 variable {shape : Features.PatchShape} {actions : Word.Count} {features : Features.Config}
   {criterion : Features.Criterion}
@@ -227,7 +227,7 @@ theorem replace_aggregates
   have kept := CurrentLearner.retire_registers reader.2.state
     (Features.unitFeature dimension features unit)
   simp only [Function.comp, Features.PackedLearner.retire, Features.Managed.retire,
-    Features.Managed.apply, Entry.apply]
+    Features.Managed.apply, Entry.apply_def]
   rw [kept.2.2.2.1, kept.2.2.2.2]
 
 /-- The new unit's term preserves the numerical value of every finite partial sum

@@ -120,17 +120,17 @@ theorem interestPotential_work (κ : Costs) (interest : Interest config)
 
 /-! ## Decisions and starts -/
 
-/-- The costed run of `Skill.decideOption`: below the duration cap and without the goal,
-the frozen policy and its nominal value. -/
+/-- The costed run of `Skill.decideOption`: the termination tests on every path and, below
+the duration cap and without the goal, the frozen policy and its nominal value. -/
 def decideRun (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
     (goal : Bool) (rate : ConsumerRate) : Costed Unit :=
-  Costed.ite (goal = true) (Costed.pure ())
+  Costed.charge (κ .decide) (Costed.ite (goal = true) (Costed.pure ())
     (Costed.dite (activation.age.val < Acorn.FeatureConstants.optionMaxDuration)
       (fun _ => do
         let policy ← frozenPolicy κ skill features rate
-        Costed.charge (κ .decide) (Costed.discard (comparisonValue κ criterion policy)))
-      (fun _ => Costed.pure ()))
+        Costed.discard (comparisonValue κ criterion policy))
+      (fun _ => Costed.pure ())))
 
 /-- Twin of `Skill.decideOption`. -/
 def decideOption (κ : Costs) (skill : Skill actions config criterion dimension discounts)
@@ -149,11 +149,12 @@ theorem decideOption_work (κ : Costs) (skill : Skill actions config criterion d
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate) :
     (decideOption κ skill activation features potential goal estimate rate).work ≤
       decideBound κ actions.word.toNat dimension.capacity features.indices.length :=
-  Nat.le_trans (Costed.ite_work_le _ _ _) (Nat.max_le.mpr ⟨Nat.zero_le _,
-    Costed.dite_work_le _ _ _ _
+  Nat.le_trans (Costed.charge_work_le (Nat.le_trans (Costed.ite_work_le _ _ _)
+    (Nat.max_le.mpr ⟨Nat.zero_le _, Costed.dite_work_le _ _ _ _
       (fun _ => Costed.bind_work_le (frozenPolicy_work κ skill features rate) fun policy =>
-        Nat.add_le_add_left (comparisonValue_work κ criterion policy) _)
-      (fun _ => Nat.zero_le _)⟩)
+        comparisonValue_work κ criterion policy)
+      (fun _ => Nat.zero_le _)⟩)))
+    (Nat.le_of_eq (Nat.add_left_comm _ _ _))
 
 /-- The costed run of `Skill.beginOption`: a learning start clears the policy's traces,
 then the policy is frozen. -/

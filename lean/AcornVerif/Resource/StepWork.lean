@@ -14,12 +14,21 @@ import AcornVerif.Resource.SelectionWork
 
 The first part of the step under an order whose first part is selection
 (`Agent.chooseSelected`): the clock, the encoding of the percept's frame and selection with
-the planning that order places before the action. Its work is bounded by a function of the
-interface, the feature configuration and the dimension alone, for every cost of the sites
-(`AcornVerif.Resource.Twin.choose_work`): the frame's active features are bounded by the
-configuration (`Agent.frame_length`), every learner's eligible entries by the capacity of
+the planning that order places before the action. The work of its twin is bounded by a
+function of the interface, the feature configuration and the dimension alone, for every cost
+of the sites (`AcornVerif.Resource.Twin.choose_work`): the frame's active features are bounded
+by the configuration (`Agent.frame_length`), every learner's eligible entries by the capacity of
 its dimension, every stored frame by the same capacity, and every other loop by a count the
 type of its collection fixes.
+
+**What the bound covers.** The learner's work in the bound is the work of the executed learner,
+whose definitions are the values of their costed definitions. The work of the other parts is
+the work of their twins (`AcornVerif.Resource.Work`), whose loops and charges follow the
+executed definitions by reading.
+
+**Word operations.** A site's cost in word operations is not derived from the compiled code. The
+bound in word operations (`AcornVerif.Resource.Twin.choose_words`) holds under the hypothesis
+`SiteBounds words κ`: each site's stretch runs at most `κ site` word operations.
 -/
 
 namespace AcornVerif.Resource.Twin
@@ -87,6 +96,39 @@ theorem chooseSelected_work (κ : Costs)
       Nat.le_trans (selectRun_work κ _ _ _ _ _ _)
         (selectBound_mono κ _ _ _ _ _ (Agent.frame_length _ percept.frame))
 
+/-- `SiteBounds words κ`: each site's stretch runs at most `κ site` word operations, where
+`words site` is the number of word operations the compiled code of the stretch runs on the word
+machine of `AcornVerif.Resource.WordKernel`, one for each instruction. No theorem derives
+`words`; a bound in word operations holds under this hypothesis. -/
+def SiteBounds (words κ : Costs) : Prop := ∀ site, words site ≤ κ site
+
+/-- The first part's bound grows with the cost of each site. -/
+theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (interface : Interface)
+    (config : Features.Config) (dimension : Dimension) :
+    chooseBound words interface config dimension ≤ chooseBound κ interface config dimension := by
+  simp only [chooseBound, atBoundaryBound, backupAllBound, bankInitialBound, beginBound,
+    beginOptionBound, beginTemporalBound, bestBound, candidateListBound, candidatesBound,
+    changedBound, clearBound, closeOptionBound, columnsBound, comparisonBound,
+    controllerInitialBound, creditBound, creditStepBound, decideBound, dispatchBound,
+    drawMetaBound, encodeBound, endTemporalBound, expectedAtBound, expectedBound,
+    firstLoopBound, firstVisit, forgetBound, frameBound, frozenBound, greedyBound,
+    indicatorBound, inputBound, installBound, learnMetaBound, learnerInitialBound,
+    lookAheadBound, lookaheadBound, mergedBound, metaRateBound, modelBeginBound,
+    modelInitialBound, modelStepBound, modelStopBound, modelTerminalBound,
+    modelTerminalWorkBound, normalizedBound, occupiedBound, optionBranchBound, optionStepBound,
+    outcomeBound, outcomeValuesBound, persistentBound, planBound, planFreeBound, planningBound,
+    policyStepBound, potentialBound, predictAllBound, predictBound, prepareBound,
+    primitiveBound, probabilitiesBound, projectionBound, questionsInitialBound, rankedBound,
+    rankedCandidatesBound, rankedEmptyBound, rankedRerankBound, rankedSlotsBound,
+    rankedValuesBound, rateBound, refreshBound, refreshFreeBound, refreshRankedBound,
+    releaseBound, rerankModelsBound, rowInputBound, secondLoopBound, selectBound, serveBound,
+    settleBound, skillInitialBound, stepBound, stepOptionBound, stepTemporalBound, stopBound,
+    stopFollowingBound, stopTrajectoryBound, sweepAllBound, tabulateBound, terminalBound,
+    terminalCreditBound, tiledBound, transitionBeginBound, transitionInitialBound,
+    transitionRerankBound, transitionStepBound, uniqueBound, updateRowsBound, wordsBound,
+    zeroBound]
+  gcongr <;> exact bounds _
+
 /-- The first part under the default order is `Agent.chooseSelected` at `learnThenAct`. -/
 theorem choose_learnThenAct (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -95,7 +137,8 @@ theorem choose_learnThenAct (state : Agent interface profile config criterion di
 
 /-- **The work bound of the first part under `learnThenAct`.** The twin's value is the
 executed first part, and its work is at most `chooseBound`, for every cost model, agent state
-and percept. -/
+and percept. The twin's work is the executed learner's and, outside the learner, follows the
+executed definitions by reading. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -104,5 +147,16 @@ theorem choose_work (κ : Costs)
       (chooseSelected κ state .learnThenAct (by decide) percept).work ≤
         chooseBound κ interface config dimension :=
   ⟨rfl, chooseSelected_work κ state .learnThenAct (by decide) percept⟩
+
+/-- **The bound of the first part under `learnThenAct` in word operations.** If each site's
+stretch runs at most `κ site` word operations, the first part's work counted in the word
+operations of its sites is at most `chooseBound κ`, for every agent state and percept. -/
+theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
+    (state : Agent interface profile config criterion dimension planning)
+    (percept : Percept interface) :
+    (chooseSelected words state .learnThenAct (by decide) percept).work ≤
+      chooseBound κ interface config dimension :=
+  Nat.le_trans (chooseSelected_work words state .learnThenAct (by decide) percept)
+    (chooseBound_mono bounds interface config dimension)
 
 end AcornVerif.Resource.Twin

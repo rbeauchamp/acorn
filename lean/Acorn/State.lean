@@ -470,20 +470,39 @@ structure TransientState (dimension : Dimension) where
   /-- Previous prediction anchor. -/
   vOld : Binary32
 
+/-- Fresh process-local registers with their work: nine register vectors written in full. -/
+def TransientState.zeroCosted (dimension : Dimension) : Costed (TransientState dimension) := do
+  let z ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
+  let zDelta ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
+  let zBar ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
+  let lastAlpha ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
+  let deltaWeight ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
+  let h ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
+  let hOld ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
+  let hTemp ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
+  let p ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
+  Costed.op .zeroTransient
+    { z, zDelta, zBar, lastAlpha, deltaWeight, h, hOld, hTemp, p, eligible := #[],
+      vDelta := .zero, vOld := .zero }
+
 /-- Fresh process-local registers have exact zero words and no eligible entries. -/
-def TransientState.zero (dimension : Dimension) : TransientState dimension where
-  z := Vector.replicate _ ⟨.zero⟩
-  zDelta := Vector.replicate _ ⟨.zero⟩
-  zBar := Vector.replicate _ ⟨.zero⟩
-  lastAlpha := Vector.replicate _ ⟨.zero⟩
-  deltaWeight := Vector.replicate _ ⟨.zero⟩
-  h := Vector.replicate _ ⟨.zero⟩
-  hOld := Vector.replicate _ ⟨.zero⟩
-  hTemp := Vector.replicate _ ⟨.zero⟩
-  p := Vector.replicate _ ⟨.zero⟩
-  eligible := #[]
-  vDelta := .zero
-  vOld := .zero
+def TransientState.zero (dimension : Dimension) : TransientState dimension :=
+  (TransientState.zeroCosted dimension).val
+
+theorem TransientState.zero_def (dimension : Dimension) :
+    TransientState.zero dimension =
+      { z := Vector.replicate _ ⟨.zero⟩
+        zDelta := Vector.replicate _ ⟨.zero⟩
+        zBar := Vector.replicate _ ⟨.zero⟩
+        lastAlpha := Vector.replicate _ ⟨.zero⟩
+        deltaWeight := Vector.replicate _ ⟨.zero⟩
+        h := Vector.replicate _ ⟨.zero⟩
+        hOld := Vector.replicate _ ⟨.zero⟩
+        hTemp := Vector.replicate _ ⟨.zero⟩
+        p := Vector.replicate _ ⟨.zero⟩
+        eligible := #[]
+        vDelta := .zero
+        vOld := .zero } := rfl
 
 /-- Numeric storage binds all knowledge to one configuration and dimension.
 The complete learner transition is owned by the subsequent learner module. -/

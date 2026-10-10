@@ -34,85 +34,6 @@ variable {config : Acorn.Config} {dimension : Dimension} {actions : Nat} {count 
 
 /-! ## Learner entries -/
 
-/-- Twin of `SwiftTd.Entry.apply`. -/
-def entryApply (κ : Costs) (entry : SwiftTd.Entry dimension)
-    (state : NumericState config dimension) : Costed (NumericState config dimension) :=
-  match entry with
-  | .first delta vDelta decay => firstLoop κ config state delta vDelta decay
-  | .second features vDelta => do
-    let result ← secondLoop κ config state features vDelta
-    Costed.pure result.1
-  | .step features reward => do
-    let result ← step κ config state features reward
-    Costed.pure result.1
-  | .beginTrajectory features => beginTrajectory κ config state features
-  | .terminal target => do
-    let result ← terminalStep κ config state target
-    Costed.pure result.1
-  | .plan features target => do
-    let result ← planStep κ config state features target
-    Costed.pure result.1
-  | .retire idx => retireIndex κ state idx
-  | .clear => clearTransient κ state
-  | .release => releaseEligible κ state
-
-theorem entryApply_val (κ : Costs) (entry : SwiftTd.Entry dimension)
-    (state : NumericState config dimension) :
-    (entryApply κ entry state).val = entry.apply state := by
-  cases entry <;> rfl
-
-/-- Bound of one learner entry at a capacity and `count` eligible entries. -/
-def entryBound (κ : Costs) (capacity count : Nat) : SwiftTd.Entry dimension → Nat
-  | .first .. => firstLoopBound κ count
-  | .second features _ => secondLoopBound κ features.indices.length
-  | .step features _ => stepBound κ count features.indices.length
-  | .beginTrajectory features => beginBound κ capacity features.indices.length
-  | .terminal _ => terminalBound κ capacity count
-  | .plan features _ => planBound κ features.indices.length
-  | .retire _ => κ .retire + count * κ .visit
-  | .clear => zeroBound κ capacity
-  | .release => count * (κ .visit + κ .clearRegisters) + κ .releaseClose
-
-theorem entryApply_work (κ : Costs) (entry : SwiftTd.Entry dimension)
-    (state : NumericState config dimension) :
-    (entryApply κ entry state).work ≤
-      entryBound κ dimension.capacity state.transient.eligible.size entry := by
-  cases entry with
-  | first delta vDelta decay => exact firstLoop_work κ config state delta vDelta decay
-  | second features vDelta =>
-    have bound := Costed.bind_work_le (secondLoop_work κ config state features vDelta)
-      fun (result : NumericState config dimension × Binary32) =>
-        Nat.le_refl (Costed.pure result.1).work
-    simpa only [entryApply, entryBound, Nat.add_zero] using bound
-  | step features reward =>
-    have bound := Costed.bind_work_le (step_work κ config state features reward)
-      fun (result : NumericState config dimension × SwiftTd.TdStep) =>
-        Nat.le_refl (Costed.pure result.1).work
-    simpa only [entryApply, entryBound, Nat.add_zero] using bound
-  | beginTrajectory features => exact beginTrajectory_work κ config state features
-  | terminal target =>
-    have bound := Costed.bind_work_le (terminalStep_work κ config state target)
-      fun (result : NumericState config dimension × Binary32) =>
-        Nat.le_refl (Costed.pure result.1).work
-    simpa only [entryApply, entryBound, Nat.add_zero] using bound
-  | plan features target =>
-    have bound := Costed.bind_work_le (planStep_work κ config state features target)
-      fun (result : NumericState config dimension × Binary32) =>
-        Nat.le_refl (Costed.pure result.1).work
-    simpa only [entryApply, entryBound, Nat.add_zero] using bound
-  | retire idx => exact Nat.le_of_eq (retireIndex_work κ state idx)
-  | clear => exact clearTransient_work κ state
-  | release => exact releaseEligible_work κ state
-
-/-- An entry's bound grows with the number of eligible entries. -/
-theorem entryBound_mono (κ : Costs) (capacity : Nat) {count limit : Nat} (fits : count ≤ limit)
-    (entry : SwiftTd.Entry dimension) :
-    entryBound κ capacity count entry ≤ entryBound κ capacity limit entry := by
-  have first := Nat.mul_le_mul_right (firstVisit κ) fits
-  have visit := Nat.mul_le_mul_right (κ .visit) fits
-  have clear := Nat.mul_le_mul_right (κ .visit + κ .clearRegisters) fits
-  cases entry <;> simp only [entryBound, stepBound, terminalBound, firstLoopBound] <;> omega
-
 /-- Twin of `Managed.apply`: the executed learner, with the work of its entry. -/
 def managedApply (κ : Costs) (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) : Costed (Managed config dimension) :=
@@ -376,7 +297,8 @@ def plan (κ : Costs) (controller : Controller config dimension actions) (action
   Costed.bind (planStep κ config learner.state features target) fun _ =>
     let result := learner.state.planStep config features target
     let updated : Managed config dimension :=
-      ⟨result.1, learner.phase, .transition (.plan features target) trivial learner.admitted⟩
+      ⟨result.1, learner.phase, SwiftTd.Entry.apply_plan features target learner.state ▸
+        .transition (.plan features target) trivial learner.admitted⟩
     Costed.op (κ .planClose)
       ({ controller with learners := controller.learners.set action.val updated action.isLt },
         result.2)

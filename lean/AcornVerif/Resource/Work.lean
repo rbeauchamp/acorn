@@ -3,38 +3,37 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Init
+import Acorn.Cost
 
 /-!
-# Work of an executed computation with array loops
+# Work of the definitions not yet costed
 
-`Costed α` pairs a value with the work charged to the computation that produced it. A
-**twin** of an executed definition is a `Costed` computation whose value is the executed
-definition's value and whose work counts the operations of that definition.
+The learner's executed definitions are the values of costed definitions (`Acorn.Costed`), so the
+loops their bounds count are the loops that run. The other definitions of the agent's step are
+not yet costed. For each of them a **twin** here is a `Costed` computation, a value with a `Nat`
+of work, written beside the executed definition to follow its control flow. A twin's value
+theorem states that its value is the executed definition's, by `rfl`, by induction on the same
+recursion, or, through `via`, by reading.
 
-**Loops.** Each loop combinator below has as its value the executed library loop applied to
-the values of its parts (`List.foldl`, `List.map`, `Vector.map`, `Vector.ofFn`,
-`Vector.mapFinIdx`, `List.filterMap`, `List.flatMap`, `Array.foldl`), and as its work the
-sum, over the same collection, of `visit` for the loop's control and the work of the visit's
-operation. A loop's bound is therefore its trip count times a bound of one visit
-(`foldl_work_le`, `mapWork_le`, `ofFn_work_le`), and a twin whose value is definitionally the
-executed loop cannot visit another collection than the executed loop visits. A library scan
-whose every visit is constant work (a membership test, a search, a length, a copy, a
-reversal) is charged one visit for each element of the collection it names (`scanList`,
-`scanArray`, `scanVector`, `replicate`).
+**What a twin establishes.** A value theorem does not tie a twin's work to the executed code:
+Lean's logic gives a pure term no operational meaning, and a twin of the same value with less
+work would satisfy the same theorem. That a twin's loops and charges are those of the executed
+definition is a correspondence by reading, so a bound proved here bounds the twin, and bounds
+the executed code only through that reading. Each definition moves out of this accounting when
+it becomes the value of its costed definition, as the learner did.
 
-**Correspondence.** A twin of a loop or of a composition of twins states that its value is
-the executed definition's, by `rfl`. A twin of a recursion of Acorn's own pairs the executed
-value with the work of a costed recursion over the same arguments and states that the costed
-recursion's value is the executed one, by induction on the same recursion. Where an executed
-definition builds its value through a private constructor or with a proof about its parts,
-`via` pairs the executed value with the work of a run that follows its control flow; the
-run's correspondence with the definition is then by reading.
+**Loops.** Each loop combinator below has as its value the library loop applied to the values of
+its parts (`List.foldl`, `List.map`, `Vector.map`, `Vector.ofFn`, `Vector.mapFinIdx`,
+`List.filterMap`, `List.flatMap`, `Array.foldl`), and as its work the sum, over the same
+collection, of `visit` for the loop's control and the work of the visit's operation. A loop's
+bound is therefore its trip count times a bound of one visit (`foldl_work_le`, `mapWork_le`,
+`ofFn_work_le`). A library scan whose every visit is constant work (a membership test, a search,
+a length, a copy, a reversal) is charged one visit for each element of the collection it names
+(`scanList`, `scanArray`, `scanVector`, `replicate`).
 
-**What is counted.** Work counts the operations of the compiled definitions: each loop visit
-is charged `visit`, and each stretch of constant work is charged where a twin says
-`Costed.op` or `Costed.charge`, at the cost a cost model assigns its site
-(`AcornVerif.Resource.Site`). Every bound holds for every cost model.
+**What is counted.** Each loop visit is charged `visit`, and each stretch of constant work is
+charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost model assigns its
+site (`Acorn.Site`). Every bound holds for every cost model.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of
 an array that is shared when it is written (issue 84 of the repository; the write itself is

@@ -206,10 +206,11 @@ theorem modelInitial_work (κ : Costs) (dimension : Dimension) (criterion : Crit
     simp only [modelInitialBound]
     omega
 
-/-- The costed run of `GradientBank.initial`: two weight vectors for each question. -/
+/-- The costed run of `GradientBank.initial`: one visit of its recursion and two weight vectors
+for each question. -/
 def bankInitialRun (κ : Costs) (dimension : Dimension) : (discounts : List Discount) → Costed Unit
   | [] => Costed.pure ()
-  | _ :: rest => do
+  | _ :: rest => Costed.charge (κ .visit) do
     Costed.discard (Costed.replicate (κ .visit) dimension.capacity (0 : Nat))
     Costed.discard (Costed.ofFn (count := dimension.capacity) (κ .visit) fun _ =>
       Costed.op (κ .write) ())
@@ -217,7 +218,7 @@ def bankInitialRun (κ : Costs) (dimension : Dimension) : (discounts : List Disc
 
 /-- Bound of a fresh question bank of `questions` questions at a capacity. -/
 abbrev bankInitialBound (κ : Costs) (questions capacity : Nat) : Nat :=
-  questions * (capacity * κ .visit + capacity * (κ .visit + κ .write))
+  questions * (κ .visit + capacity * κ .visit + capacity * (κ .visit + κ .write))
 
 theorem bankInitialRun_work (κ : Costs) (dimension : Dimension) (discounts : List Discount) :
     (bankInitialRun κ dimension discounts).work ≤
@@ -227,7 +228,7 @@ theorem bankInitialRun_work (κ : Costs) (dimension : Dimension) (discounts : Li
   | cons discount rest ih =>
     have fresh := Costed.ofFn_work_le (count := dimension.capacity) (κ .visit) (κ .write)
       (fun _ => Costed.op (κ .write) ()) fun _ => Nat.le_refl _
-    simp only [bankInitialRun, Costed.bind_work, List.length_cons, Nat.succ_mul,
+    simp only [bankInitialRun, Costed.charge, Costed.bind_work, List.length_cons, Nat.succ_mul,
       bankInitialBound] at ih fresh ⊢
     omega
 
@@ -531,8 +532,8 @@ theorem rankedSlots_work (κ : Costs) (dimension : Dimension) (config : Features
           (Nat.mul_le_mul_right _ (Nat.le_trans (ranked_length _ _) (Nat.sub_le _ 1))))))
 
 /-- The costed run of `RankedFeatures.merged`: the slots listed, the last dropped, each held
-slot tested against the order, the vacant positions filled, the bias appended and the array
-built. -/
+slot tested against the order, each ranked slot tested against the held slots for the entrants,
+the vacant positions filled, the bias appended and the array built. -/
 def mergedRun (κ : Costs) (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension)) :
     Costed Unit := do
   let slots ← Costed.scanVector (κ .visit) ranked.slots ranked.slots.toList
@@ -541,6 +542,9 @@ def mergedRun (κ : Costs) (ranked : RankedFeatures dimension) (order : List (Fe
     (fun slot => Costed.scanList (κ .visit + κ .compare) order
       (slot.filter fun feature => order.contains feature))
     held
+  Costed.discard (Costed.map (κ .visit)
+    (fun feature => Costed.scanList (κ .visit + κ .compare) held (held.contains (some feature)))
+    order)
   let filled ← Costed.scanList (κ .visit) filtered (mergeSlots held order)
   let appended ← Costed.scanList (κ .visit) filled (filled ++ [none])
   Costed.discard (Costed.scanList (κ .visit) appended appended.toArray)
@@ -549,7 +553,8 @@ def mergedRun (κ : Costs) (ranked : RankedFeatures dimension) (order : List (Fe
 abbrev mergedBound (κ : Costs) (positions size : Nat) : Nat :=
   positions * κ .visit + (positions * κ .visit +
     (positions * (κ .visit + size * (κ .visit + κ .compare)) +
-      (positions * κ .visit + (positions * κ .visit + (positions + 1) * κ .visit))))
+      (size * (κ .visit + positions * (κ .visit + κ .compare)) +
+        (positions * κ .visit + (positions * κ .visit + (positions + 1) * κ .visit)))))
 
 theorem mergedRun_work (κ : Costs) (ranked : RankedFeatures dimension)
     (order : List (FeatIdx dimension)) :
@@ -566,13 +571,18 @@ theorem mergedRun_work (κ : Costs) (ranked : RankedFeatures dimension)
         (Nat.le_trans (Costed.mapWork_le (κ .visit) (order.length * (κ .visit + κ .compare))
           _ _ fun _ _ => Nat.le_refl _) (Nat.mul_le_mul_right _ dropped))
         (Costed.bind_work_le_at
-          (Nat.mul_le_mul_right _ (Nat.le_trans (Nat.le_of_eq (List.length_map _)) dropped))
+          (Nat.le_trans (Costed.mapWork_le (κ .visit)
+            (ranked.slots.toList.dropLast.length * (κ .visit + κ .compare)) _ _
+            fun _ _ => Nat.le_refl _)
+            (Nat.mul_le_mul_left _ (Nat.add_le_add_left (Nat.mul_le_mul_right _ dropped) _)))
           (Costed.bind_work_le_at
-            (Nat.mul_le_mul_right _ (Nat.le_trans (Nat.le_of_eq length) dropped))
-            (Nat.mul_le_mul_right _ (show (mergeSlots ranked.slots.toList.dropLast order ++
-                [none]).length ≤ (rankDimension dimension).capacity + 1 by
-              simp only [List.length_append, List.length_singleton, length]
-              exact Nat.add_le_add_right dropped 1))))))
+            (Nat.mul_le_mul_right _ (Nat.le_trans (Nat.le_of_eq (List.length_map _)) dropped))
+            (Costed.bind_work_le_at
+              (Nat.mul_le_mul_right _ (Nat.le_trans (Nat.le_of_eq length) dropped))
+              (Nat.mul_le_mul_right _ (show (mergeSlots ranked.slots.toList.dropLast order ++
+                  [none]).length ≤ (rankDimension dimension).capacity + 1 by
+                simp only [List.length_append, List.length_singleton, length]
+                exact Nat.add_le_add_right dropped 1)))))))
 
 /-- The costed run of `RankedFeatures.rerank`: the merge, its comparison with the held slots
 and, when a position changed, the merge again and its lookup table. -/
@@ -801,6 +811,7 @@ theorem transitionRerankBound_mono (κ : Costs) (capacity positions : Nat) {size
       transitionRerankBound κ capacity positions limit := by
   have tests := Nat.mul_le_mul_right (κ .visit + κ .compare) fits
   have merged := Nat.mul_le_mul_left positions (Nat.add_le_add_left tests (κ .visit))
+  have entrants := Nat.mul_le_mul_right (κ .visit + positions * (κ .visit + κ .compare)) fits
   simp only [transitionRerankBound, rankedRerankBound, mergedBound]
   omega
 

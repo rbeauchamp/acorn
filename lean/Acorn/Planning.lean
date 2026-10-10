@@ -78,7 +78,8 @@ def Controller.plan {config : Acorn.Config} {dimension : Dimension} {actions : N
   let learner := controller.learners.get action
   let result := learner.state.planStep config features target
   let updated : Managed config dimension :=
-    ⟨result.1, learner.phase, .transition (.plan features target) trivial learner.admitted⟩
+    ⟨result.1, learner.phase, SwiftTd.Entry.apply_plan features target learner.state ▸
+      .transition (.plan features target) trivial learner.admitted⟩
   ({ controller with learners := controller.learners.set action.val updated action.isLt }, result.2)
 
 /-- One planning look-ahead: predict the option's outcome at the feature vector under

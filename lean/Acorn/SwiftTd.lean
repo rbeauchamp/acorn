@@ -279,37 +279,76 @@ def removeEligibleAt (state : NumericState config dimension) (pos : Nat)
   { state with transient := { state.transient with
       eligible := swapRemove state.transient.eligible pos inRange } }
 
+/-- `clearTransient` with its work: a fresh transient record. -/
+def clearTransientCosted (state : NumericState config dimension) :
+    Costed (NumericState config dimension) := do
+  let zero ← TransientState.zeroCosted dimension
+  Costed.pure { state with transient := zero }
+
 /-- Drop every trace and adaptation scratch, keeping the knowledge arrays.
 Eligibility traces refer to a specific recent trajectory and do not survive a
 trajectory boundary. -/
 def clearTransient (state : NumericState config dimension) : NumericState config dimension :=
-  { state with transient := TransientState.zero dimension }
+  state.clearTransientCosted.val
+
+theorem clearTransient_def (state : NumericState config dimension) :
+    state.clearTransient = { state with transient := TransientState.zero dimension } := rfl
+
+/-- `releaseEligible` with its work: one clear for each eligible entry. -/
+def releaseEligibleCosted (state : NumericState config dimension) :
+    Costed (NumericState config dimension) := do
+  let cleared ← Costed.foldlArray
+    (fun next idx => Costed.op .clearRegisters (next.clearFeatureRegisters idx)) state
+    state.transient.eligible
+  Costed.op .releaseClose { cleared with transient := { cleared.transient with eligible := #[] } }
 
 /-- Drop every eligible trace structurally: zero all nine registers of each
 eligible index and empty the list. Knowledge, the previous prediction and the
 weight-change aggregate are kept, and no arithmetic reads a trace. The work is
 the eligible length, not the capacity. -/
 def releaseEligible (state : NumericState config dimension) : NumericState config dimension :=
-  let cleared := state.transient.eligible.foldl (fun next idx => next.clearFeatureRegisters idx)
-    state
-  { cleared with transient := { cleared.transient with eligible := #[] } }
+  state.releaseEligibleCosted.val
+
+theorem releaseEligible_def (state : NumericState config dimension) :
+    state.releaseEligible =
+      let cleared := state.transient.eligible.foldl
+        (fun next idx => next.clearFeatureRegisters idx) state
+      { cleared with transient := { cleared.transient with eligible := #[] } } := rfl
+
+/-- `linearPrediction` with its work: one term for each active feature. -/
+def linearPredictionCosted (state : NumericState config dimension)
+    (features : ActiveSet dimension) : Costed Binary32 :=
+  Binary32.sumMapCosted .sumTerm .zero features.indices fun idx => (state.weights.get idx).value
 
 /-- Raw ordered prediction `Σ_{i∈F} w[i]` over the unique active features, in
 first-occurrence order; no output projection is applied. -/
 def linearPrediction (state : NumericState config dimension) (features : ActiveSet dimension) :
     Binary32 :=
-  Binary32.sumMap .zero features.indices (fun idx => (state.weights.get idx).value)
+  (state.linearPredictionCosted features).val
+
+theorem linearPrediction_def (state : NumericState config dimension)
+    (features : ActiveSet dimension) :
+    state.linearPrediction features =
+      Binary32.sumMap .zero features.indices (fun idx => (state.weights.get idx).value) := rfl
 
 /-- The executing prediction retains the exact ordered machine-word sum. -/
 theorem linearPrediction_eq_sumFrom (state : NumericState config dimension)
     (features : ActiveSet dimension) :
     state.linearPrediction features = Binary32.sumFrom .zero
       (features.indices.map fun idx => (state.weights.get idx).value) := by
-  simp only [linearPrediction, Binary32.sumMap_eq]
+  simp only [linearPrediction_def, Binary32.sumMap_eq]
+
+/-- `predict` with its work. -/
+def predictCosted (state : NumericState config dimension) (features : ActiveSet dimension) :
+    Costed Binary32 :=
+  state.linearPredictionCosted features
 
 /-- Predict: the ordered weight sum over the active set. -/
 def predict (state : NumericState config dimension) (features : ActiveSet dimension) : Binary32 :=
-  state.linearPrediction features
+  (state.predictCosted features).val
+
+theorem predict_def (state : NumericState config dimension) (features : ActiveSet dimension) :
+    state.predict features = state.linearPrediction features := rfl
 
 /-- One element of the first loop (Algorithm 1, RLJ vol. 2 p. 848:
 `δw[i] ← δ′ z[i] − zδ[i] vδ; w[i] ← w[i] + δw[i]; β[i] ← β[i] + (θ/e^{β[i]})
@@ -405,36 +444,78 @@ theorem firstLoopElement_eq (state : NumericState config dimension) (idx : FeatI
         z.lessOrEqual ((state.transient.lastAlpha.get idx).value.mul config.epsilon)) := by
   simp only [firstLoopElement, anchor_stepSize, LogStepSize.alphaAfter_self, writeBetaValue]
 
-/-- The first-loop traversal: trace-eligible weights in eligible order with
-swap-remove pruning. The worklist is the state's eligible list at entry; each
-visit either advances the position or swap-removes the pruned index, so the
-measure drops on every step. The final eligible list is the pruned worklist,
-in the order the swap-removes left it. -/
-def learnFirstLoopGo (config : Config) (delta vDelta traceDecay : Binary32) :
-    NumericState config dimension → Array (FeatIdx dimension) → Nat → NumericState config dimension
+/-- `learnFirstLoopGo` with its work: each visit is one element, and a pruned
+visit also clears the index and swap-removes it. -/
+def learnFirstLoopGoCosted (config : Config) (delta vDelta traceDecay : Binary32) :
+    NumericState config dimension → Array (FeatIdx dimension) → Nat →
+      Costed (NumericState config dimension)
   | state, work, pos =>
     if inRange : pos < work.size then
       let idx := work[pos]
       let (state, prune) := state.firstLoopElement idx delta vDelta traceDecay
       if prune then
-        learnFirstLoopGo config delta vDelta traceDecay (state.clearFeatureRegisters idx)
-          (swapRemove work pos inRange) pos
-      else learnFirstLoopGo config delta vDelta traceDecay state work (pos + 1)
-    else { state with transient := { state.transient with eligible := work } }
+        Costed.charge .visit <| Costed.charge .firstElement <| Costed.charge .prune <|
+          learnFirstLoopGoCosted config delta vDelta traceDecay (state.clearFeatureRegisters idx)
+            (swapRemove work pos inRange) pos
+      else
+        Costed.charge .visit <| Costed.charge .firstElement <|
+          learnFirstLoopGoCosted config delta vDelta traceDecay state work (pos + 1)
+    else
+      Costed.op .firstClose { state with transient := { state.transient with eligible := work } }
   termination_by _state work pos => work.size - pos
   decreasing_by
     · simp only [swapRemove, Array.size_pop, Array.size_set]
       omega
     · omega
 
+/-- The first-loop traversal: trace-eligible weights in eligible order with
+swap-remove pruning. The worklist is the state's eligible list at entry; each
+visit either advances the position or swap-removes the pruned index, so the
+measure drops on every step. The final eligible list is the pruned worklist,
+in the order the swap-removes left it. -/
+def learnFirstLoopGo (config : Config) (delta vDelta traceDecay : Binary32)
+    (state : NumericState config dimension) (work : Array (FeatIdx dimension)) (pos : Nat) :
+    NumericState config dimension :=
+  (learnFirstLoopGoCosted config delta vDelta traceDecay state work pos).val
+
+theorem learnFirstLoopGo_def (config : Config) (delta vDelta traceDecay : Binary32)
+    (state : NumericState config dimension) (work : Array (FeatIdx dimension)) (pos : Nat) :
+    learnFirstLoopGo config delta vDelta traceDecay state work pos =
+      if inRange : pos < work.size then
+        let idx := work[pos]
+        let (state, prune) := state.firstLoopElement idx delta vDelta traceDecay
+        if prune then
+          learnFirstLoopGo config delta vDelta traceDecay (state.clearFeatureRegisters idx)
+            (swapRemove work pos inRange) pos
+        else learnFirstLoopGo config delta vDelta traceDecay state work (pos + 1)
+      else { state with transient := { state.transient with eligible := work } } := by
+  unfold learnFirstLoopGo
+  rw [learnFirstLoopGoCosted]
+  split
+  · dsimp only
+    split <;> rfl
+  · rfl
+
+/-- `learnFirstLoop` with its work: the entry, then the traversal. -/
+def learnFirstLoopCosted (config : Config) (state : NumericState config dimension)
+    (delta vDelta traceDecay : Binary32) : Costed (NumericState config dimension) :=
+  let work := state.transient.eligible
+  let state := { state with transient := { state.transient with eligible := #[] } }
+  Costed.charge .firstOpen (learnFirstLoopGoCosted config delta vDelta traceDecay state work 0)
+
 /-- The first loop of the update over the learner's eligible list. `delta`,
 `vDelta` and `traceDecay` are raw public arguments; no hypothesis about a
 normal stream is part of this definition. -/
 def learnFirstLoop (config : Config) (state : NumericState config dimension)
     (delta vDelta traceDecay : Binary32) : NumericState config dimension :=
-  let work := state.transient.eligible
-  let state := { state with transient := { state.transient with eligible := #[] } }
-  learnFirstLoopGo config delta vDelta traceDecay state work 0
+  (state.learnFirstLoopCosted config delta vDelta traceDecay).val
+
+theorem learnFirstLoop_def (config : Config) (state : NumericState config dimension)
+    (delta vDelta traceDecay : Binary32) :
+    state.learnFirstLoop config delta vDelta traceDecay =
+      let work := state.transient.eligible
+      let state := { state with transient := { state.transient with eligible := #[] } }
+      learnFirstLoopGo config delta vDelta traceDecay state work 0 := rfl
 
 /-- One element of the second loop (Algorithm 1, p. 848: `zδ[i] ←
 min(1, η/τ) e^{β[i]}`, `p[i] ← p[i] + h[i]`, and the eq. (32) `hTemp`
@@ -514,17 +595,36 @@ theorem stepSizes_eq (state : NumericState config dimension)
     indices.map state.stepSize = indices.map fun idx => (state.beta.get idx).alpha :=
   List.map_congr_left fun idx _ => state.stepSize_eq idx
 
+/-- `learnSecondLoopGo` with its work: one element for each visit. -/
+def learnSecondLoopGoCosted (overshoot : Bool) (scale oneSubT : Binary32) :
+    List (FeatIdx dimension) → List Binary32 → NumericState config dimension → Binary32 →
+      Costed (NumericState config dimension × Binary32)
+  | idx :: indices, alpha :: alphas, state, vDelta =>
+    let next := secondLoopElementAt overshoot scale oneSubT alpha state vDelta idx
+    Costed.charge .visit <| Costed.charge .secondElement <|
+      learnSecondLoopGoCosted overshoot scale oneSubT indices alphas next.1 next.2
+  | _, _, state, vDelta => Costed.pure (state, vDelta)
+
 /-- The second-loop traversal: the active features in first-occurrence order,
 each visit receiving its step size from the list read at loop entry. The
 two lists advance together and a visit needs an entry of each, so traversal
 ends with the shorter; `learnSecondLoop` supplies one step size per index. -/
-def learnSecondLoopGo (overshoot : Bool) (scale oneSubT : Binary32) :
-    List (FeatIdx dimension) → List Binary32 → NumericState config dimension → Binary32 →
-      NumericState config dimension × Binary32
-  | idx :: indices, alpha :: alphas, state, vDelta =>
-    let next := secondLoopElementAt overshoot scale oneSubT alpha state vDelta idx
-    learnSecondLoopGo overshoot scale oneSubT indices alphas next.1 next.2
-  | _, _, state, vDelta => (state, vDelta)
+def learnSecondLoopGo (overshoot : Bool) (scale oneSubT : Binary32)
+    (indices : List (FeatIdx dimension)) (alphas : List Binary32)
+    (state : NumericState config dimension) (vDelta : Binary32) :
+    NumericState config dimension × Binary32 :=
+  (learnSecondLoopGoCosted overshoot scale oneSubT indices alphas state vDelta).val
+
+theorem learnSecondLoopGo_def (overshoot : Bool) (scale oneSubT : Binary32)
+    (indices : List (FeatIdx dimension)) (alphas : List Binary32)
+    (state : NumericState config dimension) (vDelta : Binary32) :
+    learnSecondLoopGo overshoot scale oneSubT indices alphas state vDelta =
+      match indices, alphas, state, vDelta with
+      | idx :: indices, alpha :: alphas, state, vDelta =>
+        let next := secondLoopElementAt overshoot scale oneSubT alpha state vDelta idx
+        learnSecondLoopGo overshoot scale oneSubT indices alphas next.1 next.2
+      | _, _, state, vDelta => (state, vDelta) := by
+  cases indices <;> cases alphas <;> rfl
 
 /-- Step sizes read once at loop entry are the step sizes each visit would
 read from the state it receives, so the traversal is the fold of the listed
@@ -563,6 +663,20 @@ theorem learnSecondLoopGo_eq_foldl (config : Config) (overshoot : Bool) (e t : B
             (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
             (state, vDelta) := rfl
 
+/-- `learnSecondLoop` with its work: the step sizes and the two sums read once, then one
+element for each feature. -/
+def learnSecondLoopCosted (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) (vDelta : Binary32) :
+    Costed (NumericState config dimension × Binary32) := do
+  let alphas ← Costed.map (fun idx => Costed.op .read (state.stepSize idx)) features.indices
+  let rate ← Binary32.sumFromCosted .zero alphas
+  let overshoot := config.eta.less rate
+  let e := if overshoot then rate else config.eta
+  let t ← Binary32.sumMapCosted .sumTerm .zero features.indices
+    (fun idx => (state.transient.z.get idx).value)
+  Costed.charge .secondOpen <| learnSecondLoopGoCosted overshoot (config.eta.div e)
+    (Binary32.one.sub t) features.indices alphas state vDelta
+
 /-- The second loop of the update: the active features in first-occurrence
 order. `τ = Σ_{i∈F} e^{β[i]}` (eq. (7), p. 845), one overshoot binding for
 both the trace scale and the step-size decay, and the shared `vDelta`
@@ -571,13 +685,19 @@ from storage, for both `τ` and its feature's trace increment. -/
 def learnSecondLoop (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) (vDelta : Binary32) :
     NumericState config dimension × Binary32 :=
-  let alphas := features.indices.map state.stepSize
-  let rate := Binary32.sumFrom .zero alphas
-  let overshoot := config.eta.less rate
-  let e := if overshoot then rate else config.eta
-  let t := Binary32.sumMap .zero features.indices (fun idx => (state.transient.z.get idx).value)
-  learnSecondLoopGo overshoot (config.eta.div e) (Binary32.one.sub t) features.indices alphas
-    state vDelta
+  (state.learnSecondLoopCosted config features vDelta).val
+
+theorem learnSecondLoop_def (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) (vDelta : Binary32) :
+    state.learnSecondLoop config features vDelta =
+      let alphas := features.indices.map state.stepSize
+      let rate := Binary32.sumFrom .zero alphas
+      let overshoot := config.eta.less rate
+      let e := if overshoot then rate else config.eta
+      let t := Binary32.sumMap .zero features.indices
+        (fun idx => (state.transient.z.get idx).value)
+      learnSecondLoopGo overshoot (config.eta.div e) (Binary32.one.sub t) features.indices alphas
+        state vDelta := rfl
 
 /-- The executing second loop is the listed one: both pre-update sums keep
 the complete ordered active loop, and every visit's step size, scale and
@@ -595,52 +715,114 @@ theorem learnSecondLoop_eq_sumFrom (config : Config) (state : NumericState confi
       features.indices.foldl
         (fun (state, vDelta) idx => secondLoopElement config overshoot e t state vDelta idx)
         (state, vDelta) := by
-  simp only [learnSecondLoop, Binary32.sumMap_eq, stepSizes_eq]
+  simp only [learnSecondLoop_def, Binary32.sumMap_eq, stepSizes_eq]
   exact learnSecondLoopGo_eq_foldl config _ _ _ features.indices features.nodup state vDelta
+
+/-- `step` with its work: the prediction, the first loop over the eligible entries, the
+second loop over the features, and the store of the results. -/
+def stepCosted (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) (reward : Binary32) :
+    Costed (NumericState config dimension × TdStep) := do
+  let v ← state.linearPredictionCosted features
+  let delta := (reward.add (config.rule.gamma.mul v)).sub state.transient.vOld
+  let state ← state.learnFirstLoopCosted config delta state.transient.vDelta
+    (config.rule.gamma.mul config.lambda)
+  let (state, vd) ← state.learnSecondLoopCosted config features .zero
+  Costed.op .stepClose
+    ({ state with transient := { state.transient with vDelta := vd, vOld := v } }, ⟨v, delta⟩)
 
 /-- One full single-learner update: predict, then the two loops with this
 learner's own `vDelta` and `vOld`; the bootstrap multiplier and trace decay
 derive from the immutable criterion. -/
 def step (config : Config) (state : NumericState config dimension) (features : ActiveSet dimension)
     (reward : Binary32) : NumericState config dimension × TdStep :=
-  let v := state.linearPrediction features
-  let delta := (reward.add (config.rule.gamma.mul v)).sub state.transient.vOld
-  let state := state.learnFirstLoop config delta state.transient.vDelta
-    (config.rule.gamma.mul config.lambda)
-  let (state, vd) := state.learnSecondLoop config features .zero
-  let state := { state with transient := { state.transient with vDelta := vd, vOld := v } }
-  (state, ⟨v, delta⟩)
+  (state.stepCosted config features reward).val
+
+theorem step_def (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) (reward : Binary32) :
+    state.step config features reward =
+      let v := state.linearPrediction features
+      let delta := (reward.add (config.rule.gamma.mul v)).sub state.transient.vOld
+      let state := state.learnFirstLoop config delta state.transient.vDelta
+        (config.rule.gamma.mul config.lambda)
+      let (state, vd) := state.learnSecondLoop config features .zero
+      let state := { state with transient := { state.transient with vDelta := vd, vOld := v } }
+      (state, ⟨v, delta⟩) := rfl
+
+/-- `beginTrajectory` with its work: the clear, the anchor prediction and the second loop. -/
+def beginTrajectoryCosted (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) : Costed (NumericState config dimension) := do
+  let state ← state.clearTransientCosted
+  let v ← state.predictCosted features
+  let (state, vd) ← state.learnSecondLoopCosted config features .zero
+  Costed.op .beginClose { state with transient := { state.transient with vOld := v, vDelta := vd } }
 
 /-- Begin a new trajectory at `features` (STOMP eq. (17); Sutton, Precup &
 Singh, AIJ 112 (1999), §5): clear transient registers, evaluate the anchor
 prediction, and lay the initial traces. -/
 def beginTrajectory (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) : NumericState config dimension :=
-  let state := state.clearTransient
-  let v := state.predict features
-  let (state, vd) := state.learnSecondLoop config features .zero
-  { state with transient := { state.transient with vOld := v, vDelta := vd } }
+  (state.beginTrajectoryCosted config features).val
+
+theorem beginTrajectory_def (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) :
+    state.beginTrajectory config features =
+      let state := state.clearTransient
+      let v := state.predict features
+      let (state, vd) := state.learnSecondLoop config features .zero
+      { state with transient := { state.transient with vOld := v, vDelta := vd } } := rfl
+
+/-- `terminalStep` with its work: the first loop, then the clear. -/
+def terminalStepCosted (config : Config) (state : NumericState config dimension)
+    (target : Binary32) : Costed (NumericState config dimension × Binary32) := do
+  let delta := target.sub state.transient.vOld
+  let state ← state.learnFirstLoopCosted config delta state.transient.vDelta
+    (config.rule.gamma.mul config.lambda)
+  let cleared ← state.clearTransientCosted
+  Costed.op .terminalClose (cleared, delta)
 
 /-- Close the current trajectory with a terminal TD update (STOMP eq. (5) at
 β = 1): loop 1 on existing traces, then transient registers clear. -/
 def terminalStep (config : Config) (state : NumericState config dimension) (target : Binary32) :
     NumericState config dimension × Binary32 :=
-  let delta := target.sub state.transient.vOld
-  let state := state.learnFirstLoop config delta state.transient.vDelta
-    (config.rule.gamma.mul config.lambda)
-  (state.clearTransient, delta)
+  (state.terminalStepCosted config target).val
+
+theorem terminalStep_def (config : Config) (state : NumericState config dimension)
+    (target : Binary32) :
+    state.terminalStep config target =
+      let delta := target.sub state.transient.vOld
+      let state := state.learnFirstLoop config delta state.transient.vDelta
+        (config.rule.gamma.mul config.lambda)
+      (state.clearTransient, delta) := rfl
+
+/-- `planWeightsGo` with its work: one weight write for each visit. -/
+def planWeightsGoCosted (scale delta : Binary32) :
+    List (FeatIdx dimension) → List Binary32 → NumericState config dimension →
+      Costed (NumericState config dimension)
+  | idx :: indices, alpha :: alphas, state =>
+    Costed.charge .visit <| Costed.charge .planElement <| planWeightsGoCosted scale delta indices
+      alphas
+      (state.writeWeight idx ((state.weights.get idx).value.add ((scale.mul alpha).mul delta)))
+  | _, _, state => Costed.pure state
 
 /-- The planning weight traversal: the active features in first-occurrence
 order, each visit receiving its step size from the list read at entry.
 The two lists advance together and a visit needs an entry of each, so
 traversal ends with the shorter; `planStep` supplies one step size per index. -/
-def planWeightsGo (scale delta : Binary32) :
-    List (FeatIdx dimension) → List Binary32 → NumericState config dimension →
-      NumericState config dimension
-  | idx :: indices, alpha :: alphas, state =>
-    planWeightsGo scale delta indices alphas
-      (state.writeWeight idx ((state.weights.get idx).value.add ((scale.mul alpha).mul delta)))
-  | _, _, state => state
+def planWeightsGo (scale delta : Binary32) (indices : List (FeatIdx dimension))
+    (alphas : List Binary32) (state : NumericState config dimension) :
+    NumericState config dimension :=
+  (planWeightsGoCosted scale delta indices alphas state).val
+
+theorem planWeightsGo_def (scale delta : Binary32) (indices : List (FeatIdx dimension))
+    (alphas : List Binary32) (state : NumericState config dimension) :
+    planWeightsGo scale delta indices alphas state =
+      match indices, alphas, state with
+      | idx :: indices, alpha :: alphas, state =>
+        planWeightsGo scale delta indices alphas
+          (state.writeWeight idx ((state.weights.get idx).value.add ((scale.mul alpha).mul delta)))
+      | _, _, state => state := by
+  cases indices <;> cases alphas <;> rfl
 
 /-- Step sizes read once at entry are the step sizes each planning visit
 would read from the state it receives: a visit writes one weight and no step
@@ -657,6 +839,21 @@ theorem planWeightsGo_eq_foldl (scale delta : Binary32) (indices : List (FeatIdx
     exact ih (state.writeWeight idx
       ((state.weights.get idx).value.add ((scale.mul (state.beta.get idx).alpha).mul delta)))
 
+/-- `planStep` with its work: the prediction, then, for an update, the step sizes, their sum
+and one weight write for each feature. -/
+def planStepCosted (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) (target : Binary32) :
+    Costed (NumericState config dimension × Binary32) := do
+  let v ← state.predictCosted features
+  let delta := target.sub v
+  if !decide delta.Finite || delta.numericallyEqual .zero then Costed.op .planOpen (state, .zero)
+  else
+    let alphas ← Costed.map (fun idx => Costed.op .read (state.stepSize idx)) features.indices
+    let rate ← Binary32.sumFromCosted .zero alphas
+    let e := if config.eta.less rate then rate else config.eta
+    let next ← planWeightsGoCosted (config.eta.div e) delta features.indices alphas state
+    Costed.op .planOpen (next, delta)
+
 /-- A single background planning update toward `target` at `features` without
 modifying eligibility traces or meta-gradient registers (PAR-14; Dyna 1991,
 STOMP eq. (19)): `w[i] ← project (w[i] + (η/E)·α[i]·δ)`. A nonfinite or zero
@@ -665,14 +862,23 @@ error is no update. Each step size `α[i]` is read once from storage, for both
 def planStep (config : Config) (state : NumericState config dimension)
     (features : ActiveSet dimension) (target : Binary32) :
     NumericState config dimension × Binary32 :=
-  let v := state.predict features
-  let delta := target.sub v
-  if !decide delta.Finite || delta.numericallyEqual .zero then (state, .zero)
-  else
-    let alphas := features.indices.map state.stepSize
-    let rate := Binary32.sumFrom .zero alphas
-    let e := if config.eta.less rate then rate else config.eta
-    (planWeightsGo (config.eta.div e) delta features.indices alphas state, delta)
+  (state.planStepCosted config features target).val
+
+theorem planStep_def (config : Config) (state : NumericState config dimension)
+    (features : ActiveSet dimension) (target : Binary32) :
+    state.planStep config features target =
+      let v := state.predict features
+      let delta := target.sub v
+      if !decide delta.Finite || delta.numericallyEqual .zero then (state, .zero)
+      else
+        let alphas := features.indices.map state.stepSize
+        let rate := Binary32.sumFrom .zero alphas
+        let e := if config.eta.less rate then rate else config.eta
+        (planWeightsGo (config.eta.div e) delta features.indices alphas state, delta) := by
+  unfold planStep planStepCosted predict
+  rw [Costed.bind_val]
+  dsimp only
+  split <;> rfl
 
 /-- The executing planning update is the fold whose every visit reads its own
 step size from the state it receives, for every state, feature list and
@@ -692,7 +898,20 @@ theorem planStep_eq_foldl (config : Config) (state : NumericState config dimensi
           let stepSize := (scale.mul (state.beta.get idx).alpha).mul delta
           state.writeWeight idx ((state.weights.get idx).value.add stepSize)) state
         (state, delta) := by
-  simp only [planStep, stepSizes_eq, planWeightsGo_eq_foldl]
+  simp only [planStep_def, stepSizes_eq, planWeightsGo_eq_foldl]
+
+/-- `retireIndex` with its work: its one loop is the search of the eligible list for the
+retired index; the removal, the clear and the two writes are loop-free. -/
+def retireIndexCosted (state : NumericState config dimension) (idx : FeatIdx dimension) :
+    Costed (NumericState config dimension) :=
+  Costed.charge .retire <| Costed.scanArray state.transient.eligible <|
+    let state := match found : state.transient.eligible.findIdx? (· == idx) with
+      | some pos =>
+        state.removeEligibleAt pos (Array.findIdx?_eq_some_iff_getElem.mp found).1
+      | none => state
+    let state := state.clearFeatureRegisters idx
+    let state := state.writeWeight idx .zero
+    state.writeBetaValue idx state.rails.initial
 
 /-- Replace one feature's knowledge and transients with a fresh unit's start
 state: the first eligible occurrence removed (the whole membership under
@@ -704,13 +923,17 @@ so the next TD error differs from the unreplaced one only through the retired
 slot's weight. -/
 def retireIndex (state : NumericState config dimension) (idx : FeatIdx dimension) :
     NumericState config dimension :=
-  let state := match found : state.transient.eligible.findIdx? (· == idx) with
-    | some pos =>
-      state.removeEligibleAt pos (Array.findIdx?_eq_some_iff_getElem.mp found).1
-    | none => state
-  let state := state.clearFeatureRegisters idx
-  let state := state.writeWeight idx .zero
-  state.writeBetaValue idx state.rails.initial
+  (state.retireIndexCosted idx).val
+
+theorem retireIndex_def (state : NumericState config dimension) (idx : FeatIdx dimension) :
+    state.retireIndex idx =
+      let state := match found : state.transient.eligible.findIdx? (· == idx) with
+        | some pos =>
+          state.removeEligibleAt pos (Array.findIdx?_eq_some_iff_getElem.mp found).1
+        | none => state
+      let state := state.clearFeatureRegisters idx
+      let state := state.writeWeight idx .zero
+      state.writeBetaValue idx state.rails.initial := rfl
 
 /-- Mean step size `α = e^β` over all weights. -/
 def meanAlpha (state : NumericState config dimension) : Binary32 :=
@@ -792,20 +1015,52 @@ inductive Entry (dimension : Dimension) where
   /-- Release every eligible trace, in work proportional to their number. -/
   | release
 
+/-- `Entry.apply` with its work: the work of the operation it runs. -/
+def Entry.applyCosted (entry : Entry dimension) (state : NumericState config dimension) :
+    Costed (NumericState config dimension) :=
+  match entry with
+  | .first delta vDelta decay => state.learnFirstLoopCosted config delta vDelta decay
+  | .second features vDelta => do
+    let result ← state.learnSecondLoopCosted config features vDelta
+    Costed.pure result.1
+  | .step features reward => do
+    let result ← state.stepCosted config features reward
+    Costed.pure result.1
+  | .beginTrajectory features => state.beginTrajectoryCosted config features
+  | .terminal target => do
+    let result ← state.terminalStepCosted config target
+    Costed.pure result.1
+  | .plan features target => do
+    let result ← state.planStepCosted config features target
+    Costed.pure result.1
+  | .retire idx => state.retireIndexCosted idx
+  | .clear => state.clearTransientCosted
+  | .release => state.releaseEligibleCosted
+
 /-- Execute one interface operation using the same definitions as the direct
 methods. Their observation results remain available from those methods. -/
 def Entry.apply (entry : Entry dimension) (state : NumericState config dimension) :
     NumericState config dimension :=
-  match entry with
-  | .first delta vDelta decay => state.learnFirstLoop config delta vDelta decay
-  | .second features vDelta => (state.learnSecondLoop config features vDelta).1
-  | .step features reward => (state.step config features reward).1
-  | .beginTrajectory features => state.beginTrajectory config features
-  | .terminal target => (state.terminalStep config target).1
-  | .plan features target => (state.planStep config features target).1
-  | .retire idx => state.retireIndex idx
-  | .clear => state.clearTransient
-  | .release => state.releaseEligible
+  (entry.applyCosted state).val
+
+theorem Entry.apply_def (entry : Entry dimension) (state : NumericState config dimension) :
+    entry.apply state =
+      match entry with
+      | .first delta vDelta decay => state.learnFirstLoop config delta vDelta decay
+      | .second features vDelta => (state.learnSecondLoop config features vDelta).1
+      | .step features reward => (state.step config features reward).1
+      | .beginTrajectory features => state.beginTrajectory config features
+      | .terminal target => (state.terminalStep config target).1
+      | .plan features target => (state.planStep config features target).1
+      | .retire idx => state.retireIndex idx
+      | .clear => state.clearTransient
+      | .release => state.releaseEligible := by
+  cases entry <;> rfl
+
+/-- A planning entry's state is the planning step's state. -/
+theorem Entry.apply_plan (features : ActiveSet dimension) (target : Binary32)
+    (state : NumericState config dimension) :
+    (Entry.plan features target).apply state = (state.planStep config features target).1 := rfl
 
 /-- Phase after an entry: true permits a following standalone second loop.
 This phase governs composed resource safety, not the standalone input domain. -/
