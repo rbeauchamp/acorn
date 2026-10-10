@@ -33,6 +33,7 @@ def goalTelemetry (goal : Option Goal) : GoalKind × GoalItem × Int × Int × N
   | some (.collect item count) => (some .collect, some (.inl item), 0, 0, count.toNat)
   | some (.craft tool) => (some .craft, some (.inr tool), 0, 0, 0)
   | some (.survive count) => (some .survive, none, 0, 0, count.toNat)
+  | some (.find target) => (some .reach, none, target.x.val, target.y.val, 0)
 
 /-- The actual emitted goal tags are admitted for every original task, including
 absence and every craftable. Other numeric fields retain their own wire limits. -/

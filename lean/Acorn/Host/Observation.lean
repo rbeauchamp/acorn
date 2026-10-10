@@ -81,11 +81,14 @@ inductive TaskObservation where
   | craft (cue : UInt64) (item : Craftable) (remaining : Bool)
   /-- Survival goal. -/
   | survive (cue remaining : UInt64)
+  /-- Coordinate goal whose target is concealed: whether the body is in the rewarded
+  region, and nothing of where the region is. -/
+  | find (cue : UInt64) (here : Bool)
 
 /-- Opaque identity, zero only by convention when no goal is installed. -/
 def TaskObservation.cue : TaskObservation → UInt64
   | .none => 0
-  | .reach cue _ | .collect cue _ _ | .craft cue _ _ | .survive cue _ => cue
+  | .reach cue _ | .collect cue _ _ | .craft cue _ _ | .survive cue _ | .find cue _ => cue
 
 /-- Public sensory bytes retain the original observation domain. -/
 structure TileObservation where

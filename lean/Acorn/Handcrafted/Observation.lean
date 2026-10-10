@@ -69,6 +69,7 @@ def taskWords (task : TaskObservation) (mode : TaskFeatureMode) : List SensorWor
   | .craft _ item remaining => [⟨0x49, 3⟩, ⟨0x4A, item.code⟩, ⟨0x4B, flagWord remaining⟩]
   | .survive _ remaining =>
     [⟨0x49, 4⟩, ⟨0x4A, remaining⟩, ⟨0x4B, (bitWidth 64 remaining).toUInt64⟩]
+  | .find _ here => [⟨0x49, 5⟩, ⟨0x4A, flagWord here⟩]
 
 /-- Current position packing uses wrapping words at both shifts. -/
 def positionWord (row col : Fin patchSide) : UInt64 :=

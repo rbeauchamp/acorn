@@ -37,6 +37,7 @@ def curriculumGoalName : Goal → String
   | .collect item count => s!"Collect {(GoalItem.labels (some (.inl item))).1} ×{count}"
   | .craft item => s!"Craft {(GoalItem.labels (some (.inr item))).1}"
   | .reach position => s!"Reach ({position.x.val}, {position.y.val})"
+  | .find position => s!"Find ({position.x.val}, {position.y.val})"
 
 /-- Telemetry campaign counts are projections of the execution owner's admitted
 plan, including clipping and zero-attempt normalization. -/

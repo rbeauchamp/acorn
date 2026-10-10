@@ -65,6 +65,8 @@ import AcornVerif.CurrentCurriculum
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentGridWorld
+import AcornVerif.Replay
+import AcornVerif.CurrentConcealedTarget
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
 import AcornVerif.Endurance
@@ -3420,6 +3422,140 @@ info: 'AcornVerif.CurrentGridWorld.far_window_unsolved' depends on axioms: [prop
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentGridWorld.far_window_unsolved
+
+/--
+info: 'AcornVerif.Kernel.Conceals.need' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Conceals.need
+
+/--
+info: 'AcornVerif.Kernel.visits_need' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.visits_need
+
+/--
+info: 'AcornVerif.Kernel.visits_first_success' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.visits_first_success
+
+/--
+info: 'AcornVerif.Kernel.visits_ever' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.visits_ever
+
+/--
+info: 'AcornVerif.Kernel.replay_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.replay_keeps
+
+/--
+info: 'AcornVerif.Kernel.replay_solves' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.replay_solves
+
+/-- info: 'AcornVerif.Kernel.park_keeps' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.park_keeps
+
+/--
+info: 'AcornVerif.CurrentGoals.find_satisfied_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentGoals.find_satisfied_iff
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_conceals' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_conceals
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_covered' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_covered
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_need' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_need
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_visits_need' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_visits_need
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_visits_first_success' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_visits_first_success
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.achieved_decodes' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.achieved_decodes
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_replay' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_replay
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.far_window_visits' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.far_window_visits
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.witness_walk' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.witness_walk
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.witness_separation' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.witness_separation
+
+/--
+info: 'AcornVerif.Kernel.replay_explored' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.replay_explored
+
+/--
+info: 'AcornVerif.Kernel.replay_separates' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.replay_separates
+
+/-- info: 'AcornVerif.Kernel.replay_not_experienceFree' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.replay_not_experienceFree
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_replay_separates' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_replay_separates
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.find_replay_learns' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.find_replay_learns
 
 /-- info: 'AcornVerif.GridCorrespondence.initial_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

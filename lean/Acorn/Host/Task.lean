@@ -238,17 +238,23 @@ inductive Goal where
   | craft (tool : Craftable)
   /-- Survive the requested duration since goal installation. -/
   | survive (steps : UInt64)
+  /-- Reach a coordinate region that the observation does not locate. -/
+  | find (target : Position)
 
-/-- A goal's family is derived from its constructor. -/
+/-- A goal's family is derived from its constructor. A concealed target is coordinate
+attainment, a reach goal. -/
 def Goal.family : Goal → GoalFamily
   | .reach _ => .reach | .collect _ _ => .collect | .craft _ => .craft | .survive _ => .survive
+  | .find _ => .reach
 
-/-- Stable opaque cue, derived from the entire goal identity. -/
+/-- Stable opaque cue, derived from the entire goal identity except a concealed target:
+every concealed target has the one cue of its family, which carries nothing of the target. -/
 def Goal.cue : Goal → UInt64
   | .reach target => Rng.hash3 1 (coordinateWord target.x) (coordinateWord target.y)
   | .collect item count => Rng.hash3 2 item.code count.toUInt64
   | .craft tool => Rng.hash3 3 tool.code 0
   | .survive steps => Rng.hash3 4 steps 0
+  | .find _ => Rng.hash3 5 0 0
 
 /-- World reward and task error read this same completion predicate. -/
 def TaskObservation.satisfied : TaskObservation → Bool
@@ -257,8 +263,10 @@ def TaskObservation.satisfied : TaskObservation → Bool
   | .collect _ _ remaining => remaining == 0
   | .craft _ _ remaining => !remaining
   | .survive _ remaining => remaining == 0
+  | .find _ here => here
 
-/-- A goal's complete relation is derived from the current body and elapsed time. -/
+/-- A goal's relation is derived from the current body and elapsed time. The relation of a
+concealed target is only whether the body is in its region. -/
 def Goal.observe (goal : Goal) (position : Position) (inventory : Inventory) (elapsed : UInt64) :
     TaskObservation :=
   match goal with
@@ -267,6 +275,8 @@ def Goal.observe (goal : Goal) (position : Position) (inventory : Inventory) (el
       (required.toNat - (inventory.count item).toNat).toUInt32
   | .craft tool => .craft goal.cue tool (!(inventory.owns tool))
   | .survive required => .survive goal.cue (required.toNat - elapsed.toNat).toUInt64
+  | .find target => .find goal.cue
+      ((ReachRelation.between position.x position.y target.x target.y).distance == 0)
 
 /-- Independent step events; reward is derived from completion rather than stored twice. -/
 structure StepResult where

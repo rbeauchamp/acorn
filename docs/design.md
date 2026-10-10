@@ -622,7 +622,8 @@ What these theorems do not establish:
   blind on the class of targets, so the theorem supplies no bound for it; that
   its actions do depend on the target is not proved either. A fixed rule that
   steps toward the target needs no experience. No theorem here gives a goal
-  whose solution the observation does not show.
+  whose solution the observation does not show; [the next
+  section](#goals-the-observation-conceals-and-visits) does.
 - **A bound over seeds.** The reach bound counts target positions for one host
   world. The generator ties the target to the seed, so reading it as a fraction
   of seeds assumes that the seed hash places targets independently of the walk
@@ -644,6 +645,113 @@ What these theorems do not establish:
   per step or for the time a decision takes.
 
 The counting argument is [the coverage proof](../lean/AcornVerif/Coverage.lean).
+
+### Goals the observation conceals, and visits
+
+A need bound that covers agents which read their percepts needs goals whose solution
+the percepts do not show until it is found. [Concealment](../lean/AcornVerif/Concealment.lean)
+states this for any class of worlds. A class **conceals** its goals behind a reference
+world when, along every action sequence, each member delivers the reference's percepts
+until that member's goal is first met. Before success nothing an agent perceives tells
+the members apart, so every agent, one that learns included, keeps the same memory and
+takes the same actions in every member until its goal is met. A covering bound is then a
+need bound for every agent: the **first-visit bound**. It concerns an agent whose memory
+at the attempt's start is the same in every member, which is what a first visit is.
+
+On later visits the bound needs one more property of the world. In a world that persists
+between visits, the world's state can hold what an agent's memory does not: the parking
+agent follows a step counter until its percept shows the goal met and from then on takes
+an action that keeps it met, so it keeps every goal it has met although its memory reads
+no percept. [Visits](../lean/AcornVerif/Visits.lean) defines the property that removes
+this. A **world in visits** of a length takes that many steps from its start state,
+delivers one more percept at the visit's last state, and returns to the start state
+whatever the action. The agent is not restarted: its memory carries from visit to visit.
+Each member's visits then begin in that member's own start state, which does not depend on
+what happened on earlier visits (it may depend on the member), and at the same time in
+every member. So an experience-free agent, whose memory at a time is its initial memory
+advanced that many times, is one agent for the whole class on every visit. [The replaying
+agent](../lean/AcornVerif/Replay.lean), one agent for the whole class, stores the actions
+of the visit on which its percept first shows the goal met and replays them, so it solves
+on every later visit each member it has solved once. Whether it solves more members than
+the covering bound depends on its exploration: under the explicit hypothesis that its
+explorations of the visits up to one visit meet the goals of more members than the bound,
+on that visit it solves all of them, more than any experience-free agent solves on any
+visit.
+
+**Visits supersede "the world is not reset" for goals with proved need.** The protocol of
+the design pass of [issue #69](https://github.com/rbeauchamp/acorn/issues/69) required one
+life: the agent's state persists across every host boundary, and the world is not reset.
+For goals whose need is to be proved on later visits, the second half gives way, and only
+for that class. In a world that persists, an experience-free agent keeps every goal it has
+met (`park_keeps`), so no bound on its later visits follows, and a learner that beats the
+first-visit bound shows nothing a frozen agent could not do. Visits keep the first half: the
+agent is never restarted and its memory carries from visit to visit. Each member's world
+returns to that member's own start between visits, and every visit has the same length, so
+that neither the world's state nor the step count carries what an earlier visit found. The
+standard curriculum keeps one persisting world; the concealed target is meant for a
+campaign of visits, which the host does not yet run.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| Concealment makes every agent blind | In a class that conceals its goals, every agent keeps in each member the memory it keeps in the reference and takes the reference's actions until that member's goal is first met. Every agent is therefore blind on the class, and a covering bound of k is a need bound of k for every agent. | `Conceals.agree`, `Conceals.blind`, `Conceals.need` |
+| A persisting world is memory | The parking agent's memory is a step counter, so it is experience-free. Where the percept after a step shows a signal wherever that step meets the goal, and a staying action keeps the goal met, it meets the goal at every time after it first meets it. | `park_experienceFree`, `park_keeps` |
+| Visits restart the world, not the agent | A world in visits begins every visit in its start state, and within a visit its closed loop is the world's own. The loop after a time is the loop of the agent resumed from its memory at that time. So an agent solves a member on a visit exactly when the agent resumed from its memory at the start of that visit solves it in the member's world within one visit. | `visits_period`, `visits_loop`, `loop_add`, `solvesOnVisit_iff` |
+| Need on every visit | In a class that conceals its goals, with a covering bound of k for one visit's length, every experience-free agent solves at most k members on each visit. | `experienceFree_memoryAt`, `visits_need` |
+| First success, for every agent | Before a member's goal is first met, every agent keeps in that member's visits the memory it keeps in the reference's visits. So every agent solves at most k members for the first time on any one visit, at most k on its first visit, and at most n·k on its first n visits. | `Conceals.visits_memory`, `visits_first_success`, `visits_first`, `visits_ever` |
+| An agent that uses experience re-solves | Where the percept after every step shows a signal exactly when that step meets the goal, the replaying agent solves on every later visit each member it has solved on one visit, and solves a member on any visit whose exploration meets that member's goal from its start. With a signal that shows on one percept and not on another it is not experience-free. | `replay_invariant`, `replay_follows`, `replay_keeps`, `replay_solves`, `replay_explored`, `replay_solves_explored`, `replay_not_experienceFree` |
+| The separation, under a hypothesis of exploration | In a class that conceals its goals with a covering bound of k, if the replaying agent's explorations of the visits up to one visit meet the goals of more than k members, then on that visit it solves all of them, while every experience-free agent solves fewer on every visit. The hypothesis is about the exploration and the worlds; nothing here proves it of any exploration. | `replay_separates` |
+
+**A concealed target in the grid world.** The host has a goal beside the standard
+curriculum's whose observation conceals its target, `Host.Goal.find`. It is met in the
+box of a reach goal for the same target and counts as a reach goal, but its task
+relation is the one cue of its family and whether the body is in the box: no
+displacement, and no cue derived from the target. The agent's task words for it are its
+kind and that flag. No campaign installs it yet. [The concealed-target
+instance](../lean/AcornVerif/CurrentConcealedTarget.lean) builds the class of concealed
+targets over one host world from the executed step, observation and percept adapter: each
+member installs a target whose box does not hold the body's position, in the same world
+with the same carried result.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| The executed observation conceals the target | A concealed target is met exactly in its box, and its task relation is its family's cue and whether it is met. A member's world and the world with a target no body can reach installed step alike, are refused alike and keep their goals; two worlds that differ only in their goals and show one task relation deliver one observation. So the class conceals its goals behind the world with that unreachable target installed. | `find_satisfied_iff`, `find_observe`, `find_task`, `twin_paths`, `observe_twins`, `find_conceals` |
+| One walk meets few targets | One action sequence meets at most 49 + 7·cap concealed targets in cap steps, for every terrain. | `find_met_swept`, `find_covered` |
+| The bounds in the grid world | Every agent, the executed agent included, solves at most 49 + 7·cap members on a first visit. In visits of cap steps every experience-free agent, the uniform-random comparator included, solves at most that many on each visit; every agent solves at most that many for the first time on each visit, and n·(49 + 7·cap) over n visits. At a cap of 3000 and a window of radius 120 an experience-free agent solves on each visit at most 21049 of the members in the window, which number at least 57551: the window's 57600 tiles less at most 49 within three tiles of the start, which are not members. | `find_need`, `executed_find_first`, `find_visits_need`, `comparator_find_visits`, `find_visits_first_success`, `find_visits_ever`, `far_window_visits` |
+| Re-solving and separation | The percept's achievement flag after a step is set exactly when the step meets the installed goal, so the replaying agent with that flag as its signal, which is not experience-free, solves on every later visit each concealed target it has solved once. If its explorations of the visits up to one visit meet more than 49 + 7·cap targets from the host world, on that visit it solves all of them while every experience-free agent solves fewer on every visit. Which targets an exploration meets depends on the terrain, so the theorem takes it as a hypothesis, and one world discharges it: at seed 55, side 64 and a noise scale of one, three visits of seven steps east, west and south from the box's center meet 147 members, more than the bound 98, so there the replaying agent solves 147 members on visit 2 and every experience-free agent fewer on every visit. The kernel evaluates the executed step along the three walks; the count of members is structural. | `achieved_decodes`, `find_replay`, `find_replay_learns`, `find_replay_separates`, `witness_walk`, `witness_separation` |
+
+**How a learner is rewarded on a concealed target.** A learner needs a first success before
+it has anything to retain, and on a first visit no agent solves more than 49 + 7·cap of the
+members (`find_need`). Two ways to raise that chance were weighed; both statements below are
+derived from the definitions. A guiding reward that depends on the target before it is met,
+such as one that grows as the body nears the target, makes the members' percepts differ
+before success, so the class no longer conceals its goals and none of the bounds here
+follows. A guiding reward that does not depend on the target leaves the percepts equal, so
+every bound stands, but it cannot point toward the target. So the reward of a concealed
+target stays the world's completion reward, and the chance of a first success is set by the
+class instead: a window of targets near the start and a visit length for which the window
+is larger than 49 + 7·cap, with no target excluded on the outcome. A visit does not end at
+success, so a learner that has found the target is rewarded on every step it stays in the
+box. At a visit length of 300 steps the bound is 2149 targets; a window of radius 33 holds
+4356 tiles, of which no agent meets more than 2149 on a first visit and no experience-free
+agent more than 2149 on any visit, under half. Which window and length a study uses is that
+study's registered choice.
+
+What these theorems do not establish:
+
+- **That a campaign uses the concealed target.** No goal of the standard curriculum
+  conceals its target: a reach goal's cue is a hash of the target and its relation
+  gives the displacement. Nothing installs `Host.Goal.find`.
+- **A bound over seeds.** The class is of target positions over one host world. Reading
+  a bound as a fraction of seeds assumes that the seed hash places targets independently
+  of the agent's walk (assumed).
+- **That the executed host runs visits.** A world in visits is a definition of the
+  kernel. No host loop of Acorn returns the world to a start state between attempts,
+  and no theorem relates one to it.
+- **A bound for an agent whose memory at a visit's start differs between members.**
+  The need on every visit holds for experience-free agents, and the first-success
+  bound for every agent only up to its first success in a member. After it, an agent
+  that keeps what it perceived is not bounded, which the replaying agent shows.
+- **That any member can be solved.** Every bound here is an upper bound.
 
 ### An embodied world: the Microduck
 
