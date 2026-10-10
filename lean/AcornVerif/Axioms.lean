@@ -50,6 +50,7 @@ import AcornVerif.CurrentLearner
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
+import AcornVerif.CurrentCheckpointSize
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentTemporal
 import AcornVerif.TemporalSupport
@@ -3029,6 +3030,10 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentCheckpoint.save_load' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentCheckpoint.save_load
+
+/-- info: 'AcornVerif.CurrentCheckpointSize.snapshot_size_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpointSize.snapshot_size_bound
 
 /-- info: 'AcornVerif.CurrentConstants.discount_values' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

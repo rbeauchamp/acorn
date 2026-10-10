@@ -52,6 +52,7 @@ import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
+import AcornVerif.CurrentCheckpointSize
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentPlanning
 import AcornVerif.CurrentPolicyMean

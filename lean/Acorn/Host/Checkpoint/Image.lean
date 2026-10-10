@@ -15,7 +15,7 @@ written. Each format reads a value through the same admission its type requires:
 outside its interval, a repeated index, a learner whose words fail its invariant check
 (`NumericState.resumable`) or an agent whose invariants fail is refused, never repaired.
 
-Five fields are not stored, because each is a function of stored fields that its type
+Six fields are not stored, because each is a function of stored fields that its type
 fixes, and reading recomputes it: the step-size rails of a learner (`StepSizeRails.ofConfig`)
 and its step sizes (the portable exponential of each log step size), the projection bank of
 the representation (`Representation.restore`), the position table of a ranked slot set
@@ -32,15 +32,6 @@ open Features Handcrafted Lifetime
 
 /-- A binary32 word, with its stored bits. -/
 def binary32Format : Format Binary32 := binary32Codec.format
-
-/-- A binary64 word, with its stored bits. -/
-def binary64Format : Format Binary64 := binary64Codec.format
-
-/-- A two-byte word. -/
-def u16Format : Format UInt16 := u16Codec.format
-
-/-- A four-byte word. -/
-def u32Format : Format UInt32 := u32Codec.format
 
 /-- An eight-byte word. -/
 def u64Format : Format UInt64 := u64Codec.format

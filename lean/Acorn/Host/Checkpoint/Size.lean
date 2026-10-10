@@ -15,9 +15,12 @@ count, a list of slots by the capacity, since no slot of a learner's eligible li
 active set repeats, and the unit list by the bank size. The exact naturals of the
 predictive-agreement evaluator are the one part that no type bounds; the limit allows
 `naturalAllowance` bytes for each of them, and the writer refuses an image above the limit
-(`Store.save`), so every file it writes can be read. No theorem here bounds the evaluator's
-naturals of a reached agent. These bounds do not promise successful allocation on every
-machine.
+(`Store.save`), so every file it writes can be read. The proof library proves that the save
+of every state whose evaluator naturals each encode in at most `naturalAllowance` bytes fits
+the limit (`AcornVerif.CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's
+naturals of every reached agent fit the allowance is an open obligation, part of the bounds
+of work and memory (requirement R8 of issue #90). These bounds do not promise successful
+allocation on every machine.
 -/
 namespace Acorn.Checkpoint
 open Features Handcrafted

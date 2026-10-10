@@ -32,15 +32,6 @@ variable {config : Acorn.Config} {dimension : Dimension}
 /-- Binary32 words. -/
 theorem binary32Format_exact : binary32Format.Exact := Codec.format_exact binary32Codec_canonical
 
-/-- Binary64 words. -/
-theorem binary64Format_exact : binary64Format.Exact := Codec.format_exact binary64Codec_canonical
-
-/-- Two-byte words. -/
-theorem u16Format_exact : u16Format.Exact := Codec.format_exact u16Codec_canonical
-
-/-- Four-byte words. -/
-theorem u32Format_exact : u32Format.Exact := Codec.format_exact u32Codec_canonical
-
 /-- Eight-byte words. -/
 theorem u64Format_exact : u64Format.Exact := Codec.format_exact u64Codec_canonical
 

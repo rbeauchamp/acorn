@@ -1462,11 +1462,12 @@ each option's off-policy questions and trajectory, the process-local references 
 dispatch occupancy, the cached predictions and model values, the planning words, the
 deferred span, the action generator, the last decision and the recent feature sets),
 primitive credit, the gain, the rate schedule and every lifetime observation. A field
-that is a function of stored fields is computed again when the image is read: the step
-size of each log step size, the projection bank, the position table of a ranked slot set,
-the slot flags of a question's preceding set and the settlement horizon of a prediction
-record. A learner's transient registers are stored at its eligible slots only, since every
-other slot of an admitted learner holds positive zero.
+that is a function of stored fields is computed again when the image is read: the
+step-size rails of each learner, the step size of each log step size, the projection
+bank, the position table of a ranked slot set, the slot flags of a question's preceding
+set and the settlement horizon of a prediction record. A learner's transient registers
+are stored at its eligible slots only, since every other slot of an admitted learner
+holds positive zero.
 
 Loading admits a file in two stages. The header must match the receiving construction:
 format generation, criterion, capacity and learner count, seed, tilings and bank size, the
@@ -1491,7 +1492,11 @@ again, including one saved after that exit (`CurrentCheckpoint.resume_records`).
 field is the saved agent's (`CurrentCheckpoint.resume_saved`). The writer refuses an image
 longer than the read limit of the construction (`maximumBytes`), so every file it writes
 can be read; the limit bounds each part of the image by its type and allows a fixed number
-of bytes for each exact natural of the evaluator, which no type bounds.
+of bytes (`naturalAllowance`) for each exact natural of the evaluator, which no type bounds.
+The save of every state whose evaluator naturals each fit that allowance fits the limit
+(`CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's naturals of every
+reached agent fit the allowance is an open obligation, part of the bounds of work and
+memory (requirement R8 of [#90](https://github.com/rbeauchamp/acorn/issues/90)).
 
 ### Planning selection
 
