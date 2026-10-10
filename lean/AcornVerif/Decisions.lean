@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Regula.Contract
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentActions
+import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentExponential
@@ -42,7 +43,9 @@ of the terrain do with its result. `pay_and_act` and `perform_action` keep their
 the kinds of the paid actions: what an accepted paid action does with the energy, and where an
 accepted move puts the body. `feature_image_admit` and `profile_admit_accepts` keep their
 complete kinds about the feature words of an agent image of a construction beside the two-way
-kinds `feature_image_admit_exact` and `profile_admit_exact`.
+kinds `feature_image_admit_exact` and `profile_admit_exact`. `execute_prefix` keeps its name
+beside the kind `agent_execute` of `Acorn.Decisions`: the safe path that an accepted fold
+follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
@@ -55,7 +58,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Four functions of this module have a contract and no kind. The reasons are two.
+Five functions of this module have a contract and no kind. The reasons are two.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -65,7 +68,8 @@ Four functions of this module have a contract and no kind. The reasons are two.
   propositions in the place of those tests.
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
-  `Checkpoint.load`.
+  `Checkpoint.load` and `Agent.input`. For `Agent.input`, an audit of the kind stated with its
+  witnesses named the eleven shared tests that `Acorn.Decisions.agent_input` lists.
 
 Kinds for these functions are remaining work of https://github.com/rbeauchamp/acorn/issues/105.
 
@@ -1856,6 +1860,33 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
       CurrentCheckpoint.save_load construction source receiver supported
     rw [loaded]
     rfl⟩
+
+/-- Each event that the agent accepts satisfies the contract of its edge: an act runs the
+agent's step and returns its decision, the bookkeeping events keep the learners, a clear
+returns the initial agent, a restore returns the restored agent and a stop keeps the state
+(`CurrentAgent.edge_contract`). `Acorn.Decisions.agent_input` states which events it accepts,
+and keeps no kind for the reason given there; this statement is a requirement with no kind
+beside it. -/
+theorem agent_input_edges : Regula.ExecutableContract @Agent.input (fun input =>
+    ∀ {profile config criterion dimension planning}
+      (before after : Agent Grid.interface profile config criterion dimension planning)
+      (event : AgentInput config criterion dimension) (stopped : Bool),
+      input before event = .ok (after, stopped) → CurrentAgent.EdgeContract before event after) :=
+  ⟨fun before after event stopped executed =>
+    CurrentAgent.edge_contract before after event stopped executed⟩
+
+/-- An accepted compiled fold from cold initialization follows a safe path from the initial
+agent: every intermediate agent keeps the invariant, and each edge satisfies its contract
+(`CurrentAgent.native_prefix`). `Acorn.Decisions.agent_execute` states the kind; a kind does
+not state the value of a result, so this statement is a requirement with no kind beside it. -/
+theorem execute_prefix : Regula.ExecutableContract AgentConstruction.execute (fun execute =>
+    ∀ (admitted : DefaultConstruction) (finalState : admitted.construction.State)
+      (events : List (AgentInput admitted.construction.config admitted.construction.criterion
+        admitted.construction.dimension)) (stopped : Bool),
+      execute admitted events = .ok (finalState, stopped) →
+        CurrentAgent.SafePath admitted.construction.initial.agent events finalState.agent
+          stopped) :=
+  ⟨CurrentAgent.native_prefix⟩
 
 /-- The arguments of `Agreement.admitSquared`, in order. -/
 structure SquaredAdmit where
