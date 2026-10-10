@@ -404,7 +404,8 @@ achievement flag, the host's step returns the same action, decision and next sta
 as the reference; `initial_eq` states the same for construction. Restoration has no
 frozen reference: the restore of that commit started the option models, the off-policy
 questions, primitive credit, the rate schedule and every process-local reference afresh,
-and the restore is now exact (`Agent.restore_exact`). The reference does not freeze the storage beneath the composition. The
+and the restore is now exact (`Agent.restore_exact`). The reference does not freeze the
+storage beneath the composition. The
 core types take the action count as a parameter that the grid sets to nine, where
 they held the constant nine before, and the reference calls the executed selection,
 option, model and planning definitions.
@@ -1496,9 +1497,9 @@ of bytes (`naturalAllowance`) for each exact natural of the evaluator. No type b
 four naturals of each channel's precision (the numerator and denominator of its tail and
 rounding ratios) or the two of each agreement point's ratio; the sum of each channel's total
 is bounded by its type, at most its count times the square of the channel's envelope
-(`Agreement.Total.bounded`), and the limit allows `naturalAllowance` bytes for it as for the other four.
-The save of every state whose evaluator naturals each fit that allowance fits the limit
-(`CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's naturals of every
+(`Agreement.Total.bounded`), and the limit allows `naturalAllowance` bytes for it as for the
+other four. The save of every state whose evaluator naturals each fit that allowance fits the
+limit (`CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's naturals of every
 reached agent fit the allowance is an open obligation, part of the bounds of work and
 memory (requirement R8 of [#90](https://github.com/rbeauchamp/acorn/issues/90)).
 

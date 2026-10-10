@@ -667,13 +667,13 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
   traces and continues from the current frame.
 - **Starts.** An option the meta-controller selects first settles the transition
   it was following (`Skill.settleFollowing`), so none is discarded uncredited.
-- **Ownership.** The trajectory belongs to the skill; a fresh, released or
-  restored skill has none, so nothing observed under one objective is credited
-  to its replacement. Terminal credit assignment is unchanged; selection gains
+- **Ownership.** The trajectory belongs to the skill; a fresh or released
+  skill has none, so nothing observed under one objective is credited to its
+  replacement. Terminal credit assignment is unchanged; selection gains
   only the settling step.
-- **Checkpoint and pins.** The trajectory is process-local, so the checkpoint
-  format is unchanged. All three audit pins changed, because option policies and
-  models now change on every step.
+- **Checkpoint and pins.** U4 left the checkpoint format unchanged; format 19
+  stores the trajectory ([design](design.md#checkpoints)). All three audit pins
+  changed, because option policies and models now change on every step.
 
 Machine-checked: `Controller.valuesStep_eq_creditStep`,
 `CurrentTemporal.follow_executing` and `CurrentTemporal.step_executing` (the
@@ -685,13 +685,13 @@ correction lies in [0, 1]), `CurrentTemporal.follow_inactive`,
 `CurrentTemporal.follow_cap`, `CurrentTemporal.follow_live_model` and
 `CurrentTemporal.follow_idle_model` (consistency and age),
 `CurrentTemporal.settle_continuing` and `CurrentTemporal.settle_ending` (starts), and
-`FreeDispatch.install_unlinked` and `Ensemble.release_unlinked` (ownership). U4 does not establish convergence of
-tree backup under linear function approximation with adaptive step sizes, the
-meaning of the step-size adaptation under the corrected trace decay, how often
-a frame's behaviour has the distribution of an option that is not executing,
-or that option policies and models improve. Each option that is not executing
-costs about one executing-option step on every frame. The meta-controller's option values still
-learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
+`FreeDispatch.install_unlinked` and `Ensemble.release_unlinked` (ownership). U4 does
+not establish convergence of tree backup under linear function approximation with
+adaptive step sizes, the meaning of the step-size adaptation under the corrected
+trace decay, how often a frame's behaviour has the distribution of an option that
+is not executing, or that option policies and models improve. Each option that is
+not executing costs about one executing-option step on every frame. The
+meta-controller's option values still learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
 
 ### What U5 changed
 
@@ -741,10 +741,11 @@ learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
   position only, by a field of the ranking's type.
   [PAR-13](prior-art-review.md#par-13--option-expectation-models) records the
   cadence this replaced.
-- **Selection name and pins.** `--planning expectation` replaces `scalar`. The
-  transition part is process-local like the other model learners, so the
-  checkpoint format is unchanged. All three audit pins changed, because the
-  model targets and the planning backups changed.
+- **Selection name and pins.** `--planning expectation` replaces `scalar`. U5
+  left the checkpoint format unchanged; format 19 stores the transition part
+  with the other model learners ([design](design.md#checkpoints)). All three
+  audit pins changed, because the model targets and the planning backups
+  changed.
 
 Machine-checked: `CurrentPlanning.outcome_value_rounding`,
 `CurrentPlanning.discounted_backup_rounding` and

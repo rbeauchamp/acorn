@@ -609,8 +609,8 @@ theorem Skill.settleFollowing_owner {config : Config} {criterion : Criterion}
     split <;> exact ⟨rfl, rfl⟩
 
 /-- Reduction at an invocation start: a skill linked to no frame is settled to
-itself, so the start of an option that was executing, fresh or restored is the
-existing on-policy start. -/
+itself, so the start of an option that was executing or fresh is the existing
+on-policy start. -/
 theorem Skill.settleFollowing_unlinked {config : Config} {criterion : Criterion}
     {dimension : Dimension}
     {discounts : List Discount} (skill : Skill actions config criterion dimension discounts)

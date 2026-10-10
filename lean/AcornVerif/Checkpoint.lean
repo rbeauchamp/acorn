@@ -15,11 +15,11 @@ are separate execution obligations; the current implementation linkage lives in
 `AcornVerif.CurrentCheckpoint` and the proof-bearing `Acorn.Host.Checkpoint` modules.
 
 Primary knowledge includes weights and log step sizes in canonical learner order.
-Durable state includes steps, gain, lifetime and bank progress; transient state
-includes models, traces, RNG and execution state. The commit definition copies
-assignments and primary knowledge pointwise, without ranking or controller reset.
-Refusal is a pure admission result. An implementation must preserve these
-properties through parsing, installation and transient reset.
+The model's transient part is the state a restore starts cold. The commit definition
+copies assignments and primary knowledge pointwise, without ranking or controller
+reset. Refusal is a pure admission result. The executed restore of format 19 stores
+every field of the agent and starts none cold (`AcornVerif.CurrentCheckpoint.load_saved`);
+no theorem links that restore to this model.
 
 Identity is equality of every represented component. Natural-number tags abstract
 injective encodings of supported criteria and policies; supported-policy and

@@ -155,7 +155,7 @@ What a newcomer must be able to say without scrolling.
   | **subtasks** | `n / 3 assigned` (`subtask_unit` ≠ null), or `3 hand-authored (D2)` under `subtask_policy = hand_authored` | task reward + stopping bonus, with the hover text pinning the bonus weight (§10); or `neutral · no ranked feature yet` | a slot's (unit, bonus) changed within the last `WIN` frames |
   | **options** | the running option's name, or `primitive` | share of the last `WIN` frames spent under an option; lifetime option starts | fast mode (UX-8): any option step in the last `WIN` frames; otherwise an option is running at the cursor |
   | **models** | `r̂ · ĉ` of the running option (means in fast mode), or `r̂` per option, each symbol kept on one line with its number and formatted so a value of 1e-4 never prints as 0.000 (UX-11) | which option, and what the two numbers are (`ĉ` is written `ĉ_v` in the source) | as the options node |
-  | **planning** | `planning_steps` backups | since process start; mean \|Bellman error\| over the three slots, formatted likewise | `planning_steps` moved within the last `WIN` frames |
+  | **planning** | `planning_steps` backups | since the agent began, across checkpoint resumes; mean \|Bellman error\| over the three slots, formatted likewise | `planning_steps` moved within the last `WIN` frames |
 
   Beneath the nodes, one line per option slot: its colour swatch, name, the
   imprint unit and stopping bonus it is pursuing (or `neutral · no ranked
@@ -475,8 +475,9 @@ Rules that apply to every number, label and colour on the page.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
-  and admitted reload preserve the checkpoint's knowledge and lifetime clock;
-  the world and documented transient state restart cold. With disabled saving,
+  and admitted reload preserve the agent's whole state, its lifetime clock
+  included; the world restarts cold and the predictive-agreement evaluator
+  begins a new session (UX-33). With disabled saving,
   load refusal (UX-25) or write failure, exit status 0 is not a durability claim.
   The page reports the actual exit and the core's last lines (UX-46). A final
   save failure or nonzero exit also keeps a visible warning beside the controls
@@ -761,9 +762,10 @@ What each panel must show. How it draws it is the code's.
   query is for a fresh activation at age zero, including while an option runs;
   start duration is not remaining duration. Fast mode uses the same labelled
   window means as the other model readouts. The planning line shows
-  backups since process start or latest restore (`planning_steps`) and the
-  Bellman planning error per slot (`planning_errors`), named `Bellman error`
-  wherever it appears. Sources are pinned in §10.
+  backups since the agent began, which a checkpoint resume continues
+  (`planning_steps`), and the Bellman planning error per slot
+  (`planning_errors`), named `Bellman error` wherever it appears. Sources are
+  pinned in §10.
 - **UX-38 · The options ribbon.** Which option was running over the last
   `RIBBON_SPAN` (3,000) buffered frames as bands in four horizontal lanes
   (top: primitive, then option slots 1–3), redundantly keyed by colour, read from the frame buffer so
@@ -1059,7 +1061,7 @@ terminal frame per attempt. Fields the UI relies on:
 | `lifetime_reward_*`, `lifetime_error_history_*`, `lifetime_option_*`, `lifetime_goal_*`, `lifetime_cycle_*` | scalars/arrays | exact durable totals plus fixed 64-step-bin and 4×16 cycle-bin histories |
 | `control[9], meta[4]` | (float\|null)[] | action values; array lengths are emitted, validated, and linked to the native Lean emitter by the compiled schema contract |
 | `option_model_rewards[3], option_model_continuations[3]` | (float\|null)[] | PAR-13 Option Models: expected cumulative host reward r̂(s, o) and continuation value ĉ_v(s, o) per skill |
-| `planning_steps, planning_errors[3]` | num / (float\|null)[] | PAR-14 Background Planning: Dyna planning backups since process start / latest restore and per-skill Bellman planning errors |
+| `planning_steps, planning_errors[3]` | num / (float\|null)[] | PAR-14 Background Planning: Dyna planning backups since the agent began, continued across checkpoint resumes, and per-skill Bellman planning errors |
 | `update_us, environment_us, process_uptime_ms, checkpoint_failures, telemetry_refusals, telemetry_drops` | num | core execution latencies, process uptime, and reliability counters (UX-46) |
 | `tiles[121], tile_extra[121]` | byte[] | sensor window (kind; food+2·deer) |
 | `ev` | byte | events: 1 harvest, 2 ate, 4 crafted, 8 picked food, 16 exhausted, 32 moved. The page reads bits 1–16; **bit 32 (moved) is emitted and not read** — movement is already visible as the pose changing, so a toast or particle for it would be noise |
@@ -1124,7 +1126,7 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Intra-option credit on those bars | labelled in the lede | SPS99 **PDF p. 24 eqs. (20)–(21)** (intra-option Q-learning with `U = (1−β)Q + β max Q`); **PDF p. 25** Theorem 3 and *“Intra-option versions of … Sarsa … should be straightforward, although there has been no experience with them.”* This build is the declared executed-stream Sarsa (PAR-9), not eq. (21). |
 | Option end reasons | ribbon + `#p_option` | SPS99 **PDF p. 17**: *“compare the value of continuing with o, which is Q^μ(s_t, o), to the value of interrupting o and selecting a new option according to μ, which is V^μ(s).”* An interruption is also counted when the option's own exploration draw begins a persistent run: Dabney, Ostrovski & Barreto, arXiv:2006.01782v1 **PDF p. 5** §4.2, the option *“which takes action a for n steps and then terminates”*, and **PDF p. 14** Algorithm 1; the run's first served step ends the option's execution, and the run gives it no β = 1 terminal credit (`learned-only-binding.md` D3). |
 | Option model predictions (`r̂`, `ĉ_v`) | behaviour panel | PAR-13 Option Models: Sutton, Precup & Singh, AIJ 112 (1999) §2.3 / §3 p. 190 and STOMP eq. (12) expected cumulative host reward `r̂(s, o)`; Wan, Abbas, White, White & Sutton, IJCAI 2019 §4 eqs. (1)–(2) / arXiv:1904.01191 (11 pp.) and Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 with PAR-13 continuation value `ĉ_v(s, o)`: the current value function at the predicted ranked feature slots plus a learned shared residual and per-action deviation, combined per meta action before the nominal value: an estimate of `E[γ^K v̂(S_K) | s, o]`. Differential predictions query a fresh activation at age zero, including while an option is running; displayed start duration is not remaining duration. Emitted as `option_model_rewards[3]`, `option_model_durations[3]`, `option_model_continuations[3]`. |
-| Background planning (Dyna) | behaviour panel | PAR-14 Background Planning: Dyna planning backups over learned option models into meta-controller `q̂_meta`. Sutton 1990/1991; Sutton, Machado et al., AIJ 324 (2023) 104001, §5 eq. (19) (arXiv:2202.03466v4 PDF p. 16 eq. (19)); Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 & §3. Emitted as `planning_steps` backups (since process start / latest restore) and `planning_errors[3]` per skill. |
+| Background planning (Dyna) | behaviour panel | PAR-14 Background Planning: Dyna planning backups over learned option models into meta-controller `q̂_meta`. Sutton 1990/1991; Sutton, Machado et al., AIJ 324 (2023) 104001, §5 eq. (19) (arXiv:2202.03466v4 PDF p. 16 eq. (19)); Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 & §3. Emitted as `planning_steps` backups (since the agent began, continued across checkpoint resumes) and `planning_errors[3]` per skill. |
 | G31 terminal target `c + z` | **out of viewer scope** | RRS **PDF p. 5 eq. (5)** `δ(c, z, v, v′, β) .= c + β z + γ(1−β) v′ − v`; at `β = 1` this is `c + z − v`. GVF return **PDF p. 3 eq. (2)**. SPS99 **§3, PDF p. 10 / journal p. 190 eqs. (8)–(9)** gives the option Bellman decomposition. Its eq. (14) is an improvement inequality, not the terminal target. |
 | Goal achievement | thesis | Assigned goals achieved within admitted attempt/step budgets. Oak Lab mission and Javed/Sutton Big World research motivate outcome-based evaluation; the curriculum fraction is Acorn's operational choice. |
 | Predictive agreement | Knowledge | Acorn-defined equal-question finite-return RMSE complement over eleven fixed questions (D5). Oak Lab mission and Horde supply the research context. |
