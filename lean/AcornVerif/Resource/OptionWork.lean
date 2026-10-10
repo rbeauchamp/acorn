@@ -106,7 +106,7 @@ def interestPotential (κ : Costs) (interest : Interest config)
 
 /-- Bound of a potential over `width` features. -/
 abbrev potentialBound (κ : Costs) (width : Nat) : Nat :=
-  κ .assignmentPotential + Library.contains.passes * bare (κ .visit + κ .compare) width +
+  κ .assignmentPotential + Library.contains.control (κ .visit + κ .compare) width +
     κ .declaredPotential
 
 theorem interestPotential_work (κ : Costs) (interest : Interest config)

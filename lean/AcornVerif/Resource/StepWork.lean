@@ -80,7 +80,7 @@ theorem selectBound_mono (κ : Costs) (rows capacity positions questions units :
     stepBound, updateRowsBound, endTemporalBound, modelTerminalWorkBound, outcomeBound,
     indicatorBound, settleBound, stopFollowingBound, modelStopBound, beginTemporalBound,
     beginOptionBound, modelBeginBound, transitionBeginBound, beginBound, learnMetaBound, pass,
-    bare]
+    Library.work, Library.control, Library.passes]
   gcongr
 
 /-- **The work of the first part of the step under an order whose first part is selection**,
@@ -109,6 +109,8 @@ machine of `AcornVerif.Resource.WordKernel`, one for each instruction. No theore
 `words`; a bound in word operations holds under this hypothesis. -/
 def SiteBounds (words κ : Costs) : Prop := ∀ site, words site ≤ κ site
 
+set_option maxHeartbeats 400000 in
+-- The unfolded bound has one monotone step for each loop of the first part.
 /-- The first part's bound grows with the cost of each site. -/
 theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (interface : Interface)
     (config : Features.Config) (dimension : Dimension) :
@@ -133,7 +135,7 @@ theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (inte
     stopFollowingBound, stopTrajectoryBound, sweepAllBound, tabulateBound, terminalBound,
     terminalCreditBound, tiledBound, transitionBeginBound, transitionInitialBound,
     transitionRerankBound, transitionStepBound, uniqueBound, updateRowsBound, wordsBound,
-    zeroBound, pass, bare]
+    zeroBound, pass, Library.work, Library.control]
   gcongr <;> exact bounds _
 
 /-- The first part under the default order is `Agent.chooseSelected` at `learnThenAct`. -/

@@ -318,7 +318,8 @@ theorem releaseEligible_def (state : NumericState config dimension) :
 /-- `linearPrediction` with its work: one term for each active feature. -/
 def linearPredictionCosted (state : NumericState config dimension)
     (features : ActiveSet dimension) : Costed Binary32 :=
-  Binary32.sumMapCosted .sumTerm .zero features.indices fun idx => (state.weights.get idx).value
+  Binary32.sumMapCosted .sumTerm .zero features.indices fun idx =>
+    Costed.pure (state.weights.get idx).value
 
 /-- Raw ordered prediction `Σ_{i∈F} w[i]` over the unique active features, in
 first-occurrence order; no output projection is applied. -/
@@ -674,7 +675,7 @@ def learnSecondLoopCosted (config : Config) (state : NumericState config dimensi
   let overshoot := config.eta.less rate
   let e := if overshoot then rate else config.eta
   let t ← Binary32.sumMapCosted .sumTerm .zero features.indices
-    (fun idx => (state.transient.z.get idx).value)
+    (fun idx => Costed.pure (state.transient.z.get idx).value)
   Costed.charge .secondOpen <| learnSecondLoopGoCosted overshoot (config.eta.div e)
     (Binary32.one.sub t) features.indices alphas state vDelta
 

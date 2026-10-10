@@ -324,10 +324,12 @@ The loops the learner's bounds count are therefore the loops that run, under one
 discipline that no theorem states, because Lean gives a pure term no operational
 meaning. Every function a combinator takes is costed, so its work is counted: the steps
 of a fold, the operation of a map, the test of a search (`Costed.findIdx?`) and the
-continuation of a sequence. The uncosted entry points are values, listed exactly in the
-[cost semantics](../lean/Acorn/Cost.lean): the values of `Costed.pure` and `Costed.op`,
-the count and element of `Costed.replicate`, the collections and initial accumulators of
-the loops, and the terms a costed definition evaluates in its own body. Each must be
+continuation of a sequence; the costed type has only the instances that do-blocks need,
+so no derived map applies a callback outside the count. The uncosted entry points are
+values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
+`Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
+element of `Costed.replicate`, the collections and initial accumulators of the loops, and
+the terms a costed definition evaluates in its own body. Each must be
 computed without a loop, each loop must run in a combinator or a costed definition, and
 each path of a recursion must pass a charge. The combinators cannot enforce this:
 `Costed.pure` accepts any value, the learner's step among them, at no work. The
@@ -337,7 +339,8 @@ discipline is checked by reading until the rule that
 Each loop is charged the passes of its runtime implementation, with one visit for each
 pass's end. One table states the passes of every library loop that costed code and the
 twins run, each row citing the definition and the compiler replacement that runs
-(`Acorn.Library`, `Library.passes`), and every loop and scan is charged from its row:
+(`Acorn.Library`, `Library.passes`), and every loop's control is a function of its row
+(`Library.control`), so changing a row changes every charge and bound that uses it:
 the library's map of a list, for instance, runs as a loop and a reversal, two passes, and
 turning a list into an array takes two, a length and a copy.
 

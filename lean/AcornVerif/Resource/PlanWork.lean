@@ -102,7 +102,7 @@ theorem backupAll_val (κ : Costs) (state : PlanningResult criterion dimension)
 
 /-- Bound of the backups of every option over `width` features. -/
 abbrev backupAllBound (κ : Costs) (positions width : Nat) : Nat :=
-  pass (κ .visit) Acorn.FeatureConstants.skillCount
+  Library.foldl.work (κ .visit) Acorn.FeatureConstants.skillCount
     (lookAheadBound κ positions width + κ .backupClose)
 
 theorem backupAll_work (κ : Costs) (state : PlanningResult criterion dimension)
@@ -129,7 +129,8 @@ def sweepAll (κ : Costs) (state : PlanningResult criterion dimension)
 
 /-- Bound of the sweeps of every option over `width` features. -/
 abbrev sweepAllBound (κ : Costs) (positions width : Nat) : Nat :=
-  pass (κ .visit) Acorn.FeatureConstants.skillCount (lookAheadBound κ positions width + 0)
+  Library.foldl.work (κ .visit) Acorn.FeatureConstants.skillCount
+    (lookAheadBound κ positions width + 0)
 
 theorem sweepAll_work (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
@@ -148,20 +149,17 @@ theorem sweepAll_work (κ : Costs) (state : PlanningResult criterion dimension)
 theorem lookAheadBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     lookAheadBound κ positions width ≤ lookAheadBound κ positions limit := by
-  have m1 := Nat.mul_le_mul_left Library.contains.passes
-    (bare_mono (visit := κ .visit + κ .compare) fits)
-  have m1b := Nat.mul_le_mul_left Library.append.passes (bare_mono (visit := κ .visit) fits)
-  have m2 := pass_mono (visit := κ .visit) (Nat.add_le_add_right fits 1) (Nat.le_refl (κ .sumTerm))
-  have m3 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .position))
+  have m1 := Library.contains.control_mono (visit := κ .visit + κ .compare) fits
+  have m1b := Library.append.control_mono (visit := κ .visit) fits
+  have m2 := Library.foldl.work_mono (visit := κ .visit) (Nat.add_le_add_right fits 1)
+    (Nat.le_refl (κ .sumTerm))
+  have m3 := Library.filterMap.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .position))
   have m4 := expectedAtBound_mono κ positions (Nat.add_le_add_right fits 1)
-  have m5 := pass_mono (visit := κ .visit) (Nat.le_refl metaCount.word.toNat)
+  have m5 := Library.ofFn.work_mono (visit := κ .visit) (Nat.le_refl metaCount.word.toNat)
     (Nat.add_le_add_right m2 (κ .outcomeValue))
-  have m6 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
-  have m7 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
+  have m6 := Library.foldl.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
+  have m7 := Library.map.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
   have m8 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .planElement))
-  have m9 := Nat.mul_le_mul_left (Library.map.passes - 1) (bare_mono (visit := κ .visit) fits)
-  have m10 := Nat.mul_le_mul_left (Library.filterMap.passes - 1)
-    (bare_mono (visit := κ .visit) fits)
   simp only [lookAheadBound, predictBound, lookaheadBound, outcomeValuesBound, rowInputBound,
     inputBound, planBound]
   omega
@@ -205,7 +203,7 @@ def planningBoundary (κ : Costs) (selection : PlanningSelection)
 
 /-- Bound of a free boundary's planning over `width` features at a capacity. -/
 abbrev planningBound (κ : Costs) (capacity positions width : Nat) : Nat :=
-  bare (κ .visit) Acorn.FeatureConstants.skillCount +
+  Library.replicate.control (κ .visit) Acorn.FeatureConstants.skillCount +
     (backupAllBound κ positions width + sweepAllBound κ positions capacity) + κ .planBoundary
 
 theorem planningBoundary_work (κ : Costs) (selection : PlanningSelection)
@@ -224,7 +222,7 @@ theorem planningBoundary_work (κ : Costs) (selection : PlanningSelection)
     refine Nat.le_trans (Costed.bind_work_le (backupAll_work κ state skills features gain rate)
       fun current => Costed.bind_work_le (show _ ≤ sweepAllBound κ _ dimension.capacity from
         Nat.le_trans (sweepAll_work κ current skills current.recent.selected gain rate)
-          (pass_mono (Nat.le_refl _) (Nat.add_le_add_right
+          (Library.foldl.work_mono (Nat.le_refl _) (Nat.add_le_add_right
             (lookAheadBound_mono κ _ (CurrentLearner.active_cardinality _)) 0)))
         fun _ => Nat.le_refl _) ?_
     simp only [planningBound]

@@ -96,7 +96,7 @@ theorem predictAll_val (κ : Costs) (controller : Controller config dimension ac
 
 /-- Bound of the predictions of `rows` rows over `width` features. -/
 abbrev predictAllBound (κ : Costs) (rows width : Nat) : Nat :=
-  pass (κ .visit) rows (pass (κ .visit) width (κ .sumTerm))
+  Library.vectorMap.work (κ .visit) rows (Library.foldl.work (κ .visit) width (κ .sumTerm))
 
 theorem predictAll_work (κ : Costs) (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) :
@@ -116,7 +116,7 @@ theorem clear_val (κ : Costs) (controller : Controller config dimension actions
 
 /-- Bound of a controller clear of `rows` rows. -/
 abbrev clearBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  pass (κ .visit) rows (zeroBound κ capacity) + κ .controllerClose
+  Library.vectorMap.work (κ .visit) rows (zeroBound κ capacity) + κ .controllerClose
 
 theorem clear_work (κ : Costs) (controller : Controller config dimension actions) :
     (clear κ controller).work ≤ clearBound κ actions dimension.capacity :=
@@ -151,7 +151,8 @@ theorem creditStep_val (κ : Costs) (controller : Controller config dimension ac
 
 /-- Bound of a shared-error update of `rows` rows over `width` features. -/
 abbrev creditStepBound (κ : Costs) (rows capacity width : Nat) : Nat :=
-  pass (κ .visit) rows (creditBound κ capacity) + (secondLoopBound κ width + κ .creditClose)
+  Library.vectorMap.work (κ .visit) rows (creditBound κ capacity) +
+    (secondLoopBound κ width + κ .creditClose)
 
 theorem creditStep_work (κ : Costs) (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions)
@@ -199,11 +200,12 @@ theorem release_val (κ : Costs) (controller : Controller config dimension actio
 
 /-- Bound of the release of one row at a capacity. -/
 abbrev releaseBound (κ : Costs) (capacity : Nat) : Nat :=
-  pass (κ .visit) capacity (κ .clearRegisters) + κ .releaseClose
+  Library.foldlArray.work (κ .visit) capacity (κ .clearRegisters) + κ .releaseClose
 
 theorem release_work (κ : Costs) (controller : Controller config dimension actions) :
     (release κ controller).work ≤
-      pass (κ .visit) actions (releaseBound κ dimension.capacity) + κ .controllerClose :=
+      Library.vectorMap.work (κ .visit) actions (releaseBound κ dimension.capacity) +
+        κ .controllerClose :=
   Costed.bind_work_le
     (Costed.mapVector_work_le _ _ _ _ fun learner _ =>
       managedApply_work κ learner .release trivial)
@@ -227,7 +229,8 @@ theorem stopStep_val (κ : Costs) (controller : Controller config dimension acti
 
 /-- Bound of a stopping credit of `rows` rows. -/
 abbrev stopBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  pass (κ .visit) rows (creditBound κ capacity + releaseBound κ capacity) + κ .controllerClose
+  Library.vectorMap.work (κ .visit) rows (creditBound κ capacity + releaseBound κ capacity) +
+    κ .controllerClose
 
 theorem stopStep_work (κ : Costs) (controller : Controller config dimension actions)
     (delta : Binary32) :
@@ -256,7 +259,7 @@ theorem terminal_val (κ : Costs) (controller : Controller config dimension acti
 
 /-- Bound of a terminal credit of `rows` rows. -/
 abbrev terminalCreditBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  pass (κ .visit) rows (firstLoopBound κ capacity) + clearBound κ rows capacity
+  Library.vectorMap.work (κ .visit) rows (firstLoopBound κ capacity) + clearBound κ rows capacity
 
 theorem terminal_work (κ : Costs) (controller : Controller config dimension actions)
     (reward : Binary32) :
@@ -283,7 +286,8 @@ theorem retire_val (κ : Costs) (controller : Controller config dimension action
 theorem retire_work (κ : Costs) (controller : Controller config dimension actions)
     (feature : FeatIdx dimension) :
     (retire κ controller feature).work ≤
-      pass (κ .visit) actions (κ .retire + pass (κ .visit) dimension.capacity (κ .compare)) +
+      Library.vectorMap.work (κ .visit) actions
+        (κ .retire + Library.findIdx.work (κ .visit) dimension.capacity (κ .compare)) +
         κ .controllerClose :=
   Costed.bind_work_le
     (Costed.mapVector_work_le _ _ _ _ fun learner _ =>
@@ -328,14 +332,14 @@ theorem best_val (κ : Costs) (snapshot : PolicySnapshot count) :
 
 /-- Bound of an ordered maximum over `size` values. -/
 abbrev bestBound (κ : Costs) (size : Nat) : Nat :=
-  Library.toList.passes * bare (κ .visit) size + pass (κ .visit) size (κ .compare)
+  Library.toList.control (κ .visit) size + Library.foldl.work (κ .visit) size (κ .compare)
 
 theorem best_work (κ : Costs) (snapshot : PolicySnapshot count) :
     (best κ snapshot).work ≤ bestBound κ count.word.toNat := by
   unfold best
   refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _)
     (Costed.foldl_work_le (κ .visit) (κ .compare) _ _ _ fun _ _ _ => Nat.le_refl _)) ?_
-  have shorter := pass_mono (visit := κ .visit) (Nat.sub_le count.word.toNat 1)
+  have shorter := Library.foldl.work_mono (visit := κ .visit) (Nat.sub_le count.word.toNat 1)
     (Nat.le_refl (κ .compare))
   simp only [List.length_drop, Vector.length_toList, bestBound]
   omega
@@ -356,8 +360,8 @@ theorem candidates_val (κ : Costs) (snapshot : PolicySnapshot count) :
 
 /-- Bound of the near-maximum candidates over `size` values. -/
 abbrev candidatesBound (κ : Costs) (size : Nat) : Nat :=
-  bestBound κ size + (Library.finRange.passes * bare (κ .visit) size +
-    Library.filter.passes * bare (κ .visit + κ .candidate) size)
+  bestBound κ size + (Library.finRange.control (κ .visit) size +
+    Library.filter.control (κ .visit + κ .candidate) size)
 
 theorem candidates_work (κ : Costs) (snapshot : PolicySnapshot count) :
     (candidates κ snapshot).work ≤ candidatesBound κ count.word.toNat := by
@@ -446,14 +450,13 @@ theorem probabilities_val (κ : Costs) (snapshot : PolicySnapshot count) :
 
 /-- Bound of the nominal masses over `size` values. -/
 abbrev probabilitiesBound (κ : Costs) (size : Nat) : Nat :=
-  candidatesBound κ size + Library.length.passes * bare (κ .visit) size + bestBound κ size +
+  candidatesBound κ size + Library.length.control (κ .visit) size + bestBound κ size +
     κ .probabilitiesOpen +
-    pass (κ .visit) size (κ .probability)
+    Library.vectorMap.work (κ .visit) size (κ .probability)
 
 theorem probabilities_work (κ : Costs) (snapshot : PolicySnapshot count) :
     (probabilities κ snapshot).work ≤ probabilitiesBound κ count.word.toNat := by
-  have size := Nat.mul_le_mul_left Library.length.passes
-    (bare_mono (visit := κ .visit) (candidates_length snapshot))
+  have size := Library.length.control_mono (visit := κ .visit) (candidates_length snapshot)
   unfold probabilities
   refine Nat.le_trans (Costed.bind_work_le_at (candidates_work κ snapshot)
     (Costed.bind_work_le_at (Nat.le_refl _)
@@ -609,13 +612,13 @@ theorem normalizedStepSizeSum_val (κ : Costs) (state : NumericState config dime
 
 /-- Bound of a normalized step-size sum over `size` eligible entries. -/
 abbrev normalizedBound (κ : Costs) (size : Nat) : Nat :=
-  Library.toList.passes * bare (κ .visit) size +
-    (pass (κ .visit) size (κ .normalizedTerm) + (Library.map.passes - 1) * bare (κ .visit) size) +
-    pass (κ .visit) size (κ .sumTerm) + κ .normalizedOpen
+  Library.toList.control (κ .visit) size +
+    (Library.map.work (κ .visit) size (κ .normalizedTerm)) +
+    Library.foldl.work (κ .visit) size (κ .sumTerm) + κ .normalizedOpen
 
 theorem normalizedStepSizeSum_work (κ : Costs) (state : NumericState config dimension) :
     (normalizedStepSizeSum κ state).work ≤ normalizedBound κ state.transient.eligible.size := by
-  have terms := Costed.mapWork_le (κ .visit) (κ .normalizedTerm)
+  have terms := Costed.map_work_le (κ .visit) (κ .normalizedTerm)
     (fun idx => Costed.op (κ .normalizedTerm)
       (((state.beta.get idx).value.sub state.rails.range.lower).div
         (state.rails.range.upper.sub state.rails.range.lower)))
@@ -625,11 +628,12 @@ theorem normalizedStepSizeSum_work (κ : Costs) (state : NumericState config dim
       ((state.beta.get idx).value.sub state.rails.range.lower).div
         (state.rails.range.upper.sub state.rails.range.lower))
   simp only [List.length_map, Array.length_toList] at terms total
-  simp only [normalizedStepSizeSum, Costed.ite, normalizedBound]
-  split
-  · omega
-  · simp only [Costed.bind_work, Array.length_toList]
-    omega
+  unfold normalizedStepSizeSum
+  refine Costed.ite_work_bound _ (Nat.le_add_left _ _) ?_
+  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at terms
+    (Costed.bind_work_le_at total (Nat.le_refl _)))) ?_
+  simp only [normalizedBound]
+  omega
 
 /-- Twin of `Controller.exploreRate`: each row's normalized sum, then the projection. -/
 def exploreRate (κ : Costs) (controller : Controller config dimension count.word.toNat) :
@@ -649,16 +653,15 @@ theorem exploreRate_val (κ : Costs) (controller : Controller config dimension c
 
 /-- Bound of a derived exploration rate of `rows` rows at a capacity. -/
 abbrev rateBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  Library.toList.passes * bare (κ .visit) rows +
-    pass (κ .visit) rows (normalizedBound κ capacity + κ .rateTerm) + κ .rateClose
+  Library.toList.control (κ .visit) rows +
+    Library.foldl.work (κ .visit) rows (normalizedBound κ capacity + κ .rateTerm) + κ .rateClose
 
 /-- A normalized sum's bound grows with the number of eligible entries. -/
 theorem normalizedBound_mono (κ : Costs) {size limit : Nat} (fits : size ≤ limit) :
     normalizedBound κ size ≤ normalizedBound κ limit := by
-  have := Nat.mul_le_mul_left Library.toList.passes (bare_mono (visit := κ .visit) fits)
-  have := Nat.mul_le_mul_left (Library.map.passes - 1) (bare_mono (visit := κ .visit) fits)
-  have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .normalizedTerm))
-  have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
+  have := Library.toList.control_mono (visit := κ .visit) fits
+  have := Library.map.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .normalizedTerm))
+  have := Library.foldl.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
   simp only [normalizedBound]
   omega
 
@@ -701,9 +704,9 @@ theorem expected_val (κ : Costs) (snapshot : PolicySnapshot count) :
 
 /-- Bound of a policy mean over `size` values. -/
 abbrev expectedBound (κ : Costs) (size : Nat) : Nat :=
-  Library.toList.passes * bare (κ .visit) size + pass (κ .visit) size (κ .compare) +
-    bestBound κ size + Library.toList.passes * bare (κ .visit) size +
-    pass (κ .visit) size (κ .expectedTerm) + κ .expectedClose
+  Library.toList.control (κ .visit) size + Library.foldl.work (κ .visit) size (κ .compare) +
+    bestBound κ size + Library.toList.control (κ .visit) size +
+    Library.foldl.work (κ .visit) size (κ .expectedTerm) + κ .expectedClose
 
 theorem expected_work (κ : Costs) (snapshot : PolicySnapshot count) :
     (expected κ snapshot).work ≤ expectedBound κ count.word.toNat := by
@@ -727,7 +730,7 @@ theorem servedProbabilities_val (κ : Costs) (action : Action count.word.toNat) 
     (servedProbabilities κ action).val = Features.servedProbabilities action := rfl
 
 theorem servedProbabilities_work (κ : Costs) (action : Action count.word.toNat) :
-    (servedProbabilities κ action).work ≤ pass (κ .visit) count.word.toNat (κ .read) :=
+    (servedProbabilities κ action).work ≤ Library.ofFn.work (κ .visit) count.word.toNat (κ .read) :=
   Costed.ofFn_work_le _ _ _ fun _ => Nat.le_refl _
 
 end AcornVerif.Resource.Twin

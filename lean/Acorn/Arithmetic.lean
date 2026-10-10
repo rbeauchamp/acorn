@@ -58,16 +58,18 @@ theorem sumFrom_def (initial : Binary32) (values : List Binary32) :
     sumFrom initial values = values.foldl add initial := rfl
 
 /-- Read and add each term in input order without constructing a mapped list, with its work:
-one visit and one stretch at `site` for each value. The site names what a term reads. -/
+for each value, the work of its costed read and one stretch at `site`, and the fold's control. The
+site names the addition of what a term reads. -/
 @[inline] def sumMapCosted {α : Type} (site : Site) (initial : Binary32) (values : List α)
-    (read : α → Binary32) : Costed Binary32 :=
-  Costed.foldl (fun total value => Costed.op site (total.add (read value))) initial values
+    (read : α → Costed Binary32) : Costed Binary32 :=
+  Costed.foldl (fun total value => Costed.bind (read value) fun term =>
+    Costed.op site (total.add term)) initial values
 
 /-- Read and add each term in input order without constructing a mapped list. The value does
 not depend on the site. -/
 @[inline] def sumMap {α : Type} (initial : Binary32) (values : List α)
     (read : α → Binary32) : Binary32 :=
-  (sumMapCosted .sumTerm initial values read).val
+  (sumMapCosted .sumTerm initial values fun value => Costed.pure (read value)).val
 
 theorem sumMap_def {α : Type} (initial : Binary32) (values : List α) (read : α → Binary32) :
     sumMap initial values read = values.foldl (fun total value => total.add (read value)) initial :=

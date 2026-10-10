@@ -23,17 +23,16 @@ site in word operations; the scalar operations that the native resource audit bo
 operations with an extracted cost.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
-computation, and `bind` sequences two computations and adds their work. Each loop combinator
-has as its value the library loop applied to its steps' values, and as its work the passes of
-that loop's runtime implementation (`Library`, `Library.passes`): for each element, one `visit`
-of the first pass and the work of the step, then one `visit` for each element of each further
-pass, and one `visit` for each pass's end. `foldl`, `foldlArray`, `replicate` and `findIdx?` are
-one pass (`Library.onePass`); `map` charges the further pass of `List.mapTR`'s reversal from the
-table. Every function a combinator takes is costed: the steps of `foldl` and `foldlArray`, the
-operation of `map`, the test of `findIdx?` and the continuation of `bind`. A loop's bound is
-therefore its trip count times a bound of one visit, and a visit for each end. A recursion of
-Acorn's own is a costed recursion whose every recursive call is under a charge and whose end is
-charged a visit.
+computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
+only instances, so `do` blocks sequence costed computations and nothing maps an uncosted
+callback. Each loop combinator has as its value the library loop applied to its callbacks'
+values, and as its work each callback's work once and the control of its row of the table
+(`Library`, `Library.control`): each of the row's passes, a `visit` for each element and one for
+the pass's end. A loop's bound is therefore `Library.work`: its trip count times a bound of one
+callback, and its row's control. Every function a combinator takes is costed: the steps of
+`foldl` and `foldlArray`, the operation of `map`, the test of `findIdx?` and the continuation of
+`bind`. A recursion of Acorn's own is a costed recursion whose every recursive call is under a
+charge and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
@@ -44,11 +43,14 @@ the cost discipline of the costed definitions. A combinator counts the work of e
 it takes, but not the computation of a value it takes. The values a costed definition passes
 in, which are all its uncosted entry points, are:
 
-- the value of `pure`, the value of `op` and the element of `replicate`;
-- the count of `replicate`, the initial accumulator and the collection of `foldl` and
-  `foldlArray`, the collection of `map` and the array of `findIdx?`;
+- the value parameters of the combinators: the value of `pure`; the site and value of `op`;
+  the site of `charge`; the count and element of `replicate`; the initial accumulator and the
+  collection of `foldl` and `foldlArray`; the collection of `map`; the array of `findIdx?`
+  (`bind` takes none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
+
+The private constructor's work field is set only by the combinators here.
 
 Each must be computed by a stretch that runs no loop and calls no costed definition, a loop
 must run only in a loop combinator or a costed definition, and each path to a recursive call
@@ -268,8 +270,9 @@ inductive Library where
   /-- `List.filterMap`, replaced by `List.filterMapTR` (`List.filterMap_eq_filterMapTR`): a loop,
   then `Array.toList` of the kept elements, at most one for each element. -/
   | filterMap
-  /-- `List.flatMap`, replaced by `List.flatMapTR` (`List.flatMap_eq_flatMapTR`): one loop over
-  the list; the elements of each result are counted by `flatMapResult`. -/
+  /-- `List.flatMap`, replaced by `List.flatMapTR` (`List.flatMap_eq_flatMapTR`): a loop over the
+  list, then `Array.toList` of the results, whose end is charged as a second pass over the list
+  and whose elements are counted by `flatMapResult`. -/
   | flatMap
   /-- The elements of one result of `List.flatMapTR`: `Array.appendList` pushes each one
   (`List.foldl`), and the final `Array.toList` reads each one. -/
@@ -320,7 +323,7 @@ def Library.passes : Library → Nat
   | .mapFinIdx => 1
   | .filter => 2
   | .filterMap => 2
-  | .flatMap => 1
+  | .flatMap => 2
   | .flatMapResult => 2
   | .length => 1
   | .contains => 1
@@ -336,12 +339,26 @@ def Library.passes : Library → Nat
   | .sum => 3
   | .fillVacant => 1
 
-/-- The loops whose combinators are written as one pass are one pass in the table. -/
-theorem Library.onePass :
-    Library.foldl.passes = 1 ∧ Library.foldlArray.passes = 1 ∧ Library.replicate.passes = 1 ∧
-      Library.findIdx.passes = 1 ∧ Library.vectorMap.passes = 1 ∧ Library.ofFn.passes = 1 ∧
-      Library.mapFinIdx.passes = 1 ∧ Library.flatMap.passes = 1 :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+/-- The loop control of the library loop `row` over `count` elements: each of its passes visits
+each element once and ends with one visit. -/
+abbrev Library.control (row : Library) (visit count : Nat) : Nat :=
+  row.passes * (count * visit + visit)
+
+/-- The work of the library loop `row` over `count` elements whose callback is within `bound` at
+each element: the callback once for each element, and the loop's control. -/
+abbrev Library.work (row : Library) (visit count bound : Nat) : Nat :=
+  count * bound + row.control visit count
+
+/-- A loop over more elements has more control. -/
+theorem Library.control_mono (row : Library) {visit count limit : Nat} (fits : count ≤ limit) :
+    row.control visit count ≤ row.control visit limit :=
+  Nat.mul_le_mul_left _ (Nat.add_le_add_right (Nat.mul_le_mul_right visit fits) visit)
+
+/-- A loop over more elements, each with a larger callback bound, does more work. -/
+theorem Library.work_mono (row : Library) {visit count limit bound most : Nat}
+    (fits : count ≤ limit) (within : bound ≤ most) :
+    row.work visit count bound ≤ row.work visit limit most :=
+  Nat.add_le_add (Nat.mul_le_mul fits within) (row.control_mono fits)
 
 /-- A result together with the work of computing it. The constructor is private, so every
 `Costed` value is built by the combinators below. -/
@@ -414,9 +431,12 @@ parts adds. -/
       fun m ⟨a, b, firstWork, nextWork, same⟩ => by
         rw [same, firstUnique a firstWork, nextUnique b nextWork]⟩⟩
 
-instance : Monad Costed where
-  pure := Costed.pure
-  bind := Costed.bind
+/-- The `pure` of `do` blocks. There is no `Functor` or `Monad` instance, whose derived `map`
+and `seq` would apply a callback that is not costed. -/
+instance : Pure Costed := ⟨Costed.pure⟩
+
+/-- The sequencing of `do` blocks. -/
+instance : Bind Costed := ⟨Costed.bind⟩
 
 theorem pure_val (value : α) : (pure value).val = value := rfl
 
@@ -462,41 +482,35 @@ theorem bind_within_all {first : Costed α} {next : α → Costed β} {κ : Cost
 
 /-! ## Loops -/
 
-/-- The work of a left fold: for each visit, `visit` for the loop's control and the step's
-work at the accumulator the fold reaches there, and `visit` for its end. -/
-def foldlWork (step : β → α → Costed β) : β → List α → Costs → Nat → Prop
-  | _, [], κ, n => n = κ .visit
+/-- The work of the steps of a left fold: each step's work at the accumulator the fold reaches
+there. The loop's control is charged from its row of `Library`. -/
+def foldlSteps (step : β → α → Costed β) : β → List α → Costs → Nat → Prop
+  | _, [], _, n => n = 0
   | acc, item :: rest, κ, n => ∃ here later, (step acc item).work κ here ∧
-      foldlWork step (step acc item).val rest κ later ∧ n = κ .visit + here + later
+      foldlSteps step (step acc item).val rest κ later ∧ n = here + later
 
-theorem foldlWork_single (step : β → α → Costed β) (κ : Costs) (items : List α) :
-    ∀ acc : β, ∃ n, foldlWork step acc items κ n ∧ ∀ m, foldlWork step acc items κ m → m = n := by
+theorem foldlSteps_single (step : β → α → Costed β) (κ : Costs) (items : List α) :
+    ∀ acc : β, ∃ n, foldlSteps step acc items κ n ∧ ∀ m, foldlSteps step acc items κ m → m = n := by
   induction items with
-  | nil => exact fun _ => ⟨κ .visit, rfl, fun _ same => same⟩
+  | nil => exact fun _ => ⟨0, rfl, fun _ same => same⟩
   | cons item rest ih =>
     intro acc
     obtain ⟨here, stepHeld, stepUnique⟩ := (step acc item).single κ
     obtain ⟨later, restHeld, restUnique⟩ := ih (step acc item).val
-    refine ⟨κ .visit + here + later, ⟨here, later, stepHeld, restHeld, rfl⟩, fun m work => ?_⟩
+    refine ⟨here + later, ⟨here, later, stepHeld, restHeld, rfl⟩, fun m work => ?_⟩
     obtain ⟨a, b, stepWork, restWork, same⟩ := work
     rw [same, stepUnique a stepWork, restUnique b restWork]
 
-/-- A left fold over a list. Its value is the library fold of the steps' values. -/
-@[inline] def foldl (step : β → α → Costed β) (init : β) (items : List α) : Costed β :=
-  ⟨items.foldl (fun acc item => (step acc item).val) init, fun κ => foldlWork step init items κ,
-    fun κ => foldlWork_single step κ items init⟩
-
-theorem foldl_val (step : β → α → Costed β) (init : β) (items : List α) :
-    (foldl step init items).val = items.foldl (fun acc item => (step acc item).val) init := rfl
-
-theorem foldlWork_within (step : β → α → Costed β) (κ : Costs) (bound : Nat)
+/-- The steps of a fold whose every step is within `bound` are within the trip count times that
+bound. The bound holds at every accumulator, so no reasoning about the values the fold computes
+is needed. -/
+theorem foldlSteps_within (step : β → α → Costed β) (κ : Costs) (bound : Nat)
     (items : List α) (each : ∀ acc, ∀ item ∈ items, (step acc item).Within κ bound) :
-    ∀ acc n, foldlWork step acc items κ n →
-      n ≤ items.length * (κ .visit + bound) + κ .visit := by
+    ∀ acc n, foldlSteps step acc items κ n → n ≤ items.length * bound := by
   induction items with
   | nil =>
     intro _ n work
-    have same : n = κ .visit := work
+    have same : n = 0 := work
     omega
   | cons item rest ih =>
     intro acc n work
@@ -507,19 +521,37 @@ theorem foldlWork_within (step : β → α → Costed β) (κ : Costs) (bound : 
     rw [same, List.length_cons, Nat.succ_mul]
     omega
 
-/-- A fold whose every step is within `bound` is within its trip count times the visit and
-that bound, and a visit for its end. The bound holds at every accumulator, so no reasoning about
-the values the fold computes is needed. -/
+/-- A left fold over a list (`Library.foldl`). Its value is the library fold of the steps'
+values; its work is its steps' work and the control of its row. -/
+@[inline] def foldl (step : β → α → Costed β) (init : β) (items : List α) : Costed β :=
+  ⟨items.foldl (fun acc item => (step acc item).val) init,
+    fun κ n => ∃ steps, foldlSteps step init items κ steps ∧
+      n = steps + Library.foldl.control (κ .visit) items.length,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := foldlSteps_single step κ items init
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
+
+theorem foldl_val (step : β → α → Costed β) (init : β) (items : List α) :
+    (foldl step init items).val = items.foldl (fun acc item => (step acc item).val) init := rfl
+
+/-- A fold whose every step is within `bound` is within its row's work at that bound. -/
 theorem foldl_within {step : β → α → Costed β} {init : β} {items : List α} {κ : Costs}
     {bound : Nat} (each : ∀ acc, ∀ item ∈ items, (step acc item).Within κ bound) :
-    (foldl step init items).Within κ (items.length * (κ .visit + bound) + κ .visit) :=
-  foldlWork_within step κ bound items each init
+    (foldl step init items).Within κ (Library.foldl.work (κ .visit) items.length bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    exact Nat.add_le_add_right (foldlSteps_within step κ bound items each init steps work) _
 
-/-- A left fold over an array, visiting its elements in order. -/
+/-- A left fold over an array (`Library.foldlArray`), visiting its elements in order. -/
 @[inline] def foldlArray (step : β → α → Costed β) (init : β) (items : Array α) : Costed β :=
   ⟨items.foldl (fun acc item => (step acc item).val) init,
-    fun κ => foldlWork step init items.toList κ,
-    fun κ => foldlWork_single step κ items.toList init⟩
+    fun κ n => ∃ steps, foldlSteps step init items.toList κ steps ∧
+      n = steps + Library.foldlArray.control (κ .visit) items.size,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := foldlSteps_single step κ items.toList init
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
 
 theorem foldlArray_val (step : β → α → Costed β) (init : β) (items : Array α) :
     (foldlArray step init items).val = items.foldl (fun acc item => (step acc item).val) init :=
@@ -527,39 +559,41 @@ theorem foldlArray_val (step : β → α → Costed β) (init : β) (items : Arr
 
 theorem foldlArray_within {step : β → α → Costed β} {init : β} {items : Array α} {κ : Costs}
     {bound : Nat} (each : ∀ acc, ∀ item ∈ items.toList, (step acc item).Within κ bound) :
-    (foldlArray step init items).Within κ (items.size * (κ .visit + bound) + κ .visit) := by
-  have counted := foldlWork_within step κ bound items.toList each init
-  rw [Array.length_toList] at counted
-  exact counted
+    (foldlArray step init items).Within κ (Library.foldlArray.work (κ .visit) items.size bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    have counted := foldlSteps_within step κ bound items.toList each init steps work
+    rw [Array.length_toList] at counted
+    exact Nat.add_le_add_right counted _
 
-/-- The work of a mapping loop: for each visit, `visit` and the work of the mapped operation, and
-`visit` for its end. -/
-def mapWork (operation : α → Costed β) : List α → Costs → Nat → Prop
-  | [], κ, n => n = κ .visit
+/-- The work of the operations of a mapping loop: each operation's work. The loop's control is
+charged from its row of `Library`. -/
+def mapSteps (operation : α → Costed β) : List α → Costs → Nat → Prop
+  | [], _, n => n = 0
   | item :: rest, κ, n => ∃ here later, (operation item).work κ here ∧
-      mapWork operation rest κ later ∧ n = κ .visit + here + later
+      mapSteps operation rest κ later ∧ n = here + later
 
-theorem mapWork_single (operation : α → Costed β) (κ : Costs) (items : List α) :
-    ∃ n, mapWork operation items κ n ∧ ∀ m, mapWork operation items κ m → m = n := by
+theorem mapSteps_single (operation : α → Costed β) (κ : Costs) (items : List α) :
+    ∃ n, mapSteps operation items κ n ∧ ∀ m, mapSteps operation items κ m → m = n := by
   induction items with
-  | nil => exact ⟨κ .visit, rfl, fun _ same => same⟩
+  | nil => exact ⟨0, rfl, fun _ same => same⟩
   | cons item rest ih =>
     obtain ⟨here, opHeld, opUnique⟩ := (operation item).single κ
     obtain ⟨later, restHeld, restUnique⟩ := ih
-    refine ⟨κ .visit + here + later, ⟨here, later, opHeld, restHeld, rfl⟩, fun m work => ?_⟩
+    refine ⟨here + later, ⟨here, later, opHeld, restHeld, rfl⟩, fun m work => ?_⟩
     obtain ⟨a, b, opWork, restWork, same⟩ := work
     rw [same, opUnique a opWork, restUnique b restWork]
 
-/-- A mapping loop whose every operation is within `bound` is within its trip count times the
-visit and that bound, and a visit for its end. -/
-theorem mapWork_within {operation : α → Costed β} {κ : Costs} {bound : Nat} :
+/-- The operations of a mapping loop, each within `bound`, are within the trip count times that
+bound. -/
+theorem mapSteps_within {operation : α → Costed β} {κ : Costs} {bound : Nat} :
     ∀ items : List α, (∀ item ∈ items, (operation item).Within κ bound) →
-      ∀ n, mapWork operation items κ n → n ≤ items.length * (κ .visit + bound) + κ .visit := by
+      ∀ n, mapSteps operation items κ n → n ≤ items.length * bound := by
   intro items
   induction items with
   | nil =>
     intro _ n work
-    have same : n = κ .visit := work
+    have same : n = 0 := work
     omega
   | cons item rest ih =>
     intro each n work
@@ -570,15 +604,15 @@ theorem mapWork_within {operation : α → Costed β} {κ : Costs} {bound : Nat}
     rw [same, List.length_cons, Nat.succ_mul]
     omega
 
-/-- A map over a list: the loop of `List.mapTR`, then its further passes (`Library.map`), the
-reversal of its result. -/
+/-- A map over a list (`Library.map`): its operations' work and the control of its row, the loop
+of `List.mapTR` and the reversal of its result. -/
 @[inline] def map (operation : α → Costed β) (items : List α) : Costed (List β) :=
   ⟨items.map fun item => (operation item).val,
-    fun κ n => ∃ loop, mapWork operation items κ loop ∧
-      n = loop + (Library.map.passes - 1) * (items.length * κ .visit + κ .visit),
+    fun κ n => ∃ steps, mapSteps operation items κ steps ∧
+      n = steps + Library.map.control (κ .visit) items.length,
     fun κ => by
-      obtain ⟨loop, held, unique⟩ := mapWork_single operation κ items
-      exact ⟨_, ⟨loop, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+      obtain ⟨steps, held, unique⟩ := mapSteps_single operation κ items
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
         rw [same, unique other work]⟩⟩
 
 theorem map_val (operation : α → Costed β) (items : List α) :
@@ -586,45 +620,48 @@ theorem map_val (operation : α → Costed β) (items : List α) :
 
 theorem map_within {operation : α → Costed β} {items : List α} {κ : Costs} {bound : Nat}
     (each : ∀ item ∈ items, (operation item).Within κ bound) :
-    (map operation items).Within κ (items.length * (κ .visit + bound) + κ .visit +
-      (Library.map.passes - 1) * (items.length * κ .visit + κ .visit)) :=
-  fun _ ⟨loop, work, same⟩ => by
+    (map operation items).Within κ (Library.map.work (κ .visit) items.length bound) :=
+  fun _ ⟨steps, work, same⟩ => by
     rw [same]
-    exact Nat.add_le_add_right (mapWork_within items each loop work) _
+    exact Nat.add_le_add_right (mapSteps_within items each steps work) _
 
-/-- A vector of one repeated element: one visit for each element written, and one for the
-pass's end. -/
+/-- A vector of one repeated element (`Library.replicate`): the control of its row. -/
 @[inline] def replicate (count : Nat) (value : α) : Costed (Vector α count) :=
-  ⟨Vector.replicate count value, fun κ n => n = count * κ .visit + κ .visit,
-    fun κ => ⟨count * κ .visit + κ .visit, rfl, fun _ same => same⟩⟩
+  ⟨Vector.replicate count value, fun κ n => n = Library.replicate.control (κ .visit) count,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
 
 theorem replicate_val (count : Nat) (value : α) :
     (replicate count value).val = Vector.replicate count value := rfl
 
 theorem replicate_within (count : Nat) (value : α) (κ : Costs) :
-    (replicate count value).Within κ (count * κ .visit + κ .visit) :=
+    (replicate count value).Within κ (Library.replicate.control (κ .visit) count) :=
   fun _ same => Nat.le_of_eq same
 
 /-- The index of the first element of `items` whose costed test holds, by the library search
-`Array.findIdx?` (`Library.findIdx`), with the equation that names it: for each element a visit
-and the work of its test, and a visit for the search's end, whether the search stops early or
-not. -/
+`Array.findIdx?` (`Library.findIdx`), with the equation that names it: the work of each
+element's test, whether the search stops early or not, and the control of its row. -/
 @[inline] def findIdx? (items : Array α) (test : α → Costed Bool) :
     Costed {found : Option Nat // items.findIdx? (fun item => (test item).val) = found} :=
-  ⟨⟨items.findIdx? fun item => (test item).val, rfl⟩, fun κ => mapWork test items.toList κ,
-    fun κ => mapWork_single test κ items.toList⟩
+  ⟨⟨items.findIdx? fun item => (test item).val, rfl⟩,
+    fun κ n => ∃ steps, mapSteps test items.toList κ steps ∧
+      n = steps + Library.findIdx.control (κ .visit) items.size,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := mapSteps_single test κ items.toList
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
 
 theorem findIdx?_val (items : Array α) (test : α → Costed Bool) :
     (findIdx? items test).val.val = items.findIdx? fun item => (test item).val := rfl
 
-/-- A search whose every test is within `bound` is within its size times the visit and that
-bound, and a visit for its end. -/
+/-- A search whose every test is within `bound` is within its row's work at that bound. -/
 theorem findIdx?_within {items : Array α} {test : α → Costed Bool} {κ : Costs} {bound : Nat}
     (each : ∀ item ∈ items.toList, (test item).Within κ bound) :
-    (findIdx? items test).Within κ (items.size * (κ .visit + bound) + κ .visit) := by
-  have counted := mapWork_within items.toList each
-  rw [Array.length_toList] at counted
-  exact counted
+    (findIdx? items test).Within κ (Library.findIdx.work (κ .visit) items.size bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    have counted := mapSteps_within items.toList each steps work
+    rw [Array.length_toList] at counted
+    exact Nat.add_le_add_right counted _
 
 end Costed
 

@@ -46,7 +46,8 @@ def learnerInitialRun (κ : Costs) (learnerConfig : Acorn.Config) (space : Dimen
 
 /-- Bound of a fresh learner at a capacity. -/
 abbrev learnerInitialBound (κ : Costs) (capacity : Nat) : Nat :=
-  bare (κ .visit) capacity + (bare (κ .visit) capacity + (bare (κ .visit) capacity +
+  Library.replicate.control (κ .visit) capacity + (Library.replicate.control (κ .visit) capacity +
+    (Library.replicate.control (κ .visit) capacity +
     (zeroBound κ capacity + κ .initialState)))
 
 theorem learnerInitialRun_work (κ : Costs) (learnerConfig : Acorn.Config) (space : Dimension) :
@@ -73,7 +74,7 @@ theorem controllerInitial_val (κ : Costs) (learnerConfig : Acorn.Config) (space
 
 /-- Bound of a fresh controller of `rows` rows at a capacity. -/
 abbrev controllerInitialBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  pass (κ .visit) rows (learnerInitialBound κ capacity) + κ .controllerClose
+  Library.ofFn.work (κ .visit) rows (learnerInitialBound κ capacity) + κ .controllerClose
 
 theorem controllerInitial_work (κ : Costs) (learnerConfig : Acorn.Config) (space : Dimension)
     (rows : Nat) :
@@ -101,8 +102,9 @@ theorem tabulate_val (κ : Costs)
 
 /-- Bound of a lookup table at a capacity and `positions` ranked positions. -/
 abbrev tabulateBound (κ : Costs) (capacity positions : Nat) : Nat :=
-  κ .rankWidth + Library.finRange.passes * bare (κ .visit) positions +
-    (bare (κ .visit) capacity + pass (κ .visit) positions (κ .write))
+  κ .rankWidth + Library.finRange.control (κ .visit) positions +
+    (Library.replicate.control (κ .visit) capacity +
+      Library.foldl.work (κ .visit) positions (κ .write))
 
 theorem tabulate_work (κ : Costs)
     (slots : Vector (Option (FeatIdx dimension)) (rankDimension dimension).capacity) :
@@ -124,7 +126,8 @@ def rankedEmpty (κ : Costs) (dimension : Dimension) : Costed (RankedFeatures di
 
 /-- Bound of an empty ranking. -/
 abbrev rankedEmptyBound (κ : Costs) (capacity positions : Nat) : Nat :=
-  (κ .rankWidth + bare (κ .visit) positions) + tabulateBound κ capacity positions
+  (κ .rankWidth + Library.replicate.control (κ .visit) positions) +
+    tabulateBound κ capacity positions
 
 theorem rankedEmpty_work (κ : Costs) (dimension : Dimension) :
     (rankedEmpty κ dimension).work ≤
@@ -149,8 +152,9 @@ theorem transitionInitial_val (κ : Costs) (dimension : Dimension) (criterion : 
 /-- Bound of a fresh transition part. -/
 abbrev transitionInitialBound (κ : Costs) (capacity positions : Nat) : Nat :=
   rankedEmptyBound κ capacity positions + (learnerInitialBound κ positions +
-    ((κ .rankWidth + bare (κ .visit) positions) + (learnerInitialBound κ positions +
-      (bare (κ .visit) Acorn.FeatureConstants.metaActionCount + 0))))
+    ((κ .rankWidth + Library.replicate.control (κ .visit) positions) +
+      (learnerInitialBound κ positions +
+        (Library.replicate.control (κ .visit) Acorn.FeatureConstants.metaActionCount + 0))))
 
 theorem transitionInitial_work (κ : Costs) (dimension : Dimension) (criterion : Criterion) :
     (transitionInitial κ dimension criterion).work ≤
@@ -219,7 +223,9 @@ def bankInitialRun (κ : Costs) (dimension : Dimension) : (discounts : List Disc
 
 /-- Bound of a fresh question bank of `questions` questions at a capacity. -/
 abbrev bankInitialBound (κ : Costs) (questions capacity : Nat) : Nat :=
-  pass (κ .visit) questions (bare (κ .visit) capacity + pass (κ .visit) capacity (κ .write))
+  pass (κ .visit) questions
+    (Library.replicate.control (κ .visit) capacity +
+      Library.ofFn.work (κ .visit) capacity (κ .write))
 
 theorem bankInitialRun_work (κ : Costs) (dimension : Dimension) (discounts : List Discount) :
     (bankInitialRun κ dimension discounts).work ≤
@@ -230,7 +236,7 @@ theorem bankInitialRun_work (κ : Costs) (dimension : Dimension) (discounts : Li
     have fresh := Costed.ofFn_work_le (count := dimension.capacity) (κ .visit) (κ .write)
       (fun _ => Costed.op (κ .write) ()) fun _ => Nat.le_refl _
     simp only [bankInitialRun, Costed.charge, Costed.bind_work, List.length_cons, Nat.succ_mul,
-      bankInitialBound, pass, bare] at ih fresh ⊢
+      bankInitialBound, pass] at ih fresh ⊢
     omega
 
 /-- Twin of `OptionQuestions.initial`: a fresh question for each signal and an empty
@@ -243,7 +249,7 @@ def questionsInitial (κ : Costs) (dimension : Dimension) (discounts : List Disc
 
 /-- Bound of fresh questions. -/
 abbrev questionsInitialBound (κ : Costs) (questions capacity : Nat) : Nat :=
-  bankInitialBound κ questions capacity + bare (κ .visit) capacity
+  bankInitialBound κ questions capacity + Library.replicate.control (κ .visit) capacity
 
 theorem questionsInitial_work (κ : Costs) (dimension : Dimension) (discounts : List Discount) :
     (questionsInitial κ dimension discounts).work ≤
@@ -311,9 +317,8 @@ def candidateList (κ : Costs) (dimension : Dimension) (config : Features.Config
 
 /-- Bound of the candidates of `units` units. -/
 abbrev candidateListBound (κ : Costs) (units : Nat) : Nat :=
-  Library.finRange.passes * bare (κ .visit) units +
-    (pass (κ .visit) units (κ .rankCandidate) +
-      (Library.filterMap.passes - 1) * bare (κ .visit) units)
+  Library.finRange.control (κ .visit) units +
+    (Library.filterMap.work (κ .visit) units (κ .rankCandidate))
 
 theorem candidateList_work (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (weights : WeightArray (.discounted .g99) dimension) :
@@ -337,8 +342,8 @@ visit for its end. -/
 def rankedRun (κ : Costs) : Nat → List (Candidate config) → Costed (List (Candidate config))
   | 0, _ => Costed.op (κ .visit) []
   | count + 1, items => Costed.charge (κ .visit +
-      (Library.foldl.passes * bare (κ .visit + κ .compare) items.length +
-        Library.filter.passes * bare (κ .visit + κ .compare) items.length))
+      (Library.foldl.control (κ .visit + κ .compare) items.length +
+        Library.filter.control (κ .visit + κ .compare) items.length))
       (match Features.best items with
         | none => Costed.op (κ .visit) []
         | some chosen => do
@@ -357,18 +362,16 @@ theorem rankedRun_val (κ : Costs) (count : Nat) (items : List (Candidate config
 
 /-- Bound of `count` ranked blocks over at most `size` candidates. -/
 abbrev rankedBound (κ : Costs) (count size : Nat) : Nat :=
-  pass (κ .visit) count (Library.foldl.passes * bare (κ .visit + κ .compare) size +
-    Library.filter.passes * bare (κ .visit + κ .compare) size)
+  pass (κ .visit) count (Library.foldl.control (κ .visit + κ .compare) size +
+    Library.filter.control (κ .visit + κ .compare) size)
 
 theorem rankedRun_work (κ : Costs) (count : Nat) (items : List (Candidate config)) (size : Nat)
     (fits : items.length ≤ size) : (rankedRun κ count items).work ≤ rankedBound κ count size := by
   induction count generalizing items with
   | zero => simp [rankedRun]
   | succ count ih =>
-    have best := Nat.mul_le_mul_left Library.foldl.passes
-      (bare_mono (visit := κ .visit + κ .compare) fits)
-    have drop := Nat.mul_le_mul_left Library.filter.passes
-      (bare_mono (visit := κ .visit + κ .compare) fits)
+    have best := Library.foldl.control_mono (visit := κ .visit + κ .compare) fits
+    have drop := Library.filter.control_mono (visit := κ .visit + κ .compare) fits
     rw [rankedRun]
     cases Features.best items with
     | none =>
@@ -482,10 +485,10 @@ theorem refreshRanked_val (κ : Costs)
 
 /-- Bound of the assignment refresh. -/
 abbrev refreshRankedBound (κ : Costs) (rows capacity positions questions units : Nat) : Nat :=
-  pass (κ .visit) Acorn.FeatureConstants.skillCount (κ .read) +
+  Library.vectorMap.work (κ .visit) Acorn.FeatureConstants.skillCount (κ .read) +
     (rankedCandidatesBound κ units + κ .assignmentTable +
-      (Library.finRange.passes * bare (κ .visit) Acorn.FeatureConstants.skillCount +
-        pass (κ .visit) Acorn.FeatureConstants.skillCount
+      (Library.finRange.control (κ .visit) Acorn.FeatureConstants.skillCount +
+        Library.foldl.work (κ .visit) Acorn.FeatureConstants.skillCount
           (installBound κ rows capacity positions questions)))
 
 theorem refreshRanked_work (κ : Costs)
@@ -525,8 +528,7 @@ theorem rankedSlots_val (κ : Costs) (dimension : Dimension) (config : Features.
 /-- Bound of the model ranking at `positions` ranked positions over `units` units. -/
 abbrev rankedSlotsBound (κ : Costs) (positions units : Nat) : Nat :=
   κ .rankWidth + (candidateListBound κ units + (rankedBound κ positions units +
-    (pass (κ .visit) positions (κ .hashFeature) +
-      (Library.map.passes - 1) * bare (κ .visit) positions)))
+    (Library.map.work (κ .visit) positions (κ .hashFeature))))
 
 theorem rankedSlots_work (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (weights : WeightArray (.discounted .g99) dimension) :
@@ -539,10 +541,8 @@ theorem rankedSlots_work (κ : Costs) (dimension : Dimension) (config : Features
           (candidateList_length dimension config weights))
           (pass_mono (Nat.sub_le _ 1) (Nat.le_refl _)))
         (Nat.le_trans (Costed.map_work_le (κ .visit) (κ .hashFeature) _ _ fun _ _ => Nat.le_refl _)
-          (Nat.add_le_add
-            (pass_mono (Nat.le_trans (ranked_length _ _) (Nat.sub_le _ 1)) (Nat.le_refl _))
-            (Nat.mul_le_mul_left _
-              (bare_mono (Nat.le_trans (ranked_length _ _) (Nat.sub_le _ 1))))))))
+          (Library.map.work_mono (Nat.le_trans (ranked_length _ _) (Nat.sub_le _ 1))
+            (Nat.le_refl _)))))
 
 /-- The costed run of `RankedFeatures.merged`: the slots listed, the last dropped, each held
 slot tested against the order, each ranked slot tested against the held slots for the entrants,
@@ -565,15 +565,15 @@ def mergedRun (κ : Costs) (ranked : RankedFeatures dimension) (order : List (Fe
 
 /-- Bound of a merge at `positions` positions with an order of `size` slots. -/
 abbrev mergedBound (κ : Costs) (positions size : Nat) : Nat :=
-  Library.toList.passes * bare (κ .visit) positions +
-    (Library.dropLast.passes * bare (κ .visit) positions +
-      ((pass (κ .visit) positions (Library.contains.passes * bare (κ .visit + κ .compare) size) +
-          (Library.map.passes - 1) * bare (κ .visit) positions) +
-        ((pass (κ .visit) size (Library.contains.passes * bare (κ .visit + κ .compare) positions) +
-            (Library.filter.passes - 1) * bare (κ .visit) size) +
-          (Library.fillVacant.passes * bare (κ .visit) positions +
-            (Library.append.passes * bare (κ .visit) positions +
-              Library.toArray.passes * bare (κ .visit) (positions + 1))))))
+  Library.toList.control (κ .visit) positions +
+    (Library.dropLast.control (κ .visit) positions +
+      (Library.map.work (κ .visit) positions
+          (Library.contains.control (κ .visit + κ .compare) size) +
+        (Library.filter.work (κ .visit) size
+            (Library.contains.control (κ .visit + κ .compare) positions) +
+          (Library.fillVacant.control (κ .visit) positions +
+            (Library.append.control (κ .visit) positions +
+              Library.toArray.control (κ .visit) (positions + 1))))))
 
 theorem mergedRun_work (κ : Costs) (ranked : RankedFeatures dimension)
     (order : List (FeatIdx dimension)) :
@@ -589,26 +589,24 @@ theorem mergedRun_work (κ : Costs) (ranked : RankedFeatures dimension)
     exact Nat.add_le_add_right dropped 1
   refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _)
     (Costed.bind_work_le_at
-      (Nat.mul_le_mul_left _ (bare_mono (Nat.le_of_eq (Vector.length_toList (xs := ranked.slots)))))
+      (Library.dropLast.control_mono (Nat.le_of_eq (Vector.length_toList (xs := ranked.slots))))
       (Costed.bind_work_le_at
         (Nat.le_trans (Costed.map_work_le (κ .visit)
-          (Library.contains.passes * bare (κ .visit + κ .compare) order.length)
+          (Library.contains.control (κ .visit + κ .compare) order.length)
           _ _ fun _ _ => Nat.le_refl _)
-          (Nat.add_le_add (pass_mono dropped (Nat.le_refl _))
-            (Nat.mul_le_mul_left _ (bare_mono dropped))))
+          (Library.map.work_mono dropped (Nat.le_refl _)))
         (Costed.bind_work_le_at
           (Nat.le_trans (Costed.filter_work_le (κ .visit)
-            (Library.contains.passes * bare (κ .visit + κ .compare)
+            (Library.contains.control (κ .visit + κ .compare)
               ranked.slots.toList.dropLast.length) _ _
             fun _ _ => Nat.le_refl _)
-            (Nat.add_le_add_right
-              (pass_mono (Nat.le_refl _) (Nat.mul_le_mul_left _ (bare_mono dropped))) _))
+            (Library.filter.work_mono (Nat.le_refl _) (Library.contains.control_mono dropped)))
           (Costed.bind_work_le_at
-            (Nat.mul_le_mul_left _
-              (bare_mono (Nat.le_trans (Nat.le_of_eq (List.length_map _)) dropped)))
+            (Library.fillVacant.control_mono
+              (Nat.le_trans (Nat.le_of_eq (List.length_map _)) dropped))
             (Costed.bind_work_le_at
-              (Nat.mul_le_mul_left _ (bare_mono (Nat.le_trans (Nat.le_of_eq length) dropped)))
-              (Nat.mul_le_mul_left _ (bare_mono appended)))))))) ?_
+              (Library.append.control_mono (Nat.le_trans (Nat.le_of_eq length) dropped))
+              (Library.toArray.control_mono appended))))))) ?_
   exact Nat.le_refl _
 
 /-- The costed run of `RankedFeatures.rerank`: the merge, its comparison with the held slots
@@ -628,7 +626,7 @@ def rankedRerank (κ : Costs) (ranked : RankedFeatures dimension) (order : List 
 
 /-- Bound of a ranking's installation. -/
 abbrev rankedRerankBound (κ : Costs) (capacity positions size : Nat) : Nat :=
-  mergedBound κ positions size + (Library.vectorEq.passes * bare (κ .visit + κ .compare) positions +
+  mergedBound κ positions size + (Library.vectorEq.control (κ .visit + κ .compare) positions +
     (mergedBound κ positions size + tabulateBound κ capacity positions))
 
 theorem rankedRerank_work (κ : Costs) (ranked : RankedFeatures dimension)
@@ -657,8 +655,8 @@ theorem changed_val (κ : Costs) (before after : RankedFeatures dimension) :
 
 /-- Bound of the changed positions of a ranking of `positions` positions. -/
 abbrev changedBound (κ : Costs) (positions : Nat) : Nat :=
-  κ .rankWidth + Library.finRange.passes * bare (κ .visit) positions +
-    Library.filter.passes * bare (κ .visit + κ .compare) positions
+  κ .rankWidth + Library.finRange.control (κ .visit) positions +
+    Library.filter.control (κ .visit + κ .compare) positions
 
 theorem changed_work (κ : Costs) (before after : RankedFeatures dimension) :
     (changed κ before after).work ≤ changedBound κ (rankDimension dimension).capacity := by
@@ -698,9 +696,11 @@ theorem forget_val (κ : Costs)
 
 /-- Bound of the rows' forgetting of `size` changed positions. -/
 abbrev forgetBound (κ : Costs) (positions size : Nat) : Nat :=
-  pass (κ .visit) positions (Library.contains.passes * bare (κ .visit + κ .compare) size +
+  Library.mapFinIdx.work (κ .visit) positions
+    (Library.contains.control (κ .visit + κ .compare) size +
     (learnerInitialBound κ positions +
-      pass (κ .visit) size (κ .retire + pass (κ .visit) positions (κ .compare))))
+      Library.foldl.work (κ .visit) size
+        (κ .retire + Library.findIdx.work (κ .visit) positions (κ .compare))))
 
 theorem forget_work (κ : Costs)
     (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
@@ -712,7 +712,8 @@ theorem forget_work (κ : Costs)
       Costed.ite_work_bound _
         (Nat.le_trans (learnerInitialRun_work κ _ _) (Nat.le_add_right _ _))
         (Nat.le_trans (Costed.foldl_work_le (κ .visit)
-          (κ .retire + pass (κ .visit) (rankDimension dimension).capacity (κ .compare)) _ row
+          (κ .retire + Library.findIdx.work (κ .visit) (rankDimension dimension).capacity
+            (κ .compare)) _ row
           positions fun learner position _ =>
             managedApply_work κ learner (.retire position) trivial)
           (Nat.le_add_left _ _))
@@ -737,8 +738,9 @@ theorem forgetColumns_work (κ : Costs) {count : Nat}
     (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) count)
     (positions : List (RankIdx dimension)) :
     (forgetColumns κ learners positions).work ≤
-      pass (κ .visit) count (pass (κ .visit) positions.length
-        (κ .retire + pass (κ .visit) (rankDimension dimension).capacity (κ .compare))) :=
+      Library.vectorMap.work (κ .visit) count (Library.foldl.work (κ .visit) positions.length
+        (κ .retire + Library.findIdx.work (κ .visit) (rankDimension dimension).capacity
+          (κ .compare))) :=
   Costed.mapVector_work_le _ _ _ _ fun learner _ =>
     Costed.foldl_work_le (κ .visit) _ _ learner positions fun current position _ =>
       managedApply_work κ current (.retire position) trivial
@@ -761,16 +763,17 @@ theorem transitionRerank_val (κ : Costs) (transition : Transition dimension cri
 /-- The rows' forgetting grows with the number of changed positions. -/
 theorem forgetBound_mono (κ : Costs) (positions : Nat) {size limit : Nat} (fits : size ≤ limit) :
     forgetBound κ positions size ≤ forgetBound κ positions limit := by
-  have tests := Nat.mul_le_mul_left Library.contains.passes
-    (bare_mono (visit := κ .visit + κ .compare) fits)
-  have retires := pass_mono (visit := κ .visit) fits
-    (Nat.le_refl (κ .retire + pass (κ .visit) positions (κ .compare)))
-  exact pass_mono (Nat.le_refl _) (Nat.add_le_add tests (Nat.add_le_add_left retires _))
+  have tests := Library.contains.control_mono (visit := κ .visit + κ .compare) fits
+  have retires := Library.foldl.work_mono (visit := κ .visit) fits
+    (Nat.le_refl (κ .retire + Library.findIdx.work (κ .visit) positions (κ .compare)))
+  exact Library.mapFinIdx.work_mono (Nat.le_refl _)
+    (Nat.add_le_add tests (Nat.add_le_add_left retires _))
 
 /-- Bound of the deviation learners' forgetting of `size` changed positions. -/
 abbrev columnsBound (κ : Costs) (positions size : Nat) : Nat :=
-  pass (κ .visit) Acorn.FeatureConstants.metaActionCount
-    (pass (κ .visit) size (κ .retire + pass (κ .visit) positions (κ .compare)))
+  Library.vectorMap.work (κ .visit) Acorn.FeatureConstants.metaActionCount
+    (Library.foldl.work (κ .visit) size
+      (κ .retire + Library.findIdx.work (κ .visit) positions (κ .compare)))
 
 /-- Bound of a transition part's reranking with an order of `size` slots. -/
 abbrev transitionRerankBound (κ : Costs) (capacity positions size : Nat) : Nat :=
@@ -787,8 +790,9 @@ theorem transitionRerank_work (κ : Costs) (transition : Transition dimension cr
       (Costed.bind_work_le_at (Nat.le_trans (forget_work κ transition.rows _)
           (forgetBound_mono κ _ (changed_length transition.ranked ranked)))
         (Costed.bind_work_le (Nat.le_trans (forgetColumns_work κ transition.deviations _)
-          (pass_mono (Nat.le_refl _)
-            (pass_mono (changed_length transition.ranked ranked) (Nat.le_refl _)))) fun _ =>
+          (Library.vectorMap.work_mono (Nat.le_refl _)
+            (Library.foldl.work_mono (changed_length transition.ranked ranked) (Nat.le_refl _))))
+          fun _ =>
           Nat.le_refl 0))
 
 /-- The costed run of `Model.rerank`: the transition part's reranking. -/
@@ -833,7 +837,8 @@ def rerankModels (κ : Costs)
 
 /-- Bound of the model reranking at a capacity over `units` units. -/
 abbrev rerankModelsBound (κ : Costs) (capacity positions units : Nat) : Nat :=
-  rankedSlotsBound κ positions units + pass (κ .visit) Acorn.FeatureConstants.skillCount
+  rankedSlotsBound κ positions units +
+    Library.vectorMap.work (κ .visit) Acorn.FeatureConstants.skillCount
     (transitionRerankBound κ capacity positions positions)
 
 /-- A reranking's bound grows with the length of its order. -/
@@ -841,11 +846,10 @@ theorem transitionRerankBound_mono (κ : Costs) (capacity positions : Nat) {size
     (fits : size ≤ limit) :
     transitionRerankBound κ capacity positions size ≤
       transitionRerankBound κ capacity positions limit := by
-  have kept := pass_mono (visit := κ .visit) (Nat.le_refl positions)
-    (Nat.mul_le_mul_left Library.contains.passes (bare_mono (visit := κ .visit + κ .compare) fits))
-  have entrants := pass_mono (visit := κ .visit) fits
-    (Nat.le_refl (Library.contains.passes * bare (κ .visit + κ .compare) positions))
-  have ends := Nat.mul_le_mul_left (Library.filter.passes - 1) (bare_mono (visit := κ .visit) fits)
+  have kept := Library.map.work_mono (visit := κ .visit) (Nat.le_refl positions)
+    (Library.contains.control_mono (visit := κ .visit + κ .compare) fits)
+  have entrants := Library.filter.work_mono (visit := κ .visit) fits
+    (Nat.le_refl (Library.contains.control (κ .visit + κ .compare) positions))
   simp only [transitionRerankBound, rankedRerankBound, mergedBound]
   omega
 
