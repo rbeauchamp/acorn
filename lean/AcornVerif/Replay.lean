@@ -11,7 +11,9 @@ import AcornVerif.Visits
 `replay` is one agent for a whole class of worlds in visits. It records the actions of the
 current visit, takes stored actions where it holds some and an exploring action otherwise,
 and at the first percept after a step at which its signal shows, it stores the current
-visit's actions. Its memory reads its percepts, so it is not experience-free.
+visit's actions. What it stores depends on its percepts, so with a signal that shows on some
+percept and not on another it is not experience-free (`replay_not_experienceFree`); with a
+constant signal its memory reads no percept.
 
 `ReplayInvariant` is its bookkeeping in a world in visits, and holds at every time
 (`replay_invariant`): its step count is the visit's, the state is the fold of the visit's
@@ -21,10 +23,17 @@ and every visit begins in the same state, so on every later visit the agent take
 stored actions (`replay_follows`) and reaches that state again. Where the percept after
 every step shows the signal exactly when that step satisfies the goal, the agent solves on
 every later visit each member it has solved on one visit (`replay_keeps`, `replay_solves`).
+Where its exploration of a visit meets a member's goal from the member's start within the
+visit, it solves that member on that visit (`replay_explored`, `replay_solves_explored`):
+it replays stored actions, or perceives the goal met earlier in the visit, or takes the
+exploring actions up to the step that meets it.
 
-With `visits_need` this separates the two kinds of agent on a class that conceals its goals:
-an experience-free agent solves at most the covering bound of members on each visit, while
-this agent solves on each visit every member it has solved before.
+The separation is a theorem under an explicit hypothesis of exploration and feasibility
+(`replay_separates`). On a class that conceals its goals, if the agent's explorations of the
+visits up to one visit meet the goals of more members than the covering bound, then on that
+visit it solves all of them, while on every visit every experience-free agent solves at most
+the covering bound (`visits_need`). Without that hypothesis nothing here says it solves more
+than the bound: an exploration that meets few members leaves it with few.
 -/
 
 namespace AcornVerif.Kernel
@@ -116,6 +125,38 @@ theorem replay_taken (length : ℕ) (signal : Percept interface → Bool)
       memory.choose (memory.record (signal percept)) explore :: memory.taken := by
   dsimp only [replay]
   rw [ite_eq_left short]
+
+/-- Within a visit, a decision of the replaying agent keeps its count of completed visits. -/
+theorem replay_count_within (length : ℕ) (signal : Percept interface → Bool)
+    (explore : ℕ → ℕ → Act interface) (memory : ReplayMemory interface)
+    (percept : Percept interface) (short : memory.step < length) :
+    ((replay interface length signal explore).act memory percept).2.count = memory.count := by
+  dsimp only [replay]
+  rw [ite_eq_left short]
+
+/-- At a visit's last state, a decision of the replaying agent counts one more completed
+visit. -/
+theorem replay_count_last (length : ℕ) (signal : Percept interface → Bool)
+    (explore : ℕ → ℕ → Act interface) (memory : ReplayMemory interface)
+    (percept : Percept interface) (last : ¬ memory.step < length) :
+    ((replay interface length signal explore).act memory percept).2.count = memory.count + 1 := by
+  dsimp only [replay]
+  rw [ite_eq_right last]
+
+/-- With a signal that shows on one percept and not on another, the replaying agent is not
+experience-free: what it stores after a step depends on whether its percept shows the
+signal. With a constant signal its memory reads no percept. -/
+theorem replay_not_experienceFree (length : ℕ) (signal : Percept interface → Bool)
+    (explore : ℕ → ℕ → Act interface) (shown hidden : Percept interface)
+    (shows : signal shown = true) (hides : signal hidden = false) :
+    ¬ ExperienceFree (replay interface length signal explore) := by
+  rintro ⟨advance, law⟩
+  have same := (law (⟨1, [], 0, none⟩ : ReplayMemory interface) shown).trans
+    (law (⟨1, [], 0, none⟩ : ReplayMemory interface) hidden).symm
+  have stored := (replay_stored length signal explore _ shown).symm.trans
+    ((congrArg ReplayMemory.stored same).trans (replay_stored length signal explore _ hidden))
+  rw [shows, hides] at stored
+  simp [ReplayMemory.record] at stored
 
 /-! ## Bookkeeping -/
 
@@ -345,6 +386,185 @@ theorem replay_follows (world : World interface) (start : world.State) (length :
       List.getD_eq_getElem?_getD, List.getElem?_eq_getElem below, Option.getD_some,
       ← List.take_concat_get below, List.concat_eq_append]
 
+/-- On a visit that begins with stored actions, the replaying agent meets the goal: it replays
+the stored actions and reaches the state they lead to. -/
+theorem replay_stored_solves (world : World interface) (start : world.State) (length : ℕ)
+    (satisfied : world.State → Prop) (signal : Percept interface → Bool)
+    (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
+      satisfied (world.step state action))
+    (explore : ℕ → ℕ → Act interface) (visit : ℕ) (actions : List (Act interface))
+    (kept : (memoryAt (visits world start length) (replay interface length signal explore)
+      (visitStart world start length) (visit * (length + 1))).stored = some actions) :
+    ∃ step, 1 ≤ step ∧ step ≤ length ∧ satisfied
+      (stateAt (visits world start length) (replay interface length signal explore)
+        (visitStart world start length) (visit * (length + 1) + step)).1 := by
+  obtain ⟨-, -, -, storedOk⟩ :=
+    replay_invariant world start length satisfied signal sound explore (visit * (length + 1))
+  obtain ⟨nonempty, fits, lands⟩ := storedOk actions kept
+  refine ⟨actions.length, nonempty, fits, ?_⟩
+  obtain ⟨-, -, innerEq, -⟩ :=
+    replay_invariant world start length satisfied signal sound explore
+      (visit * (length + 1) + actions.length)
+  rw [innerEq, replay_follows world start length satisfied signal sound explore visit actions kept
+    fits actions.length (Nat.le_refl _), List.take_length]
+  exact lands
+
+/-- The replaying agent's step count within a visit: after `step` decisions of a visit it is
+`step`. -/
+theorem replay_step_visit (world : World interface) (start : world.State) (length : ℕ)
+    (satisfied : world.State → Prop) (signal : Percept interface → Bool)
+    (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
+      satisfied (world.step state action))
+    (explore : ℕ → ℕ → Act interface) (count step : ℕ) (within : step ≤ length) :
+    (memoryAt (visits world start length) (replay interface length signal explore)
+      (visitStart world start length) (count * (length + 1) + step)).step = step :=
+  (replay_invariant world start length satisfied signal sound explore _).1.trans
+    (visits_counter world start length _ count step within)
+
+/-- Throughout visit `count`, the replaying agent's count of completed visits is `count`. -/
+theorem replay_count_visit (world : World interface) (start : world.State) (length : ℕ)
+    (satisfied : world.State → Prop) (signal : Percept interface → Bool)
+    (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
+      satisfied (world.step state action))
+    (explore : ℕ → ℕ → Act interface) (count : ℕ) :
+    ∀ step, step ≤ length →
+      (memoryAt (visits world start length) (replay interface length signal explore)
+        (visitStart world start length) (count * (length + 1) + step)).count = count := by
+  have within : ∀ visit step, step < length →
+      (memoryAt (visits world start length) (replay interface length signal explore)
+        (visitStart world start length) (visit * (length + 1) + step)).count = visit →
+      (memoryAt (visits world start length) (replay interface length signal explore)
+        (visitStart world start length) (visit * (length + 1) + (step + 1))).count = visit := by
+    intro visit step short counted
+    exact (replay_count_within length signal explore _ _ (lt_of_eq_of_lt
+      (replay_step_visit world start length satisfied signal sound explore visit step
+        (Nat.le_of_lt short)) short)).trans counted
+  induction count with
+  | zero =>
+    intro step bounded
+    induction step with
+    | zero =>
+      rw [Nat.zero_mul]
+      rfl
+    | succ step ih => exact within 0 step bounded (ih (Nat.le_of_succ_le bounded))
+  | succ count ih =>
+    intro step bounded
+    induction step with
+    | zero =>
+      have last := ih length (Nat.le_refl length)
+      have boundary : (count + 1) * (length + 1) + 0 = count * (length + 1) + length + 1 := by
+        rw [Nat.add_zero, Nat.add_mul, Nat.one_mul, Nat.add_assoc]
+      rw [boundary]
+      have atLast := replay_step_visit world start length satisfied signal sound explore count
+        length (Nat.le_refl length)
+      exact (replay_count_last length signal explore _ _
+        (fun short => Nat.lt_irrefl length (lt_of_eq_of_lt atLast.symm short))).trans
+        (congrArg (· + 1) last)
+    | succ step ihStep => exact within (count + 1) step bounded (ihStep (Nat.le_of_succ_le bounded))
+
+/-- Where the replaying agent's exploration of a visit meets the goal from the start within the
+visit, the agent meets the goal on that visit: it replays stored actions, or perceives the goal
+met earlier in the visit, or takes the exploring actions up to the step that meets it. -/
+theorem replay_explored (world : World interface) (start : world.State) (length : ℕ)
+    (satisfied : world.State → Prop) (signal : Percept interface → Bool)
+    (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
+      satisfied (world.step state action))
+    (explore : ℕ → ℕ → Act interface) (visit : ℕ)
+    (meets : ∃ step, 1 ≤ step ∧ step ≤ length ∧
+      satisfied (path world start (explore visit) step)) :
+    ∃ step, 1 ≤ step ∧ step ≤ length ∧ satisfied
+      (stateAt (visits world start length) (replay interface length signal explore)
+        (visitStart world start length) (visit * (length + 1) + step)).1 := by
+  obtain ⟨target, low, high, met⟩ := meets
+  cases kept : (memoryAt (visits world start length) (replay interface length signal explore)
+      (visitStart world start length) (visit * (length + 1))).stored with
+  | some actions =>
+    exact replay_stored_solves world start length satisfied signal sound explore visit actions kept
+  | none =>
+    have claim : ∀ step, step ≤ target →
+        (∃ earlier, 1 ≤ earlier ∧ earlier ≤ length ∧ satisfied
+          (stateAt (visits world start length) (replay interface length signal explore)
+            (visitStart world start length) (visit * (length + 1) + earlier)).1) ∨
+        ((memoryAt (visits world start length) (replay interface length signal explore)
+            (visitStart world start length) (visit * (length + 1) + step)).stored = none ∧
+          (memoryAt (visits world start length) (replay interface length signal explore)
+            (visitStart world start length) (visit * (length + 1) + step)).taken.reverse =
+            (List.range step).map (explore visit)) := by
+      intro step
+      induction step with
+      | zero =>
+        intro _
+        obtain ⟨-, takenLength, -, -⟩ :=
+          replay_invariant world start length satisfied signal sound explore
+            (visit * (length + 1) + 0)
+        rw [replay_step_visit world start length satisfied signal sound explore visit 0
+          (Nat.zero_le _)] at takenLength
+        refine Or.inr ⟨kept, ?_⟩
+        rw [List.eq_nil_of_length_eq_zero takenLength]
+        rfl
+      | succ step ih =>
+        intro bounded
+        rcases ih (Nat.le_of_succ_le bounded) with solved | ⟨unstored, taken⟩
+        · exact Or.inl solved
+        have atStep := replay_step_visit world start length satisfied signal sound explore visit
+          step (by omega)
+        have atCount := replay_count_visit world start length satisfied signal sound explore visit
+          step (by omega)
+        obtain ⟨-, takenLength, innerEq, -⟩ :=
+          replay_invariant world start length satisfied signal sound explore
+            (visit * (length + 1) + step)
+        by_cases shows : 1 ≤ step ∧ signal (perceptAt (visits world start length)
+            (replay interface length signal explore) (visitStart world start length)
+            (visit * (length + 1) + step)) = true
+        · refine Or.inl ⟨step, shows.1, by omega, ?_⟩
+          cases visitTaken : (memoryAt (visits world start length)
+              (replay interface length signal explore) (visitStart world start length)
+              (visit * (length + 1) + step)).taken with
+          | nil =>
+            rw [visitTaken, List.length_nil, atStep] at takenLength
+            omega
+          | cons last rest =>
+            have landed : (stateAt (visits world start length)
+                (replay interface length signal explore) (visitStart world start length)
+                (visit * (length + 1) + step)).1 =
+                  world.step (rest.reverse.foldl world.step start) last := by
+              rw [innerEq, visitTaken, List.reverse_cons, List.foldl_append]
+              rfl
+            have shown := shows.2
+            change signal (world.percept (stateAt (visits world start length)
+              (replay interface length signal explore) (visitStart world start length)
+              (visit * (length + 1) + step)).1) = true at shown
+            rw [landed] at shown ⊢
+            exact sound _ _ shown
+        · have quiet : (memoryAt (visits world start length)
+              (replay interface length signal explore) (visitStart world start length)
+              (visit * (length + 1) + step)).record (signal (perceptAt (visits world start length)
+                (replay interface length signal explore) (visitStart world start length)
+                (visit * (length + 1) + step))) = none := by
+            unfold ReplayMemory.record
+            rw [unstored, atStep]
+            exact ite_eq_right shows
+          right
+          refine ⟨(replay_stored length signal explore _ _).trans quiet, ?_⟩
+          refine (congrArg List.reverse (replay_taken length signal explore
+            (memoryAt (visits world start length) (replay interface length signal explore)
+              (visitStart world start length) (visit * (length + 1) + step))
+            (perceptAt (visits world start length) (replay interface length signal explore)
+              (visitStart world start length) (visit * (length + 1) + step))
+            (lt_of_eq_of_lt atStep (by omega)))).trans ?_
+          rw [List.reverse_cons, taken, List.range_succ, List.map_append]
+          unfold ReplayMemory.choose
+          rw [quiet, atStep, atCount]
+          rfl
+    rcases claim target (Nat.le_refl target) with solved | ⟨-, taken⟩
+    · exact solved
+    · refine ⟨target, low, high, ?_⟩
+      obtain ⟨-, -, innerEq, -⟩ :=
+        replay_invariant world start length satisfied signal sound explore
+          (visit * (length + 1) + target)
+      rw [innerEq, taken, ← path_eq_foldl]
+      exact met
+
 /-- The replaying agent solves on every later visit what it has solved on one visit, in a world
 whose percept after every step shows the signal exactly where that step satisfies the goal. -/
 theorem replay_keeps (world : World interface) (start : world.State) (length : ℕ)
@@ -373,16 +593,7 @@ theorem replay_keeps (world : World interface) (start : world.State) (length : �
   have kept := replay_stored_keeps world start length signal explore
     (count * (length + 1) + step + 1) gap actions recorded
   rw [← split] at kept
-  obtain ⟨-, -, -, storedOk⟩ :=
-    replay_invariant world start length satisfied signal sound explore (later * (length + 1))
-  obtain ⟨nonempty, fits, lands⟩ := storedOk actions kept
-  refine ⟨actions.length, nonempty, fits, ?_⟩
-  obtain ⟨-, -, innerEq, -⟩ :=
-    replay_invariant world start length satisfied signal sound explore
-      (later * (length + 1) + actions.length)
-  rw [innerEq, replay_follows world start length satisfied signal sound explore later actions kept
-    fits actions.length (Nat.le_refl _), List.take_length]
-  exact lands
+  exact replay_stored_solves world start length satisfied signal sound explore later actions kept
 
 /-- In a class of worlds in visits, the replaying agent, one agent for the whole class, solves
 on every later visit each member it has solved on one visit, where the member's percept after
@@ -399,5 +610,60 @@ theorem replay_solves (family : WorldClass interface) (goals : family.Goals) (le
     SolvesOnVisit family goals length (replay interface length signal explore) later index :=
   replay_keeps (family.world index) (family.start index) length (goals index).satisfied signal
     decodes explore count later after solved
+
+/-- In a class of worlds in visits, the replaying agent solves a member on a visit whose
+exploration meets that member's goal from its start within the visit, and on every later
+visit, where the member's percept after every step shows the signal exactly when that step
+satisfies its goal. -/
+theorem replay_solves_explored (family : WorldClass interface) (goals : family.Goals)
+    (length : ℕ) (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)
+    (index : family.Index)
+    (decodes : ∀ state action,
+      signal ((family.world index).percept ((family.world index).step state action)) = true ↔
+        (goals index).satisfied ((family.world index).step state action))
+    (visit later : ℕ) (after : visit ≤ later)
+    (meets : ∃ step, 1 ≤ step ∧ step ≤ length ∧
+      (goals index).satisfied
+        (path (family.world index) (family.start index) (explore visit) step)) :
+    SolvesOnVisit family goals length (replay interface length signal explore) later index := by
+  have first := replay_explored (family.world index) (family.start index) length
+    (goals index).satisfied signal (fun state action => (decodes state action).mp) explore visit
+    meets
+  rcases Nat.lt_or_eq_of_le after with sooner | same
+  · exact replay_solves family goals length signal explore index decodes visit later sooner first
+  · rw [← same]
+    exact first
+
+variable {family : WorldClass interface} {goals : family.Goals}
+  {reference : World interface} {origin : reference.State}
+
+/-- The separation. In a class that conceals its goals, with a covering bound for one visit's
+length, suppose the replaying agent's explorations of the visits up to `last` meet, from each
+member's start within a visit, the goals of a set of members larger than the bound, and each
+member's percept after a step shows the signal exactly when that step meets its goal. Then on
+visit `last` the replaying agent solves every member of the set, and on every visit every
+experience-free agent solves fewer members than the set has. -/
+theorem replay_separates (hidden : Conceals family goals reference origin) {length bound : ℕ}
+    (covered : Covered family (visitGoals goals length) bound)
+    (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)
+    (decodes : ∀ index state action,
+      signal ((family.world index).percept ((family.world index).step state action)) = true ↔
+        (goals index).satisfied ((family.world index).step state action))
+    (members : Finset family.Index) (last : ℕ)
+    (explored : ∀ index ∈ members, ∃ visit, visit ≤ last ∧
+      ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
+        (path (family.world index) (family.start index) (explore visit) step))
+    (many : bound < members.card) :
+    (∀ index ∈ members,
+      SolvesOnVisit family goals length (replay interface length signal explore) last index) ∧
+    ∀ agent : Agent interface, ExperienceFree agent →
+      ∀ (count : ℕ) (solved : Finset family.Index),
+        (∀ index ∈ solved, SolvesOnVisit family goals length agent count index) →
+          solved.card < members.card := by
+  refine ⟨fun index member => ?_, fun agent free count solved each => ?_⟩
+  · obtain ⟨visit, before, meets⟩ := explored index member
+    exact replay_solves_explored family goals length signal explore index (decodes index) visit
+      last before meets
+  · exact Nat.lt_of_le_of_lt (visits_need hidden covered free count solved each) many
 
 end AcornVerif.Kernel

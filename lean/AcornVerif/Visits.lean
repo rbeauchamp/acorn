@@ -23,8 +23,9 @@ For a class that conceals its goals, with a covering bound for one visit's lengt
 
 - **Need on every visit.** An experience-free agent's memory at a time is its initial memory
   advanced that many times (`experienceFree_memoryAt`), and every visit begins at the same
-  time in every member. So on each visit it is one agent for the whole class, and it solves
-  at most the covering bound of members on that visit (`visits_need`).
+  time in every member, in that member's start state. So on each visit it is one agent for
+  the whole class, and it solves at most the covering bound of members on that visit
+  (`visits_need`).
 - **First success, for every agent.** Before a member's goal is first met, every agent keeps
   in that member's visits the memory it keeps in the reference's visits
   (`Conceals.visits_memory`). So the members an agent solves on a visit and on no earlier one
@@ -32,10 +33,12 @@ For a class that conceals its goals, with a covering bound for one visit's lengt
   most that many (`visits_first`), and over its first `count` visits at most `count` times
   that many (`visits_ever`).
 
-The return to a state that does not depend on the member is what bounds the later visits of
-an experience-free agent. In a world that persists between attempts, `park_keeps` shows an
+What bounds the later visits of an experience-free agent is that each member returns to its
+own fixed start state, which does not depend on what happened on earlier visits; it may
+depend on the member. In a world that persists between attempts, `park_keeps` shows an
 experience-free agent keeping every goal it has met. `AcornVerif.Replay` shows an agent that
-uses its experience solving, on every later visit, every member it has solved once.
+uses its experience solving, on every later visit, every member it has solved once, and,
+under a hypothesis of exploration, more members on one visit than the covering bound.
 -/
 
 namespace AcornVerif.Kernel

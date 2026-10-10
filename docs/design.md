@@ -666,13 +666,17 @@ no percept. [Visits](../lean/AcornVerif/Visits.lean) defines the property that r
 this. A **world in visits** of a length takes that many steps from its start state,
 delivers one more percept at the visit's last state, and returns to the start state
 whatever the action. The agent is not restarted: its memory carries from visit to visit.
-Every visit then begins in the same state and at the same time in every member, so an
-experience-free agent, whose memory at a time is its initial memory advanced that many
-times, is one agent for the whole class on every visit. [The replaying
-agent](../lean/AcornVerif/Replay.lean) shows that the bound is not met by every agent: it
-stores the actions of the visit on which its percept first shows the goal met and replays
-them, so it solves on every later visit each member it has solved once. One agent serves
-the whole class.
+Each member's visits then begin in that member's own start state, which does not depend on
+what happened on earlier visits (it may depend on the member), and at the same time in
+every member. So an experience-free agent, whose memory at a time is its initial memory
+advanced that many times, is one agent for the whole class on every visit. [The replaying
+agent](../lean/AcornVerif/Replay.lean), one agent for the whole class, stores the actions
+of the visit on which its percept first shows the goal met and replays them, so it solves
+on every later visit each member it has solved once. Whether it solves more members than
+the covering bound depends on its exploration: under the explicit hypothesis that its
+explorations of the visits up to one visit meet the goals of more members than the bound,
+on that visit it solves all of them, more than any experience-free agent solves on any
+visit.
 
 | Property | What is proved | Theorems |
 |---|---|---|
@@ -681,7 +685,8 @@ the whole class.
 | Visits restart the world, not the agent | A world in visits begins every visit in its start state, and within a visit its closed loop is the world's own. The loop after a time is the loop of the agent resumed from its memory at that time. So an agent solves a member on a visit exactly when the agent resumed from its memory at the start of that visit solves it in the member's world within one visit. | `visits_period`, `visits_loop`, `loop_add`, `solvesOnVisit_iff` |
 | Need on every visit | In a class that conceals its goals, with a covering bound of k for one visit's length, every experience-free agent solves at most k members on each visit. | `experienceFree_memoryAt`, `visits_need` |
 | First success, for every agent | Before a member's goal is first met, every agent keeps in that member's visits the memory it keeps in the reference's visits. So every agent solves at most k members for the first time on any one visit, at most k on its first visit, and at most n·k on its first n visits. | `Conceals.visits_memory`, `visits_first_success`, `visits_first`, `visits_ever` |
-| An agent that uses experience re-solves | Where the percept after every step shows a signal exactly when that step meets the goal, the replaying agent solves on every later visit each member it has solved on one visit. | `replay_invariant`, `replay_follows`, `replay_keeps`, `replay_solves` |
+| An agent that uses experience re-solves | Where the percept after every step shows a signal exactly when that step meets the goal, the replaying agent solves on every later visit each member it has solved on one visit, and solves a member on any visit whose exploration meets that member's goal from its start. With a signal that shows on one percept and not on another it is not experience-free. | `replay_invariant`, `replay_follows`, `replay_keeps`, `replay_solves`, `replay_explored`, `replay_solves_explored`, `replay_not_experienceFree` |
+| The separation, under a hypothesis of exploration | In a class that conceals its goals with a covering bound of k, if the replaying agent's explorations of the visits up to one visit meet the goals of more than k members, then on that visit it solves all of them, while every experience-free agent solves fewer on every visit. The hypothesis is about the exploration and the worlds; nothing here proves it of any exploration. | `replay_separates` |
 
 **A concealed target in the grid world.** The host has a goal beside the standard
 curriculum's whose observation conceals its target, `Host.Goal.find`. It is met in the
@@ -699,7 +704,7 @@ with the same carried result.
 | The executed observation conceals the target | A concealed target is met exactly in its box, and its task relation is its family's cue and whether it is met. A member's world and the world with a target no body can reach installed step alike, are refused alike and keep their goals; two worlds that differ only in their goals and show one task relation deliver one observation. So the class conceals its goals behind the world with that unreachable target installed. | `find_satisfied_iff`, `find_observe`, `find_task`, `twin_paths`, `observe_twins`, `find_conceals` |
 | One walk meets few targets | One action sequence meets at most 49 + 7·cap concealed targets in cap steps, for every terrain. | `find_met_swept`, `find_covered` |
 | The bounds in the grid world | Every agent, the executed agent included, solves at most 49 + 7·cap members on a first visit. In visits of cap steps every experience-free agent, the uniform-random comparator included, solves at most that many on each visit; every agent solves at most that many for the first time on each visit, and n·(49 + 7·cap) over n visits. At a cap of 3000 and a window of radius 120 an experience-free agent solves on each visit at most 21049 of the window's 57600 targets. | `find_need`, `executed_find_first`, `find_visits_need`, `comparator_find_visits`, `find_visits_first_success`, `find_visits_ever`, `far_window_visits` |
-| The bounds separate | The percept's achievement flag after a step is set exactly when the step meets the installed goal, so the replaying agent with that flag as its signal solves on every later visit each concealed target it has solved once. | `achieved_decodes`, `find_replay` |
+| Re-solving and separation | The percept's achievement flag after a step is set exactly when the step meets the installed goal, so the replaying agent with that flag as its signal, which is not experience-free, solves on every later visit each concealed target it has solved once. If its explorations of the visits up to one visit meet more than 49 + 7·cap targets from the host world, on that visit it solves all of them while every experience-free agent solves fewer on every visit. Which targets an exploration meets depends on the terrain; it is a hypothesis of the theorem. | `achieved_decodes`, `find_replay`, `find_replay_learns`, `find_replay_separates` |
 
 What these theorems do not establish:
 

@@ -35,9 +35,13 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
 - **First success, every agent.** On each visit every agent solves at most `49 + 7 cap`
   members it has not solved before, and over `n` visits at most `n (49 + 7 cap)`
   (`find_visits_first_success`, `find_visits_ever`).
-- **Re-solving.** The percept's achievement flag after a step is the goal's completion
-  (`achieved_decodes`), so the replaying agent solves on every later visit each member it
-  has solved once (`find_replay`).
+- **Re-solving and separation.** The percept's achievement flag after a step is the goal's
+  completion (`achieved_decodes`), so the replaying agent with that flag as its signal, which
+  is not experience-free (`find_replay_learns`), solves on every later visit each member it
+  has solved once (`find_replay`). If its explorations of the visits up to one visit meet
+  more than `49 + 7 cap` targets, on that visit it solves all of them while every
+  experience-free agent solves fewer on every visit (`find_replay_separates`); whether an
+  exploration meets a target depends on the terrain and is a hypothesis there.
 
 Hypotheses and limits. The class is of target positions over one host world: reading a bound
 as a fraction of seeds would assume that the seed hash places targets independently of the
@@ -407,7 +411,8 @@ theorem achieved_decodes (config : Host.WorldConfig) (mode : TaskFeatureMode) (c
       obtain ⟨world, events⟩ := pair
       rw [advance_ok live action world events stepped]
       change events.done = true ↔ ∃ found : Live config,
-        some (⟨world, events.raw⟩ : Live config) = some found ∧ found.world.goalSatisfied = true
+        some (⟨world, events.raw⟩ : Live config) = some found ∧
+          found.world.goalSatisfied = true
       rw [Host.World.step_completion _ _ _ _ stepped]
       exact ⟨fun met => ⟨⟨world, events.raw⟩, rfl, met⟩,
         fun ⟨found, same, met⟩ => by cases same; exact met⟩
@@ -425,6 +430,37 @@ theorem find_replay (config : Host.WorldConfig) (mode : TaskFeatureMode) (live :
       (Kernel.replay Grid.interface cap achievedSignal explore) later target :=
   Kernel.replay_solves (findClass config mode live) (fun _ => completion config mode cap) cap
     achievedSignal explore target (achieved_decodes config mode cap) count later after solved
+
+/-- The replaying agent with the achievement flag as its signal is not experience-free: what
+it stores depends on whether its percept shows the flag. -/
+theorem find_replay_learns (mode : TaskFeatureMode) (cap : ℕ)
+    (explore : ℕ → ℕ → Kernel.Act Grid.interface) :
+    ¬ Kernel.ExperienceFree (Kernel.replay Grid.interface cap achievedSignal explore) :=
+  Kernel.replay_not_experienceFree cap achievedSignal explore
+    (Grid.percept mode blank ⟨0⟩ true) (Grid.percept mode blank ⟨0⟩ false) rfl rfl
+
+/-- The separation in the grid world. If the replaying agent's explorations of the visits up to
+`last` meet, from the host world within `cap` steps, more concealed targets than
+`49 + 7 cap`, then on visit `last` it solves all of them, while on every visit every
+experience-free agent solves fewer. Whether an exploration meets a target depends on the
+terrain; it is a hypothesis here. -/
+theorem find_replay_separates (config : Host.WorldConfig) (mode : TaskFeatureMode)
+    (live : Live config) (cap : ℕ) (explore : ℕ → ℕ → Kernel.Act Grid.interface)
+    (members : Finset (findClass config mode live).Index) (last : ℕ)
+    (explored : ∀ target ∈ members, ∃ visit, visit ≤ last ∧
+      ∃ step, 1 ≤ step ∧ step ≤ cap ∧ (completion config mode cap).satisfied
+        (Kernel.path (gridWorld config mode) (member live target.1) (explore visit) step))
+    (many : 49 + 7 * cap < members.card) :
+    (∀ target ∈ members, Kernel.SolvesOnVisit (findClass config mode live)
+      (fun _ => completion config mode cap) cap
+      (Kernel.replay Grid.interface cap achievedSignal explore) last target) ∧
+    ∀ agent : Kernel.Agent Grid.interface, Kernel.ExperienceFree agent →
+      ∀ (count : ℕ) (solved : Finset (findClass config mode live).Index),
+        (∀ target ∈ solved, Kernel.SolvesOnVisit (findClass config mode live)
+          (fun _ => completion config mode cap) cap agent count target) →
+          solved.card < members.card :=
+  Kernel.replay_separates (find_conceals mode live cap) (find_covered config mode live cap)
+    achievedSignal explore (fun _ => achieved_decodes config mode cap) members last explored many
 
 /-! ## The far window -/
 

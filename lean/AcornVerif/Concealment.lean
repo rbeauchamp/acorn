@@ -24,9 +24,9 @@ can carry what an agent learned nothing about. `park` follows a step counter unt
 percept shows the goal met and from then on takes an action that keeps the goal met. It is
 experience-free (`park_experienceFree`), and once it has met a goal that the action keeps,
 it meets the goal at every later time (`park_keeps`): the world's state holds what its
-memory does not. `AcornVerif.Kernel.visits` is a world that returns to a state independent
-of the member between attempts, where an experience-free agent's later attempts are bounded
-as its first is.
+memory does not. In `AcornVerif.Kernel.visits` each member returns between attempts to its
+own fixed start state, which does not depend on earlier attempts; there an experience-free
+agent's later attempts are bounded as its first is.
 -/
 
 namespace AcornVerif.Kernel
