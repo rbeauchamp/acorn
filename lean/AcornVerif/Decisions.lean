@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Regula.Contract
-import Acorn.Host.Ansi
+import Acorn.Host.Attempt
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentActions
 import AcornVerif.CurrentAgent
@@ -50,7 +50,7 @@ follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
-library. The accepted inputs of four host transitions and the two-way kind of
+library. The accepted inputs of three host transitions and the two-way kind of
 `Host.Released.environment` are stated here because the observation of their inputs succeeds
 by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem
 proves.
@@ -62,7 +62,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Nine functions of this module have a contract and no kind. The reasons are three.
+Eight functions of this module have a contract and no kind. The reasons are three.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -75,8 +75,8 @@ Nine functions of this module have a contract and no kind. The reasons are three
   `Checkpoint.load` and `Agent.input`. For `Agent.input`, an audit of the kind stated with its
   witnesses named the eleven shared tests that `Acorn.Decisions.agent_input` lists.
 * The statement gives an accepted input of a host transition whose statement in
-  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
-  `Host.Attempt.complete` and `Host.AnsiState.tick`. No theorem states which observations or
+  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish` and
+  `Host.Attempt.complete`. No theorem states which observations or
   steps succeed, and a specification of the accepted inputs would name `Host.World.observe` or
   `Host.World.step`, which run tests that these functions run.
 
@@ -1650,11 +1650,11 @@ theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perf
 /-! ## Accepted inputs of the host transitions
 
 `Acorn.Decisions` states the host transitions of an attempt and of the world with no kind. Its
-statements of the observation, of finishing, of the fold and of the ANSI tick are about an
-accepted result alone, which a function that refuses every input also satisfies. The statements
-below give each of the four an accepted input, and state the two-way kind of
-`Host.Released.environment`, whose accepted input holds a stage with an observation that
-succeeded.
+statements of the observation and of finishing are about an accepted result alone, and its
+statement of the fold is about a refusal that holds a stage. A function that refuses every input,
+with no stage for the fold, satisfies each of the three. The statements below give each of the
+three an accepted input, and state the two-way kind of `Host.Released.environment`, whose
+accepted input holds a stage with an observation that succeeded.
 
 Each input is made from the attempt `fresh`, whose body is at the center of the box of `wide`,
 `2 ^ 62 - 1` on both axes, at the noise scale one. Its observation succeeds by the terrain
@@ -1795,28 +1795,6 @@ theorem attempt_complete_accepts : Regula.ExecutableContract @Host.Attempt.compl
         (cap : UInt64), (complete callbacks context 0 (fresh cap)).isOk = true) :=
   ⟨fun callbacks context cap => complete_isOk callbacks context (fresh cap)
     (finish_isOk callbacks context (fresh cap) (fresh_observes cap))⟩
-
-/-- Callbacks whose whole step selects the action `wait` and keeps the agent `()`. -/
-def waiting : Host.AgentCallbacks .learnThenAct Unit Unit :=
-  ⟨Unit, fun _ _ _ => (.wait, ()), fun _ => (), fun _ _ _ => (), fun _ _ _ _ _ => (), fun _ => (),
-    fun _ => ⟨.zero, .zero, .zero⟩⟩
-
-/-- The ANSI tick accepts the world of `fresh` with a step counter of zero and the callbacks
-`waiting`, for every observation it holds and every goal index: the world's step on `wait`
-succeeds (`fresh_waits`), and the counter advances to one. `Acorn.Decisions.ansi_tick` states
-what an accepted tick keeps and keeps no kind for the reason given there; this statement is a
-requirement with no kind beside it, and a function that refuses every input fails it.
-
-**Not claimed:** which other ticks succeed. -/
-theorem ansi_tick_accepts : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
-    ∀ (observation : Host.Observation) (index : Nat),
-      (tick (⟨(fresh 1).run.world, (), {}, observation, 0⟩ : Host.AnsiState wide Unit) waiting
-        index).isOk = true) :=
-  ⟨fun observation index => by
-    obtain ⟨⟨world, result⟩, stepped⟩ := ok_of_isOk fresh_waits
-    unfold Host.AnsiState.tick
-    simp only [Host.AgentCallbacks.act, waiting, stepped, Except.mapError, bind, Except.bind]
-    rfl⟩
 
 /-- The arguments of `Host.Released.environment`, in order. -/
 structure ReleasedEnvironment where

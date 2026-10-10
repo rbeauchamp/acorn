@@ -137,9 +137,9 @@ of the executed world step, which the checker runs. `Host.walkableTile` carries 
 kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind` and
 `Host.World.enterable` carry the two-way kind there too, because the proof of their refusals
 needs the exact floor of `AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
-two-way kind there, and `Host.World.observe`, `Host.Attempt.finish`, `Host.Attempt.complete`
-and `Host.AnsiState.tick` have an accepted input stated there, because the observation of the
-attempt `fresh` succeeds by the terrain admission of `AcornVerif.CurrentTerrain`.
+two-way kind there, and `Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete`
+have an accepted input stated there, because the observation of the attempt `fresh` succeeds by
+the terrain admission of `AcornVerif.CurrentTerrain`.
 
 ## Tests that a specification does not share
 
@@ -299,7 +299,8 @@ kinds: `wide` and `last` for the terrain, the values of the section "Closed inpu
 kinds with a dependent type", `sourced`, `spot`, `sixteen` and `single` of the section
 "Classifiers and lookups", `phased` and `primitiveOnly` of the section "The executing
 invocation, the named action and the agent's event folds", and `silent`, `quiet`,
-`foreignHeld` and `foreignFree` of the section "Temporal selection".
+`foreignHeld` and `foreignFree` of the section "Temporal selection". It also declares the
+callbacks `waiting`, a closed part of the accepted input that `ansi_tick_accepts` states.
 No executable and no other module imports it, so no entry point links those definitions, and
 the registration attribute's module, which imports Lean's elaborator, is linked into no
 native entry point.
@@ -5701,8 +5702,10 @@ the spawn search or the placement of the deer refuses. No theorem states which o
 steps succeed, or that the spawn search returns a spawn, and a specification that names
 `Host.World.observe` or `Host.World.step` reaches tests that these functions run, so each keeps
 a requirement with no kind. `AcornVerif.Decisions` states an accepted input of the observation,
-of finishing, of the fold and of the ANSI tick, each at the attempt `fresh`, and the two-way
-kind of `Host.Released.environment`. -/
+of finishing and of the fold, each at the attempt `fresh`, and `ansi_tick_accepts` here states
+one of the ANSI tick. `Host.Released.environment` keeps a requirement with no kind for another
+reason: its two-way kind is stated in `AcornVerif.Decisions`, and Regula does not count a kind
+of the proof library toward a registration (https://github.com/rbeauchamp/regula/issues/271). -/
 
 /-- The transition result of a release is the environment of an accepted release, and the
 refusal of a refused one, with the stage it kept dropped.
@@ -5940,13 +5943,31 @@ theorem attempt_complete : Regula.ExecutableContract @Host.Attempt.complete (fun
   ⟨fun callbacks context fuel attempt error learned refused =>
     Host.Attempt.complete_learned callbacks context fuel attempt error learned refused⟩
 
+/-- Callbacks whose whole step selects the action `wait` and keeps the agent `()`. -/
+def waiting : Host.AgentCallbacks .learnThenAct Unit Unit :=
+  ⟨Unit, fun _ _ _ => (.wait, ()), fun _ => (), fun _ _ _ => (), fun _ _ _ _ _ => (), fun _ => (),
+    fun _ => ⟨.zero, .zero, .zero⟩⟩
+
+/-- A success holds a value. -/
+private theorem ok_of_isOk {ε α : Type} {result : Except ε α} (accepted : result.isOk = true) :
+    ∃ value, result = .ok value := by
+  cases result with
+  | error error => exact absurd accepted (by simp [Except.isOk, Except.toBool])
+  | ok value => exact ⟨value, rfl⟩
+
+/-- The world's step on the action `wait` from the attempt `fresh` at the step cap one succeeds.
+The step reads no terrain: the action changes nothing, the world has no deer, and food is due only
+at the clock zero. The kernel evaluates it. -/
+private theorem fresh_waits : ((fresh 1).run.world.step .wait).isOk = true := by
+  decide +kernel
+
 /-- A successful tick of the ANSI loop keeps the observation it consumed until an explicit
 refresh (`Host.AnsiState.tick_observation`).
 
 The statement keeps no kind. A tick refuses where the world refuses the agent's action or the
-step counter overflows, and no theorem states which steps succeed.
-`AcornVerif.Decisions.ansi_tick_accepts` states an accepted input: the world of the attempt
-`fresh` with a step counter of zero, and callbacks that wait.
+step counter overflows, and no theorem states which steps succeed. `ansi_tick_accepts` states an
+accepted input: the world of the attempt `fresh` with a step counter of zero, and the callbacks
+`waiting`.
 
 **Not claimed:** which ticks succeed, or the world and the frame a tick returns. -/
 theorem ansi_tick : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
@@ -5956,6 +5977,23 @@ theorem ansi_tick : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
       tick state callbacks index = .ok (next, frame) → next.observation = state.observation) :=
   ⟨fun state next callbacks index frame ticked =>
     Host.AnsiState.tick_observation state next callbacks index frame ticked⟩
+
+/-- The ANSI tick accepts the world of `fresh` with a step counter of zero and the callbacks
+`waiting`, for every observation it holds and every goal index: the world's step on `wait`
+succeeds (`fresh_waits`), and the counter advances to one. `ansi_tick` states what an accepted
+tick keeps and keeps no kind for the reason given there; this statement is a requirement with no
+kind beside it, and a function that refuses every input fails it.
+
+**Not claimed:** which other ticks succeed. -/
+theorem ansi_tick_accepts : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
+    ∀ (observation : Host.Observation) (index : Nat),
+      (tick (⟨(fresh 1).run.world, (), {}, observation, 0⟩ : Host.AnsiState wide Unit) waiting
+        index).isOk = true) :=
+  ⟨fun observation index => by
+    obtain ⟨⟨world, result⟩, stepped⟩ := ok_of_isOk fresh_waits
+    unfold Host.AnsiState.tick
+    simp only [Host.AgentCallbacks.act, waiting, stepped, Except.mapError, bind, Except.bind]
+    rfl⟩
 
 /-- An initial world starts at time zero with no goal, full energy, facing north, no food and
 no harvest (`Host.World.initial_fields`).
