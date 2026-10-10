@@ -634,8 +634,8 @@ toward the registrations of the Acorn library: their functions are registered
 in `Acorn.Decisions`, and
 [RG1008](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1008/) fails the
 audit when such a function stays registered without its kind. The ownership
-audit requires each statement there with no kind by name. Among them are the
-certificate checkers. No
+audit requires each statement there with no kind by name. The certificate
+checkers have their contracts there. No
 checker is complete about its goal, so a refused certificate establishes nothing
 about whether the goal can be reached: the blocked checker and the stance
 checker carry the sound kind. The replay checker carries the two-way kind about
@@ -712,10 +712,7 @@ definition only when Lean's recursion compiler regenerates the definition from
 the helper and the kernel checks the recursion equation, with the definition
 safe and in the helper's module. The tools make no such check. Admission of that
 helper by its name and its parent admits every helper that the rule admits, so
-Regula is stronger. The rule has one more exception: an unsafe constructor-index
-wrapper of an inductive type, admitted only when the constructor-index function
-of the type names the wrapper as its replacement. The check of the next
-paragraph refuses that pair in Acorn, AcornVerif and NativeApp.
+Regula is stronger.
 
 **Native replacements: the tools refuse more.** The theorem inventory refuses each
 declaration of a module of Acorn, AcornVerif or NativeApp that carries a

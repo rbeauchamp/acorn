@@ -477,8 +477,9 @@ certificate proves its row below, and a rejected or missing one proves nothing.
 The checkers are in [the certificate module](../lean/Acorn/Host/Certificate.lean)
 and the theorems in
 [the certificate proofs](../lean/AcornVerif/CurrentCertificates.lean).
-[AcornVerif.Decisions](../lean/AcornVerif/Decisions.lean) registers each checker
-as a Regula contract that states what its acceptance establishes.
+[AcornVerif.Decisions](../lean/AcornVerif/Decisions.lean) states each checker's
+Regula contract, which says what its acceptance establishes, and
+[Acorn.Decisions](../lean/Acorn/Decisions.lean) registers the checker.
 
 | Certificate | The checker accepts when | What acceptance proves | Theorems |
 |---|---|---|---|
