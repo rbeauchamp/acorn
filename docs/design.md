@@ -1496,7 +1496,7 @@ of bytes (`naturalAllowance`) for each exact natural of the evaluator. No type b
 four naturals of each channel's precision (the numerator and denominator of its tail and
 rounding ratios) or the two of each agreement point's ratio; the sum of each channel's total
 is bounded by its type, at most its count times the square of the channel's envelope
-(`Agreement.Total.bounded`), and the allowance covers it with the other four.
+(`Agreement.Total.bounded`), and the limit allows `naturalAllowance` bytes for it as for the other four.
 The save of every state whose evaluator naturals each fit that allowance fits the limit
 (`CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's naturals of every
 reached agent fit the allowance is an open obligation, part of the bounds of work and
