@@ -1842,9 +1842,11 @@ theorem released_environment_exact : Regula.ExecutableContract @Host.Released.en
 
 /-! ## The comparator and the attempt runner
 
-The random comparator of an attempt corresponds with the agent's attempt step by step, and a
-campaign with a bounded budget never ends unfinished; the theorems of
-`AcornVerif.CurrentRunner` state both. -/
+The random comparator of an attempt corresponds with the agent's attempt step by step. A
+campaign from a cursor within its cycle budget, with fuel that covers the attempts left in its
+budget (`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends unfinished, and neither does
+the campaign over an admitted plan with at least one cycle. The theorems of
+`AcornVerif.CurrentRunner` state these. -/
 
 /-- A tick of the comparator from a state that corresponds with an agent's attempt follows the
 agent's tick: where the agent's tick takes no step the comparator's returns its state, and where
@@ -1870,8 +1872,9 @@ theorem baseline_corresponds : Regula.ExecutableContract @Host.BaselineAttempt.t
       fun frame acted drawn => CurrentRunner.tick_corresponds callbacks context attempt next frame
         state related acted drawn⟩⟩
 
-/-- A comparator campaign from a cursor before its last cycle, with fuel that covers the
-attempts left in its budget, never ends unfinished
+/-- A comparator campaign from a cursor within its cycle budget (its cycle is below the plan's
+cycle count), with fuel that covers the attempts left in its budget
+(`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends unfinished
 (`CurrentRunner.baseline_campaign_finishes`).
 
 The statement keeps no kind. It fixes one direction: a campaign that does not end unfinished can
