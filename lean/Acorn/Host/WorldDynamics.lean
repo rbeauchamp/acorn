@@ -51,10 +51,28 @@ def foodTrials {config : WorldConfig} (world : World config) : Nat →
 def foodDue (time interval : UInt64) : Bool :=
   if interval == 0 then time == 0 else time.toNat % interval.toNat == 0
 
+/-- Food is due: at the interval zero only at the time zero, and otherwise when the interval
+divides the time. -/
+def FoodDue (time interval : UInt64) : Prop :=
+  (interval = 0 ∧ time = 0) ∨ (interval ≠ 0 ∧ time.toNat % interval.toNat = 0)
+
+/-- The food schedule accepts exactly a time at which food is due. -/
+theorem foodDue_iff (time interval : UInt64) :
+    foodDue time interval = true ↔ FoodDue time interval := by
+  unfold foodDue FoodDue
+  by_cases zero : interval = 0
+  · simp [zero]
+  · simp [zero]
+
+/-- The food schedule decides `FoodDue`. -/
+instance (time interval : UInt64) : Decidable (FoodDue time interval) :=
+  decidable_of_iff _ (foodDue_iff time interval)
+
 /-- Capacity is checked before any spawn RNG draw, preserving stream consumption. -/
 def spawnFood {config : WorldConfig} (world : World config) (rng : Rng.Xoshiro256) :
     Except WorldError (Population (BoxPosition config) config.raw.foodCap.toNat × Rng.Xoshiro256) := do
-  if foodDue world.time config.raw.foodInterval && world.food.entries.size < config.raw.foodCap.toNat then
+  if decide (FoodDue world.time config.raw.foodInterval) &&
+      world.food.entries.size < config.raw.foodCap.toNat then
     let (position, rng) ← foodTrials world 8 rng
     return (match position with | none => world.food | some position => world.food.push position, rng)
   else return (world.food, rng)
@@ -158,7 +176,7 @@ def World.step {config : WorldConfig} (world : World config) (action : Action) :
   let acted := world.applyActive active
   let passive ← passiveChange { acted with time := acted.time + 1 }
   let next := acted.applyPassive passive
-  return (next, { active.events with done := next.goalSatisfied })
+  return (next, { active.events with done := decide next.GoalSatisfied })
 
 /-- Every successful step advances exactly one wrapping physical tick. -/
 theorem World.step_clock {config : WorldConfig} (world next : World config) (action : Action)
@@ -205,7 +223,7 @@ theorem World.step_completion {config : WorldConfig} (world next : World config)
     | error error => simp [hp] at h
     | ok passive =>
       simp only [hp, pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
-      rw [← h.1, ← h.2]
+      rw [← h.1, ← h.2, World.decide_goalSatisfied]
 
 /-- Execute a finite action stream through the same world transition, retaining no history. -/
 def World.advanceActions {config : WorldConfig} : World config → List Action →

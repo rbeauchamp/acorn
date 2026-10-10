@@ -167,7 +167,7 @@ theorem step_events {config : WorldConfig} (world next : World config) (action :
     | ok passive =>
       simp only [hp, pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
-      exact ⟨active, rfl, rfl, rfl⟩
+      exact ⟨active, rfl, rfl, by rw [World.decide_goalSatisfied]⟩
 
 /-- A successful step's body and exhaustion flag are those of its active change. -/
 theorem step_active {config : WorldConfig} (world next : World config) (action : Action)
@@ -217,7 +217,7 @@ theorem add_retains (inventory : Inventory) (item : Item) (amount : UInt32) :
 theorem craft_retains (inventory next : Inventory) (tool : Craftable)
     (h : inventory.craft tool = .ok next) : Retains inventory next := by
   rcases hr : tool.recipe with ⟨wood, stone⟩
-  by_cases ho : inventory.owns tool = true
+  by_cases ho : inventory.Owns tool
   · simp [Inventory.craft, ho] at h
   · by_cases hw : inventory.wood.toNat < wood
     · simp [Inventory.craft, hr, ho, hw] at h

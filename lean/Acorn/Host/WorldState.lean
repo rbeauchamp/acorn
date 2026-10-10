@@ -176,6 +176,108 @@ def World.taskObservation {config : WorldConfig} (world : World config) : TaskOb
 def World.goalSatisfied {config : WorldConfig} (world : World config) : Bool :=
   world.taskObservation.satisfied
 
+/-- The inventory holds a count of an item: the stored field of that item is at least the
+count. Stated by the constructor of the item, with no count reader. -/
+def Inventory.Holds (inventory : Inventory) (item : Item) (count : UInt32) : Prop :=
+  (item = .wood ∧ count.toNat ≤ inventory.wood.toNat) ∨
+    (item = .stone ∧ count.toNat ≤ inventory.stone.toNat) ∨
+    (item = .food ∧ count.toNat ≤ inventory.food.toNat) ∨
+    (item = .gold ∧ count.toNat ≤ inventory.gold.toNat)
+
+/-- A goal is attained in a world, on the stored fields of the world: the two box indices of
+the body are within three tiles of the target of a reach goal, the inventory holds the count
+of a collect goal or owns the tool of a craft goal, and the clock is at least the duration of
+a survive goal after the clock of the installation. The radius is the literal three, and the
+elapsed time is a difference of natural numbers. -/
+def World.Attained {config : WorldConfig} (world : World config) (goal : Goal) : Prop :=
+  match goal with
+  | .reach target =>
+    (target.x.val - (world.body.position.x.val : Int)).natAbs ≤ 3 ∧
+      (target.y.val - (world.body.position.y.val : Int)).natAbs ≤ 3
+  | .collect item count => world.body.inventory.Holds item count
+  | .craft tool => world.body.inventory.Owns tool
+  | .survive required => required.toNat ≤ world.time.toNat - world.goalStart.toNat
+
+/-- A goal is installed in the world and attained there. -/
+def World.GoalSatisfied {config : WorldConfig} (world : World config) : Prop :=
+  ∃ goal, world.goal = some goal ∧ world.Attained goal
+
+/-- A natural number below the word size has the word zero exactly when it is zero. -/
+private theorem toUInt32_eq_zero_iff (count : Nat) (bound : count < 2 ^ 32) :
+    count.toUInt32 = 0 ↔ count = 0 := by
+  constructor
+  · intro zero
+    have word := congrArg UInt32.toNat zero
+    rw [show count.toUInt32 = UInt32.ofNat count from rfl, UInt32.toNat_ofNat_of_lt' bound] at word
+    exact word
+  · intro zero
+    rw [zero]
+    rfl
+
+/-- A natural number below the word size has the word zero exactly when it is zero. -/
+private theorem toUInt64_eq_zero_iff (count : Nat) (bound : count < 2 ^ 64) :
+    count.toUInt64 = 0 ↔ count = 0 := by
+  constructor
+  · intro zero
+    have word := congrArg UInt64.toNat zero
+    rw [show count.toUInt64 = UInt64.ofNat count from rfl, UInt64.toNat_ofNat_of_lt' bound] at word
+    exact word
+  · intro zero
+    rw [zero]
+    rfl
+
+/-- The completion predicate accepts the observation of a goal in a world exactly when the goal
+is attained there. The observation embeds the box indices as coordinates, reads the count and
+the ownership through their readers, and converts the elapsed time to a word. -/
+theorem World.observe_satisfied_iff {config : WorldConfig} (world : World config) (goal : Goal) :
+    (goal.observe world.body.position.position world.body.inventory
+      (world.time.toNat - world.goalStart.toNat).toUInt64).satisfied = true ↔
+      world.Attained goal := by
+  cases goal with
+  | reach target =>
+    simp only [Goal.observe, TaskObservation.satisfied, ReachRelation.distance,
+      ReachRelation.between, Attained, beq_iff_eq, BoxPosition.position,
+      FeatureConstants.reachRadius, Nat.sub_eq_zero_iff_le, Nat.max_le]
+  | collect item count =>
+    simp only [Goal.observe, TaskObservation.satisfied, beq_iff_eq]
+    rw [toUInt32_eq_zero_iff _ (by have := count.toNat_lt; omega)]
+    cases item <;> simp only [Attained, Inventory.Holds, Inventory.count, Nat.sub_eq_zero_iff_le,
+      reduceCtorEq, true_and, false_and, or_false, false_or]
+  | craft tool =>
+    simp only [Goal.observe, TaskObservation.satisfied, Attained, Bool.not_not]
+    exact Inventory.owns_iff _ _
+  | survive required =>
+    simp only [Goal.observe, TaskObservation.satisfied, beq_iff_eq, Attained]
+    rw [toUInt64_eq_zero_iff _ (by have := required.toNat_lt; omega)]
+    have elapsed : ((world.time.toNat - world.goalStart.toNat).toUInt64).toNat =
+        world.time.toNat - world.goalStart.toNat := by
+      have bound := world.time.toNat_lt
+      exact Nat.mod_eq_of_lt (by omega)
+    rw [elapsed]
+    exact ⟨fun zero => Nat.le_of_sub_eq_zero zero, fun le => Nat.sub_eq_zero_of_le le⟩
+
+/-- The completion flag is set exactly when a goal is installed and attained. -/
+theorem World.goalSatisfied_iff {config : WorldConfig} (world : World config) :
+    world.goalSatisfied = true ↔ world.GoalSatisfied := by
+  unfold World.goalSatisfied World.taskObservation GoalSatisfied
+  cases installed : world.goal with
+  | none =>
+    exact ⟨fun satisfied => absurd satisfied Bool.false_ne_true, fun ⟨_, same, _⟩ => nomatch same⟩
+  | some goal =>
+    exact (world.observe_satisfied_iff goal).trans
+      ⟨fun attained => ⟨goal, rfl, attained⟩, fun ⟨_, same, attained⟩ => by
+        cases same
+        exact attained⟩
+
+/-- The completion flag decides `GoalSatisfied`. -/
+instance {config : WorldConfig} (world : World config) : Decidable world.GoalSatisfied :=
+  decidable_of_iff _ world.goalSatisfied_iff
+
+/-- The decision of `GoalSatisfied` is the completion flag. -/
+theorem World.decide_goalSatisfied {config : WorldConfig} (world : World config) :
+    decide world.GoalSatisfied = world.goalSatisfied := by
+  rw [Bool.eq_iff_iff, decide_eq_true_iff, world.goalSatisfied_iff]
+
 /-- The eight phase buckets preserve custom odd or short day periods. -/
 def World.dayPhase {config : WorldConfig} (world : World config) : Fin FeatureConstants.dayPhases :=
   let slot := world.time.toNat % config.raw.dayLength.toNat

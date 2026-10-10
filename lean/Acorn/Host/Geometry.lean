@@ -41,7 +41,7 @@ structure Position where
   x : Coordinate
   /-- Vertical coordinate. -/
   y : Coordinate
-  deriving DecidableEq, BEq
+  deriving DecidableEq
 
 /-- Checked translation, atomic across both coordinates. -/
 def Position.translate (position : Position) (dx dy : Int) : Option Position := do
@@ -157,7 +157,7 @@ structure BoxPosition (config : WorldConfig) where
   x : Fin config.side
   /-- Vertical in-box index. -/
   y : Fin config.side
-  deriving DecidableEq, BEq
+  deriving DecidableEq
 
 /-- Box indices embed exactly into signed coordinates. -/
 def BoxPosition.position {config : WorldConfig} (position : BoxPosition config) : Position :=

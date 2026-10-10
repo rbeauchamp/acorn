@@ -86,8 +86,9 @@ Thirty-five functions of this module have a contract and no kind. The reasons ar
   `Host.Attempt.tick`, `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`,
   `Host.AnsiState.tick`, `Host.BaselineAttempt.tick` and `Host.World.observe`;
   `Host.AnsiState.tick` also refuses where its step counter overflows. No theorem states which
-  observations or steps succeed, and a specification of their accepted inputs would name
-  `Host.World.observe` or `Host.World.step`, which run tests that these functions run.
+  observations or steps succeed. A specification of their accepted inputs would name
+  `Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that these functions
+  run, or `Host.World.step`, which decides propositions in the place of its tests.
   `Host.World.initial` refuses where the spawn search or the placement of the deer refuses, and
   no theorem states that the spawn search returns a spawn for every seed.
   `AgentConstruction.State.restore` refuses no input that its type admits: every image that
@@ -132,12 +133,14 @@ is not registered here, and the ownership audit requires its contract in the sam
 certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified`
 are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
 statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
-No checker is complete, so `Host.regionBlocked` and `Host.stanceCertified` carry the sound
-kind. `Host.replayCertified` keeps a requirement with no kind: its specification is about runs
-of the executed world step, which the checker runs. `Host.walkableTile` carries the two-way
-kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind` and
-`Host.World.enterable` carry the two-way kind there too, because the proof of their refusals
-needs the exact floor of `AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
+No checker is complete about its goal, so `Host.regionBlocked` and `Host.stanceCertified`
+carry the sound kind. `Host.replayCertified` carries the two-way kind about its action list,
+with `Host.ReplayCertificate.check` and the replay `Host.World.advanceActions`: their
+specifications are about runs of the executed world step, which decides propositions in the
+place of its tests. `Host.walkableTile` carries the two-way kind. The terrain generator
+`Host.terrain` and its readers `Host.World.tileKind` and `Host.World.enterable` carry the
+two-way kind there too, because the proof of their refusals needs the exact floor of
+`AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
 two-way kind there, and `Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete`
 have an accepted input stated there, because the observation of the attempt `fresh` succeeds by
 the terrain admission of `AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the
@@ -178,14 +181,18 @@ Each such condition is a proposition, with a theorem that connects the test with
   holds, with `FeatureProfile.checkpoint_iff`;
 * `Binary32.LessOrEqual`, the non-strict order by the signed keys of two words that are not NaNs,
   with `Binary32.lessOrEqual_iff`;
-* `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`.
+* `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`;
+* `Host.World.GoalSatisfied`, a goal installed in the world and attained on the stored fields of
+  the world (`Host.World.Attained`), with `Host.World.goalSatisfied_iff`;
+* `Host.FoodDue`, the food schedule on the clock and the interval, with `Host.foodDue_iff`.
 
 A function that a specification reaches decides the proposition in the place of the call of
 the test: the signed key `Binary32.key`, `Binary32.saturate`, `Agreement.units`,
 `Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`, `Conversion.toI64Word`,
 `Host.floor32`, `Host.castWord`, `Host.classifyTerrain`, `Host.World.enterable`, and the ordered
 maximum, the candidates and the masses of a frozen policy (`PolicySnapshot.best`,
-`PolicySnapshot.candidates`, `PolicySnapshot.probabilities`). The
+`PolicySnapshot.candidates`, `PolicySnapshot.probabilities`), crafting `Host.Inventory.craft`,
+the food spawn `Host.spawnFood` and the world step `Host.World.step`. The
 instance of each proposition runs its test, so the executed comparison is the same one. A
 specification that would name a test names the proposition: `inventory_craft` and
 `region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
@@ -197,6 +204,11 @@ functions stay a matter of review. For a contract with a kind, the account of th
 names each such function where the specification reaches it first. It does not name a function
 that the specification reaches only through a named one, and it does not name a projection
 function.
+
+The vocabulary of the world, `Host.Direction`, `Host.Action`, `Host.TileKind`, `Host.Position`
+and `Host.BoxPosition`, derives decidable equality and no `BEq` instance of its own: `==` on it
+is Lean's `instBEqOfDecidableEq`, which is no test. A specification about runs of the world step
+therefore shares no comparison of actions, tile kinds or positions with the step.
 
 ## What is not registered
 
@@ -1023,7 +1035,8 @@ attribute [regula_decision] Host.Action.rawEnergyCost
 
 /-- Crafting accepts exactly a tool that is not owned and whose recipe the inventory covers
 (`Host.Inventory.craft_exact`). Ownership is the proposition `Host.Inventory.Owns`, which
-names no test, and `Host.Inventory.owns_iff` connects it with the test that crafting runs. -/
+names no test; crafting decides it through its instance, which runs the test
+`Host.Inventory.owns` (`Host.Inventory.owns_iff`). -/
 theorem inventory_craft : Regula.ExecutableContract Host.Inventory.craft (fun craft =>
     Regula.Decides (·.isOk = true)
       (fun input : Host.Inventory × Host.Craftable =>
@@ -1034,9 +1047,8 @@ theorem inventory_craft : Regula.ExecutableContract Host.Inventory.craft (fun cr
     (fun ⟨inventory, tool⟩ => by
       show (inventory.craft tool).isOk = true ↔ ¬inventory.Owns tool ∧
         tool.recipe.1 ≤ inventory.wood.toNat ∧ tool.recipe.2 ≤ inventory.stone.toNat
-      rw [← inventory.owns_iff tool, Bool.not_eq_true]
       rcases recipe : tool.recipe with ⟨wood, stone⟩
-      by_cases owned : inventory.owns tool = true
+      by_cases owned : inventory.Owns tool
       · simp [Host.Inventory.craft, owned, Except.isOk, Except.toBool]
       · by_cases short : inventory.wood.toNat < wood
         · simp [Host.Inventory.craft, recipe, owned, short, Except.isOk, Except.toBool] <;>
@@ -2731,6 +2743,7 @@ attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidab
   Binary32.instDecidableNegative Binary32.instDecidableIsNaN Binary32.instDecidableLess
   Binary64.instDecidableIsNaN Binary64.instDecidableLess Host.instDecidableWalkable
   Host.instDecidableOwns Host.instDecidableInBox Handcrafted.instDecidableResumable
+  Host.instDecidableGoalSatisfied Host.instDecidableFoodDue
 
 /-! ## Decisions with a dependent type
 
@@ -5499,9 +5512,10 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
 The transitions of an attempt and of the world refuse where the world refuses an observation or
 a step, the ANSI tick also where its step counter overflows, and initialization refuses where
 the spawn search or the placement of the deer refuses. No theorem states which observations or
-steps succeed, or that the spawn search returns a spawn for every seed, and a specification that
-names `Host.World.observe` or `Host.World.step` reaches tests that these functions run, so each
-keeps a requirement with no kind. `AcornVerif.Decisions` states an accepted input of the
+steps succeed, or that the spawn search returns a spawn for every seed, so each keeps a
+requirement with no kind; a specification that names `Host.World.observe` also reaches the
+ownership test `Host.Inventory.owns`, which the transitions of an attempt run.
+`AcornVerif.Decisions` states an accepted input of the
 observation, of finishing and of the fold, each at the attempt `fresh`, and of initialization, at
 a configuration of one tile, and `ansi_tick_accepts` here states one of the ANSI tick.
 `Host.Released.environment` keeps a requirement with no kind for another reason: its two-way kind
@@ -5538,8 +5552,8 @@ the stage, and the world and the events of that step, and a refusal is the step'
 
 The statement keeps no kind. The stage is accepted exactly when the world's step accepts its
 action, and no theorem states which steps succeed (`world_step`). A specification of the accepted
-stages would name `Host.World.step`, which runs tests that the function runs, and the stage's
-input type reaches some of them (`Host.Inventory.owns`, the comparison of tile kinds) through the
+stages would name `Host.World.step`, and the stage's input type reaches the ownership test
+`Host.Inventory.owns`, which the function runs through the crafting of the step, through the
 proof that its observation succeeded, so RG1009
 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) would refuse a kind over it. -/
 theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
@@ -5630,8 +5644,8 @@ input of the same attempt.
 The statement keeps no kind. An attempt that has stopped is accepted without an observation;
 one that has not stopped is accepted exactly when the world's observation succeeds, and no
 theorem states which observations succeed. A specification of the accepted attempts would name
-`Host.World.observe`, which runs tests that sensing runs (`Host.Inventory.owns` and the
-comparison of tile kinds), so RG1009 would refuse a kind with it. -/
+`Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that sensing runs, so
+RG1009 would refuse a kind with it. -/
 theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense =>
     ∀ {config α goal cap} (attempt : Host.Attempt config α goal cap),
       (sense attempt = .ok none ↔ Stopped attempt) ∧
