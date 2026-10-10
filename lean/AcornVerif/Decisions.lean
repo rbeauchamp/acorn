@@ -59,7 +59,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Ten functions of this module have a contract and no kind. The reasons are four. Two more,
+Twelve functions of this module have a contract and no kind. The reasons are four. Two more,
 `Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
 their statements say what their results are.
 
@@ -71,7 +71,9 @@ their statements say what their results are.
   propositions in the place of those tests.
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
-  `Checkpoint.load`.
+  `Checkpoint.load`, and `Checkpoint.admitPayload` and `Checkpoint.loadCandidate`, whose
+  specifications quantify over agent images whose learners name the stored-word check
+  `NumericState.resumable` that the admissions run.
 * The statement gives an accepted input of a host transition whose statement in
   `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish` and
   `Host.Attempt.complete`. No theorem states which observations or
@@ -179,19 +181,6 @@ def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
 /-- A construction of the given profile over `bank` and `narrow`. -/
 def construction (profile : FeatureProfile) : AgentConstruction :=
   ⟨profile, .discounted, .none, .learnThenAct, bank, narrow⟩
-
-/-- The image of the initial agent of the resumable construction. -/
-def initialImage : (construction resumable).Image :=
-  stateImage (construction resumable) (AgentConstruction.initial _)
-
-/-- The payload of the initial agent of the resumable construction. -/
-def initialPayload : Payload :=
-  imagePayload (construction resumable) initialImage
-
-/-- The payload of the initial agent of the resumable construction with the format generation
-zero in its header. Every other field is the field of `initialPayload`. -/
-def stalePayload : Payload :=
-  { initialPayload with header := { initialPayload.header with version := 0 } }
 
 /-- A tile of `wide` from which a tree to the west can be harvested. -/
 def stand : Host.BoxPosition wide := ⟨⟨0, by decide⟩, ⟨6, by decide⟩⟩
@@ -632,12 +621,10 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
 /-! ## Checkpoint admissions
 
 Each admission below composes the admissions of its parts, and its round trip is proved in
-`CurrentCheckpoint`. The kind of an admission states which inputs it accepts, and each admission
-has a two-way kind: an accepted input is the written form of the value that it returns. The
-payload and the candidate are the forms of the image that they return (`payload_written`,
-`candidate_written`). The type of a result depends on the receiving construction, so each kind
-is about `Regula.Dependent.isOk` of the function, and the value that the admission returns is a
-separate requirement with no kind, under the name of the kind with `_value`. -/
+`CurrentCheckpoint`. Each statement gives the inputs that an admission accepts: an accepted input
+is the written form of the value that it returns (`payload_written`, `candidate_written`), and
+the value that it returns is a separate statement, under its name with `_value`. Neither keeps a
+kind, for the reason `payload_admit` gives. -/
 
 /-- An admitted payload is the payload of the image that admission returns, and the receiving
 profile is resumable. Header admission fixes every header word but the clock and the reward
@@ -716,33 +703,20 @@ private theorem payload_iff (construction : AgentConstruction)
     rfl
 
 /-- Payload admission accepts exactly the payloads of the agent images of a resumable
-construction (`payload_iff`). The accepted input is `initialPayload` under the resumable
-construction, and the refused input is `stalePayload` under the same construction: the two
-payloads differ in the format generation of the header alone, so the refusal reads the
-payload. `payload_admit_value` states the image that it returns. -/
+construction (`payload_iff`). `payload_admit_value` states the image that it returns.
+
+The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
+(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): an agent image holds learners
+whose admission names the stored-word check `NumericState.resumable`, which the admission
+runs, and the rule reads the type of the input of the specification
+(https://github.com/rbeauchamp/regula/issues/270). The specification names none of those
+tests. -/
 theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
-    Regula.Decides (· = true)
-      (fun input : AgentConstruction × Payload =>
-        ∃ image : input.1.Image, Resumable input.1.profile ∧
-          input.2 = imagePayload input.1 image)
-      (Regula.Dependent.isOk fun input : AgentConstruction × Payload =>
-        admit input.1 input.2)) :=
-  ⟨decides (fun input => payload_iff input.1 input.2)
-    ⟨(construction resumable, initialPayload), initialImage, by decide, rfl⟩
-    ⟨(construction resumable, stalePayload), fun accepted => by
-      have accepted := (payload_iff (construction resumable) stalePayload).mpr accepted
-      cases admitted : admitPayload (construction resumable) stalePayload with
-      | error refusal =>
-        rw [admitted] at accepted
-        exact Bool.false_ne_true accepted
-      | ok image =>
-        unfold admitPayload at admitted
-        cases header : admitHeader (construction resumable) stalePayload.header with
-        | error refusal =>
-          rw [header] at admitted
-          exact nomatch admitted
-        | ok gain =>
-          exact absurd ((admitHeader_iff _ _ _).mp header).version (by decide)⟩⟩
+    ∀ (construction : AgentConstruction) (payload : Payload),
+      (admit construction payload).isOk = true ↔
+        ∃ image : construction.Image, Resumable construction.profile ∧
+          payload = imagePayload construction image) :=
+  ⟨payload_iff⟩
 
 /-- Payload admission returns the image whose payload it reads
 (`CurrentCheckpoint.image_roundtrip`). A kind does not state the value of a result, so this
@@ -773,24 +747,16 @@ private theorem candidate_iff (construction : AgentConstruction) (bytes : List U
     rfl
 
 /-- Candidate loading accepts exactly the encoded payloads of the agent images of a resumable
-construction (`candidate_iff`). The accepted input is the encoding of `initialPayload` under
-the resumable construction; the refused input is the empty byte list. `candidate_load_value`
-states the image that it returns. -/
+construction (`candidate_iff`). `candidate_load_value` states the image that it returns.
+
+The statement keeps no kind, for the reason `payload_admit` gives: RG1009 reads the learner
+check that an agent image's type names and that loading runs. -/
 theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
-    Regula.Decides (· = true)
-      (fun input : AgentConstruction × List UInt8 => ∃ image : input.1.Image,
-        Resumable input.1.profile ∧
-          input.2 = encode (imagePayload input.1 image))
-      (Regula.Dependent.isOk fun input : AgentConstruction × List UInt8 =>
-        load input.1 input.2)) :=
-  ⟨decides (fun input => candidate_iff input.1 input.2)
-    ⟨(construction resumable, encode initialPayload), initialImage, by decide, rfl⟩
-    ⟨(construction resumable, []), fun ⟨image, _, written⟩ => by
-      change ([] : List UInt8) = encode (imagePayload (construction resumable) image) at written
-      have large := CurrentCheckpoint.encoded_minimum
-        (imagePayload (construction resumable) image)
-      rw [← written] at large
-      exact absurd large (by decide)⟩⟩
+    ∀ (construction : AgentConstruction) (bytes : List UInt8),
+      (load construction bytes).isOk = true ↔
+        ∃ image : construction.Image, Resumable construction.profile ∧
+          bytes = encode (imagePayload construction image)) :=
+  ⟨candidate_iff⟩
 
 /-- Candidate loading returns the image whose encoded payload it reads
 (`CurrentCheckpoint.candidate_roundtrip`). A kind does not state the value of a result, so
