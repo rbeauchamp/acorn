@@ -142,7 +142,7 @@ theorem AgentConstruction.State.restore_agent {construction : AgentConstruction}
 /-- A profile that cannot restore refuses every image. The hypotheses are jointly
 unsatisfiable, since no image is admitted under a profile that cannot restore
 (`AcornVerif.CurrentCheckpoint.unresumable_unloaded`); the theorem closes the unreachable case
-of the proof of `Acorn.Decisions.checkpoint_load`. -/
+of the proof of `AcornVerif.Decisions.checkpoint_load`. -/
 theorem AgentConstruction.State.restore_refuses {construction : AgentConstruction}
     (state : construction.State) (image : construction.Image)
     (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image)

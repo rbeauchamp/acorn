@@ -20,8 +20,9 @@ import AcornVerif.Endurance
 /-!
 # Decision contracts proved in the proof library
 
-`Acorn.Decisions` registers the decisions of the executing library whose contracts follow
-from Lean core alone. A contract here states a direction whose proof needs this library. The
+`Acorn.Decisions` states the contracts of the executing library that follow from Lean core
+alone, and it registers the decisions of that library, those whose kinds are stated here
+included. A contract here states a direction whose proof needs this library. The
 legality of every stored lifetime total rests on the real-valued bounds of
 `CurrentLifetime.stored_sum_legal`. What an accepted certificate establishes is a statement
 about runs of the executed world step, proved in `CurrentCertificates`.
@@ -43,8 +44,10 @@ kind does not state stands beside it as a requirement with no kind: the value of
 result, under the name of the kind with `_value`, or a set of refused inputs beside a one-way
 kind, under the name of the kind with `_refused`. `payload_admit_value` and
 `candidate_load_value` stand in the same way beside the requirements `payload_admit` and
-`candidate_load`, which also keep no kind. `interest_potential_declared` states pointwise a
-class of refused inputs that the two-way kind `interest_potential` also gives.
+`candidate_load`, which also keep no kind, and `checkpoint_load_accepts` beside the sound kind
+`checkpoint_load` states the saved bytes that loading accepts and the state that it returns.
+`interest_potential_declared` states pointwise a class of refused inputs that the two-way kind
+`interest_potential` also gives.
 `world_enterable`, `tile_kind` and `terrain_read` keep their names beside the kinds of the
 terrain: the verdict of an accepted entry, the refusal of a refused tile, and what the readers
 of the terrain do with its result. `pay_and_act` and `perform_action` keep their names beside
@@ -68,15 +71,22 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Eleven functions of this module have a contract and no kind. The reasons are four. Two more,
+Ten functions of this module have a contract and no kind. The reasons are four. Two more,
 `Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
 their statements say what their results are.
 
-* The input holds a state whose invariant names tests that the function runs, and Regula reads
-  the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
-  `Checkpoint.load`, and `Checkpoint.admitPayload` and `Checkpoint.loadCandidate`, whose
-  specifications quantify over agent images whose learners name the stored-word check
-  `NumericState.resumable` that the admissions run.
+* The specification is a round trip of the written form: `Checkpoint.admitPayload` and
+  `Checkpoint.loadCandidate` accept exactly the payloads, and their encodings, of the agent images
+  of a resumable construction. The specification quantifies over agent images, and the type of an
+  image declares the invariants of its learners, which name the stored-word check
+  `NumericState.resumable` and the other tests that the admissions run. It names the writer
+  `Checkpoint.imagePayload` too, whose format holds the reader of each field beside its writer and
+  so reaches the reader's tests. An audit with Regula v0.11.0 refused the kind under RG1009 for
+  those tests. Which images there are depends on them, so the two sides share them in substance and
+  not only by the reading: a kind needs a statement of the written payloads that does not depend on
+  those tests. Kinds for these two functions are remaining work of
+  https://github.com/rbeauchamp/acorn/issues/105, and they need a statement of the written
+  payloads that does not depend on the tests the admissions run.
 * The statement gives an accepted input of a host transition whose statement in
   `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
   `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
@@ -93,9 +103,6 @@ their statements say what their results are.
   and carries an accepted input. The search stops at the first rich candidate of its spiral, so
   which tiles it reads depends on the kinds and walkability of the tiles before, and no theorem
   states which worlds it accepts.
-
-Kinds for the functions of the first reason are remaining work of
-https://github.com/rbeauchamp/acorn/issues/105.
 
 ## Tests that a specification does not share
 
@@ -154,9 +161,13 @@ RG1009 does not examine a statement with no kind, and statements with no kind he
 tests that their functions run. This module keeps no list of them, and the examples that follow
 are not one: `task_observed` names `Host.Inventory.owns` in its craft clause.
 
-Regula counts only a contract of the function's own library toward a decision registration,
-so the functions below carry no registration. The ownership audit requires each contract by
-name instead, with a statement that still refers to the executing definition.
+The `AcornVerif` surface of the Regula manifest names `Acorn` in `decides`, so Regula counts the
+decision contracts of this module toward the registrations of the executing library. Each
+function with a kind here is registered in `Acorn.Decisions`, because Regula refuses a
+registration that this library writes for a function of that one, and RG1008 requires the kind.
+The ownership audit requires each statement with no kind by name, with a statement that still
+refers to the executing definition, and so the second kind of `Agreement.admitSquared`, whose
+registration a kind in `Acorn.Decisions` already meets.
 -/
 
 namespace AcornVerif.Decisions
@@ -749,12 +760,13 @@ private theorem payload_iff (construction : AgentConstruction)
 /-- Payload admission accepts exactly the payloads of the agent images of a resumable
 construction (`payload_iff`). `payload_admit_value` states the image that it returns.
 
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): an agent image holds learners
-whose admission names the stored-word check `NumericState.resumable`, which the admission
-runs, and the rule reads the type of the input of the specification
-(https://github.com/rbeauchamp/regula/issues/270). The specification names none of those
-tests. -/
+The statement keeps no kind. An audit with Regula v0.11.0 refused the two-way kind with this
+specification under RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/). The
+specification quantifies over agent images, whose type declares the invariants of their learners,
+and it names the writer `imagePayload`, whose format holds the reader of each field beside its
+writer. Both reach ten tests that the admission runs, among them the stored-word check
+`NumericState.resumable`, `Binary32.isNaN` and `Binary32.less`. Which images there are depends on
+those tests, so a kind needs a statement of the written payloads that does not depend on them. -/
 theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
     ∀ (construction : AgentConstruction) (payload : Payload),
       (admit construction payload).isOk = true ↔
@@ -794,8 +806,8 @@ private theorem candidate_iff (construction : AgentConstruction) (bytes : List U
 /-- Candidate loading accepts exactly the encoded payloads of the agent images of a resumable
 construction (`candidate_iff`). `candidate_load_value` states the image that it returns.
 
-The statement keeps no kind, for the reason `payload_admit` gives: RG1009 reads the learner
-check that an agent image's type names and that loading runs. -/
+The statement keeps no kind, for the reason that `payload_admit` gives: an audit with Regula
+v0.11.0 refused the kind under RG1009 for the same ten tests. -/
 theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
     ∀ (construction : AgentConstruction) (bytes : List UInt8),
       (load construction bytes).isOk = true ↔
@@ -2044,14 +2056,60 @@ theorem interest_potential_declared : Regula.ExecutableContract @Interest.potent
         potential (Interest.declared (config := config) origin tag) features declared = none) :=
   ⟨CurrentTemporal.declared_refusal⟩
 
-/-- Loading returns the state that a resumable construction saved, every field of its agent,
-for every receiver of that construction (`CurrentCheckpoint.save_load`). The refusal under
-every other profile is `checkpoint_load` in `Acorn.Decisions`.
+/-- Loading refuses every byte list under a profile that is not resumable: the admitted image's
+restore refuses there (`AgentConstruction.State.restore_refuses`). -/
+private theorem load_resumable (construction : AgentConstruction) (receiver : construction.State)
+    (bytes : List UInt8) (accepted : (Checkpoint.load construction receiver bytes).isOk = true) :
+    Resumable construction.profile := by
+  cases supported : construction.profile.checkpointSupported with
+  | true => exact (FeatureProfile.checkpoint_iff _).mp supported
+  | false =>
+    have refused : (Checkpoint.load construction receiver bytes).isOk = false := by
+      unfold Checkpoint.load
+      split
+      · rfl
+      · rename_i image admitted
+        rw [AgentConstruction.State.restore_refuses receiver image ⟨_, admitted⟩ supported]
+        rfl
+    rw [refused] at accepted
+    exact absurd accepted Bool.false_ne_true
 
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds an agent state, an
-invariant of that state names tests that loading runs, and the rule reads the type of the input
-(https://github.com/rbeauchamp/regula/issues/270). -/
+/-- The arguments of `Checkpoint.load`, in order. -/
+structure Load where
+  /-- The construction. -/
+  construction : AgentConstruction
+  /-- The receiving state. -/
+  receiver : construction.State
+  /-- The bytes. -/
+  bytes : List UInt8
+
+/-- Loading accepts bytes only under a resumable profile (`load_resumable`). The accepted input
+is the bytes that the initial state of the construction of `resumable` saves, which loading
+accepts (`CurrentCheckpoint.save_load`). The specification names the four discriminants of the
+profile and no function that loading calls. `checkpoint_load_accepts` states the state that
+loading returns for saved bytes.
+
+**Not claimed:** which other byte lists a resumable construction refuses. -/
+theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
+    Regula.DecidesSoundly (· = true)
+      (fun input : Load => Resumable input.construction.profile)
+      (Regula.Dependent.isOk fun input : Load =>
+        load input.construction input.receiver input.bytes)) :=
+  ⟨⟨fun input accepted => load_resumable input.construction input.receiver input.bytes accepted,
+    ⟨⟨construction resumable, AgentConstruction.initial _,
+        encode (snapshot (construction resumable) (AgentConstruction.initial _))⟩,
+      (Regula.Dependent.isOk_eq_true_iff _ _).mpr ⟨_, CurrentCheckpoint.save_load _ _ _ rfl⟩⟩⟩⟩
+
+/-- Loading returns the state that a resumable construction saved, every field of its agent,
+for every receiver of that construction (`CurrentCheckpoint.save_load`). The sound kind
+`checkpoint_load` states that loading accepts bytes only under a resumable profile.
+
+The statement keeps no kind. The complete kind with these bytes as its specification quantifies
+over the states of the construction, whose type declares the invariants of the learners, and names
+the writer `Checkpoint.snapshot`, whose format holds the reader of each field beside its writer.
+Both reach tests that loading runs, so by the documented reading of RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) the rule refuses that kind. This is a
+conclusion from the reading; no audit of the kind has run. -/
 theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun load =>
     ∀ (construction : AgentConstruction) (source receiver : construction.State),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
