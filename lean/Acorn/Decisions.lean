@@ -75,7 +75,7 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Thirty-six functions of this module have a contract and no kind. The reasons are four.
+Thirty-five functions of this module have a contract and no kind. The reasons are three.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
   configuration, and a complete or a two-way kind carries a refused input. The statement of
@@ -112,9 +112,6 @@ Thirty-six functions of this module have a contract and no kind. The reasons are
   one of them, `Binary32.negative`, through the value predictions it reports, and has a
   statement of the step it serves beside its contract (`temporal_serve_frame`,
   `serve_draw_frame`).
-* The specification is about a function with tests that the decision runs.
-  `PolicySnapshot.consistent` accepts the masses of `PolicySnapshot.probabilities`, which runs
-  three word comparisons, and RG1009 refuses the kind.
 * The kinds of the function are stated in the proof library. `Host.Released.environment` has a
   two-way kind in `AcornVerif.Decisions`, because its accepted input holds a proof that the
   world's observation succeeds, which follows from the terrain admission of
@@ -126,7 +123,7 @@ A requirement with no kind is a statement that the Regula audit does not examine
 checks only that its theorem is proved about the executing definition. Such a statement can
 fix one direction only, and it need not show that both outcomes occur for its function.
 RG1009 does not read its specification. Each docstring says what its statement gives and what
-it does not claim. Kinds for the functions of the second and the third reason are remaining
+it does not claim. Kinds for the functions of the second reason are remaining
 work of https://github.com/rbeauchamp/acorn/issues/105.
 
 A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
@@ -170,12 +167,16 @@ Each such condition is a proposition, with a theorem that connects the test with
 * `Host.Inventory.Owns`, the flag of the named tool, with `Host.Inventory.owns_iff`;
 * `FeatureProfile.Resumable`, the four discriminants of the profile whose state a checkpoint
   holds, with `FeatureProfile.checkpoint_iff`;
+* `Binary32.LessOrEqual`, the non-strict order by the signed keys of two words that are not NaNs,
+  with `Binary32.lessOrEqual_iff`;
 * `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`.
 
 A function that a specification reaches decides the proposition in the place of the call of
 the test: the signed key `Binary32.key`, `Binary32.saturate`, `Agreement.units`,
 `Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`, `Conversion.toI64Word`,
-`Host.floor32`, `Host.castWord`, `Host.classifyTerrain` and `Host.World.enterable`. The
+`Host.floor32`, `Host.castWord`, `Host.classifyTerrain`, `Host.World.enterable`, and the ordered
+maximum, the candidates and the masses of a frozen policy (`PolicySnapshot.best`,
+`PolicySnapshot.candidates`, `PolicySnapshot.probabilities`). The
 instance of each proposition runs its test, so the executed comparison is the same one. A
 specification that would name a test names the proposition: `inventory_craft` and
 `region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
@@ -240,24 +241,18 @@ report of the definitions that have no contract is work of Regula
   `Host.octaveLoop` and `Host.fbm`) are in this group too: `AcornVerif.CurrentTerrain` states
   the positions that each admits (`valueNoise_isOk`, `octaveLoop_isOk`, `fbm_isOk`). Two
   definitions of the Microduck adapter are in this group as well: the event of the goal
-  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`. The spawn search
-  of world generation (`Host.selectSpawn`, the rule `Host.considerSpawn` that it applies to each
-  candidate and the count `Host.countKindNear` that the rule applies) is in this group as well:
-  `AcornVerif.CurrentSpawn` states the postcondition of the search (`selectSpawn_post`), the
-  outcomes of the rule (`considerSpawn_outcome`) and the value of a count (`countKindNear_eq`).
+  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. Eight definitions are the exception.
+the end of this module states those. Five definitions are the exception.
 `Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
 requires it by name. `Handcrafted.TemporalControl.takeoverValue`, which
 `Handcrafted.TemporalControl.step` applies, `Host.valueNoise`, `Host.octaveLoop` and
 `Host.fbm`, which `Host.terrain` applies and the registered `Host.impassable` reaches through
-it, and `Host.selectSpawn`, `Host.considerSpawn` and `Host.countKindNear`, which the registered
-`Host.World.initial` applies through the spawn search, have no contract either; the group above
-names the theorems that state them. The tests
+it, have no contract either; the group above names the theorems that state them. The tests
 `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, which
 `Handcrafted.Microduck.near` and `Handcrafted.Microduck.clear` apply, are registered decisions
 with the contracts `microduck_upright` and `microduck_fresh`, beside the contracts
@@ -3284,20 +3279,32 @@ theorem less_useful : Regula.ExecutableContract @Features.Lifecycle.lessUseful (
           state.progress.units[other.val].utility.value.key) :=
   ⟨Features.Lifecycle.lessUseful_iff⟩
 
-/-- The consistency test accepts exactly a behaviour whose reported masses are the frozen
-policy's (`PolicySnapshot.consistent_iff`).
+/-- The arguments of `PolicySnapshot.consistent`, in order. -/
+structure Consistent where
+  /-- The action count. -/
+  count : Word.Count
+  /-- The frozen policy. -/
+  snapshot : PolicySnapshot count
+  /-- The reported masses of the behaviour. -/
+  behaviour : Vector Binary32 count.word.toNat
 
-The statement keeps no kind. Its specification is the equality with
-`PolicySnapshot.probabilities`, the masses that the test computes, and that function runs the
-tests `Binary32.isNaN`, `Binary32.less` and `Binary32.lessOrEqual`. Regula's RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses a kind whose specification
-reaches a test that its function runs. A kind needs the mass rule stated with propositions in
-the place of those tests, which is remaining work of
-https://github.com/rbeauchamp/acorn/issues/105. -/
+/-- A frozen meta policy with zero values and the declared exploration rate. -/
+def level : PolicySnapshot metaCount := ⟨Vector.replicate _ .zero, declaredRate⟩
+
+/-- The consistency test accepts exactly a behaviour whose reported masses are the frozen
+policy's (`PolicySnapshot.consistent_iff`). The masses decide the tie threshold and the ordered
+maximum with `Binary32.LessOrEqual` and `Binary32.Less`, so the specification shares no test
+with the function. The accepted input is the masses of `level` themselves, and the refused input
+the zero masses, which the kernel tells apart from them. -/
 theorem snapshot_consistent : Regula.ExecutableContract @PolicySnapshot.consistent (fun test =>
-    ∀ {count} (snapshot : PolicySnapshot count) (behaviour : Vector Binary32 count.word.toNat),
-      test snapshot behaviour = true ↔ snapshot.probabilities = behaviour) :=
-  ⟨PolicySnapshot.consistent_iff⟩
+    Regula.Decides (· = true)
+      (fun input : Consistent => input.snapshot.probabilities = input.behaviour)
+      (fun input : Consistent => @test input.count input.snapshot input.behaviour)) :=
+  ⟨decides (fun input => PolicySnapshot.consistent_iff input.snapshot input.behaviour)
+    ⟨⟨metaCount, level, level.probabilities⟩, rfl⟩
+    ⟨⟨metaCount, level, Vector.replicate _ .zero⟩, by decide +kernel⟩⟩
+
+attribute [regula_decision] PolicySnapshot.consistent
 
 /-- The arguments of `Features.Assignment.admitUsing`, in order. -/
 structure AssignmentUsing where

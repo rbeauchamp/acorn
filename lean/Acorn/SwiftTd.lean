@@ -86,6 +86,23 @@ theorem lessOrEqual_eq_key (left right : Binary32) :
   · have hy : right.key < left.key := by omega
     simp [lessOrEqual, less_eq_key, hlf, hrf, h, hy]
 
+/-- Non-strict numeric order of two words: neither is a NaN, and the signed keys are in order.
+The two zero encodings have one key, so each is below the other. -/
+def LessOrEqual (left right : Binary32) : Prop :=
+  ¬left.IsNaN ∧ ¬right.IsNaN ∧ left.key ≤ right.key
+
+/-- Non-strict word comparison accepts exactly the pairs in non-strict numeric order. -/
+theorem lessOrEqual_iff (left right : Binary32) :
+    left.lessOrEqual right = true ↔ left.LessOrEqual right := by
+  rw [lessOrEqual_eq_key]
+  simp only [LessOrEqual, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq, ← isNaN_iff,
+    Bool.not_eq_true, and_assoc]
+
+/-- Non-strict word comparison decides the non-strict numeric order, so a function that decides
+`LessOrEqual` runs that comparison. -/
+instance (left right : Binary32) : Decidable (left.LessOrEqual right) :=
+  decidable_of_iff _ (lessOrEqual_iff left right)
+
 /-- Zero classification reads only the magnitude field, identifying both signs. -/
 def isZero (value : Binary32) : Bool := value.bits &&& 0x7fffffff == 0
 

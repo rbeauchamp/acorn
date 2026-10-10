@@ -39,14 +39,14 @@ def firstAction (count : Word.Count) : Action count.word.toNat := ⟨0, count.po
 /-- Ordered maximum uses IEEE comparisons, including the raw NaN fallback. -/
 def PolicySnapshot.best (snapshot : PolicySnapshot count) : Binary32 :=
   snapshot.values.toList.drop 1 |>.foldl
-    (fun best value => if best.less value then value else best)
+    (fun best value => if best.Less value then value else best)
     (snapshot.values.get (firstAction count))
 
 /-- Candidates retain original action order and the exact subtraction/comparison. -/
 def PolicySnapshot.candidates (snapshot : PolicySnapshot count) : List (Action count.word.toNat) :=
   let threshold := snapshot.best.sub tieWindow
   (List.finRange count.word.toNat).filter fun action =>
-    threshold.lessOrEqual (snapshot.values.get action)
+    decide (threshold.LessOrEqual (snapshot.values.get action))
 
 /-- Ordered size-one reservoir, with one RNG draw for every candidate including
 its first member. Empty candidates retain the initial fallback action. -/
@@ -116,7 +116,32 @@ def PolicySnapshot.probabilities (snapshot : PolicySnapshot count) : Vector Bina
     (Binary32.ofUInt64 snapshot.candidates.length.toUInt64)
   let threshold := snapshot.best.sub tieWindow
   snapshot.values.map fun value => explore.add
-    (if threshold.lessOrEqual value then greedy else .zero)
+    (if threshold.LessOrEqual value then greedy else .zero)
+
+/-- The ordered maximum is the fold of the strict word comparison: `best` decides
+`Binary32.Less` with the instance that runs `Binary32.less`. -/
+theorem PolicySnapshot.best_less (snapshot : PolicySnapshot count) :
+    snapshot.best = (snapshot.values.toList.drop 1).foldl
+      (fun best value => if best.less value then value else best)
+      (snapshot.values.get (firstAction count)) := by
+  simp only [PolicySnapshot.best, Binary32.less_iff]
+
+/-- The candidates are the filter of the non-strict word comparison: `candidates` decides
+`Binary32.LessOrEqual` with the instance that runs `Binary32.lessOrEqual`. -/
+theorem PolicySnapshot.candidates_lessOrEqual (snapshot : PolicySnapshot count) :
+    snapshot.candidates = (List.finRange count.word.toNat).filter fun action =>
+      (snapshot.best.sub tieWindow).lessOrEqual (snapshot.values.get action) := by
+  simp only [PolicySnapshot.candidates, ← Binary32.lessOrEqual_iff, Bool.decide_eq_true]
+
+/-- The nominal masses decide the tie threshold with the non-strict word comparison. -/
+theorem PolicySnapshot.probabilities_lessOrEqual (snapshot : PolicySnapshot count) :
+    snapshot.probabilities = snapshot.values.map fun value =>
+      (snapshot.epsilon.value.div (Binary32.ofUInt64 count.word)).add
+        (if (snapshot.best.sub tieWindow).lessOrEqual value then
+          (Binary32.one.sub snapshot.epsilon.value).div
+            (Binary32.ofUInt64 snapshot.candidates.length.toUInt64)
+         else .zero) := by
+  simp only [PolicySnapshot.probabilities, Binary32.lessOrEqual_iff]
 
 /-- A completed draw carries exactly the snapshot from which its action came; a decision read
 back from a checkpoint image carries the snapshot stored with it (`PolicyDecision.stored`). -/

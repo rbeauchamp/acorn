@@ -12,6 +12,7 @@ import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentExponential
 import AcornVerif.CurrentRunner
+import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentTerrain
 import AcornVerif.Endurance
@@ -50,7 +51,8 @@ follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
-library, and so are the correspondence of the comparator with the agent's attempt and the bounds
+library, and so are the results of the spawn search, the correspondence of the comparator with
+the agent's attempt and the bounds
 of the comparator's campaigns. The accepted inputs of three host transitions and the two-way kind
 of `Host.Released.environment` are stated here because the observation of their inputs succeeds
 by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem proves.
@@ -62,7 +64,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Twelve functions of this module have a contract and no kind. The reasons are four. Two more,
+Fifteen functions of this module have a contract and no kind. The reasons are five. Two more,
 `Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
 their statements say what their results are.
 
@@ -88,6 +90,11 @@ their statements say what their results are.
   theorem states which steps succeed or which configurations initialize. The comparator's
   campaign also refuses as unfinished when its fuel runs out, and the random baseline also
   refuses at campaign admission and on an unbounded plan.
+* The statement is about a result of the spawn search of world generation: `Host.countKindNear`,
+  `Host.considerSpawn` and `Host.selectSpawn`. A specification of their accepted inputs would
+  name `Host.World.tileKind`, which runs tests that they run. The count and the rule each carry
+  an accepted input; no theorem states that the search returns a spawn
+  (https://github.com/rbeauchamp/acorn/issues/125).
 
 Kinds for the functions of the first two reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
@@ -1528,6 +1535,67 @@ theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBasel
         ↓reduceIte],
     fun config seed spec plan admitted bounded =>
       CurrentRunner.baseline_finishes config seed spec plan admitted bounded⟩⟩
+
+/-! ## The spawn search of world generation
+
+The theorems of `AcornVerif.CurrentSpawn` state what a successful count, a successful application
+of the spawn rule and a successful spawn search return. -/
+
+/-- A successful count of a kind near a position is the number of tiles of that kind among the
+`(2 r + 1) × (2 r + 1)` tiles within `r` of the position (`CurrentSpawn.countKindNear_eq`). The
+count of trees at the body position of the empty world of `wide`, within radius zero, succeeds;
+the kernel evaluates that one tile.
+
+The statement keeps no kind. A count refuses where a tile of the square leaves the signed range
+or the world refuses its kind, and a specification of the accepted inputs would name
+`Host.World.tileKind`, which runs tests that the count runs. -/
+theorem spawn_count : Regula.ExecutableContract @Host.countKindNear (fun count =>
+    (∀ {config} (world : Host.World config) (position : Host.Position) (radius found : Nat)
+      (kind : Host.TileKind), count world position radius kind = .ok found →
+        found = CurrentSpawn.squareCount world position radius kind (2 * radius + 1)) ∧
+      ∃ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position)
+        (radius : Nat) (kind : Host.TileKind), (count world position radius kind).isOk = true) :=
+  ⟨⟨fun world position radius found kind counted =>
+      CurrentSpawn.countKindNear_eq world position radius found kind counted,
+    ⟨wide, Host.World.empty wide, (Host.World.empty wide).body.position.position, 0, .tree,
+      by decide +kernel⟩⟩⟩
+
+/-- Every successful application of the spawn rule is one of the outcomes that
+`CurrentSpawn.Considered` lists (`CurrentSpawn.considerSpawn_outcome`). The rule accepts a
+coordinate outside the box, which it skips with no count.
+
+The statement keeps no kind, for the reason that `spawn_count` states: the rule counts kinds
+near a coordinate inside the box. -/
+theorem spawn_consider : Regula.ExecutableContract @Host.considerSpawn (fun consider =>
+    (∀ {config} (world : Host.World config) (x y : Int)
+      (best selected : Option (Host.SpawnCandidate config)) (finished : Bool),
+      consider world x y best = .ok (selected, finished) →
+        CurrentSpawn.Considered world x y best selected finished) ∧
+      ∃ (config : Host.WorldConfig) (world : Host.World config) (x y : Int)
+        (best : Option (Host.SpawnCandidate config)), (consider world x y best).isOk = true) :=
+  ⟨⟨fun world x y best selected finished considered =>
+      CurrentSpawn.considerSpawn_outcome world x y best selected finished considered,
+    ⟨wide, Host.World.empty wide, -1, 0, none, by decide +kernel⟩⟩⟩
+
+/-- A spawn that the search returns is a walkable tile whose trees plus stone within four tiles
+are at least two; or no tile of the box is rich, and the spawn is a walkable tile whose score no
+scored candidate of the box exceeds, or the center of the box when no tile is walkable
+(`CurrentSpawn.selectSpawn_post`).
+
+The statement keeps no kind, and it fixes one direction: no theorem states that the search
+returns a spawn for any world, so a function that refuses every world satisfies it too; the
+accepted input of `Host.World.initial` needs the same fact
+(https://github.com/rbeauchamp/acorn/issues/125). -/
+theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =>
+    ∀ {config} (world : Host.World config) (spawn : Host.BoxPosition config),
+      select world = .ok spawn →
+        CurrentSpawn.Exited world spawn ∨
+          ((∀ tile, ¬CurrentSpawn.Rich world tile) ∧
+            ((∃ chosen, CurrentSpawn.Scored world chosen ∧ chosen.position = spawn ∧
+                ∀ other, CurrentSpawn.Scored world other → other.score ≤ chosen.score) ∨
+              (spawn = Host.BoxPosition.center config ∧
+                ∀ tile, ¬CurrentSpawn.Walkable world tile)))) :=
+  ⟨fun world spawn selected => CurrentSpawn.selectSpawn_post world spawn selected⟩
 
 /-! ## Learner admissions -/
 
