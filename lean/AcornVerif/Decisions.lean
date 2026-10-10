@@ -34,16 +34,19 @@ walkable test is not a certificate checker, and it carries the two-way kind.
 A function of this module with an argument or result type that depends on an earlier argument
 states its kind in the forms that `Acorn.Decisions` describes: about the function applied to
 every field of a structure of its arguments, and about `Regula.Dependent.isSome` or
-`Regula.Dependent.isOk` of it where the result type depends on the input. A statement of what
-a kind does not state stands beside it as a requirement with no kind: the value of an accepted
+`Regula.Dependent.isOk` of it where the result type depends on the input. A statement of what a
+kind does not state stands beside it as a requirement with no kind: the value of an accepted
 result, under the name of the kind with `_value`, or a set of refused inputs beside a one-way
-kind, under the name of the kind with `_refused`. `interest_potential_declared` states
-pointwise a class of refused inputs that the two-way kind `interest_potential` also gives.
+kind, under the name of the kind with `_refused`. `payload_admit_value` and
+`candidate_load_value` stand in the same way beside the requirements `payload_admit` and
+`candidate_load`, which also keep no kind. `interest_potential_declared` states pointwise a
+class of refused inputs that the two-way kind `interest_potential` also gives.
 `world_enterable`, `tile_kind` and `terrain_read` keep their names beside the kinds of the
 terrain: the verdict of an accepted entry, the refusal of a refused tile, and what the readers
 of the terrain do with its result. `pay_and_act` and `perform_action` keep their names beside
 the kinds of the paid actions: what an accepted paid action does with the energy, and where an
-accepted move puts the body. `execute_prefix` states the safe path that the compiled fold follows.
+accepted move puts the body. `execute_prefix` states the safe path that the compiled fold
+follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
@@ -94,8 +97,9 @@ https://github.com/rbeauchamp/acorn/issues/105.
 No specification of a contract with a kind here reaches a test that its function runs: Regula's
 RG1009 refuses such a contract, and `Acorn.Decisions` states the rule and lists the propositions
 that take the place of the tests. The specification of `exp_saturation` names the strict order
-`Binary32.Less`, `Attained` names the ownership `Host.Inventory.Owns`, and the specifications
-of the checkpoint admissions name the resumable profile `FeatureProfile.Resumable`.
+`Binary32.Less`, and `Attained` names the ownership `Host.Inventory.Owns`. The specifications of
+the requirements `payload_admit` and `candidate_load`, which keep no kind, likewise name the
+resumable profile `FeatureProfile.Resumable` in the place of the test that the admissions run.
 
 A specification also names no reader that its function calls where the data has constructors
 or stored fields to state it by. `Attained` states a goal on the box indices, the inventory
@@ -105,8 +109,8 @@ and the move by `Offset` and `Heads`, with no offset table, no facing position a
 translation. `squared_admit_exact` states the discrepancy of two words by their rational
 values, with no unit map. A private lemma beside each connects the reader with the statement.
 
-The kinds of the checkpoint admissions name the writers of the forms that they read, which
-the admissions do not call.
+The kind of `sum_admit` names the writer `sumWords` of the form that it reads, which the
+admission does not call.
 
 The kinds of the terrain name the binary32 quotient of a coordinate by an octave scale, which the
 generator computes: `Host.coordinateFloat`, `Binary32.div` and `Binary32.mul` are shared with it,

@@ -59,13 +59,15 @@ with one proved direction carries that direction alone. Five groups are register
   forgotten.
 * A function with a kind can carry a second statement beside it for what its kind does not
   state: the value of an accepted result (`cli_value_found`, and each statement with a name that
-  ends in `_value`), the exact verdict on a part of the inputs (`capture_follows`, and
-  `task_observed` in `AcornVerif.Decisions`), a set of accepted inputs beside a sound kind,
-  which carries one accepted input (`schema_covers_empty`, `predicate_eval_programs`), or which
-  of several accepted results an input has (`microduck_outcome_judged`, for a verdict of five
-  outcomes whose kind states only which inputs the daemon accepted, and `microduck_line_read`,
-  for the lines of a daemon that a host reads). That statement is a requirement with no kind,
-  and the ownership audit requires it by name.
+  ends in `_value`; `payload_admit_value` and `candidate_load_value` in `AcornVerif.Decisions`
+  stand in the same way beside requirements that also keep no kind), the exact verdict on a part
+  of the inputs (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`), a set of
+  accepted inputs beside a sound kind, which carries one accepted input (`schema_covers_empty`,
+  `predicate_eval_programs`), or which of several accepted results an input has
+  (`microduck_outcome_judged`, for a verdict of five outcomes whose kind states only which
+  inputs the daemon accepted, and `microduck_line_read`, for the lines of a daemon that a host
+  reads). That statement is a requirement with no kind, and the ownership audit requires it by
+  name.
 * A function keeps a requirement with no kind where no kind is true of it, or where Regula
   refuses the kind. The function carries no `@[regula_decision]` registration, and the
   ownership audit requires the contract by name, with a statement that still refers to the
