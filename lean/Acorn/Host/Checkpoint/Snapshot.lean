@@ -3,120 +3,50 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Host.Checkpoint.Admission
+import Acorn.Host.Checkpoint.Load
 
 /-!
-# Durable projection of the executing full agent
+# The image of the executing full agent
 
-Only primary weights and log step sizes, shared gain, exact assignment identities,
-generator and tester state and durable lifetime observations are written.
-No world, pending future, policy RNG, trace, model or planner state is encoded.
+A save writes every field of the agent's temporal state: the representation and its
+generator and tester state, every learner with its transient registers, the option
+models, every option's off-policy questions, the process-local references with the action
+generator and the last decision, primitive credit, the gain, the rate schedule and every
+lifetime observation, durable or process-local. No world is encoded.
 -/
 namespace Acorn.Checkpoint
-open Features Handcrafted Lifetime
+open Features Handcrafted
 
-/-- Prepend while preserving the receiving vector's exact length. -/
-def prepend {α : Type} {count : Nat} (head : α) (tail : Vector α count) : Vector α (count + 1) :=
-  (Vector.append #v[head] tail).cast (by omega)
-
-/-- One typed total becomes two exact stored words. -/
-def sumWords {quantity : Quantity} (record : SumCount quantity) : SumWords := (record.count, record.sum)
-
-/-- One typed goal aggregate becomes its three exact counters. -/
-def goalWords (record : GoalTotals) : GoalWords := (record.attempts, record.successes, record.steps)
-
-/-- Three exact columns, indexed by the immutable horizon layout. -/
-structure DemonColumns (discounts : List Discount) where
-  /-- Count/sum pairs. -/
-  sums : Vector SumWords discounts.length
-  /-- Last settled returns. -/
-  returns : Vector Binary32 discounts.length
-  /-- Last signed errors. -/
-  errors : Vector Binary32 discounts.length
-
-/-- Column-major storage retains the complete horizon order. -/
-def demonColumns {discounts : List Discount} : DurableDemons discounts → DemonColumns discounts
-  | .nil => ⟨#v[], #v[], #v[]⟩
-  | .cons head tail =>
-    let rest := demonColumns tail
-    ⟨prepend (sumWords head.squaredError) rest.sums,
-      prepend head.lastReturn.value rest.returns, prepend head.lastError.value rest.errors⟩
-
-/-- Every durable observation field is read directly from its maintained owner. -/
-def lifetimeWords (record : Durable demonLayout) : LifetimeWords :=
-  let demons := demonColumns record.demons
-  ⟨sumWords record.reward, record.rewardByFamily.map sumWords, record.rewardHistory.map sumWords,
-    demons.sums, demons.returns, demons.errors, record.errorHistory.map sumWords, record.options,
-    record.goals.map goalWords, record.goalCycles.map (fun row => row.map goalWords)⟩
-
-/-- The two knowledge arrays are read without changing their bit patterns. -/
-def knowledge {config : Acorn.Config} {dimension : Dimension}
-    (learner : Managed config dimension) : KnowledgeImage dimension :=
-  ⟨learner.state.weights.map (·.value), learner.state.beta.map (·.value)⟩
-
-/-- Each demon supplies its own learner, in the same order as the receiving shape. -/
-def demonImages {dimension : Dimension} {discounts : List Discount} :
-    DemonBank dimension discounts → DemonImages dimension discounts
-  | .nil => .nil
-  | .cons head tail => .cons (knowledge head) (demonImages tail)
-
-/-- Primary images follow the same structural segments used during installation. -/
-def primaryImage {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
-    (ensemble : Ensemble Grid.actions config criterion dimension demonLayout) :
-    PrimaryImage Grid.actions dimension demonLayout :=
-  ⟨ensemble.control.learners.map knowledge, ensemble.metaController.learners.map knowledge,
-    ensemble.skills.map (fun skill => skill.policy.learners.map knowledge), demonImages ensemble.demons⟩
-
-/-- The complete checkpoint projection already carries valid history and numeric state.
-The result is an image of the construction of the state it reads: this is where this
+/-- The image of a state of a construction: its agent's exact image. This is where this
 project makes an image from a state. -/
-def snapshotImage (construction : AgentConstruction) (state : construction.State) :
+def stateImage (construction : AgentConstruction) (state : construction.State) :
     construction.Image :=
-  let runtime := state.agent.control.runtime
-  ⟨⟨⟨runtime.lifecycle.representation.progress,
-      runtime.lifecycle.consumers.skills.map
-        (fun skill : Skill Grid.actions construction.config construction.criterion
-          construction.dimension demonLayout =>
-          skill.interest.held), state.agent.aligned.2,
-      primaryImage runtime.lifecycle.consumers⟩,
-    state.agent.control.average.rate, state.agent.control.lifetime.durable, by
-      intro slot
-      have valid := state.agent.episodes.1 slot
-      exact ⟨valid.1, valid.2.1, by simp⟩⟩⟩
+  ⟨state.agent.image⟩
 
-/-- Every legal tester state fits the format-level unit count. -/
-def testerWords {config : Features.Config} (progress : Progress config) : TesterWords :=
-  ⟨progress.words.stream, progress.words.credit, progress.words.replaced, progress.words.last,
-    ⟨progress.words.units, by
-      simpa [Progress.words] using config.units.bounded⟩⟩
-
-/-- An image of a construction has one exact format-18 word projection. The order word
-is the word of the order of the image's own construction: the writer takes no image of
-another construction and no order word. -/
-def imagePayload (construction : AgentConstruction) (image : construction.Image) :
-    Payload construction.dimension :=
+/-- An image of a construction has one exact payload. The header holds the construction's
+identity words, the image's clock and reward rate, and the word of the order of the image's
+own construction: the writer takes no image of another construction and no order word. -/
+def imagePayload (construction : AgentConstruction) (image : construction.Image) : Payload :=
   ⟨⟨formatVersion, construction.dimension.capacity.toUInt32, primaryCount.toUInt32,
-      construction.config.seed, image.image.features.progress.clock,
-      construction.criterion.tag.toUInt32, image.image.gain.value, construction.config.tilings,
-      construction.config.units.count.toUInt32,
+      construction.config.seed, image.image.control.runtime.lifecycle.representation.progress.clock,
+      construction.criterion.tag.toUInt32, image.image.control.average.rate.value,
+      construction.config.tilings, construction.config.units.count.toUInt32,
       if construction.profile.Resumable then 1 else 0, construction.order.tag⟩,
-    image.image.features.assignments.map (Assignment.words construction.dimension),
-    image.image.features.primary, lifetimeWords image.image.lifetime,
-    testerWords image.image.features.progress⟩
+    (imageFormat construction).encode image⟩
 
-/-- Snapshotting reads only the durable projection; it does not act or advance the stream. -/
-def snapshot (construction : AgentConstruction) (state : construction.State) : Payload construction.dimension :=
-  imagePayload construction (snapshotImage construction state)
+/-- Snapshotting reads the state; it does not act or advance the stream. -/
+def snapshot (construction : AgentConstruction) (state : construction.State) : Payload :=
+  imagePayload construction (stateImage construction state)
 
 /-- Saving unsupported profiles is an explicit refusal before bytes are produced for IO. -/
 @[noinline] def saveBytes (construction : AgentConstruction) (state : construction.State) : Except Error (List UInt8) :=
-  if construction.profile.checkpointSupported then .ok (encode construction.dimension (snapshot construction state))
+  if construction.profile.checkpointSupported then .ok (encode (snapshot construction state))
   else .error .unsupportedPolicy
 
 /-- All supported constructions have a total pure writer. -/
 theorem save_supported (construction : AgentConstruction) (state : construction.State)
     (supported : construction.profile.checkpointSupported = true) :
-    saveBytes construction state = .ok (encode construction.dimension (snapshot construction state)) := by
+    saveBytes construction state = .ok (encode (snapshot construction state)) := by
   simp [saveBytes, supported]
 
 /-- Non-ranked profiles cannot reach the filesystem writer. -/

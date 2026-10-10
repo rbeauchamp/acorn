@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.FeatureLifecycle
-import AcornVerif.CurrentLearner
+import AcornVerif.CurrentLearnerCheck
 
 /-! # Executing consumer reset contracts
 
@@ -17,13 +17,21 @@ open Acorn Acorn.Features AcornVerif.CurrentLearner
 
 variable {actions : Word.Count}
 
-/-- Every consumer's erased admission establishes the owning scheduling invariant. -/
+/-- Every consumer's erased admission establishes the owning scheduling invariant: the
+fresh learner, every permitted entry, and a learner read back from a checkpoint image,
+whose admission is the stored-word check (`CurrentLearnerCheck.resumable_iff`). -/
 theorem managed_schedule {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) : ScheduleInv learner.state learner.phase := by
   rcases learner with ⟨state, phase, admitted⟩
   induction admitted with
   | initial => exact ⟨initial_core, initial_ready.1, fun _ => initial_ready⟩
   | transition entry permitted _ ih => exact entry_schedule entry _ _ permitted ih
+  | durable checked => exact (CurrentLearnerCheck.resumable_iff _ _).mp checked
+
+/-- Every managed learner passes the stored-word check. -/
+theorem managed_resumable {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) : learner.state.resumable learner.phase = true :=
+  (CurrentLearnerCheck.resumable_iff _ _).mpr (managed_schedule learner)
 
 /-- Retiring from a unique eligibility array removes every occurrence of the slot. -/
 theorem retire_absent {config : Acorn.Config} {dimension : Dimension}

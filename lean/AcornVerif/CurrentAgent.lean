@@ -113,14 +113,13 @@ def EdgeContract (before : Agent Grid.interface profile config criterion dimensi
       after.control.credit = before.control.credit ∧ after.control.average =
         before.control.average
   | .clear => after = Agent.initial Grid.interface profile config criterion dimension planning
-  | .restore image => before.restore image = some after
   | .stop => after = before
 
-/-- Every accepted public input satisfies its algorithm and observation contract. -/
+/-- Every public input satisfies its algorithm and observation contract. -/
 theorem edge_contract
     (before after : Agent Grid.interface profile config criterion dimension planning)
     (event : AgentInput config criterion dimension) (stopped : Bool)
-    (executed : before.input event = .ok (after, stopped)) : EdgeContract before event after :=
+    (executed : before.input event = (after, stopped)) : EdgeContract before event after :=
       by
   cases event with
   | act observation result =>
@@ -140,14 +139,6 @@ theorem edge_contract
     exact before.attempt_continuity _ _ _ _
   | clear => cases executed; rfl
   | stop => cases executed; rfl
-  | restore image =>
-    unfold Agent.input at executed
-    cases restored : before.restore image with
-    | none => simp [restored] at executed
-    | some next =>
-      simp only [restored, Except.ok.injEq, Prod.mk.injEq] at executed
-      rcases executed with ⟨rfl, rfl⟩
-      exact restored
 
 /-- Safety at every intermediate receiver, with actual action/observation relations on each
   edge. -/
@@ -164,7 +155,7 @@ inductive SafePath : Agent Grid.interface profile config criterion dimension pla
         dimension))
       (valid : Invariant state) (nextValid : Invariant next) (contract : EdgeContract state
         event next)
-      (executed : state.input event = .ok (next, true)) : SafePath state (event :: rest) next
+      (executed : state.input event = (next, true)) : SafePath state (event :: rest) next
         true
   /-- Each actual continuing edge carries its algorithm relation into the next safe receiver. -/
   | continued (state next finalState : Agent Grid.interface profile config criterion dimension
@@ -172,7 +163,7 @@ inductive SafePath : Agent Grid.interface profile config criterion dimension pla
       (event : AgentInput config criterion dimension) (rest : List (AgentInput config criterion
         dimension))
       (stopped : Bool) (valid : Invariant state) (contract : EdgeContract state event next)
-      (executed : state.input event = .ok (next, false)) (tail : SafePath next rest finalState
+      (executed : state.input event = (next, false)) (tail : SafePath next rest finalState
         stopped) :
       SafePath state (event :: rest) finalState stopped
 
@@ -196,18 +187,12 @@ theorem path_safe {state finalState : Agent Grid.interface profile config criter
 edge. The prefix is that of a construction of the default step order: its action edge is
 `Agent.act`, and the statement is about the learner states and the agent's events. -/
 theorem native_prefix (admitted : DefaultConstruction)
-    (finalState : admitted.construction.State)
     (events : List (AgentInput admitted.construction.config admitted.construction.criterion
-      admitted.construction.dimension))
-    (stopped : Bool)
-    (executed : AgentConstruction.execute admitted events = .ok (finalState, stopped)) :
-    SafePath admitted.construction.initial.agent events finalState.agent stopped := by
-  have raw := admitted.runPrefix_agent admitted.construction.initial events
-  have folded : admitted.runPrefix admitted.construction.initial events =
-      .ok (finalState, stopped) := executed
-  rw [folded] at raw
-  exact path_safe (admitted.construction.initial.agent.prefix_path finalState.agent _ stopped
-    raw.symm)
+      admitted.construction.dimension)) :
+    SafePath admitted.construction.initial.agent events
+      (AgentConstruction.execute admitted events).1.agent
+      (AgentConstruction.execute admitted events).2 :=
+  path_safe (admitted.construction.initial.agent.prefix_path events)
 
 /-- Aggregate learner eligibility storage is bounded by current readers and capacity,
   independently of experience length. -/

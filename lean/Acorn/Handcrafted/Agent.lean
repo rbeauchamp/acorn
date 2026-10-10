@@ -198,62 +198,67 @@ def Agent.clear (_state : Agent interface profile config criterion dimension pla
     Agent interface profile config criterion dimension planning :=
   Agent.initial interface profile config criterion dimension planning
 
-/-- A structurally admitted image supplies knowledge, durable observations and gain.
-Byte parsing and transactional filesystem delivery belong to the persistence owner. -/
-structure AgentImage (interface : Interface) (config : Features.Config) (criterion : Criterion)
-    (dimension : Dimension) where
-  /-- Receiver-relative feature history, identities and primary knowledge. -/
-  features : FeatureImage interface.actions config criterion dimension interface.layout
-  /-- Saved host-time reward rate. -/
-  gain : RewardRate
-  /-- Complete durable observation projection, excluding process-local futures. -/
-  lifetime : Lifetime.Durable interface.layout
-  /-- The durable episode projection admits no impossible completion or empty duration. -/
-  episodes : Lifetime.OptionsValid lifetime.options none
+/-- A new session of the predictive-agreement evaluator, at the agent's clock. The durable
+observations stay; the evaluator's pending futures and its session statistics start empty,
+as at the clock of a cold start. A host begins a session after it loads an image, so the
+evaluator measures the forecasts of one process. No learner, reference or decision reads
+the evaluator, and the learned state is unchanged. -/
+def Agent.beginSession (state : Agent interface profile config criterion dimension planning) :
+    Agent interface profile config criterion dimension planning :=
+  ⟨{ state.control with lifetime := { state.control.lifetime.durable.restore with
+      agreementStarted := some state.clock
+      agreementLastClock := some state.clock } }, state.aligned, state.episodes⟩
 
-/-- Installation resets process-local references and models, retaining admitted
-knowledge, assignment identities, durable gain and lifetime observations. -/
-private def Agent.install (state : Agent interface profile config criterion dimension planning)
-    (image : AgentImage interface config criterion dimension) : Agent interface profile config criterion dimension planning :=
-  ⟨{ state.control with
-      runtime := state.control.runtime.restore image.features none
-      credit := profile.credit.initial
-      creditMatches := by cases profile.credit <;> rfl
-      average := state.control.average.restore image.gain
-      rate := RateState.initial profile.rate
-      lifetime := { image.lifetime.restore with
-        agreementStarted := some image.features.progress.clock
-        agreementLastClock := some image.features.progress.clock } },
-    ⟨fun slot => by simp [FeatureRuntime.restore, Ensemble.restore, Interest.Aligned],
-      Ensemble.restore_distinct _ _ _ image.features.distinct⟩, by
-    constructor
-    · intro slot
-      exact image.episodes slot
-    · intro _; rfl⟩
+/-- The exact image of an agent: every field of its temporal state, with the two invariants
+that every agent carries. It holds no planning selection, which is an index of the agent's
+type and no stored value. Byte parsing and transactional filesystem delivery belong to the
+persistence owner. -/
+structure AgentImage (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
+    (criterion : Criterion) (dimension : Dimension) where
+  /-- Every field of the agent's state. -/
+  control : TemporalControl interface profile config criterion dimension
+  /-- Every declared option source has an actual matching observation producer. -/
+  aligned : control.Aligned
+  /-- Episode accounting agrees with the sole active invocation and immutable hierarchy mode. -/
+  episodes : control.Episodes
 
-/-- Profile refusal precedes installation. No partial replacement is returned. -/
-def Agent.restore (state : Agent interface profile config criterion dimension planning)
-    (image : AgentImage interface config criterion dimension) : Option (Agent interface profile config criterion dimension planning) :=
-  if profile.checkpointSupported then some (state.install image) else none
+/-- The image of an agent. -/
+def Agent.image (state : Agent interface profile config criterion dimension planning) :
+    AgentImage interface profile config criterion dimension :=
+  ⟨state.control, state.aligned, state.episodes⟩
+
+/-- The agent of an image, under a planning selection. -/
+def AgentImage.agent (image : AgentImage interface profile config criterion dimension)
+    (planning : PlanningSelection) : Agent interface profile config criterion dimension planning :=
+  ⟨image.control, image.aligned, image.episodes⟩
+
+/-- An agent is the agent of its image. -/
+theorem Agent.image_agent (state : Agent interface profile config criterion dimension planning) :
+    state.image.agent planning = state := rfl
+
+/-- Restoration replaces the receiver by the agent of the image, every field of it. A
+profile that cannot restore is refused first; no partial replacement is returned. -/
+def Agent.restore (_state : Agent interface profile config criterion dimension planning)
+    (image : AgentImage interface profile config criterion dimension) :
+    Option (Agent interface profile config criterion dimension planning) :=
+  if profile.checkpointSupported then some (image.agent planning) else none
 
 /-- Unsupported profiles cannot restore even a structurally legal image. -/
 theorem Agent.restore_refuses (state : Agent interface profile config criterion dimension planning)
-    (image : AgentImage interface config criterion dimension) (unsupported : profile.checkpointSupported = false) :
+    (image : AgentImage interface profile config criterion dimension) (unsupported : profile.checkpointSupported = false) :
     state.restore image = none := by simp [Agent.restore, unsupported]
 
-/-- Successful restoration has one exact durable/transient boundary, for every receiver. -/
-theorem Agent.restore_components (state : Agent interface profile config criterion dimension planning)
-    (image : AgentImage interface config criterion dimension) (supported : profile.checkpointSupported = true) :
-    ∃ restored, state.restore image = some restored ∧
-      restored.control.runtime = state.control.runtime.restore image.features none ∧
-      restored.control.credit = profile.credit.initial ∧
-      restored.control.average.rate = image.gain ∧
-      restored.control.rate = RateState.initial profile.rate ∧
-      restored.control.lifetime = { image.lifetime.restore with
-        agreementStarted := some image.features.progress.clock
-        agreementLastClock := some image.features.progress.clock } := by
-  refine ⟨state.install image, ?_, rfl, rfl, rfl, rfl, rfl⟩
+/-- **Restoration is exact.** For every receiver and image of a profile that restores, the
+restored agent is the agent of the image: no field of the receiver remains. -/
+theorem Agent.restore_exact (state : Agent interface profile config criterion dimension planning)
+    (image : AgentImage interface profile config criterion dimension) (supported : profile.checkpointSupported = true) :
+    state.restore image = some (image.agent planning) := by
   simp [Agent.restore, supported]
+
+/-- Restoring the image of an agent into any receiver returns that agent. -/
+theorem Agent.restore_image (state source : Agent interface profile config criterion dimension planning)
+    (supported : profile.checkpointSupported = true) : state.restore source.image = some source :=
+  state.restore_exact source.image supported
 
 /-- Source alignment remains closed under the actual full transition, including retirement. -/
 theorem Agent.act_aligned (state : Agent interface profile config criterion dimension planning)

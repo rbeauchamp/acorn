@@ -728,10 +728,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.average_observe_legal
 
-/-- info: 'Acorn.average_restore_word' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.average_restore_word
-
 /-- info: 'Acorn.average_observe_append' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.average_observe_append
@@ -2994,25 +2990,41 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.load_nonmutation
 
-/-- info: 'Acorn.Checkpoint.snapshot_size_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.snapshot_size_bound
-
-/-- info: 'Acorn.Handcrafted.Agent.restore_components' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.restore_components
-
-/-- info: 'AcornVerif.CurrentCheckpoint.saved_weight_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.saved_weight_identity
-
-/-- info: 'AcornVerif.CurrentCheckpoint.saved_beta_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.saved_beta_identity
-
 /-- info: 'AcornVerif.CurrentCheckpoint.candidate_roundtrip' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentCheckpoint.candidate_roundtrip
+
+/-- info: 'AcornVerif.CurrentCheckpoint.load_saved' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.load_saved
+
+/-- info: 'AcornVerif.CurrentCheckpoint.loader_reaches' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.loader_reaches
+
+/-- info: 'AcornVerif.CurrentCheckpoint.unresumable_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.unresumable_unloaded
+
+/-- info: 'AcornVerif.CurrentImage.imageFormat_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentImage.imageFormat_exact
+
+/-- info: 'AcornVerif.CurrentLearnerCheck.resumable_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentLearnerCheck.resumable_iff
+
+/-- info: 'AcornVerif.CurrentFeatureConsumers.managed_resumable' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentFeatureConsumers.managed_resumable
+
+/-- info: 'Acorn.Handcrafted.Agent.restore_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.restore_exact
+
+/-- info: 'Acorn.Checkpoint.Format.natural_exact' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Checkpoint.Format.natural_exact
 
 /-- info: 'AcornVerif.CurrentCheckpoint.save_load' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -3460,10 +3472,6 @@ info: 'AcornVerif.CurrentGridWorld.far_window_unsolved' depends on axioms: [prop
 #guard_msgs in
 #print axioms AcornVerif.GridCorrespondence.callback_eq
 
-/-- info: 'AcornVerif.GridCorrespondence.restore_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.GridCorrespondence.restore_eq
-
 /-- info: 'Acorn.Handcrafted.Agent.grid_inputs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Handcrafted.Agent.grid_inputs
@@ -3878,9 +3886,7 @@ info: 'Acorn.Rng.fnv_byte' depends on axioms: [propext, Quot.sound]
 #guard_msgs in
 #print axioms Acorn.Rng.fnv_byte
 
-/--
-info: 'AcornVerif.CurrentCheckpoint.order_edit_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
+/-- info: 'AcornVerif.CurrentCheckpoint.order_edit_refused' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentCheckpoint.order_edit_refused
 

@@ -353,16 +353,6 @@ theorem changed_assignment_model {shape : PatchShape} {discounts : List Discount
       Model.initial dimension criterion := by
   simp [FreeDispatch.install, changed, Skill.initial]
 
-/-- Feature-image restoration cold-starts physical model learners under the admitted criterion. -/
-theorem restore_model {discounts : List Discount}
-    (ensemble : Ensemble actions config criterion dimension discounts)
-    (image : PrimaryImage actions dimension discounts)
-    (assignments : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
-    (slot : Fin Acorn.FeatureConstants.skillCount) :
-    ((ensemble.restore image assignments).skills[slot.val]).model =
-      Model.initial dimension criterion := by
-  simp [Ensemble.restore]
-
 /-- The model readers used by retirement cover the actual reset state and all its aliases. -/
 theorem model_retirement (model : Model dimension criterion) (feature : FeatIdx dimension)
     (reader : PackedLearner dimension) (member : reader ∈ (model.retire feature).readers) :

@@ -8,9 +8,16 @@ import Acorn.Host.Checkpoint.Snapshot
 /-!
 # Derived checkpoint resource bounds
 
-Lengths come from the actual codec schemas. The receiver's capacity and bank size
-determine the file size before native reading allocates the file image. These
-bounds do not promise successful allocation on every machine.
+The read limit of a construction is the largest encoding of an image of it, part by part
+from the formats of `Acorn.Host.Checkpoint.Image`, so that native reading refuses a larger
+file before it allocates the file image. Each part is bounded by its type: a vector by its
+count, a list of slots by the capacity, since no slot of a learner's eligible list or of an
+active set repeats, and the unit list by the bank size. The exact naturals of the
+predictive-agreement evaluator are the one part that no type bounds; the limit allows
+`naturalAllowance` bytes for each of them, and the writer refuses an image above the limit
+(`Store.save`), so every file it writes can be read. No theorem here bounds the evaluator's
+naturals of a reached agent. These bounds do not promise successful allocation on every
+machine.
 -/
 namespace Acorn.Checkpoint
 open Features Handcrafted
@@ -57,128 +64,79 @@ theorem vector_size {α : Type} (codec : Codec α) (size : Nat)
 theorem header_size (header : Header) : (headerCodec.encode header).length = 56 := by
   simp [headerCodec, Codec.iso, Codec.pair, u32_size, u64_size, binary32_size]
 
-/-- Every saved assignment occupies exactly four words. -/
-theorem assignment_size (assignment : AssignmentWords) : (assignmentCodec.encode assignment).length = 16 := by
-  simp [assignmentCodec, Codec.iso, Codec.pair, u32_size]
-
-/-- Two arrays of binary32 words determine primary knowledge size. -/
-theorem knowledge_size (dimension : Dimension) (image : KnowledgeImage dimension) :
-    ((knowledgeCodec dimension).encode image).length = dimension.capacity * 8 := by
-  simp only [knowledgeCodec, Codec.iso, Codec.pair, List.length_append,
-    vector_size binary32Codec 4 binary32_size]
-  omega
-
-/-- Heterogeneous channel count is inherited from the immutable horizon list. -/
-theorem demonImages_size (dimension : Dimension) (discounts : List Discount)
-    (images : DemonImages dimension discounts) :
-    ((demonImagesCodec dimension discounts).encode images).length = discounts.length * (dimension.capacity * 8) := by
-  induction images with
-  | nil => simp [demonImagesCodec, Codec.iso, unitCodec]
-  | cons head tail ih =>
-    simp [demonImagesCodec, Codec.iso, Codec.pair, knowledge_size, ih, Nat.add_mul, Nat.add_comm]
-
-/-- Every primary learner contributes exactly two complete arrays. -/
-theorem primary_size (dimension : Dimension) (image : PrimaryImage Grid.actions dimension demonLayout) :
-    ((primaryCodec dimension).encode image).length = primaryCount * (dimension.capacity * 8) := by
-  have control : ((vectorCodec (knowledgeCodec dimension)
-      Acorn.FeatureConstants.primitiveCount).encode image.control).length =
-      Acorn.FeatureConstants.primitiveCount * (dimension.capacity * 8) :=
-    vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension) _
-      image.control
-  have skills : ((vectorCodec (vectorCodec (knowledgeCodec dimension)
-      Acorn.FeatureConstants.primitiveCount) Acorn.FeatureConstants.skillCount).encode
-        image.skills).length = Acorn.FeatureConstants.skillCount *
-          (Acorn.FeatureConstants.primitiveCount * (dimension.capacity * 8)) :=
-    vector_size (vectorCodec (knowledgeCodec dimension) Acorn.FeatureConstants.primitiveCount)
-      (Acorn.FeatureConstants.primitiveCount * (dimension.capacity * 8))
-      (vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension) _)
-      _ image.skills
-  simp only [primaryCodec, Codec.iso, Codec.pair, List.length_append,
-    vector_size (knowledgeCodec dimension) (dimension.capacity * 8) (knowledge_size dimension),
-    demonImages_size]
-  simp only [primaryCount, Acorn.FeatureConstants.primitiveCount, Acorn.FeatureConstants.metaActionCount,
-    Acorn.FeatureConstants.skillCount, Nat.add_mul] at control skills ⊢
-  omega
-
-/-- Count and binary64 sum occupy two wide words. -/
-theorem sum_size (words : SumWords) : (sumCodec.encode words).length = 16 := by
-  simp [sumCodec, Codec.pair, u64_size, binary64_size]
-
-/-- Goal triples occupy twenty-four bytes. -/
-theorem goal_size (words : GoalWords) : (goalCodec.encode words).length = 24 := by
-  simp [goalCodec, Codec.pair, u64_size]
-
-/-- Episode counters occupy five wide words. -/
-theorem episodes_size (record : Lifetime.OptionEpisodes) : (episodesCodec.encode record).length = 40 := by
-  simp [episodesCodec, Codec.iso, Codec.pair, u64_size, vector_size u64Codec 8 u64_size]
-
-/-- Exact fixed-size lifetime extent derived from the complete schema. -/
-def lifetimeBytes : Nat :=
-  16 + 4 * 16 + Acorn.FeatureConstants.historyBins * 16 + demonLayout.length * 16 +
-    demonLayout.length * 4 + demonLayout.length * 4 + Acorn.FeatureConstants.historyBins * 16 +
-    Acorn.FeatureConstants.skillCount * 40 + 4 * 24 + 4 * (Acorn.FeatureConstants.cycleBins * 24)
-
-/-- No duration of experience changes the lifetime record's byte count. -/
-theorem lifetime_size (record : LifetimeWords) : (lifetimeCodec.encode record).length = lifetimeBytes := by
-  simp [lifetimeCodec, lifetimeBytes, Codec.iso, Codec.pair,
-    sum_size, vector_size sumCodec 16 sum_size, vector_size binary32Codec 4 binary32_size,
-    vector_size episodesCodec 40 episodes_size, vector_size goalCodec 24 goal_size,
-    vector_size (vectorCodec goalCodec Acorn.FeatureConstants.cycleBins)
-      (Acorn.FeatureConstants.cycleBins * 24) (vector_size goalCodec 24 goal_size _), Nat.add_assoc]
-  omega
-
 /-- The signed header extent agrees with the generated transition format owner. -/
 theorem header_source_size : 8 + 56 = Acorn.FeatureConstants.checkpointHeaderBytes := rfl
 
-/-- The fixed lifetime extent agrees with the generated transition record owner. -/
-theorem lifetime_source_size : lifetimeBytes = Acorn.FeatureConstants.checkpointLifetimeBytes := rfl
-
-/-- The latest replacement occupies fourteen bytes. -/
-theorem last_size (last : LastWords) : (lastCodec.encode last).length = 14 := by
-  simp [lastCodec, Codec.pair, u32_size, u64_size, u16_size]
-
-/-- One unit occupies twenty bytes. -/
-theorem unitState_size (unit : UnitWords) : (unitStateCodec.encode unit).length = 20 := by
-  simp [unitStateCodec, Codec.pair, u64_size, binary32_size]
-
-/-- The unit list is its checked count word plus its exact entries. -/
-theorem unitList_size (units : UnitList) :
-    (unitListCodec.encode units).length = 4 + units.val.length * 20 := by
-  simp [unitListCodec, u32_size, list_size unitStateCodec 20 unitState_size]
-
-/-- The tester block is fixed apart from its unit list. -/
-theorem tester_size (tester : TesterWords) :
-    (testerCodec.encode tester).length = 34 + (4 + tester.units.val.length * 20) := by
-  simp [testerCodec, Codec.iso, Codec.pair, u64_size, u32_size, last_size, unitList_size]
+/-- Sixteen bytes of framing and the fifty-six header bytes surround the body. -/
+theorem encoded_size (payload : Payload) :
+    (encode payload).length = 72 + payload.body.length := by
+  simp [encode, Payload.signed, List.length_append, header_size, u64_size, magic,
+    Acorn.FeatureConstants.checkpointMagic]
   omega
 
-/-- Payload size is linear in receiving capacity and the bank size. -/
-def payloadBytes (dimension : Dimension) (units : Nat) : Nat :=
-  56 + Acorn.FeatureConstants.skillCount * 16 + primaryCount * (dimension.capacity * 8) +
-    lifetimeBytes + (34 + (4 + units * 20))
+/-- Bytes allowed for one exact natural of the agreement evaluator in its base-128 encoding:
+every natural below `2 ^ 28672`. -/
+def naturalAllowance : Nat := 4096
 
-/-- The byte count applies to the actual writer, for arbitrary payload contents. -/
-theorem payload_size (dimension : Dimension) (payload : Payload dimension) :
-    ((payloadCodec dimension).encode payload).length =
-      payloadBytes dimension payload.tester.units.val.length := by
-  simp [payloadCodec, payloadBytes, Codec.iso, Codec.pair, header_size,
-    vector_size assignmentCodec 16 assignment_size, primary_size, lifetime_size, tester_size,
-    Nat.add_assoc]
+/-- A learner of a feature space of `capacity` slots: weights, log step sizes, at most one
+transient entry per slot, two transient words and the phase. -/
+def managedBytes (capacity : Nat) : Nat := 48 * capacity + 17
 
-/-- Sixteen bytes of framing surround the signed payload. -/
-theorem encoded_size (dimension : Dimension) (payload : Payload dimension) :
-    (encode dimension payload).length = 16 + payloadBytes dimension payload.tester.units.val.length := by
-  simp [encode, List.length_append, payload_size, u64_size, magic, Acorn.FeatureConstants.checkpointMagic, Nat.add_assoc]
-  omega
+/-- A controller of `actions` learners. -/
+def controllerBytes (capacity actions : Nat) : Nat := actions * managedBytes capacity + 9
 
-/-- The receiver stores exactly one entry per bank unit. -/
-def maximumBytes (construction : AgentConstruction) : Nat :=
-  16 + payloadBytes construction.dimension construction.config.units.count
+/-- A transition part of `width` ranked positions: the slots, one row per position and one
+deviation learner per meta action. -/
+def transitionBytes (width : Nat) : Nat :=
+  5 * width + width * managedBytes width +
+    Acorn.FeatureConstants.metaActionCount * managedBytes width
 
-/-- Snapshot allocation has a lifetime-independent size derived from the receiver. -/
-theorem snapshot_size_bound (construction : AgentConstruction) (state : construction.State) :
-    (encode construction.dimension (snapshot construction state)).length ≤ maximumBytes construction := by
-  rw [encoded_size]
-  simp [snapshot, imagePayload, testerWords, Progress.words, maximumBytes]
+/-- An option model, at its largest criterion: three full-width learners and its transition
+part. -/
+def modelBytes (dimension : Dimension) : Nat :=
+  3 * managedBytes dimension.capacity + transitionBytes (rankWidth dimension)
+
+/-- An option's questions: one per signal, and the preceding set. -/
+def questionsBytes (capacity signals : Nat) : Nat := signals * (8 * capacity + 1) + 8 + 4 * capacity
+
+/-- One option slot: interest, policy, model, trajectory and questions. -/
+def skillBytes (dimension : Dimension) (signals : Nat) : Nat :=
+  17 + controllerBytes dimension.capacity Acorn.FeatureConstants.primitiveCount +
+    modelBytes dimension + 7 + questionsBytes dimension.capacity signals
+
+/-- Every learned consumer. -/
+def ensembleBytes (dimension : Dimension) (signals : Nat) : Nat :=
+  controllerBytes dimension.capacity Acorn.FeatureConstants.primitiveCount +
+    controllerBytes dimension.capacity Acorn.FeatureConstants.metaActionCount +
+    Acorn.FeatureConstants.skillCount * skillBytes dimension signals +
+    signals * managedBytes dimension.capacity
+
+/-- The process-local references: prediction and error words, model caches, occupancy,
+planning words, the gap, the generator, the pending flag, the last decision and the recent
+feature sets. -/
+def referencesBytes (capacity signals : Nat) : Nat :=
+  8 * signals + 36 + 24 + 8 + 12 + 1 + 4 + 32 + 1 + 150 +
+    Acorn.FeatureConstants.optionMaxDuration * (8 + 4 * capacity) + 8
+
+/-- One horizon's prediction accounting: the durable record, the pending returns and the
+evaluator channel with its five naturals. -/
+def demonStatsBytes : Nat := 727 + 5 * naturalAllowance
+
+/-- Every lifetime observation, with two naturals per agreement point. -/
+def statsBytes (signals : Nat) : Nat :=
+  16 + 64 + 16 * Acorn.FeatureConstants.historyBins + signals * demonStatsBytes +
+    16 * Acorn.FeatureConstants.historyBins + 40 * Acorn.FeatureConstants.skillCount + 96 +
+    96 * Acorn.FeatureConstants.cycleBins + 9 +
+    Acorn.FeatureConstants.historyBins * (9 + 2 * naturalAllowance) + 9 + 1
+
+/-- The exact image of an agent of a construction: the representation with its unit list,
+the consumers, the references, credit, gain, rate schedule and lifetime observations. -/
+def imageBytes (construction : AgentConstruction) : Nat :=
+  46 + 20 * construction.config.units.count + ensembleBytes construction.dimension demonLayout.length +
+    referencesBytes construction.dimension.capacity demonLayout.length + 7 + 4 + 4 +
+    statsBytes demonLayout.length
+
+/-- The read limit of a construction: framing, header and the largest image. -/
+def maximumBytes (construction : AgentConstruction) : Nat := 72 + imageBytes construction
 
 end Acorn.Checkpoint

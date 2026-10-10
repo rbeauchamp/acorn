@@ -106,13 +106,15 @@ private def Temporary.cleanup {stage : Stage} (temporary : Temporary stage) : IO
     try IO.eprintln s!"checkpoint temporary cleanup failed at {temporary.path}: {error}"
     catch _ => pure ()
 
-/-- Save only supported profiles; all failures before rename leave the destination unchanged
-under the stated POSIX and stable-directory assumptions. -/
+/-- Save only supported profiles, and only an image within the construction's read limit, so
+that `loadFile` can read every file this writes; all failures before rename leave the
+destination unchanged under the stated POSIX and stable-directory assumptions. -/
 @[noinline] def Store.save (store : Store) (construction : AgentConstruction) (state : construction.State)
     (destination : System.FilePath) : IO (Except Error UInt64) := do
   match saveBytes construction state with
   | .error error => return .error error
   | .ok bytes =>
+    if maximumBytes construction < bytes.length then return .error .oversized
     let temporary ← store.reserve destination 64
     try
       let written ← temporary.write ⟨bytes.toArray⟩
@@ -156,14 +158,17 @@ theorem runnerLoad_refused {α : Type} (error : Error) :
     runnerLoad (.error error : Except Error α) = .refused s!"{repr error}" := rfl
 
 /-- The delivered hooks bind the existing runner to this exact receiver and destination.
-Missing input permits fresh-state persistence; every other load error disables writes through
-`WritableCheckpoint.admit`. Save errors remain visible to the runner's failure counter. -/
+A loaded state begins a new session of the predictive-agreement evaluator
+(`AgentConstruction.State.beginSession`), so the evaluator measures the forecasts of this
+process; every learned field is the saved agent's. Missing input permits fresh-state
+persistence; every other load error disables writes through `WritableCheckpoint.admit`.
+Save errors remain visible to the runner's failure counter. -/
 def Store.hooks (store : Store) (construction : AgentConstruction)
     (destination : System.FilePath) (interval : UInt32) : Host.CheckpointHooks construction.State where
   path := destination
   interval := interval
   load receiver _ := do
-    try return runnerLoad (← loadFile construction receiver destination)
+    try return runnerLoad ((← loadFile construction receiver destination).map (·.beginSession))
     catch error =>
       match error with
       | .noFileOrDirectory .. => return .missing

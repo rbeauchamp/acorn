@@ -21,9 +21,9 @@ open Features Handcrafted Checkpoint
 inductive Command where
   /-- Save the supplied finite prefix from cold initialization. -/
   | save
-  /-- Load and report the durable projection without advancing the learner. -/
+  /-- Load and report the image without advancing the learner. -/
   | load
-  /-- Load, consume the supplied prefix and atomically save its next durable image. -/
+  /-- Load, consume the supplied prefix and atomically save its next image. -/
   | resume
 
 /-- Unknown operations cannot reach file IO. -/
@@ -43,10 +43,8 @@ def checked {α : Type} (result : Except Checkpoint.Error α) : IO α :=
 evaluator. That transition is the step of the default order, and the type of the
 construction says so. -/
 def advance (admitted : DefaultConstruction) (state : admitted.construction.State)
-    (words : List UInt64) : IO admitted.construction.State := do
-  match admitted.runPrefix state (words.map (AgentArguments.input admitted.construction)) with
-  | .ok (next, _) => return next
-  | .error .unsupportedProfile => throw (IO.userError "agent prefix refused unsupported restoration")
+    (words : List UInt64) : admitted.construction.State :=
+  (admitted.runPrefix state (words.map (AgentArguments.input admitted.construction))).1
 
 /-- The invoked process owns the writer; load always binds to the admitted receiver.
 The receiver is a construction of the default step order: `advance` runs that order's
@@ -58,7 +56,7 @@ and every image it loads was saved under that order. -/
   let initial := admitted.construction.initial
   let state ← match operation with
     | .save =>
-      let state ← advance admitted initial words
+      let state := advance admitted initial words
       let _ ← checked (← store.save admitted.construction state path)
       pure state
     | .load =>
@@ -66,7 +64,7 @@ and every image it loads was saved under that order. -/
       checked (← loadFile admitted.construction initial path)
     | .resume =>
       let restored ← checked (← loadFile admitted.construction initial path)
-      let state ← advance admitted restored words
+      let state := advance admitted restored words
       let _ ← checked (← store.save admitted.construction state path)
       pure state
   return s!"checkpoint format={formatVersion} process={store.processId} clock={state.agent.clock} gain={state.agent.control.average.rate.value.bits}"

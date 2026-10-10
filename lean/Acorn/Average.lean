@@ -42,19 +42,11 @@ def AverageRewardTracker.observe (tracker : AverageRewardTracker) (rawReward : B
   let delta := gainTrackingStep.mul (reward.value.sub tracker.rate.value)
   ⟨RewardRate.project (tracker.rate.value.add delta)⟩
 
-/-- Restore accepts an already validated rate and preserves its storage word. -/
-def AverageRewardTracker.restore (_tracker : AverageRewardTracker) (rate : RewardRate) :
-    AverageRewardTracker := ⟨rate⟩
-
 /-- Every actual observation write stays in the rate's own interval, for every
 admitted state and raw reward; no finite-input or distribution hypothesis is used. -/
 theorem average_observe_legal (tracker : AverageRewardTracker) (reward : Binary32) :
     rewardRange.Contains (tracker.observe reward).rate.value :=
   (tracker.observe reward).rate.legal
-
-/-- Restoration is bit identity after admission, with no hidden normalization. -/
-theorem average_restore_word (tracker : AverageRewardTracker) (rate : RewardRate) :
-    (tracker.restore rate).rate.value = rate.value := rfl
 
 /-- Ordered finite host observations, without a stored replay buffer. -/
 def AverageRewardTracker.observeFrom (tracker : AverageRewardTracker) (rewards : List Binary32) :

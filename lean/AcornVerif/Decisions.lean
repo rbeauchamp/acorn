@@ -43,11 +43,7 @@ pointwise a class of refused inputs that the two-way kind `interest_potential` a
 terrain: the verdict of an accepted entry, the refusal of a refused tile, and what the readers
 of the terrain do with its result. `pay_and_act` and `perform_action` keep their names beside
 the kinds of the paid actions: what an accepted paid action does with the energy, and where an
-accepted move puts the body. `feature_image_admit` and `profile_admit_accepts` keep their
-complete kinds about the feature words of an agent image of a construction beside the two-way
-kinds `feature_image_admit_exact` and `profile_admit_exact`. `execute_prefix` keeps its name
-beside the kind `agent_execute` of `Acorn.Decisions`: the safe path that an accepted fold
-follows.
+accepted move puts the body. `execute_prefix` states the safe path that the compiled fold follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
@@ -63,7 +59,9 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Eleven functions of this module have a contract and no kind. The reasons are four.
+Ten functions of this module have a contract and no kind. The reasons are four. Two more,
+`Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
+their statements say what their results are.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -73,8 +71,7 @@ Eleven functions of this module have a contract and no kind. The reasons are fou
   propositions in the place of those tests.
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
-  `Checkpoint.load` and `Agent.input`. For `Agent.input`, an audit of the kind stated with its
-  witnesses named the eleven shared tests that `Acorn.Decisions.agent_input` lists.
+  `Checkpoint.load`.
 * The statement gives an accepted input of a host transition whose statement in
   `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish` and
   `Host.Attempt.complete`. No theorem states which observations or
@@ -183,45 +180,17 @@ def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
 def construction (profile : FeatureProfile) : AgentConstruction :=
   ⟨profile, .discounted, .none, .learnThenAct, bank, narrow⟩
 
-/-- The feature words of a feature image of a receiving bank, criterion and feature space:
-the words of the receiver's seed, tilings, unit capacity, feature capacity and criterion, the
-clock and the tester words of the image's state, the words of its assignments and its primary
-words. -/
-def featureImageWords {actions : Word.Count} (config : Features.Config) (criterion : Criterion)
-    (dimension : Dimension) {discounts : List Discount}
-    (features : FeatureImage actions config criterion dimension discounts) :
-    RawFeatureImage actions dimension discounts :=
-  ⟨config.seed, config.tilings, config.units.count.toUInt32.toUInt16, dimension.capacity.toUInt32,
-    criterion.tag.toUInt32.toUInt8, features.progress.clock,
-    (testerWords features.progress).progress,
-    features.assignments.map (Assignment.words dimension), features.primary⟩
-
-/-- The feature words of an agent image of a construction: the raw image that the payload of
-the image holds. -/
-def featureWords (construction : AgentConstruction)
-    (image : AgentImage Grid.interface construction.config construction.criterion
-      construction.dimension) :
-    RawFeatureImage Grid.actions construction.dimension demonLayout :=
-  featureImageWords construction.config construction.criterion construction.dimension
-    image.features
-
-/-- The feature words of the initial agent of the construction of a profile. -/
-def initialWords (profile : FeatureProfile) : RawFeatureImage Grid.actions narrow demonLayout :=
-  featureWords (construction profile)
-    (snapshotImage (construction profile) (AgentConstruction.initial _)).image
-
 /-- The image of the initial agent of the resumable construction. -/
 def initialImage : (construction resumable).Image :=
-  snapshotImage (construction resumable) (AgentConstruction.initial _)
+  stateImage (construction resumable) (AgentConstruction.initial _)
 
 /-- The payload of the initial agent of the resumable construction. -/
-def initialPayload : Payload narrow :=
-  imagePayload (construction resumable)
-    (snapshotImage (construction resumable) (AgentConstruction.initial _))
+def initialPayload : Payload :=
+  imagePayload (construction resumable) initialImage
 
 /-- The payload of the initial agent of the resumable construction with the format generation
 zero in its header. Every other field is the field of `initialPayload`. -/
-def stalePayload : Payload narrow :=
+def stalePayload : Payload :=
   { initialPayload with header := { initialPayload.header with version := 0 } }
 
 /-- A tile of `wide` from which a tree to the west can be harvested. -/
@@ -245,7 +214,7 @@ private theorem sum_written {quantity : Quantity} {words : SumWords}
 
 /-- Total admission accepts exactly the words of a stored total of the receiving quantity. An
 accepted pair is the words of the total that admission returns (`sum_written`), and the words
-of every stored total are accepted (`CurrentCheckpoint.sum_roundtrip`). The accepted input is
+of every stored total are accepted (`CurrentImage.sum_roundtrip`). The accepted input is
 the zero total of the reward quantity. The refused input is a count of one with the sum two
 under the reward quantity, whose bound for one observation is one. `sum_admit_value` states
 the total that admission returns. -/
@@ -259,18 +228,18 @@ theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
         exact ⟨record, sum_written admitted⟩,
       fun ⟨record, written⟩ => by
         change (admitSum input.1 input.2).isSome = true
-        rw [written, CurrentCheckpoint.sum_roundtrip]
+        rw [written, CurrentImage.sum_roundtrip]
         rfl⟩)
     ⟨(.reward, (0, ⟨0⟩)), by decide⟩
     ⟨(.reward, (1, ⟨0x4000000000000000⟩)), by decide⟩⟩
 
-/-- Total admission returns the total whose words it reads (`CurrentCheckpoint.sum_roundtrip`).
+/-- Total admission returns the total whose words it reads (`CurrentImage.sum_roundtrip`).
 A kind does not state the value of a result, so this statement is a requirement with no kind
 beside the kind `sum_admit`. -/
 theorem sum_admit_value : Regula.ExecutableContract admitSum (fun admit =>
     ∀ (quantity : Quantity) (record : SumCount quantity),
       admit quantity (sumWords record) = some record) :=
-  ⟨fun _ => CurrentCheckpoint.sum_roundtrip⟩
+  ⟨fun _ => CurrentImage.sum_roundtrip⟩
 
 /-! ## Certificate checkers -/
 
@@ -665,374 +634,39 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
 Each admission below composes the admissions of its parts, and its round trip is proved in
 `CurrentCheckpoint`. The kind of an admission states which inputs it accepts, and each admission
 has a two-way kind: an accepted input is the written form of the value that it returns. The
-demon columns and the lifetime image hold the input words unchanged, the feature image holds the
-words of the receiver and of the admitted parts (`features_written`), and the payload and the
-candidate are the forms of the image that they return (`payload_written`, `candidate_written`).
-Apart from the lifetime admission, the type of a result depends on the receiving construction or
-on the discounts, so each kind is about `Regula.Dependent.isSome` or `Regula.Dependent.isOk` of
-the function, and the value that the admission returns is a separate requirement with no kind,
-under the name of the kind with `_value`. -/
-
-/-- The arguments of `Checkpoint.admitDemons`, in order. -/
-structure DemonsAdmit where
-  /-- The discounts of the prediction channels. -/
-  discounts : List Discount
-  /-- The column of totals. -/
-  sums : List SumWords
-  /-- The column of returns. -/
-  returns : List Binary32
-  /-- The column of errors. -/
-  errors : List Binary32
-
-/-- An admitted demon list holds the three input columns unchanged: each step of the
-admission admits one total, one return and one error without changing a word
-(`sum_written`, `Bounded32.admit_exact`), and columns of unequal lengths are refused. -/
-private theorem demons_written (discounts : List Discount) :
-    ∀ (sums : List SumWords) (returns errors : List Binary32)
-      (records : DurableDemons discounts),
-      admitDemons discounts sums returns errors = some records →
-        sums = (demonColumns records).sums.toList ∧
-          returns = (demonColumns records).returns.toList ∧
-          errors = (demonColumns records).errors.toList := by
-  induction discounts with
-  | nil =>
-    intro sums returns errors records admitted
-    cases sums <;> cases returns <;> cases errors <;> simp only [admitDemons] at admitted
-    · cases admitted
-      exact ⟨rfl, rfl, rfl⟩
-    all_goals exact nomatch admitted
-  | cons discount rest ih =>
-    intro sums returns errors records admitted
-    cases sums <;> cases returns <;> cases errors <;> simp only [admitDemons] at admitted
-    case cons.cons.cons sum sums value values error errors =>
-      simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at admitted
-      obtain ⟨total, totalAdmitted, prediction, predictionAdmitted, bounded, boundedAdmitted,
-        tail, tailAdmitted, built⟩ := admitted
-      cases built
-      obtain ⟨tailSums, tailReturns, tailErrors⟩ := ih sums values errors tail tailAdmitted
-      have first := sum_written totalAdmitted
-      have second := (Bounded32.admit_exact _ _ _ predictionAdmitted).1
-      have third := (Bounded32.admit_exact _ _ _ boundedAdmitted).1
-      simp only [demonColumns, CurrentCheckpoint.prepend_toList]
-      exact ⟨by rw [first, tailSums], by rw [← second, tailReturns], by rw [← third, tailErrors]⟩
-    all_goals exact nomatch admitted
-
-/-- Demon admission accepts exactly the columns of a durable demon list of the receiving
-discounts. Accepted columns are the columns of the list that admission returns
-(`demons_written`), and the columns of every durable list are accepted
-(`CurrentCheckpoint.demons_roundtrip`). The accepted input is one channel with the zero total,
-the zero return and the zero error, and the refused input is that channel with a NaN return.
-`demons_admit_value` states the list that admission returns. -/
-theorem demons_admit : Regula.ExecutableContract admitDemons (fun admit =>
-    Regula.Decides (· = true)
-      (fun input : DemonsAdmit => ∃ records : DurableDemons input.discounts,
-        input.sums = (demonColumns records).sums.toList ∧
-          input.returns = (demonColumns records).returns.toList ∧
-          input.errors = (demonColumns records).errors.toList)
-      (Regula.Dependent.isSome fun input : DemonsAdmit =>
-        admit input.discounts input.sums input.returns input.errors)) :=
-  ⟨.of_iff
-    (fun input => ⟨fun accepted => by
-        obtain ⟨records, admitted⟩ := Option.isSome_iff_exists.mp accepted
-        exact ⟨records, demons_written _ _ _ _ records admitted⟩,
-      fun ⟨records, written⟩ => by
-        change (admitDemons input.discounts input.sums input.returns input.errors).isSome = true
-        rw [written.1, written.2.1, written.2.2, CurrentCheckpoint.demons_roundtrip]
-        rfl⟩)
-    ⟨⟨[.g99], [(0, ⟨0⟩)], [.zero], [.zero]⟩, by decide +kernel⟩
-    ⟨⟨[.g99], [(0, ⟨0⟩)], [⟨0x7fc00000⟩], [.zero]⟩, by decide +kernel⟩⟩
-
-/-- Demon admission returns the durable list whose columns it reads
-(`CurrentCheckpoint.demons_roundtrip`). A kind does not state the value of a result, so this
-statement is a requirement with no kind beside the kind `demons_admit`. -/
-theorem demons_admit_value : Regula.ExecutableContract admitDemons (fun admit =>
-    ∀ (discounts : List Discount) (records : DurableDemons discounts),
-      admit discounts (demonColumns records).sums.toList (demonColumns records).returns.toList
-        (demonColumns records).errors.toList = some records) :=
-  ⟨fun _ => CurrentCheckpoint.demons_roundtrip⟩
-
-/-- An image whose overall reward total is a NaN word, with every other field zero. -/
-def refusedLifetime : LifetimeWords :=
-  ⟨(0, ⟨0x7ff8000000000000⟩), .replicate _ (0, ⟨0⟩), .replicate _ (0, ⟨0⟩),
-    .replicate _ (0, ⟨0⟩), .replicate _ .zero, .replicate _ .zero, .replicate _ (0, ⟨0⟩),
-    .replicate _ .initial, .replicate _ (0, 0, 0), .replicate _ (.replicate _ (0, 0, 0))⟩
-
-/-- An admitted goal aggregate holds the three input counters unchanged. -/
-private theorem goal_written {words : GoalWords} {record : GoalTotals}
-    (admitted : admitGoal words = some record) : words = goalWords record := by
-  unfold admitGoal at admitted
-  split at admitted
-  · cases admitted
-    rfl
-  · exact nomatch admitted
-
-/-- A list that an admission accepts element by element holds the written words of the
-admitted list, when each admitted element holds the written words of its value. -/
-private theorem list_written {α β : Type} {encode : α → β} {admit : β → Option α}
-    (written : ∀ {word : β} {value : α}, admit word = some value → word = encode value) :
-    ∀ (words : List β) (values : List α), words.mapM admit = some values →
-      words = values.map encode
-  | [], values, admitted => by
-    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at admitted
-    subst admitted
-    rfl
-  | word :: words, values, admitted => by
-    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
-      Option.some.injEq] at admitted
-    obtain ⟨value, first, rest, others, built⟩ := admitted
-    subst built
-    rw [List.map_cons, ← written first, ← list_written written words rest others]
-
-/-- A vector that an admission accepts element by element holds the written words of the
-admitted vector, when each admitted element holds the written words of its value. -/
-private theorem vector_written {α β : Type} {count : Nat} {encode : α → β}
-    {admit : β → Option α}
-    (written : ∀ {word : β} {value : α}, admit word = some value → word = encode value)
-    {words : Vector β count} {values : Vector α count} (admitted : words.mapM admit = some values) :
-    words = values.map encode := by
-  have arrays : words.toArray.mapM admit = some values.toArray := by
-    rw [← Vector.toArray_mapM, admitted]
-    rfl
-  have lists : words.toList.mapM admit = some values.toList := by
-    rw [← Vector.toList_toArray, ← Vector.toList_toArray, ← Array.toList_mapM, arrays]
-    rfl
-  apply Vector.toList_inj.mp
-  rw [Vector.toList_map]
-  exact list_written written _ _ lists
-
-/-- An admitted lifetime image holds the words of the durable record that admission returns,
-and the option counters of that record are valid with no active option. Each part of the
-admission admits its words without changing one (`sum_written`, `demons_written`,
-`goal_written`), and the option counters are stored as read. -/
-private theorem lifetime_written {raw : LifetimeWords} {record : Durable demonLayout}
-    (admitted : admitLifetime raw = some record) :
-    OptionsValid record.options none ∧ raw = lifetimeWords record := by
-  unfold admitLifetime at admitted
-  simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at admitted
-  obtain ⟨reward, rewardAdmitted, family, familyAdmitted, history, historyAdmitted, demons,
-    demonsAdmitted, errorHistory, errorHistoryAdmitted, goals, goalsAdmitted, cycles,
-    cyclesAdmitted, built⟩ := admitted
-  split at built
-  · rename_i valid
-    cases built
-    obtain ⟨sums, returns, errors⟩ := demons_written _ _ _ _ _ demonsAdmitted
-    have rewardWords := sum_written rewardAdmitted
-    have familyWords := vector_written (admit := admitSum .reward)
-      (encode := sumWords (quantity := .reward)) sum_written familyAdmitted
-    have historyWords := vector_written (admit := admitSum .reward)
-      (encode := sumWords (quantity := .reward)) sum_written historyAdmitted
-    have errorHistoryWords := vector_written (admit := admitSum (.squaredError .g99))
-      (encode := sumWords (quantity := .squaredError .g99)) sum_written errorHistoryAdmitted
-    have goalsWords := vector_written (admit := admitGoal) (encode := goalWords) goal_written
-      goalsAdmitted
-    have cyclesWords := vector_written
-      (admit := fun row : Vector GoalWords Acorn.FeatureConstants.cycleBins => row.mapM admitGoal)
-      (encode := fun row : Vector GoalTotals Acorn.FeatureConstants.cycleBins => row.map goalWords)
-      (fun admitted => vector_written (admit := admitGoal) (encode := goalWords) goal_written
-        admitted) cyclesAdmitted
-    refine ⟨valid, (show raw = ⟨raw.reward, raw.rewardByFamily, raw.rewardHistory,
-      raw.squaredErrors, raw.returns, raw.errors, raw.errorHistory, raw.options, raw.goals,
-      raw.goalCycles⟩ from rfl).trans ?_⟩
-    rw [rewardWords, familyWords, historyWords, Vector.toList_inj.mp sums,
-      Vector.toList_inj.mp returns, Vector.toList_inj.mp errors, errorHistoryWords, goalsWords,
-      cyclesWords]
-    rfl
-  · exact nomatch built
-
-/-- Lifetime admission accepts exactly the word image of a durable lifetime record whose
-option counters are valid with no active option. An accepted image is the image of the record
-that admission returns (`lifetime_written`), and the image of every such record is accepted
-(`CurrentCheckpoint.lifetime_roundtrip`). The accepted input is the image of the lifetime
-record of the initial agent of the resumable construction. The refused input is an image whose
-overall reward total is a NaN word. -/
-theorem lifetime_admit : Regula.ExecutableContract admitLifetime
-    (Regula.Decides (·.isSome = true) (fun raw =>
-      ∃ record : Durable demonLayout, OptionsValid record.options none ∧
-        raw = lifetimeWords record)) :=
-  ⟨decides
-    (fun raw => ⟨fun accepted => by
-        obtain ⟨record, admitted⟩ := Option.isSome_iff_exists.mp accepted
-        exact ⟨record, lifetime_written admitted⟩,
-      fun ⟨record, valid, written⟩ => by
-        rw [written, CurrentCheckpoint.lifetime_roundtrip record valid]
-        rfl⟩)
-    ⟨lifetimeWords initialImage.image.lifetime, initialImage.image.lifetime,
-      initialImage.image.episodes, rfl⟩
-    ⟨refusedLifetime, fun ⟨record, valid, written⟩ => by
-      have admitted := CurrentCheckpoint.lifetime_roundtrip record valid
-      rw [← written] at admitted
-      have illegal : ¬LegalSum .reward 0 ⟨0x7ff8000000000000⟩ := by decide
-      simp [admitLifetime, admitSum, SumCount.admit, refusedLifetime, illegal] at admitted⟩⟩
-
-/-- The arguments of `Features.FeatureImage.admit`, in order. -/
-structure FeatureImageAdmit where
-  /-- The action count. -/
-  actions : Word.Count
-  /-- The bank configuration. -/
-  config : Features.Config
-  /-- The criterion. -/
-  criterion : Criterion
-  /-- The dimension of the feature space. -/
-  dimension : Dimension
-  /-- The discounts of the prediction channels. -/
-  discounts : List Discount
-  /-- The raw image. -/
-  raw : RawFeatureImage actions dimension discounts
-
-/-- Feature-image admission accepts the feature words of every agent image of a construction
-(`CurrentCheckpoint.feature_roundtrip`), and it refuses the words of an image with another
-seed. `feature_image_admit_exact` states the two-way kind over every bank, criterion, feature
-space, action count and horizon layout, and `feature_image_admit_value` states the features
-that it returns. -/
-theorem feature_image_admit : Regula.ExecutableContract @FeatureImage.admit (fun admit =>
-    Regula.DecidesCompletely (· = true)
-      (fun input : FeatureImageAdmit => ∃ (construction : AgentConstruction)
-        (image : AgentImage Grid.interface construction.config construction.criterion
-          construction.dimension),
-        input = ⟨Grid.actions, construction.config, construction.criterion,
-          construction.dimension, demonLayout, featureWords construction image⟩)
-      (Regula.Dependent.isSome fun input : FeatureImageAdmit =>
-        @admit input.actions input.config input.criterion input.dimension input.discounts
-          input.raw)) :=
-  ⟨{ complete := fun input ⟨construction, image, written⟩ => by
-       subst written
-       change (FeatureImage.admit construction.config construction.criterion construction.dimension
-         (featureWords construction image)).isSome = true
-       rw [featureWords, featureImageWords, CurrentCheckpoint.feature_roundtrip construction image]
-       rfl
-     refused := ⟨⟨Grid.actions, bank, .discounted, narrow, demonLayout,
-       { initialWords resumable with seed := 1 }⟩, fun accepted =>
-         absurd accepted (by decide)⟩ }⟩
-
-/-- Feature-image admission returns the features of the image whose words it reads
-(`CurrentCheckpoint.feature_roundtrip`). A kind does not state the value of a result, so this
-statement is a requirement with no kind beside the kind `feature_image_admit`. -/
-theorem feature_image_admit_value :
-    Regula.ExecutableContract @FeatureImage.admit (fun admit =>
-    ∀ (construction : AgentConstruction)
-      (image : AgentImage Grid.interface construction.config construction.criterion
-        construction.dimension),
-      admit construction.config construction.criterion construction.dimension
-        ⟨construction.config.seed, construction.config.tilings,
-          construction.config.units.count.toUInt32.toUInt16,
-          construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
-          image.features.progress.clock, (testerWords image.features.progress).progress,
-          image.features.assignments.map (Assignment.words construction.dimension),
-          image.features.primary⟩ = some image.features) :=
-  ⟨CurrentCheckpoint.feature_roundtrip⟩
-
-/-- An admitted raw feature image holds the feature words of the image that admission returns.
-Admission compares the receiver's words with the stored ones, and the tester state and each
-assignment are admitted without changing a word (`Progress.admit_words`,
-`Assignment.admit_words`). -/
-private theorem features_written {actions : Word.Count} {config : Features.Config}
-    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount}
-    {raw : RawFeatureImage actions dimension discounts}
-    {features : FeatureImage actions config criterion dimension discounts}
-    (admitted : FeatureImage.admit config criterion dimension raw = some features) :
-    raw = featureImageWords config criterion dimension features := by
-  obtain ⟨seed, tilings, units, capacity, tag, clock, progress, assignments, primary⟩ := raw
-  unfold FeatureImage.admit at admitted
-  split at admitted
-  · contradiction
-  · rename_i identity
-    simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, not_or, Decidable.not_not] at identity
-    obtain ⟨⟨⟨⟨rfl, rfl⟩, unitsCount⟩, capacityCount⟩, rfl⟩ := identity
-    simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at admitted
-    obtain ⟨state, stateAdmitted, admittedAssignments, assignmentsAdmitted, built⟩ := admitted
-    split at built
-    · cases built
-      obtain ⟨rfl, rfl⟩ := Progress.admit_words _ _ _ stateAdmitted
-      have assignmentsWords := vector_written (admit := Assignment.admit dimension config)
-        (encode := Assignment.words dimension)
-        (fun admitted => Assignment.admit_words dimension _ _ admitted) assignmentsAdmitted
-      subst assignmentsWords
-      have unitsWord : config.units.count.toUInt32.toUInt16 = units := by
-        apply UInt16.toNat_inj.mp
-        rw [unitsCount]
-        have := config.units.bounded
-        change (config.units.count % 2^32) % 2^16 = config.units.count
-        omega
-      have capacityWord : dimension.capacity.toUInt32 = capacity := by
-        apply UInt32.toNat_inj.mp
-        rw [capacityCount]
-        exact Nat.mod_eq_of_lt dimension.wordBound
-      have tagWord : criterion.tag.toUInt32.toUInt8 = criterion.tag := by
-        cases criterion <;> rfl
-      rw [featureImageWords, unitsWord, capacityWord, tagWord]
-      rfl
-    · contradiction
-
-/-- Feature-image admission accepts exactly the feature words of a feature image of the
-receiving bank, criterion and feature space (`CurrentCheckpoint.features_roundtrip`, and
-`features_written` for the converse). -/
-private theorem feature_image_iff {actions : Word.Count} (config : Features.Config)
-    (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}
-    (raw : RawFeatureImage actions dimension discounts) :
-    (FeatureImage.admit config criterion dimension raw).isSome = true ↔
-      ∃ features : FeatureImage actions config criterion dimension discounts,
-        raw = featureImageWords config criterion dimension features :=
-  ⟨fun accepted => (Option.isSome_iff_exists.mp accepted).elim fun features admitted =>
-      ⟨features, features_written admitted⟩,
-    fun ⟨features, written⟩ => by
-      rw [written, featureImageWords, CurrentCheckpoint.features_roundtrip]
-      rfl⟩
-
-/-- Feature-image admission accepts exactly the feature words of a feature image of the
-receiving bank, criterion and feature space, for every action count and horizon layout
-(`feature_image_iff`). The specification names the writer of the feature words, which
-admission does not call. The accepted input is the feature words of the initial agent of the
-resumable construction; the refused input is those words with the seed one in the place of the
-seed of `bank`. -/
-theorem feature_image_admit_exact : Regula.ExecutableContract @FeatureImage.admit (fun admit =>
-    Regula.Decides (· = true)
-      (fun input : FeatureImageAdmit =>
-        ∃ features : FeatureImage input.actions input.config input.criterion input.dimension
-            input.discounts,
-          input.raw = featureImageWords input.config input.criterion input.dimension features)
-      (Regula.Dependent.isSome fun input : FeatureImageAdmit =>
-        @admit input.actions input.config input.criterion input.dimension input.discounts
-          input.raw)) :=
-  ⟨.of_iff (fun input => feature_image_iff input.config input.criterion input.dimension input.raw)
-    ⟨⟨Grid.actions, bank, .discounted, narrow, demonLayout, initialWords resumable⟩,
-      (feature_image_iff bank .discounted narrow (initialWords resumable)).mpr
-        ⟨initialImage.image.features, rfl⟩⟩
-    ⟨⟨Grid.actions, bank, .discounted, narrow, demonLayout,
-      { initialWords resumable with seed := 1 }⟩, fun accepted => absurd accepted (by decide)⟩⟩
+payload and the candidate are the forms of the image that they return (`payload_written`,
+`candidate_written`). The type of a result depends on the receiving construction, so each kind
+is about `Regula.Dependent.isOk` of the function, and the value that the admission returns is a
+separate requirement with no kind, under the name of the kind with `_value`. -/
 
 /-- An admitted payload is the payload of the image that admission returns, and the receiving
-profile is resumable. Header admission fixes every header word but the clock
-(`admitHeader_checks`); feature admission fixes the clock, the assignments, the primary words
-and the tester words (`features_written`); lifetime admission fixes the lifetime words
-(`lifetime_written`). -/
+profile is resumable. Header admission fixes every header word but the clock and the reward
+rate (`admitHeader_checks`); the image format reads exactly the encodings of images, so the
+body is the image's encoding (`CurrentImage.imageFormat_exact`); and admission requires the
+header's clock and rate words to be the image's. -/
 private theorem payload_written {construction : AgentConstruction}
-    {payload : Payload construction.dimension} {image : construction.Image}
+    {payload : Payload} {image : construction.Image}
     (admitted : admitPayload construction payload = .ok image) :
     Resumable construction.profile ∧ payload = imagePayload construction image := by
   obtain ⟨⟨version, capacity, learners, seed, clock, criterion, gain, tilings, units, supported,
-    order⟩, assignments, primary, lifetime, ⟨stream, credit, replaced, last, ⟨unitWords, bound⟩⟩⟩ :=
-    payload
+    order⟩, body⟩ := payload
   unfold admitPayload at admitted
   simp only [bind, Except.bind, pure, Except.pure, throw, throwThe, MonadExceptOf.throw]
     at admitted
   split at admitted <;> try contradiction
   rename_i rate headerAdmitted
   split at admitted <;> try contradiction
-  rename_i features featuresAdmitted
+  rename_i read rest decoded
   split at admitted <;> try contradiction
-  rename_i record lifetimeAdmitted
-  split at admitted <;> try contradiction
-  rename_i valid
+  rename_i checks
   cases admitted
+  obtain ⟨empty, clockWord, gainWord⟩ := checks
+  subst empty
+  have body := (CurrentImage.imageFormat_exact construction).canonical _ _ _ decoded
+  rw [List.append_nil] at body
+  subst body
   obtain ⟨rfl, rfl, rateAdmitted, rfl, rfl, rfl, enabled, rfl, rfl, unitsCount, rfl⟩ :=
     (admitHeader_checks construction _ rate).mp headerAdmitted
-  obtain rfl := (Bounded32.admit_exact _ _ _ rateAdmitted).1
-  have written := features_written featuresAdmitted
-  injection written with _ _ _ _ _ clockWord progressWords assignmentsWords primaryWord
-  injection progressWords with streamWord creditWord replacedWord lastWord unitsWords
-  subst clockWord assignmentsWords primaryWord streamWord creditWord replacedWord lastWord
-    unitsWords
-  obtain ⟨-, rfl⟩ := lifetime_written lifetimeAdmitted
   have resumable : Resumable construction.profile :=
     (FeatureProfile.checkpoint_iff _).mp enabled
   have countWord : construction.config.units.count.toUInt32.toNat =
@@ -1040,7 +674,7 @@ private theorem payload_written {construction : AgentConstruction}
     Nat.mod_eq_of_lt (by have := construction.config.units.bounded; omega)
   have unitsWord : units = construction.config.units.count.toUInt32 :=
     UInt32.toNat_inj.mp (unitsCount.trans countWord.symm)
-  subst unitsWord
+  subst unitsWord clockWord gainWord
   refine ⟨resumable, ?_⟩
   simp only [imagePayload, resumable, ↓reduceIte]
 
@@ -1051,7 +685,7 @@ and the receiving profile is resumable: decoding reads only the bytes that the w
 private theorem candidate_written {construction : AgentConstruction} {bytes : List UInt8}
     {image : construction.Image} (loaded : loadCandidate construction bytes = .ok image) :
     Resumable construction.profile ∧
-      bytes = encode construction.dimension (imagePayload construction image) := by
+      bytes = encode (imagePayload construction image) := by
   unfold loadCandidate at loaded
   simp only [bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at loaded
   split at loaded <;> try contradiction
@@ -1060,12 +694,12 @@ private theorem candidate_written {construction : AgentConstruction} {bytes : Li
   split at loaded <;> try contradiction
   rename_i payload decoded
   obtain ⟨resumable, written⟩ := payload_written loaded
-  exact ⟨resumable, by rw [decode_written _ _ _ decoded, written]⟩
+  exact ⟨resumable, by rw [decode_written _ _ decoded, written]⟩
 
 /-- Payload admission accepts exactly the payloads of the agent images of a resumable
 construction (`CurrentCheckpoint.image_roundtrip`, and `payload_written` for the converse). -/
 private theorem payload_iff (construction : AgentConstruction)
-    (payload : Payload construction.dimension) :
+    (payload : Payload) :
     (admitPayload construction payload).isOk = true ↔
       ∃ image : construction.Image, Resumable construction.profile ∧
         payload = imagePayload construction image := by
@@ -1088,15 +722,14 @@ payloads differ in the format generation of the header alone, so the refusal rea
 payload. `payload_admit_value` states the image that it returns. -/
 theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
     Regula.Decides (· = true)
-      (fun input : (construction : AgentConstruction) × Payload construction.dimension =>
+      (fun input : AgentConstruction × Payload =>
         ∃ image : input.1.Image, Resumable input.1.profile ∧
           input.2 = imagePayload input.1 image)
-      (Regula.Dependent.isOk fun input :
-          (construction : AgentConstruction) × Payload construction.dimension =>
+      (Regula.Dependent.isOk fun input : AgentConstruction × Payload =>
         admit input.1 input.2)) :=
   ⟨decides (fun input => payload_iff input.1 input.2)
-    ⟨⟨construction resumable, initialPayload⟩, initialImage, by decide, rfl⟩
-    ⟨⟨construction resumable, stalePayload⟩, fun accepted => by
+    ⟨(construction resumable, initialPayload), initialImage, by decide, rfl⟩
+    ⟨(construction resumable, stalePayload), fun accepted => by
       have accepted := (payload_iff (construction resumable) stalePayload).mpr accepted
       cases admitted : admitPayload (construction resumable) stalePayload with
       | error refusal =>
@@ -1126,7 +759,7 @@ converse). -/
 private theorem candidate_iff (construction : AgentConstruction) (bytes : List UInt8) :
     (loadCandidate construction bytes).isOk = true ↔
       ∃ image : construction.Image, Resumable construction.profile ∧
-        bytes = encode construction.dimension (imagePayload construction image) := by
+        bytes = encode (imagePayload construction image) := by
   constructor
   · intro accepted
     cases loaded : loadCandidate construction bytes with
@@ -1147,15 +780,14 @@ theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
     Regula.Decides (· = true)
       (fun input : AgentConstruction × List UInt8 => ∃ image : input.1.Image,
         Resumable input.1.profile ∧
-          input.2 = encode input.1.dimension (imagePayload input.1 image))
+          input.2 = encode (imagePayload input.1 image))
       (Regula.Dependent.isOk fun input : AgentConstruction × List UInt8 =>
         load input.1 input.2)) :=
   ⟨decides (fun input => candidate_iff input.1 input.2)
-    ⟨(construction resumable, encode narrow initialPayload), initialImage, by decide, rfl⟩
+    ⟨(construction resumable, encode initialPayload), initialImage, by decide, rfl⟩
     ⟨(construction resumable, []), fun ⟨image, _, written⟩ => by
-      change ([] : List UInt8) = encode (construction resumable).dimension
-        (imagePayload (construction resumable) image) at written
-      have large := CurrentCheckpoint.encoded_minimum (construction resumable).dimension
+      change ([] : List UInt8) = encode (imagePayload (construction resumable) image) at written
+      have large := CurrentCheckpoint.encoded_minimum
         (imagePayload (construction resumable) image)
       rw [← written] at large
       exact absurd large (by decide)⟩⟩
@@ -1166,8 +798,7 @@ this statement is a requirement with no kind beside the kind `candidate_load`. -
 theorem candidate_load_value : Regula.ExecutableContract loadCandidate (fun load =>
     ∀ (construction : AgentConstruction) (image : construction.Image),
       construction.profile.checkpointSupported = true →
-        load construction (encode construction.dimension (imagePayload construction image)) =
-          .ok image) :=
+        load construction (encode (imagePayload construction image)) = .ok image) :=
   ⟨CurrentCheckpoint.candidate_roundtrip⟩
 
 /-! ## World and goal tests -/
@@ -1987,151 +1618,9 @@ theorem interest_potential_declared : Regula.ExecutableContract @Interest.potent
         potential (Interest.declared (config := config) origin tag) features declared = none) :=
   ⟨CurrentTemporal.declared_refusal⟩
 
-/-- The arguments of `Handcrafted.FeatureProfile.admit`, in order. -/
-structure ProfileAdmit where
-  /-- The profile. -/
-  profile : FeatureProfile
-  /-- The action count. -/
-  actions : Word.Count
-  /-- The bank configuration. -/
-  config : Features.Config
-  /-- The criterion. -/
-  criterion : Criterion
-  /-- The dimension of the feature space. -/
-  dimension : Dimension
-  /-- The discounts of the prediction channels. -/
-  discounts : List Discount
-  /-- The raw image. -/
-  raw : RawFeatureImage actions dimension discounts
-
-/-- Profile admission accepts only under a resumable profile
-(`FeatureProfile.unsupported_refuses`). The specification names the four discriminants of the
-profile. The accepted input is the feature words of the initial agent of a resumable
-construction (`CurrentCheckpoint.feature_roundtrip`).
-
-**Not claimed:** completeness for this specification. A resumable profile refuses an image that
-`FeatureImage.admit` refuses; `profile_admit_exact` states what it accepts. -/
-theorem profile_admit_sound : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
-    Regula.DecidesSoundly (· = true) (fun input : ProfileAdmit => Resumable input.profile)
-      (Regula.Dependent.isSome fun input : ProfileAdmit =>
-        @admit input.profile input.actions input.config input.criterion input.dimension
-          input.discounts input.raw)) :=
-  ⟨{ sound := fun input accepted => by
-       have accepted : (input.profile.admit input.config input.criterion input.dimension
-         input.raw).isSome = true := accepted
-       cases supported : input.profile.checkpointSupported with
-       | true => exact (FeatureProfile.checkpoint_iff _).mp supported
-       | false =>
-         rw [FeatureProfile.unsupported_refuses input.profile input.config input.criterion
-           input.dimension input.raw supported] at accepted
-         exact absurd accepted Bool.false_ne_true
-     accepted := ⟨⟨resumable, Grid.actions, bank, .discounted, narrow, demonLayout,
-       initialWords resumable⟩, by
-         change (FeatureProfile.admit resumable bank .discounted narrow
-           (initialWords resumable)).isSome = true
-         have supported : resumable.checkpointSupported = true := by decide
-         simp only [FeatureProfile.admit, supported, ↓reduceIte]
-         exact Option.isSome_iff_exists.mpr ⟨_, CurrentCheckpoint.feature_roundtrip
-           (construction resumable)
-           (snapshotImage (construction resumable) (AgentConstruction.initial _)).image⟩⟩ }⟩
-
-/-- Profile admission accepts the feature words of every agent image of a resumable
-construction (`CurrentCheckpoint.feature_roundtrip`), and it refuses, under the resumable
-profile, the words of the initial agent with the seed one in the place of the seed of `bank`:
-the refusal reads the raw image. `profile_admit_exact` states the two-way kind over every bank,
-criterion, feature space, action count and horizon layout, `profile_admit` in `Acorn.Decisions`
-states the refusal under another profile, and `profile_admit_accepts_value` states the
-features that it returns. -/
-theorem profile_admit_accepts : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
-    Regula.DecidesCompletely (· = true)
-      (fun input : ProfileAdmit => ∃ (construction : AgentConstruction)
-        (image : AgentImage Grid.interface construction.config construction.criterion
-          construction.dimension), Resumable construction.profile ∧
-        input = ⟨construction.profile, Grid.actions, construction.config, construction.criterion,
-          construction.dimension, demonLayout, featureWords construction image⟩)
-      (Regula.Dependent.isSome fun input : ProfileAdmit =>
-        @admit input.profile input.actions input.config input.criterion input.dimension
-          input.discounts input.raw)) :=
-  ⟨{ complete := fun input ⟨construction, image, supported, written⟩ => by
-       subst written
-       change (FeatureProfile.admit construction.profile construction.config construction.criterion
-         construction.dimension (featureWords construction image)).isSome = true
-       have enabled := (FeatureProfile.checkpoint_iff construction.profile).mpr supported
-       simp only [FeatureProfile.admit, enabled, ↓reduceIte]
-       rw [featureWords, featureImageWords, CurrentCheckpoint.feature_roundtrip construction image]
-       rfl
-     refused := ⟨⟨resumable, Grid.actions, bank, .discounted, narrow, demonLayout,
-       { initialWords resumable with seed := 1 }⟩, fun accepted =>
-         absurd accepted (by decide)⟩ }⟩
-
-/-- Profile admission returns the features of the image whose words it reads, under a
-resumable construction (`CurrentCheckpoint.feature_roundtrip`). A kind does not state the
-value of a result, so this statement is a requirement with no kind beside the kind
-`profile_admit_accepts`. -/
-theorem profile_admit_accepts_value : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
-    ∀ (construction : AgentConstruction)
-      (image : AgentImage Grid.interface construction.config construction.criterion
-        construction.dimension),
-      construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
-        construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned →
-      admit construction.profile construction.config construction.criterion
-        construction.dimension
-        ⟨construction.config.seed, construction.config.tilings,
-          construction.config.units.count.toUInt32.toUInt16,
-          construction.dimension.capacity.toUInt32, construction.criterion.tag.toUInt32.toUInt8,
-          image.features.progress.clock, (testerWords image.features.progress).progress,
-          image.features.assignments.map (Assignment.words construction.dimension),
-          image.features.primary⟩ = some image.features) :=
-  ⟨fun construction image resumable => by
-    have supported := (FeatureProfile.checkpoint_iff construction.profile).mpr resumable
-    simp only [FeatureProfile.admit, supported, ↓reduceIte]
-    exact CurrentCheckpoint.feature_roundtrip construction image⟩
-
-/-- Profile admission accepts exactly, under a resumable profile, the feature words of a feature
-image of the receiving bank, criterion and feature space, for every action count and horizon
-layout (`feature_image_iff`, and `FeatureProfile.unsupported_refuses` under another profile).
-The specification names the four discriminants of the profile and the writer of the feature
-words, which admission does not call. The accepted input is the feature words of the initial
-agent of the resumable construction under the resumable profile; the refused input is those
-words with the seed one in the place of the seed of `bank`, under the same profile. -/
-theorem profile_admit_exact : Regula.ExecutableContract @FeatureProfile.admit (fun admit =>
-    Regula.Decides (· = true)
-      (fun input : ProfileAdmit => Resumable input.profile ∧
-        ∃ features : FeatureImage input.actions input.config input.criterion input.dimension
-            input.discounts,
-          input.raw = featureImageWords input.config input.criterion input.dimension features)
-      (Regula.Dependent.isSome fun input : ProfileAdmit =>
-        @admit input.profile input.actions input.config input.criterion input.dimension
-          input.discounts input.raw)) :=
-  ⟨.of_iff
-    (fun input => by
-      change (input.profile.admit input.config input.criterion input.dimension
-        input.raw).isSome = true ↔ _
-      cases supported : input.profile.checkpointSupported with
-      | true =>
-        simp only [FeatureProfile.admit, supported, ↓reduceIte]
-        exact ⟨fun accepted => ⟨(FeatureProfile.checkpoint_iff _).mp supported,
-            (feature_image_iff _ _ _ _).mp accepted⟩,
-          fun ⟨_, written⟩ => (feature_image_iff _ _ _ _).mpr written⟩
-      | false =>
-        rw [FeatureProfile.unsupported_refuses _ _ _ _ _ supported]
-        exact ⟨fun accepted => absurd accepted Bool.false_ne_true,
-          fun ⟨resumable, _⟩ => absurd
-            (supported.symm.trans ((FeatureProfile.checkpoint_iff _).mpr resumable))
-            Bool.false_ne_true⟩)
-    ⟨⟨resumable, Grid.actions, bank, .discounted, narrow, demonLayout, initialWords resumable⟩, by
-      change (FeatureProfile.admit resumable bank .discounted narrow
-        (initialWords resumable)).isSome = true
-      have supported : resumable.checkpointSupported = true := by decide
-      simp only [FeatureProfile.admit, supported, ↓reduceIte]
-      exact (feature_image_iff bank .discounted narrow (initialWords resumable)).mpr
-        ⟨initialImage.image.features, rfl⟩⟩
-    ⟨⟨resumable, Grid.actions, bank, .discounted, narrow, demonLayout,
-      { initialWords resumable with seed := 1 }⟩, fun accepted => absurd accepted (by decide)⟩⟩
-
-/-- Loading accepts the bytes that a resumable construction saved from any state, for every
-receiver of that construction (`CurrentCheckpoint.save_load`). The refusal under every other
-profile is `checkpoint_load` in `Acorn.Decisions`.
+/-- Loading returns the state that a resumable construction saved, every field of its agent,
+for every receiver of that construction (`CurrentCheckpoint.save_load`). The refusal under
+every other profile is `checkpoint_load` in `Acorn.Decisions`.
 
 The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds an agent state, an
@@ -2141,40 +1630,33 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
     ∀ (construction : AgentConstruction) (source receiver : construction.State),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
         construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned →
-      (load construction receiver
-        (encode construction.dimension (snapshot construction source))).isOk = true) :=
-  ⟨fun construction source receiver resumable => by
-    have supported := (FeatureProfile.checkpoint_iff construction.profile).mpr resumable
-    obtain ⟨restored, -, loaded⟩ :=
-      CurrentCheckpoint.save_load construction source receiver supported
-    rw [loaded]
-    rfl⟩
+      load construction receiver (encode (snapshot construction source)) = .ok source) :=
+  ⟨fun construction source receiver resumable =>
+    CurrentCheckpoint.save_load construction receiver source
+      ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
 
-/-- Each event that the agent accepts satisfies the contract of its edge: an act runs the
-agent's step and returns its decision, the bookkeeping events keep the learners, a clear
-returns the initial agent, a restore returns the restored agent and a stop keeps the state
-(`CurrentAgent.edge_contract`). `Acorn.Decisions.agent_input` states which events it accepts,
-and keeps no kind for the reason given there; this statement is a requirement with no kind
-beside it. -/
+/-- Each event satisfies the contract of its edge: an act runs the agent's step and returns its
+decision, the bookkeeping events keep the learners, a clear returns the initial agent and a
+stop keeps the state (`CurrentAgent.edge_contract`). The operation refuses no event, so it is
+no decision and this statement is a requirement with no kind. -/
 theorem agent_input_edges : Regula.ExecutableContract @Agent.input (fun input =>
     ∀ {profile config criterion dimension planning}
       (before after : Agent Grid.interface profile config criterion dimension planning)
       (event : AgentInput config criterion dimension) (stopped : Bool),
-      input before event = .ok (after, stopped) → CurrentAgent.EdgeContract before event after) :=
+      input before event = (after, stopped) → CurrentAgent.EdgeContract before event after) :=
   ⟨fun before after event stopped executed =>
     CurrentAgent.edge_contract before after event stopped executed⟩
 
-/-- An accepted compiled fold from cold initialization follows a safe path from the initial
-agent: every intermediate agent keeps the invariant, and each edge satisfies its contract
-(`CurrentAgent.native_prefix`). `Acorn.Decisions.agent_execute` states the kind; a kind does
-not state the value of a result, so this statement is a requirement with no kind beside it. -/
+/-- The compiled fold from cold initialization follows a safe path from the initial agent:
+every intermediate agent keeps the invariant, and each edge satisfies its contract
+(`CurrentAgent.native_prefix`). The fold refuses no event, so this statement is a requirement
+with no kind. -/
 theorem execute_prefix : Regula.ExecutableContract AgentConstruction.execute (fun execute =>
-    ∀ (admitted : DefaultConstruction) (finalState : admitted.construction.State)
+    ∀ (admitted : DefaultConstruction)
       (events : List (AgentInput admitted.construction.config admitted.construction.criterion
-        admitted.construction.dimension)) (stopped : Bool),
-      execute admitted events = .ok (finalState, stopped) →
-        CurrentAgent.SafePath admitted.construction.initial.agent events finalState.agent
-          stopped) :=
+        admitted.construction.dimension)),
+      CurrentAgent.SafePath admitted.construction.initial.agent events
+        (execute admitted events).1.agent (execute admitted events).2) :=
   ⟨CurrentAgent.native_prefix⟩
 
 /-- The arguments of `Agreement.admitSquared`, in order. -/
