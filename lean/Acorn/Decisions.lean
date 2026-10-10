@@ -13,6 +13,7 @@ import Acorn.Host.Campaign
 import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
 import Acorn.Host.Cli
+import Acorn.Host.Endurance
 import Acorn.Handcrafted.Microduck
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Microduck.Session
@@ -75,7 +76,7 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Thirty-five functions of this module have a contract and no kind. The reasons are three.
+Twenty-nine functions of this module have a contract and no kind. The reasons are two.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
   configuration, and a complete or a two-way kind carries a refused input. The statement of
@@ -95,30 +96,26 @@ Thirty-five functions of this module have a contract and no kind. The reasons ar
   `Checkpoint.loadCandidate` admits belongs to a resumable construction
   (`CurrentCheckpoint.unresumable_unloaded`), and under a resumable profile the restore returns
   the image's agent (`AgentConstruction.State.restore_exact`).
-* The input holds a state whose invariant names tests that the function runs. Regula reads the
-  type of the input of a specification, so RG1009
-  (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses the kind although the
-  specification names none of those tests (https://github.com/rbeauchamp/regula/issues/270).
-  These are `Checkpoint.saveBytes`, `Checkpoint.load`, `Features.Lifecycle.lessUseful`,
-  `Features.Lifecycle.candidate`, `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`,
-  `Agent.restore`, `PredictionControl.advanceRaw`, the two transitions
-  `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose input carries the
-  proof that the host is reached by the transitions, and nine selection functions of the
-  temporal controller: `TemporalControl.serve`, `TemporalControl.serveDraw`,
-  `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
-  `TemporalControl.selectWithOperations`, `TemporalControl.select`, `TemporalControl.step`,
-  `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. A temporal state reaches such
-  tests through the invariants of its learners, the stored-word check `NumericState.resumable`
-  of a learner read from an image among them, and its lifetime records. A served step reaches
-  one of them, `Binary32.negative`, through the value predictions it reports, and has a
-  statement of the step it serves beside its contract (`temporal_serve_frame`,
-  `serve_draw_frame`).
-* The kinds of the function are stated in the proof library. `Host.Released.environment` has a
-  two-way kind in `AcornVerif.Decisions`, because its accepted input holds a proof that the
-  world's observation succeeds, which follows from the terrain admission of
-  `AcornVerif.CurrentTerrain`. Regula does not count a contract of that library toward a
-  registration of this one (https://github.com/rbeauchamp/regula/issues/271), so the function is
-  not registered, and its statement here keeps no kind.
+* The specification reads a part of the input whose type declares an invariant that names tests
+  that the function runs. RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/)
+  does not enter the declaration of the input type itself, but it reads the declaration of the
+  result type of a field that the specification reads, and of the type of a definition that
+  the specification applies to such a field, so it refuses the kind although the specification
+  names none of those tests (https://github.com/rbeauchamp/regula/issues/320). These are
+  `Features.Lifecycle.lessUseful`, `Features.Lifecycle.candidate` and
+  `Features.Lifecycle.prefer`, whose specifications read the stored utilities of the lifecycle
+  state; the two transitions `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`,
+  whose host carries the proof that it is reached by the transitions; and nine selection
+  functions of the temporal controller, whose specifications read the temporal state:
+  `TemporalControl.serve`, `TemporalControl.serveDraw`, `TemporalControl.dispatchMeta`,
+  `TemporalControl.atBoundary`, `TemporalControl.selectWithOperations`,
+  `TemporalControl.select`, `TemporalControl.step`, `TemporalControl.drawBoundary` and
+  `TemporalControl.drawFirst`. A temporal state reaches such tests through the invariants of its
+  learners, the stored-word check `NumericState.resumable` of a learner read from an image among
+  them, and its lifetime records, and a lifecycle state through the invariants of the learners of
+  its consumers. A served step reaches one of them,
+  `Binary32.negative`, through the value predictions it reports, and has a statement of the step
+  it serves beside its contract (`temporal_serve_frame`, `serve_draw_frame`).
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
@@ -127,9 +124,12 @@ RG1009 does not read its specification. Each docstring says what its statement g
 it does not claim. Kinds for the functions of the second reason are remaining
 work of https://github.com/rbeauchamp/acorn/issues/105.
 
-A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. Regula
-counts only a contract of the function's own library toward a registration, so such a function
-is not registered here, and the ownership audit requires its contract in the same way. The
+A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. The
+`AcornVerif` surface of the Regula manifest names `Acorn` in `decides`, so Regula counts the
+decision contracts of that module toward the registrations of this library. A function whose
+kind is stated there is registered in the last section of this module, and RG1008 requires the
+kind as it requires a kind stated here; a statement with no kind there is required by name by
+the ownership audit, as one here is. The
 certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified`
 are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
 statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
@@ -158,7 +158,7 @@ configuration of one tile whose spawn search succeeds by the terrain admission o
 
 A kind compares a function with its specification as the two are defined now. Where the two
 call one test, a defect of that test changes the two sides together, and the proof of the kind
-can stay valid. Regula's RG1009 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/)
+can stay valid. Regula's RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/)
 therefore refuses a contract with a kind whose specification reaches a test that the function
 or the acceptance predicate also reaches. A test is a function with a result of `Bool`, or a
 definition with a result of `BEq`, outside Lean's own library. The projection function of a
@@ -1849,8 +1849,10 @@ refused, and a host that started and heard a state frame is accepted, which is h
 instance of `Nonempty Host.Microduck.Awaiting` is made.
 
 The statement keeps no kind. The type of a host carries the proof that the host is reached
-by the transitions, which names every transition and so the tests that this one runs, and
-RG1009 refuses a kind over such an input (https://github.com/rbeauchamp/regula/issues/270).
+by the transitions, which names every transition and so the tests that this one runs. A
+specification reads the host, a field of the input, and RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that field's type and refuses
+the kind, although the specification names none of those tests (https://github.com/rbeauchamp/regula/issues/320).
 
 **Not claimed:** what the percept is built from and the state after it, which
 `Host.Microduck.Idle.sense_iff` states; that the frame held was heard since the last
@@ -3167,52 +3169,47 @@ theorem checkpoint_decode_value : Regula.ExecutableContract Checkpoint.decode (f
     ∀ payload : Checkpoint.Payload, decode (Checkpoint.encode payload) = some payload) :=
   ⟨Checkpoint.roundtrip⟩
 
+/-- The resumable profile: final hierarchy, per-step credit, the declared rate and learned
+subtasks. -/
+def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
+
+/-- A profile that is not resumable: control with primitive actions only. -/
+def primitive : FeatureProfile := ⟨.primitiveOnly, .perStep, .declared, .learned⟩
+
+/-- A construction of the given profile over `bank` and `narrow`, with the discounted criterion,
+no planning and the learn-then-act order. -/
+def construction (profile : FeatureProfile) : AgentConstruction :=
+  ⟨profile, .discounted, .none, .learnThenAct, bank, narrow⟩
+
+/-- The arguments of `Checkpoint.saveBytes`, in order. -/
+structure SaveBytes where
+  /-- The construction. -/
+  construction : AgentConstruction
+  /-- The state of that construction. -/
+  state : construction.State
+
 /-- The checkpoint writer writes exactly the states of a resumable profile
 (`Checkpoint.save_supported`, `Checkpoint.save_refuses`). The specification names the four
-discriminants of the profile and no function that the writer calls.
-
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds an agent state, an
-invariant of that state names tests that the writer runs, and the rule reads the type of the
-input (https://github.com/rbeauchamp/regula/issues/270). The specification names none of those
-tests. -/
+discriminants of the profile and no function that the writer calls. The accepted input is the
+initial state of the construction of `resumable`, and the refused input that of `primitive`. -/
 theorem checkpoint_save : Regula.ExecutableContract Checkpoint.saveBytes (fun save =>
-    ∀ (construction : AgentConstruction) (state : construction.State),
-      (save construction state).isOk = true ↔ Resumable construction.profile) :=
-  ⟨fun construction state => by
-    rw [← resumable_iff]
-    cases supported : construction.profile.checkpointSupported with
-    | true => simp [Checkpoint.save_supported construction state supported, Except.isOk,
-        Except.toBool]
-    | false => simp [Checkpoint.save_refuses construction state supported, Except.isOk,
-        Except.toBool]⟩
+    Regula.Decides (·.isOk = true)
+      (fun input : SaveBytes => Resumable input.construction.profile)
+      (fun input : SaveBytes => save input.construction input.state)) :=
+  ⟨decides
+    (fun input => by
+      change (Checkpoint.saveBytes input.construction input.state).isOk = true ↔ _
+      rw [← resumable_iff]
+      cases supported : input.construction.profile.checkpointSupported with
+      | true => simp [Checkpoint.save_supported input.construction input.state supported,
+          Except.isOk, Except.toBool]
+      | false => simp [Checkpoint.save_refuses input.construction input.state supported,
+          Except.isOk, Except.toBool])
+    ⟨⟨construction resumable, AgentConstruction.initial _⟩, rfl, rfl, rfl, rfl⟩
+    ⟨⟨construction primitive, AgentConstruction.initial _⟩,
+      fun supported => nomatch supported.1⟩⟩
 
-/-- Loading refuses every byte list under a profile that is not resumable. The acceptance
-of the bytes that a resumable construction saved is `checkpoint_load_accepts` in
-`AcornVerif.Decisions`. The specification names the four discriminants of the profile and
-no function that loading calls.
-
-The statement keeps no kind. Regula v0.10.0 refuses a kind for this function under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds an agent state, an
-invariant of that state names tests that loading runs, and the rule reads the type of the
-input (https://github.com/rbeauchamp/regula/issues/270). The specification names none of
-those tests.
-
-**Not claimed:** which other byte lists a resumable construction refuses. -/
-theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
-    ∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8),
-      ¬Resumable construction.profile → (load construction receiver bytes).isOk = false) :=
-  ⟨fun construction receiver bytes other => by
-    have unsupported : construction.profile.checkpointSupported = false := by
-      cases supported : construction.profile.checkpointSupported with
-      | false => rfl
-      | true => exact absurd ((resumable_iff _).mp supported) other
-    unfold Checkpoint.load
-    split
-    · rfl
-    · rename_i image admitted
-      rw [AgentConstruction.State.restore_refuses receiver image ⟨_, admitted⟩ unsupported]
-      rfl⟩
+attribute [regula_decision] Checkpoint.saveBytes
 
 /-- An objective holds a unit exactly when it is a selected objective of that unit. -/
 private theorem holds_selected {config : Features.Config} (unit : Fin config.units.count)
@@ -3293,11 +3290,12 @@ attribute [regula_decision] Features.Interest.sameAssignment
 /-- The utility comparison accepts exactly a unit whose stored utility key is strictly below
 the other's (`Lifecycle.lessUseful_iff`).
 
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds a lifecycle state,
-an invariant of that state names tests that the comparison runs, and the rule reads the type of
-the input (https://github.com/rbeauchamp/regula/issues/270). The specification names none of
-those tests. -/
+The statement keeps no kind. RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses the kind: the specification reads the stored utility keys through the lifecycle state, a field of the input, and the
+rule reads the declaration of that field's type. Through the invariants of the learners of the
+lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
+`Binary32.negative`, which the comparison runs (https://github.com/rbeauchamp/regula/issues/320). The
+specification names none of those tests. -/
 theorem less_useful : Regula.ExecutableContract @Features.Lifecycle.lessUseful (fun test =>
     ∀ {shape actions config criterion dimension discounts}
       (state : Features.Lifecycle shape actions config criterion dimension discounts)
@@ -3371,66 +3369,137 @@ theorem assignment_admit_using_value :
         admit dimension config slot (Assignment.wordsUsing slot assignment) = some assignment) :=
   ⟨fun dimension _ => Assignment.wordsUsing_roundtrip dimension⟩
 
-/-- The raw controller step accepts exactly an action index inside the action space
-(`Controller.stepRaw_refuses` is the refusal direction).
+/-- The arguments of `Features.Controller.stepRaw`, in order. -/
+structure ControllerStep where
+  /-- The learner configuration. -/
+  config : Acorn.Config
+  /-- The dimension of the feature space. -/
+  dimension : Dimension
+  /-- The number of actions. -/
+  actions : Nat
+  /-- The controller. -/
+  controller : Controller config dimension actions
+  /-- The active features. -/
+  features : SwiftTd.ActiveSet dimension
+  /-- The raw action index. -/
+  raw : Nat
+  /-- The reward word. -/
+  reward : Binary32
 
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds a controller, an
-invariant of that state names tests that the step runs, and the rule reads the type of the input
-(https://github.com/rbeauchamp/regula/issues/270). The specification names none of those tests. -/
+/-- The raw controller step accepts exactly an action index inside the action space
+(`Controller.stepRaw_refuses` is the refusal direction). The witnesses are the initial
+controller of one action at the indices zero and one. -/
 theorem controller_step_raw : Regula.ExecutableContract @Controller.stepRaw (fun step =>
-    ∀ {config dimension actions} (controller : Controller config dimension actions)
-      (features : SwiftTd.ActiveSet dimension) (raw : Nat) (reward : Binary32),
-      (step controller features raw reward).isSome = true ↔ raw < actions) :=
-  ⟨fun {_ _ actions} controller features raw reward => by
-    unfold Controller.stepRaw Action.admit
-    by_cases inside : raw < actions <;> simp [inside]⟩
+    Regula.Decides (· = true) (fun input : ControllerStep => input.raw < input.actions)
+      (Regula.Dependent.isSome fun input : ControllerStep =>
+        @step input.config input.dimension input.actions input.controller input.features
+          input.raw input.reward)) :=
+  ⟨present
+    (fun input => by
+      unfold Controller.stepRaw Action.admit
+      by_cases inside : input.raw < input.actions <;> simp [inside])
+    ⟨⟨⟨.control, .differential⟩, narrow, 1, .initial _ _ _, .empty _, 0, .zero⟩, by decide⟩
+    ⟨⟨⟨.control, .differential⟩, narrow, 1, .initial _ _ _, .empty _, 1, .zero⟩, by decide⟩⟩
+
+attribute [regula_decision] Controller.stepRaw
+
+/-- The arguments of `Handcrafted.Agent.restore`, in order. -/
+structure AgentRestore where
+  /-- The interface of the world. -/
+  interface : Interface
+  /-- The profile. -/
+  profile : FeatureProfile
+  /-- The bank configuration. -/
+  config : Features.Config
+  /-- The criterion. -/
+  criterion : Criterion
+  /-- The dimension of the feature space. -/
+  dimension : Dimension
+  /-- The planning selection. -/
+  planning : PlanningSelection
+  /-- The receiving agent. -/
+  state : Agent interface profile config criterion dimension planning
+  /-- The durable image. -/
+  image : AgentImage interface profile config criterion dimension
 
 /-- Agent restoration accepts an image exactly under a resumable profile
 (`Agent.restore_refuses`, `Agent.restore_exact`). The specification names the four
-discriminants of the profile and no function that restoration calls.
-
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds an agent state, an
-invariant of that state names tests that restoration runs, and the rule reads the type of the
-input (https://github.com/rbeauchamp/regula/issues/270). The specification names none of those
-tests. -/
+discriminants of the profile and no function that restoration calls. The witnesses restore the
+image of the initial agent into the initial agent, under `resumable` and under `primitive`. -/
 theorem agent_restore : Regula.ExecutableContract @Agent.restore (fun restore =>
-    ∀ {interface profile config criterion dimension planning}
-      (state : Agent interface profile config criterion dimension planning)
-      (image : AgentImage interface profile config criterion dimension),
-      (restore state image).isSome = true ↔ Resumable profile) :=
-  ⟨fun {_ profile _ _ _ _} state image => by
-    rw [← resumable_iff]
-    cases supported : profile.checkpointSupported <;> simp [Agent.restore, supported]⟩
+    Regula.Decides (· = true) (fun input : AgentRestore => Resumable input.profile)
+      (Regula.Dependent.isSome fun input : AgentRestore =>
+        @restore input.interface input.profile input.config input.criterion input.dimension
+          input.planning input.state input.image)) :=
+  ⟨present
+    (fun input => by
+      rw [← resumable_iff]
+      cases supported : input.profile.checkpointSupported <;> simp [Agent.restore, supported])
+    ⟨⟨Grid.interface, resumable, bank, .discounted, narrow, .none, .initial _ _ _ _ _ _,
+      (Agent.initial _ _ _ _ _ PlanningSelection.none).image⟩, rfl, rfl, rfl, rfl⟩
+    ⟨⟨Grid.interface, primitive, bank, .discounted, narrow, .none, .initial _ _ _ _ _ _,
+      (Agent.initial _ _ _ _ _ PlanningSelection.none).image⟩,
+      fun supported => nomatch supported.1⟩⟩
+
+attribute [regula_decision] Agent.restore
+
+/-- An observation of no goal, with every byte zero. -/
+def blank : Host.Observation :=
+  ⟨.replicate _ (.replicate _ ⟨0, 0, 0⟩), 0, 0, .none, ⟨0, 0, 0, 0, false, false⟩⟩
+
+/-- The arguments of `Handcrafted.PredictionControl.advanceRaw`, in order. -/
+structure PredictionAdvance where
+  /-- The profile. -/
+  profile : FeatureProfile
+  /-- The criterion. -/
+  criterion : Criterion
+  /-- The dimension of the feature space. -/
+  dimension : Dimension
+  /-- The prediction and control state. -/
+  state : PredictionControl Grid.interface profile criterion dimension
+  /-- The bank configuration. -/
+  config : Features.Config
+  /-- The projection bank. -/
+  bank : Bank Host.patchShape config
+  /-- The observation. -/
+  obs : Host.Observation
+  /-- The reward word. -/
+  reward : Binary32
+  /-- The raw action index. -/
+  raw : Nat
+  /-- Whether the action is the learner's own. -/
+  own : Bool
 
 /-- The raw prediction-control step accepts exactly an action index inside the primitive
-actions (`PredictionControl.raw_refusal` is the refusal direction).
-
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds a prediction and
-control state, an invariant of that state names tests that the step runs, and the rule reads the
-type of the input (https://github.com/rbeauchamp/regula/issues/270). The specification names
-none of those tests. -/
+actions (`PredictionControl.raw_refusal` is the refusal direction). The witnesses are the
+initial state of `resumable` with the initial bank of `bank` and the observation `blank`, at
+the index zero and at the primitive count. -/
 theorem prediction_advance_raw :
     Regula.ExecutableContract @PredictionControl.advanceRaw (fun advance =>
-    ∀ {profile criterion dimension}
-        (state : PredictionControl Grid.interface profile criterion dimension)
-        {config : Features.Config} (bank : Bank Host.patchShape config) (obs : Host.Observation)
-        (reward : Binary32) (raw : Nat) (own : Bool),
-        (advance state bank obs reward raw own).isSome = true ↔
-          raw < Acorn.FeatureConstants.primitiveCount) :=
-  ⟨fun state _ bank obs reward raw own => by
-    show ((Action.admit Acorn.FeatureConstants.primitiveCount raw).map _).isSome = true ↔ _
-    cases admitted : Action.admit Acorn.FeatureConstants.primitiveCount raw with
-    | none =>
-      have outside := (Action.admit_none _ _).mp admitted
-      exact ⟨fun present => absurd present Bool.false_ne_true,
-        fun inside => absurd inside (Nat.not_lt.mpr outside)⟩
-    | some action =>
-      have inside : ¬Acorn.FeatureConstants.primitiveCount ≤ raw := fun outside =>
-        absurd ((Action.admit_none _ _).mpr outside) (by simp [admitted])
-      exact ⟨fun _ => Nat.lt_of_not_le inside, fun _ => rfl⟩⟩
+      Regula.Decides (· = true)
+        (fun input : PredictionAdvance => input.raw < Acorn.FeatureConstants.primitiveCount)
+        (Regula.Dependent.isSome fun input : PredictionAdvance =>
+          @advance input.profile input.criterion input.dimension input.state input.config
+            input.bank input.obs input.reward input.raw input.own)) :=
+  ⟨present
+    (fun input => by
+      change ((Action.admit Acorn.FeatureConstants.primitiveCount input.raw).map _).isSome =
+        true ↔ _
+      cases admitted : Action.admit Acorn.FeatureConstants.primitiveCount input.raw with
+      | none =>
+        have outside := (Action.admit_none _ _).mp admitted
+        exact ⟨fun present => absurd present Bool.false_ne_true,
+          fun inside => absurd inside (Nat.not_lt.mpr outside)⟩
+      | some action =>
+        have inside : ¬Acorn.FeatureConstants.primitiveCount ≤ input.raw := fun outside =>
+          absurd ((Action.admit_none _ _).mpr outside) (by simp [admitted])
+        exact ⟨fun _ => Nat.lt_of_not_le inside, fun _ => rfl⟩)
+    ⟨⟨resumable, .discounted, narrow, .initial _ _ _ _, bank, .initial _ _, blank, .zero, 0,
+      false⟩, by decide⟩
+    ⟨⟨resumable, .discounted, narrow, .initial _ _ _ _, bank, .initial _ _, blank, .zero,
+      Acorn.FeatureConstants.primitiveCount, false⟩, by decide⟩⟩
+
+attribute [regula_decision] PredictionControl.advanceRaw
 
 /-- The arguments of `Host.Viewer.ClockProgram.Predicate.eval`, in order. -/
 structure PredicateEval where
@@ -3587,11 +3656,12 @@ unit can be replaced and has the least stored utility among the units that can
 (`Lifecycle.candidate_none_iff`, `candidate_eligible`, `candidate_least`). The specification
 `Replaceable` is stated on stored data and names no eligibility test.
 
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds a lifecycle state,
-an invariant of that state names tests that the selection runs, and the rule reads the type of
-the input (https://github.com/rbeauchamp/regula/issues/270). The specification names none of
-those tests. -/
+The statement keeps no kind. RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses the kind: the specification that some unit can be replaced reads the lifecycle state, a field of the input, and the
+rule reads the declaration of that field's type. Through the invariants of the learners of the
+lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
+`Binary32.negative`, which the selection runs (https://github.com/rbeauchamp/regula/issues/320). The
+specification names none of those tests. -/
 theorem lifecycle_candidate :
     Regula.ExecutableContract @Features.Lifecycle.candidate (fun candidate =>
     ∀ {shape actions config criterion dimension discounts}
@@ -4145,11 +4215,12 @@ can, it selects that unit when there is no choice, and with a choice it selects 
 exactly when the stored utility key of the unit is below the key of the choice
 (`Lifecycle.lessUseful_iff`).
 
-The statement keeps no kind. Regula v0.10.0 refuses the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/): the input holds a lifecycle state,
-an invariant of that state names tests that the preference step runs, and the rule reads the
-type of the input (https://github.com/rbeauchamp/regula/issues/270). The specification names
-none of those tests. -/
+The statement keeps no kind. RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses the kind: the specification that the step had a choice or the unit can be replaced reads the lifecycle state, a field of the input, and the
+rule reads the declaration of that field's type. Through the invariants of the learners of the
+lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
+`Binary32.negative`, which the preference step runs (https://github.com/rbeauchamp/regula/issues/320). The
+specification names none of those tests. -/
 theorem lifecycle_prefer : Regula.ExecutableContract @Features.Lifecycle.prefer (fun prefer =>
     ∀ {shape actions config criterion dimension discounts}
       (state : Features.Lifecycle shape actions config criterion dimension discounts)
@@ -5017,7 +5088,7 @@ theorem state_restore : Regula.ExecutableContract @AgentConstruction.State.resto
     have same := congrArg Option.isSome (state.restore_agent image admitted)
     rw [Option.isSome_map] at same
     rw [same]
-    exact agent_restore.1 state.agent image.image⟩
+    exact agent_restore.1.iff ⟨_, _, _, _, _, _, state.agent, image.image⟩⟩
 
 /-! ## Temporal selection
 
@@ -5073,13 +5144,12 @@ private theorem serveDraw_isSome {interface : Interface} {profile : FeatureProfi
 /-- A temporal state serves a step of a committed run exactly when its dispatch phase holds a
 committed run with an action remaining. `temporal_serve_frame` states the step that it serves.
 
-The statement keeps no kind. Its input holds a temporal state, and Regula v0.10.0 reads the type
-of the input of a specification (https://github.com/rbeauchamp/regula/issues/270): through the
-invariants of the learners that type reaches `Binary32.negative`, which the function also reaches
-through the value predictions it reports (`Controller.predictAll`, whose weights are words of an
-interval ordered by `Binary32.key`). RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refused the kind with that test, as
-an audit of the kind stated with its witnesses showed, although the specification names no
+The statement keeps no kind. Its specification reads the temporal state, a field of its input,
+and RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that
+field's type (https://github.com/rbeauchamp/regula/issues/320): through the invariants of the
+learners that type reaches `Binary32.negative`, which the function also reaches through the value
+predictions it reports (`Controller.predictAll`, whose weights are words of an interval ordered
+by `Binary32.key`), so the rule refuses a kind over it, although the specification names no
 test. -/
 theorem temporal_serve : Regula.ExecutableContract @TemporalControl.serve (fun serve =>
     ∀ {interface profile config criterion dimension}
@@ -5272,15 +5342,13 @@ private theorem drawFirst_unsourced {interface : Interface} {profile : FeaturePr
 state (`TemporalControl.select_total`); it refuses `foreignHeld`, whose executing option declares a
 source that no frame supplies.
 
-The statement keeps no kind. Its input holds a temporal state, and Regula v0.10.0 reads the type
-of the input of a specification (https://github.com/rbeauchamp/regula/issues/270): that type
-reaches, through the invariants of the learners (`StepSizeRails`, `ManagedAdmission`) and the
-lifetime records (`Lifetime.settlementHorizon`), ten tests that selection also runs:
-`Binary32.isNaN`, `Binary64.isNaN`, `Binary32.isZero`, `Binary32.less`, `Binary64.less`,
-`Binary32.lessOrEqual`, `Binary32.magnitudeEq`, `Binary32.negative`,
-`Binary32.numericallyEqual` and `SwiftTd.nextReady`. RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses a kind over it, although
-the specification names none of them. The two conjuncts are the content of a complete kind: every
+The statement keeps no kind. Its specification reads the temporal state, a field of its input,
+and RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that
+field's type (https://github.com/rbeauchamp/regula/issues/320): that type reaches, through the
+invariants of the learners (`StepSizeRails`, `ManagedAdmission`) and the lifetime records
+(`Lifetime.settlementHorizon`), tests that selection also runs, among them `Binary32.isNaN`,
+`Binary32.less`, `Binary32.negative` and `SwiftTd.nextReady`. RG1009 refuses a kind over it,
+although the specification names none of them. The two conjuncts are the content of a complete kind: every
 input of the specification is accepted, and an input is refused. -/
 theorem select_operations : Regula.ExecutableContract @TemporalControl.selectWithOperations
     (fun select =>
@@ -5518,19 +5586,16 @@ ownership test `Host.Inventory.owns`, which the transitions of an attempt run.
 `AcornVerif.Decisions` states an accepted input of the
 observation, of finishing and of the fold, each at the attempt `fresh`, and of initialization, at
 a configuration of one tile, and `ansi_tick_accepts` here states one of the ANSI tick.
-`Host.Released.environment` keeps a requirement with no kind for another reason: its two-way kind
-is stated in `AcornVerif.Decisions`, and Regula does not count a kind of the proof library toward
-a registration (https://github.com/rbeauchamp/regula/issues/271). -/
+`Host.Released.environment` has its two-way kind in `AcornVerif.Decisions`, and its statement
+here is the value of its result beside that kind. -/
 
 /-- The transition result of a release is the environment of an accepted release, and the
 refusal of a refused one, with the stage it kept dropped.
 
-The statement keeps no kind. The two-way kind is stated in `AcornVerif.Decisions`
-(`released_environment_exact`): its witnesses hold a stage of the attempt `fresh`, with the
-proof that the world's observation succeeds, which follows from the terrain admission of
-`AcornVerif.CurrentTerrain`. Regula does not count a kind of the proof library toward a
-registration (https://github.com/rbeauchamp/regula/issues/271), so the function is not
-registered. -/
+The two-way kind is stated in `AcornVerif.Decisions` (`released_environment_exact`): its
+witnesses hold a stage of the attempt `fresh`, with the proof that the world's observation
+succeeds, which follows from the terrain admission of `AcornVerif.CurrentTerrain`. A kind does not
+state the value of a result, so this statement is a requirement with no kind beside that kind. -/
 theorem released_environment : Regula.ExecutableContract @Host.Released.environment
     (fun environment =>
       ∀ {config α goal cap} (released : Host.Released config α goal cap),
@@ -5552,10 +5617,11 @@ the stage, and the world and the events of that step, and a refusal is the step'
 
 The statement keeps no kind. The stage is accepted exactly when the world's step accepts its
 action, and no theorem states which steps succeed (`world_step`). A specification of the accepted
-stages would name `Host.World.step`, and the stage's input type reaches the ownership test
-`Host.Inventory.owns`, which the function runs through the crafting of the step, through the
-proof that its observation succeeded, so RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) would refuse a kind over it. -/
+stages would read the stage, whose type carries the proof that its observation succeeded, which
+reaches the ownership test `Host.Inventory.owns` that the function runs through the crafting of
+the step. RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of such a
+part of the input (https://github.com/rbeauchamp/regula/issues/320), so it would refuse a kind over
+it. -/
 theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
     (fun environment =>
       ∀ {config α goal cap} (selected : Host.OwnedStep config α goal cap),
@@ -5951,5 +6017,23 @@ theorem baseline_tick : Regula.ExecutableContract @Host.BaselineAttempt.tick (fu
                 next.rng = (Host.baselineAction state.rng).2 ∧
                 next.steps.val = state.steps.val + 1)) :=
   ⟨fun state => baselineTick_exact state⟩
+
+/-! ## Decisions whose kinds the proof library states
+
+Each function below has its kind in `AcornVerif.Decisions`, because the proof of the kind or one
+of its witnesses needs that library. The `AcornVerif` surface of the Regula manifest names `Acorn`
+in `decides`, so Regula counts the decision contracts of `AcornVerif.Decisions` toward the
+functions registered here, and RG1008
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1008/) fails the audit when such a function
+stays registered without its kind. The registration stays in this module, because Regula refuses a
+registration that the proof library writes for a function of this library. -/
+
+attribute [regula_decision] Checkpoint.load Checkpoint.admitSum Agreement.precision Portable.expSaturation
+  Features.Interest.potential Host.Endurance.rankIndex Host.Position.translate
+  Host.TaskObservation.satisfied Host.World.goalSatisfied Host.World.advanceActions
+  Host.World.tileKind Host.World.enterable Host.terrain Host.walkableTile Host.regionBlocked
+  Host.replayCertified Host.stanceCertified Host.ReplayCertificate.check
+  Host.StanceCertificate.check Host.BlockedCertificate.check Host.countKindNear Host.considerSpawn
+  Host.payAndAct Host.performAction Host.Released.environment
 
 end Acorn.Decisions

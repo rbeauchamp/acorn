@@ -82,8 +82,8 @@ guards below pin the exact dependency sets of selected named theorems.
 `#guard_msgs` makes it a build failure: if an `axiom` is introduced, or an
 import starts dragging one in, the message printed by `#print axioms` changes
 and this file stops compiling. These retained exact-set guards complement
-Regula's RG1003 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1003/) and
-RG1005 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1005/), which read
+Regula's RG1003 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1003/) and
+RG1005 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1005/), which read
 compiler module ownership and check the transitive axioms of every public,
 private and generated declaration against the same three names. New declarations
 cannot bypass that audit through namespace aliases or source formatting.

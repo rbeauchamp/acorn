@@ -21,7 +21,7 @@ private theorems. Counts report this complete scope of compiled declarations.
 The axioms of each declaration, project axioms, and `unsafe` and `partial`
 declarations are checked by the Regula audit of the claimed libraries, not here.
 The replacement refusal stays: `AcornVerif` claims report execution, where
-Regula's RG3002 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG3002/)
+Regula's RG3002 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG3002/)
 reports a replacement and does not refuse it.
 -/
 
