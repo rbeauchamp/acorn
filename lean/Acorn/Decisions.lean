@@ -140,6 +140,12 @@ kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind`
 needs the exact floor of `AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
 two-way kind there, and `Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete`
 have an accepted input stated there, because the observation of the attempt `fresh` succeeds by
+the terrain admission of `AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the
+rule `Host.considerSpawn` of the spawn search carry the two-way kind there (`spawn_count`,
+`spawn_consider`), with the values of their accepted results beside them, and the search
+`Host.selectSpawn` keeps a requirement with no kind there (`spawn_select`), because their
+theorems are in `AcornVerif.CurrentSpawn`. `Host.World.initial` has an accepted input stated
+there (`world_initial_accepts`), at a configuration of one tile whose spawn search succeeds by
 the terrain admission of `AcornVerif.CurrentTerrain`.
 
 ## Tests that a specification does not share
@@ -245,7 +251,10 @@ report of the definitions that have no contract is work of Regula
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. Five definitions are the exception.
+the end of this module states those, and `AcornVerif.Decisions` states the contracts and kinds
+of the spawn search that the registered `Host.World.initial` applies (`Host.selectSpawn`, the
+rule `Host.considerSpawn` and the count `Host.countKindNear`), whose theorems are in the proof
+library. Five definitions are the exception.
 `Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
@@ -491,6 +500,9 @@ def lifecycle {config : Features.Config} (progress : Progress config)
 /-- An attempt of `wide` at its first step, with the given step cap. -/
 def fresh (cap : UInt64) : Host.Attempt wide Unit (.survive 0) cap :=
   ⟨⟨(Host.World.empty wide).setGoal (.survive 0), (), {}, 0⟩, rfl, 0, .zero, .wait⟩
+
+/-- A frozen meta policy with zero values and the declared exploration rate. -/
+def level : PolicySnapshot metaCount := ⟨Vector.replicate _ .zero, declaredRate⟩
 
 /-! ## Machine comparisons -/
 
@@ -3288,9 +3300,6 @@ structure Consistent where
   /-- The reported masses of the behaviour. -/
   behaviour : Vector Binary32 count.word.toNat
 
-/-- A frozen meta policy with zero values and the declared exploration rate. -/
-def level : PolicySnapshot metaCount := ⟨Vector.replicate _ .zero, declaredRate⟩
-
 /-- The consistency test accepts exactly a behaviour whose reported masses are the frozen
 policy's (`PolicySnapshot.consistent_iff`). The masses decide the tie threshold and the ordered
 maximum with `Binary32.LessOrEqual` and `Binary32.Less`, so the specification shares no test
@@ -5793,7 +5802,7 @@ the deer refuses, and that the spawn search returns a spawn for every seed is no
 `AcornVerif.Decisions.world_initial_accepts` states an accepted input: the configuration
 `AcornVerif.Decisions.oneTile`, of one tile, with no deer and the noise scale one.
 
-**Not claimed:** which configurations initialize, or the spawn and the deer of an initial
+**Not claimed:** which other configurations initialize, or the spawn and the deer of an initial
 world. -/
 theorem world_initial : Regula.ExecutableContract Host.World.initial (fun initial =>
     ∀ (config : Host.WorldConfig) (world : Host.World config), initial config = .ok world →

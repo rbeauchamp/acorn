@@ -126,23 +126,6 @@ theorem PolicySnapshot.best_less (snapshot : PolicySnapshot count) :
       (snapshot.values.get (firstAction count)) := by
   simp only [PolicySnapshot.best, Binary32.less_iff]
 
-/-- The candidates are the filter of the non-strict word comparison: `candidates` decides
-`Binary32.LessOrEqual` with the instance that runs `Binary32.lessOrEqual`. -/
-theorem PolicySnapshot.candidates_lessOrEqual (snapshot : PolicySnapshot count) :
-    snapshot.candidates = (List.finRange count.word.toNat).filter fun action =>
-      (snapshot.best.sub tieWindow).lessOrEqual (snapshot.values.get action) := by
-  simp only [PolicySnapshot.candidates, ← Binary32.lessOrEqual_iff, Bool.decide_eq_true]
-
-/-- The nominal masses decide the tie threshold with the non-strict word comparison. -/
-theorem PolicySnapshot.probabilities_lessOrEqual (snapshot : PolicySnapshot count) :
-    snapshot.probabilities = snapshot.values.map fun value =>
-      (snapshot.epsilon.value.div (Binary32.ofUInt64 count.word)).add
-        (if (snapshot.best.sub tieWindow).lessOrEqual value then
-          (Binary32.one.sub snapshot.epsilon.value).div
-            (Binary32.ofUInt64 snapshot.candidates.length.toUInt64)
-         else .zero) := by
-  simp only [PolicySnapshot.probabilities, Binary32.lessOrEqual_iff]
-
 /-- A completed draw carries exactly the snapshot from which its action came; a decision read
 back from a checkpoint image carries the snapshot stored with it (`PolicyDecision.stored`). -/
 structure PolicyDecision (count : Word.Count) where
