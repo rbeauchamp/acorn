@@ -1765,8 +1765,10 @@ structure KindSquare where
 signed range or the value noise refuses the tile at the base scale of the world: the count has
 no early exit, so it reads every tile of its square (`countKindNear_isOk`,
 `countKindNear_admits`). The accepted input is the count of trees within radius zero of the body
-position of the empty world of `wide`; the kernel evaluates that one tile. The refused input is
-that count at `last`, whose quotient by the first octave scale is past the last coordinate. -/
+position of the empty world of `wide`, whose one tile is that position: its quotients by the four
+octave scales are below the last coordinate, and the kernel evaluates them and not the terrain.
+The refused input is that count at `last`, whose quotient by the first octave scale is past the
+last coordinate. -/
 theorem spawn_count : Regula.ExecutableContract @Host.countKindNear (fun count =>
     Regula.Decides (·.isOk = true)
       (fun input : KindSquare => SquareAdmits input.position.x.val input.position.y.val
@@ -1776,9 +1778,12 @@ theorem spawn_count : Regula.ExecutableContract @Host.countKindNear (fun count =
   ⟨decides
     (fun input => ⟨countKindNear_admits input.world input.position input.radius input.kind,
       countKindNear_isOk input.world input.position input.radius input.kind⟩)
-    ⟨⟨wide, Host.World.empty wide, (Host.World.empty wide).body.position.position, 0, .tree⟩,
-      countKindNear_admits (Host.World.empty wide) (Host.World.empty wide).body.position.position
-        0 .tree (by decide +kernel)⟩
+    ⟨⟨wide, Host.World.empty wide, (Host.World.empty wide).body.position.position, 0, .tree⟩, by
+      change SquareAdmits (Host.World.empty wide).body.position.position.x.val
+        (Host.World.empty wide).body.position.position.y.val 0 wide.raw.baseScale
+      intro row column rowBound columnBound
+      exact ⟨(Host.World.empty wide).body.position.position, by omega, by omega,
+        by decide +kernel⟩⟩
     ⟨⟨wide, Host.World.empty wide, last, 0, .tree⟩, fun admits => by
       have square : SquareAdmits last.x.val last.y.val 0 wide.raw.baseScale := admits
       obtain ⟨tile, tileColumn, tileRow, admitted⟩ := square 0 0 (by decide) (by decide)

@@ -252,7 +252,7 @@ report of the definitions that have no contract is work of Regula
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
 the end of this module states those, and `AcornVerif.Decisions` states the contracts and kinds
-of the spawn search that the registered `Host.World.initial` applies (`Host.selectSpawn`, the
+of the spawn search that `Host.World.initial` applies (`Host.selectSpawn`, the
 rule `Host.considerSpawn` and the count `Host.countKindNear`), whose theorems are in the proof
 library. Five definitions are the exception.
 `Host.Microduck.Reading.age`, which
