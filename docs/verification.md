@@ -594,14 +594,12 @@ result of `Bool`, or a definition of an instance of BEq, Lean's class of
 equality tests, outside Lean's own library. The projection function of a
 structure field is no test, whatever the type of the field: it reads stored
 data. The rule reads the specification at any depth. Acorn states each such
-condition as a proposition, with a theorem that connects the test with it:
-`Binary32.Negative` for the sign bit, `Binary32.IsNaN` and `Binary64.IsNaN`, the
-strict orders `Binary32.Less` and `Binary64.Less`, `Host.TileKind.Walkable`,
-`Host.Inventory.Owns`, `Host.InBox` and `FeatureProfile.Resumable`. A function
-that a specification reaches, such as the signed key `Binary32.key`, decides the
-proposition through an instance that runs the test, so the executed comparison
-is the same one. The rule compares names: it does not find a copy of a test
-under a second name. It refuses nothing for a projection function, so
+condition as a proposition, with a theorem that connects the test with it, such
+as `Binary32.Negative` for the sign bit or the strict order `Binary32.Less`. A
+function that a specification reaches, such as the signed key `Binary32.key`,
+decides the proposition through an instance that runs the test, so the executed
+comparison is the same one. The rule compares names: it does not find a copy of
+a test under a second name. It refuses nothing for a projection function, so
 `inventory_craft` is not refused for the fields `Host.Inventory.axe` and
 `Host.Inventory.boat`, which its specification and its function both read. It
 refuses nothing for a shared function with another result than those two, such
