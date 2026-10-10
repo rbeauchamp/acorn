@@ -90,12 +90,16 @@ of this section.
 
 The statements are about these functions. The grid world declares `synchronized`, and
 the Microduck's world a wall clock with its declared pace
-(`Acorn.Handcrafted.Microduck.interface_timing`). A host of a wall-clock world computes its verdicts with
-`Pace.outcome`: the host states of `Acorn.Host.Microduck.Session` define their standing
-as `Standing.during` of their last step and do so in their pure transitions, which the
-executable of `Acorn.Host.Microduck.Driver` runs through its loop
-(https://github.com/rbeauchamp/acorn/issues/95). Nothing
-here states that a world keeps in force the action that a standing names.
+(`Acorn.Handcrafted.Microduck.interface_timing`). Each host reads its world's declaration
+in its type: the grid world's campaign takes the proof that the grid's interface declares
+`synchronized` (`Acorn.Handcrafted.AgentConstruction.runCampaign`), and a host of the
+Microduck's world starts only with the proof that the interface declares the pace it starts
+at, which the host of every stage of its loop holds (`Acorn.Host.Microduck.Stage.declared`).
+A host of a wall-clock world computes its verdicts with `Pace.outcome`: the host states of
+`Acorn.Host.Microduck.Session` define their standing as `Standing.during` of their last step
+and do so in their pure transitions, which the executable of `Acorn.Host.Microduck.Driver`
+runs through its loop (https://github.com/rbeauchamp/acorn/issues/95). Nothing here states
+that a world keeps in force the action that a standing names.
 -/
 namespace Acorn
 

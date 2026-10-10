@@ -289,6 +289,17 @@ positive number of cycles. The grid world declares `synchronized`
 (`Grid.interface_timing`), and its attempt loops take each transition as one call
 of the world's step function.
 
+Each host reads its world's declaration in its type, so no host runs a world in a
+discipline other than the one the world declares. The campaign of a construction
+takes the proof that the grid's interface declares `synchronized`
+(`AgentConstruction.runCampaign`), so the grid's attempt loops run no world whose
+interface declares a wall clock. A host of the Microduck's world starts only with the
+proof that its interface declares, in its timing, the pace the host starts at
+(`Idle.start`, `Loop.start`), and no transition changes the pace, so every reachable
+host, and the host of every stage of its loop, holds the pace that the interface
+declares (`Reached.declared`, `Idle.declared`, `Awaiting.declared`,
+`Stage.declared`). The pace is read from the interface, not from a second constant.
+
 For a wall-clock world the two numbers get their meaning from functions of the
 declaration, of an origin and of instants. An instant is a reading of a host's
 monotonic clock in nanoseconds, a natural number, so the arithmetic is exact; it is a
@@ -574,7 +585,7 @@ needs none for it: an infeasible goal is achieved by no agent.
 | Property | What is proved | Theorems |
 |---|---|---|
 | The grid instance is the executed world | The kernel world's state under a list of actions holds the world of the executed action fold, and is refused exactly when that fold is. A goal is feasible in the kernel world (`Kernel.Feasible`) exactly when the executed fold of some list of one to cap host actions ends in a world that reports the installed goal satisfied. From a host world with a goal installed, that is exactly when the goal is feasible in the sense of the certificate section (`CurrentCertificates.Feasible`), which an accepted replay certificate proves and a blocked certificate of mountains alone refutes. | `foldl_world`, `feasible_iff_replay`, `feasible_iff_certificate` |
-| The step has two parts in the closed loop | A two-part agent is a kernel agent given as a first part that selects and a second part that learns from what the first returned. The executed agent of the default step order in that form is the executed kernel agent. The executed agent of `plan-after-act` or of `act-then-learn` in that form is the kernel agent of `Agent.actOrdered`; no theorem states that it equals or differs from the default one. `plan-after-act` and the default take the same step wherever the decision records no meta decision. A moving world also changes while the agent computes; it is a model that no executing world implements. The model takes one two-part agent and a position of the world's transition: after both parts, or between them. From one state and memory, one interaction takes the same action and keeps the same memory at both positions, and with the transition after both parts the action lands on a state that has also moved during the second part; over a run the two positions can then diverge. Two statements are derived for the loop at either position and for every assignment of work to the parts. The memory before a time is the fold of the two parts over that loop's own percepts before it, in order, so each percept is learned exactly once. When the world waits, the loop is the loop of the kernel, so the position changes no state, percept, memory or action. One interaction is also the same at both positions when the world's own change commutes with its transitions. | `executedParts_agent`, `memory_parts`, `Moving.interact_landing`, `Moving.landing_learn`, `Moving.interact_memory`, `Moving.loop_memory`, `Moving.loop_waits`, `Moving.interact_commutes` |
+| The step has two parts in the closed loop | A two-part agent is a kernel agent given as a first part that selects and a second part that learns from what the first returned. The executed agent of the default step order in that form is the executed kernel agent. The executed agent of `plan-after-act` or of `act-then-learn` in that form is the kernel agent of `Agent.actOrdered`; no theorem states that it equals or differs from the default one. `plan-after-act` and the default take the same step wherever the decision records no meta decision. A moving world also changes while the agent computes; it is a model, and no theorem states that an executing loop is an instance of it. The Microduck's host loop executes a world that moves, with statements of its own definitions ([an embodied world](#an-embodied-world-the-microduck)). The model takes one two-part agent and a position of the world's transition: after both parts, or between them. From one state and memory, one interaction takes the same action and keeps the same memory at both positions, and with the transition after both parts the action lands on a state that has also moved during the second part; over a run the two positions can then diverge. Two statements are derived for the loop at either position and for every assignment of work to the parts. The memory before a time is the fold of the two parts over that loop's own percepts before it, in order, so each percept is learned exactly once. When the world waits, the loop is the loop of the kernel, so the position changes no state, percept, memory or action. One interaction is also the same at both positions when the world's own change commutes with its transitions. | `executedParts_agent`, `memory_parts`, `Moving.interact_landing`, `Moving.landing_learn`, `Moving.interact_memory`, `Moving.loop_memory`, `Moving.loop_waits`, `Moving.interact_commutes` |
 | The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback of the default step order returns that agent's action and next memory on the kernel world's percept. The callback of another order is the two parts of that order on the grid percept (`Agent.callbacks_ordered`); no theorem links it to the kernel world's percept. | `executedAgent`, `executed_callback` |
 | In one world, need is infeasibility | A clocked script is an agent whose memory is a step counter and whose action at a count is the corresponding action of a fixed sequence. It reads no percept, and its counter fits ⌈log₂ (cap + 1)⌉ bits: 12 bits at a cap of 3000. A goal is feasible from a start state exactly when the clocked script of some sequence achieves it. So, for every class of agents that admits the clocked scripts, no admitted agent achieves a goal exactly when the goal is infeasible. The experience-free agents within a memory width with room for the counter are such a class. | `feasible_iff_script`, `script_openLoop`, `script_memory_clog`, `script_fits_attempt`, `need_iff_infeasible`, `experienceFree_iff_infeasible`, `need_single_iff_infeasible` |
 | The comparator is open-loop | The uniform-random comparator's action and next stream are functions of its stream alone. Its action sequence is therefore the same in every world over the grid interface from every start state, and its action is the executed draw. | `comparator_openLoop`, `comparator_actions`, `comparator_action` |
@@ -971,7 +982,9 @@ idle host to an awaiting one and a release takes it back, so a second percept ov
 awaited one and a release with nothing awaited cannot be written. Each type carries a
 proof that its state is reached from the start by the transitions (`Reached`, one
 constructor for each transition), so every value has a derivation and what holds of
-every derivation holds of every value.
+every derivation holds of every value. A host starts only with the proof that the
+interface declares its pace, so every value holds that pace (`Idle.declared`,
+`Awaiting.declared`).
 
 - Hearing a line keeps the latest state frame and the two latest depth frames. A
   release holds the identifiers of its requests that are not answered, and a result or
@@ -1029,7 +1042,9 @@ action and returns its lines with no task; the agent's learning starts only at t
 that says those lines were sent (`Stage.step_sent`, `Stage.step_learning`), so the second
 part of a step follows the action's send, the order `actThenLearn`. A `Loop` holds a stage with a derivation from its start (`Ran`) for its stepper and
 its starting agent, as the host's two phases hold theirs, so a task of a loop computes the
-stepper's part on what the loop sensed and no other value exists (`Loop.agent`). The
+stepper's part on what the loop sensed and no other value exists (`Loop.agent`). A loop
+starts only with the proof that the interface declares its pace (`Loop.start`), and the host
+of every stage holds that pace (`Stage.declared`). The
 instant of a step is the later of the reading and the instant of the last step
 (`Loop.at_later`), so a loop's instants do not go back and are never before its host's
 origin, and `Idle.sense` is the only test of sensing. The agent's parts are tasks that the

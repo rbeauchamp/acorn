@@ -12,14 +12,16 @@ import Acorn.Host.Microduck.Transport
 
 The executable that runs the agent of this repository in the Microduck's world: it opens the
 three connections of the transport (`Transport.within`), starts the loop of
-`Acorn.Host.Microduck.Loop` at a reading of the monotonic clock, sends its opening requests,
-and then hands the loop its events, each with a reading of the clock, until the run's duration
-has passed or a connection has ended. It holds a `Loop` and changes it only with `Loop.step`,
-so every statement of that module about a loop holds of every loop of a run: what is sent, the
-release of the stepper's choice for the percept sensed, and the agent that the two parts of
-its steps give. The agent is the construction of the standard configuration with the selected
-research profile, criterion and planning under the step order `actThenLearn`, bound by
-`Stepper.ofAgent` and cold-initialised on `Handcrafted.Microduck.interface`.
+`Acorn.Host.Microduck.Loop` at a reading of the monotonic clock, at the pace that the world's
+interface declares (`Handcrafted.Microduck.interface_timing`, which `Loop.start` takes), sends
+its opening requests, and then hands the loop its events, each with a reading of the clock,
+until the run's duration has passed or a connection has ended. It holds a `Loop` and changes it
+only with `Loop.step`, so every statement of that module about a loop holds of every loop of a
+run: the pace, what is sent, the release of the stepper's choice for the percept sensed, and
+the agent that the two parts of its steps give. The agent is the construction of the standard
+configuration with the selected research profile, criterion and planning under the step order
+`actThenLearn`, bound by `Stepper.ofAgent` and cold-initialised on
+`Handcrafted.Microduck.interface`.
 
 **One pass of the driver**, in this order: every line taken from the transport, each as
 `Event.heard` with a reading taken when it is handed; then a finished task of the loop, as
@@ -251,7 +253,8 @@ def drive (stepper : Stepper State Choice) (initial : State) (control depth : Sy
     (seconds : Nat) (out : IO.FS.Stream) : IO Ending := do
   let (run, earliest) ← Transport.within control depth fun transport => do
     let origin ← IO.monoNanosNow
-    let (start, opening) := Loop.start stepper initial Declared.pace Declared.keep ⟨origin⟩
+    let (start, opening) :=
+      Loop.start stepper initial Handcrafted.Microduck.interface_timing Declared.keep ⟨origin⟩
     let sent ← sendAll transport opening
     let mut failed := sent != opening.length
     out.putStrLn s!"start\t0\torigin={origin}\topening={sent}"

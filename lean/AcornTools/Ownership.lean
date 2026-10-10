@@ -376,6 +376,8 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Microduck.Loop.at),
   (`Acorn.Host.Microduck.Loop, `Acorn.Host.Microduck.Loop.step_release,
     `Acorn.Host.Microduck.Loop.step),
+  (`Acorn.Host.Microduck.Loop, `Acorn.Host.Microduck.Stage.declared,
+    `Acorn.Handcrafted.Microduck.interface),
   (`Acorn.Decisions, `Acorn.Decisions.microduck_sense,
     `Acorn.Host.Microduck.Idle.sense),
   (`Acorn.Decisions, `Acorn.Decisions.microduck_release,
@@ -586,12 +588,13 @@ def anchors : Array (Name × Name × Name) := #[
 
 /-- Required native entry dependencies after proof erasure. These are routing
 obligations; the IR graph alone does not prove control-flow or argument semantics.
-Erased ANSI and checksum parameters select the compiler's reduced-arity owners. -/
+Erased ANSI, checksum and timing-proof parameters select the compiler's reduced-arity
+owners. -/
 def entryUses : Array (Name × Array Name) := #[
   (`NativeApp.Main, #[`NativeApp.streamingOptions, `Acorn.Host.Viewer.runNativeCampaign,
     `Acorn.Host.StopFlag.withCommands._redArg,
     `Acorn.Handcrafted.Agent.callbacks, `Acorn.Handcrafted.AgentConstruction.callbacks,
-    `Acorn.Handcrafted.AgentConstruction.runCampaign,
+    `Acorn.Handcrafted.AgentConstruction.runCampaign._redArg,
     `Acorn.Checkpoint.Store.hooks,
     `Acorn.Host.runAnsi._redArg, `Acorn.Host.agentChecksum._redArg, `NativeApp.runMutationAudit,
     `NativeApp.AuditArm.construction]),
