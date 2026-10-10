@@ -464,41 +464,139 @@ theorem list_canonical {format : Format α} (canonical : format.Canonical) (boun
       rw [tailRead, ← valuesRead]
     · contradiction
 
-/-- A natural number in base 128, least significant digit first: each byte holds seven bits,
-and its high bit says that a further byte follows. -/
-def encodeNatural (value : Nat) : List UInt8 :=
-  if value < 128 then [UInt8.ofNat value]
-  else UInt8.ofNat (value % 128 + 128) :: encodeNatural (value / 128)
+/-- The base-128 digits of a natural after digits already written, which `written` holds
+latest first: each byte holds seven bits, least significant digit first, and its high bit
+says that a further byte follows. Each digit is a tail call, so writing runs in constant
+native stack. -/
+def encodeNaturalInto (value : Nat) (written : List UInt8) : List UInt8 :=
+  if value < 128 then (UInt8.ofNat value :: written).reverse
+  else encodeNaturalInto (value / 128) (UInt8.ofNat (value % 128 + 128) :: written)
 termination_by value
 decreasing_by omega
 
-/-- Read a base-128 natural. A further byte whose digits are all zero is refused, since the
-writer never writes one, so every natural has one encoding. -/
-def decodeNatural : List UInt8 → Option (Nat × List UInt8)
-  | [] => none
-  | digit :: rest =>
-    if digit.toNat < 128 then some (digit.toNat, rest)
-    else match decodeNatural rest with
-      | none => none
-      | some (high, tail) =>
-        if high = 0 then none else some (digit.toNat - 128 + 128 * high, tail)
+/-- A natural number in base 128, least significant digit first: each byte holds seven bits,
+and its high bit says that a further byte follows. -/
+def encodeNatural (value : Nat) : List UInt8 := encodeNaturalInto value []
 
-/-- A natural of any size. -/
+/-- Read the digits of a base-128 natural after the lower digits already read, which `lower`
+holds latest first. A further byte adds its digit to `lower`; the terminating byte is the
+highest digit, and the value is the fold of the lower digits into it. A terminating byte whose
+digits are all zero after a further byte is refused, since the writer never writes one, so
+every natural has one encoding. Each byte is a tail call, so reading runs in constant native
+stack. -/
+def decodeNaturalInto : List UInt8 → List Nat → Option (Nat × List UInt8)
+  | [], _ => none
+  | digit :: rest, lower =>
+    if digit.toNat < 128 then
+      match lower with
+      | [] => some (digit.toNat, rest)
+      | lower =>
+        if digit.toNat = 0 then none
+        else some (lower.foldl (fun value next => value * 128 + next) digit.toNat, rest)
+    else decodeNaturalInto rest ((digit.toNat - 128) :: lower)
+
+/-- Read a base-128 natural. -/
+def decodeNatural (bytes : List UInt8) : Option (Nat × List UInt8) := decodeNaturalInto bytes []
+
+/-- A natural of any size. Reading a natural of `n` bytes takes work quadratic in `n`, since
+each digit rebuilds the accumulated value; bounding the length of a natural belongs with the
+bounds of work and memory (requirement R8 of issue #90). -/
 def natural : Format Nat := ⟨encodeNatural, decodeNatural⟩
+
+/-- Written digits precede the digits of the natural. -/
+theorem encodeNaturalInto_written (value : Nat) (written : List UInt8) :
+    encodeNaturalInto value written = written.reverse ++ encodeNaturalInto value [] := by
+  rw [encodeNaturalInto.eq_1 value written, encodeNaturalInto.eq_1 value []]
+  by_cases small : value < 128
+  · simp [small]
+  · simp only [small, ↓reduceIte]
+    rw [encodeNaturalInto_written (value / 128),
+      encodeNaturalInto_written (value / 128) [UInt8.ofNat (value % 128 + 128)]]
+    simp
+termination_by value
+decreasing_by all_goals omega
+
+/-- The digits of a natural: its lowest digit, then the digits of the rest. -/
+theorem encodeNatural_eq (value : Nat) : encodeNatural value =
+    if value < 128 then [UInt8.ofNat value]
+    else UInt8.ofNat (value % 128 + 128) :: encodeNatural (value / 128) := by
+  unfold encodeNatural
+  rw [encodeNaturalInto.eq_1 value []]
+  by_cases small : value < 128
+  · simp [small]
+  · simp only [small, ↓reduceIte]
+    rw [encodeNaturalInto_written]
+    simp
+
+/-- Lower digits already read are folded into the value of the remaining digits, which must
+not be zero. -/
+theorem decodeNaturalInto_lower : ∀ (bytes : List UInt8) (lower : Nat) (digits : List Nat),
+    decodeNaturalInto bytes (lower :: digits) =
+      (decodeNaturalInto bytes []).bind fun (high, tail) =>
+        if high = 0 then none
+        else some ((lower :: digits).foldl (fun value next => value * 128 + next) high, tail)
+  | [], _, _ => rfl
+  | digit :: rest, lower, digits => by
+    by_cases small : digit.toNat < 128
+    · simp [decodeNaturalInto, small]
+    · simp only [decodeNaturalInto, small, ↓reduceIte]
+      rw [decodeNaturalInto_lower rest (digit.toNat - 128) (lower :: digits),
+        decodeNaturalInto_lower rest (digit.toNat - 128) []]
+      cases decodeNaturalInto rest [] with
+      | none => simp only [Option.bind_none]
+      | some found =>
+        obtain ⟨high, tail⟩ := found
+        by_cases zero : high = 0
+        · simp only [Option.bind_some, zero, ↓reduceIte, Option.bind_none]
+        · have positive : high * 128 + (digit.toNat - 128) ≠ 0 := by omega
+          have single : List.foldl (fun value next => value * 128 + next) high
+              [digit.toNat - 128] = high * 128 + (digit.toNat - 128) := rfl
+          rw [Option.bind_some, Option.bind_some]
+          simp only [zero, ↓reduceIte]
+          rw [Option.bind_some]
+          dsimp only
+          rw [single, ite_eq_right positive, List.foldl_cons]
+
+/-- Reading a natural: a terminating byte is the natural, and a further byte is its digit
+below the natural read after it, which must not be zero. -/
+theorem decodeNatural_cons (digit : UInt8) (rest : List UInt8) :
+    decodeNatural (digit :: rest) =
+      if digit.toNat < 128 then some (digit.toNat, rest)
+      else match decodeNatural rest with
+        | none => none
+        | some (high, tail) =>
+          if high = 0 then none else some (digit.toNat - 128 + 128 * high, tail) := by
+  unfold decodeNatural
+  by_cases small : digit.toNat < 128
+  · simp [decodeNaturalInto, small]
+  · simp only [decodeNaturalInto, small, ↓reduceIte]
+    rw [decodeNaturalInto_lower]
+    cases decodeNaturalInto rest [] with
+    | none => simp only [Option.bind_none]
+    | some found =>
+      obtain ⟨high, tail⟩ := found
+      by_cases zero : high = 0
+      · simp only [Option.bind_some, zero, ↓reduceIte]
+      · have single : List.foldl (fun value next => value * 128 + next) high
+            [digit.toNat - 128] = digit.toNat - 128 + 128 * high := by
+          change high * 128 + (digit.toNat - 128) = _
+          omega
+        simp only [Option.bind_some, zero, ↓reduceIte]
+        rw [single]
 
 /-- Reading the encoding of a natural returns it. -/
 theorem natural_lawful (value : Nat) (suffix : List UInt8) :
     decodeNatural (encodeNatural value ++ suffix) = some (value, suffix) := by
   by_cases small : value < 128
-  · rw [encodeNatural]
-    simp only [small, ↓reduceIte, List.cons_append, List.nil_append, decodeNatural]
+  · rw [encodeNatural_eq]
+    simp only [small, ↓reduceIte, List.cons_append, List.nil_append, decodeNatural_cons]
     have exact : (UInt8.ofNat value).toNat = value := by
       simp only [UInt8.toNat_ofNat']
       omega
     simp [exact, small]
   · have tail := natural_lawful (value / 128) suffix
-    rw [encodeNatural]
-    simp only [small, ↓reduceIte, List.cons_append, decodeNatural]
+    rw [encodeNatural_eq]
+    simp only [small, ↓reduceIte, List.cons_append, decodeNatural_cons]
     have digit : (UInt8.ofNat (value % 128 + 128)).toNat = value % 128 + 128 := by
       simp only [UInt8.toNat_ofNat']
       omega
@@ -513,13 +611,13 @@ decreasing_by omega
 /-- A natural read is followed by exactly the returned bytes. -/
 theorem natural_canonical : ∀ (bytes : List UInt8) (value : Nat) (rest : List UInt8),
     decodeNatural bytes = some (value, rest) → bytes = encodeNatural value ++ rest
-  | [], _, _, decoded => by simp [decodeNatural] at decoded
+  | [], _, _, decoded => by simp [decodeNatural, decodeNaturalInto] at decoded
   | digit :: tail, value, rest, decoded => by
-    simp only [decodeNatural] at decoded
+    rw [decodeNatural_cons] at decoded
     by_cases small : digit.toNat < 128
     · simp only [small, ↓reduceIte, Option.some.injEq, Prod.mk.injEq] at decoded
       obtain ⟨rfl, rfl⟩ := decoded
-      rw [encodeNatural]
+      rw [encodeNatural_eq]
       simp only [small, ↓reduceIte, List.cons_append, List.nil_append, List.cons.injEq,
         and_true]
       exact UInt8.toNat_inj.mp (by simp only [UInt8.toNat_ofNat']; omega)
@@ -535,7 +633,7 @@ theorem natural_canonical : ∀ (bytes : List UInt8) (value : Nat) (rest : List 
           obtain ⟨rfl, rfl⟩ := decoded
           have written := natural_canonical tail high last inner
           have bound := digit.toNat_lt
-          rw [encodeNatural]
+          rw [encodeNatural_eq]
           have large : ¬digit.toNat - 128 + 128 * high < 128 := by omega
           simp only [large, ↓reduceIte, List.cons_append, List.cons.injEq]
           refine ⟨UInt8.toNat_inj.mp ?_, ?_⟩
