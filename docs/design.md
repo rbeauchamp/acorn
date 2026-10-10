@@ -112,7 +112,12 @@ after that decision's on-policy credit. This is a different step
 the default at a free dispatch only: a step whose decision records no meta
 decision is the executed step, with the same next agent and the same decision
 (`Agent.actOrdered_undrawn`), and every free dispatch records one
-(`TemporalControl.atBoundary_meta`).
+(`TemporalControl.atBoundary_meta`). With no planning selected the two orders are
+one step for every agent state and percept (`Agent.actOrdered_unplanned`), and so
+one trajectory in every world that waits for the agent
+(`AcornVerif.StepParts.loop_unplanned`): the deferred planning then writes the
+diagnostic planning errors only (`TemporalControl.planFree_cleared`), where a free
+dispatch has already written zero (`TemporalControl.select_cleared`).
 
 Under `act-then-learn` the host also releases the action after the first part, and
 the first part makes every draw of the step and takes no reward word
@@ -1599,8 +1604,11 @@ reward follows the action as well, and an option that starts draws its first
 action before the credit that the same percept causes
 ([the two parts of a step](#the-two-parts-of-a-step)).
 
-With `--planning none` the deferred planning writes no learner and no rate source
-(`TemporalControl.planFree_none`). With expectation planning the meta draw of a
+With `--planning none` the deferred planning writes the diagnostic planning errors
+only (`TemporalControl.planFree_cleared`), and `learn-then-act` and
+`plan-after-act` give the same next agent and decision on every step
+(`Agent.actOrdered_unplanned`); they differ in the order word of the checkpoint and
+in the two observations below. With expectation planning the meta draw of a
 free dispatch reads a meta-controller that this frame's planning has not yet
 changed, so `learn-then-act` and `plan-after-act` can give different actions,
 learned state, outcome rows and checksums from the first free dispatch. `act-then-learn` can differ from

@@ -23,8 +23,12 @@ percept, in every world (`Agent.act_parts`). Under `planAfterAct` selection runs
 no planning, and the planning of a free boundary is the first work of the second part
 (`TemporalControl.planAfter`). These two orders can differ at a free dispatch only: a step
 whose decision records no meta decision is the executed step under both
-(`Agent.actOrdered_undrawn`, from `TemporalControl.select_unplanned`). This is PAR-19;
-the source of the reordering is cited in `Acorn.Timing`.
+(`Agent.actOrdered_undrawn`, from `TemporalControl.select_unplanned`). With no planning
+selected they are one step for every agent state and percept (`Agent.actOrdered_unplanned`):
+the deferred planning then writes the diagnostic planning errors only
+(`TemporalControl.planFree_cleared`), and a free dispatch has already written zero there
+(`TemporalControl.select_cleared`). This is PAR-19; the source of the reordering is cited
+in `Acorn.Timing`.
 
 Under `actThenLearn` the first part is not selection. It is the draw-first dispatch of
 `Acorn.Handcrafted.DrawFirst`, which makes every draw of the step and takes no reward
@@ -560,6 +564,170 @@ theorem TemporalControl.select_unplanned
             split at executed
             · exact (drawn _ _ _ executed).elim
             · exact (drawn _ _ _ executed).elim
+
+/-! ## The planning errors with no planning selected -/
+
+/-- **With no planning selected, planning writes the planning errors only.** For every
+state and frame, in a frozen profile and a learning one, the free boundary's planning
+step with no planning selected is `TemporalControl.withoutPlanning`: it writes zero to
+every diagnostic planning error and holds every other field of the state. -/
+theorem TemporalControl.planFree_cleared
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    state.planFree (planningBoundary .none) features = state.withoutPlanning := by
+  unfold TemporalControl.planFree
+  dsimp only
+  split <;> rfl
+
+/-- A state whose planning errors are zero is unchanged by `withoutPlanning`. -/
+theorem TemporalControl.withoutPlanning_cleared
+    (state : TemporalControl interface profile config criterion dimension)
+    (cleared : state.runtime.references.planningErrors = Vector.replicate _ .zero) :
+    state.withoutPlanning = state := by
+  unfold TemporalControl.withoutPlanning
+  rw [← cleared]
+
+/-- Meta credit holds the planning errors. -/
+theorem TemporalControl.learnMeta_errors
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
+    (state.learnMeta features decision).runtime.references.planningErrors =
+      state.runtime.references.planningErrors := by
+  rw [TemporalControl.learnMeta_eq]
+  split <;> rfl
+
+/-- Terminal credit holds the planning errors. -/
+theorem TemporalControl.closeOption_errors
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
+    (reward terminal : Binary32) :
+    (state.closeOption models features closing reward terminal).1.runtime.references.planningErrors =
+      state.runtime.references.planningErrors := by
+  rw [TemporalControl.closeOption_eq]
+  dsimp only
+  cases closing.oldOwner <;> rfl
+
+/-- The dispatch of a drawn meta decision holds the planning errors. -/
+theorem TemporalControl.dispatchMeta_errors
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) (decision : PolicyDecision metaCount) (ended : Option EndEvent)
+    (next : TemporalControl interface profile config criterion dimension)
+    (selected : TemporalDecision interface.actions)
+    (executed : state.dispatchMeta models features declared reward goal decision ended =
+      some (next, selected)) :
+    next.runtime.references.planningErrors = state.runtime.references.planningErrors := by
+  rw [TemporalControl.dispatchMeta_eq] at executed
+  have kept := state.learnMeta_errors features decision
+  generalize state.learnMeta features decision = learned at executed kept
+  dsimp only at executed
+  split at executed
+  · cases executed
+    exact kept
+  · rename_i slot _
+    cases potential : (learned.runtime.lifecycle.consumers.skills.get slot).interest.potential
+        features declared with
+    | none => simp [potential, bind, Option.bind] at executed
+    | some value =>
+      simp only [potential, bind, Option.bind, pure, Option.some.injEq] at executed
+      generalize step : TemporalControl.stepOption _ _ _ _ _ _ _ _ _ _ = result at executed
+      obtain ⟨rfl, rfl⟩ : result.1 = next ∧ result.2 = selected := by
+        rw [executed]
+        exact ⟨rfl, rfl⟩
+      rw [← step, TemporalControl.stepOption_eq]
+      exact kept
+
+/-- A free dispatch with no planning selected returns a state whose planning errors are
+zero: its planning writes zero to them (`TemporalControl.planFree_cleared`), and no later
+write of the dispatch writes them. -/
+theorem TemporalControl.atBoundary_cleared
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
+    (ended : Option EndEvent)
+    (next : TemporalControl interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions)
+    (executed : state.atBoundary models (planningBoundary .none) features declared reward goal
+      closing ended = some (next, decision)) :
+    next.runtime.references.planningErrors = Vector.replicate _ .zero := by
+  unfold TemporalControl.atBoundary at executed
+  generalize state.refreshFree closing = refreshed at executed
+  dsimp only at executed
+  have drawnCleared : ((refreshed.1.planFree (planningBoundary .none) features).drawMeta
+      features).1.runtime.references.planningErrors = Vector.replicate _ .zero := by
+    rw [TemporalControl.planFree_cleared]
+    rfl
+  generalize (refreshed.1.planFree (planningBoundary .none) features).drawMeta features = drawn
+    at executed drawnCleared
+  revert executed
+  cases refreshed.2 with
+  | none =>
+    intro executed
+    exact (drawn.1.dispatchMeta_errors models features declared reward goal drawn.2 ended next
+      decision executed).trans drawnCleared
+  | some owner =>
+    intro executed
+    exact (TemporalControl.dispatchMeta_errors _ models features declared reward goal drawn.2 _
+      next decision executed).trans
+      ((drawn.1.closeOption_errors models features owner reward _).trans drawnCleared)
+
+/-- **A decision with a meta decision leaves no planning error, with no planning
+selected.** For every executed selection with no planning selected whose decision records
+a meta decision, the returned state's planning errors are zero. Such a decision is a free
+dispatch's: a served step, a primitive-only profile and a continuing option record no
+meta decision. -/
+theorem TemporalControl.select_cleared
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool)
+    (next : TemporalControl interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions)
+    (executed : state.selectWithOperations models (planningBoundary .none) features declared
+      reward goal = some (next, decision))
+    (drawn : decision.metaDecision.isSome = true) :
+    next.runtime.references.planningErrors = Vector.replicate _ .zero := by
+  unfold TemporalControl.selectWithOperations at executed
+  generalize state.prepareSelection models features reward = prepared at executed
+  dsimp only at executed
+  revert executed
+  cases served : prepared.serve features with
+  | some result =>
+    intro executed
+    obtain ⟨_, rfl⟩ := selected_eq executed
+    rw [prepared.serve_undrawn result.1 features result.2 served] at drawn
+    contradiction
+  | none =>
+    intro executed
+    simp only at executed
+    split at executed
+    · obtain ⟨_, rfl⟩ := selected_eq executed
+      rw [TemporalControl.choosePrimitive_meta] at drawn
+      contradiction
+    · split at executed
+      · exact (prepared.withPhase .idle).atBoundary_cleared models features declared reward goal
+          none none next decision executed
+      · exact (prepared.withPhase .idle).atBoundary_cleared models features declared reward goal
+          none none next decision executed
+      · rename_i slot activation phase
+        cases potential : ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+            slot).interest.potential features declared with
+        | none => simp [potential, bind, Option.bind] at executed
+        | some value =>
+          simp only [potential, bind, Option.bind] at executed
+          split at executed
+          · obtain ⟨_, rfl⟩ := selected_eq executed
+            rw [TemporalControl.stepOption_meta] at drawn
+            contradiction
+          · split at executed
+            · exact (prepared.withPhase .idle).atBoundary_cleared models features declared
+                reward goal _ none next decision executed
+            · exact TemporalControl.atBoundary_cleared _ models features declared reward goal
+                none _ next decision executed
 
 /-! ## Planning after the action -/
 
@@ -1322,6 +1490,67 @@ theorem Agent.actOrdered_undrawn
   rw [← controls, ← decisions]
   unfold TemporalControl.planAfter
   simp only [undrawn, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+
+/-- With no planning selected, the first parts of `planAfterAct` and `learnThenAct` run
+one selection: for every agent state and percept the two chosen values hold the same
+temporal state, decision, features, unit outputs and owed record. They differ in the
+order each records (`Agent.choose_selected`). -/
+theorem Agent.choose_unplanned
+    (state : Agent interface profile config criterion dimension .none)
+    (percept : Percept interface) :
+    (state.choose .planAfterAct percept).control = (state.choose .learnThenAct percept).control ∧
+      (state.choose .planAfterAct percept).decision =
+        (state.choose .learnThenAct percept).decision ∧
+      (state.choose .planAfterAct percept).features =
+        (state.choose .learnThenAct percept).features ∧
+      (state.choose .planAfterAct percept).units = (state.choose .learnThenAct percept).units ∧
+      (state.choose .planAfterAct percept).owed = (state.choose .learnThenAct percept).owed :=
+  ⟨rfl, rfl, rfl, rfl, rfl⟩
+
+/-- **With no planning selected, `planAfterAct` is the default order's step.** For every
+agent state whose planning selection is none and every percept, the whole step under
+`planAfterAct` is the whole step under `learnThenAct`, which is `Agent.act`
+(`Agent.act_parts`): the same next agent, with every learner, reference, clock and
+diagnostic field, the planning errors included, and the same decision.
+
+Both first parts run selection with the no-planning boundary (`Agent.choose_unplanned`).
+The second part of `planAfterAct` first runs the deferred planning, at a decision that
+records a meta decision only. With no planning selected that planning writes the
+diagnostic planning errors only, to zero (`TemporalControl.planFree_cleared`), and the
+selected state of such a decision already holds zero there
+(`TemporalControl.select_cleared`), so it returns the selected state.
+
+What differs is outside the next agent and the decision: the order each chosen value
+records, the position of the world's transition, which a host takes from the order
+(`StepOrder.Releases`), and the order word that a checkpoint of each construction
+stores. -/
+theorem Agent.actOrdered_unplanned
+    (state : Agent interface profile config criterion dimension .none)
+    (percept : Percept interface) :
+    state.actOrdered .planAfterAct percept = state.actOrdered .learnThenAct percept := by
+  have chosen := state.choose_unplanned percept
+  refine Prod.ext ?_ chosen.2.1
+  refine Agent.retire_control (state.choose .planAfterAct percept).learned
+    (state.choose .learnThenAct percept).learned ?_
+    (state.advanceClock.frame percept.frame).units
+  change ((state.choose .planAfterAct percept).control.planAfter .none
+        (state.advanceClock.frame percept.frame).active
+        (state.choose .planAfterAct percept).decision).learn
+      (state.advanceClock.frame percept.frame).active percept.frame percept.reward
+      percept.frame.achieved (state.choose .planAfterAct percept).decision =
+    (state.choose .learnThenAct percept).control.learn
+      (state.advanceClock.frame percept.frame).active percept.frame percept.reward
+      percept.frame.achieved (state.choose .learnThenAct percept).decision
+  rw [← chosen.1, ← chosen.2.1]
+  congr 1
+  unfold TemporalControl.planAfter
+  split
+  · rename_i drawn
+    rw [TemporalControl.planFree_cleared]
+    exact TemporalControl.withoutPlanning_cleared _
+      (TemporalControl.select_cleared _ (modelOperations criterion dimension) _ _ _ _ _ _
+        (state.choose_selected .planAfterAct (by decide) percept).1 drawn)
+  · rfl
 
 /-! ## The second part and the action generator -/
 
