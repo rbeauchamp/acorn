@@ -43,7 +43,8 @@ def Conceals (family : WorldClass interface) (goals : family.Goals)
     (reference : World interface) (origin : reference.State) : Prop :=
   ∀ (index : family.Index) (actions : ℕ → Act interface) (time : ℕ),
     (∀ earlier, 1 ≤ earlier → earlier ≤ time →
-      ¬ (goals index).satisfied (path (family.world index) (family.start index) actions earlier)) →
+      ¬ (goals index).satisfied
+        (path (family.world index) (family.start index) actions earlier)) →
     (family.world index).percept (path (family.world index) (family.start index) actions time) =
       reference.percept (path reference origin actions time)
 
@@ -72,7 +73,8 @@ theorem Conceals.perceptAt_eq (hidden : Conceals family goals reference origin)
   have shown := hidden index (actionAt reference agent origin) time (fun earlier low high => by
     rw [← track earlier high]
     exact unmet earlier low high)
-  show (family.world index).percept (stateAt (family.world index) agent (family.start index) time) =
+  change (family.world index).percept
+      (stateAt (family.world index) agent (family.start index) time) =
     reference.percept (stateAt reference agent origin time)
   rw [track time (Nat.le_refl time), stateAt_eq_path reference agent origin time]
   exact shown
@@ -91,14 +93,16 @@ theorem Conceals.agree_before (hidden : Conceals family goals reference origin)
   | zero => exact fun _ => ⟨rfl, fun step early => absurd early (Nat.not_lt_zero step)⟩
   | succ time ih =>
     intro unmet
-    have unmetEarlier : ∀ earlier, 1 ≤ earlier → earlier ≤ time → ¬ (goals index).satisfied
+    have unmetEarlier : ∀ earlier, 1 ≤ earlier → earlier ≤ time →
+        ¬ (goals index).satisfied
         (stateAt (family.world index) agent (family.start index) earlier) :=
       fun earlier low high => unmet earlier low (Nat.le_succ_of_le high)
     obtain ⟨memory, actions⟩ := ih unmetEarlier
     have percept := hidden.perceptAt_eq agent index time unmetEarlier actions
     have decided : agent.act (memoryAt (family.world index) agent (family.start index) time)
           (perceptAt (family.world index) agent (family.start index) time) =
-        agent.act (memoryAt reference agent origin time) (perceptAt reference agent origin time) := by
+        agent.act (memoryAt reference agent origin time)
+          (perceptAt reference agent origin time) := by
       rw [memory, percept]
     refine ⟨congrArg Prod.snd decided, fun step early => ?_⟩
     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ early) with earlier | equal
@@ -122,7 +126,7 @@ theorem Conceals.agree (hidden : Conceals family goals reference origin)
   rcases Nat.lt_or_eq_of_le within with earlier | equal
   · exact actions step earlier
   · rw [equal]
-    show (agent.act (memoryAt (family.world index) agent (family.start index) time)
+    change (agent.act (memoryAt (family.world index) agent (family.start index) time)
         (perceptAt (family.world index) agent (family.start index) time)).1 =
       (agent.act (memoryAt reference agent origin time) (perceptAt reference agent origin time)).1
     rw [memory, percept]
@@ -163,7 +167,8 @@ theorem park_keeps (world : World interface) (start : world.State)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (shows : ∀ state action, satisfied (world.step state action) →
       signal (world.percept (world.step state action)) = true)
-    (stay : Act interface) (keeps : ∀ state, satisfied state → satisfied (world.step state stay))
+    (stay : Act interface)
+    (keeps : ∀ state, satisfied state → satisfied (world.step state stay))
     (actions : ℕ → Act interface) (time later : ℕ)
     (met : satisfied (stateAt world (park interface signal stay actions) start (time + 1))) :
     satisfied (stateAt world (park interface signal stay actions) start (time + 1 + later)) := by
@@ -179,13 +184,14 @@ theorem park_keeps (world : World interface) (start : world.State)
         rfl
       rw [stepped] at ih ⊢
       exact shows _ _ ih
-    show satisfied (world.step
+    change satisfied (world.step
       (stateAt world (park interface signal stay actions) start (time + 1 + later))
       (if signal (world.percept
           (stateAt world (park interface signal stay actions) start (time + 1 + later))) = true
         then stay
-        else actions (memoryAt world (park interface signal stay actions) start (time + 1 + later))))
-    rw [if_pos shown]
+        else actions
+          (memoryAt world (park interface signal stay actions) start (time + 1 + later))))
+    rw [ite_eq_left shown]
     exact keeps _ ih
 
 end AcornVerif.Kernel

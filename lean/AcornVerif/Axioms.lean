@@ -65,6 +65,7 @@ import AcornVerif.CurrentCurriculum
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentGridWorld
+import AcornVerif.Replay
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
 import AcornVerif.Endurance
@@ -3420,6 +3421,46 @@ info: 'AcornVerif.CurrentGridWorld.far_window_unsolved' depends on axioms: [prop
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentGridWorld.far_window_unsolved
+
+/--
+info: 'AcornVerif.Kernel.Conceals.need' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.Conceals.need
+
+/--
+info: 'AcornVerif.Kernel.visits_need' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.visits_need
+
+/--
+info: 'AcornVerif.Kernel.visits_first_success' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.visits_first_success
+
+/--
+info: 'AcornVerif.Kernel.visits_ever' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.visits_ever
+
+/--
+info: 'AcornVerif.Kernel.replay_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.replay_keeps
+
+/--
+info: 'AcornVerif.Kernel.replay_solves' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.replay_solves
+
+/-- info: 'AcornVerif.Kernel.park_keeps' does not depend on any axioms -/
+#guard_msgs in
+#print axioms AcornVerif.Kernel.park_keeps
 
 /-- info: 'AcornVerif.GridCorrespondence.initial_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

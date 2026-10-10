@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Concealment
-import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Nat.Find
 
 /-!
@@ -118,10 +118,10 @@ theorem visits_loop (world : World interface) (start : world.State) (length : �
   | succ time ih =>
     have earlier := ih (Nat.le_of_succ_le within)
     have short : time < length := Nat.lt_of_succ_le within
-    show interact (visits world start length) agent
+    change interact (visits world start length) agent
         (loop (visits world start length) agent (visitStart world start length) time) = _
     rw [earlier]
-    simp only [interact, visits, dif_pos short]
+    simp only [interact, visits, dite_eq_left short]
     rfl
 
 /-- After a whole visit, `length + 1` decisions from the start of a visit, the world is again
@@ -133,11 +133,11 @@ theorem visits_return (world : World interface) (start : world.State) (length : 
   have last : stateAt (visits world start length) agent (visitStart world start length) length =
       ((loop world agent start length).1, ⟨length, Nat.lt_succ_self length⟩) :=
     congrArg Prod.fst (visits_loop world start length agent length (Nat.le_refl length))
-  show (visits world start length).step
+  change (visits world start length).step
       (stateAt (visits world start length) agent (visitStart world start length) length)
       (actionAt (visits world start length) agent (visitStart world start length) length) = _
   rw [last]
-  simp only [visits, dif_neg (Nat.lt_irrefl length)]
+  simp only [visits, dite_eq_right (Nat.lt_irrefl length)]
   rfl
 
 /-- Every visit begins at the start of a visit: after each multiple of `length + 1`
@@ -193,12 +193,12 @@ theorem solvesOnVisit_iff (family : WorldClass interface) (goals : family.Goals)
         (family.start index) step := by
     intro step within
     rw [stateAt_add, visits_period]
-    exact congrArg (fun pair => pair.1.1)
-      (visits_loop (family.world index) (family.start index) length _ step within)
+    exact congrArg Prod.fst (congrArg Prod.fst
+      (visits_loop (family.world index) (family.start index) length _ step within))
   constructor
   · rintro ⟨step, low, high, met⟩
     refine ⟨step, low, high, ?_⟩
-    show (goals index).satisfied _
+    change (goals index).satisfied _
     rw [← inner step high]
     exact met
   · rintro ⟨step, low, high, met⟩
@@ -257,14 +257,16 @@ theorem Conceals.visit_memory (hidden : Conceals family goals reference origin) 
   have memberPercept : perceptAt (visits (family.world index) (family.start index) length) agent
       (visitStart (family.world index) (family.start index) length) length =
         perceptAt (family.world index) agent (family.start index) length :=
-    congrArg (fun pair => (family.world index).percept pair.1.1) member
+    congrArg (fun pair : (visits (family.world index) (family.start index) length).State ×
+      agent.Memory => (family.world index).percept pair.1.1) member
   have baseMemory : memoryAt (visits reference origin length) agent
       (visitStart reference origin length) length = memoryAt reference agent origin length :=
     congrArg Prod.snd base
   have basePercept : perceptAt (visits reference origin length) agent
       (visitStart reference origin length) length = perceptAt reference agent origin length :=
-    congrArg (fun pair => reference.percept pair.1.1) base
-  show (agent.act
+    congrArg (fun pair : (visits reference origin length).State × agent.Memory =>
+      reference.percept pair.1.1) base
+  change (agent.act
       (memoryAt (visits (family.world index) (family.start index) length) agent
         (visitStart (family.world index) (family.start index) length) length)
       (perceptAt (visits (family.world index) (family.start index) length) agent
@@ -345,25 +347,26 @@ theorem visits_ever (hidden : Conceals family goals reference origin) {length bo
   let first : family.Index → ℕ := fun index =>
     if once : ∃ earlier, SolvesOnVisit family goals length agent earlier index then
       Nat.find once else count
-  have firstOf : ∀ index (once : ∃ earlier, SolvesOnVisit family goals length agent earlier index),
-      first index = Nat.find once := fun index once => dif_pos once
+  have firstOf : ∀ index
+      (once : ∃ earlier, SolvesOnVisit family goals length agent earlier index),
+      first index = Nat.find once := fun index once => dite_eq_left once
   have cover : solved ⊆ (Finset.range count).biUnion
       (fun visit => solved.filter (fun index => first index = visit)) := by
     intro index member
     obtain ⟨earlier, before, solves⟩ := each index member
-    have least : Nat.find ⟨earlier, solves⟩ ≤ earlier := Nat.find_min' ⟨earlier, solves⟩ solves
+    have once : ∃ earlier, SolvesOnVisit family goals length agent earlier index :=
+      ⟨earlier, solves⟩
+    have least : Nat.find once ≤ earlier := Nat.find_min' once solves
     rw [Finset.mem_biUnion]
     refine ⟨first index, ?_, Finset.mem_filter.mpr ⟨member, rfl⟩⟩
-    rw [Finset.mem_range, firstOf index ⟨earlier, solves⟩]
+    rw [Finset.mem_range, firstOf index once]
     omega
   calc solved.card
       ≤ ((Finset.range count).biUnion
           (fun visit => solved.filter (fun index => first index = visit))).card :=
         Finset.card_le_card cover
-    _ ≤ ∑ visit ∈ Finset.range count, (solved.filter (fun index => first index = visit)).card :=
-        Finset.card_biUnion_le
-    _ ≤ ∑ _visit ∈ Finset.range count, bound := by
-        apply Finset.sum_le_sum
+    _ ≤ (Finset.range count).card * bound := by
+        apply Finset.card_biUnion_le_card_mul
         intro visit _
         apply visits_first_success hidden covered agent visit
         intro index member
@@ -375,6 +378,6 @@ theorem visits_ever (hidden : Conceals family goals reference origin) {length bo
         refine ⟨?_, fun sooner before => Nat.find_min once (by rw [found]; exact before)⟩
         rw [← found]
         exact Nat.find_spec once
-    _ = count * bound := by rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
+    _ = count * bound := by rw [Finset.card_range]
 
 end AcornVerif.Kernel
