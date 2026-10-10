@@ -48,6 +48,7 @@ import AcornVerif.CurrentGridWorld
 import AcornVerif.Concealment
 import AcornVerif.Visits
 import AcornVerif.Replay
+import AcornVerif.CurrentConcealedTarget
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting

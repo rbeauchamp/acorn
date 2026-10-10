@@ -622,7 +622,8 @@ What these theorems do not establish:
   blind on the class of targets, so the theorem supplies no bound for it; that
   its actions do depend on the target is not proved either. A fixed rule that
   steps toward the target needs no experience. No theorem here gives a goal
-  whose solution the observation does not show.
+  whose solution the observation does not show; [the next
+  section](#goals-the-observation-conceals-and-visits) does.
 - **A bound over seeds.** The reach bound counts target positions for one host
   world. The generator ties the target to the seed, so reading it as a fraction
   of seeds assumes that the seed hash places targets independently of the walk
@@ -682,11 +683,32 @@ the whole class.
 | First success, for every agent | Before a member's goal is first met, every agent keeps in that member's visits the memory it keeps in the reference's visits. So every agent solves at most k members for the first time on any one visit, at most k on its first visit, and at most n·k on its first n visits. | `Conceals.visits_memory`, `visits_first_success`, `visits_first`, `visits_ever` |
 | An agent that uses experience re-solves | Where the percept after every step shows a signal exactly when that step meets the goal, the replaying agent solves on every later visit each member it has solved on one visit. | `replay_invariant`, `replay_follows`, `replay_keeps`, `replay_solves` |
 
+**A concealed target in the grid world.** The host has a goal beside the standard
+curriculum's whose observation conceals its target, `Host.Goal.find`. It is met in the
+box of a reach goal for the same target and counts as a reach goal, but its task
+relation is the one cue of its family and whether the body is in the box: no
+displacement, and no cue derived from the target. The agent's task words for it are its
+kind and that flag. No campaign installs it yet. [The concealed-target
+instance](../lean/AcornVerif/CurrentConcealedTarget.lean) builds the class of concealed
+targets over one host world from the executed step, observation and percept adapter: each
+member installs a target whose box does not hold the body's position, in the same world
+with the same carried result.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| The executed observation conceals the target | A concealed target is met exactly in its box, and its task relation is its family's cue and whether it is met. A member's world and the world with a target no body can reach installed step alike, are refused alike and keep their goals; two worlds that differ only in their goals and show one task relation deliver one observation. So the class conceals its goals behind the world with that unreachable target installed. | `find_satisfied_iff`, `find_observe`, `find_task`, `twin_paths`, `observe_twins`, `find_conceals` |
+| One walk meets few targets | One action sequence meets at most 49 + 7·cap concealed targets in cap steps, for every terrain. | `find_met_swept`, `find_covered` |
+| The bounds in the grid world | Every agent, the executed agent included, solves at most 49 + 7·cap members on a first visit. In visits of cap steps every experience-free agent, the uniform-random comparator included, solves at most that many on each visit; every agent solves at most that many for the first time on each visit, and n·(49 + 7·cap) over n visits. At a cap of 3000 and a window of radius 120 an experience-free agent solves on each visit at most 21049 of the window's 57600 targets. | `find_need`, `executed_find_first`, `find_visits_need`, `comparator_find_visits`, `find_visits_first_success`, `find_visits_ever`, `far_window_visits` |
+| The bounds separate | The percept's achievement flag after a step is set exactly when the step meets the installed goal, so the replaying agent with that flag as its signal solves on every later visit each concealed target it has solved once. | `achieved_decodes`, `find_replay` |
+
 What these theorems do not establish:
 
-- **A goal of the grid world that conceals.** They hold for every class over the
-  interface. No goal of the standard curriculum conceals its target: a reach goal's
-  cue is a hash of the target and its relation gives the displacement.
+- **That a campaign uses the concealed target.** No goal of the standard curriculum
+  conceals its target: a reach goal's cue is a hash of the target and its relation
+  gives the displacement. Nothing installs `Host.Goal.find`.
+- **A bound over seeds.** The class is of target positions over one host world. Reading
+  a bound as a fraction of seeds assumes that the seed hash places targets independently
+  of the agent's walk (assumed).
 - **That the executed host runs visits.** A world in visits is a definition of the
   kernel. No host loop of Acorn returns the world to a start state between attempts,
   and no theorem relates one to it.

@@ -185,10 +185,10 @@ def Inventory.Holds (inventory : Inventory) (item : Item) (count : UInt32) : Pro
     (item = .gold ∧ count.toNat ≤ inventory.gold.toNat)
 
 /-- A goal is attained in a world, on the stored fields of the world: the two box indices of
-the body are within three tiles of the target of a reach goal, the inventory holds the count
-of a collect goal or owns the tool of a craft goal, and the clock is at least the duration of
-a survive goal after the clock of the installation. The radius is the literal three, and the
-elapsed time is a difference of natural numbers. -/
+the body are within three tiles of the target of a reach goal or of a concealed target, the
+inventory holds the count of a collect goal or owns the tool of a craft goal, and the clock is
+at least the duration of a survive goal after the clock of the installation. The radius is the
+literal three, and the elapsed time is a difference of natural numbers. -/
 def World.Attained {config : WorldConfig} (world : World config) (goal : Goal) : Prop :=
   match goal with
   | .reach target =>
@@ -197,6 +197,9 @@ def World.Attained {config : WorldConfig} (world : World config) (goal : Goal) :
   | .collect item count => world.body.inventory.Holds item count
   | .craft tool => world.body.inventory.Owns tool
   | .survive required => required.toNat ≤ world.time.toNat - world.goalStart.toNat
+  | .find target =>
+    (target.x.val - (world.body.position.x.val : Int)).natAbs ≤ 3 ∧
+      (target.y.val - (world.body.position.y.val : Int)).natAbs ≤ 3
 
 /-- A goal is installed in the world and attained there. -/
 def World.GoalSatisfied {config : WorldConfig} (world : World config) : Prop :=
@@ -255,6 +258,10 @@ theorem World.observe_satisfied_iff {config : WorldConfig} (world : World config
       exact Nat.mod_eq_of_lt (by omega)
     rw [elapsed]
     exact ⟨fun zero => Nat.le_of_sub_eq_zero zero, fun le => Nat.sub_eq_zero_of_le le⟩
+  | find target =>
+    simp only [Goal.observe, TaskObservation.satisfied, ReachRelation.distance,
+      ReachRelation.between, Attained, beq_iff_eq, BoxPosition.position,
+      FeatureConstants.reachRadius, Nat.sub_eq_zero_iff_le, Nat.max_le]
 
 /-- The completion flag is set exactly when a goal is installed and attained. -/
 theorem World.goalSatisfied_iff {config : WorldConfig} (world : World config) :

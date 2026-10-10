@@ -14,7 +14,9 @@ Each goal family's completion predicate is `Goal.observe` followed by
 stops on. These theorems state what that executed predicate reads, for every
 goal, world, action and agent callback.
 
-A reach goal reads the body's position alone (`reach_satisfied_iff`). A craft goal
+A reach goal reads the body's position alone (`reach_satisfied_iff`), and so does a
+concealed target, in the same box (`find_satisfied_iff`); its observation is the one cue
+of its family and whether it is satisfied (`find_observe`). A craft goal
 reads tool ownership and a collect goal the held count (`craft_satisfied`,
 `collect_satisfied_iff`); since no step removes a tool or lowers gold, a craft or
 gold goal achieved once is achieved again at the first step of every later visit
@@ -114,6 +116,31 @@ theorem reach_goal_iff {config : WorldConfig} (world : World config) (target : P
   rw [goalSatisfied_eq world _ installed]
   exact reach_satisfied_iff _ _ _ _
 
+/-- A concealed target is satisfied exactly in its box, whatever the inventory and the elapsed
+time: the box of a reach goal for the same target. -/
+theorem find_satisfied_iff (target position : Position) (inventory : Inventory)
+    (elapsed : UInt64) :
+    ((Goal.find target).observe position inventory elapsed).satisfied = true ↔
+      InGoalBox target position := by
+  simp only [Goal.observe, TaskObservation.satisfied, ReachRelation.distance,
+    ReachRelation.between, InGoalBox, FeatureConstants.reachRadius, beq_iff_eq]
+  omega
+
+/-- The observation of a concealed target is the one cue of its family and whether it is
+satisfied: nothing else of the target. -/
+theorem find_observe (target position : Position) (inventory : Inventory) (elapsed : UInt64) :
+    (Goal.find target).observe position inventory elapsed =
+      .find (Rng.hash3 5 0 0) ((Goal.find target).observe position inventory elapsed).satisfied :=
+  rfl
+
+/-- With a concealed target installed, the world's completion flag reads the body's position
+alone: it holds exactly when the body is in the goal box. -/
+theorem find_goal_iff {config : WorldConfig} (world : World config) (target : Position)
+    (installed : world.goal = some (.find target)) :
+    world.goalSatisfied = true ↔ InGoalBox target world.body.position.position := by
+  rw [goalSatisfied_eq world _ installed]
+  exact find_satisfied_iff _ _ _ _
+
 /-! ## Absorbing goals -/
 
 /-- The goals whose condition no world step can undo: a craft goal and a gold goal. -/
@@ -144,6 +171,7 @@ theorem kept_retained (goal : Goal) (before after : Inventory) (kept : Kept goal
     | food => exact False.elim kept
   | reach target => exact False.elim kept
   | survive steps => exact False.elim kept
+  | find target => exact False.elim kept
 
 /-- A world whose inventory keeps its installed goal reports the goal satisfied. -/
 theorem kept_satisfied {config : WorldConfig} (world : World config) (goal : Goal)
@@ -160,6 +188,7 @@ theorem kept_satisfied {config : WorldConfig} (world : World config) (goal : Goa
     | food => exact False.elim kept
   | reach target => exact False.elim kept
   | survive steps => exact False.elim kept
+  | find target => exact False.elim kept
 
 /-- An absorbing goal that a world reports satisfied is kept by its inventory. -/
 theorem satisfied_kept {config : WorldConfig} (world : World config) (goal : Goal)
@@ -176,6 +205,7 @@ theorem satisfied_kept {config : WorldConfig} (world : World config) (goal : Goa
     | food => exact False.elim absorbing
   | reach target => exact False.elim absorbing
   | survive steps => exact False.elim absorbing
+  | find target => exact False.elim absorbing
 
 /-- A goal the inventory already keeps is achieved by the first step of its attempt,
 whatever the action. -/

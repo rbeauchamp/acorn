@@ -256,8 +256,9 @@ theorem sum_admit_value : Regula.ExecutableContract admitSum (fun admit =>
 /-! ## Certificate checkers -/
 
 /-- A goal is achieved at a position, with an inventory, after an elapsed time: the position
-is in the goal box of a reach goal, the inventory holds the count of a collect goal or owns
-the tool of a craft goal, and the elapsed time is at least the duration of a survive goal. -/
+is in the goal box of a reach goal or of a concealed target, the inventory holds the count of
+a collect goal or owns the tool of a craft goal, and the elapsed time is at least the duration
+of a survive goal. -/
 def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inventory)
     (elapsed : UInt64) : Prop :=
   match goal with
@@ -265,6 +266,7 @@ def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inv
   | .collect item count => count.toNat ≤ (inventory.count item).toNat
   | .craft tool => inventory.Owns tool
   | .survive required => required.toNat ≤ elapsed.toNat
+  | .find target => CurrentGoals.InGoalBox target position
 
 /-- The arguments of `Host.replayCertified` and of `Host.ReplayCertificate.check`, in order. -/
 structure Replay where
@@ -835,9 +837,10 @@ theorem position_translate : Regula.ExecutableContract Host.Position.translate (
 
 /-- The completion predicate accepts the observation that `Goal.observe` produces for every
 achieved goal (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_iff`,
-`survive_satisfied_iff`, `craft_satisfied`), and it refuses the observation of no goal.
+`survive_satisfied_iff`, `craft_satisfied`, `find_satisfied_iff`), and it refuses the
+observation of no goal.
 
-**Not claimed:** soundness for an observation that `Goal.observe` did not produce. The four
+**Not claimed:** soundness for an observation that `Goal.observe` did not produce. The five
 theorems state the converse for the observations it does produce. -/
 theorem task_satisfied : Regula.ExecutableContract Host.TaskObservation.satisfied
     (Regula.DecidesCompletely (· = true)
@@ -858,14 +861,17 @@ theorem task_satisfied : Regula.ExecutableContract Host.TaskObservation.satisfie
        | survive required =>
          exact (CurrentGoals.survive_satisfied_iff required position inventory elapsed).mpr
            achieved
+       | find target =>
+         exact (CurrentGoals.find_satisfied_iff target position inventory elapsed).mpr achieved
      refused := ⟨.none, by decide⟩ }⟩
 
 /-- The completion predicate, on the observation of each goal family, is exactly: a position
-in the goal box for a reach goal, an inventory that holds the count for a collect goal and
-an elapsed time of at least the duration for a survive goal; for a craft goal it is the
-ownership of the tool (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_iff`,
-`survive_satisfied_iff`, `craft_satisfied`). These equivalences are both directions for the
-observations that `Goal.observe` produces; `task_satisfied` states the kind. -/
+in the goal box for a reach goal or a concealed target, an inventory that holds the count for
+a collect goal and an elapsed time of at least the duration for a survive goal; for a craft
+goal it is the ownership of the tool (`CurrentGoals.reach_satisfied_iff`,
+`collect_satisfied_iff`, `survive_satisfied_iff`, `craft_satisfied`, `find_satisfied_iff`).
+These equivalences are both directions for the observations that `Goal.observe` produces;
+`task_satisfied` states the kind. -/
 theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
     (fun satisfied =>
     (∀ (target position : Host.Position) (inventory : Host.Inventory) (elapsed : UInt64),
@@ -879,12 +885,16 @@ theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
         (elapsed : UInt64),
         satisfied ((Host.Goal.survive required).observe position inventory elapsed) = true ↔
           required.toNat ≤ elapsed.toNat) ∧
-      ∀ (tool : Host.Craftable) (position : Host.Position) (inventory : Host.Inventory)
+      (∀ (tool : Host.Craftable) (position : Host.Position) (inventory : Host.Inventory)
         (elapsed : UInt64),
         satisfied ((Host.Goal.craft tool).observe position inventory elapsed) =
-          inventory.owns tool) :=
+          inventory.owns tool) ∧
+      ∀ (target position : Host.Position) (inventory : Host.Inventory) (elapsed : UInt64),
+        satisfied ((Host.Goal.find target).observe position inventory elapsed) = true ↔
+          CurrentGoals.InGoalBox target position) :=
   ⟨⟨CurrentGoals.reach_satisfied_iff, CurrentGoals.collect_satisfied_iff,
-    CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied⟩⟩
+    CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied,
+    CurrentGoals.find_satisfied_iff⟩⟩
 
 /-- The exponential classifier sends a word to reduction, with no saturated result, exactly
 when the word is finite and strictly between the underflow and the overflow thresholds
