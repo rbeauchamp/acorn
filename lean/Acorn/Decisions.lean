@@ -5693,7 +5693,6 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
     ⟨Grid.interface, _, bank, .discounted, narrow, foreignFree, planningBoundary .none,
       .empty narrow, quiet, none, .zero, Option.isNone_iff_eq_none.mp (by decide +kernel)⟩⟩⟩
 
-
 /-! ## Host transitions
 
 The transitions of an attempt and of the world refuse where the world refuses an observation or
