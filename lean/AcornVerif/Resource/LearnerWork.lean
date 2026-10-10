@@ -10,17 +10,22 @@ import AcornVerif.Resource.Work
 # Work of the SwiftTD learner
 
 The learner's executed definitions in `Acorn.SwiftTd`, and the ordered sums and the fresh
-transient record they use, are the values of their costed definitions (`Acorn.Costed`). A
-bound proved here of a costed definition therefore bounds the work of the code that runs. Each
-bound is a function of the number of eligible entries of the learner the definition receives
+transient record they use, are the values of their costed definitions (`Acorn.Costed`), so the
+loops a bound proved here counts are the loops of the code that runs. A bound counts the work of
+that code under the cost discipline of `Acorn.Cost`: every value a costed definition passes to
+`Costed.pure`, `Costed.op` or `Costed.replicate` is computed without a loop and without a costed
+definition. The combinators cannot enforce it, since `Costed.pure` accepts any value; it is
+checked by reading until the cost-closed rule of rbeauchamp/regula#333 checks it.
+
+Each bound is a function of the number of eligible entries of the learner the definition receives
 and of the length of the feature list it reads. No bound depends on the learner's values: the
 first loop visits each eligible entry once whether it prunes it or not, and a release and a
-retirement scan the eligible list once.
+retirement pass over the eligible list once. Each loop is also charged one visit for its end.
 
 The second loop pushes at most one index for each feature it visits, so a learner's eligible
 list can grow during a step; the bounds of a step read the sizes of the state each loop
 receives, and a caller bounds those by the learner's admission
-(`AcornVerif.managed_capacity`).
+(`AcornVerif.CurrentFeatureConsumers.managed_capacity`).
 
 The twins of the definitions that are not yet costed (`AcornVerif.Resource.Work`) read the
 learner through the last section: each is the executed value with the bound proved here as
@@ -37,20 +42,20 @@ variable {config : Acorn.Config} {dimension : Dimension} {α : Type}
 /-! ## Ordered sums -/
 
 theorem sumFromCosted_within (κ : Costs) (initial : Binary32) (values : List Binary32) :
-    (Binary32.sumFromCosted initial values).Within κ (values.length * (κ .visit + κ .sumTerm)) :=
+    (Binary32.sumFromCosted initial values).Within κ (pass (κ .visit) values.length (κ .sumTerm)) :=
   Acorn.Costed.foldl_within fun _ _ _ => Acorn.Costed.op_within _ _ κ
 
 theorem sumMapCosted_within (κ : Costs) (site : Site) (initial : Binary32) (values : List α)
     (read : α → Binary32) :
     (Binary32.sumMapCosted site initial values read).Within κ
-      (values.length * (κ .visit + κ site)) :=
+      (pass (κ .visit) values.length (κ site)) :=
   Acorn.Costed.foldl_within fun _ _ _ => Acorn.Costed.op_within _ _ κ
 
-/-- The step sizes of a feature list, read one by one. -/
+/-- The step sizes of a feature list, read one by one, and the reversal of the mapped list. -/
 theorem stepSizes_within (κ : Costs) (state : NumericState config dimension)
     (indices : List (FeatIdx dimension)) :
     (Acorn.Costed.map (fun idx => Acorn.Costed.op .read (state.stepSize idx)) indices).Within κ
-      (indices.length * (κ .visit + κ .read)) :=
+      (pass (κ .visit) indices.length (κ .read) + bare (κ .visit) indices.length) :=
   Acorn.Costed.map_within fun _ _ => Acorn.Costed.op_within _ _ κ
 
 /-! ## Prediction -/
@@ -58,7 +63,7 @@ theorem stepSizes_within (κ : Costs) (state : NumericState config dimension)
 theorem linearPredictionCosted_within (κ : Costs) (state : NumericState config dimension)
     (features : ActiveSet dimension) :
     (state.linearPredictionCosted features).Within κ
-      (features.indices.length * (κ .visit + κ .sumTerm)) :=
+      (pass (κ .visit) features.indices.length (κ .sumTerm)) :=
   sumMapCosted_within κ .sumTerm _ _ _
 
 /-! ## The first loop -/
@@ -70,7 +75,7 @@ theorem learnFirstLoopGoCosted_within (κ : Costs) (config : Acorn.Config)
     (delta vDelta traceDecay : Binary32) (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) :
     (NumericState.learnFirstLoopGoCosted config delta vDelta traceDecay state work pos).Within κ
-      ((work.size - pos) * firstVisit κ + κ .firstClose) := by
+      ((work.size - pos) * firstVisit κ + (κ .visit + κ .firstClose)) := by
   fun_induction NumericState.learnFirstLoopGoCosted config delta vDelta traceDecay state work pos
     with
   | case1 state work pos inRange idx next element ih =>
@@ -89,11 +94,11 @@ theorem learnFirstLoopGoCosted_within (κ : Costs) (config : Acorn.Config)
     simp only [firstVisit]
     omega
   | case3 state work pos outside =>
-    exact (Acorn.Costed.op_within _ _ κ).mono (Nat.le_add_left _ _)
+    exact (Acorn.Costed.charge_within (Acorn.Costed.op_within _ _ κ)).mono (by omega)
 
 /-- Bound of the first loop over `count` eligible entries. -/
 abbrev firstLoopBound (κ : Costs) (count : Nat) : Nat :=
-  κ .firstOpen + count * firstVisit κ + κ .firstClose
+  κ .firstOpen + count * firstVisit κ + (κ .visit + κ .firstClose)
 
 theorem learnFirstLoopCosted_within (κ : Costs) (config : Acorn.Config)
     (state : NumericState config dimension) (delta vDelta traceDecay : Binary32) :
@@ -113,23 +118,23 @@ theorem learnSecondLoopGoCosted_within (κ : Costs) (overshoot : Bool) (scale on
     (indices : List (FeatIdx dimension)) (alphas : List Binary32)
     (state : NumericState config dimension) (vDelta : Binary32) :
     (NumericState.learnSecondLoopGoCosted overshoot scale oneSubT indices alphas state
-      vDelta).Within κ (indices.length * (κ .visit + κ .secondElement)) := by
+      vDelta).Within κ (pass (κ .visit) indices.length (κ .secondElement)) := by
   induction indices generalizing alphas state vDelta with
   | nil =>
     cases alphas <;>
-      exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+      exact (Acorn.Costed.op_within _ _ κ).mono (Nat.le_add_left _ _)
   | cons idx rest ih =>
     cases alphas with
-    | nil => exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+    | nil => exact (Acorn.Costed.op_within _ _ κ).mono (Nat.le_add_left _ _)
     | cons alpha alphas =>
       refine (Acorn.Costed.charge_within (Acorn.Costed.charge_within (ih alphas _ _))).mono ?_
-      rw [List.length_cons, Nat.succ_mul]
+      simp only [pass, List.length_cons, Nat.succ_mul]
       omega
 
 /-- Bound of the second loop over `width` features. -/
 abbrev secondLoopBound (κ : Costs) (width : Nat) : Nat :=
-  width * (κ .visit + κ .read) + width * (κ .visit + κ .sumTerm) +
-    width * (κ .visit + κ .sumTerm) + κ .secondOpen + width * (κ .visit + κ .secondElement)
+  (pass (κ .visit) width (κ .read) + bare (κ .visit) width) + pass (κ .visit) width (κ .sumTerm) +
+    pass (κ .visit) width (κ .sumTerm) + κ .secondOpen + pass (κ .visit) width (κ .secondElement)
 
 theorem learnSecondLoopCosted_within (κ : Costs) (config : Acorn.Config)
     (state : NumericState config dimension) (features : ActiveSet dimension) (vDelta : Binary32) :
@@ -154,7 +159,7 @@ theorem learnSecondLoopCosted_within (κ : Costs) (config : Acorn.Config)
 
 /-- Bound of a SwiftTD step at `count` eligible entries and `width` features. -/
 abbrev stepBound (κ : Costs) (count width : Nat) : Nat :=
-  width * (κ .visit + κ .sumTerm) + firstLoopBound κ count + secondLoopBound κ width +
+  pass (κ .visit) width (κ .sumTerm) + firstLoopBound κ count + secondLoopBound κ width +
     κ .stepClose
 
 theorem stepCosted_within (κ : Costs) (config : Acorn.Config)
@@ -169,7 +174,8 @@ theorem stepCosted_within (κ : Costs) (config : Acorn.Config)
   omega
 
 /-- Bound of a fresh transient record at a capacity. -/
-abbrev zeroBound (κ : Costs) (capacity : Nat) : Nat := 9 * (capacity * κ .visit) + κ .zeroTransient
+abbrev zeroBound (κ : Costs) (capacity : Nat) : Nat :=
+  9 * bare (κ .visit) capacity + κ .zeroTransient
 
 theorem zeroCosted_within (κ : Costs) (dimension : Dimension) :
     (TransientState.zeroCosted dimension).Within κ (zeroBound κ dimension.capacity) := by
@@ -180,7 +186,7 @@ theorem zeroCosted_within (κ : Costs) (dimension : Dimension) :
     Acorn.Costed.bind_within (each _) <| Acorn.Costed.bind_within (each _) <|
     Acorn.Costed.bind_within (each _) <| Acorn.Costed.bind_within (each _) <|
     Acorn.Costed.bind_within (each _) <| Acorn.Costed.op_within _ _ κ).mono ?_
-  simp only [zeroBound]
+  simp only [zeroBound, bare]
   omega
 
 theorem clearTransientCosted_within (κ : Costs) (state : NumericState config dimension) :
@@ -190,7 +196,8 @@ theorem clearTransientCosted_within (κ : Costs) (state : NumericState config di
 
 /-- Bound of a trajectory start at a capacity and `width` features. -/
 abbrev beginBound (κ : Costs) (capacity width : Nat) : Nat :=
-  zeroBound κ capacity + width * (κ .visit + κ .sumTerm) + secondLoopBound κ width + κ .beginClose
+  zeroBound κ capacity + pass (κ .visit) width (κ .sumTerm) + secondLoopBound κ width +
+    κ .beginClose
 
 theorem beginTrajectoryCosted_within (κ : Costs) (config : Acorn.Config)
     (state : NumericState config dimension) (features : ActiveSet dimension) :
@@ -221,21 +228,21 @@ theorem planWeightsGoCosted_within (κ : Costs) (scale delta : Binary32)
     (indices : List (FeatIdx dimension)) (alphas : List Binary32)
     (state : NumericState config dimension) :
     (NumericState.planWeightsGoCosted scale delta indices alphas state).Within κ
-      (indices.length * (κ .visit + κ .planElement)) := by
+      (pass (κ .visit) indices.length (κ .planElement)) := by
   induction indices generalizing alphas state with
-  | nil => cases alphas <;> exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+  | nil => cases alphas <;> exact (Acorn.Costed.op_within _ _ κ).mono (Nat.le_add_left _ _)
   | cons idx rest ih =>
     cases alphas with
-    | nil => exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+    | nil => exact (Acorn.Costed.op_within _ _ κ).mono (Nat.le_add_left _ _)
     | cons alpha alphas =>
       refine (Acorn.Costed.charge_within (Acorn.Costed.charge_within (ih alphas _))).mono ?_
-      rw [List.length_cons, Nat.succ_mul]
+      simp only [pass, List.length_cons, Nat.succ_mul]
       omega
 
 /-- Bound of a planning step over `width` features. -/
 abbrev planBound (κ : Costs) (width : Nat) : Nat :=
-  width * (κ .visit + κ .sumTerm) + width * (κ .visit + κ .read) +
-    width * (κ .visit + κ .sumTerm) + width * (κ .visit + κ .planElement) + κ .planOpen
+  pass (κ .visit) width (κ .sumTerm) + (pass (κ .visit) width (κ .read) + bare (κ .visit) width) +
+    pass (κ .visit) width (κ .sumTerm) + pass (κ .visit) width (κ .planElement) + κ .planOpen
 
 theorem planStepCosted_within (κ : Costs) (config : Acorn.Config)
     (state : NumericState config dimension) (features : ActiveSet dimension) (target : Binary32) :
@@ -249,9 +256,10 @@ theorem planStepCosted_within (κ : Costs) (config : Acorn.Config)
       features.indices).val
   rw [length] at rate
   refine (Acorn.Costed.bind_within_all (linearPredictionCosted_within κ state features) fun _ =>
-    Acorn.Costed.within_ite (bound := features.indices.length * (κ .visit + κ .read) +
-        (features.indices.length * (κ .visit + κ .sumTerm) +
-          (features.indices.length * (κ .visit + κ .planElement) + κ .planOpen)))
+    Acorn.Costed.within_ite (bound := (pass (κ .visit) features.indices.length (κ .read) +
+        bare (κ .visit) features.indices.length) +
+        (pass (κ .visit) features.indices.length (κ .sumTerm) +
+          (pass (κ .visit) features.indices.length (κ .planElement) + κ .planOpen)))
       ((Acorn.Costed.op_within _ _ κ).mono (by omega))
       (Acorn.Costed.bind_within (stepSizes_within κ state features.indices)
         (Acorn.Costed.bind_within rate
@@ -262,15 +270,17 @@ theorem planStepCosted_within (κ : Costs) (config : Acorn.Config)
 
 theorem releaseEligibleCosted_within (κ : Costs) (state : NumericState config dimension) :
     state.releaseEligibleCosted.Within κ
-      (state.transient.eligible.size * (κ .visit + κ .clearRegisters) + κ .releaseClose) :=
+      (pass (κ .visit) state.transient.eligible.size (κ .clearRegisters) + κ .releaseClose) :=
   Acorn.Costed.bind_within
     (Acorn.Costed.foldlArray_within fun _ _ _ => Acorn.Costed.op_within _ _ κ)
     (Acorn.Costed.op_within _ _ κ)
 
 theorem retireIndexCosted_within (κ : Costs) (state : NumericState config dimension)
     (idx : FeatIdx dimension) :
-    (state.retireIndexCosted idx).Within κ (κ .retire + state.transient.eligible.size * κ .visit) :=
-  Acorn.Costed.charge_within (Acorn.Costed.scanArray_within _ _ κ)
+    (state.retireIndexCosted idx).Within κ
+      (κ .retire + pass (κ .visit) state.transient.eligible.size (κ .compare)) :=
+  (Acorn.Costed.bind_within (Acorn.Costed.findIdx?_within _ _ κ)
+    (Acorn.Costed.op_within _ _ κ)).mono (Nat.le_of_eq (Nat.add_comm _ _))
 
 /-- Bound of one learner entry at a capacity and `count` eligible entries. -/
 def entryBound (κ : Costs) (capacity count : Nat) : SwiftTd.Entry dimension → Nat
@@ -280,9 +290,9 @@ def entryBound (κ : Costs) (capacity count : Nat) : SwiftTd.Entry dimension →
   | .beginTrajectory features => beginBound κ capacity features.indices.length
   | .terminal _ => terminalBound κ capacity count
   | .plan features _ => planBound κ features.indices.length
-  | .retire _ => κ .retire + count * κ .visit
+  | .retire _ => κ .retire + pass (κ .visit) count (κ .compare)
   | .clear => zeroBound κ capacity
-  | .release => count * (κ .visit + κ .clearRegisters) + κ .releaseClose
+  | .release => pass (κ .visit) count (κ .clearRegisters) + κ .releaseClose
 
 theorem applyCosted_within (κ : Costs) (entry : SwiftTd.Entry dimension)
     (state : NumericState config dimension) :
@@ -312,8 +322,8 @@ theorem entryBound_mono (κ : Costs) (capacity : Nat) {count limit : Nat} (fits 
     (entry : SwiftTd.Entry dimension) :
     entryBound κ capacity count entry ≤ entryBound κ capacity limit entry := by
   have first := Nat.mul_le_mul_right (firstVisit κ) fits
-  have visit := Nat.mul_le_mul_right (κ .visit) fits
-  have clear := Nat.mul_le_mul_right (κ .visit + κ .clearRegisters) fits
+  have visit := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .compare))
+  have clear := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .clearRegisters))
   cases entry <;> simp only [entryBound, stepBound, terminalBound, firstLoopBound] <;> omega
 
 /-! ## The learner in the twins' accounting
@@ -324,7 +334,7 @@ the section above proves of its costed definition. -/
 /-- `Binary32.sumMap` with terms at `term`. -/
 def sumMap (κ : Costs) (term : Site) (initial : Binary32) (values : List α)
     (read : α → Binary32) : Costed Binary32 :=
-  ⟨Binary32.sumMap initial values read, values.length * (κ .visit + κ term)⟩
+  ⟨Binary32.sumMap initial values read, pass (κ .visit) values.length (κ term)⟩
 
 theorem sumMap_val (κ : Costs) (term : Site) (initial : Binary32) (values : List α)
     (read : α → Binary32) :
@@ -332,24 +342,24 @@ theorem sumMap_val (κ : Costs) (term : Site) (initial : Binary32) (values : Lis
 
 theorem sumMap_work (κ : Costs) (term : Site) (initial : Binary32) (values : List α)
     (read : α → Binary32) :
-    (sumMap κ term initial values read).work ≤ values.length * (κ .visit + κ term) :=
+    (sumMap κ term initial values read).work ≤ pass (κ .visit) values.length (κ term) :=
   Nat.le_refl _
 
 /-- `Binary32.sumFrom`. -/
 def sumFrom (κ : Costs) (initial : Binary32) (values : List Binary32) : Costed Binary32 :=
-  ⟨Binary32.sumFrom initial values, values.length * (κ .visit + κ .sumTerm)⟩
+  ⟨Binary32.sumFrom initial values, pass (κ .visit) values.length (κ .sumTerm)⟩
 
 theorem sumFrom_val (κ : Costs) (initial : Binary32) (values : List Binary32) :
     (sumFrom κ initial values).val = Binary32.sumFrom initial values := rfl
 
 theorem sumFrom_work (κ : Costs) (initial : Binary32) (values : List Binary32) :
-    (sumFrom κ initial values).work ≤ values.length * (κ .visit + κ .sumTerm) :=
+    (sumFrom κ initial values).work ≤ pass (κ .visit) values.length (κ .sumTerm) :=
   Nat.le_refl _
 
 /-- `NumericState.linearPrediction`. -/
 def linearPrediction (κ : Costs) (state : NumericState config dimension)
     (features : ActiveSet dimension) : Costed Binary32 :=
-  ⟨state.linearPrediction features, features.indices.length * (κ .visit + κ .sumTerm)⟩
+  ⟨state.linearPrediction features, pass (κ .visit) features.indices.length (κ .sumTerm)⟩
 
 theorem linearPrediction_val (κ : Costs) (state : NumericState config dimension)
     (features : ActiveSet dimension) :
@@ -358,7 +368,7 @@ theorem linearPrediction_val (κ : Costs) (state : NumericState config dimension
 theorem linearPrediction_work (κ : Costs) (state : NumericState config dimension)
     (features : ActiveSet dimension) :
     (linearPrediction κ state features).work ≤
-      features.indices.length * (κ .visit + κ .sumTerm) :=
+      pass (κ .visit) features.indices.length (κ .sumTerm) :=
   Nat.le_refl _
 
 /-- `NumericState.learnFirstLoop`. -/
@@ -485,27 +495,29 @@ theorem planStep_work (κ : Costs) (config : Acorn.Config) (state : NumericState
 def releaseEligible (κ : Costs) (state : NumericState config dimension) :
     Costed (NumericState config dimension) :=
   ⟨state.releaseEligible,
-    state.transient.eligible.size * (κ .visit + κ .clearRegisters) + κ .releaseClose⟩
+    pass (κ .visit) state.transient.eligible.size (κ .clearRegisters) + κ .releaseClose⟩
 
 theorem releaseEligible_val (κ : Costs) (state : NumericState config dimension) :
     (releaseEligible κ state).val = state.releaseEligible := rfl
 
 theorem releaseEligible_work (κ : Costs) (state : NumericState config dimension) :
     (releaseEligible κ state).work ≤
-      state.transient.eligible.size * (κ .visit + κ .clearRegisters) + κ .releaseClose :=
+      pass (κ .visit) state.transient.eligible.size (κ .clearRegisters) + κ .releaseClose :=
   Nat.le_refl _
 
 /-- `NumericState.retireIndex`. -/
 def retireIndex (κ : Costs) (state : NumericState config dimension) (idx : FeatIdx dimension) :
     Costed (NumericState config dimension) :=
-  ⟨state.retireIndex idx, κ .retire + state.transient.eligible.size * κ .visit⟩
+  ⟨state.retireIndex idx, κ .retire + pass (κ .visit) state.transient.eligible.size (κ .compare)⟩
 
 theorem retireIndex_val (κ : Costs) (state : NumericState config dimension)
     (idx : FeatIdx dimension) : (retireIndex κ state idx).val = state.retireIndex idx := rfl
 
 theorem retireIndex_work (κ : Costs) (state : NumericState config dimension)
     (idx : FeatIdx dimension) :
-    (retireIndex κ state idx).work = κ .retire + state.transient.eligible.size * κ .visit := rfl
+    (retireIndex κ state idx).work =
+      κ .retire + pass (κ .visit) state.transient.eligible.size (κ .compare) :=
+  rfl
 
 /-- `SwiftTd.Entry.apply`. -/
 def entryApply (κ : Costs) (entry : SwiftTd.Entry dimension)

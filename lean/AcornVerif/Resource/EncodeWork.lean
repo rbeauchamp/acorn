@@ -27,10 +27,11 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
 
 /-! ## The words the coder reads -/
 
-/-- The costed recursion of `PredictionCache.words`: one read for each stored prediction. -/
+/-- The costed recursion of `PredictionCache.words`: one read for each stored prediction, and a
+visit for its end. -/
 def cacheWordsRun (κ : Costs) : {discounts : List Discount} → PredictionCache discounts →
     Costed (List Binary32)
-  | _, .nil => Costed.pure []
+  | _, .nil => Costed.op (κ .visit) []
   | _, .cons value rest => do
     let tail ← cacheWordsRun κ rest
     Costed.op (κ .visit + κ .read) (value.value :: tail)
@@ -45,22 +46,23 @@ theorem cacheWordsRun_val (κ : Costs) {discounts : List Discount}
 
 theorem cacheWordsRun_work (κ : Costs) {discounts : List Discount}
     (cache : PredictionCache discounts) :
-    (cacheWordsRun κ cache).work ≤ discounts.length * (κ .visit + κ .read) := by
+    (cacheWordsRun κ cache).work ≤ pass (κ .visit) discounts.length (κ .read) := by
   induction cache with
-  | nil => exact Nat.zero_le _
+  | nil => simp [cacheWordsRun]
   | cons value rest ih =>
-    simp only [cacheWordsRun, Costed.bind_work, List.length_cons, Nat.succ_mul]
+    simp only [cacheWordsRun, Costed.bind_work, pass, List.length_cons, Nat.succ_mul] at ih ⊢
     omega
 
-/-- The costed recursion of `feedbackWords`: one word for each stored prediction. -/
+/-- The costed recursion of `feedbackWords`: one word for each stored prediction, and a visit for
+its end. -/
 def feedbackWordsRun (κ : Costs) (base : UInt64) :
     List Discount → List Binary32 → Nat → Costed (List SensorWord)
   | discount :: discounts, value :: values, index => do
     let tail ← feedbackWordsRun κ base discounts values (index + 1)
     Costed.op (κ .visit + κ .feedbackWord)
       (⟨base + index.toUInt64, (predictionBucket value discount.horizon).val.toUInt64⟩ :: tail)
-  | [], _, _ => Costed.pure []
-  | _ :: _, [], _ => Costed.pure []
+  | [], _, _ => Costed.op (κ .visit) []
+  | _ :: _, [], _ => Costed.op (κ .visit) []
 
 theorem feedbackWordsRun_val (κ : Costs) (base : UInt64) (discounts : List Discount)
     (values : List Binary32) (index : Nat) :
@@ -78,15 +80,15 @@ theorem feedbackWordsRun_val (κ : Costs) (base : UInt64) (discounts : List Disc
 theorem feedbackWordsRun_work (κ : Costs) (base : UInt64) (discounts : List Discount)
     (values : List Binary32) (index : Nat) :
     (feedbackWordsRun κ base discounts values index).work ≤
-      discounts.length * (κ .visit + κ .feedbackWord) := by
+      pass (κ .visit) discounts.length (κ .feedbackWord) := by
   induction discounts generalizing values index with
-  | nil => cases values <;> exact Nat.zero_le _
+  | nil => cases values <;> simp [feedbackWordsRun]
   | cons discount rest ih =>
     cases values with
-    | nil => exact Nat.zero_le _
+    | nil => simp [feedbackWordsRun]
     | cons value others =>
       have tail := ih others (index + 1)
-      simp only [feedbackWordsRun, Costed.bind_work, List.length_cons, Nat.succ_mul]
+      simp only [feedbackWordsRun, Costed.bind_work, pass, List.length_cons, Nat.succ_mul] at tail ⊢
       omega
 
 /-- Twin of `Agent.words`: the stored predictions read, their feedback words, and the
@@ -97,7 +99,7 @@ def words (κ : Costs) (state : Agent interface profile config criterion dimensi
     (cacheWordsRun κ state.control.runtime.references.demonPredictions)
   let feedback ← Costed.via (feedbackWords interface.feedback interface.layout stored 0)
     (feedbackWordsRun κ interface.feedback interface.layout stored 0)
-  Costed.scanList (κ .visit) observation.words (observation.words ++ feedback)
+  Costed.scanList 2 (κ .visit) observation.words (observation.words ++ feedback)
 
 theorem words_val (κ : Costs) (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) : (words κ state observation).val = state.words observation :=
@@ -105,8 +107,8 @@ theorem words_val (κ : Costs) (state : Agent interface profile config criterion
 
 /-- Bound of the words at `frameWords` frame words and `questions` stored predictions. -/
 abbrev wordsBound (κ : Costs) (frameWords questions : Nat) : Nat :=
-  questions * (κ .visit + κ .read) + questions * (κ .visit + κ .feedbackWord) +
-    frameWords * κ .visit
+  pass (κ .visit) questions (κ .read) + pass (κ .visit) questions (κ .feedbackWord) +
+    2 * bare (κ .visit) frameWords
 
 theorem words_work (κ : Costs) (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) :
@@ -114,7 +116,7 @@ theorem words_work (κ : Costs) (state : Agent interface profile config criterio
   have stored := cacheWordsRun_work κ state.control.runtime.references.demonPredictions
   have feedback := feedbackWordsRun_work κ interface.feedback interface.layout
     state.control.runtime.references.demonPredictions.words 0
-  have frame := Nat.mul_le_mul_right (κ .visit) observation.bounded
+  have frame := bare_mono (visit := κ .visit) observation.bounded
   simp only [words, Costed.bind_work, wordsBound]
   omega
 
@@ -124,13 +126,13 @@ theorem words_work (κ : Costs) (state : Agent interface profile config criterio
 each, and the integer sum. -/
 def projectionValue {shape : PatchShape} (κ : Costs) (bank : Bank shape config)
     (patch : Patch shape) (unit : Fin config.units.count) : Costed Int := do
-  let samples ← Costed.scanVector (κ .visit) (bank.projections.get unit)
+  let samples ← Costed.scanVector 1 (κ .visit) (bank.projections.get unit)
     (bank.projections.get unit).toList
-  let numbered ← Costed.scanList (κ .visit) samples samples.zipIdx
+  let numbered ← Costed.scanList 2 (κ .visit) samples samples.zipIdx
   let terms ← Costed.map (κ .visit)
     (fun (sample, j) => Costed.op (κ .sampleTerm) (sampleTerm config.seed unit.val j patch sample))
     numbered
-  Costed.scanList (κ .visit + κ .sumTerm) terms terms.sum
+  Costed.scanList 2 (κ .visit + κ .sumTerm) terms terms.sum
 
 theorem projectionValue_val {shape : PatchShape} (κ : Costs) (bank : Bank shape config)
     (patch : Patch shape) (unit : Fin config.units.count) :
@@ -138,14 +140,15 @@ theorem projectionValue_val {shape : PatchShape} (κ : Costs) (bank : Bank shape
 
 /-- Bound of one unit's projection over its 32 samples. -/
 abbrev projectionBound (κ : Costs) : Nat :=
-  32 * κ .visit + 32 * κ .visit + 32 * (κ .visit + κ .sampleTerm) + 32 * (κ .visit + κ .sumTerm)
+  bare (κ .visit) 32 + 2 * bare (κ .visit) 32 +
+    (pass (κ .visit) 32 (κ .sampleTerm) + bare (κ .visit) 32) + 2 * bare (κ .visit + κ .sumTerm) 32
 
 theorem projectionValue_work {shape : PatchShape} (κ : Costs) (bank : Bank shape config)
     (patch : Patch shape) (unit : Fin config.units.count) :
     (projectionValue κ bank patch unit).work ≤ projectionBound κ := by
   unfold projectionValue
   refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at
-    (Nat.le_refl _) (Costed.bind_work_le_at (Costed.mapWork_le (κ .visit) (κ .sampleTerm) _ _
+    (Nat.le_refl _) (Costed.bind_work_le_at (Costed.map_work_le (κ .visit) (κ .sampleTerm) _ _
       fun item _ => ?_) (Nat.le_refl _)))) ?_
   · obtain ⟨sample, j⟩ := item
     exact Nat.le_refl _
@@ -165,7 +168,7 @@ theorem activations_val {shape : PatchShape} (κ : Costs) (bank : Bank shape con
 theorem activations_work {shape : PatchShape} (κ : Costs) (bank : Bank shape config)
     (patch : Patch shape) :
     (activations κ bank patch).work ≤
-      config.units.count * (κ .visit + (projectionBound κ + κ .activation)) :=
+      pass (κ .visit) config.units.count (projectionBound κ + κ .activation) :=
   Costed.ofFn_work_le _ _ _ fun unit =>
     Costed.bind_work_le (projectionValue_work κ bank patch unit) fun _ => Nat.le_refl _
 
@@ -175,7 +178,7 @@ theorem activations_work {shape : PatchShape} (κ : Costs) (bank : Bank shape co
 and the copy of that tiling's features into the result. -/
 def tiledFeatures (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (words : List SensorWord) : Costed (List (FeatIdx dimension)) := do
-  let tilings ← Costed.scanList (κ .visit) (List.range config.tilings.toNat)
+  let tilings ← Costed.scanList 1 (κ .visit) (List.range config.tilings.toNat)
     (List.range config.tilings.toNat)
   Costed.flatMap (κ .visit)
     (fun tiling => do
@@ -184,7 +187,7 @@ def tiledFeatures (κ : Costs) (dimension : Dimension) (config : Features.Config
           (FeatIdx.fromHash dimension (Rng.hash3 (config.seed ^^^ tiling.toUInt64)
             word.channel word.value)))
         words
-      Costed.scanList (κ .visit) hashed hashed)
+      Costed.scanList 2 (κ .visit) hashed hashed)
     tilings
 
 theorem tiledFeatures_val (κ : Costs) (dimension : Dimension) (config : Features.Config)
@@ -194,8 +197,10 @@ theorem tiledFeatures_val (κ : Costs) (dimension : Dimension) (config : Feature
 
 /-- Bound of the tiled features of `size` words. -/
 abbrev tiledBound (κ : Costs) (tilings size : Nat) : Nat :=
-  tilings * κ .visit +
-    tilings * (κ .visit + (size * (κ .visit + κ .hashFeature) + size * κ .visit))
+  bare (κ .visit) tilings +
+    (pass (κ .visit) tilings
+      (pass (κ .visit) size (κ .hashFeature) + bare (κ .visit) size + 2 * bare (κ .visit) size) +
+      κ .visit)
 
 theorem tiledFeatures_work (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (words : List SensorWord) :
@@ -203,11 +208,12 @@ theorem tiledFeatures_work (κ : Costs) (dimension : Dimension) (config : Featur
       tiledBound κ config.tilings.toNat words.length := by
   unfold tiledFeatures
   refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _)
-    (Costed.mapWork_le (κ .visit)
-      (words.length * (κ .visit + κ .hashFeature) + words.length * κ .visit) _ _
-      fun tiling _ => ?_)) ?_
+    (Nat.add_le_add_right (Costed.mapWork_le (κ .visit)
+      (pass (κ .visit) words.length (κ .hashFeature) + bare (κ .visit) words.length +
+        2 * bare (κ .visit) words.length) _ _
+      fun tiling _ => ?_) (κ .visit))) ?_
   · refine Nat.le_trans (Costed.bind_work_le_at
-      (Costed.mapWork_le (κ .visit) (κ .hashFeature) _ words fun _ _ => Nat.le_refl _)
+      (Costed.map_work_le (κ .visit) (κ .hashFeature) _ words fun _ _ => Nat.le_refl _)
       (Nat.le_refl _)) ?_
     simp only [List.length_map]
     omega
@@ -217,7 +223,7 @@ theorem tiledFeatures_work (κ : Costs) (dimension : Dimension) (config : Featur
 /-- Twin of `imprintFeatures`: the units listed, then one test for each. -/
 def imprintFeatures (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (active : Vector Bool config.units.count) : Costed (List (FeatIdx dimension)) := do
-  let units ← Costed.scanList (κ .visit) (List.finRange config.units.count)
+  let units ← Costed.scanList 1 (κ .visit) (List.finRange config.units.count)
     (List.finRange config.units.count)
   Costed.filterMap (κ .visit)
     (fun unit => Costed.op (κ .imprint)
@@ -232,7 +238,9 @@ theorem imprintFeatures_val (κ : Costs) (dimension : Dimension) (config : Featu
 theorem imprintFeatures_work (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (active : Vector Bool config.units.count) :
     (imprintFeatures κ dimension config active).work ≤
-      config.units.count * κ .visit + config.units.count * (κ .visit + κ .imprint) := by
+      bare (κ .visit) config.units.count +
+        (pass (κ .visit) config.units.count (κ .imprint) + bare (κ .visit) config.units.count) :=
+    by
   unfold imprintFeatures
   refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _)
     (Costed.filterMap_work_le (κ .visit) (κ .imprint) _ _ fun _ _ => Nat.le_refl _)) ?_
@@ -247,7 +255,7 @@ def unique (κ : Costs) (indices : List (FeatIdx dimension)) :
     (Costed.replicate (κ .visit) dimension.capacity false)
   let built ← Costed.foldl (κ .visit)
     (fun builder index => Costed.op (κ .uniqueAdd) (builder.add index)) empty indices
-  Costed.scanList (κ .visit) built.reversed built.finish
+  Costed.scanList 1 (κ .visit) built.reversed built.finish
 
 theorem unique_val (κ : Costs) (indices : List (FeatIdx dimension)) :
     (unique κ indices).val = Features.unique indices := rfl
@@ -259,7 +267,7 @@ theorem unique_flags (κ : Costs) (dimension : Dimension) :
 
 /-- Bound of a unique encoding of `size` raw features. -/
 abbrev uniqueBound (κ : Costs) (capacity size : Nat) : Nat :=
-  capacity * κ .visit + size * (κ .visit + κ .uniqueAdd) + size * κ .visit
+  bare (κ .visit) capacity + pass (κ .visit) size (κ .uniqueAdd) + bare (κ .visit) size
 
 theorem unique_work (κ : Costs) (indices : List (FeatIdx dimension)) :
     (unique κ indices).work ≤ uniqueBound κ dimension.capacity indices.length := by
@@ -268,11 +276,11 @@ theorem unique_work (κ : Costs) (indices : List (FeatIdx dimension)) :
     have bound := fold_length indices (SwiftTd.ActiveSet.empty dimension)
     rw [← unique_order] at bound
     simpa [Features.unique, UniqueBuilder.finish, SwiftTd.ActiveSet.empty] using bound
-  have scaled := Nat.mul_le_mul_right (κ .visit) length
+  have scaled := bare_mono (visit := κ .visit) length
   unfold unique
   refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at
     (Costed.foldl_work_le (κ .visit) (κ .uniqueAdd) _ _ _ fun _ _ _ => Nat.le_refl _)
-    scaled)) ?_
+    (Nat.le_trans (Nat.le_of_eq (Nat.one_mul _)) scaled))) ?_
   simp only [uniqueBound]
   omega
 
@@ -283,7 +291,7 @@ def encodeWith (κ : Costs) (dimension : Dimension) (config : Features.Config)
     Costed (SwiftTd.ActiveSet dimension) := do
   let tiled ← tiledFeatures κ dimension config words
   let imprinted ← imprintFeatures κ dimension config active
-  let raw ← Costed.scanList (κ .visit) tiled (tiled ++ imprinted)
+  let raw ← Costed.scanList 2 (κ .visit) tiled (tiled ++ imprinted)
   unique κ raw
 
 theorem encodeWith_val (κ : Costs) (dimension : Dimension) (config : Features.Config)
@@ -293,8 +301,9 @@ theorem encodeWith_val (κ : Costs) (dimension : Dimension) (config : Features.C
 
 /-- Bound of an encoding at a capacity, a tiling count, `size` words and `units` units. -/
 abbrev encodeBound (κ : Costs) (capacity tilings size units : Nat) : Nat :=
-  tiledBound κ tilings size + (units * κ .visit + units * (κ .visit + κ .imprint)) +
-    (tilings * size) * κ .visit + uniqueBound κ capacity (tilings * size + units)
+  tiledBound κ tilings size +
+    (bare (κ .visit) units + (pass (κ .visit) units (κ .imprint) + bare (κ .visit) units)) +
+    2 * bare (κ .visit) (tilings * size) + uniqueBound κ capacity (tilings * size + units)
 
 theorem encodeWith_work (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (words : List SensorWord) (active : Vector Bool config.units.count) :
@@ -308,8 +317,8 @@ theorem encodeWith_work (κ : Costs) (dimension : Dimension) (config : Features.
       tiled_length (List.range config.tilings.toNat) words _
   have rawLength := rawEncodeWith_length dimension config words active
   have unique := unique_work κ (Features.rawEncodeWith dimension config words active)
-  have flags := Nat.mul_le_mul_right (κ .visit + κ .uniqueAdd) rawLength
-  have copies := Nat.mul_le_mul_right (κ .visit) rawLength
+  have flags := pass_mono (visit := κ .visit) rawLength (Nat.le_refl (κ .uniqueAdd))
+  have copies := bare_mono (visit := κ .visit) rawLength
   unfold encodeWith
   refine Nat.le_trans (Costed.bind_work_le_at tiled (Costed.bind_work_le_at imprinted
     (Costed.bind_work_le_at (Nat.le_refl _) unique))) ?_
@@ -344,7 +353,7 @@ def frame (κ : Costs) (state : Agent interface profile config criterion dimensi
 abbrev frameBound (κ : Costs) (interface : Interface) (capacity : Nat)
     (config : Features.Config) : Nat :=
   wordsBound κ interface.words interface.layout.length +
-    config.units.count * (κ .visit + (projectionBound κ + κ .activation)) +
+    pass (κ .visit) config.units.count (projectionBound κ + κ .activation) +
     encodeBound κ capacity config.tilings.toNat (interface.words + interface.layout.length)
       config.units.count
 
@@ -352,14 +361,15 @@ abbrev frameBound (κ : Costs) (interface : Interface) (capacity : Nat)
 theorem encodeBound_mono (κ : Costs) (capacity tilings units : Nat) {size limit : Nat}
     (fits : size ≤ limit) :
     encodeBound κ capacity tilings size units ≤ encodeBound κ capacity tilings limit units := by
-  have hashes := Nat.mul_le_mul_right (κ .visit + κ .hashFeature) fits
-  have copies := Nat.mul_le_mul_right (κ .visit) fits
-  have tiles := Nat.mul_le_mul_left tilings
-    (Nat.add_le_add_left (Nat.add_le_add hashes copies) (κ .visit))
+  have hashes := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .hashFeature))
+  have copies := bare_mono (visit := κ .visit) fits
+  have tiles := pass_mono (visit := κ .visit) (Nat.le_refl tilings)
+    (Nat.add_le_add (Nat.add_le_add hashes copies) (Nat.mul_le_mul_left 2 copies))
   have raw := Nat.mul_le_mul_left tilings fits
-  have rawCopies := Nat.mul_le_mul_right (κ .visit) raw
-  have admits := Nat.mul_le_mul_right (κ .visit + κ .uniqueAdd) (Nat.add_le_add_right raw units)
-  have reversed := Nat.mul_le_mul_right (κ .visit) (Nat.add_le_add_right raw units)
+  have rawCopies := bare_mono (visit := κ .visit) raw
+  have admits := pass_mono (visit := κ .visit) (Nat.add_le_add_right raw units)
+    (Nat.le_refl (κ .uniqueAdd))
+  have reversed := bare_mono (visit := κ .visit) (Nat.add_le_add_right raw units)
   simp only [encodeBound, tiledBound, uniqueBound]
   omega
 

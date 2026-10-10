@@ -102,8 +102,8 @@ theorem backupAll_val (κ : Costs) (state : PlanningResult criterion dimension)
 
 /-- Bound of the backups of every option over `width` features. -/
 abbrev backupAllBound (κ : Costs) (positions width : Nat) : Nat :=
-  Acorn.FeatureConstants.skillCount *
-    (κ .visit + (lookAheadBound κ positions width + κ .backupClose))
+  pass (κ .visit) Acorn.FeatureConstants.skillCount
+    (lookAheadBound κ positions width + κ .backupClose)
 
 theorem backupAll_work (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
@@ -129,7 +129,7 @@ def sweepAll (κ : Costs) (state : PlanningResult criterion dimension)
 
 /-- Bound of the sweeps of every option over `width` features. -/
 abbrev sweepAllBound (κ : Costs) (positions width : Nat) : Nat :=
-  Acorn.FeatureConstants.skillCount * (κ .visit + (lookAheadBound κ positions width + 0))
+  pass (κ .visit) Acorn.FeatureConstants.skillCount (lookAheadBound κ positions width + 0)
 
 theorem sweepAll_work (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
@@ -148,15 +148,16 @@ theorem sweepAll_work (κ : Costs) (state : PlanningResult criterion dimension)
 theorem lookAheadBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     lookAheadBound κ positions width ≤ lookAheadBound κ positions limit := by
-  have m1 := Nat.mul_le_mul_right (κ .visit + κ .visit) fits
-  have m2 := Nat.mul_le_mul_right (κ .visit + κ .sumTerm) (Nat.add_le_add_right fits 1)
-  have m3 := Nat.mul_le_mul_right (κ .visit + κ .position) fits
+  have m1 := bare_mono (visit := κ .visit + κ .compare) fits
+  have m2 := pass_mono (visit := κ .visit) (Nat.add_le_add_right fits 1) (Nat.le_refl (κ .sumTerm))
+  have m3 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .position))
   have m4 := expectedAtBound_mono κ positions (Nat.add_le_add_right fits 1)
-  have m5 := Nat.mul_le_mul_left (metaCount.word.toNat)
-    (Nat.add_le_add_left (Nat.add_le_add_right m2 (κ .outcomeValue)) (κ .visit))
-  have m6 := Nat.mul_le_mul_right (κ .visit + κ .sumTerm) fits
-  have m7 := Nat.mul_le_mul_right (κ .visit + κ .read) fits
-  have m8 := Nat.mul_le_mul_right (κ .visit + κ .planElement) fits
+  have m5 := pass_mono (visit := κ .visit) (Nat.le_refl metaCount.word.toNat)
+    (Nat.add_le_add_right m2 (κ .outcomeValue))
+  have m6 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
+  have m7 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
+  have m8 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .planElement))
+  have m9 := bare_mono (visit := κ .visit) fits
   simp only [lookAheadBound, predictBound, lookaheadBound, outcomeValuesBound, rowInputBound,
     inputBound, planBound]
   omega
@@ -200,7 +201,7 @@ def planningBoundary (κ : Costs) (selection : PlanningSelection)
 
 /-- Bound of a free boundary's planning over `width` features at a capacity. -/
 abbrev planningBound (κ : Costs) (capacity positions width : Nat) : Nat :=
-  Acorn.FeatureConstants.skillCount * κ .visit +
+  bare (κ .visit) Acorn.FeatureConstants.skillCount +
     (backupAllBound κ positions width + sweepAllBound κ positions capacity) + κ .planBoundary
 
 theorem planningBoundary_work (κ : Costs) (selection : PlanningSelection)
@@ -219,8 +220,8 @@ theorem planningBoundary_work (κ : Costs) (selection : PlanningSelection)
     refine Nat.le_trans (Costed.bind_work_le (backupAll_work κ state skills features gain rate)
       fun current => Costed.bind_work_le (show _ ≤ sweepAllBound κ _ dimension.capacity from
         Nat.le_trans (sweepAll_work κ current skills current.recent.selected gain rate)
-          (Nat.mul_le_mul_left _ (Nat.add_le_add_left (Nat.add_le_add_right
-            (lookAheadBound_mono κ _ (CurrentLearner.active_cardinality _)) 0) _)))
+          (pass_mono (Nat.le_refl _) (Nat.add_le_add_right
+            (lookAheadBound_mono κ _ (CurrentLearner.active_cardinality _)) 0)))
         fun _ => Nat.le_refl _) ?_
     simp only [planningBound]
     omega

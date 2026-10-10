@@ -30,11 +30,12 @@ variable {dimension : Dimension} {criterion : Criterion} {count : Word.Count}
 def insert (κ : Costs) (active : SwiftTd.ActiveSet dimension) (index : FeatIdx dimension) :
     Costed (SwiftTd.ActiveSet dimension) :=
   Costed.charge (κ .insert)
-    (Costed.scanList (κ .visit + κ .visit) active.indices (Features.insert active index))
+    (Costed.scanList 3 (κ .visit + κ .compare) active.indices (Features.insert active index))
 
 theorem insert_work (κ : Costs) (active : SwiftTd.ActiveSet dimension)
     (index : FeatIdx dimension) :
-    (insert κ active index).work = κ .insert + active.indices.length * (κ .visit + κ .visit) :=
+    (insert κ active index).work =
+      κ .insert + 3 * bare (κ .visit + κ .compare) active.indices.length :=
   rfl
 
 /-- The costed composition of `modelInput`: nothing, or the age slot inserted. -/
@@ -55,7 +56,8 @@ def modelInput (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet di
   Costed.via (Features.modelInput criterion base age) (modelInputRun κ criterion base age)
 
 /-- Bound of a model input over `width` features. -/
-abbrev inputBound (κ : Costs) (width : Nat) : Nat := κ .insert + width * (κ .visit + κ .visit)
+abbrev inputBound (κ : Costs) (width : Nat) : Nat :=
+  κ .insert + 3 * bare (κ .visit + κ .compare) width
 
 theorem modelInput_work (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) :
@@ -89,7 +91,9 @@ theorem rankedActive_run (κ : Costs) (ranked : RankedFeatures dimension)
 
 theorem rankedActive_work (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
-    (rankedActive κ ranked features).work ≤ features.indices.length * (κ .visit + κ .position) :=
+    (rankedActive κ ranked features).work ≤
+      pass (κ .visit) features.indices.length (κ .position) +
+        bare (κ .visit) features.indices.length :=
   Costed.filterMap_work_le _ _ _ _ fun _ _ => Nat.le_refl _
 
 /-- Twin of `RankedFeatures.input`: the active positions and the bias appended. -/
@@ -105,14 +109,15 @@ theorem rankedInput_val (κ : Costs) (ranked : RankedFeatures dimension)
 
 /-- Bound of a row input over `width` features. -/
 abbrev rowInputBound (κ : Costs) (width : Nat) : Nat :=
-  width * (κ .visit + κ .position) + (κ .rankWidth + inputBound κ width)
+  (pass (κ .visit) width (κ .position) + bare (κ .visit) width) +
+    (κ .rankWidth + inputBound κ width)
 
 theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     (rankedInput κ ranked features).work ≤ rowInputBound κ features.indices.length := by
-  have scaled : (rankedActive κ ranked features).val.indices.length * (κ .visit + κ .visit) ≤
-      features.indices.length * (κ .visit + κ .visit) :=
-    Nat.mul_le_mul_right _ (ranked.active_length features)
+  have scaled : bare (κ .visit + κ .compare) (rankedActive κ ranked features).val.indices.length ≤
+      bare (κ .visit + κ .compare) features.indices.length :=
+    bare_mono (ranked.active_length features)
   unfold rankedInput
   refine Nat.le_trans (Costed.bind_work_le_at (rankedActive_work κ ranked features)
     (Costed.charge_work_le (Nat.le_of_eq (insert_work κ _ (RankedFeatures.bias dimension))))) ?_
@@ -122,7 +127,7 @@ theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
 /-- Twin of `RankedFeatures.occupied`: the positions listed, then one read for each. -/
 def occupied (κ : Costs) (ranked : RankedFeatures dimension) :
     Costed (List (RankIdx dimension × FeatIdx dimension)) := do
-  let positions ← Costed.charge (κ .rankWidth) (Costed.scanList (κ .visit)
+  let positions ← Costed.charge (κ .rankWidth) (Costed.scanList 1 (κ .visit)
     (List.finRange (rankDimension dimension).capacity)
     (List.finRange (rankDimension dimension).capacity))
   Costed.filterMap (κ .visit)
@@ -135,7 +140,7 @@ theorem occupied_val (κ : Costs) (ranked : RankedFeatures dimension) :
 
 /-- Bound of the occupied positions of a ranking of `width` positions. -/
 abbrev occupiedBound (κ : Costs) (width : Nat) : Nat :=
-  κ .rankWidth + width * κ .visit + width * (κ .visit + κ .read)
+  κ .rankWidth + bare (κ .visit) width + (pass (κ .visit) width (κ .read) + bare (κ .visit) width)
 
 theorem occupied_work (κ : Costs) (ranked : RankedFeatures dimension) :
     (occupied κ ranked).work ≤ occupiedBound κ (rankDimension dimension).capacity := by
@@ -164,16 +169,16 @@ theorem indicator_val (κ : Costs) (ranked : RankedFeatures dimension)
 
 /-- Bound of an indicator over `width` features and `positions` ranked positions. -/
 abbrev indicatorBound (κ : Costs) (width positions : Nat) : Nat :=
-  width * (κ .visit + κ .position) + (κ .rankWidth + positions * κ .visit) +
-    width * (κ .visit + κ .write)
+  (pass (κ .visit) width (κ .position) + bare (κ .visit) width) +
+    (κ .rankWidth + bare (κ .visit) positions) + pass (κ .visit) width (κ .write)
 
 theorem indicator_work (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     (indicator κ ranked features).work ≤
       indicatorBound κ features.indices.length (rankDimension dimension).capacity := by
-  have scaled : (rankedActive κ ranked features).val.indices.length * (κ .visit + κ .write) ≤
-      features.indices.length * (κ .visit + κ .write) :=
-    Nat.mul_le_mul_right _ (ranked.active_length features)
+  have scaled : pass (κ .visit) (rankedActive κ ranked features).val.indices.length (κ .write) ≤
+      pass (κ .visit) features.indices.length (κ .write) :=
+    pass_mono (ranked.active_length features) (Nat.le_refl _)
   unfold indicator
   refine Nat.le_trans (Costed.bind_work_le_at (rankedActive_work κ ranked features)
     (Costed.bind_work_le_at (Nat.le_refl _)
@@ -203,7 +208,7 @@ theorem rankedValues_val (κ : Costs) (value : ValueFunction criterion dimension
 /-- Bound of the ranked values at `positions` ranked positions. -/
 abbrev rankedValuesBound (κ : Costs) (positions : Nat) : Nat :=
   occupiedBound κ positions +
-    metaCount.word.toNat * (κ .visit + positions * (κ .visit + κ .productTerm))
+    pass (κ .visit) metaCount.word.toNat (pass (κ .visit) positions (κ .productTerm))
 
 theorem rankedValues_work (κ : Costs) (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
@@ -213,9 +218,9 @@ theorem rankedValues_work (κ : Costs) (value : ValueFunction criterion dimensio
   unfold rankedValues
   refine Nat.le_trans (Costed.bind_work_le_at (occupied_work κ ranked)
     (Costed.mapVector_work_le (κ .visit)
-      ((rankDimension dimension).capacity * (κ .visit + κ .productTerm)) _ _ fun _ _ =>
+      (pass (κ .visit) (rankDimension dimension).capacity (κ .productTerm)) _ _ fun _ _ =>
         Nat.le_trans (sumMap_work κ .productTerm .zero _ _)
-          (Nat.mul_le_mul_right _ (RankedFeatures.occupied_length ranked)))) ?_
+          (pass_mono (RankedFeatures.occupied_length ranked) (Nat.le_refl _)))) ?_
   exact Nat.le_refl _
 
 /-- The costed composition of `comparisonValue`: the policy mean or the maximum. -/
@@ -260,7 +265,7 @@ theorem expectedAt_val (κ : Costs) (transition : Transition dimension criterion
 
 /-- Bound of the rows' predictions at `positions` rows over `width` inputs. -/
 abbrev expectedAtBound (κ : Costs) (positions width : Nat) : Nat :=
-  positions * (κ .visit + (width * (κ .visit + κ .sumTerm) + κ .project))
+  pass (κ .visit) positions (pass (κ .visit) width (κ .sumTerm) + κ .project)
 
 theorem expectedAt_work (κ : Costs) (transition : Transition dimension criterion)
     (input : SwiftTd.ActiveSet (rankDimension dimension)) :
@@ -294,14 +299,14 @@ theorem outcomeValues_val (κ : Costs) (transition : Transition dimension criter
 abbrev outcomeValuesBound (κ : Costs) (positions width : Nat) : Nat :=
   rowInputBound κ width + expectedAtBound κ positions (width + 1) +
     rankedValuesBound κ positions +
-    metaCount.word.toNat * (κ .visit + ((width + 1) * (κ .visit + κ .sumTerm) + κ .outcomeValue))
+    pass (κ .visit) metaCount.word.toNat
+      (pass (κ .visit) (width + 1) (κ .sumTerm) + κ .outcomeValue)
 
 /-- A row-prediction bound grows with the input width. -/
 theorem expectedAtBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     expectedAtBound κ positions width ≤ expectedAtBound κ positions limit :=
-  Nat.mul_le_mul_left _ (Nat.add_le_add_left
-    (Nat.add_le_add_right (Nat.mul_le_mul_right _ fits) _) _)
+  pass_mono (Nat.le_refl _) (Nat.add_le_add_right (pass_mono fits (Nat.le_refl _)) _)
 
 theorem outcomeValues_work (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -315,11 +320,11 @@ theorem outcomeValues_work (κ : Costs) (transition : Transition dimension crite
       (expectedAtBound_mono κ _ width))
       (Costed.bind_work_le_at (rankedValues_work κ value transition.ranked _)
         (Costed.ofFn_work_le (κ .visit)
-          ((features.indices.length + 1) * (κ .visit + κ .sumTerm) + κ .outcomeValue) _
+          (pass (κ .visit) (features.indices.length + 1) (κ .sumTerm) + κ .outcomeValue) _
           fun action =>
           Costed.bind_work_le (Nat.le_trans
             (linearPrediction_work κ (transition.deviations.get action).state _)
-            (Nat.mul_le_mul_right _ width)) fun _ => Nat.le_refl _)))) ?_
+            (pass_mono width (Nat.le_refl _))) fun _ => Nat.le_refl _)))) ?_
   exact Nat.le_of_eq (by simp only [outcomeValuesBound]; omega)
 
 /-- Twin of `Transition.lookahead`. -/
@@ -382,7 +387,7 @@ def predict (κ : Costs) (model : Model dimension criterion)
 
 /-- Bound of a model prediction over `width` features. -/
 abbrev predictBound (κ : Costs) (positions width : Nat) : Nat :=
-  inputBound κ width + (3 * ((width + 1) * (κ .visit + κ .sumTerm)) +
+  inputBound κ width + (3 * pass (κ .visit) (width + 1) (κ .sumTerm) +
     lookaheadBound κ positions width + κ .prediction)
 
 theorem predict_work (κ : Costs) (model : Model dimension criterion)
@@ -393,7 +398,7 @@ theorem predict_work (κ : Costs) (model : Model dimension criterion)
   have width := modelInput_length criterion base age
   have read := fun (learner : NumericState (criterion.config .demon) dimension) =>
     Nat.le_trans (linearPrediction_work κ learner (Features.modelInput criterion base age))
-      (Nat.mul_le_mul_right (κ .visit + κ .sumTerm) width)
+      (pass_mono width (Nat.le_refl (κ .sumTerm)))
   change (predictRun κ model value base age).work ≤ _
   cases model with
   | discounted reward continuation transition =>
@@ -418,22 +423,23 @@ theorem predict_work (κ : Costs) (model : Model dimension criterion)
 /-- A row learner's bound grows with its input width. -/
 theorem secondLoopBound_mono (κ : Costs) {width limit : Nat} (fits : width ≤ limit) :
     secondLoopBound κ width ≤ secondLoopBound κ limit := by
-  have := Nat.mul_le_mul_right (κ .visit + κ .read) fits
-  have := Nat.mul_le_mul_right (κ .visit + κ .sumTerm) fits
-  have := Nat.mul_le_mul_right (κ .visit + κ .secondElement) fits
+  have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
+  have := bare_mono (visit := κ .visit) fits
+  have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
+  have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .secondElement))
   simp only [secondLoopBound]
   omega
 
 theorem beginBound_mono (κ : Costs) (capacity : Nat) {width limit : Nat} (fits : width ≤ limit) :
     beginBound κ capacity width ≤ beginBound κ capacity limit := by
-  have := Nat.mul_le_mul_right (κ .visit + κ .sumTerm) fits
+  have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
   have := secondLoopBound_mono κ fits
   simp only [beginBound]
   omega
 
 theorem stepBound_mono (κ : Costs) (count : Nat) {width limit : Nat} (fits : width ≤ limit) :
     stepBound κ count width ≤ stepBound κ count limit := by
-  have := Nat.mul_le_mul_right (κ .visit + κ .sumTerm) fits
+  have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
   have := secondLoopBound_mono κ fits
   simp only [stepBound]
   omega
@@ -458,8 +464,8 @@ def updateRows (κ : Costs) (transition : Transition dimension criterion)
 /-- Bound of a model update at `positions` rows, by bounds of a row's and a deviation
 learner's update. -/
 abbrev updateRowsBound (κ : Costs) (positions rowBound deviationBound : Nat) : Nat :=
-  positions * (κ .visit + rowBound) +
-    (metaCount.word.toNat * (κ .visit + deviationBound) + κ .modelClose)
+  pass (κ .visit) positions rowBound +
+    (pass (κ .visit) metaCount.word.toNat deviationBound + κ .modelClose)
 
 theorem updateRows_work (κ : Costs) (transition : Transition dimension criterion)
     (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
@@ -565,7 +571,7 @@ abbrev outcomeBound (κ : Costs) (positions width : Nat) : Nat :=
   indicatorBound κ width positions +
     (predictAllBound κ metaCount.word.toNat width + (rankedValuesBound κ positions +
       (comparisonBound κ metaCount.word.toNat + (comparisonBound κ metaCount.word.toNat +
-        (metaCount.word.toNat * (κ .visit + κ .deviation) + 0)))))
+        (pass (κ .visit) metaCount.word.toNat (κ .deviation) + 0)))))
 
 theorem outcome_work (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :

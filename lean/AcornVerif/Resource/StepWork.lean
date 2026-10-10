@@ -21,10 +21,15 @@ by the configuration (`Agent.frame_length`), every learner's eligible entries by
 its dimension, every stored frame by the same capacity, and every other loop by a count the
 type of its collection fixes.
 
-**What the bound covers.** The learner's work in the bound is the work of the executed learner,
-whose definitions are the values of their costed definitions. The work of the other parts is
-the work of their twins (`AcornVerif.Resource.Work`), whose loops and charges follow the
-executed definitions by reading.
+**What the bound covers.** The theorems bound the work of the first part's twin, which
+counts each loop as the passes of its runtime implementation, with one visit for each pass's
+end. Read as the work of the executed first part, they rest on two correspondences that no
+theorem checks. The learner's part is the work of the executed learner, whose definitions are
+the values of their costed definitions, under the cost discipline of `Acorn.Cost`: every value
+passed to `Costed.pure`, `Costed.op` or `Costed.replicate` is computed without a loop and
+without a costed definition, which is checked by reading until rbeauchamp/regula#333 checks it.
+The other parts, the encoding and selection among them, are twins (`AcornVerif.Resource.Work`)
+whose loops and charges follow the executed definitions by reading.
 
 **Word operations.** A site's cost in word operations is not derived from the compiled code. The
 bound in word operations (`AcornVerif.Resource.Twin.choose_words`) holds under the hypothesis
@@ -73,7 +78,8 @@ theorem selectBound_mono (κ : Costs) (rows capacity positions questions units :
     policyStepBound, creditStepBound, secondLoopBound, modelStepBound, transitionStepBound,
     stepBound, updateRowsBound, endTemporalBound, modelTerminalWorkBound, outcomeBound,
     indicatorBound, settleBound, stopFollowingBound, modelStopBound, beginTemporalBound,
-    beginOptionBound, modelBeginBound, transitionBeginBound, beginBound, learnMetaBound]
+    beginOptionBound, modelBeginBound, transitionBeginBound, beginBound, learnMetaBound, pass,
+    bare]
   gcongr
 
 /-- **The work of the first part of the step under an order whose first part is selection**,
@@ -126,7 +132,7 @@ theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (inte
     stopFollowingBound, stopTrajectoryBound, sweepAllBound, tabulateBound, terminalBound,
     terminalCreditBound, tiledBound, transitionBeginBound, transitionInitialBound,
     transitionRerankBound, transitionStepBound, uniqueBound, updateRowsBound, wordsBound,
-    zeroBound]
+    zeroBound, pass, bare]
   gcongr <;> exact bounds _
 
 /-- The first part under the default order is `Agent.chooseSelected` at `learnThenAct`. -/
@@ -135,10 +141,11 @@ theorem choose_learnThenAct (state : Agent interface profile config criterion di
     state.choose .learnThenAct percept = state.chooseSelected .learnThenAct (by decide) percept :=
   rfl
 
-/-- **The work bound of the first part under `learnThenAct`.** The twin's value is the
+/-- **The work bound of the first part's twin under `learnThenAct`.** The twin's value is the
 executed first part, and its work is at most `chooseBound`, for every cost model, agent state
-and percept. The twin's work is the executed learner's and, outside the learner, follows the
-executed definitions by reading. -/
+and percept. As the work of the executed first part it rests on the cost discipline of the
+costed learner and on the twins' correspondence with the executed encoding and selection, both
+checked by reading. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -148,9 +155,12 @@ theorem choose_work (κ : Costs)
         chooseBound κ interface config dimension :=
   ⟨rfl, chooseSelected_work κ state .learnThenAct (by decide) percept⟩
 
-/-- **The bound of the first part under `learnThenAct` in word operations.** If each site's
-stretch runs at most `κ site` word operations, the first part's work counted in the word
-operations of its sites is at most `chooseBound κ`, for every agent state and percept. -/
+/-- **The twin accounting of the first part under `learnThenAct` in word operations.** If each
+site's stretch runs at most `κ site` word operations, the work of the first part's twin counted
+in the word operations of its sites is at most `chooseBound κ`, for every agent state and
+percept. Read as the word operations of the executed first part, it rests in addition on the
+cost discipline of the costed learner and on the twins' correspondence with the executed
+encoding and selection, both checked by reading. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

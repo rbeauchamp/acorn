@@ -139,8 +139,8 @@ def prepareRun (κ : Costs) (state : TemporalControl interface profile config cr
 
 /-- Bound of selection's preparation over `width` features. -/
 abbrev prepareBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
-  κ .prepare + Acorn.FeatureConstants.skillCount * (κ .visit + (metaRateBound κ rows capacity +
-    (predictBound κ positions width + κ .read)))
+  κ .prepare + pass (κ .visit) Acorn.FeatureConstants.skillCount (metaRateBound κ rows capacity +
+    (predictBound κ positions width + κ .read))
 
 theorem prepareRun_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
@@ -177,9 +177,9 @@ def serveRun (κ : Costs) (state : TemporalControl interface profile config crit
 
 /-- Bound of a served step over `width` features. -/
 abbrev serveBound (κ : Costs) (rows width : Nat) : Nat :=
-  Acorn.FeatureConstants.skillCount * κ .visit + (predictAllBound κ rows width +
-    (predictAllBound κ metaCount.word.toNat width + metaCount.word.toNat * κ .visit +
-      (rows * (κ .visit + κ .read) + κ .serve)))
+  bare (κ .visit) Acorn.FeatureConstants.skillCount + (predictAllBound κ rows width +
+    (predictAllBound κ metaCount.word.toNat width + bare (κ .visit) metaCount.word.toNat +
+      (pass (κ .visit) rows (κ .read) + κ .serve)))
 
 theorem serveRun_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
@@ -267,7 +267,7 @@ def planFreeRun (κ : Costs) (selection : PlanningSelection)
 
 /-- Bound of a free boundary's planning over `width` features. -/
 abbrev planFreeBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
-  κ .planFree + (Acorn.FeatureConstants.skillCount * κ .visit +
+  κ .planFree + (bare (κ .visit) Acorn.FeatureConstants.skillCount +
     (metaRateBound κ rows capacity + planningBound κ capacity positions width))
 
 theorem planFreeRun_work (κ : Costs) (selection : PlanningSelection)
@@ -584,7 +584,7 @@ abbrev optionBranchBound (κ : Costs) (rows capacity positions questions units w
     (predictAllBound κ metaCount.word.toNat width + κ .snapshot +
       (comparisonBound κ metaCount.word.toNat + (metaRateBound κ rows capacity +
         (decideBound κ rows capacity width +
-          (Acorn.FeatureConstants.skillCount * κ .visit +
+          (bare (κ .visit) Acorn.FeatureConstants.skillCount +
             stepOptionBound κ rows capacity positions width +
             (closeOptionBound κ rows capacity positions width +
               atBoundaryBound κ rows capacity positions questions units width)))))))
@@ -592,7 +592,7 @@ abbrev optionBranchBound (κ : Costs) (rows capacity positions questions units w
 /-- Bound of selection over `width` features. -/
 abbrev selectBound (κ : Costs) (rows capacity positions questions units width : Nat) : Nat :=
   prepareBound κ rows capacity positions width + (serveBound κ rows width + (κ .select +
-    (metaCount.word.toNat * κ .visit + primitiveBound κ rows capacity width +
+    (bare (κ .visit) metaCount.word.toNat + primitiveBound κ rows capacity width +
       (atBoundaryBound κ rows capacity positions questions units width +
         optionBranchBound κ rows capacity positions questions units width))))
 

@@ -292,12 +292,17 @@ every agent state and every percept, under the two orders whose first part is
 selection, `learn-then-act` and `plan-after-act`
 ([definitions](../lean/AcornVerif/Resource/StepWork.lean),
 `AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
-order). The deadline of a world on a wall clock needs a bound of the first part,
-because the action is released after it. In word operations the bound holds under a
-hypothesis: if each site's stretch of compiled code runs at most a given number of
-word operations (`AcornVerif.Resource.Twin.SiteBounds`), the first part runs at most
-the bound at those numbers (`choose_words`). No theorem derives the word operations of
-a site yet, so a deadline argument from this bound carries that hypothesis.
+order). The theorems bound the accounting of the first part's twin. The deadline of a
+world on a wall clock needs a bound of the executed first part, because the action is
+released after it, and reading the twin's bound as one rests on three things no theorem
+yet establishes:
+
+- that each site's stretch of compiled code runs at most a given number of word
+  operations: the bound in word operations holds under that hypothesis
+  (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
+- the cost discipline of the costed learner, described below;
+- the correspondence of the twins of the encoding and of selection with the executed
+  definitions, which is by reading.
 
 **What is counted.** Work is a count of the operations of the compiled definitions
 in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
@@ -317,9 +322,18 @@ compiles to the code of its value: the generated C of each converted definition 
 the code it had before, up to the renaming of the definition and its local variables.
 The loops the learner's bounds count are therefore the loops that run, under one
 discipline that no theorem states, because Lean gives a pure term no operational
-meaning: each loop runs in a loop combinator or a costed definition, and each path of a
-recursion passes a charge. [Regula issue 333](https://github.com/rbeauchamp/regula/issues/333)
-proposes to check that discipline.
+meaning: each loop runs in a loop combinator or a costed definition, each path of a
+recursion passes a charge, and every value given to `Costed.pure`, `Costed.op` or
+`Costed.replicate` is computed without a loop. The combinators cannot enforce the last:
+`Costed.pure` accepts any value, the learner's step among them, at no work. A search
+computes its own value (`Costed.findIdx?`). The discipline is checked by reading until
+the rule that [Regula issue 333](https://github.com/rbeauchamp/regula/issues/333)
+proposes checks it.
+
+Each loop is charged the passes of its runtime implementation, with one visit for each
+pass's end: the library's map of a list, for instance, runs as a loop and a reversal,
+so a map is charged two passes. A twin's scan of a library function is charged that
+function's passes over the collection it names, read from the library.
 
 The other definitions of the first part are not costed yet. Each has a twin that
 carries its work beside its value ([twins](../lean/AcornVerif/Resource/Work.lean)):

@@ -22,14 +22,27 @@ definition is a correspondence by reading, so a bound proved here bounds the twi
 the executed code only through that reading. Each definition moves out of this accounting when
 it becomes the value of its costed definition, as the learner did.
 
-**Loops.** Each loop combinator below has as its value the library loop applied to the values of
-its parts (`List.foldl`, `List.map`, `Vector.map`, `Vector.ofFn`, `Vector.mapFinIdx`,
-`List.filterMap`, `List.flatMap`, `Array.foldl`), and as its work the sum, over the same
-collection, of `visit` for the loop's control and the work of the visit's operation. A loop's
-bound is therefore its trip count times a bound of one visit (`foldl_work_le`, `mapWork_le`,
-`ofFn_work_le`). A library scan whose every visit is constant work (a membership test, a search,
-a length, a copy, a reversal) is charged one visit for each element of the collection it names
-(`scanList`, `scanArray`, `scanVector`, `replicate`).
+**Loops.** A **pass** over `count` elements is charged a visit for the loop's control and the
+work of the visit's operation for each element, and one visit for its end, the final test and
+branch (`pass`, `bare`). Each loop combinator below has as its value the library loop applied to
+the values of its parts, and as its work the passes that loop's runtime implementation makes: one
+for `List.foldl`, `Array.foldl`, `Vector.map`, `Vector.ofFn` and `Vector.mapFinIdx`; for
+`List.map` a second for the reversal of `List.mapTR`; for `List.filterMap` a second for the
+`Array.toList` of `List.filterMapTR`; for `List.flatMap` the end of the `Array.toList` of
+`List.flatMapTR`, whose copies the operation's work counts. A loop's bound is therefore its trip
+count times a bound of one visit, and one visit for each end (`foldl_work_le`, `mapWork_le`,
+`ofFn_work_le`).
+
+**Scans.** A library function whose every visit is constant work is a **scan**, charged its
+number of passes over the collection it names (`scanList`, `scanArray`, `scanVector`). The
+number is the passes of its runtime implementation, read from the library: one for
+`List.length`, `List.contains`, `List.range`, `List.finRange`, `List.toArray`, `Array.toList`,
+`Vector.toList`, `List.reverse` and the equality of vectors; two for `List.filter`
+(`List.filterTR`: a loop and a reversal), `++` (`List.appendTR`: a reversal of the first list and
+`List.reverseAux` over it), `List.dropLast` (`List.dropLastTR`: `List.toArray` and
+`Array.toList`), `List.zipIdx` (`List.zipIdxTR`) and `List.sum` (`List.foldrTR`: `List.toArray`
+and `Array.foldr`); three for `Features.insert` (a membership test and `++`). Each scan states
+its passes where it is used, and a vector of one repeated element is one pass (`replicate`).
 
 **What is counted.** Each loop visit is charged `visit`, and each stretch of constant work is
 charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost model assigns its
@@ -50,6 +63,25 @@ structure Costed (α : Type) where
   val : α
   /-- The work charged to the computation. -/
   work : Nat
+
+/-! ## Passes -/
+
+/-- The work of one pass of a loop over `count` elements: a visit for the loop's control and at
+most `bound` for each element, and one visit for the pass's end. -/
+abbrev pass (visit count bound : Nat) : Nat := count * (visit + bound) + visit
+
+/-- The work of one pass whose visits do nothing beyond the loop's control. -/
+abbrev bare (visit count : Nat) : Nat := count * visit + visit
+
+/-- A pass over more elements, each with a larger bound, does more work. -/
+theorem pass_mono {visit count limit bound most : Nat} (fits : count ≤ limit)
+    (within : bound ≤ most) : pass visit count bound ≤ pass visit limit most :=
+  Nat.add_le_add_right (Nat.mul_le_mul fits (Nat.add_le_add_left within visit)) visit
+
+/-- A bare pass over more elements does more work. -/
+theorem bare_mono {visit count limit : Nat} (fits : count ≤ limit) :
+    bare visit count ≤ bare visit limit :=
+  Nat.add_le_add_right (Nat.mul_le_mul_right visit fits) visit
 
 namespace Costed
 
@@ -206,9 +238,9 @@ theorem length_mul_le {count limit bound : Nat} (fits : count ≤ limit) :
 /-! ## Loops -/
 
 /-- The work of a left fold: for each visit, `visit` for the loop's control and the
-step's work at the accumulator the executed fold reaches there. -/
+step's work at the accumulator the executed fold reaches there, and `visit` for its end. -/
 def foldlWork (visit : Nat) (step : β → α → Costed β) : β → List α → Nat
-  | _, [] => 0
+  | _, [] => visit
   | acc, item :: rest =>
     visit + (step acc item).work + foldlWork visit step (step acc item).val rest
 
@@ -217,12 +249,12 @@ def foldlWork (visit : Nat) (step : β → α → Costed β) : β → List α �
     Costed β :=
   ⟨items.foldl (fun acc item => (step acc item).val) init, foldlWork visit step init items⟩
 
-/-- A fold whose every step is at most `bound` costs at most the trip count times the
-visit and that bound. The bound holds at every accumulator, so no reasoning about the
-values the fold computes is needed. -/
+/-- A fold whose every step is at most `bound` costs at most one pass with that bound. The
+bound holds at every accumulator, so no reasoning about the values the fold computes is
+needed. -/
 theorem foldlWork_le (visit bound : Nat) (step : β → α → Costed β)
     (items : List α) (each : ∀ acc, ∀ item ∈ items, (step acc item).work ≤ bound) :
-    ∀ init, foldlWork visit step init items ≤ items.length * (visit + bound) := by
+    ∀ init, foldlWork visit step init items ≤ pass visit items.length bound := by
   induction items with
   | nil => intro init; simp [foldlWork]
   | cons head rest ih =>
@@ -230,31 +262,40 @@ theorem foldlWork_le (visit bound : Nat) (step : β → α → Costed β)
     have headBound := each init head (List.mem_cons_self ..)
     have restBound := ih (fun acc item member => each acc item (List.mem_cons_of_mem _ member))
       (step init head).val
-    simp only [foldlWork, List.length_cons, Nat.succ_mul]
+    simp only [foldlWork, pass, List.length_cons, Nat.succ_mul] at restBound ⊢
     omega
 
 /-- A fold's work, by the bound of each step. -/
 theorem foldl_work_le (visit bound : Nat) (step : β → α → Costed β) (init : β)
     (items : List α) (each : ∀ acc, ∀ item ∈ items, (step acc item).work ≤ bound) :
-    (foldl visit step init items).work ≤ items.length * (visit + bound) :=
+    (foldl visit step init items).work ≤ pass visit items.length bound :=
   foldlWork_le visit bound step items each init
 
-/-- The work of a map: for each visit, `visit` and the work of the mapped operation. -/
+/-- The work of one pass mapping an operation: for each visit, `visit` and the work of the
+operation, and `visit` for the pass's end. -/
 @[reducible] def mapWork (visit : Nat) (operation : α → Costed β) (items : List α) : Nat :=
-  (items.map fun item => visit + (operation item).work).sum
+  (items.map fun item => visit + (operation item).work).sum + visit
 
-/-- A map's work, by the bound of each operation. -/
+/-- A mapping pass's work, by the bound of each operation. -/
 theorem mapWork_le (visit bound : Nat) (operation : α → Costed β) (items : List α)
     (each : ∀ item ∈ items, (operation item).work ≤ bound) :
-    mapWork visit operation items ≤ items.length * (visit + bound) :=
-  sum_map_le items _ _ fun item member => Nat.add_le_add_left (each item member) _
+    mapWork visit operation items ≤ pass visit items.length bound :=
+  Nat.add_le_add_right
+    (sum_map_le items _ _ fun item member => Nat.add_le_add_left (each item member) _) visit
 
-/-- A map over a list. -/
+/-- A map over a list: the loop of `List.mapTR` and its reversal. -/
 @[reducible] def map (visit : Nat) (operation : α → Costed β) (items : List α) :
     Costed (List β) :=
-  ⟨items.map fun item => (operation item).val, mapWork visit operation items⟩
+  ⟨items.map fun item => (operation item).val,
+    mapWork visit operation items + bare visit items.length⟩
 
-/-- A map over a vector, visiting its elements in order. -/
+/-- A map's work, by the bound of each operation. -/
+theorem map_work_le (visit bound : Nat) (operation : α → Costed β) (items : List α)
+    (each : ∀ item ∈ items, (operation item).work ≤ bound) :
+    (map visit operation items).work ≤ pass visit items.length bound + bare visit items.length :=
+  Nat.add_le_add_right (mapWork_le visit bound operation items each) _
+
+/-- A map over a vector, visiting its elements in order in one pass. -/
 @[reducible] def mapVector {count : Nat} (visit : Nat) (operation : α → Costed β)
     (items : Vector α count) : Costed (Vector β count) :=
   ⟨items.map fun item => (operation item).val, mapWork visit operation items.toList⟩
@@ -262,11 +303,11 @@ theorem mapWork_le (visit bound : Nat) (operation : α → Costed β) (items : L
 /-- A vector map's work, by the bound of each operation. -/
 theorem mapVector_work_le {count : Nat} (visit bound : Nat) (operation : α → Costed β)
     (items : Vector α count) (each : ∀ item ∈ items.toList, (operation item).work ≤ bound) :
-    (mapVector visit operation items).work ≤ count * (visit + bound) := by
+    (mapVector visit operation items).work ≤ pass visit count bound := by
   have counted := mapWork_le visit bound operation items.toList each
   simpa only [Vector.length_toList] using counted
 
-/-- A vector built from its indices, visiting each index in order. -/
+/-- A vector built from its indices, visiting each index in order in one pass. -/
 @[reducible] def ofFn {count : Nat} (visit : Nat) (operation : Fin count → Costed β) :
     Costed (Vector β count) :=
   ⟨Vector.ofFn fun index => (operation index).val,
@@ -275,47 +316,52 @@ theorem mapVector_work_le {count : Nat} (visit bound : Nat) (operation : α → 
 /-- A built vector's work, by the bound of each operation. -/
 theorem ofFn_work_le {count : Nat} (visit bound : Nat) (operation : Fin count → Costed β)
     (each : ∀ index, (operation index).work ≤ bound) :
-    (ofFn visit operation).work ≤ count * (visit + bound) := by
+    (ofFn visit operation).work ≤ pass visit count bound := by
   have counted := mapWork_le visit bound operation (List.finRange count)
     (fun index _ => each index)
   simpa only [List.length_finRange] using counted
 
-/-- A map whose results are concatenated, as `List.flatMap`. The operation's work includes
-the copy of its result into the concatenation. -/
+/-- A map whose results are concatenated, as `List.flatMap`: one pass, and the end of the
+`Array.toList` of `List.flatMapTR`. The operation's work includes the copy of its result into
+the concatenation and the read of each copied element into the result list. -/
 @[reducible] def flatMap (visit : Nat) (operation : α → Costed (List β)) (items : List α) :
     Costed (List β) :=
-  ⟨items.flatMap fun item => (operation item).val, mapWork visit operation items⟩
+  ⟨items.flatMap fun item => (operation item).val, mapWork visit operation items + visit⟩
 
-/-- A map over a vector that reads each element's index, as `Vector.mapFinIdx`. -/
+/-- A map over a vector that reads each element's index, as `Vector.mapFinIdx`, in one pass. -/
 @[reducible] def mapFinIdx {count : Nat} (visit : Nat)
     (operation : (index : Nat) → α → index < count → Costed β) (items : Vector α count) :
     Costed (Vector β count) :=
   ⟨items.mapFinIdx fun index item bound => (operation index item bound).val,
     ((List.finRange count).map fun index =>
-      visit + (operation index.val items[index.val] index.isLt).work).sum⟩
+      visit + (operation index.val items[index.val] index.isLt).work).sum + visit⟩
 
 /-- An indexed vector map's work, by the bound of each operation. -/
 theorem mapFinIdx_work_le {count : Nat} (visit bound : Nat)
     (operation : (index : Nat) → α → index < count → Costed β) (items : Vector α count)
     (each : ∀ index item inside, (operation index item inside).work ≤ bound) :
-    (mapFinIdx visit operation items).work ≤ count * (visit + bound) := by
+    (mapFinIdx visit operation items).work ≤ pass visit count bound := by
   have counted := sum_map_le (List.finRange count)
     (fun index : Fin count => visit + (operation index.val items[index.val] index.isLt).work)
     (visit + bound) (fun index _ => Nat.add_le_add_left (each _ _ _) _)
-  simpa only [List.length_finRange] using counted
+  simp only [List.length_finRange] at counted
+  exact Nat.add_le_add_right counted visit
 
-/-- A filtering map over a list. -/
+/-- A filtering map over a list: the loop of `List.filterMapTR` and the `Array.toList` of the
+kept elements, at most one for each element. -/
 @[reducible] def filterMap (visit : Nat) (operation : α → Costed (Option β))
     (items : List α) : Costed (List β) :=
-  ⟨items.filterMap fun item => (operation item).val, mapWork visit operation items⟩
+  ⟨items.filterMap fun item => (operation item).val,
+    mapWork visit operation items + bare visit items.length⟩
 
 /-- A filtering map's work, by the bound of each operation. -/
 theorem filterMap_work_le (visit bound : Nat) (operation : α → Costed (Option β))
     (items : List α) (each : ∀ item ∈ items, (operation item).work ≤ bound) :
-    (filterMap visit operation items).work ≤ items.length * (visit + bound) :=
-  mapWork_le visit bound operation items each
+    (filterMap visit operation items).work ≤
+      pass visit items.length bound + bare visit items.length :=
+  Nat.add_le_add_right (mapWork_le visit bound operation items each) _
 
-/-- A left fold over an array, visiting its elements in order. -/
+/-- A left fold over an array, visiting its elements in order in one pass. -/
 @[reducible] def foldlArray (visit : Nat) (step : β → α → Costed β) (init : β)
     (items : Array α) : Costed β :=
   ⟨items.foldl (fun acc item => (step acc item).val) init,
@@ -329,29 +375,28 @@ theorem foldlArray_val (visit : Nat) (step : β → α → Costed β) (init : β
 /-- An array fold's work, by the bound of each step. -/
 theorem foldlArray_work_le (visit bound : Nat) (step : β → α → Costed β) (init : β)
     (items : Array α) (each : ∀ acc, ∀ item ∈ items.toList, (step acc item).work ≤ bound) :
-    (foldlArray visit step init items).work ≤ items.size * (visit + bound) := by
+    (foldlArray visit step init items).work ≤ pass visit items.size bound := by
   have counted := foldlWork_le visit bound step items.toList each init
   simpa only [Array.length_toList] using counted
 
-/-- A vector of one repeated element: one visit for each element written. -/
+/-- A vector of one repeated element: one bare pass writing each element. -/
 @[reducible] def replicate (visit count : Nat) (value : α) : Costed (Vector α count) :=
-  ⟨Vector.replicate count value, count * visit⟩
+  ⟨Vector.replicate count value, bare visit count⟩
 
-/-- A library scan of a list whose every visit is one loop-free comparison or copy,
-such as a membership test, a search, a length or a reversal: one visit for each
-element of the list it scans, whatever the scan returns. The value is the executed
-expression; the list is the one that expression scans. -/
-@[reducible] def scanList (visit : Nat) (items : List α) (value : β) : Costed β :=
-  ⟨value, items.length * visit⟩
+/-- A library scan of a list in `passes` passes whose every visit is one loop-free comparison or
+copy, whatever the scan returns. The value is the executed expression; the list is the one that
+expression scans. -/
+@[reducible] def scanList (passes visit : Nat) (items : List α) (value : β) : Costed β :=
+  ⟨value, passes * bare visit items.length⟩
 
-/-- A library scan of an array, one visit for each element. -/
-@[reducible] def scanArray (visit : Nat) (items : Array α) (value : β) : Costed β :=
-  ⟨value, items.size * visit⟩
+/-- A library scan of an array in `passes` passes. -/
+@[reducible] def scanArray (passes visit : Nat) (items : Array α) (value : β) : Costed β :=
+  ⟨value, passes * bare visit items.size⟩
 
-/-- A library scan of a vector, one visit for each element. -/
-@[reducible] def scanVector {count : Nat} (visit : Nat) (_items : Vector α count) (value : β) :
-    Costed β :=
-  ⟨value, count * visit⟩
+/-- A library scan of a vector in `passes` passes. -/
+@[reducible] def scanVector {count : Nat} (passes visit : Nat) (_items : Vector α count)
+    (value : β) : Costed β :=
+  ⟨value, passes * bare visit count⟩
 
 end Costed
 

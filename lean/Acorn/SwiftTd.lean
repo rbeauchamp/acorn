@@ -461,7 +461,8 @@ def learnFirstLoopGoCosted (config : Config) (delta vDelta traceDecay : Binary32
         Costed.charge .visit <| Costed.charge .firstElement <|
           learnFirstLoopGoCosted config delta vDelta traceDecay state work (pos + 1)
     else
-      Costed.op .firstClose { state with transient := { state.transient with eligible := work } }
+      Costed.charge .visit <|
+        Costed.op .firstClose { state with transient := { state.transient with eligible := work } }
   termination_by _state work pos => work.size - pos
   decreasing_by
     · simp only [swapRemove, Array.size_pop, Array.size_set]
@@ -603,7 +604,7 @@ def learnSecondLoopGoCosted (overshoot : Bool) (scale oneSubT : Binary32) :
     let next := secondLoopElementAt overshoot scale oneSubT alpha state vDelta idx
     Costed.charge .visit <| Costed.charge .secondElement <|
       learnSecondLoopGoCosted overshoot scale oneSubT indices alphas next.1 next.2
-  | _, _, state, vDelta => Costed.pure (state, vDelta)
+  | _, _, state, vDelta => Costed.op .visit (state, vDelta)
 
 /-- The second-loop traversal: the active features in first-occurrence order,
 each visit receiving its step size from the list read at loop entry. The
@@ -803,7 +804,7 @@ def planWeightsGoCosted (scale delta : Binary32) :
     Costed.charge .visit <| Costed.charge .planElement <| planWeightsGoCosted scale delta indices
       alphas
       (state.writeWeight idx ((state.weights.get idx).value.add ((scale.mul alpha).mul delta)))
-  | _, _, state => Costed.pure state
+  | _, _, state => Costed.op .visit state
 
 /-- The planning weight traversal: the active features in first-occurrence
 order, each visit receiving its step size from the list read at entry.
@@ -904,14 +905,15 @@ theorem planStep_eq_foldl (config : Config) (state : NumericState config dimensi
 retired index; the removal, the clear and the two writes are loop-free. -/
 def retireIndexCosted (state : NumericState config dimension) (idx : FeatIdx dimension) :
     Costed (NumericState config dimension) :=
-  Costed.charge .retire <| Costed.scanArray state.transient.eligible <|
-    let state := match found : state.transient.eligible.findIdx? (· == idx) with
-      | some pos =>
-        state.removeEligibleAt pos (Array.findIdx?_eq_some_iff_getElem.mp found).1
-      | none => state
-    let state := state.clearFeatureRegisters idx
-    let state := state.writeWeight idx .zero
-    state.writeBetaValue idx state.rails.initial
+  Costed.bind (Costed.findIdx? state.transient.eligible (· == idx)) fun found =>
+    Costed.op .retire <|
+      let state := match same : found.val with
+        | some pos => state.removeEligibleAt pos
+          (Array.findIdx?_eq_some_iff_getElem.mp (found.property.trans same)).1
+        | none => state
+      let state := state.clearFeatureRegisters idx
+      let state := state.writeWeight idx .zero
+      state.writeBetaValue idx state.rails.initial
 
 /-- Replace one feature's knowledge and transients with a fresh unit's start
 state: the first eligible occurrence removed (the whole membership under
