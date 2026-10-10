@@ -1608,13 +1608,12 @@ With `--planning none` the deferred planning writes the diagnostic planning erro
 only (`TemporalControl.planFree_cleared`), and `learn-then-act` and
 `plan-after-act` give the same next agent and decision on every step
 (`Agent.actOrdered_unplanned`); they differ in the order word of the checkpoint, in
-the two observations below and in the reported effective step order. With expectation
-planning the meta draw of a
-free dispatch reads a meta-controller that this frame's planning has not yet
-changed, so `learn-then-act` and `plan-after-act` can give different actions,
-learned state, outcome rows and checksums from the first free dispatch. `act-then-learn` can differ from
-`plan-after-act` from the first option that starts, with either planning
-selection. No recorded result or audit pin covers `plan-after-act` or
+the two observations below and in the reported effective step order. With
+expectation planning the meta draw of a free dispatch reads a meta-controller that
+this frame's planning has not yet changed, so `learn-then-act` and `plan-after-act`
+can give different actions, learned state, outcome rows and checksums from the
+first free dispatch. `act-then-learn` can differ from `plan-after-act` from the
+first option that starts, with either planning selection. No recorded result or audit pin covers `plan-after-act` or
 `act-then-learn`.
 
 Two observations also differ under an order that releases: the reported agent duration
