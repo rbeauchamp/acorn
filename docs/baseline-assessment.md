@@ -421,12 +421,11 @@ F-E left its feature-construction end inert until U3.
   (`Grid.interface`), and `Agent.grid_inputs` states what that instance feeds each
   learner in terms of the host's own channel, signal and potential definitions. The
   [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
-  host's step under the default step order, construction and restoration equal to a
-  frozen composition over host observations (`act_eq`, `callback_eq`, `initial_eq`,
-  `restore_eq`). Four bindings
-  to the grid world remain. Two are to its way of running. One of those is
-  outside the interface: a saved image is not an exact image of the agent (the
-  option models and the off-policy questions start afresh). Its timing is not one:
+  host's step under the default step order and construction equal to a
+  frozen composition over host observations (`act_eq`, `callback_eq`, `initial_eq`).
+  Three bindings to the grid world remain. Its way of running binds none: a saved
+  image is the exact image of the agent, and loading it returns the agent that was
+  saved (`CurrentCheckpoint.load_saved`). Its timing is not one either:
   the grid world declares that it waits for the agent (`Grid.interface_timing`),
   the Microduck's world declares a wall clock with a cycle and a latency
   (`Microduck.interface_timing`, [design](design.md#the-time-a-world-declares)),
@@ -686,8 +685,7 @@ correction lies in [0, 1]), `CurrentTemporal.follow_inactive`,
 `CurrentTemporal.follow_cap`, `CurrentTemporal.follow_live_model` and
 `CurrentTemporal.follow_idle_model` (consistency and age),
 `CurrentTemporal.settle_continuing` and `CurrentTemporal.settle_ending` (starts), and
-`FreeDispatch.install_unlinked`, `Ensemble.release_unlinked` and
-`Ensemble.restore_unlinked` (ownership). U4 does not establish convergence of
+`FreeDispatch.install_unlinked` and `Ensemble.release_unlinked` (ownership). U4 does not establish convergence of
 tree backup under linear function approximation with adaptive step sizes, the
 meaning of the step-size adaptation under the corrected trace decay, how often
 a frame's behaviour has the distribution of an option that is not executing,

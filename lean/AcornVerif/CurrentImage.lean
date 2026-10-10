@@ -6,7 +6,6 @@ Authors: acorn contributors
 import Acorn.Host.Checkpoint.Image
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentLifetime
-import Mathlib.Tactic.IntervalCases
 
 /-!
 # Exactness of the agent image formats
@@ -158,7 +157,8 @@ theorem nine_entries (words : Vector Binary32 9) :
       words[8]] = words := by
   apply Vector.ext
   intro position inside
-  interval_cases position <;> rfl
+  obtain _ | _ | _ | _ | _ | _ | _ | _ | _ | position := position
+  all_goals first | (exfalso; omega) | rfl
 
 /-- Writing one slot's words changes that slot's words and nothing else. -/
 theorem registerWords_write (transient : TransientState dimension) (index other : FeatIdx dimension)
@@ -258,7 +258,10 @@ theorem zero_words (index : FeatIdx dimension) :
     registerWords (TransientState.zero dimension) index = Vector.replicate 9 Binary32.zero := by
   apply Vector.ext
   intro position inside
-  interval_cases position <;> simp [registerWords, TransientState.zero, vector_get]
+  obtain _ | _ | _ | _ | _ | _ | _ | _ | _ | position := position
+  all_goals first
+    | (exfalso; omega)
+    | simp [registerWords, TransientState.zero, vector_get]
 
 /-- The register words of the support invariant are the stored words of a slot. -/
 theorem registers_words (state : NumericState config dimension) (index : FeatIdx dimension) :

@@ -3181,7 +3181,9 @@ theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
     unfold Checkpoint.load
     split
     · rfl
-    · simp [AgentConstruction.State.restore, unsupported, Except.isOk, Except.toBool]⟩
+    · rename_i image admitted
+      rw [AgentConstruction.State.restore_refuses receiver image ⟨_, admitted⟩ unsupported]
+      rfl⟩
 
 /-- An objective holds a unit exactly when it is a selected objective of that unit. -/
 private theorem holds_selected {config : Features.Config} (unit : Fin config.units.count)

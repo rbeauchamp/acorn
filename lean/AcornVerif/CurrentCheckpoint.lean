@@ -111,8 +111,10 @@ theorem load_saved (construction : AgentConstruction) (receiver state : construc
         rw [candidate] at admitted
         exact Except.ok.inj admitted
       subst same
-      simp only [AgentConstruction.State.restore, supported, ↓reduceIte]
-      exact congrArg Except.ok (AgentConstruction.State.ext rfl)
+      obtain ⟨restored, found, agent⟩ := AgentConstruction.State.restore_exact receiver
+        (stateImage construction state) ⟨_, admitted⟩ supported
+      rw [found]
+      exact congrArg Except.ok (AgentConstruction.State.ext agent)
   · cases saved
 
 /-- A supported construction's save writes bytes, so `load_saved` applies to every state of

@@ -114,20 +114,51 @@ theorem AgentConstruction.State.ext {construction : AgentConstruction}
 construction's loader admitted it from bytes. The learner state is replaced by the agent's
 own restore; a profile that cannot restore is refused. -/
 def AgentConstruction.State.restore {construction : AgentConstruction}
-    (_state : construction.State) (image : construction.Image)
+    (state : construction.State) (image : construction.Image)
     (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image) :
     Option construction.State :=
-  if construction.profile.checkpointSupported then
-    some ⟨image.agent, admitted.elim fun _ loaded => .loaded loaded⟩
-  else none
+  match restored : state.agent.restore image.image with
+  | none => none
+  | some agent => some ⟨agent, by
+      unfold Agent.restore at restored
+      split at restored
+      · obtain rfl := Option.some.inj restored
+        exact admitted.elim fun _ loaded => .loaded loaded
+      · contradiction⟩
 
 /-- Restoration is the agent's own restore on the admitted image. -/
 theorem AgentConstruction.State.restore_agent {construction : AgentConstruction}
     (state : construction.State) (image : construction.Image)
     (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image) :
     (state.restore image admitted).map (·.agent) = state.agent.restore image.image := by
-  unfold AgentConstruction.State.restore Agent.restore
-  split <;> rfl
+  unfold AgentConstruction.State.restore
+  split
+  · rename_i restored
+    exact restored.symm
+  · rename_i agent restored
+    exact restored.symm
+
+/-- A profile that cannot restore refuses every image. -/
+theorem AgentConstruction.State.restore_refuses {construction : AgentConstruction}
+    (state : construction.State) (image : construction.Image)
+    (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image)
+    (unsupported : construction.profile.checkpointSupported = false) :
+    state.restore image admitted = none := by
+  have same := state.restore_agent image admitted
+  rw [Agent.restore_refuses state.agent image.image unsupported] at same
+  exact Option.map_eq_none_iff.mp same
+
+/-- **Restoration of a state is exact.** Under a profile that restores, the restored state's
+agent is the agent of the image. -/
+theorem AgentConstruction.State.restore_exact {construction : AgentConstruction}
+    (state : construction.State) (image : construction.Image)
+    (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image)
+    (supported : construction.profile.checkpointSupported = true) :
+    ∃ restored, state.restore image admitted = some restored ∧ restored.agent = image.agent := by
+  have same := state.restore_agent image admitted
+  rw [Agent.restore_exact state.agent image.image supported] at same
+  obtain ⟨restored, found, agent⟩ := Option.map_eq_some_iff.mp same
+  exact ⟨restored, found, agent⟩
 
 /-- Censoring the observations a host keeps changes no step and keeps the construction. -/
 def AgentConstruction.State.censorObservations {construction : AgentConstruction}
@@ -159,24 +190,23 @@ all come from the one construction. A campaign does not take this record from a 
 no check stops a module of this project from making a record of this type. -/
 def AgentConstruction.callbacks (construction : AgentConstruction) :
     Host.AgentCallbacks construction.order construction.State
-      (AgentObservation construction.config construction.dimension) where
-  Chosen := construction.Chosen
-  choose state observation result :=
-    ((construction.agentCallbacks.choose state.agent observation result).1,
-      ⟨(construction.agentCallbacks.choose state.agent observation result).2,
-        ⟨state.agent, observation, result, state.reached, rfl⟩⟩)
-  learn chosen := ⟨construction.agentCallbacks.learn chosen.chosen, by
-    obtain ⟨agent, observation, result, reached, same⟩ := chosen.origin
-    rw [← same]
-    exact .step reached observation result⟩
-  recordEnvironment state family reward :=
-    ⟨construction.agentCallbacks.recordEnvironment state.agent family reward,
-      .environment state.reached family reward⟩
-  recordAttempt state family cycle steps achieved :=
-    ⟨construction.agentCallbacks.recordAttempt state.agent family cycle steps achieved,
-      .attempt state.reached family cycle steps achieved⟩
-  capture state := construction.agentCallbacks.capture state.agent
-  metrics state := construction.agentCallbacks.metrics state.agent
+      (AgentObservation construction.config construction.dimension) :=
+  let raw := construction.agentCallbacks
+  { Chosen := construction.Chosen
+    choose := fun state observation result =>
+      let chosen := raw.choose state.agent observation result
+      (chosen.1, ⟨chosen.2, ⟨state.agent, observation, result, state.reached, rfl⟩⟩)
+    learn := fun chosen => ⟨raw.learn chosen.chosen, by
+      obtain ⟨agent, observation, result, reached, same⟩ := chosen.origin
+      rw [← same]
+      exact .step reached observation result⟩
+    recordEnvironment := fun state family reward =>
+      ⟨raw.recordEnvironment state.agent family reward, .environment state.reached family reward⟩
+    recordAttempt := fun state family cycle steps achieved =>
+      ⟨raw.recordAttempt state.agent family cycle steps achieved,
+        .attempt state.reached family cycle steps achieved⟩
+    capture := fun state => raw.capture state.agent
+    metrics := fun state => raw.metrics state.agent }
 
 /-- **The whole step of a construction is the agent's step of its order.** For every
 construction, state, observation and carried result, the action and the learner state
