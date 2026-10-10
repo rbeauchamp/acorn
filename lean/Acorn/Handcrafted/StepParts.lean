@@ -1522,8 +1522,12 @@ selected state of such a decision already holds zero there
 
 What differs is outside the next agent and the decision: the order each chosen value
 records, the position of the world's transition, which a host takes from the order
-(`StepOrder.Releases`), and the order word that a checkpoint of each construction
-stores. -/
+(`StepOrder.Releases`), the order word that a checkpoint of each construction stores,
+and the effective step order that the startup diagnostics, the streaming campaign
+summary and the CSV comment line report. Under `planAfterAct`, which releases, the host
+also observes two things differently: the reported agent duration is the sum of the two
+parts, measured around the world's transition, and a step's telemetry frame is
+delivered after that transition. -/
 theorem Agent.actOrdered_unplanned
     (state : Agent interface profile config criterion dimension .none)
     (percept : Percept interface) :
