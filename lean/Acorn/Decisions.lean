@@ -90,16 +90,20 @@ Thirty-six functions of this module have a contract and no kind. The reasons are
   `Host.World.observe` or `Host.World.step`, which run tests that these functions run.
   `Host.World.initial` refuses where the spawn search or the placement of the deer refuses, and
   no theorem states that the spawn search returns a spawn for every seed.
+  `AgentConstruction.State.restore` refuses no input that its type admits: every image that
+  `Checkpoint.loadCandidate` admits belongs to a resumable construction
+  (`CurrentCheckpoint.unresumable_unloaded`), and under a resumable profile the restore returns
+  the image's agent (`AgentConstruction.State.restore_exact`).
 * The input holds a state whose invariant names tests that the function runs. Regula reads the
   type of the input of a specification, so RG1009
   (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses the kind although the
   specification names none of those tests (https://github.com/rbeauchamp/regula/issues/270).
   These are `Checkpoint.saveBytes`, `Checkpoint.load`, `Features.Lifecycle.lessUseful`,
   `Features.Lifecycle.candidate`, `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`,
-  `Agent.restore`, `AgentConstruction.State.restore`, `PredictionControl.advanceRaw`, the two
-  transitions `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose input
-  carries the proof that the host is reached by the transitions, and nine selection functions of
-  the temporal controller: `TemporalControl.serve`, `TemporalControl.serveDraw`,
+  `Agent.restore`, `PredictionControl.advanceRaw`, the two transitions
+  `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose input carries the
+  proof that the host is reached by the transitions, and nine selection functions of the
+  temporal controller: `TemporalControl.serve`, `TemporalControl.serveDraw`,
   `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
   `TemporalControl.selectWithOperations`, `TemporalControl.select`, `TemporalControl.step`,
   `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. A temporal state reaches such
@@ -282,16 +286,19 @@ What the list does not hold:
 * This module cannot register a function of `NativeApp`: Regula counts only a contract of the
   function's own library and refuses a registration written for a declaration of another.
   Each is in the group that no theorem names. `Bootstrap` decides only in `IO`.
-* An effect is not in the list: its result type is `IO`. An effect with a pure core is
-  covered through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.resume` on
-  the bytes it read, `Checkpoint.Store.save` refuses with `Checkpoint.saveBytes`, and
-  `Host.CertificateDriver.dispatch` admits its arguments with `Host.CertificateDriver.natural`
-  and `Host.Coordinate.checked` and prints what `execute` returns. An effect with no pure core
-  decides from state outside the Lean definitions, so no theorem states its verdict:
-  `Host.StopFlag.requested` and the `Host.Viewer.Broadcast` operations read shared state under
-  a lock, `Host.Viewer.RunDirectory.adoptStrayCheckpoint` reads the file system and
-  `Host.Viewer.NativeResources.observe` reads the operating system. The concurrency and
-  operating-system assumptions of the verification guide stand for them.
+* An effect is not in the list: its result type is `IO`. An effect with a pure core is covered
+  through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.resume` on the
+  bytes it read, which is the verdict of `Checkpoint.load` through `Except.map`
+  (`CurrentCheckpoint.resume_saved`); `Checkpoint.Store.save` refuses with
+  `Checkpoint.saveBytes`, and also refuses an image longer than `Checkpoint.maximumBytes`
+  (`Checkpoint.Error.oversized`; `CurrentCheckpointSize.snapshot_size_bound` states when no such
+  refusal occurs); and `Host.CertificateDriver.dispatch` admits its arguments with
+  `Host.CertificateDriver.natural` and `Host.Coordinate.checked` and prints what `execute`
+  returns. An effect with no pure core decides from state outside the Lean definitions, so no
+  theorem states its verdict: `Host.StopFlag.requested` and the `Host.Viewer.Broadcast`
+  operations read shared state under a lock, `Host.Viewer.RunDirectory.adoptStrayCheckpoint`
+  reads the file system and `Host.Viewer.NativeResources.observe` reads the operating system.
+  The concurrency and operating-system assumptions of the verification guide stand for them.
 * The gates under `lean/AcornTools` are outside the Regula claim as reviewed tooling. Their
   pure checks, such as `AcornNativeAudit.allowedArgument`, are part of that trust boundary.
 
@@ -4959,11 +4966,14 @@ theorem force_named_value : Regula.ExecutableContract @Force.named (fun named =>
     fun lapse lapses => Force.named_lapse force rest now lapse lapses⟩⟩
 
 /-- Restoration of a state of a construction accepts exactly under a resumable profile
-(`AgentConstruction.State.restore_agent`, `agent_restore`).
+(`AgentConstruction.State.restore_agent`, `agent_restore`). Its refusal is unreachable: every
+image that `Checkpoint.loadCandidate` admits belongs to a resumable construction
+(`CurrentCheckpoint.unresumable_unloaded`), so no admission argument exists under a profile
+that cannot restore, and under a resumable profile the restore returns the image's agent
+(`AgentConstruction.State.restore_exact`).
 
-The statement keeps no kind: its input holds a state of the construction, which holds an agent
-state, and an audit of the kind refused it under RG1009 with the shared tests that the agent
-state's invariants name. -/
+The statement keeps no kind: the function refuses no input that its type admits, and a
+complete or a two-way kind carries a refused input. -/
 theorem state_restore : Regula.ExecutableContract @AgentConstruction.State.restore
     (fun restore =>
       ∀ {construction : AgentConstruction} (state : construction.State)

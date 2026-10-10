@@ -17,10 +17,10 @@ and the proof-bearing `Acorn.Host.Checkpoint` modules.
 Restore is stated over the executed definitions there, not modelled here. Exact
 installation is `AcornVerif.CurrentCheckpoint.load_saved` and
 `Acorn.Handcrafted.AgentConstruction.State.restore_exact`; refusal without change is
-`Acorn.Checkpoint.load_nonmutation` and
-`Acorn.Handcrafted.AgentConstruction.State.restore_refuses`; receiver identity is the
-header admission `Acorn.Checkpoint.admitHeader`, which `Acorn.Checkpoint.loadCandidate`
-runs before it decodes the payload.
+`Acorn.Checkpoint.load_nonmutation`, by which a rejected byte stream returns the
+receiver unchanged; receiver identity is the header admission
+`Acorn.Checkpoint.admitHeader`, which `Acorn.Checkpoint.loadCandidate` runs before it
+decodes the payload.
 
 Identity is equality of every represented component. Natural-number tags abstract
 injective encodings of supported criteria and policies; supported-policy and

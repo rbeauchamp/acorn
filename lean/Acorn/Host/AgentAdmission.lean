@@ -112,7 +112,8 @@ theorem AgentConstruction.State.ext {construction : AgentConstruction}
 
 /-- Restoration takes an image of the receiver's own construction, with the proof that the
 construction's loader admitted it from bytes. The learner state is replaced by the agent's
-own restore; a profile that cannot restore is refused. -/
+own restore. Its refusal of a profile that cannot restore is unreachable here: no image of
+such a construction is admitted (`AcornVerif.CurrentCheckpoint.unresumable_unloaded`). -/
 def AgentConstruction.State.restore {construction : AgentConstruction}
     (state : construction.State) (image : construction.Image)
     (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image) :
@@ -138,7 +139,10 @@ theorem AgentConstruction.State.restore_agent {construction : AgentConstruction}
   · rename_i agent restored
     exact restored.symm
 
-/-- A profile that cannot restore refuses every image. -/
+/-- A profile that cannot restore refuses every image. The hypotheses are jointly
+unsatisfiable, since no image is admitted under a profile that cannot restore
+(`AcornVerif.CurrentCheckpoint.unresumable_unloaded`); the theorem closes the unreachable case
+of the proof of `Acorn.Decisions.checkpoint_load`. -/
 theorem AgentConstruction.State.restore_refuses {construction : AgentConstruction}
     (state : construction.State) (image : construction.Image)
     (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image)
