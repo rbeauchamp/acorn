@@ -1482,10 +1482,13 @@ runtime and the OS are trusted. A file of format 18 or earlier is refused with i
 generation word: it holds no option model, question, primitive credit, rate schedule or
 process-local reference, so no load of it could return the agent that was saved.
 
-A host begins a new session of the predictive-agreement evaluator after it loads a file
-(`AgentConstruction.State.beginSession`): the evaluator measures the forecasts of one
-process, as the [viewer](viewer-ux.md) labels it, and a session that ended at a process's exit
-cannot continue. Every learned field is the saved agent's. The writer refuses an image
+A host begins a new session of the predictive-agreement evaluator after it loads a file:
+`Checkpoint.loadFile`, the one host path from a file to a running agent, returns the verdict of
+`Checkpoint.resume`, which is `load` followed by `AgentConstruction.State.beginSession`. The
+evaluator measures the forecasts of one process, as the [viewer](viewer-ux.md) labels it, and a
+session that ended at a process's exit records no forecast; a resumed state records forecasts
+again, including one saved after that exit (`CurrentCheckpoint.resume_records`). Every learned
+field is the saved agent's (`CurrentCheckpoint.resume_saved`). The writer refuses an image
 longer than the read limit of the construction (`maximumBytes`), so every file it writes
 can be read; the limit bounds each part of the image by its type and allows a fixed number
 of bytes for each exact natural of the evaluator, which no type bounds.

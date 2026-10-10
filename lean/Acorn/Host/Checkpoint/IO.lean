@@ -141,11 +141,13 @@ def readBounded (construction : AgentConstruction) (path : System.FilePath) : IO
   let handle ← IO.FS.Handle.mk path .read
   readChunks handle (maximumBytes construction) ByteArray.empty
 
-/-- Native load calls the same parser/admission/install definition as the pure theorems. -/
+/-- Native load returns the verdict of `resume` on the bytes it read: the same parser,
+admission and restore as the pure theorems, then a new evaluator session. It is the one host
+path from a file to a running agent. -/
 @[noinline] def loadFile (construction : AgentConstruction) (receiver : construction.State) (path : System.FilePath) :
     IO (Except Error construction.State) := do
   let bytes ← readBounded construction path
-  return load construction receiver bytes.data.toList
+  return resume construction receiver bytes.data.toList
 
 /-- Semantic refusal carries no replacement state to the streaming runner. -/
 def runnerLoad {α : Type} (result : Except Error α) : Host.CheckpointLoad α :=
@@ -158,9 +160,8 @@ theorem runnerLoad_refused {α : Type} (error : Error) :
     runnerLoad (.error error : Except Error α) = .refused s!"{repr error}" := rfl
 
 /-- The delivered hooks bind the existing runner to this exact receiver and destination.
-A loaded state begins a new session of the predictive-agreement evaluator
-(`AgentConstruction.State.beginSession`), so the evaluator measures the forecasts of this
-process; every learned field is the saved agent's. Missing input permits fresh-state
+A loaded state begins a new session of the predictive-agreement evaluator (`loadFile`,
+`resume`); every learned field is the saved agent's. Missing input permits fresh-state
 persistence; every other load error disables writes through `WritableCheckpoint.admit`.
 Save errors remain visible to the runner's failure counter. -/
 def Store.hooks (store : Store) (construction : AgentConstruction)
@@ -168,7 +169,7 @@ def Store.hooks (store : Store) (construction : AgentConstruction)
   path := destination
   interval := interval
   load receiver _ := do
-    try return runnerLoad ((← loadFile construction receiver destination).map (·.beginSession))
+    try return runnerLoad (← loadFile construction receiver destination)
     catch error =>
       match error with
       | .noFileOrDirectory .. => return .missing

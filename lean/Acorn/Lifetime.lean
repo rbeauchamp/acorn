@@ -614,6 +614,21 @@ def Stats.recordDemons {discounts : List Discount} (state : Stats discounts) (cl
     agreementLastClock := some clock
     agreementHistory := agreementHistory }
 
+/-- A live evaluator records every forecast: the observation is the recording branch, which
+writes the clock it observed. -/
+theorem Stats.recordDemons_live {discounts : List Discount} (state : Stats discounts)
+    (clock : UInt64) (cumulants : Cumulants discounts) (predictions : PredictionCache discounts)
+    (live : state.agreementStopped = false) :
+    (state.recordDemons clock cumulants predictions).agreementLastClock = some clock := by
+  simp [recordDemons, live]
+
+/-- A stopped evaluator records nothing: the observation returns the state unchanged. -/
+theorem Stats.recordDemons_stopped {discounts : List Discount} (state : Stats discounts)
+    (clock : UInt64) (cumulants : Cumulants discounts) (predictions : PredictionCache discounts)
+    (stopped : state.agreementStopped = true) :
+    state.recordDemons clock cumulants predictions = state := by
+  simp [recordDemons, stopped]
+
 /-- Prediction observation, including refusal after Stop, cannot change option episodes. -/
 theorem Stats.recordDemons_options {discounts : List Discount} (state : Stats discounts)
     (clock : UInt64) (cumulants : Cumulants discounts) (predictions : PredictionCache discounts) :

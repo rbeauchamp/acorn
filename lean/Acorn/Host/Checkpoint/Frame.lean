@@ -11,8 +11,13 @@ import Acorn.Rng
 
 Magic, signed header and body, and final FNV word have disjoint roles. The checksum
 covers every signed byte, the clock and identity header included. It detects accidental
-mutation, not authenticity or correctness. The last eight bytes are the checksum, so
-trailing bytes after it cannot exist, and a truncated file fails its checksum or its header.
+mutation, not authenticity or correctness. The last eight bytes are the checksum, so the frame
+does not establish that the body is complete: the body of one payload can end with the
+checksum word of a shorter one, and that frame truncated by eight bytes is the shorter
+payload's valid frame. Completeness is established by image admission, which reads the body
+as exactly one image's encoding with no byte left (`admitPayload`); an admitted payload is the
+payload of the image that admission returns (`AcornVerif.Decisions.payload_admit`, from the
+canonical decoding of `AcornVerif.CurrentImage.imageFormat_exact`).
 -/
 namespace Acorn.Checkpoint
 

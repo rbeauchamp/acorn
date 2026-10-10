@@ -284,7 +284,7 @@ What the list does not hold:
   function's own library and refuses a registration written for a declaration of another.
   Each is in the group that no theorem names. `Bootstrap` decides only in `IO`.
 * An effect is not in the list: its result type is `IO`. An effect with a pure core is
-  covered through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.load` on
+  covered through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.resume` on
   the bytes it read, `Checkpoint.Store.save` refuses with `Checkpoint.saveBytes`, and
   `Host.CertificateDriver.dispatch` admits its arguments with `Host.CertificateDriver.natural`
   and `Host.Coordinate.checked` and prints what `execute` returns. An effect with no pure core

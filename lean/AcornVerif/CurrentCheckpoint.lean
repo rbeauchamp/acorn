@@ -124,6 +124,34 @@ theorem save_load (construction : AgentConstruction) (receiver state : construct
     load construction receiver (encode (snapshot construction state)) = .ok state :=
   load_saved construction receiver state _ (save_supported construction state supported)
 
+/-- **Resuming saved bytes returns the saved state with a new evaluator session.** For every
+construction, receiver, state and byte list: when `saveBytes` writes the bytes, `resume`
+returns the saved state with `beginSession` applied, so every learned field is the saved
+agent's. -/
+theorem resume_saved (construction : AgentConstruction) (receiver state : construction.State)
+    (bytes : List UInt8) (saved : saveBytes construction state = .ok bytes) :
+    resume construction receiver bytes = .ok state.beginSession := by
+  unfold resume
+  rw [load_saved construction receiver state bytes saved]
+  rfl
+
+/-- **A resumed state records forecasts again.** For every state that a construction saved,
+including a state whose evaluator was stopped at a process's exit
+(`AgentConstruction.State.censorObservations`), the state that `resume` returns has a live
+evaluator: every forecast observation that follows records, writing its clock
+(`Lifetime.Stats.recordDemons_live`), where the stopped evaluator of a censored state records
+nothing (`Lifetime.Stats.recordDemons_stopped`). -/
+theorem resume_records (construction : AgentConstruction) (receiver state : construction.State)
+    (bytes : List UInt8) (saved : saveBytes construction state = .ok bytes) :
+    ∃ resumed, resume construction receiver bytes = .ok resumed ∧
+      resumed.agent = state.agent.beginSession ∧
+      ∀ clock cumulants predictions,
+        (resumed.agent.control.lifetime.recordDemons clock cumulants
+          predictions).agreementLastClock = some clock :=
+  ⟨state.beginSession, resume_saved construction receiver state bytes saved, rfl,
+    fun clock cumulants predictions =>
+      Lifetime.Stats.recordDemons_live _ clock cumulants predictions rfl⟩
+
 /-- **A save writes the order word of the state's own construction.** For every
 construction, state and byte list: when `saveBytes` returns the bytes, the header codec
 reads from them a header whose order word is the stored word of the construction's order

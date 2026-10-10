@@ -405,6 +405,8 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Checkpoint.saveBytes),
   (`AcornVerif.CurrentCheckpoint, `AcornVerif.CurrentCheckpoint.unresumable_unloaded,
     `Acorn.Checkpoint.loadCandidate),
+  (`AcornVerif.CurrentCheckpoint, `AcornVerif.CurrentCheckpoint.resume_records,
+    `Acorn.Checkpoint.resume),
   (`AcornVerif.CurrentImage, `AcornVerif.CurrentImage.imageFormat_exact,
     `Acorn.Checkpoint.imageFormat),
   (`AcornVerif.CurrentImage, `AcornVerif.CurrentImage.managedFormat_exact,

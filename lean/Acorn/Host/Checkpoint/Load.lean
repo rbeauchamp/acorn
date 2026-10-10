@@ -44,6 +44,16 @@ theorem load_candidate (construction : AgentConstruction) (receiver restored : c
       cases loaded
       exact ⟨image, admitted, installed⟩
 
+/-- The state a host runs from bytes: the loaded state, every learned field the saved
+agent's, with a new session of the predictive-agreement evaluator
+(`AgentConstruction.State.beginSession`). The evaluator measures the forecasts of one
+process, and a session that ended at a process's exit (`censorObservations`) would record no
+further forecast. Every host path from a file to a running agent goes through this function
+(`loadFile`); `load` itself returns the saved state exactly. -/
+def resume (construction : AgentConstruction) (receiver : construction.State)
+    (bytes : List UInt8) : Except Error construction.State :=
+  (load construction receiver bytes).map (·.beginSession)
+
 /-- An explicit return of the unchanged state on refusal, with the error preserved. -/
 def loadKeeping (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8) :
     construction.State × Option Error :=
