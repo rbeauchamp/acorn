@@ -284,6 +284,64 @@ observer's own effects, the terminal frame, the resource counters and the
 reported durations are outside them. A campaign reports the error of a refusal
 and returns no agent, in every order.
 
+### The work of the first part
+
+The work of the first part of a step is bounded by a function of the world's
+interface, the feature configuration and the dimension of the feature space, for
+every agent state and every percept, under the two orders whose first part is
+selection, `learn-then-act` and `plan-after-act`
+([definitions](../lean/AcornVerif/Resource/StepWork.lean),
+`AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
+order). This is the bound the deadline of a world on a wall clock needs: the action
+is released after the first part.
+
+**What is counted.** Work is a count of the operations of the compiled definitions
+in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
+code whose work is a constant of the compiled code, costs its own constant
+([sites](../lean/AcornVerif/Resource/Sites.lean)). The bound holds for every
+assignment of costs to sites; no theorem derives the cost of a site in word
+operations, and the scalar operations that the native resource audit bounds are
+the only operations with an extracted cost. Allocation, reference counting, the
+copy of a shared array when it is written
+([#84](https://github.com/rbeauchamp/acorn/issues/84)), cache behaviour and time
+are not counted.
+
+**How the count follows the executed code.** A twin of an executed definition is a
+computation that carries its work beside its value
+([cost semantics](../lean/AcornVerif/Resource/Work.lean)). Each loop combinator's
+value is the executed library loop over the same collection, and its work is the sum
+of its visits over that collection. Each twin of a loop states that its value is the
+executed definition's: by definitional unfolding, or, for a recursion of Acorn's own, by induction on
+the same recursion (`firstLoopRun_val`, `secondLoopRun_val`, `rankedRun_val`). The
+twins of the options and of selection follow the control flow of the executed
+definitions on the values those compute and charge the twin of each operation they
+call; their correspondence with the executed definition is by reading, because those
+definitions build their results through private constructors and proofs.
+
+**What bounds each loop.** The frame's active features are at most
+`tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is
+bounded by the type of its collection or by an invariant every agent state carries:
+each admitted learner has at most as many eligible traces as its dimension has slots
+(`AcornVerif.CurrentFeatureConsumers.managed_capacity`), and a stored frame of
+planning has at most as many features as the dimension has slots
+(`AcornVerif.CurrentLearner.active_cardinality`). No loop of the first part is
+unbounded by the configuration. Several terms scale with the capacity of the feature
+space rather than with the frame:
+
+- the unique encoding writes one membership flag for every slot on every frame;
+- a learner's first loop visits its eligible traces, bounded only by the capacity;
+- a start or a terminal credit clears nine registers for every slot of each learner,
+  and a fresh option writes every slot of each of its learners;
+- a changed feature ranking rebuilds a lookup table over every slot;
+- planning's stored frame is bounded only by the capacity, because a frame read from
+  a checkpoint image is admitted at any length up to it.
+
+The ranked width enters as its square in the rows' predictions and as its cube in
+the forgetting of changed positions after a reranking.
+
+The first part under `act-then-learn`, the second part in each order and the memory
+of the agent state are not bounded here.
+
 ### The time a world declares
 
 A world declares its **timing** in its interface
