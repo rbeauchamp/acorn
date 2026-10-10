@@ -678,6 +678,19 @@ explorations of the visits up to one visit meet the goals of more members than t
 on that visit it solves all of them, more than any experience-free agent solves on any
 visit.
 
+**Visits supersede "the world is not reset" for goals with proved need.** The protocol of
+the design pass of [issue #69](https://github.com/rbeauchamp/acorn/issues/69) required one
+life: the agent's state persists across every host boundary, and the world is not reset.
+For goals whose need is to be proved on later visits, the second half gives way, and only
+for that class. In a world that persists, an experience-free agent keeps every goal it has
+met (`park_keeps`), so no bound on its later visits follows, and a learner that beats the
+first-visit bound shows nothing a frozen agent could not do. Visits keep the first half: the
+agent is never restarted and its memory carries from visit to visit. Each member's world
+returns to that member's own start between visits, and every visit has the same length, so
+that neither the world's state nor the step count carries what an earlier visit found. The
+standard curriculum keeps one persisting world; the concealed target is meant for a
+campaign of visits, which the host does not yet run.
+
 | Property | What is proved | Theorems |
 |---|---|---|
 | Concealment makes every agent blind | In a class that conceals its goals, every agent keeps in each member the memory it keeps in the reference and takes the reference's actions until that member's goal is first met. Every agent is therefore blind on the class, and a covering bound of k is a need bound of k for every agent. | `Conceals.agree`, `Conceals.blind`, `Conceals.need` |
