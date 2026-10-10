@@ -3698,6 +3698,18 @@ info: 'Acorn.Handcrafted.Agent.actOrdered_undrawn' depends on axioms: [propext, 
 #print axioms Acorn.Handcrafted.Agent.actOrdered_undrawn
 
 /--
+info: 'Acorn.Handcrafted.Agent.actOrdered_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Acorn.Handcrafted.Agent.actOrdered_unplanned
+
+/--
+info: 'AcornVerif.StepParts.loop_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.StepParts.loop_unplanned
+
+/--
 info: 'Acorn.Features.Skill.optionStep_credit' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in

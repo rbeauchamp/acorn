@@ -12,6 +12,7 @@ import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentConstants
 import AcornVerif.GridCorrespondence
 import AcornVerif.DrawFirst
+import AcornVerif.StepParts
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Microduck.Sensing
 import Acorn.Host.Microduck.Session
@@ -205,6 +206,10 @@ Under the order that plans after the action,
 draw of a free dispatch reads the meta-controller before that frame's planning,
 and {decl}`Acorn.Handcrafted.Agent.actOrdered_undrawn` that a step whose decision
 records no meta decision is the executed step under that order and the default one.
+With no planning selected, {decl}`Acorn.Handcrafted.Agent.actOrdered_unplanned` states that
+the two orders are one step: the same next agent and the same decision for every agent
+state and percept. {decl}`AcornVerif.StepParts.loop_unplanned` states that they then have
+one closed loop in every world that waits for the agent.
 
 Under the order that acts before it learns, the first part makes every draw and takes
 no reward word. {decl}`Acorn.Handcrafted.Agent.choose_reward` states that two percepts

@@ -73,6 +73,8 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Handcrafted.Chosen.learn),
   (`Acorn.Handcrafted.StepParts, `Acorn.Handcrafted.Agent.actOrdered_undrawn,
     `Acorn.Handcrafted.Agent.choose),
+  (`Acorn.Handcrafted.StepParts, `Acorn.Handcrafted.Agent.actOrdered_unplanned,
+    `Acorn.Handcrafted.Agent.actOrdered),
   (`Acorn.Handcrafted.StepParts, `Acorn.Handcrafted.TemporalControl.atBoundary_unplanned,
     `Acorn.Handcrafted.TemporalControl.atBoundary),
   (`Acorn.Options, `Acorn.Features.Skill.optionStep_credit, `Acorn.Features.Skill.optionStep),

@@ -17,9 +17,12 @@ A `TwoPart` agent is a kernel agent whose decision is given as those two functio
 `executedParts order` is the executed agent of a step order in that form. Under the
 default order it is `CurrentGridWorld.executedAgent` (`executedParts_agent`), so both
 have one closed loop in every world. Under `planAfterAct` it is the kernel agent of
-`Agent.actOrdered .planAfterAct`, whose first part runs no planning. No theorem here
-states that it equals or differs from the default one; the two take the same step
-wherever the decision records no meta decision (`Agent.actOrdered_undrawn`). Under
+`Agent.actOrdered .planAfterAct`, whose first part runs no planning. With no planning
+selected it is the default one (`executedParts_unplanned`), so the two orders have one
+closed loop in every world that waits for the agent (`loop_unplanned`). With expectation
+planning no theorem here states that it equals or differs from the default one; the two
+take the same step wherever the decision records no meta decision
+(`Agent.actOrdered_undrawn`). Under
 `actThenLearn` it is the kernel agent of `Agent.actOrdered .actThenLearn`, whose first
 part takes no reward; `AcornVerif.DrawFirst` states where that step is the step of
 `planAfterAct`.
@@ -348,5 +351,46 @@ theorem executedParts_agent
       (congrArg Prod.fst (memory.act_parts percept))).symm
   exact congrArg (fun act => (⟨Agent interface profile features criterion dimension planning,
     state, act⟩ : Kernel.Agent interface)) same
+
+/-- **One agent with no planning selected.** For every agent state whose planning
+selection is none, the executed agent of `planAfterAct` in two parts is the executed agent
+of the default order, and so `CurrentGridWorld.executedAgent`. The chosen values of the
+two differ in the order each records (`Agent.choose_unplanned`); the kernel agent reads
+the action and the second part of a chosen value, and those are equal
+(`Agent.actOrdered_unplanned`). -/
+theorem executedParts_unplanned
+    (state : Agent interface profile features criterion dimension .none) :
+    (executedParts .planAfterAct state).agent = (executedParts .learnThenAct state).agent := by
+  have same : (fun (memory : Agent interface profile features criterion dimension .none)
+        (percept : Percept interface) =>
+        ((memory.choose .planAfterAct percept).decision.action,
+          (memory.choose .planAfterAct percept).learn)) =
+      fun memory percept =>
+        ((memory.choose .learnThenAct percept).decision.action,
+          (memory.choose .learnThenAct percept).learn) := by
+    funext memory percept
+    exact Prod.ext (congrArg (fun step => step.2.action) (memory.actOrdered_unplanned percept))
+      (congrArg Prod.fst (memory.actOrdered_unplanned percept))
+  exact congrArg (fun act => (⟨Agent interface profile features criterion dimension .none,
+    state, act⟩ : Kernel.Agent interface)) same
+
+/-- **One trajectory with no planning selected.** For every world, start state and time,
+and every agent state whose planning selection is none, the closed loop of `planAfterAct`
+holds the world state and the agent of the default order's loop before the interaction
+at that time. So the two have the same percepts, with their reward words, the same
+actions and the same agent states at every time (`stateAt`, `perceptAt`, `actionAt` and
+`memoryAt` are read from the loop). The loop is the kernel's, of a world that waits for
+the agent. In a world that moves while the agent computes, a host takes the world's
+transition after both parts under the default order and between them under
+`planAfterAct`, and the action can land on a different state (`Moving.interact_landing`);
+this statement does not cover that. -/
+theorem loop_unplanned (state : Agent interface profile features criterion dimension .none)
+    (world : World interface) (start : world.State) (time : ℕ) :
+    loop world (executedParts .planAfterAct state).agent start time =
+      loop world (executedParts .learnThenAct state).agent start time := by
+  have same : HEq (loop world (executedParts .planAfterAct state).agent start time)
+      (loop world (executedParts .learnThenAct state).agent start time) := by
+    rw [executedParts_unplanned]
+  exact eq_of_heq same
 
 end AcornVerif.StepParts
