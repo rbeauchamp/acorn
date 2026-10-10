@@ -1492,7 +1492,11 @@ again, including one saved after that exit (`CurrentCheckpoint.resume_records`).
 field is the saved agent's (`CurrentCheckpoint.resume_saved`). The writer refuses an image
 longer than the read limit of the construction (`maximumBytes`), so every file it writes
 can be read; the limit bounds each part of the image by its type and allows a fixed number
-of bytes (`naturalAllowance`) for each exact natural of the evaluator, which no type bounds.
+of bytes (`naturalAllowance`) for each exact natural of the evaluator. No type bounds the
+four naturals of each channel's precision (the numerator and denominator of its tail and
+rounding ratios) or the two of each agreement point's ratio; the sum of each channel's total
+is bounded by its type, at most its count times the square of the channel's envelope
+(`Agreement.Total.bounded`), and the allowance covers it with the other four.
 The save of every state whose evaluator naturals each fit that allowance fits the limit
 (`CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's naturals of every
 reached agent fit the allowance is an open obligation, part of the bounds of work and

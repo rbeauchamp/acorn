@@ -18,8 +18,11 @@ composed from its combinators as its exactness proof is (`AcornVerif.CurrentImag
 parts are bounded by an invariant rather than by a count of their type: the transient
 entries of a learner, at most one per slot because its eligible list repeats no slot
 (`CurrentFeatureConsumers.managed_schedule`), and an active set, whose slots repeat none.
-The naturals of the predictive-agreement evaluator are the hypothesis, since no type bounds
-them.
+The naturals of the predictive-agreement evaluator are the hypothesis. No type bounds the
+four naturals of each channel's precision (the numerator and denominator of its tail and
+rounding ratios) or the two of each agreement point's ratio. The sum of each channel's total
+is bounded by its type (`Agreement.Total.bounded`: `sum ≤ count.val * envelope ^ 2`, with
+`count : Fin (countLimit + 1)`), and the hypothesis covers it with the other four.
 -/
 namespace AcornVerif.CurrentCheckpointSize
 open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime
