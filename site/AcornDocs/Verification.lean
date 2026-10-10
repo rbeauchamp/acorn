@@ -510,13 +510,14 @@ a value, with the value forgotten. A statement of the value of an accepted
 result stands beside such a kind as a requirement with no kind. A function keeps
 a requirement with no kind where no kind is true of it or where Regula refuses
 the kind, and the ownership audit requires the contract by name. The module
-documentation of `lean/Acorn/Decisions.lean` gives the four reasons: a function
+documentation of `lean/Acorn/Decisions.lean` gives the five reasons: a function
 that accepts every input or whose accepted inputs no theorem states; an input
 that holds a state whose invariant names tests that the function runs ([Regula
 issue 270](https://github.com/rbeauchamp/regula/issues/270)); a specification
-about a function with such tests; and kinds that are stated in the proof
-library, which Regula does not count toward a registration ([Regula issue
-271](https://github.com/rbeauchamp/regula/issues/271)). A requirement with no
+about a function with such tests; kinds that are stated in the proof library,
+which Regula does not count toward a registration ([Regula issue
+271](https://github.com/rbeauchamp/regula/issues/271)); and witnesses of a kind
+that cost more kernel evaluation than the timed verification step can hold. A requirement with no
 kind is a statement that the Regula audit does not examine: that audit checks
 only that its theorem is proved about the executing definition. Such a statement
 can fix one direction only, and it need not show that both outcomes occur for

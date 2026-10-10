@@ -78,14 +78,15 @@ Thirty-eight functions of this module have a contract and no kind. The reasons a
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
   every configuration, and a complete or a two-way kind carries a refused input. The statement
   of `Host.World.step` is a property of the world that an accepted step returns, and no
-  theorem states which steps succeed. Ten transitions of an attempt and of the world refuse
+  theorem states which steps succeed. Nine transitions of an attempt and of the world refuse
   where the world refuses an observation or a step: `Host.OwnedStep.environment`,
   `Host.PreparedStep.environment`, `Host.Attempt.sense`, `Host.Attempt.tick`,
-  `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`, `Host.AnsiState.tick`,
-  `Host.World.initial` and `Host.World.observe`. No theorem states which observations or steps
-  succeed, or that the spawn search of `Host.World.initial` returns a spawn. A specification of
-  the accepted inputs of the other nine would name `Host.World.observe` or `Host.World.step`,
-  which run tests that these functions run.
+  `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`, `Host.AnsiState.tick`
+  and `Host.World.observe`. No theorem states which observations or steps succeed, and a
+  specification of their accepted inputs would name `Host.World.observe` or `Host.World.step`,
+  which run tests that these functions run. `Host.World.initial` refuses where the spawn search
+  or the placement of the deer refuses, and no theorem states that the spawn search returns a
+  spawn for every seed.
 * The input holds a state whose invariant names tests that the function runs. Regula reads the
   type of the input of a specification, so RG1009
   (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses the kind although the
@@ -5686,9 +5687,10 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
 /-! ## Host transitions
 
 The transitions of an attempt and of the world refuse where the world refuses an observation or
-a step. No theorem states which observations or steps succeed, and a specification that names
-`Host.World.observe` or `Host.World.step` reaches tests that these functions run, so each keeps a
-requirement with no kind. -/
+a step, and initialization refuses where the spawn search or the placement of the deer refuses.
+No theorem states which observations or steps succeed, or that the spawn search returns a spawn,
+and a specification that names `Host.World.observe` or `Host.World.step` reaches tests that these
+functions run, so each keeps a requirement with no kind. -/
 
 /-- The transition result of a release is the environment of an accepted release, and the
 refusal of a refused one, with the stage it kept dropped.
@@ -5816,9 +5818,10 @@ private theorem sense_exact {config : Host.WorldConfig} {α : Type} {goal : Host
 not stopped and the world refuses its observation, with that refusal, and otherwise returns an
 input of the same attempt.
 
-The statement keeps no kind. Whether it accepts is whether the world's observation succeeds,
-and no theorem states which observations succeed. A specification of the accepted attempts would
-name `Host.World.observe`, which runs tests that sensing runs (`Host.Inventory.owns` and the
+The statement keeps no kind. An attempt that has stopped is accepted without an observation;
+one that has not stopped is accepted exactly when the world's observation succeeds, and no
+theorem states which observations succeed. A specification of the accepted attempts would name
+`Host.World.observe`, which runs tests that sensing runs (`Host.Inventory.owns` and the
 comparison of tile kinds), so RG1009 would refuse a kind with it. -/
 theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense =>
     ∀ {config α goal cap} (attempt : Host.Attempt config α goal cap),
@@ -5864,8 +5867,10 @@ theorem attempt_finish : Regula.ExecutableContract @Host.Attempt.finish (fun fin
     Host.Attempt.finish_position callbacks context attempt run outcome frame finished⟩
 
 /-- Closing an attempt returns what finishing it returns, and a refusal of finishing as a
-refusal that holds no stage. The native bookkeeping returns this value
-(`Host.finishAttempt_returned`).
+refusal that holds no stage. A value that the native bookkeeping `Host.finishAttempt` returns
+normally agrees with it (`Host.finishAttempt_returned`, `Host.AttemptAgrees`): the same refusal,
+or the same run state and outcome. The native value holds the runner's resources in the place of
+the terminal frame, which the agreement does not compare.
 
 The statement keeps no kind, for the reason that `attempt_finish` states. -/
 theorem attempt_close : Regula.ExecutableContract @Host.Attempt.close (fun close =>
@@ -5903,8 +5908,9 @@ theorem attempt_close : Regula.ExecutableContract @Host.Attempt.close (fun close
 
 /-- When the fold of an attempt ends in a refused action, it holds the stage of one whole step
 on an attempt that the fold reached in fewer passes than its fuel, from which the world refused
-that action (`Host.Attempt.complete_learned`). Each native loop returns the value of this fold
-(`Host.runAttempt_complete`).
+that action (`Host.Attempt.complete_learned`). A value that the attempt runner `Host.runAttempt`
+returns normally agrees with this fold at the fuel `cap.toNat`, the attempt's own step cap
+(`Host.runAttempt_complete`): the same refusal, or the same run state and outcome.
 
 The statement keeps no kind. The fold refuses where the world refuses an observation or an
 action, and no theorem states which observations or steps succeed.
