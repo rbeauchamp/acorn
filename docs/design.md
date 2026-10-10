@@ -402,9 +402,9 @@ transition, the full decision and the host's step. `act_eq` and
 `callback_eq` state that, for every agent state, observation, reward word and
 achievement flag, the host's step returns the same action, decision and next state
 as the reference; `initial_eq` states the same for construction. Restoration has no
-frozen reference: the restore of that commit started the option models, the off-policy
-questions, primitive credit, the rate schedule and every process-local reference afresh,
-and the restore is now exact (`Agent.restore_exact`). The reference does not freeze the
+frozen reference, since restoration is exact (`Agent.restore_exact`) and the restore of
+that commit started the option models, the off-policy questions, primitive credit, the
+rate schedule and every process-local reference afresh. The reference does not freeze the
 storage beneath the composition. The
 core types take the action count as a parameter that the grid sets to nine, where
 they held the constant nine before, and the reference calls the executed selection,

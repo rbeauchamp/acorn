@@ -187,7 +187,7 @@ decision as that reference:
 
 {decl}`AcornVerif.GridCorrespondence.callback_eq` and
 {decl}`AcornVerif.GridCorrespondence.initial_eq` state the same for the host's step and
-construction. Restoration has no frozen reference, since the restore is now exact
+construction. Restoration has no frozen reference, since restoration is exact
 ({decl}`Acorn.Handcrafted.Agent.restore_exact`). The reference covers the composition; the
 storage types beneath it are the executed ones at the grid's action count.
 
