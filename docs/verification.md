@@ -177,11 +177,11 @@ theorem AcornVerif.GridCorrespondence.act_eq {profile : Acorn.Handcrafted.Featur
     state.act (Acorn.Handcrafted.Grid.percept profile.taskMode obs reward goal)
 ```
 
-`AcornVerif.GridCorrespondence.callback_eq`,
-`AcornVerif.GridCorrespondence.initial_eq` and
-`AcornVerif.GridCorrespondence.restore_eq` state the same for the host's step,
-construction and restoration. The reference covers the composition; the storage types
-beneath it are the executed ones at the grid's action count.
+`AcornVerif.GridCorrespondence.callback_eq` and
+`AcornVerif.GridCorrespondence.initial_eq` state the same for the host's step and
+construction. Restoration has no frozen reference, since the restore is now exact
+(`Acorn.Handcrafted.Agent.restore_exact`). The reference covers the composition; the
+storage types beneath it are the executed ones at the grid's action count.
 
 The executed step is two functions under a declared step order:
 `Acorn.Handcrafted.Agent.choose` selects, and
@@ -830,14 +830,17 @@ when investigating a dynamics change.
 
 ## Checkpoint admission
 
-Format 18 preserves admitted learner state, generator and tester state and
-assignments for supported ranked profiles. Earlier
-formats are refused. Restore checks dimensions, identifiers,
-criterion, step order and value domains before admitting state. An incompatible image is
-refused and writes to that file are disabled. Stored learner state resumes; option
-models and each option's off-policy questions (PAR-18) are not stored and start
-afresh, and the world and transient process state restart. Filesystem persistence relies on the narrow
-C fsync helper, native IO and the operating system.
+Format 19 holds the exact image of the agent:
+every field of its temporal state, the option models, each option's off-policy questions
+(PAR-18), primitive credit, the rate schedule and every process-local reference included.
+Earlier formats are refused. Load checks dimensions, identifiers, criterion and step order
+in the header, then reads the image with every stored word in its own domain, every
+learner through the check of its invariant and the agent's two invariants. An incompatible
+image is refused and writes to that file are disabled. Loading the bytes that a save of a
+state writes returns that state, for every state of the resumable construction
+(`AcornVerif.CurrentCheckpoint.load_saved`). The world restarts, and the host begins a
+new session of the predictive-agreement evaluator. Filesystem persistence relies on the
+narrow C fsync helper, native IO and the operating system.
 
 ## Viewer ownership boundaries
 
