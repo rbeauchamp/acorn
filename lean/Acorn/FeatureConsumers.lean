@@ -28,7 +28,43 @@ namespace Acorn.Features
 
 variable {actions : Word.Count}
 
-/-- Erased provenance of phase-disciplined calls to the actual learner.
+/-- Positive zero to five: the domain of a pruning reference word. -/
+def referenceRange : Interval32 :=
+  ⟨.zero, ⟨0x40a00000⟩, by decide, by decide, by decide⟩
+
+/-- Whether all nine transient words of one slot are positive zero. -/
+def _root_.Acorn.NumericState.clearAt {config : Acorn.Config} {dimension : Dimension}
+    (state : NumericState config dimension) (index : FeatIdx dimension) : Bool :=
+  (state.transient.z.get index).value == .zero &&
+    (state.transient.zDelta.get index).value == .zero &&
+    (state.transient.zBar.get index).value == .zero &&
+    (state.transient.lastAlpha.get index).value == .zero &&
+    (state.transient.deltaWeight.get index).value == .zero &&
+    (state.transient.h.get index).value == .zero &&
+    (state.transient.hOld.get index).value == .zero &&
+    (state.transient.hTemp.get index).value == .zero &&
+    (state.transient.p.get index).value == .zero
+
+/-- The invariant of an executing learner, decided on its stored words: no eligible index
+repeats, every slot that is not eligible holds nine positive-zero transient words, every
+pruning reference lies in `referenceRange`, and, when a standalone second loop is permitted,
+no eligible trace is zero. The proof library states this as the schedule invariant of the
+learner's capacity theorem, `ScheduleInv` (`AcornVerif.CurrentLearnerCheck.resumable_iff`), and
+proves it of every learner that `ManagedAdmission` admits
+(`AcornVerif.CurrentFeatureConsumers.managed_schedule`). The eligible list is read once into a slot
+flag vector, so the check takes work linear in the capacity and the list. -/
+def _root_.Acorn.NumericState.resumable {config : Acorn.Config} {dimension : Dimension}
+    (state : NumericState config dimension) (phase : Bool) : Bool :=
+  let eligible := state.transient.eligible.toList
+  let builder := eligible.foldl UniqueBuilder.add (UniqueBuilder.empty dimension)
+  builder.reversed.length == eligible.length &&
+    (List.finRange dimension.capacity).all (fun index =>
+      (builder.seen[index.val] || state.clearAt index) &&
+        decide (referenceRange.Contains (state.transient.lastAlpha.get index).value)) &&
+    (!phase || eligible.all fun index => !(state.transient.z.get index).value.isZero)
+
+/-- Erased provenance of phase-disciplined calls to the actual learner, or of a learner read
+back from a checkpoint image whose stored words pass the learner's invariant check.
 The same `Permitted` definition owns the existing universal capacity theorem. -/
 inductive ManagedAdmission (config : Acorn.Config) (dimension : Dimension) :
     NumericState config dimension → Bool → Prop where
@@ -39,6 +75,9 @@ inductive ManagedAdmission (config : Acorn.Config) (dimension : Dimension) :
       (entry : SwiftTd.Entry dimension) (permitted : SwiftTd.Permitted entry phase)
       (before : ManagedAdmission config dimension state phase) :
       ManagedAdmission config dimension (entry.apply state) (SwiftTd.nextReady entry phase)
+  /-- A learner of a checkpoint image enters with its invariant checked on its words. -/
+  | durable {state : NumericState config dimension} {phase : Bool}
+      (checked : state.resumable phase = true) : ManagedAdmission config dimension state phase
 
 /-- A learner scheduled under the already proved eligibility/resource contract.
 The invariant is erased, so no learning history is retained. -/
@@ -159,6 +198,12 @@ inductive Criterion where
   /-- Continuing differential control. -/
   | differential
   deriving DecidableEq
+
+/-- Criterion tags are exhaustive over the current immutable domain: zero discounted, one
+differential. -/
+def Criterion.tag : Criterion → UInt8
+  | .discounted => 0
+  | .differential => 1
 
 /-- The current criterion's exact numeric rule. -/
 def Criterion.rule : Criterion → ValueRule
@@ -364,11 +409,12 @@ structure Skill (actions : Word.Count) (config : Config) (criterion : Criterion)
   /-- Current model consumers. -/
   model : Model dimension criterion
   /-- Off-policy trajectory of these learners while the option is not executing.
-  Fresh and restored storage has none, so no frame is credited to a later objective. -/
+  Fresh storage has none, so no frame is credited to a later objective; a checkpoint image
+  stores it. -/
   following : Option Following
   /-- One off-policy question per prediction channel about this option's policy. They
   read feature slots but are no reader of the tester's utility, so no decision reads
-  them. Fresh and restored storage asks them afresh. -/
+  them. Fresh storage asks them afresh; a checkpoint image stores them. -/
   questions : OptionQuestions dimension discounts
 
 /-- Fresh policy, model and questions for the selected target, linked to no earlier

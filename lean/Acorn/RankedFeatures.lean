@@ -269,7 +269,7 @@ def RankedFeatures.ofSlots
     (distinct : slots.toList.Pairwise SlotsDistinct) :
     RankedFeatures dimension := ⟨slots, tabulate slots, rfl, reserved, distinct⟩
 
-/-- No slot is ranked: fresh, released and restored models start here. -/
+/-- No slot is ranked: fresh and released models start here. -/
 def RankedFeatures.empty (dimension : Dimension) : RankedFeatures dimension :=
   .ofSlots (Vector.replicate _ none) (by simp) (by
     apply index_distinct

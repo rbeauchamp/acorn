@@ -118,7 +118,8 @@ def PolicySnapshot.probabilities (snapshot : PolicySnapshot count) : Vector Bina
   snapshot.values.map fun value => explore.add
     (if threshold.lessOrEqual value then greedy else .zero)
 
-/-- A completed draw carries exactly the snapshot from which its action came. -/
+/-- A completed draw carries exactly the snapshot from which its action came; a decision read
+back from a checkpoint image carries the snapshot stored with it (`PolicyDecision.stored`). -/
 structure PolicyDecision (count : Word.Count) where
   private mk ::
   /-- Immutable values and epsilon used for this draw. -/
@@ -127,6 +128,12 @@ structure PolicyDecision (count : Word.Count) where
   action : Action count.word.toNat
   /-- Whether the branch draw chose exploration. -/
   explored : Bool
+
+/-- The decision that a checkpoint image holds: the stored snapshot, action and branch.
+The checkpoint loader is its one caller, and it rebuilds the decision of the saved agent
+(`Checkpoint.policyDecisionFormat`). -/
+def PolicyDecision.stored (snapshot : PolicySnapshot count) (action : Action count.word.toNat)
+    (explored : Bool) : PolicyDecision count := ⟨snapshot, action, explored⟩
 
 /-- One epsilon draw followed by precisely the selected branch's RNG operations. -/
 def PolicySnapshot.draw (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :

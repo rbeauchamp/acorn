@@ -27,6 +27,8 @@ import AcornVerif.CurrentPrediction
 import AcornVerif.CurrentState
 import AcornVerif.CurrentLearnerArithmetic
 import AcornVerif.CurrentLearner
+import AcornVerif.CurrentLearnerCheck
+import AcornVerif.CurrentImage
 import AcornVerif.CurrentFloor
 import AcornVerif.CurrentTerrain
 import AcornVerif.CurrentActions
@@ -50,6 +52,7 @@ import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
+import AcornVerif.CurrentCheckpointSize
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentPlanning
 import AcornVerif.CurrentPolicyMean

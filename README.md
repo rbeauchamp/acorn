@@ -62,8 +62,8 @@ predictions as the run develops.
   stopped until you choose Start.
 
 Closing the browser tab alone does not stop the agent. Your run stays in
-`acorn-run/`, which is ignored by Git. Checkpoints preserve supported learner
-state; the world and some transient state restart when the core restarts.
+`acorn-run/`, which is ignored by Git. A checkpoint holds the agent's whole state
+for the supported profile; the world restarts when the core restarts.
 
 ## Go a layer deeper
 

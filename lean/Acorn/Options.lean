@@ -77,13 +77,20 @@ inductive OptionEnd where
 
 /-- Trajectory state is created only by begin or as `OptionActivation.first`, the
 activation that begin followed by the first step leaves (`Skill.begin_first`); it is
-updated by an admitted step, or resumed from the off-policy trajectory a skill stores. -/
+updated by an admitted step, resumed from the off-policy trajectory a skill stores, or read
+back from a checkpoint image (`OptionActivation.stored`). -/
 structure OptionActivation (mode : Bool) where
   private mk ::
   /-- Number of option actions already returned, bounded at storage. -/
   age : ModelAge
   /-- Potential from the preceding admitted decision. -/
   previous : Potential
+
+/-- The activation that a checkpoint image holds: the stored age and preceding potential.
+The checkpoint loader is its one caller, and it rebuilds the activation of the saved agent
+(`Checkpoint.activationFormat`). -/
+def OptionActivation.stored {mode : Bool} (age : ModelAge) (previous : Potential) :
+    OptionActivation mode := ⟨age, previous⟩
 
 /-- Mutation mode is fixed by the activation type, including every admission path. -/
 def OptionActivation.learning {mode : Bool} (_activation : OptionActivation mode) : Bool := mode

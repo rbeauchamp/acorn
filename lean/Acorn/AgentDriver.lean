@@ -18,13 +18,11 @@ open Features Handcrafted
 
 /-- Native execution consumes the exact proved prefix and observation owners. -/
 @[noinline] def execute (admitted : DefaultConstruction) (words : List UInt64) : String :=
-  match AgentConstruction.execute admitted
-      (words.map (Host.AgentArguments.input admitted.construction)) with
-  | .error .unsupportedProfile => "refused unsupported restore profile"
-  | .ok (state, stopped) =>
-    let observed := state.agent.observe
-    let action := observed.decision.map (·.action.val)
-    s!"clock={observed.clock} action={action} gain={observed.gain.value.bits} stopped={stopped}"
+  let (state, stopped) := AgentConstruction.execute admitted
+    (words.map (Host.AgentArguments.input admitted.construction))
+  let observed := state.agent.observe
+  let action := observed.decision.map (·.action.val)
+  s!"clock={observed.clock} action={action} gain={observed.gain.value.bits} stopped={stopped}"
 
 /-- Complete immutable native configuration is checked before allocating learner storage. -/
 def dispatch (arguments : List String) : Option String := do

@@ -3,157 +3,188 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Host.AgentPrefix
-import Acorn.Timing
+import Acorn.Host.Checkpoint.Admission
 
 /-!
-# Immutable full-agent construction
+# The states a construction admits
 
-Public construction admits the complete nonzero tiling word and bank-size
-domain, every power-of-two feature capacity below the UInt32 limit, all current
-profile discriminants, either criterion, either planning selection and every step order. Native
-allocation remains a runtime boundary; structural admission is not an allocation
-or infinite-run liveness promise.
+A state of a construction is an agent that the construction reaches
+(`AgentConstruction.Reached`): its cold state, or the agent of an image that its checkpoint
+loader admits from bytes, followed by any number of the construction's own whole steps and
+of the host's observation writes. Every state holds the proof of that, so a state of one
+construction is not a state of another by a change of index alone: a state of the other
+construction needs a proof that the other construction reaches its agent. A proof of
+that kind for an agent of another step history goes through the other construction's
+loader, which admits the bytes of every agent's image under its own order word
+(`AcornVerif.CurrentCheckpoint.loader_reaches`); the checkpoint file is not
+authenticated. Under a profile that has no resumable image the loader admits no bytes
+(`AcornVerif.CurrentCheckpoint.unresumable_unloaded`), so every agent of such a
+construction is reached from the cold state by the construction's own operations.
 -/
 namespace Acorn.Handcrafted
 open Features
 
-/-- Complete immutable construction choices for the current agent. -/
-structure AgentConstruction where
-  /-- All current mode, credit, rate and subtask alternatives. -/
-  profile : FeatureProfile
-  /-- Criterion fixes the numeric rules and model arity. -/
-  criterion : Criterion
-  /-- Explicit planning selection. -/
-  planning : PlanningSelection
-  /-- Declared order of the two step parts, planning and the world's transition. -/
-  order : StepOrder
-  /-- Receiver-owned feature salt, tilings and unit capacity. -/
-  config : Features.Config
-  /-- Compiler-admitted hash and learner dimension. -/
-  dimension : Dimension
+/-- The agent's host callbacks at the construction's step order, over the agent type of the
+construction. -/
+abbrev AgentConstruction.agentCallbacks (construction : AgentConstruction) :=
+  Agent.callbacks (profile := construction.profile) (config := construction.config)
+    (criterion := construction.criterion) (dimension := construction.dimension)
+    (planning := construction.planning) construction.order
 
-/-- Full word admission before feature allocation; no truncation or default substitution. -/
-def AgentConstruction.admit (profile : FeatureProfile) (criterion : Criterion)
-    (planning : PlanningSelection) (order : StepOrder) (seed tilings : UInt64)
-    (units exponent : Nat) : Option AgentConstruction :=
-  if ht : 0 < tilings.toNat then
-    if hu : 0 < units ∧ units ≤ 65535 then
-      if he : exponent < 32 then
-        some ⟨profile, criterion, planning, order,
-          ⟨seed, tilings, ht, ⟨units, hu.1, hu.2⟩, declaredTester⟩,
-          ⟨2^exponent, Nat.pow_pos (by decide), ⟨exponent, rfl⟩, Nat.pow_lt_pow_right (by decide) he⟩⟩
-      else none
-    else none
-  else none
+/-- The agents that one construction reaches: the cold state and the agent of every image
+that the construction's checkpoint loader admits from bytes, closed under the
+construction's whole step (both parts of its order), the host's two observation writes,
+the censoring of the observations at process exit and the start of an evaluator session.
+-/
+inductive AgentConstruction.Reached (construction : AgentConstruction) :
+    Agent Grid.interface construction.profile construction.config construction.criterion
+      construction.dimension construction.planning → Prop where
+  /-- The cold state. -/
+  | initial : AgentConstruction.Reached construction (Agent.initial _ _ _ _ _ _)
+  /-- The agent of an image that the construction's loader admits from bytes. -/
+  | loaded {bytes : List UInt8} {image : construction.Image}
+      (admitted : Checkpoint.loadCandidate construction bytes = .ok image) :
+      AgentConstruction.Reached construction image.agent
+  /-- One whole step: the first part of the construction's order, then the second. -/
+  | step {agent : Agent Grid.interface construction.profile construction.config
+        construction.criterion construction.dimension construction.planning}
+      (before : AgentConstruction.Reached construction agent) (observation : Host.Observation)
+      (result : Host.RawStepResult) :
+      AgentConstruction.Reached construction (construction.agentCallbacks.learn
+        (construction.agentCallbacks.choose agent observation result).2)
+  /-- The host records a completed world transition. -/
+  | environment {agent : Agent Grid.interface construction.profile construction.config
+        construction.criterion construction.dimension construction.planning}
+      (before : AgentConstruction.Reached construction agent) (family : Host.GoalFamily)
+      (reward : Binary32) :
+      AgentConstruction.Reached construction
+        (construction.agentCallbacks.recordEnvironment agent family reward)
+  /-- The host records a completed attempt. -/
+  | attempt {agent : Agent Grid.interface construction.profile construction.config
+        construction.criterion construction.dimension construction.planning}
+      (before : AgentConstruction.Reached construction agent) (family : Host.GoalFamily)
+      (cycle steps : UInt64) (achieved : Bool) :
+      AgentConstruction.Reached construction
+        (construction.agentCallbacks.recordAttempt agent family cycle steps achieved)
+  /-- The host censors the evaluator's unavailable futures at process exit. -/
+  | censored {agent : Agent Grid.interface construction.profile construction.config
+        construction.criterion construction.dimension construction.planning}
+      (before : AgentConstruction.Reached construction agent) :
+      AgentConstruction.Reached construction agent.censorObservations
+  /-- The host begins an evaluator session. -/
+  | session {agent : Agent Grid.interface construction.profile construction.config
+        construction.criterion construction.dimension construction.planning}
+      (before : AgentConstruction.Reached construction agent) :
+      AgentConstruction.Reached construction agent.beginSession
 
-/-- Construction rejects exactly the absent positive/capacity conditions. -/
-theorem AgentConstruction.admit_iff (profile : FeatureProfile) (criterion : Criterion)
-    (planning : PlanningSelection) (order : StepOrder) (seed tilings : UInt64)
-    (units exponent : Nat) :
-    (admit profile criterion planning order seed tilings units exponent).isSome = true ↔
-      0 < tilings.toNat ∧ 0 < units ∧ units ≤ 65535 ∧ exponent < 32 := by
-  by_cases ht : 0 < tilings.toNat <;> by_cases hu : 0 < units ∧ units ≤ 65535 <;>
-    by_cases he : exponent < 32 <;> simp [admit, ht, hu, he]
-
-/-- Admission keeps the declared step order. -/
-theorem AgentConstruction.admit_order (profile : FeatureProfile) (criterion : Criterion)
-    (planning : PlanningSelection) (order : StepOrder) (seed tilings : UInt64)
-    (units exponent : Nat) (construction : AgentConstruction)
-    (admitted : admit profile criterion planning order seed tilings units exponent =
-      some construction) : construction.order = order := by
-  unfold admit at admitted
-  split at admitted
-  · split at admitted
-    · split at admitted
-      · cases admitted
-        rfl
-      · cases admitted
-    · cases admitted
-  · cases admitted
-
-/-- Every typed dimension lies in the public exponent domain; no admitted shape is omitted. -/
-theorem dimension_exponent_complete (dimension : Dimension) :
-    ∃ exponent < 32, dimension.capacity = 2^exponent := by
-  obtain ⟨exponent, same⟩ := dimension.powerOfTwo
-  refine ⟨exponent, ?_, same⟩
-  have bound := dimension.wordBound
-  rw [same] at bound
-  exact (Nat.pow_lt_pow_iff_right (by decide)).mp bound
-
-/-- The CLI default feature configuration is derived from the shared Lean feature constants. -/
-def AgentConstruction.standard (seed : UInt64) (selection : Host.AgentSelection)
-    (planning : PlanningSelection) (order : StepOrder) : AgentConstruction :=
-  ⟨researchProfile selection.profile, selection.criterion, planning, order,
-    ⟨seed, Acorn.FeatureConstants.defaultTilings.toUInt64, by decide,
-      ⟨Acorn.FeatureConstants.defaultImprintUnits, by decide, by decide⟩, declaredTester⟩,
-    ⟨Acorn.FeatureConstants.defaultWeightSpace, by decide, ⟨14, rfl⟩, by decide⟩⟩
-
-/-- The agent of one construction. The construction, and with it the step order, is an
-index of the type, so a state of one order and a state of another do not meet by
-accident. The learner state it holds carries no order: that every step of its history,
-from cold initialization or from an image admitted for the same construction, was taken
-under the construction's step order is a claim about the code that made the value. The
-operations below make a state, and each of them keeps the construction. No check stops a
-module of this project from making a state of another history: the constructor is
-private, which stops the constructor notation and the constructor name outside this
-module and does not stop a tactic. A state under another index gives the agent's step of
-that index's order on the same learner state (`AgentConstruction.callbacks_act`), and a
-save that writes that index's word (`AcornVerif.CurrentCheckpoint.saved_header`). -/
+/-- The agent of one construction, with the proof that the construction reaches it. The
+construction, and with it the step order, is an index of the type, so a state of one order
+and a state of another do not meet by accident, and a state of another index needs a proof
+that the other construction reaches the same agent. The constructor is private, which
+stops the constructor notation and the constructor name outside this module and does not
+stop a tactic; the proof field holds whatever the constructor is given. A state under
+another index gives the agent's step of that index's order on the same learner state
+(`AgentConstruction.callbacks_act`), and a save that writes that index's word
+(`AcornVerif.CurrentCheckpoint.saved_header`). -/
 structure AgentConstruction.State (construction : AgentConstruction) where
   private mk ::
   /-- The learner state, with all immutable construction choices in its type. -/
   agent : Agent Grid.interface construction.profile construction.config construction.criterion
     construction.dimension construction.planning
+  /-- The construction reaches the learner state. -/
+  reached : construction.Reached agent
 
 /-- Every native constructor calls the full current cold initialization. -/
 def AgentConstruction.initial (construction : AgentConstruction) : construction.State :=
-  ⟨Agent.initial _ _ _ _ _ _⟩
+  ⟨Agent.initial _ _ _ _ _ _, .initial⟩
 
 /-- Cold initialization is the agent's own initial state. -/
 theorem AgentConstruction.initial_agent (construction : AgentConstruction) :
     construction.initial.agent = Agent.initial _ _ _ _ _ _ := rfl
 
-/-- A durable image of one construction. The construction is an index of the type, so an
-image of one order and a state of another do not meet by accident. This project makes an
-image in two places: the snapshot of a state of the construction
-(`Acorn.Checkpoint.snapshotImage`), and the admission of a decoded payload whose header
-holds the word of the construction's order (`Acorn.Checkpoint.admitPayload`). The
-durable image it holds carries no order, and the constructor is public: every module can
-apply it to a durable image, and no check stops that. An image under another index is
-the payload of the first construction with the order word replaced, which the loader of
-the second construction admits with the same durable data
-(`AcornVerif.CurrentCheckpoint.relabeled_loaded`). -/
-structure AgentConstruction.Image (construction : AgentConstruction) where
-  /-- The durable image. -/
-  image : AgentImage Grid.interface construction.config construction.criterion
-    construction.dimension
+/-- Two states of a construction with the same agent are equal. -/
+theorem AgentConstruction.State.ext {construction : AgentConstruction}
+    {first second : construction.State} (same : first.agent = second.agent) : first = second := by
+  cases first
+  cases second
+  cases same
+  rfl
 
-/-- Restoration takes an image of the receiver's own construction. The learner state is
-replaced by the agent's own restore; a profile that cannot restore is refused. -/
+/-- Restoration takes an image of the receiver's own construction, with the proof that the
+construction's loader admitted it from bytes. The learner state is replaced by the agent's
+own restore. Its refusal of a profile that cannot restore is unreachable here: no image of
+such a construction is admitted (`AcornVerif.CurrentCheckpoint.unresumable_unloaded`). -/
 def AgentConstruction.State.restore {construction : AgentConstruction}
-    (state : construction.State) (image : construction.Image) : Option construction.State :=
-  (state.agent.restore image.image).map (⟨·⟩)
+    (state : construction.State) (image : construction.Image)
+    (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image) :
+    Option construction.State :=
+  match restored : state.agent.restore image.image with
+  | none => none
+  | some agent => some ⟨agent, by
+      unfold Agent.restore at restored
+      split at restored
+      · obtain rfl := Option.some.inj restored
+        exact admitted.elim fun _ loaded => .loaded loaded
+      · contradiction⟩
 
 /-- Restoration is the agent's own restore on the admitted image. -/
 theorem AgentConstruction.State.restore_agent {construction : AgentConstruction}
-    (state : construction.State) (image : construction.Image) :
-    (state.restore image).map (·.agent) = state.agent.restore image.image := by
+    (state : construction.State) (image : construction.Image)
+    (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image) :
+    (state.restore image admitted).map (·.agent) = state.agent.restore image.image := by
   unfold AgentConstruction.State.restore
-  cases state.agent.restore image.image <;> rfl
+  split
+  · rename_i restored
+    exact restored.symm
+  · rename_i agent restored
+    exact restored.symm
+
+/-- A profile that cannot restore refuses every image. The hypotheses are jointly
+unsatisfiable, since no image is admitted under a profile that cannot restore
+(`AcornVerif.CurrentCheckpoint.unresumable_unloaded`); the theorem closes the unreachable case
+of the proof of `Acorn.Decisions.checkpoint_load`. -/
+theorem AgentConstruction.State.restore_refuses {construction : AgentConstruction}
+    (state : construction.State) (image : construction.Image)
+    (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image)
+    (unsupported : construction.profile.checkpointSupported = false) :
+    state.restore image admitted = none := by
+  have same := state.restore_agent image admitted
+  rw [Agent.restore_refuses state.agent image.image unsupported] at same
+  exact Option.map_eq_none_iff.mp same
+
+/-- **Restoration of a state is exact.** Under a profile that restores, the restored state's
+agent is the agent of the image. -/
+theorem AgentConstruction.State.restore_exact {construction : AgentConstruction}
+    (state : construction.State) (image : construction.Image)
+    (admitted : ∃ bytes, Checkpoint.loadCandidate construction bytes = .ok image)
+    (supported : construction.profile.checkpointSupported = true) :
+    ∃ restored, state.restore image admitted = some restored ∧ restored.agent = image.agent := by
+  have same := state.restore_agent image admitted
+  rw [Agent.restore_exact state.agent image.image supported] at same
+  obtain ⟨restored, found, agent⟩ := Option.map_eq_some_iff.mp same
+  exact ⟨restored, found, agent⟩
 
 /-- Censoring the observations a host keeps changes no step and keeps the construction. -/
 def AgentConstruction.State.censorObservations {construction : AgentConstruction}
     (state : construction.State) : construction.State :=
-  ⟨state.agent.censorObservations⟩
+  ⟨state.agent.censorObservations, .censored state.reached⟩
 
-/-- What the agent of one construction holds between the two parts of a step. The first
-part of `AgentConstruction.callbacks` makes it. -/
+/-- A new evaluator session changes no learned state and keeps the construction. -/
+def AgentConstruction.State.beginSession {construction : AgentConstruction}
+    (state : construction.State) : construction.State :=
+  ⟨state.agent.beginSession, .session state.reached⟩
+
+/-- What the agent of one construction holds between the two parts of a step, with the
+proof that the first part of the construction's order made it at an agent the construction
+reaches. The first part of `AgentConstruction.callbacks` makes it. -/
 structure AgentConstruction.Chosen (construction : AgentConstruction) where
   private mk ::
   /-- The chosen value of the agent, made under the construction's order. -/
   chosen : Handcrafted.Chosen Grid.interface construction.profile construction.config
     construction.criterion construction.dimension construction.planning
+  /-- The first part of the construction's order made the value at a reached agent. -/
+  origin : ∃ agent observation result, construction.Reached agent ∧
+    (construction.agentCallbacks.choose agent observation result).2 = chosen
 
 /-- The host callbacks of one construction: the two parts of the construction's own step
 order, over the construction's own state type, with that order as the index a host loop
@@ -164,18 +195,20 @@ no check stops a module of this project from making a record of this type. -/
 def AgentConstruction.callbacks (construction : AgentConstruction) :
     Host.AgentCallbacks construction.order construction.State
       (AgentObservation construction.config construction.dimension) :=
-  let raw := Agent.callbacks (profile := construction.profile) (config := construction.config)
-    (criterion := construction.criterion) (dimension := construction.dimension)
-    (planning := construction.planning) construction.order
+  let raw := construction.agentCallbacks
   { Chosen := construction.Chosen
     choose := fun state observation result =>
       let chosen := raw.choose state.agent observation result
-      (chosen.1, ⟨chosen.2⟩)
-    learn := fun chosen => ⟨raw.learn chosen.chosen⟩
+      (chosen.1, ⟨chosen.2, ⟨state.agent, observation, result, state.reached, rfl⟩⟩)
+    learn := fun chosen => ⟨raw.learn chosen.chosen, by
+      obtain ⟨agent, observation, result, reached, same⟩ := chosen.origin
+      rw [← same]
+      exact .step reached observation result⟩
     recordEnvironment := fun state family reward =>
-      ⟨raw.recordEnvironment state.agent family reward⟩
+      ⟨raw.recordEnvironment state.agent family reward, .environment state.reached family reward⟩
     recordAttempt := fun state family cycle steps achieved =>
-      ⟨raw.recordAttempt state.agent family cycle steps achieved⟩
+      ⟨raw.recordAttempt state.agent family cycle steps achieved,
+        .attempt state.reached family cycle steps achieved⟩
     capture := fun state => raw.capture state.agent
     metrics := fun state => raw.metrics state.agent }
 
@@ -220,16 +253,56 @@ structure DefaultConstruction where
   /-- Its step order is the default one. -/
   default : construction.order = .learnThenAct
 
+/-- The step of the default order is the whole step of a default-order construction: the
+second part of its order on the first part's value is `Agent.act`
+(`Agent.callbacks_act`). -/
+theorem DefaultConstruction.act_step (admitted : DefaultConstruction)
+    (agent : Agent Grid.interface admitted.construction.profile admitted.construction.config
+      admitted.construction.criterion admitted.construction.dimension
+      admitted.construction.planning)
+    (observation : Host.Observation) (result : Host.RawStepResult) :
+    admitted.construction.agentCallbacks.learn
+        (admitted.construction.agentCallbacks.choose agent observation result).2 =
+      (agent.act (Grid.percept admitted.construction.profile.taskMode observation result.reward
+        result.events.done)).1 := by
+  unfold AgentConstruction.agentCallbacks
+  rw [admitted.default]
+  exact congrArg Prod.snd (Agent.callbacks_act agent observation result)
+
+/-- A default-order construction reaches every agent that the finite-prefix fold reaches
+from an agent it reaches. -/
+theorem DefaultConstruction.reached_prefix (admitted : DefaultConstruction) :
+    ∀ (inputs : List (AgentInput admitted.construction.config admitted.construction.criterion
+        admitted.construction.dimension))
+      {agent : Agent Grid.interface admitted.construction.profile admitted.construction.config
+        admitted.construction.criterion admitted.construction.dimension
+        admitted.construction.planning},
+      admitted.construction.Reached agent →
+        admitted.construction.Reached (agent.runPrefix inputs).1
+  | [], _, reached => reached
+  | event :: rest, agent, reached => by
+    cases event with
+    | act observation result =>
+      have stepped := AgentConstruction.Reached.step reached observation result
+      rw [admitted.act_step agent observation result] at stepped
+      exact DefaultConstruction.reached_prefix admitted rest stepped
+    | environment family reward =>
+      exact DefaultConstruction.reached_prefix admitted rest (.environment reached family reward)
+    | attempt family cycle steps achieved =>
+      exact DefaultConstruction.reached_prefix admitted rest (.attempt reached family cycle steps achieved)
+    | clear => exact DefaultConstruction.reached_prefix admitted rest .initial
+    | stop => exact reached
+
 /-- Fold a finite prefix from a state of a default-order construction. The fold is
 `Agent.runPrefix`, whose action edge is `Agent.act`, so its type admits a construction
-of the default order and no other. The inputs are the agent's own events; the restore
-event holds a durable image with no construction. -/
+of the default order and no other. The inputs are the agent's own events. -/
 def DefaultConstruction.runPrefix (admitted : DefaultConstruction)
     (state : admitted.construction.State)
     (inputs : List (AgentInput admitted.construction.config admitted.construction.criterion
       admitted.construction.dimension)) :
-    Except AgentRefusal (admitted.construction.State × Bool) :=
-  (state.agent.runPrefix inputs).map fun result => (⟨result.1⟩, result.2)
+    admitted.construction.State × Bool :=
+  let result := state.agent.runPrefix inputs
+  (⟨result.1, admitted.reached_prefix inputs state.reached⟩, result.2)
 
 /-- The prefix of a default-order construction is the agent's own prefix on the learner
 state and the same events. -/
@@ -237,17 +310,15 @@ theorem DefaultConstruction.runPrefix_agent (admitted : DefaultConstruction)
     (state : admitted.construction.State)
     (inputs : List (AgentInput admitted.construction.config admitted.construction.criterion
       admitted.construction.dimension)) :
-    (admitted.runPrefix state inputs).map (fun result => (result.1.agent, result.2)) =
-      state.agent.runPrefix inputs := by
-  unfold DefaultConstruction.runPrefix
-  cases state.agent.runPrefix inputs <;> rfl
+    ((admitted.runPrefix state inputs).1.agent, (admitted.runPrefix state inputs).2) =
+      state.agent.runPrefix inputs := rfl
 
 /-- The compiled finite-prefix fold from cold initialization, for a construction of the
 default order. It takes the agent's own events. -/
 @[noinline] def AgentConstruction.execute (admitted : DefaultConstruction)
     (inputs : List (AgentInput admitted.construction.config admitted.construction.criterion
       admitted.construction.dimension)) :
-    Except AgentRefusal (admitted.construction.State × Bool) :=
+    admitted.construction.State × Bool :=
   admitted.runPrefix admitted.construction.initial inputs
 
 end Acorn.Handcrafted

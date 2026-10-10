@@ -22,13 +22,16 @@ body is kept word for word, apart from naming the other frozen definitions it ca
 and only its proof arguments are restated:
 `TemporalControl.initial`, `TemporalControl.finish`, `TemporalControl.step`,
 `TemporalControl.alignedStep`, `Agent.initial`, `Agent.frame`, `Agent.act`,
-`Agent.install`, `Agent.restore`, `PredictionControl.advance` and the whole step of
+`PredictionControl.advance` and the whole step of
 `Agent.callbacks`, which was its `act` field at that commit. Only their state types are written at the grid instance, because
 the stored types now carry the interface. No executing module imports this one.
 
 The theorems are equalities for every agent state, observation, reward word and
 achievement flag: construction, the composed transition with its returned decision,
-the host's action and next state, the prefix input edge, and restoration.
+the host's action and next state, and the prefix input edge. Restoration has no frozen
+reference: the restore of that commit started the option models, the off-policy questions,
+primitive credit, the rate schedule and every process-local reference afresh, and the
+executed restore is exact (`Agent.restore_exact`).
 
 What the reference does not freeze is the storage below the composition. The core
 types replaced the constant nine by an action-count parameter, which the grid
@@ -206,33 +209,6 @@ def callbackAct (state : Agent Grid.interface profile config criterion dimension
   let (next, decision) := act state observation result.reward result.events.done
   (Host.Action.fromIndex decision.action.val, next)
 
-/-- Installation resets process-local references and models, retaining admitted
-knowledge, assignment identities, durable gain and lifetime observations. -/
-def install (state : Agent Grid.interface profile config criterion dimension planning)
-    (image : AgentImage Grid.interface config criterion dimension) :
-    Agent Grid.interface profile config criterion dimension planning :=
-  ⟨{ state.control with
-      runtime := state.control.runtime.restore image.features none
-      credit := profile.credit.initial
-      creditMatches := by cases profile.credit <;> rfl
-      average := state.control.average.restore image.gain
-      rate := RateState.initial profile.rate
-      lifetime := { image.lifetime.restore with
-        agreementStarted := some image.features.progress.clock
-        agreementLastClock := some image.features.progress.clock } },
-    ⟨fun slot => by simp [FeatureRuntime.restore, Ensemble.restore, Interest.Aligned],
-      Ensemble.restore_distinct _ _ _ image.features.distinct⟩, by
-    constructor
-    · intro slot
-      exact image.episodes slot
-    · intro _; rfl⟩
-
-/-- Profile refusal precedes installation. No partial replacement is returned. -/
-def restore (state : Agent Grid.interface profile config criterion dimension planning)
-    (image : AgentImage Grid.interface config criterion dimension) :
-    Option (Agent Grid.interface profile config criterion dimension planning) :=
-  if profile.checkpointSupported then some (install state image) else none
-
 end Direct
 
 /-- Direct cold initialization is the interface agent's at the grid instance. -/
@@ -306,13 +282,8 @@ theorem callback_eq (state : Agent Grid.interface profile config criterion dimen
 theorem input_eq (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (result : Host.RawStepResult) :
     state.input (.act obs result) =
-      .ok ((Direct.act state obs result.reward result.events.done).1, false) := by
+      ((Direct.act state obs result.reward result.events.done).1, false) := by
   rw [act_eq]
   rfl
-
-/-- **Restoration.** Direct restoration is the interface agent's, including refusal. -/
-theorem restore_eq (state : Agent Grid.interface profile config criterion dimension planning)
-    (image : AgentImage Grid.interface config criterion dimension) :
-    Direct.restore state image = state.restore image := rfl
 
 end AcornVerif.GridCorrespondence

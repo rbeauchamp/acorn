@@ -68,7 +68,7 @@ structure Total (envelope : Nat) where
   /-- Every constructor and write retains the population-derived bound. -/
   bounded : sum ≤ count.val * envelope^2
 
-/-- A new process has no evidence, including when learned state is restored. -/
+/-- A new evaluator session has no evidence. -/
 def Total.empty (envelope : Nat) : Total envelope :=
   ⟨⟨0, by decide⟩, 0, Nat.zero_le _⟩
 
@@ -270,7 +270,8 @@ def ClockRange.include (range : Option ClockRange) (clock : UInt64) : ClockRange
       ⟨range.first, clock, Nat.le_trans range.ordered (Nat.le_of_lt after)⟩
     else range
 
-/-- Process-local sufficient statistics; no durable constructor imports past totals. -/
+/-- Sufficient statistics of one evaluator session. A checkpoint image stores them, and a
+host begins a new session after it loads an image (`Agent.beginSession`). -/
 structure Channel (discount : Discount) where
   /-- Exact discrepancy sum and finite count. -/
   total : Total (envelopeUnits discount)
@@ -285,7 +286,7 @@ structure Channel (discount : Discount) where
   /-- Bounds covering the current process's settled population. -/
   precision : Option Precision
 
-/-- Empty process-session evaluator, independent of restored learner state. -/
+/-- Empty evaluator session, independent of the learner state it evaluates. -/
 def Channel.empty (discount : Discount) : Channel discount :=
   ⟨.empty _, none, none, none, ⟨0, by decide⟩, none⟩
 

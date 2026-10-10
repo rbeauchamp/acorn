@@ -100,7 +100,7 @@ control remains **demoted** and ineligible for default use.
 |---|---|---|
 | State legality | Indexed value domains and checked construction/restoration | Hypotheses and machine domains belong to each theorem. |
 | Learned-only separation | Declared provenance plus source/compiled quarantine | Review checks the declared origin against the producing code. |
-| Persistence | Admitted format, dimensions, criterion and identity; refusing writes on invalid restore | Stored learner state resumes; option models and each option's off-policy questions start afresh; world and transient process state restart. Filesystem guarantees depend on native IO and the OS. |
+| Persistence | Admitted format, dimensions, criterion and identity; refusing writes on invalid restore; loading the bytes a save writes returns the saved state | Every field of the agent resumes, the option models, questions and process-local references included; the world restarts, and the predictive-agreement evaluator begins a new session. Filesystem guarantees depend on native IO and the OS. |
 | Viewer | One-way telemetry and lifecycle-only stop | Designed for a single local operator on loopback. |
 | Resources | Source/IR-linked structural contracts and bounded stored updates | Physical latency and memory costs depend on the workload and platform. |
 | Learning quality | Explicit research selection and promotion rules | Prospective qualification remains open. |

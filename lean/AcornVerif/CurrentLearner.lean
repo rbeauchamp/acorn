@@ -129,11 +129,6 @@ error is nonfinite. -/
 theorem terminal_transient (state : NumericState config dimension) (target : Binary32) :
     (state.terminalStep config target).1.transient = TransientState.zero dimension := rfl
 
-/-- Restore installation ends with the exact same clear boundary, independent
-of either untrusted prefix length or any raw input encoding. -/
-theorem install_transient (state : NumericState config dimension) (weights beta : List Binary32) :
-    (state.installRestored weights beta).transient = TransientState.zero dimension := rfl
-
 /-- Swap-remove decrements the eligible size by one for every valid position. -/
 theorem swap_remove_size {α : Type} (items : Array α) (pos : Nat) (valid : pos < items.size) :
     (swapRemove items pos valid).size = items.size - 1 := by
@@ -210,54 +205,6 @@ theorem swap_remove_nodup {α : Type} (items : Array α) (pos : Nat) (valid : po
   · have same := (array_nodup_iff items).mp unique _ _ _ _ equality
     omega
   · exact (array_nodup_iff items).mp unique _ _ _ _ equality
-
-/-- Exact prefix/suffix semantics of the shared executing restoration loop. -/
-theorem restore_prefix_get {α : Type} {capacity : Nat} (project : Binary32 → α)
-    (values : Vector α capacity) (raw : List Binary32) (pos idx : Nat) (valid : idx < capacity) :
-    (restorePrefix project values raw pos)[idx] =
-      if inside : pos ≤ idx ∧ idx - pos < raw.length then
-        project raw[idx - pos] else values[idx] := by
-  induction raw generalizing values pos with
-  | nil => simp [restorePrefix]
-  | cons word rest ih =>
-    rw [restorePrefix]
-    split
-    · rename_i inRange
-      rw [ih]
-      by_cases before : idx < pos
-      · simp [show ¬pos ≤ idx by omega, show ¬pos + 1 ≤ idx by omega,
-          show pos ≠ idx by omega]
-      · by_cases same : pos = idx
-        · subst pos
-          simp [show ¬idx + 1 ≤ idx by omega]
-        · have past : pos + 1 ≤ idx := by omega
-          have successor : idx - pos = (idx - (pos + 1)) + 1 := by omega
-          simp [past, show pos ≤ idx by omega, successor, same]
-    · rename_i pastEnd
-      simp [show ¬pos ≤ idx by omega]
-
-/-- Restoring weights changes exactly the zipped prefix through the
-receiver's immutable projection, preserving every original suffix word. -/
-theorem restore_weights_get (state : NumericState config dimension) (raw : List Binary32)
-    (idx : FeatIdx dimension) :
-    ((state.restoreWeights raw).weights.get idx) =
-      if inside : idx.val < raw.length then Weight.project config.rule raw[idx.val]
-      else state.weights.get idx := by
-  simpa [NumericState.restoreWeights, vector_get] using
-    restore_prefix_get (Weight.project config.rule) state.weights raw 0 idx.val idx.isLt
-
-/-- Restoring beta uses precisely the same zipped-prefix law with the
-receiver's existing rails; there is no replacement learner or widened range. -/
-theorem restore_beta_get (state : NumericState config dimension) (raw : List Binary32)
-    (idx : FeatIdx dimension) :
-    ((state.restoreLogStepSizes raw).beta.get idx).value =
-      if inside : idx.val < raw.length then
-        (LogStepSize.project state.rails raw[idx.val]).value
-      else (state.beta.get idx).value := by
-  have equation := restore_prefix_get (LogStepSize.project state.rails) state.beta raw
-    0 idx.val idx.isLt
-  simpa [NumericState.restoreLogStepSizes, vector_get, apply_dite] using
-    congrArg (fun beta => beta.value) equation
 
 /-- All nine per-index raw transient words, in their declared storage order. -/
 def registers (state : NumericState config dimension) (idx : FeatIdx dimension) :
@@ -1018,10 +965,6 @@ the entry transients and the raw target. -/
 theorem terminal_core (state : NumericState config dimension) (target : Binary32) :
     CoreInv (state.terminalStep config target).1 := clear_core _
 
-/-- Exclusive restoration establishes the core invariant from any entry state. -/
-theorem install_core (state : NumericState config dimension) (weights beta : List Binary32) :
-    CoreInv (state.installRestored weights beta) := clear_core _
-
 /-- Clearing one slot without removing eligibility preserves dormant support. -/
 theorem clear_feature_supported (state : NumericState config dimension) (idx : FeatIdx dimension)
     (support : Supported state state.transient.eligible) :
@@ -1167,9 +1110,6 @@ theorem entry_core (entry : Entry dimension) (state : NumericState config dimens
   | plan features target =>
     exact core_of_transient_eq state _ (plan_transient state features target) core
   | retire idx => exact retire_core state idx core
-  | restoreWeights raw => exact core
-  | restoreBeta raw => exact core
-  | install weights beta => exact install_core state weights beta
   | clear => exact clear_core state
   | release => exact release_core state core
 
@@ -1289,13 +1229,8 @@ theorem entry_schedule (entry : Entry dimension) (state : NumericState config di
   | terminal target =>
     have ready : Ready (state.terminalStep config target).1 := clear_ready _
     exact ⟨ready.1, fun _ => ready⟩
-  | install weights beta =>
-    have ready : Ready (state.installRestored weights beta) := clear_ready _
-    exact ⟨ready.1, fun _ => ready⟩
   | clear => exact ⟨(clear_ready state).1, fun _ => clear_ready state⟩
   | release => exact ⟨(release_ready state).1, fun _ => release_ready state⟩
-  | restoreWeights raw => exact invariant.2
-  | restoreBeta raw => exact invariant.2
   | plan features target =>
     have same := plan_transient state features target
     exact ⟨by simpa only [Entry.apply, same] using invariant.2.1,
@@ -1305,7 +1240,7 @@ theorem entry_schedule (entry : Entry dimension) (state : NumericState config di
       fun hp => retire_ready state idx (invariant.2.2 hp)⟩
 
 /-- All finite histories obeying the phase discipline, including exposed
-loop, restore, planning and retirement calls. -/
+loop, planning and retirement calls. -/
 def Scheduled : List (Entry dimension) → Bool → Prop
   | [], _ => True
   | entry :: rest, phase => Permitted entry phase ∧ Scheduled rest (nextReady entry phase)

@@ -1980,7 +1980,7 @@ theorem preceding_retire (preceding : Preceding dimension) (feature query : Feat
   intro different
   simp [different]
 
-/-- Fresh questions store no frame, so the first transition after a start, a restore or a
+/-- Fresh questions store no frame, so the first transition after a start or a
 reinstallation trains nothing. -/
 theorem questions_initial (dimension : Dimension) (discounts : List Discount) :
     (OptionQuestions.initial dimension discounts).preceding.features.indices = [] := rfl

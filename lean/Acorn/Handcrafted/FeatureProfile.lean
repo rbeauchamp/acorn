@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.FeatureConstants
-import Acorn.FeatureRestore
+import Acorn.FeatureRefresh
 
 /-!
 # Declared feature-profile composition
@@ -136,19 +136,5 @@ keep their declaration. Assignment happens at a free dispatch, which
 returned. A primitive-only profile draws no meta decision
 (`TemporalControl.primitive_undrawn`). -/
 def FeatureProfile.ranksSubtasks (profile : FeatureProfile) : Bool := profile.subtasks == .learned
-
-/-- Profile admission precedes all feature-image admission and installation. -/
-def FeatureProfile.admit (profile : FeatureProfile) {actions : Word.Count} (config : Features.Config)
-    (criterion : Criterion) (dimension : Dimension) {discounts : List Discount}
-    (raw : RawFeatureImage actions dimension discounts) :
-    Option (FeatureImage actions config criterion dimension discounts) :=
-  if profile.checkpointSupported then FeatureImage.admit config criterion dimension raw else none
-
-/-- Unsupported profiles cannot install a structurally legal image by bypassing their mode. -/
-theorem FeatureProfile.unsupported_refuses (profile : FeatureProfile) {actions : Word.Count}
-    (config : Features.Config) (criterion : Criterion) (dimension : Dimension)
-    {discounts : List Discount} (raw : RawFeatureImage actions dimension discounts) (unsupported : profile.checkpointSupported = false) :
-    profile.admit config criterion dimension raw = none := by
-  simp [FeatureProfile.admit, unsupported]
 
 end Acorn.Handcrafted

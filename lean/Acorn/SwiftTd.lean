@@ -121,18 +121,6 @@ structure SwiftTd.ActiveSet (dimension : Dimension) where
 
 namespace SwiftTd
 
-/-- Project the zipped prefix of a dimension-indexed vector and raw input,
-leaving every untouched suffix word alone. The raw tail decreases structurally;
-the position guard also stops traversal at capacity. -/
-def restorePrefix {α : Type} {capacity : Nat} (project : Binary32 → α)
-    (values : Vector α capacity) (raw : List Binary32) (pos : Nat := 0) : Vector α capacity :=
-  match raw with
-  | [] => values
-  | word :: rest =>
-    if inRange : pos < capacity then
-      restorePrefix project (values.set pos (project word) inRange) rest (pos + 1)
-    else values
-
 /-- The empty active set; no feature is active. -/
 def ActiveSet.empty (dimension : Dimension) : ActiveSet dimension := ⟨[], List.nodup_nil⟩
 
@@ -276,7 +264,7 @@ def removeEligibleAt (state : NumericState config dimension) (pos : Nat)
 
 /-- Drop every trace and adaptation scratch, keeping the knowledge arrays.
 Eligibility traces refer to a specific recent trajectory and do not survive a
-checkpoint restore or a trajectory boundary. -/
+trajectory boundary. -/
 def clearTransient (state : NumericState config dimension) : NumericState config dimension :=
   { state with transient := TransientState.zero dimension }
 
@@ -707,32 +695,6 @@ def retireIndex (state : NumericState config dimension) (idx : FeatIdx dimension
   let state := state.writeWeight idx .zero
   state.writeBetaValue idx state.rails.initial
 
-/-- Overwrite the learned weights from an untrusted source, projecting each
-value through the immutable criterion. The traversal consumes only the zipped
-prefix; untouched suffixes keep their prior legal words. -/
-def restoreWeights (state : NumericState config dimension) (raw : List Binary32) :
-    NumericState config dimension :=
-  { state with weights := SwiftTd.restorePrefix (Weight.project config.rule) state.weights raw }
-
-/-- Overwrite the learned log step sizes from an untrusted source, saturating
-each through this learner's own rails; the same zipped-prefix traversal. Every
-step size is then evaluated from the restored log step sizes, so no stored step
-size crosses the restore boundary. -/
-def restoreLogStepSizes (state : NumericState config dimension) (raw : List Binary32) :
-    NumericState config dimension :=
-  let beta := SwiftTd.restorePrefix (LogStepSize.project state.rails) state.beta raw
-  { state with
-    beta := beta
-    alpha := beta.map fun stored => stored.alpha
-    evaluated := LogStepSize.Evaluated.map beta }
-
-/-- Exclusive restoration without learner or configuration replacement: both
-knowledge arrays through their own refinements, then process-local registers
-cleared, in that order. -/
-def installRestored (state : NumericState config dimension) (weights logStepSizes : List Binary32) :
-    NumericState config dimension :=
-  (state.restoreWeights weights |>.restoreLogStepSizes logStepSizes).clearTransient
-
 /-- Mean step size `α = e^β` over all weights. -/
 def meanAlpha (state : NumericState config dimension) : Binary32 :=
   (Binary32.sumFrom .zero (state.beta.toList.map (·.alpha))).div
@@ -808,12 +770,6 @@ inductive Entry (dimension : Dimension) where
   | plan (features : ActiveSet dimension) (target : Binary32)
   /-- Feature retirement boundary. -/
   | retire (idx : FeatIdx dimension)
-  /-- Project an untrusted weight prefix. -/
-  | restoreWeights (raw : List Binary32)
-  /-- Saturate an untrusted beta prefix. -/
-  | restoreBeta (raw : List Binary32)
-  /-- Exclusive restoration followed by transient clearing. -/
-  | install (weights beta : List Binary32)
   /-- Clear process-local state. -/
   | clear
   /-- Release every eligible trace, in work proportional to their number. -/
@@ -831,9 +787,6 @@ def Entry.apply (entry : Entry dimension) (state : NumericState config dimension
   | .terminal target => (state.terminalStep config target).1
   | .plan features target => (state.planStep config features target).1
   | .retire idx => state.retireIndex idx
-  | .restoreWeights raw => state.restoreWeights raw
-  | .restoreBeta raw => state.restoreLogStepSizes raw
-  | .install weights beta => state.installRestored weights beta
   | .clear => state.clearTransient
   | .release => state.releaseEligible
 
@@ -841,9 +794,9 @@ def Entry.apply (entry : Entry dimension) (state : NumericState config dimension
 This phase governs composed resource safety, not the standalone input domain. -/
 def nextReady (entry : Entry dimension) (before : Bool) : Bool :=
   match entry with
-  | .first .. | .terminal .. | .install .. | .clear | .release => true
+  | .first .. | .terminal .. | .clear | .release => true
   | .second .. | .step .. | .beginTrajectory .. => false
-  | .plan .. | .retire .. | .restoreWeights .. | .restoreBeta .. => before
+  | .plan .. | .retire .. => before
 
 /-- The resource contract requires readiness only for standalone loop two. -/
 def Permitted (entry : Entry dimension) (ready : Bool) : Prop :=

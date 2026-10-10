@@ -361,15 +361,15 @@ clock, through the loop of `Acorn.Host.Microduck.Loop`, which counts every relea
 after its deadline. Nothing here states that a world keeps in force the action that a
 standing names.
 
-Operation in real time needs three more parts. The first is built for the Microduck's
-world:
+Operation in real time needs three more parts. The first and the third are built:
 
 - a driver of a host loop for a world on a wall clock, which reads the declared timing and
   counts a missed deadline as a fault: `microduck-host`
   ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
 - a bound of the work of each part of a step;
-- the exact save and restore of the agent. An exact saved image of the agent is
-  not part of the interface yet.
+- the exact save and restore of the agent: the [checkpoint](#checkpoints) holds every
+  field of the agent's state, and loading the bytes a save writes returns the state that
+  was saved (`CurrentCheckpoint.load_saved`).
 
 The agent adds its own prediction feedback words, one per prediction question, on
 consecutive channels from the one the interface declares. A frame cannot carry a
@@ -398,11 +398,14 @@ every grid frame.
 grid instance with the agent as it was composed directly over the host observation.
 They keep that composition as a frozen reference that no executing module imports:
 the definitions of commit `d3bc6e0` for construction, the encoding frame, the local
-transition, the full decision, the host's step and restoration. `act_eq` and
+transition, the full decision and the host's step. `act_eq` and
 `callback_eq` state that, for every agent state, observation, reward word and
 achievement flag, the host's step returns the same action, decision and next state
-as the reference; `initial_eq` and `restore_eq` state the same for construction and
-restoration. The reference does not freeze the storage beneath the composition. The
+as the reference; `initial_eq` states the same for construction. Restoration has no
+frozen reference, since restoration is exact (`Agent.restore_exact`) and the restore of
+that commit started the option models, the off-policy questions, primitive credit, the
+rate schedule and every process-local reference afresh. The reference does not freeze the
+storage beneath the composition. The
 core types take the action count as a parameter that the grid sets to nine, where
 they held the constant nine before, and the reference calls the executed selection,
 option, model and planning definitions.
@@ -1451,6 +1454,55 @@ lean/.lake/build/bin/acorn-core demo --research-profile ranked --criterion disco
 Checkpoint files carry their learner criterion and must pass compatibility checks
 before restore. Changing the criterion does not convert an existing checkpoint.
 
+### Checkpoints
+
+A checkpoint file of format 19 holds the exact image of the agent: every field of its
+temporal state. That is the representation with its generator and tester state, every
+learner with its weights, log step sizes and transient registers, the option models,
+each option's off-policy questions and trajectory, the process-local references (the
+dispatch occupancy, the cached predictions and model values, the planning words, the
+deferred span, the action generator, the last decision and the recent feature sets),
+primitive credit, the gain, the rate schedule and every lifetime observation. A field
+that is a function of stored fields is computed again when the image is read: the
+step-size rails of each learner, the step size of each log step size, the projection
+bank, the position table of a ranked slot set, the slot flags of a question's preceding
+set and the settlement horizon of a prediction record. A learner's transient registers
+are stored at its eligible slots only, since every other slot of an admitted learner
+holds positive zero.
+
+Loading admits a file in two stages. The header must match the receiving construction:
+format generation, criterion, capacity and learner count, seed, tilings and bank size, the
+resumable profile and the step order (`Checkpoint.admitHeader_iff`). The body is then read
+as an image of the construction: every stored word in its own domain, every learner
+through the check of its invariant (`NumericState.resumable`, which decides the schedule
+invariant of its capacity theorem: `CurrentLearnerCheck.resumable_iff`), and the agent's
+two invariants. Nothing is projected or repaired. Loading the bytes that a save of a state
+writes returns that state, for every state of every construction of the resumable profile
+and every receiver (`CurrentCheckpoint.load_saved`, from `CurrentImage.imageFormat_exact`
+and `Checkpoint.roundtrip`); the byte layer is part of the proof, and native file IO, the
+runtime and the OS are trusted. A file of format 18 or earlier is refused with its
+generation word: it holds no option model, question, primitive credit, rate schedule or
+process-local reference, so no load of it could return the agent that was saved.
+
+A host begins a new session of the predictive-agreement evaluator after it loads a file:
+`Checkpoint.loadFile`, the one host path from a file to a running agent, returns the verdict of
+`Checkpoint.resume`, which is `load` followed by `AgentConstruction.State.beginSession`. The
+evaluator measures the forecasts of one process, as the [viewer](viewer-ux.md) labels it, and a
+session that ended at a process's exit records no forecast; a resumed state records forecasts
+again, including one saved after that exit (`CurrentCheckpoint.resume_records`). Every learned
+field is the saved agent's (`CurrentCheckpoint.resume_saved`). The writer refuses an image
+longer than the read limit of the construction (`maximumBytes`), so every file it writes
+can be read; the limit bounds each part of the image by its type and allows a fixed number
+of bytes (`naturalAllowance`) for each exact natural of the evaluator. No type bounds the
+four naturals of each channel's precision (the numerator and denominator of its tail and
+rounding ratios) or the two of each agreement point's ratio; the sum of each channel's total
+is bounded by its type, at most its count times the square of the channel's envelope
+(`Agreement.Total.bounded`), and the limit allows `naturalAllowance` bytes for it as for the
+other four. The save of every state whose evaluator naturals each fit that allowance fits the
+limit (`CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's naturals of every
+reached agent fit the allowance is an open obligation, part of the bounds of work and
+memory (requirement R8 of [#90](https://github.com/rbeauchamp/acorn/issues/90)).
+
 ### Planning selection
 
 The core accepts `--planning expectation` (the default) or `--planning none`
@@ -1491,17 +1543,26 @@ bytes only when the order word in their own header is the receiver's
 (`CurrentCheckpoint.saved_header`, `Checkpoint.loadCandidate_header`,
 `CurrentCheckpoint.saved_admitted_order`).
 
-These types hold no proof of an order, because the learner state and the durable
-image carry none. The order of a value is a fact about the code that made it, and
-no proof inside the value can state it. The order is a type index: a state, an
-image and a chosen value have the type of one construction, and a callback
-record has its order as an index, so two values of different orders do not meet
-by accident. No check stops a module of this project from making such a value. A
-private constructor stops the constructor notation and the constructor name in
-another module and does not stop a tactic; the constructors of the image and of
-the callback record are public. The checkpoint file has a checksum word and is
+A state of a construction holds a proof that the construction reaches its agent
+(`AgentConstruction.Reached`): the cold state, or the agent of an image that the
+construction's checkpoint loader admits from bytes, followed by the construction's own
+whole steps, the host's two observation writes, the censoring at process exit and the
+start of an evaluator session. A state of one construction is therefore not a state of
+another by a change of index: a relabel needs a proof that the other construction reaches
+the same agent. For an agent of another step history, such a proof goes through the other
+construction's loader. That loader admits the encoding of every agent's image under its
+own header (`CurrentCheckpoint.loader_reaches`), so the reachability does not close a
+relabel through the checkpoint: it closes the relabel in memory, and leaves the one through
+bytes that the other order's loader admits, which a save of the first order does not write
+(`CurrentCheckpoint.saved_admitted_order`). Under a profile that has no resumable image the
+loader admits no bytes (`CurrentCheckpoint.unresumable_unloaded`), so every state of such a
+construction is reached from the cold state by the construction's own operations. The image
+of a checkpoint carries no order: the order of an image is a fact about the code that made
+it. A private constructor stops the constructor notation and the constructor name in
+another module and does not stop a tactic; the constructors of the image and of the
+callback record are public. The checkpoint file has a checksum word and is
 not authenticated. An edit of its order word alone, to the word of another
-order, is refused by the loader of every construction of the file's dimension:
+order, is refused by the loader of every construction:
 the stored words of two orders differ in one byte, and the checksum separates
 two byte strings that differ in one byte (`CurrentCheckpoint.relabeled_unloaded`,
 `Rng.fnv_byte`). The same edit together with the checksum of the edited bytes is
@@ -1509,8 +1570,9 @@ admitted by the loader of the other order (`CurrentCheckpoint.relabeled_loaded`)
 `CurrentCheckpoint.saved_admitted_order` is about bytes that a save of this
 project wrote. The loader of a resumable construction accepts exactly the
 encodings of the payloads of that construction's images (`Decisions.candidate_load`):
-every codec of the format reads back only the bytes that it writes
-(`Checkpoint.decode_written`), and each admission keeps every word that it reads.
+the header codec and the frame read back only the bytes that they write
+(`Checkpoint.decode_written`), and every image format reads exactly the encodings of its
+values (`CurrentImage.imageFormat_exact`).
 
 Theorems say what a value under another index gives. A state gives the agent's
 step of that index's order on the same learner state
@@ -1523,7 +1585,7 @@ is copied under another index returns those three values unchanged. The
 resource counters that a loop also returns, which hold measured durations, and
 the observer's effects are outside these statements. That the copy changes the
 time of the world's transition is read from the two loops; it is argued and not
-machine-checked. For a profile that has a resumable image, the durable data of
+machine-checked. For a profile that has a resumable image, the agent image of
 an image, put under a construction of another order, is the image that this
 construction's loader returns for the first construction's payload with the
 order word replaced (`CurrentCheckpoint.relabeled_payload`,
@@ -1604,7 +1666,7 @@ these boundaries do not restart its learned weights.
 | `--attempts` | Maximum attempts per goal. |
 | `--goals` | Number of curriculum entries to visit per cycle; the standard curriculum has 13 entries. |
 | `--cycles` | Number of curriculum cycles; `0` continues until stopped. |
-| `--checkpoint PATH` | Load/save compatible learner state; supported for `ranked`. Omission keeps the terminal run in memory. |
+| `--checkpoint PATH` | Load/save the exact agent state of a [checkpoint](#checkpoints); supported for `ranked`. Omission keeps the terminal run in memory. |
 | `--csv PATH` | Stream attempt outcomes to a new [outcome CSV](#outcome-csv) file; cannot be combined with `--checkpoint`. |
 | `--baseline` | After the campaign, run the random-policy comparator over the same campaign and print both achieved counts; cannot be combined with `--control-stdin` or with `--cycles 0`: command admission refuses either before the agent runs. |
 

@@ -4,10 +4,10 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.FeatureConstants
-import Acorn.FeatureRestore
+import Acorn.FeatureRefresh
 
 /-!
-# Temporal references around feature retirement and cold restore
+# Temporal references around feature retirement
 
 The tester retains temporal predictions, active-option potential, occupancy,
 planner state and the pending meta gap in the current schedule. These are not
@@ -15,8 +15,8 @@ claimed to be fresh encodings of the replacement bank. A unit held as an option
 objective is replaced only at a free boundary, where every slot holding it is
 released and the next free boundary's assignment refresh installs an entrant; a live
 option therefore never loses its objective.
-New encoding frames are constructed against the current bank. Cold restore instead
-clears process state.
+New encoding frames are constructed against the current bank. A checkpoint image stores
+every reference (`Checkpoint.referencesFormat`).
 Activation, exploration and decision payloads are parametric because this slice
 does not interpret their later control/option algorithms.
 
@@ -385,16 +385,6 @@ theorem FeatureRuntime.retire_occupied {shape : PatchShape} {config : Config} {c
     exact unheld unit member
   unfold FeatureRuntime.retire
   simp only [occupied, Ensemble.releaseAll_unheld _ _ kept] <;> rfl
-
-/-- Cold installation resets every current process-local reference family. -/
-def FeatureRuntime.restore {shape : PatchShape} {config : Config} {criterion : Criterion}
-    {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
-    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
-    (image : FeatureImage actions config criterion dimension discounts) (emptyDecision : decision) :
-    FeatureRuntime shape actions config criterion dimension discounts activation exploration decision :=
-  ⟨⟨Representation.restore shape image.progress,
-      state.lifecycle.consumers.restore image.primary image.assignments⟩,
-    TemporalReferences.cold config discounts emptyDecision⟩
 
 /-- A materialized input is indexed by this receiver's current bank and observation. -/
 def FeatureRuntime.encodeCurrent {shape : PatchShape} {config : Config} {criterion : Criterion}
