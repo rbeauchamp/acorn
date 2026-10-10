@@ -51,11 +51,13 @@ follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
-library, and so are the results of the spawn search, the correspondence of the comparator with
+library, and so are the results of the spawn search and an accepted input of world generation,
+the correspondence of the comparator with
 the agent's attempt and the bounds
-of the comparator's campaigns. The accepted inputs of three host transitions and the two-way kind
-of `Host.Released.environment` are stated here because the observation of their inputs succeeds
-by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem proves.
+of the comparator's campaigns. The accepted inputs of the observation, of finishing and of the
+fold, and the two-way kind of `Host.Released.environment`, are stated here because the
+observation of their inputs succeeds by the terrain admission of `CurrentTerrain`. Each contract
+states only what its theorem proves.
 
 ## Statements that keep no kind
 
@@ -64,7 +66,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Fifteen functions of this module have a contract and no kind. The reasons are five. Two more,
+Sixteen functions of this module have a contract and no kind. The reasons are five. Two more,
 `Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
 their statements say what their results are.
 
@@ -80,10 +82,11 @@ their statements say what their results are.
   specifications quantify over agent images whose learners name the stored-word check
   `NumericState.resumable` that the admissions run.
 * The statement gives an accepted input of a host transition whose statement in
-  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish` and
-  `Host.Attempt.complete`. No theorem states which observations or
-  steps succeed, and a specification of the accepted inputs would name `Host.World.observe` or
-  `Host.World.step`, which run tests that these functions run.
+  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
+  `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
+  steps succeed or which configurations initialize, and a specification of the accepted inputs
+  would name `Host.World.observe`, `Host.World.step` or `Host.World.tileKind`, which run tests
+  that these functions run.
 * The statement relates the comparator to the agent's attempt, or bounds where a campaign ends
   unfinished: `Host.BaselineAttempt.tick`, `Host.runBaselineCampaign` and
   `Host.runRandomBaseline`. Their acceptance is the world step's or world generation's, and no
@@ -92,9 +95,7 @@ their statements say what their results are.
   refuses at campaign admission and on an unbounded plan.
 * The statement is about a result of the spawn search of world generation: `Host.countKindNear`,
   `Host.considerSpawn` and `Host.selectSpawn`. A specification of their accepted inputs would
-  name `Host.World.tileKind`, which runs tests that they run. The count and the rule each carry
-  an accepted input; no theorem states that the search returns a spawn
-  (https://github.com/rbeauchamp/acorn/issues/125).
+  name `Host.World.tileKind`, which runs tests that they run. Each carries an accepted input.
 
 Kinds for the functions of the first two reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
@@ -1539,7 +1540,20 @@ theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBasel
 /-! ## The spawn search of world generation
 
 The theorems of `AcornVerif.CurrentSpawn` state what a successful count, a successful application
-of the spawn rule and a successful spawn search return. -/
+of the spawn rule and a successful spawn search return. Each statement below also gives an
+accepted input, so a function that refuses every input fails it, and `world_initial_accepts`
+gives one of world generation.
+
+The search and world generation accept the configuration `oneTile`: a box of one tile, no deer
+and the noise scale one. The spiral of its box has one candidate, the center of the box, and the
+rule there counts the trees and the stone within four tiles and reads the kind of the center.
+Each of the eighty-one tiles within four tiles of the center translates inside the signed range,
+and the quotients of its coordinates, `-4` to `4`, by the four octave scales of the noise scale
+are not past the last coordinate, so the value noise admits the tile
+(`CurrentTerrain.tileKind_isOk`). The kernel evaluates those quotients, of nine coordinates by
+four scales, and not the terrain. A loop over a range in `Except` succeeds where every pass
+succeeds (`forIn_range_isOk`), which carries the success of each pass through the loops of the
+count and of the search. The placement of the deer runs no pass at the deer cap zero. -/
 
 /-- A successful count of a kind near a position is the number of tiles of that kind among the
 `(2 r + 1) × (2 r + 1)` tiles within `r` of the position (`CurrentSpawn.countKindNear_eq`). The
@@ -1577,25 +1591,192 @@ theorem spawn_consider : Regula.ExecutableContract @Host.considerSpawn (fun cons
       CurrentSpawn.considerSpawn_outcome world x y best selected finished considered,
     ⟨wide, Host.World.empty wide, -1, 0, none, by decide +kernel⟩⟩⟩
 
+/-- A bind succeeds where its first part succeeds and its rest succeeds on every value. -/
+private theorem bind_isOk {ε α β : Type} (first : Except ε α) (rest : α → Except ε β)
+    (accepted : first.isOk = true) (each : ∀ value, (rest value).isOk = true) :
+    (first >>= rest).isOk = true := by
+  obtain ⟨value, same⟩ := ok_of_isOk accepted
+  rw [same]
+  exact each value
+
+/-- A loop over a list of consecutive indices in `Except` succeeds where every pass at an index
+below the bound succeeds. -/
+private theorem forIn_range'_isOk {ε σ : Type} (count : Nat)
+    (body : Nat → σ → Except ε (ForInStep σ))
+    (each : ∀ index state, index < count → (body index state).isOk = true) :
+    ∀ (remaining start : Nat) (init : σ), start + remaining = count →
+      (forIn (List.range' start remaining 1) init body).isOk = true
+  | 0, start, init, _ => by simp [Except.isOk, Except.toBool, pure, Except.pure]
+  | remaining + 1, start, init, total => by
+    rw [List.range'_succ, List.forIn_cons]
+    obtain ⟨next, taken⟩ := ok_of_isOk (each start init (by omega))
+    rw [taken]
+    cases next with
+    | done after => rfl
+    | yield after =>
+      exact forIn_range'_isOk count body each remaining (start + 1) after (by omega)
+
+/-- A loop over a range in `Except` succeeds where every pass succeeds. -/
+private theorem forIn_range_isOk {ε σ : Type} (count : Nat) (init : σ)
+    (body : Nat → σ → Except ε (ForInStep σ))
+    (each : ∀ index state, index < count → (body index state).isOk = true) :
+    (forIn [:count] init body).isOk = true := by
+  rw [Std.Legacy.Range.forIn_eq_forIn_range']
+  have size : ([:count] : Std.Legacy.Range).size = count := by simp [Std.Legacy.Range.size]
+  rw [size]
+  exact forIn_range'_isOk count body each count 0 init (by omega)
+
+/-- A count of a kind near a position succeeds where every tile of its square translates inside
+the signed range and the world accepts its kind. -/
+private theorem countKindNear_isOk {config : Host.WorldConfig} (world : Host.World config)
+    (position : Host.Position) (radius : Nat) (kind : Host.TileKind)
+    (tiles : ∀ row column, row < 2 * radius + 1 → column < 2 * radius + 1 → ∃ tile,
+      position.translate ((column : Int) - radius) ((row : Int) - radius) = some tile ∧
+        (world.tileKind tile).isOk = true) :
+    (Host.countKindNear world position radius kind).isOk = true := by
+  unfold Host.countKindNear
+  dsimp only
+  refine bind_isOk _ _ ?_ fun _ => rfl
+  refine forIn_range_isOk _ _ _ fun row state rowBound => ?_
+  refine bind_isOk _ _ ?_ fun _ => rfl
+  refine forIn_range_isOk _ _ _ fun column count columnBound => ?_
+  obtain ⟨tile, translated, kinded⟩ := tiles row column rowBound columnBound
+  obtain ⟨found, located⟩ := ok_of_isOk kinded
+  simp only [translated, located, bind, Except.bind]
+  split <;> rfl
+
+/-- A world configuration whose box is one tile, with no deer and the noise scale one. -/
+def oneTile : Host.WorldConfig :=
+  ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+
+/-- Each coordinate from `-4` to `4` has a quotient by each octave scale of the noise scale one
+that is not past the last coordinate. The kernel evaluates the thirty-six quotients. -/
+private theorem near_admits : ∀ offset : Fin 9, ∀ octave : Fin 4,
+    ¬CurrentTerrain.PastLast
+      ((Host.coordinateFloatWord (Int64.ofInt ((offset.val : Int) - 4))).div
+        (CurrentTerrain.octaveScale ⟨0x3f800000⟩ octave.val)) := by
+  decide +kernel
+
+/-- Every tile within four tiles of the center of the box of `oneTile` translates inside the
+signed range, and the empty world of `oneTile` accepts its kind (`near_admits`). -/
+private theorem center_square : ∀ row column : Nat, row < 9 → column < 9 → ∃ tile,
+    (Host.BoxPosition.center oneTile).position.translate ((column : Int) - (4 : Nat))
+        ((row : Int) - (4 : Nat)) = some tile ∧
+      ((Host.World.empty oneTile).tileKind tile).isOk = true := by
+  intro row column rowBound columnBound
+  refine ⟨⟨⟨(column : Int) - 4, by omega⟩, ⟨(row : Int) - 4, by omega⟩⟩,
+    CurrentCertificates.translate_of_eq _ _ _ _ ?_ ?_, ?_⟩
+  · change (column : Int) - 4 = (0 : Int) + ((column : Int) - (4 : Nat))
+    omega
+  · change (row : Int) - 4 = (0 : Int) + ((row : Int) - (4 : Nat))
+    omega
+  · exact (CurrentTerrain.tileKind_isOk _ _).mpr fun octave below =>
+      ⟨near_admits ⟨column, columnBound⟩ ⟨octave, below⟩,
+        near_admits ⟨row, rowBound⟩ ⟨octave, below⟩⟩
+
+/-- The empty world of `oneTile` accepts the kind of the center of its box (`near_admits`). -/
+private theorem center_kind :
+    ((Host.World.empty oneTile).tileKind (Host.BoxPosition.center oneTile).position).isOk =
+      true :=
+  (CurrentTerrain.tileKind_isOk _ _).mpr fun octave below =>
+    ⟨near_admits ⟨4, by decide⟩ ⟨octave, below⟩, near_admits ⟨4, by decide⟩ ⟨octave, below⟩⟩
+
+/-- The spawn rule succeeds at the center of the box of `oneTile`, whatever the best candidate
+so far: both counts within four tiles and the kind of the center succeed. -/
+private theorem consider_center (best : Option (Host.SpawnCandidate oneTile)) :
+    (Host.considerSpawn (Host.World.empty oneTile) 0 0 best).isOk = true := by
+  unfold Host.considerSpawn
+  have checked : Host.BoxPosition.checked oneTile 0 0 = some (Host.BoxPosition.center oneTile) :=
+    rfl
+  simp only [checked]
+  refine bind_isOk _ _ (countKindNear_isOk _ _ _ _ center_square) fun _ => ?_
+  refine bind_isOk _ _ (countKindNear_isOk _ _ _ _ center_square) fun _ => ?_
+  refine bind_isOk _ _ center_kind fun _ => ?_
+  split <;> rfl
+
+/-- The spawn search succeeds in the empty world of `oneTile`: its spiral has the radius zero
+and the offset zero alone, whose candidate is the center of the box (`consider_center`). -/
+private theorem select_oneTile : (Host.selectSpawn (Host.World.empty oneTile)).isOk = true := by
+  unfold Host.selectSpawn
+  dsimp only
+  refine bind_isOk _ _ ?_ fun _ => ?_
+  · refine forIn_range_isOk _ _ _ fun radius state radiusBound => ?_
+    refine bind_isOk _ _ ?_ fun _ => ?_
+    · refine forIn_range_isOk _ _ _ fun direction state _ => ?_
+      refine bind_isOk _ _ ?_ fun _ => ?_
+      · refine forIn_range_isOk _ _ _ fun offset state offsetBound => ?_
+        have side : oneTile.side = 1 := rfl
+        have radiusZero : radius = 0 := by rw [side] at radiusBound; omega
+        subst radiusZero
+        have offsetZero : offset = 0 := by omega
+        subst offsetZero
+        have column : Host.Coordinate.checked
+            (((oneTile.side / 2 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
+                ((0 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
+                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = some ⟨0, by decide⟩ := by
+          simp only [side, Nat.cast_zero, mul_zero, sub_self, add_zero]
+          rfl
+        have row : Host.Coordinate.checked
+            (((oneTile.side / 2 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
+                ((0 : Nat) : Int) +
+              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
+                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = some ⟨0, by decide⟩ := by
+          simp only [side, Nat.cast_zero, mul_zero, sub_self, add_zero]
+          rfl
+        rw [column, row]
+        dsimp only
+        refine bind_isOk _ _ (consider_center _) fun _ => ?_
+        split <;> rfl
+      · split <;> rfl
+    · split <;> rfl
+  · split <;> rfl
+
+/-- The placement of the deer succeeds in the empty world of `oneTile`: at the deer cap zero its
+loop runs no pass. -/
+private theorem deer_oneTile : (Host.initializeDeer (Host.World.empty oneTile)).isOk = true := by
+  unfold Host.initializeDeer
+  dsimp only
+  refine bind_isOk _ _ (forIn_range_isOk _ _ _ fun index _ bound => ?_) fun _ => rfl
+  exact absurd bound (Nat.not_lt_zero index)
+
 /-- A spawn that the search returns is a walkable tile whose trees plus stone within four tiles
 are at least two; or no tile of the box is rich, and the spawn is a walkable tile whose score no
 scored candidate of the box exceeds, or the center of the box when no tile is walkable
-(`CurrentSpawn.selectSpawn_post`).
+(`CurrentSpawn.selectSpawn_post`). The search accepts the empty world of `oneTile`
+(`select_oneTile`).
 
-The statement keeps no kind, and it fixes one direction: no theorem states that the search
-returns a spawn for any world, so a function that refuses every world satisfies it too; the
-accepted input of `Host.World.initial` needs the same fact
-(https://github.com/rbeauchamp/acorn/issues/125). -/
+The statement keeps no kind, for the reason that `spawn_count` states: the search applies the
+rule to each candidate of its spiral. -/
 theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =>
-    ∀ {config} (world : Host.World config) (spawn : Host.BoxPosition config),
+    (∀ {config} (world : Host.World config) (spawn : Host.BoxPosition config),
       select world = .ok spawn →
         CurrentSpawn.Exited world spawn ∨
           ((∀ tile, ¬CurrentSpawn.Rich world tile) ∧
             ((∃ chosen, CurrentSpawn.Scored world chosen ∧ chosen.position = spawn ∧
                 ∀ other, CurrentSpawn.Scored world other → other.score ≤ chosen.score) ∨
               (spawn = Host.BoxPosition.center config ∧
-                ∀ tile, ¬CurrentSpawn.Walkable world tile)))) :=
-  ⟨fun world spawn selected => CurrentSpawn.selectSpawn_post world spawn selected⟩
+                ∀ tile, ¬CurrentSpawn.Walkable world tile)))) ∧
+      ∃ (config : Host.WorldConfig) (world : Host.World config), (select world).isOk = true) :=
+  ⟨⟨fun world spawn selected => CurrentSpawn.selectSpawn_post world spawn selected,
+    ⟨oneTile, Host.World.empty oneTile, select_oneTile⟩⟩⟩
+
+/-- World generation accepts the configuration `oneTile`: its spawn search succeeds
+(`select_oneTile`), and at the deer cap zero the placement of the deer runs no pass
+(`deer_oneTile`). `Acorn.Decisions.world_initial` states what an initial world holds and keeps
+no kind for the reason given there; this statement is a requirement with no kind beside it, and
+a function that refuses every configuration fails it.
+
+**Not claimed:** which other configurations initialize, or that the spawn search returns a spawn
+for every seed. -/
+theorem world_initial_accepts : Regula.ExecutableContract Host.World.initial (fun initial =>
+    (initial oneTile).isOk = true) :=
+  ⟨by
+    unfold Host.World.initial
+    dsimp only
+    exact bind_isOk _ _ select_oneTile fun _ => bind_isOk _ _ deer_oneTile fun _ => rfl⟩
 
 /-! ## Learner admissions -/
 

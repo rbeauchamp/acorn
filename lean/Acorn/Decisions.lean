@@ -5487,13 +5487,14 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
 The transitions of an attempt and of the world refuse where the world refuses an observation or
 a step, the ANSI tick also where its step counter overflows, and initialization refuses where
 the spawn search or the placement of the deer refuses. No theorem states which observations or
-steps succeed, or that the spawn search returns a spawn, and a specification that names
-`Host.World.observe` or `Host.World.step` reaches tests that these functions run, so each keeps
-a requirement with no kind. `AcornVerif.Decisions` states an accepted input of the observation,
-of finishing and of the fold, each at the attempt `fresh`, and `ansi_tick_accepts` here states
-one of the ANSI tick. `Host.Released.environment` keeps a requirement with no kind for another
-reason: its two-way kind is stated in `AcornVerif.Decisions`, and Regula does not count a kind
-of the proof library toward a registration (https://github.com/rbeauchamp/regula/issues/271). -/
+steps succeed, or that the spawn search returns a spawn for every seed, and a specification that
+names `Host.World.observe` or `Host.World.step` reaches tests that these functions run, so each
+keeps a requirement with no kind. `AcornVerif.Decisions` states an accepted input of the
+observation, of finishing and of the fold, each at the attempt `fresh`, and of initialization, at
+a configuration of one tile, and `ansi_tick_accepts` here states one of the ANSI tick.
+`Host.Released.environment` keeps a requirement with no kind for another reason: its two-way kind
+is stated in `AcornVerif.Decisions`, and Regula does not count a kind of the proof library toward
+a registration (https://github.com/rbeauchamp/regula/issues/271). -/
 
 /-- The transition result of a release is the environment of an accepted release, and the
 refusal of a refused one, with the stage it kept dropped.
@@ -5788,9 +5789,9 @@ no harvest (`Host.World.initial_fields`).
 
 The statement keeps no kind. Initialization refuses where the spawn search or the placement of
 the deer refuses, and that the spawn search returns a spawn for every seed is not proved
-(`docs/design.md`, "What the world guarantees"). The statement fixes one direction, and its
-non-vacuity is not proved: no theorem states a configuration that initializes, so a function
-that refuses every configuration satisfies it (https://github.com/rbeauchamp/acorn/issues/125).
+(`docs/design.md`, "What the world guarantees").
+`AcornVerif.Decisions.world_initial_accepts` states an accepted input: the configuration
+`AcornVerif.Decisions.oneTile`, of one tile, with no deer and the noise scale one.
 
 **Not claimed:** which configurations initialize, or the spawn and the deer of an initial
 world. -/

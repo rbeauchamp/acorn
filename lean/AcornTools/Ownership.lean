@@ -531,6 +531,7 @@ def anchors : Array (Name × Name × Name) := #[
   (`AcornVerif.Decisions, `AcornVerif.Decisions.spawn_count, `Acorn.Host.countKindNear),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.spawn_consider, `Acorn.Host.considerSpawn),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.spawn_select, `Acorn.Host.selectSpawn),
+  (`AcornVerif.Decisions, `AcornVerif.Decisions.world_initial_accepts, `Acorn.Host.World.initial),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.agent_input_edges,
     `Acorn.Handcrafted.Agent.input),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.execute_prefix,
