@@ -382,7 +382,8 @@ structure DemonStats (discount : Discount) where
   /-- Compute the immutable settlement horizon once, with its exact owner linkage. -/
   settleAfter : { value : Fin (maxSettlement + 1) // value = settlementHorizon discount }
 
-/-- Restore only durable observations; process-local futures begin empty. -/
+/-- Statistics rebuilt from a durable record, for an initial state or a new evaluator session:
+the record is kept, and the pending returns and the evaluator channel begin empty. -/
 def DemonStats.restore {discount : Discount} (durable : DemonDurable discount) : DemonStats discount :=
   ⟨durable, Vector.replicate _ none, Agreement.Channel.empty discount, ⟨settlementHorizon discount, rfl⟩⟩
 
@@ -662,19 +663,21 @@ def DemonRecords.durable {discounts : List Discount} : DemonRecords discounts �
   | .nil => .nil
   | .cons head tail => .cons head.durable tail.durable
 
-/-- Restore the durable channel values with every pending bank empty. -/
+/-- Rebuild prediction records from their durable projection, with every pending bank and
+evaluator channel empty, as a new evaluator session does (`Agent.beginSession`). -/
 def DurableDemons.restore {discounts : List Discount} : DurableDemons discounts → DemonRecords discounts
   | .nil => .nil
   | .cons head tail => .cons (DemonStats.restore head) tail.restore
 
-/-- Censoring cannot alter any checkpoint-persistent prediction statistic. -/
+/-- Censoring alters no field of the durable prediction projection. -/
 theorem DemonRecords.censor_durable {discounts : List Discount} (state : DemonRecords discounts) :
     state.censor.durable = state.durable := by
   induction state with
   | nil => rfl
   | cons head tail ih => simp [DemonRecords.censor, DemonRecords.durable, DemonStats.censor, ih]
 
-/-- Cold restoration preserves every durable prediction field. -/
+/-- Rebuilding the records from their durable projection, as a new evaluator session does
+(`Agent.beginSession`), preserves every durable prediction field. -/
 theorem DurableDemons.restore_durable {discounts : List Discount} (state : DurableDemons discounts) :
     state.restore.durable = state := by
   induction state with
@@ -705,13 +708,15 @@ def Stats.durable {discounts : List Discount} (state : Stats discounts) : Durabl
   ⟨state.reward, state.rewardByFamily, state.rewardHistory, state.demons.durable,
     state.errorHistory, state.options, state.goals, state.goalCycles⟩
 
-/-- Clear every process-local pending sample and retain the complete durable record. -/
+/-- Lifetime observations rebuilt from their durable projection, as a new evaluator session does
+(`Agent.beginSession`): the durable record is kept, and every pending sample and the evaluator's
+session fields begin empty. -/
 def Durable.restore {discounts : List Discount} (state : Durable discounts) : Stats discounts :=
   ⟨state.reward, state.rewardByFamily, state.rewardHistory, state.demons.restore,
     state.errorHistory, state.options, state.goals, state.goalCycles,
     none, Vector.replicate _ none, none, false⟩
 
-/-- Durable restoration preserves the complete projection, for every admitted record. -/
+/-- Rebuilding from the durable projection preserves the complete projection, for every record. -/
 theorem Durable.restore_durable {discounts : List Discount} (state : Durable discounts) :
     state.restore.durable = state := by
   cases state

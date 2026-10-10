@@ -509,11 +509,12 @@ Rules that apply to every number, label and colour on the page.
   The archive retains the available checkpoint and logs; successful final
   saving preserves knowledge at the completed attempt boundary. Refusal or
   write failure can leave only an older checkpoint or none, so restoring an
-  archive recovers only its successfully persisted knowledge, with the
-  documented cold transient boundary. Archiving and reseeding are
-  inseparable: a checkpoint records its seed, so reseeding without archiving
-  would make the core refuse the file and disarm saving — a run that neither
-  loads nor saves — and fused into one operation that state is unreachable.
+  archive recovers the agent state exactly as last successfully saved; the
+  world restarts and the evaluator begins a new session, as UX-22 says.
+  Archiving and reseeding are inseparable: a checkpoint records its seed, so
+  reseeding without archiving would make the core refuse the file and disarm
+  saving — a run that neither loads nor saves — and fused into one operation
+  that state is unreachable.
   Clear returns to the run state it found: pressed while running the agent
   comes back running; pressed while stopped it stays stopped and says
   `cleared; still stopped, as it was before`. Clear reaches the browser: on
