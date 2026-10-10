@@ -26,8 +26,9 @@ counts each loop as the passes of its runtime implementation, with one visit for
 end. Read as the work of the executed first part, they rest on two correspondences that no
 theorem checks. The learner's part is the work of the executed learner, whose definitions are
 the values of their costed definitions, under the cost discipline of `Acorn.Cost`: every value
-passed to `Costed.pure`, `Costed.op` or `Costed.replicate` is computed without a loop and
-without a costed definition, which is checked by reading until rbeauchamp/regula#333 checks it.
+a costed definition passes in, the uncosted entry points that `Acorn.Cost` lists, is computed
+without a loop and without a costed definition, which is checked by reading until
+rbeauchamp/regula#333 checks it.
 The other parts, the encoding and selection among them, are twins (`AcornVerif.Resource.Work`)
 whose loops and charges follow the executed definitions by reading.
 

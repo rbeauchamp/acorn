@@ -26,16 +26,19 @@ variable {dimension : Dimension} {criterion : Criterion} {count : Word.Count}
 
 /-! ## Active sets of the models -/
 
-/-- Twin of `insert`: the membership scan of the active set and its copy for the append. -/
+/-- Twin of `insert`: the membership test of the active set, then the append. -/
 def insert (κ : Costs) (active : SwiftTd.ActiveSet dimension) (index : FeatIdx dimension) :
     Costed (SwiftTd.ActiveSet dimension) :=
-  Costed.charge (κ .insert)
-    (Costed.scanList 3 (κ .visit + κ .compare) active.indices (Features.insert active index))
+  Costed.charge (κ .insert) (do
+    Costed.discard (Costed.scanList .contains (κ .visit + κ .compare) active.indices
+      (decide (index ∈ active.indices)))
+    Costed.scanList .append (κ .visit) active.indices (Features.insert active index))
 
 theorem insert_work (κ : Costs) (active : SwiftTd.ActiveSet dimension)
     (index : FeatIdx dimension) :
-    (insert κ active index).work =
-      κ .insert + 3 * bare (κ .visit + κ .compare) active.indices.length :=
+    (insert κ active index).work = κ .insert +
+      (Library.contains.passes * bare (κ .visit + κ .compare) active.indices.length +
+        Library.append.passes * bare (κ .visit) active.indices.length) :=
   rfl
 
 /-- The costed composition of `modelInput`: nothing, or the age slot inserted. -/
@@ -57,7 +60,8 @@ def modelInput (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet di
 
 /-- Bound of a model input over `width` features. -/
 abbrev inputBound (κ : Costs) (width : Nat) : Nat :=
-  κ .insert + 3 * bare (κ .visit + κ .compare) width
+  κ .insert + (Library.contains.passes * bare (κ .visit + κ .compare) width +
+    Library.append.passes * bare (κ .visit) width)
 
 theorem modelInput_work (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) :
@@ -93,7 +97,7 @@ theorem rankedActive_work (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     (rankedActive κ ranked features).work ≤
       pass (κ .visit) features.indices.length (κ .position) +
-        bare (κ .visit) features.indices.length :=
+        (Library.filterMap.passes - 1) * bare (κ .visit) features.indices.length :=
   Costed.filterMap_work_le _ _ _ _ fun _ _ => Nat.le_refl _
 
 /-- Twin of `RankedFeatures.input`: the active positions and the bias appended. -/
@@ -109,15 +113,20 @@ theorem rankedInput_val (κ : Costs) (ranked : RankedFeatures dimension)
 
 /-- Bound of a row input over `width` features. -/
 abbrev rowInputBound (κ : Costs) (width : Nat) : Nat :=
-  (pass (κ .visit) width (κ .position) + bare (κ .visit) width) +
+  (pass (κ .visit) width (κ .position) + (Library.filterMap.passes - 1) * bare (κ .visit) width) +
     (κ .rankWidth + inputBound κ width)
 
 theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     (rankedInput κ ranked features).work ≤ rowInputBound κ features.indices.length := by
-  have scaled : bare (κ .visit + κ .compare) (rankedActive κ ranked features).val.indices.length ≤
-      bare (κ .visit + κ .compare) features.indices.length :=
-    bare_mono (ranked.active_length features)
+  have tested : Library.contains.passes *
+        bare (κ .visit + κ .compare) (rankedActive κ ranked features).val.indices.length ≤
+      Library.contains.passes * bare (κ .visit + κ .compare) features.indices.length :=
+    Nat.mul_le_mul_left _ (bare_mono (ranked.active_length features))
+  have appended : Library.append.passes *
+        bare (κ .visit) (rankedActive κ ranked features).val.indices.length ≤
+      Library.append.passes * bare (κ .visit) features.indices.length :=
+    Nat.mul_le_mul_left _ (bare_mono (ranked.active_length features))
   unfold rankedInput
   refine Nat.le_trans (Costed.bind_work_le_at (rankedActive_work κ ranked features)
     (Costed.charge_work_le (Nat.le_of_eq (insert_work κ _ (RankedFeatures.bias dimension))))) ?_
@@ -127,7 +136,7 @@ theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
 /-- Twin of `RankedFeatures.occupied`: the positions listed, then one read for each. -/
 def occupied (κ : Costs) (ranked : RankedFeatures dimension) :
     Costed (List (RankIdx dimension × FeatIdx dimension)) := do
-  let positions ← Costed.charge (κ .rankWidth) (Costed.scanList 1 (κ .visit)
+  let positions ← Costed.charge (κ .rankWidth) (Costed.scanList .finRange (κ .visit)
     (List.finRange (rankDimension dimension).capacity)
     (List.finRange (rankDimension dimension).capacity))
   Costed.filterMap (κ .visit)
@@ -140,7 +149,8 @@ theorem occupied_val (κ : Costs) (ranked : RankedFeatures dimension) :
 
 /-- Bound of the occupied positions of a ranking of `width` positions. -/
 abbrev occupiedBound (κ : Costs) (width : Nat) : Nat :=
-  κ .rankWidth + bare (κ .visit) width + (pass (κ .visit) width (κ .read) + bare (κ .visit) width)
+  κ .rankWidth + Library.finRange.passes * bare (κ .visit) width +
+    (pass (κ .visit) width (κ .read) + (Library.filterMap.passes - 1) * bare (κ .visit) width)
 
 theorem occupied_work (κ : Costs) (ranked : RankedFeatures dimension) :
     (occupied κ ranked).work ≤ occupiedBound κ (rankDimension dimension).capacity := by
@@ -169,7 +179,7 @@ theorem indicator_val (κ : Costs) (ranked : RankedFeatures dimension)
 
 /-- Bound of an indicator over `width` features and `positions` ranked positions. -/
 abbrev indicatorBound (κ : Costs) (width positions : Nat) : Nat :=
-  (pass (κ .visit) width (κ .position) + bare (κ .visit) width) +
+  (pass (κ .visit) width (κ .position) + (Library.filterMap.passes - 1) * bare (κ .visit) width) +
     (κ .rankWidth + bare (κ .visit) positions) + pass (κ .visit) width (κ .write)
 
 theorem indicator_work (κ : Costs) (ranked : RankedFeatures dimension)
@@ -424,7 +434,7 @@ theorem predict_work (κ : Costs) (model : Model dimension criterion)
 theorem secondLoopBound_mono (κ : Costs) {width limit : Nat} (fits : width ≤ limit) :
     secondLoopBound κ width ≤ secondLoopBound κ limit := by
   have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
-  have := bare_mono (visit := κ .visit) fits
+  have := Nat.mul_le_mul_left (Library.map.passes - 1) (bare_mono (visit := κ .visit) fits)
   have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
   have := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .secondElement))
   simp only [secondLoopBound]

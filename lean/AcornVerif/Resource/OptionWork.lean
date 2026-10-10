@@ -86,7 +86,7 @@ def interestPotentialRun (κ : Costs) (interest : Interest config)
     Costed (Option Potential) :=
   match interest with
   | .learned assignment => Costed.charge (κ .assignmentPotential)
-      (Costed.scanList 1 (κ .visit + κ .compare) features.indices
+      (Costed.scanList .contains (κ .visit + κ .compare) features.indices
         (some (assignment.potential features)))
   | .declared origin tag => Costed.op (κ .declaredPotential)
       (if origin = declared.origin then some (declared.values.get tag) else none)
@@ -106,7 +106,8 @@ def interestPotential (κ : Costs) (interest : Interest config)
 
 /-- Bound of a potential over `width` features. -/
 abbrev potentialBound (κ : Costs) (width : Nat) : Nat :=
-  κ .assignmentPotential + bare (κ .visit + κ .compare) width + κ .declaredPotential
+  κ .assignmentPotential + Library.contains.passes * bare (κ .visit + κ .compare) width +
+    κ .declaredPotential
 
 theorem interestPotential_work (κ : Costs) (interest : Interest config)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :

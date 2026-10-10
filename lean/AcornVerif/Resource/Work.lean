@@ -25,24 +25,15 @@ it becomes the value of its costed definition, as the learner did.
 **Loops.** A **pass** over `count` elements is charged a visit for the loop's control and the
 work of the visit's operation for each element, and one visit for its end, the final test and
 branch (`pass`, `bare`). Each loop combinator below has as its value the library loop applied to
-the values of its parts, and as its work the passes that loop's runtime implementation makes: one
-for `List.foldl`, `Array.foldl`, `Vector.map`, `Vector.ofFn` and `Vector.mapFinIdx`; for
-`List.map` a second for the reversal of `List.mapTR`; for `List.filterMap` a second for the
-`Array.toList` of `List.filterMapTR`; for `List.flatMap` the end of the `Array.toList` of
-`List.flatMapTR`, whose copies the operation's work counts. A loop's bound is therefore its trip
-count times a bound of one visit, and one visit for each end (`foldl_work_le`, `mapWork_le`,
-`ofFn_work_le`).
+the values of its parts, and as its work the passes of that loop's runtime implementation, read
+from the table `Acorn.Library`: its first pass carries the operations, and each further pass is
+bare. A loop's bound is therefore its trip count times a bound of one visit, and one visit for
+each end (`foldl_work_le`, `mapWork_le`, `ofFn_work_le`).
 
-**Scans.** A library function whose every visit is constant work is a **scan**, charged its
-number of passes over the collection it names (`scanList`, `scanArray`, `scanVector`). The
-number is the passes of its runtime implementation, read from the library: one for
-`List.length`, `List.contains`, `List.range`, `List.finRange`, `List.toArray`, `Array.toList`,
-`Vector.toList`, `List.reverse` and the equality of vectors; two for `List.filter`
-(`List.filterTR`: a loop and a reversal), `++` (`List.appendTR`: a reversal of the first list and
-`List.reverseAux` over it), `List.dropLast` (`List.dropLastTR`: `List.toArray` and
-`Array.toList`), `List.zipIdx` (`List.zipIdxTR`) and `List.sum` (`List.foldrTR`: `List.toArray`
-and `Array.foldr`); three for `Features.insert` (a membership test and `++`). Each scan states
-its passes where it is used, and a vector of one repeated element is one pass (`replicate`).
+**Scans.** A library function whose every visit is constant work is a **scan**, charged the
+passes the table states for it over the collection it names (`scanList`, `scanArray`,
+`scanVector`). Each scan names its row of the table where it is used, so each count is stated
+once.
 
 **What is counted.** Each loop visit is charged `visit`, and each stretch of constant work is
 charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost model assigns its
@@ -283,17 +274,32 @@ theorem mapWork_le (visit bound : Nat) (operation : α → Costed β) (items : L
   Nat.add_le_add_right
     (sum_map_le items _ _ fun item member => Nat.add_le_add_left (each item member) _) visit
 
-/-- A map over a list: the loop of `List.mapTR` and its reversal. -/
+/-- A map over a list: the loop of `List.mapTR`, then its further passes (`Acorn.Library.map`). -/
 @[reducible] def map (visit : Nat) (operation : α → Costed β) (items : List α) :
     Costed (List β) :=
   ⟨items.map fun item => (operation item).val,
-    mapWork visit operation items + bare visit items.length⟩
+    mapWork visit operation items + (Acorn.Library.map.passes - 1) * bare visit items.length⟩
 
 /-- A map's work, by the bound of each operation. -/
 theorem map_work_le (visit bound : Nat) (operation : α → Costed β) (items : List α)
     (each : ∀ item ∈ items, (operation item).work ≤ bound) :
-    (map visit operation items).work ≤ pass visit items.length bound + bare visit items.length :=
+    (map visit operation items).work ≤
+      pass visit items.length bound + (Acorn.Library.map.passes - 1) * bare visit items.length :=
   Nat.add_le_add_right (mapWork_le visit bound operation items each) _
+
+/-- The elements of a list that pass a costed test, as `List.filter`: the loop of
+`List.filterTR` with each test, then its further passes (`Acorn.Library.filter`). -/
+@[reducible] def filter (visit : Nat) (test : α → Costed Bool) (items : List α) :
+    Costed (List α) :=
+  ⟨items.filter fun item => (test item).val,
+    mapWork visit test items + (Acorn.Library.filter.passes - 1) * bare visit items.length⟩
+
+/-- A filter's work, by the bound of each test. -/
+theorem filter_work_le (visit bound : Nat) (test : α → Costed Bool) (items : List α)
+    (each : ∀ item ∈ items, (test item).work ≤ bound) :
+    (filter visit test items).work ≤
+      pass visit items.length bound + (Acorn.Library.filter.passes - 1) * bare visit items.length :=
+  Nat.add_le_add_right (mapWork_le visit bound test items each) _
 
 /-- A map over a vector, visiting its elements in order in one pass. -/
 @[reducible] def mapVector {count : Nat} (visit : Nat) (operation : α → Costed β)
@@ -321,9 +327,9 @@ theorem ofFn_work_le {count : Nat} (visit bound : Nat) (operation : Fin count �
     (fun index _ => each index)
   simpa only [List.length_finRange] using counted
 
-/-- A map whose results are concatenated, as `List.flatMap`: one pass, and the end of the
-`Array.toList` of `List.flatMapTR`. The operation's work includes the copy of its result into
-the concatenation and the read of each copied element into the result list. -/
+/-- A map whose results are concatenated, as `List.flatMap`: one pass over the list
+(`Acorn.Library.flatMap`), and the end of the `Array.toList` of `List.flatMapTR`. The
+operation's work counts the elements of its result (`Acorn.Library.flatMapResult`). -/
 @[reducible] def flatMap (visit : Nat) (operation : α → Costed (List β)) (items : List α) :
     Costed (List β) :=
   ⟨items.flatMap fun item => (operation item).val, mapWork visit operation items + visit⟩
@@ -347,18 +353,19 @@ theorem mapFinIdx_work_le {count : Nat} (visit bound : Nat)
   simp only [List.length_finRange] at counted
   exact Nat.add_le_add_right counted visit
 
-/-- A filtering map over a list: the loop of `List.filterMapTR` and the `Array.toList` of the
-kept elements, at most one for each element. -/
+/-- A filtering map over a list: the loop of `List.filterMapTR`, then its further passes
+(`Acorn.Library.filterMap`), at most one element for each element of the list. -/
 @[reducible] def filterMap (visit : Nat) (operation : α → Costed (Option β))
     (items : List α) : Costed (List β) :=
   ⟨items.filterMap fun item => (operation item).val,
-    mapWork visit operation items + bare visit items.length⟩
+    mapWork visit operation items + (Acorn.Library.filterMap.passes - 1) * bare visit items.length⟩
 
 /-- A filtering map's work, by the bound of each operation. -/
 theorem filterMap_work_le (visit bound : Nat) (operation : α → Costed (Option β))
     (items : List α) (each : ∀ item ∈ items, (operation item).work ≤ bound) :
     (filterMap visit operation items).work ≤
-      pass visit items.length bound + bare visit items.length :=
+      pass visit items.length bound +
+        (Acorn.Library.filterMap.passes - 1) * bare visit items.length :=
   Nat.add_le_add_right (mapWork_le visit bound operation items each) _
 
 /-- A left fold over an array, visiting its elements in order in one pass. -/
@@ -383,20 +390,22 @@ theorem foldlArray_work_le (visit bound : Nat) (step : β → α → Costed β) 
 @[reducible] def replicate (visit count : Nat) (value : α) : Costed (Vector α count) :=
   ⟨Vector.replicate count value, bare visit count⟩
 
-/-- A library scan of a list in `passes` passes whose every visit is one loop-free comparison or
-copy, whatever the scan returns. The value is the executed expression; the list is the one that
-expression scans. -/
-@[reducible] def scanList (passes visit : Nat) (items : List α) (value : β) : Costed β :=
-  ⟨value, passes * bare visit items.length⟩
+/-- A scan of a list by the library function `row`, whose every visit is one loop-free
+comparison or copy, whatever the scan returns: the passes the table states for `row`. The value
+is the executed expression; the list is the one that expression scans. -/
+@[reducible] def scanList (row : Acorn.Library) (visit : Nat) (items : List α) (value : β) :
+    Costed β :=
+  ⟨value, row.passes * bare visit items.length⟩
 
-/-- A library scan of an array in `passes` passes. -/
-@[reducible] def scanArray (passes visit : Nat) (items : Array α) (value : β) : Costed β :=
-  ⟨value, passes * bare visit items.size⟩
+/-- A scan of an array by the library function `row`. -/
+@[reducible] def scanArray (row : Acorn.Library) (visit : Nat) (items : Array α) (value : β) :
+    Costed β :=
+  ⟨value, row.passes * bare visit items.size⟩
 
-/-- A library scan of a vector in `passes` passes. -/
-@[reducible] def scanVector {count : Nat} (passes visit : Nat) (_items : Vector α count)
-    (value : β) : Costed β :=
-  ⟨value, passes * bare visit count⟩
+/-- A scan of a vector by the library function `row`. -/
+@[reducible] def scanVector {count : Nat} (row : Acorn.Library) (visit : Nat)
+    (_items : Vector α count) (value : β) : Costed β :=
+  ⟨value, row.passes * bare visit count⟩
 
 end Costed
 

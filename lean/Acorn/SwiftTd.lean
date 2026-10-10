@@ -902,10 +902,12 @@ theorem planStep_eq_foldl (config : Config) (state : NumericState config dimensi
   simp only [planStep_def, stepSizes_eq, planWeightsGo_eq_foldl]
 
 /-- `retireIndex` with its work: its one loop is the search of the eligible list for the
-retired index; the removal, the clear and the two writes are loop-free. -/
+retired index, a comparison for each entry; the removal, the clear and the two writes are
+loop-free. -/
 def retireIndexCosted (state : NumericState config dimension) (idx : FeatIdx dimension) :
     Costed (NumericState config dimension) :=
-  Costed.bind (Costed.findIdx? state.transient.eligible (· == idx)) fun found =>
+  Costed.bind (Costed.findIdx? state.transient.eligible
+    fun entry => Costed.op .compare (entry == idx)) fun found =>
     Costed.op .retire <|
       let state := match same : found.val with
         | some pos => state.removeEligibleAt pos

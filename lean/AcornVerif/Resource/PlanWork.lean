@@ -148,7 +148,9 @@ theorem sweepAll_work (κ : Costs) (state : PlanningResult criterion dimension)
 theorem lookAheadBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     lookAheadBound κ positions width ≤ lookAheadBound κ positions limit := by
-  have m1 := bare_mono (visit := κ .visit + κ .compare) fits
+  have m1 := Nat.mul_le_mul_left Library.contains.passes
+    (bare_mono (visit := κ .visit + κ .compare) fits)
+  have m1b := Nat.mul_le_mul_left Library.append.passes (bare_mono (visit := κ .visit) fits)
   have m2 := pass_mono (visit := κ .visit) (Nat.add_le_add_right fits 1) (Nat.le_refl (κ .sumTerm))
   have m3 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .position))
   have m4 := expectedAtBound_mono κ positions (Nat.add_le_add_right fits 1)
@@ -157,7 +159,9 @@ theorem lookAheadBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
   have m6 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
   have m7 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
   have m8 := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .planElement))
-  have m9 := bare_mono (visit := κ .visit) fits
+  have m9 := Nat.mul_le_mul_left (Library.map.passes - 1) (bare_mono (visit := κ .visit) fits)
+  have m10 := Nat.mul_le_mul_left (Library.filterMap.passes - 1)
+    (bare_mono (visit := κ .visit) fits)
   simp only [lookAheadBound, predictBound, lookaheadBound, outcomeValuesBound, rowInputBound,
     inputBound, planBound]
   omega

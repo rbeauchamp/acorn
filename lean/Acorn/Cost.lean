@@ -25,31 +25,42 @@ operations with an extracted cost.
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work. Each loop combinator
 has as its value the library loop applied to its steps' values, and as its work the passes of
-that loop's runtime implementation: for each pass, one `visit` and the work of the step for
-each element, and one `visit` for the pass's end. `foldl` (`List.foldl`) and `foldlArray`
-(`Array.foldl`) make one pass; `map` makes two, because `List.map` runs as `List.mapTR`, a loop
-and a reversal. `replicate` is one pass writing a vector of one repeated element, and
-`findIdx?` one pass of `Array.findIdx?`, a comparison for each element, whose value it computes
-itself. A loop's bound is therefore its trip count times a bound of one visit, and a visit for
-each end. A recursion of Acorn's own is a costed recursion whose every recursive call is under a
-charge and whose end is charged a visit.
+that loop's runtime implementation (`Library`, `Library.passes`): for each element, one `visit`
+of the first pass and the work of the step, then one `visit` for each element of each further
+pass, and one `visit` for each pass's end. `foldl`, `foldlArray`, `replicate` and `findIdx?` are
+one pass (`Library.onePass`); `map` charges the further pass of `List.mapTR`'s reversal from the
+table. Every function a combinator takes is costed: the steps of `foldl` and `foldlArray`, the
+operation of `map`, the test of `findIdx?` and the continuation of `bind`. A loop's bound is
+therefore its trip count times a bound of one visit, and a visit for each end. A recursion of
+Acorn's own is a costed recursion whose every recursive call is under a charge and whose end is
+charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
 (`single`), so a bound is never vacuous (`within_iff`).
 
 **What is trusted.** That the counted work covers each operation of the compiled code rests on
-the cost discipline of the costed definitions: a loop runs only in a loop combinator or in a
-sequenced costed definition, every value passed to `pure`, `op` or `replicate` is computed by a
-stretch that runs no loop and calls no costed definition, and each path to a recursive call
-passes a charge. The combinators cannot enforce it: `pure` accepts any value, so
+the cost discipline of the costed definitions. A combinator counts the work of every function
+it takes, but not the computation of a value it takes. The values a costed definition passes
+in, which are all its uncosted entry points, are:
+
+- the value of `pure`, the value of `op` and the element of `replicate`;
+- the count of `replicate`, the initial accumulator and the collection of `foldl` and
+  `foldlArray`, the collection of `map` and the array of `findIdx?`;
+- the terms a costed definition evaluates in its own body between combinators: its `let`
+  values, its branch conditions and the scrutinees of its matches.
+
+Each must be computed by a stretch that runs no loop and calls no costed definition, a loop
+must run only in a loop combinator or a costed definition, and each path to a recursive call
+must pass a charge. The combinators cannot enforce it: `pure` accepts any value, so
 `Costed.pure (state.step config features reward)` has work zero although its value runs the
 learner. Lean's logic gives a pure term no operational meaning, so no theorem states the
 discipline; it is a syntactic property, checked by reading until the cost-closed rule that
-rbeauchamp/regula#333 proposes checks it. That a library loop makes the passes its combinator
-charges is read from the library's runtime implementation. That erasing the work leaves the compiled value code as
-written is checked by comparing the generated C. That a site's stretch does at most its cost in
-word operations is the hypothesis of each bound in word operations.
+rbeauchamp/regula#333 proposes checks it. That a library loop makes the passes `Library.passes`
+states is read once from the library's runtime implementation, which each row of `Library`
+cites. That erasing the work leaves the compiled value code as written is checked by comparing
+the generated C. That a site's stretch does at most its cost in word operations is the
+hypothesis of each bound in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), cache behaviour and time.
@@ -228,6 +239,109 @@ inductive Site where
 
 /-- A cost model: the cost of each site. -/
 abbrev Costs := Site → Nat
+
+/-- The library loops that costed code and the twins of `AcornVerif.Resource.Work` run. Each
+is charged the passes of its runtime implementation over the collection it is charged for: the
+compiler replacement that runs (a `csimp` theorem or an implementation attribute) and the loops
+of that definition. `Library.passes` states each count once. -/
+inductive Library where
+  /-- `List.foldl`: one structural loop. -/
+  | foldl
+  /-- `Array.foldl`, implemented by `Array.foldlMUnsafe`: one loop. -/
+  | foldlArray
+  /-- `List.map`, replaced by `List.mapTR` (`List.map_eq_mapTR`): a loop, then `List.reverse`. -/
+  | map
+  /-- `Vector.replicate`, `Array.replicate`, implemented by the runtime's `lean_mk_array`: one
+  loop. -/
+  | replicate
+  /-- `Array.findIdx?`: the loop `Array.findIdx?.loop`. -/
+  | findIdx
+  /-- `Vector.map`, `Array.map` by `Array.mapM`, implemented by `Array.mapMUnsafe`: one loop. -/
+  | vectorMap
+  /-- `Vector.ofFn`, `Array.ofFn` by its loop `Array.ofFn.go`: one loop. -/
+  | ofFn
+  /-- `Vector.mapFinIdx`, `Array.mapFinIdx`, implemented by `Array.mapFinIdxMUnsafe`: one loop. -/
+  | mapFinIdx
+  /-- `List.filter`, replaced by `List.filterTR` (`List.filter_eq_filterTR`): a loop, then
+  `List.reverse`. -/
+  | filter
+  /-- `List.filterMap`, replaced by `List.filterMapTR` (`List.filterMap_eq_filterMapTR`): a loop,
+  then `Array.toList` of the kept elements, at most one for each element. -/
+  | filterMap
+  /-- `List.flatMap`, replaced by `List.flatMapTR` (`List.flatMap_eq_flatMapTR`): one loop over
+  the list; the elements of each result are counted by `flatMapResult`. -/
+  | flatMap
+  /-- The elements of one result of `List.flatMapTR`: `Array.appendList` pushes each one
+  (`List.foldl`), and the final `Array.toList` reads each one. -/
+  | flatMapResult
+  /-- `List.length`, replaced by `List.lengthTR` (`List.length_eq_lengthTR`): one loop. -/
+  | length
+  /-- `List.contains` and the membership test of a list, `List.elem`: one loop. -/
+  | contains
+  /-- `List.range`, the loop `List.range.loop`: one loop. -/
+  | range
+  /-- `List.finRange`, `List.ofFn` by `Fin.foldr`: one loop. -/
+  | finRange
+  /-- `List.toArray`, implemented by `List.toArrayImpl`: `List.length`, then `List.toArrayAux`. -/
+  | toArray
+  /-- `Array.toList` and `Vector.toList`, implemented by `Array.toListImpl`, an `Array.foldr`: one
+  loop. -/
+  | toList
+  /-- `List.reverse`, `List.reverseAux`: one loop. -/
+  | reverse
+  /-- The equality of two vectors, the equality of their arrays, replaced by
+  `Array.instDecidableEqImpl` (`Array.instDecidableEq_csimp`), an `Array.isEqv`: one loop. -/
+  | vectorEq
+  /-- `++` on lists, replaced by `List.appendTR` (`List.append_eq_appendTR`): `List.reverse` of
+  the first list, then `List.reverseAux` over it. -/
+  | append
+  /-- `List.dropLast`, replaced by `List.dropLastTR` (`List.dropLast_eq_dropLastTR`):
+  `List.toArray` (two), `Array.pop`, then `Array.toList` (one). -/
+  | dropLast
+  /-- `List.zipIdx`, replaced by `List.zipIdxTR` (`List.zipIdx_eq_zipIdxTR`): `List.toArray`
+  (two), then `Array.foldr` (one). -/
+  | zipIdx
+  /-- `List.sum`, a `List.foldr`, replaced by `List.foldrTR` (`List.foldr_eq_foldrTR`):
+  `List.toArray` (two), then `Array.foldr` (one). -/
+  | sum
+  /-- Acorn's `fillVacant`, a structural recursion over the held positions: one loop. -/
+  | fillVacant
+
+/-- The passes of a library loop's runtime implementation over the collection it is charged
+for. -/
+def Library.passes : Library → Nat
+  | .foldl => 1
+  | .foldlArray => 1
+  | .map => 2
+  | .replicate => 1
+  | .findIdx => 1
+  | .vectorMap => 1
+  | .ofFn => 1
+  | .mapFinIdx => 1
+  | .filter => 2
+  | .filterMap => 2
+  | .flatMap => 1
+  | .flatMapResult => 2
+  | .length => 1
+  | .contains => 1
+  | .range => 1
+  | .finRange => 1
+  | .toArray => 2
+  | .toList => 1
+  | .reverse => 1
+  | .vectorEq => 1
+  | .append => 2
+  | .dropLast => 3
+  | .zipIdx => 3
+  | .sum => 3
+  | .fillVacant => 1
+
+/-- The loops whose combinators are written as one pass are one pass in the table. -/
+theorem Library.onePass :
+    Library.foldl.passes = 1 ∧ Library.foldlArray.passes = 1 ∧ Library.replicate.passes = 1 ∧
+      Library.findIdx.passes = 1 ∧ Library.vectorMap.passes = 1 ∧ Library.ofFn.passes = 1 ∧
+      Library.mapFinIdx.passes = 1 ∧ Library.flatMap.passes = 1 :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- A result together with the work of computing it. The constructor is private, so every
 `Costed` value is built by the combinators below. -/
@@ -456,11 +570,12 @@ theorem mapWork_within {operation : α → Costed β} {κ : Costs} {bound : Nat}
     rw [same, List.length_cons, Nat.succ_mul]
     omega
 
-/-- A map over a list: the loop of `List.mapTR` and the reversal of its result. -/
+/-- A map over a list: the loop of `List.mapTR`, then its further passes (`Library.map`), the
+reversal of its result. -/
 @[inline] def map (operation : α → Costed β) (items : List α) : Costed (List β) :=
   ⟨items.map fun item => (operation item).val,
     fun κ n => ∃ loop, mapWork operation items κ loop ∧
-      n = loop + (items.length * κ .visit + κ .visit),
+      n = loop + (Library.map.passes - 1) * (items.length * κ .visit + κ .visit),
     fun κ => by
       obtain ⟨loop, held, unique⟩ := mapWork_single operation κ items
       exact ⟨_, ⟨loop, held, rfl⟩, fun m ⟨other, work, same⟩ => by
@@ -471,8 +586,8 @@ theorem map_val (operation : α → Costed β) (items : List α) :
 
 theorem map_within {operation : α → Costed β} {items : List α} {κ : Costs} {bound : Nat}
     (each : ∀ item ∈ items, (operation item).Within κ bound) :
-    (map operation items).Within κ
-      (items.length * (κ .visit + bound) + κ .visit + (items.length * κ .visit + κ .visit)) :=
+    (map operation items).Within κ (items.length * (κ .visit + bound) + κ .visit +
+      (Library.map.passes - 1) * (items.length * κ .visit + κ .visit)) :=
   fun _ ⟨loop, work, same⟩ => by
     rw [same]
     exact Nat.add_le_add_right (mapWork_within items each loop work) _
@@ -490,20 +605,26 @@ theorem replicate_within (count : Nat) (value : α) (κ : Costs) :
     (replicate count value).Within κ (count * κ .visit + κ .visit) :=
   fun _ same => Nat.le_of_eq same
 
-/-- The index of the first element of `items` that satisfies `test`, by the library search
-`Array.findIdx?`, with the equation that names it: a visit and a comparison for each element
-and a visit for the search's end, whether the search stops early or not. -/
-@[inline] def findIdx? (items : Array α) (test : α → Bool) :
-    Costed {found : Option Nat // items.findIdx? test = found} :=
-  ⟨⟨items.findIdx? test, rfl⟩, fun κ n => n = items.size * (κ .visit + κ .compare) + κ .visit,
-    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+/-- The index of the first element of `items` whose costed test holds, by the library search
+`Array.findIdx?` (`Library.findIdx`), with the equation that names it: for each element a visit
+and the work of its test, and a visit for the search's end, whether the search stops early or
+not. -/
+@[inline] def findIdx? (items : Array α) (test : α → Costed Bool) :
+    Costed {found : Option Nat // items.findIdx? (fun item => (test item).val) = found} :=
+  ⟨⟨items.findIdx? fun item => (test item).val, rfl⟩, fun κ => mapWork test items.toList κ,
+    fun κ => mapWork_single test κ items.toList⟩
 
-theorem findIdx?_val (items : Array α) (test : α → Bool) :
-    (findIdx? items test).val.val = items.findIdx? test := rfl
+theorem findIdx?_val (items : Array α) (test : α → Costed Bool) :
+    (findIdx? items test).val.val = items.findIdx? fun item => (test item).val := rfl
 
-theorem findIdx?_within (items : Array α) (test : α → Bool) (κ : Costs) :
-    (findIdx? items test).Within κ (items.size * (κ .visit + κ .compare) + κ .visit) :=
-  fun _ same => Nat.le_of_eq same
+/-- A search whose every test is within `bound` is within its size times the visit and that
+bound, and a visit for its end. -/
+theorem findIdx?_within {items : Array α} {test : α → Costed Bool} {κ : Costs} {bound : Nat}
+    (each : ∀ item ∈ items.toList, (test item).Within κ bound) :
+    (findIdx? items test).Within κ (items.size * (κ .visit + bound) + κ .visit) := by
+  have counted := mapWork_within items.toList each
+  rw [Array.length_toList] at counted
+  exact counted
 
 end Costed
 

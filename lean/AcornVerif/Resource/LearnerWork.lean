@@ -12,10 +12,11 @@ import AcornVerif.Resource.Work
 The learner's executed definitions in `Acorn.SwiftTd`, and the ordered sums and the fresh
 transient record they use, are the values of their costed definitions (`Acorn.Costed`), so the
 loops a bound proved here counts are the loops of the code that runs. A bound counts the work of
-that code under the cost discipline of `Acorn.Cost`: every value a costed definition passes to
-`Costed.pure`, `Costed.op` or `Costed.replicate` is computed without a loop and without a costed
-definition. The combinators cannot enforce it, since `Costed.pure` accepts any value; it is
-checked by reading until the cost-closed rule of rbeauchamp/regula#333 checks it.
+that code under the cost discipline of `Acorn.Cost`: every function a combinator takes is
+costed, and every value a costed definition passes in, the uncosted entry points that
+`Acorn.Cost` lists, is computed without a loop and without a costed definition. The combinators
+cannot enforce the second, since `Costed.pure` accepts any value; it is checked by reading until
+the cost-closed rule of rbeauchamp/regula#333 checks it.
 
 Each bound is a function of the number of eligible entries of the learner the definition receives
 and of the length of the feature list it reads. No bound depends on the learner's values: the
@@ -51,11 +52,12 @@ theorem sumMapCosted_within (κ : Costs) (site : Site) (initial : Binary32) (val
       (pass (κ .visit) values.length (κ site)) :=
   Acorn.Costed.foldl_within fun _ _ _ => Acorn.Costed.op_within _ _ κ
 
-/-- The step sizes of a feature list, read one by one, and the reversal of the mapped list. -/
+/-- The step sizes of a feature list, read one by one, and the further passes of the map. -/
 theorem stepSizes_within (κ : Costs) (state : NumericState config dimension)
     (indices : List (FeatIdx dimension)) :
     (Acorn.Costed.map (fun idx => Acorn.Costed.op .read (state.stepSize idx)) indices).Within κ
-      (pass (κ .visit) indices.length (κ .read) + bare (κ .visit) indices.length) :=
+      (pass (κ .visit) indices.length (κ .read) +
+        (Library.map.passes - 1) * bare (κ .visit) indices.length) :=
   Acorn.Costed.map_within fun _ _ => Acorn.Costed.op_within _ _ κ
 
 /-! ## Prediction -/
@@ -133,8 +135,9 @@ theorem learnSecondLoopGoCosted_within (κ : Costs) (overshoot : Bool) (scale on
 
 /-- Bound of the second loop over `width` features. -/
 abbrev secondLoopBound (κ : Costs) (width : Nat) : Nat :=
-  (pass (κ .visit) width (κ .read) + bare (κ .visit) width) + pass (κ .visit) width (κ .sumTerm) +
-    pass (κ .visit) width (κ .sumTerm) + κ .secondOpen + pass (κ .visit) width (κ .secondElement)
+  (pass (κ .visit) width (κ .read) + (Library.map.passes - 1) * bare (κ .visit) width) +
+    pass (κ .visit) width (κ .sumTerm) + pass (κ .visit) width (κ .sumTerm) + κ .secondOpen +
+    pass (κ .visit) width (κ .secondElement)
 
 theorem learnSecondLoopCosted_within (κ : Costs) (config : Acorn.Config)
     (state : NumericState config dimension) (features : ActiveSet dimension) (vDelta : Binary32) :
@@ -241,7 +244,8 @@ theorem planWeightsGoCosted_within (κ : Costs) (scale delta : Binary32)
 
 /-- Bound of a planning step over `width` features. -/
 abbrev planBound (κ : Costs) (width : Nat) : Nat :=
-  pass (κ .visit) width (κ .sumTerm) + (pass (κ .visit) width (κ .read) + bare (κ .visit) width) +
+  pass (κ .visit) width (κ .sumTerm) +
+    (pass (κ .visit) width (κ .read) + (Library.map.passes - 1) * bare (κ .visit) width) +
     pass (κ .visit) width (κ .sumTerm) + pass (κ .visit) width (κ .planElement) + κ .planOpen
 
 theorem planStepCosted_within (κ : Costs) (config : Acorn.Config)
@@ -257,7 +261,7 @@ theorem planStepCosted_within (κ : Costs) (config : Acorn.Config)
   rw [length] at rate
   refine (Acorn.Costed.bind_within_all (linearPredictionCosted_within κ state features) fun _ =>
     Acorn.Costed.within_ite (bound := (pass (κ .visit) features.indices.length (κ .read) +
-        bare (κ .visit) features.indices.length) +
+        (Library.map.passes - 1) * bare (κ .visit) features.indices.length) +
         (pass (κ .visit) features.indices.length (κ .sumTerm) +
           (pass (κ .visit) features.indices.length (κ .planElement) + κ .planOpen)))
       ((Acorn.Costed.op_within _ _ κ).mono (by omega))
@@ -279,7 +283,7 @@ theorem retireIndexCosted_within (κ : Costs) (state : NumericState config dimen
     (idx : FeatIdx dimension) :
     (state.retireIndexCosted idx).Within κ
       (κ .retire + pass (κ .visit) state.transient.eligible.size (κ .compare)) :=
-  (Acorn.Costed.bind_within (Acorn.Costed.findIdx?_within _ _ κ)
+  (Acorn.Costed.bind_within (Acorn.Costed.findIdx?_within fun _ _ => Acorn.Costed.op_within _ _ κ)
     (Acorn.Costed.op_within _ _ κ)).mono (Nat.le_of_eq (Nat.add_comm _ _))
 
 /-- Bound of one learner entry at a capacity and `count` eligible entries. -/
