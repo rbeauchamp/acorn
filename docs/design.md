@@ -645,6 +645,57 @@ What these theorems do not establish:
 
 The counting argument is [the coverage proof](../lean/AcornVerif/Coverage.lean).
 
+### Goals the observation conceals, and visits
+
+A need bound that covers agents which read their percepts needs goals whose solution
+the percepts do not show until it is found. [Concealment](../lean/AcornVerif/Concealment.lean)
+states this for any class of worlds. A class **conceals** its goals behind a reference
+world when, along every action sequence, each member delivers the reference's percepts
+until that member's goal is first met. Before success nothing an agent perceives tells
+the members apart, so every agent, one that learns included, keeps the same memory and
+takes the same actions in every member until its goal is met. A covering bound is then a
+need bound for every agent: the **first-visit bound**. It concerns an agent whose memory
+at the attempt's start is the same in every member, which is what a first visit is.
+
+On later visits the bound needs one more property of the world. In a world that persists
+between visits, the world's state can hold what an agent's memory does not: the parking
+agent follows a step counter until its percept shows the goal met and from then on takes
+an action that keeps it met, so it keeps every goal it has met although its memory reads
+no percept. [Visits](../lean/AcornVerif/Visits.lean) defines the property that removes
+this. A **world in visits** of a length takes that many steps from its start state,
+delivers one more percept at the visit's last state, and returns to the start state
+whatever the action. The agent is not restarted: its memory carries from visit to visit.
+Every visit then begins in the same state and at the same time in every member, so an
+experience-free agent, whose memory at a time is its initial memory advanced that many
+times, is one agent for the whole class on every visit. [The replaying
+agent](../lean/AcornVerif/Replay.lean) shows that the bound is not met by every agent: it
+stores the actions of the visit on which its percept first shows the goal met and replays
+them, so it solves on every later visit each member it has solved once. One agent serves
+the whole class.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| Concealment makes every agent blind | In a class that conceals its goals, every agent keeps in each member the memory it keeps in the reference and takes the reference's actions until that member's goal is first met. Every agent is therefore blind on the class, and a covering bound of k is a need bound of k for every agent. | `Conceals.agree`, `Conceals.blind`, `Conceals.need` |
+| A persisting world is memory | The parking agent's memory is a step counter, so it is experience-free. Where the percept after a step shows a signal wherever that step meets the goal, and a staying action keeps the goal met, it meets the goal at every time after it first meets it. | `park_experienceFree`, `park_keeps` |
+| Visits restart the world, not the agent | A world in visits begins every visit in its start state, and within a visit its closed loop is the world's own. The loop after a time is the loop of the agent resumed from its memory at that time. So an agent solves a member on a visit exactly when the agent resumed from its memory at the start of that visit solves it in the member's world within one visit. | `visits_period`, `visits_loop`, `loop_add`, `solvesOnVisit_iff` |
+| Need on every visit | In a class that conceals its goals, with a covering bound of k for one visit's length, every experience-free agent solves at most k members on each visit. | `experienceFree_memoryAt`, `visits_need` |
+| First success, for every agent | Before a member's goal is first met, every agent keeps in that member's visits the memory it keeps in the reference's visits. So every agent solves at most k members for the first time on any one visit, at most k on its first visit, and at most n·k on its first n visits. | `Conceals.visits_memory`, `visits_first_success`, `visits_first`, `visits_ever` |
+| An agent that uses experience re-solves | Where the percept after every step shows a signal exactly when that step meets the goal, the replaying agent solves on every later visit each member it has solved on one visit. | `replay_invariant`, `replay_follows`, `replay_keeps`, `replay_solves` |
+
+What these theorems do not establish:
+
+- **A goal of the grid world that conceals.** They hold for every class over the
+  interface. No goal of the standard curriculum conceals its target: a reach goal's
+  cue is a hash of the target and its relation gives the displacement.
+- **That the executed host runs visits.** A world in visits is a definition of the
+  kernel. No host loop of Acorn returns the world to a start state between attempts,
+  and no theorem relates one to it.
+- **A bound for an agent whose memory at a visit's start differs between members.**
+  The need on every visit holds for experience-free agents, and the first-success
+  bound for every agent only up to its first success in a member. After it, an agent
+  that keeps what it perceived is not bounded, which the replaying agent shows.
+- **That any member can be solved.** Every bound here is an upper bound.
+
 ### An embodied world: the Microduck
 
 The first world after the grid world is a small biped, Pollen Robotics' Microduck.
