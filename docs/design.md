@@ -706,6 +706,23 @@ with the same carried result.
 | The bounds in the grid world | Every agent, the executed agent included, solves at most 49 + 7·cap members on a first visit. In visits of cap steps every experience-free agent, the uniform-random comparator included, solves at most that many on each visit; every agent solves at most that many for the first time on each visit, and n·(49 + 7·cap) over n visits. At a cap of 3000 and a window of radius 120 an experience-free agent solves on each visit at most 21049 of the window's 57600 targets. | `find_need`, `executed_find_first`, `find_visits_need`, `comparator_find_visits`, `find_visits_first_success`, `find_visits_ever`, `far_window_visits` |
 | Re-solving and separation | The percept's achievement flag after a step is set exactly when the step meets the installed goal, so the replaying agent with that flag as its signal, which is not experience-free, solves on every later visit each concealed target it has solved once. If its explorations of the visits up to one visit meet more than 49 + 7·cap targets from the host world, on that visit it solves all of them while every experience-free agent solves fewer on every visit. Which targets an exploration meets depends on the terrain; it is a hypothesis of the theorem. | `achieved_decodes`, `find_replay`, `find_replay_learns`, `find_replay_separates` |
 
+**How a learner is rewarded on a concealed target.** A learner needs a first success before
+it has anything to retain, and on a first visit no agent solves more than 49 + 7·cap of the
+members (`find_need`). Two ways to raise that chance were weighed; both statements below are
+derived from the definitions. A guiding reward that depends on the target before it is met,
+such as one that grows as the body nears the target, makes the members' percepts differ
+before success, so the class no longer conceals its goals and none of the bounds here
+follows. A guiding reward that does not depend on the target leaves the percepts equal, so
+every bound stands, but it cannot point toward the target. So the reward of a concealed
+target stays the world's completion reward, and the chance of a first success is set by the
+class instead: a window of targets near the start and a visit length for which the window
+is larger than 49 + 7·cap, with no target excluded on the outcome. A visit does not end at
+success, so a learner that has found the target is rewarded on every step it stays in the
+box. At a visit length of 300 steps the bound is 2149 targets; a window of radius 33 holds
+4356 tiles, of which no agent meets more than 2149 on a first visit and no experience-free
+agent more than 2149 on any visit, under half. Which window and length a study uses is that
+study's registered choice.
+
 What these theorems do not establish:
 
 - **That a campaign uses the concealed target.** No goal of the standard curriculum
