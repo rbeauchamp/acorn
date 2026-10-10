@@ -136,9 +136,10 @@ No checker is complete about its goal, so `Host.regionBlocked` and `Host.stanceC
 carry the sound kind. `Host.replayCertified` carries the two-way kind about its action list,
 with `Host.ReplayCertificate.check` and the replay `Host.World.advanceActions`: their
 specifications are about runs of the executed world step, which decides propositions in the
-place of its tests. `Host.walkableTile` carries the two-way kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind` and
-`Host.World.enterable` carry the two-way kind there too, because the proof of their refusals
-needs the exact floor of `AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
+place of its tests. `Host.walkableTile` carries the two-way kind. The terrain generator
+`Host.terrain` and its readers `Host.World.tileKind` and `Host.World.enterable` carry the
+two-way kind there too, because the proof of their refusals needs the exact floor of
+`AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
 two-way kind there, and `Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete`
 have an accepted input stated there, because the observation of the attempt `fresh` succeeds by
 the terrain admission of `AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the
