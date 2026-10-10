@@ -194,11 +194,13 @@ theorem AgentConstruction.callbacks_act (construction : AgentConstruction)
 function: the constructor of the agent is the construction's cold initialization, the two
 parts of each step are the construction's callbacks, and the index of those callbacks
 selects the loop, so the position of the world's transition is that of the construction's
-order. The checkpoint hooks are over the construction's state type. The attempt loops take
-each transition of the grid world as one call of its step function, which is the discipline
-of a world that waits, so the campaign takes the proof that the grid's interface declares
-`synchronized` (`Grid.interface_timing`): it runs no world whose interface declares a wall
-clock. -/
+order. The checkpoint hooks are over the construction's state type. The attempt loops run
+only the grid world, by their type, and take each of its transitions as one call of its
+step function, which is the discipline of a world that waits, so the campaign takes the
+proof that the grid's interface declares `synchronized` (`Grid.interface_timing`): it
+cannot be called while that interface declares a wall clock. The general entry
+`Host.runCampaign` that it calls takes no such proof, since its module does not import the
+module of the grid's interface. -/
 def AgentConstruction.runCampaign (construction : AgentConstruction)
     (_ : Grid.interface.timing = .synchronized) (config : Host.WorldConfig)
     (seed : UInt64) (selection : Host.AgentSelection) (spec : Host.CampaignSpec)

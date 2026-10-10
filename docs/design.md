@@ -289,16 +289,21 @@ positive number of cycles. The grid world declares `synchronized`
 (`Grid.interface_timing`), and its attempt loops take each transition as one call
 of the world's step function.
 
-Each host reads its world's declaration in its type, so no host runs a world in a
-discipline other than the one the world declares. The campaign of a construction
-takes the proof that the grid's interface declares `synchronized`
-(`AgentConstruction.runCampaign`), so the grid's attempt loops run no world whose
-interface declares a wall clock. A host of the Microduck's world starts only with the
-proof that its interface declares, in its timing, the pace the host starts at
-(`Idle.start`, `Loop.start`), and no transition changes the pace, so every reachable
-host, and the host of every stage of its loop, holds the pace that the interface
-declares (`Reached.declared`, `Idle.declared`, `Awaiting.declared`,
+The Microduck's host reads its pace from its interface by its type. A host of the
+Microduck's world starts only with the proof that its interface declares, in its timing,
+the pace the host starts at (`Idle.start`, `Loop.start`), and no transition changes the
+pace, so every reachable host, and the host of every stage of its loop, holds the pace
+that the interface declares (`Reached.declared`, `Idle.declared`, `Awaiting.declared`,
 `Stage.declared`). The pace is read from the interface, not from a second constant.
+
+Every entry of the grid's host runs only the grid world, by its type, and takes each
+transition as one call of the world's step function. Of these entries, the campaign of a
+construction (`AgentConstruction.runCampaign`), which the native campaign, the viewer and
+the mutation audit call, takes the proof that the grid's interface declares
+`synchronized`, so it cannot be called while that interface declares a wall clock. The
+general entry `Host.runCampaign`, the ANSI demo `Host.runAnsi` and the random baseline
+`Host.runRandomBaseline` take no such proof: their modules do not import the module of the
+grid's interface.
 
 For a wall-clock world the two numbers get their meaning from functions of the
 declaration, of an origin and of instants. An instant is a reading of a host's
