@@ -423,7 +423,8 @@ F-E left its feature-construction end inert until U3.
   [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
   host's step under the default step order and construction equal to a
   frozen composition over host observations (`act_eq`, `callback_eq`, `initial_eq`).
-  Three bindings to the grid world remain. Its way of running binds none: a saved
+  Three bindings to the grid world remain. One binding to its way of running
+  remains, carried by the frame (below); the checkpoint binds none, since a saved
   image is the exact image of the agent, and loading it returns the agent that was
   saved (`CurrentCheckpoint.load_saved`). Its timing is not one either:
   the grid world declares that it waits for the agent (`Grid.interface_timing`),

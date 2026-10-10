@@ -2539,10 +2539,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.terminal_transient
 
-/-- info: 'AcornVerif.CurrentLearner.install_transient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.install_transient
-
 /-- info: 'AcornVerif.CurrentLearner.swap_remove_size' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.swap_remove_size
@@ -2566,18 +2562,6 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentLearner.swap_remove_nodup' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.swap_remove_nodup
-
-/-- info: 'AcornVerif.CurrentLearner.restore_prefix_get' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.restore_prefix_get
-
-/-- info: 'AcornVerif.CurrentLearner.restore_weights_get' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.restore_weights_get
-
-/-- info: 'AcornVerif.CurrentLearner.restore_beta_get' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.restore_beta_get
 
 /-- info: 'AcornVerif.CurrentLearner.clear_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -2754,10 +2738,6 @@ Classical.choice, Quot.sound] -/
 /-- info: 'AcornVerif.CurrentLearner.terminal_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.terminal_core
-
-/-- info: 'AcornVerif.CurrentLearner.install_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.install_core
 
 /-- info: 'AcornVerif.CurrentLearner.clear_feature_supported' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

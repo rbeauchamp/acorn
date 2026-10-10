@@ -58,15 +58,14 @@ with one proved direction carries that direction alone. Five groups are register
   `Regula.Dependent.isOk` of that function: whether the result holds a value, with the value
   forgotten.
 * A function with a kind can carry a second statement beside it for what its kind does not
-  state: the value of an accepted result (`cli_value_found`, `execute_prefix` in
-  `AcornVerif.Decisions`, and each statement with a name that ends in `_value`), the exact
-  verdict on a part of the inputs (`capture_follows`, and `task_observed` in
-  `AcornVerif.Decisions`), a set of accepted inputs beside a sound kind, which carries one
-  accepted input (`schema_covers_empty`, `predicate_eval_programs`), or which of several
-  accepted results an input has (`microduck_outcome_judged`, for a verdict of five outcomes
-  whose kind states only which inputs the daemon accepted, and `microduck_line_read`, for the
-  lines of a daemon that a host reads). That statement is a requirement with no kind, and the
-  ownership audit requires it by name.
+  state: the value of an accepted result (`cli_value_found`, and each statement with a name that
+  ends in `_value`), the exact verdict on a part of the inputs (`capture_follows`, and
+  `task_observed` in `AcornVerif.Decisions`), a set of accepted inputs beside a sound kind,
+  which carries one accepted input (`schema_covers_empty`, `predicate_eval_programs`), or which
+  of several accepted results an input has (`microduck_outcome_judged`, for a verdict of five
+  outcomes whose kind states only which inputs the daemon accepted, and `microduck_line_read`,
+  for the lines of a daemon that a host reads). That statement is a requirement with no kind,
+  and the ownership audit requires it by name.
 * A function keeps a requirement with no kind where no kind is true of it, or where Regula
   refuses the kind. The function carries no `@[regula_decision]` registration, and the
   ownership audit requires the contract by name, with a statement that still refers to the
@@ -4269,26 +4268,24 @@ structure NextReady where
   /-- The phase flag before the entry. -/
   before : Bool
 
-/-- The phase flag after a managed entry is set exactly: after a first-loop, terminal, install,
-clear or release entry, and after a plan, retire or restore entry when it was set before. The
-entry is stated by its constructor. -/
+/-- The phase flag after a managed entry is set exactly: after a first-loop, terminal, clear or
+release entry, and after a plan or retire entry when it was set before. The entry is stated by
+its constructor. -/
 theorem next_ready : Regula.ExecutableContract @SwiftTd.nextReady (fun next =>
     Regula.Decides (· = true)
       (fun input : NextReady =>
         (∃ delta vDelta decay, input.entry = .first delta vDelta decay) ∨
-          (∃ target, input.entry = .terminal target) ∨
-          (∃ weights beta, input.entry = .install weights beta) ∨ input.entry = .clear ∨
+          (∃ target, input.entry = .terminal target) ∨ input.entry = .clear ∨
           input.entry = .release ∨
           (input.before = true ∧
             ((∃ features target, input.entry = .plan features target) ∨
-              (∃ idx, input.entry = .retire idx) ∨ (∃ raw, input.entry = .restoreWeights raw) ∨
-              ∃ raw, input.entry = .restoreBeta raw)))
+              ∃ idx, input.entry = .retire idx)))
       (fun input : NextReady => @next input.dimension input.entry input.before)) :=
   ⟨decides
     (fun input => by
       show SwiftTd.nextReady input.entry input.before = true ↔ _
       cases input.entry <;> simp [SwiftTd.nextReady])
-    ⟨⟨narrow, .clear, false⟩, .inr (.inr (.inr (.inl rfl)))⟩
+    ⟨⟨narrow, .clear, false⟩, .inr (.inr (.inl rfl))⟩
     ⟨⟨narrow, .retire ⟨0, by decide⟩, false⟩, by simp⟩⟩
 
 attribute [regula_decision] SwiftTd.nextReady

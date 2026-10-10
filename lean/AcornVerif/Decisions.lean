@@ -720,7 +720,8 @@ theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
 
 /-- Payload admission returns the image whose payload it reads
 (`CurrentCheckpoint.image_roundtrip`). A kind does not state the value of a result, so this
-statement is a requirement with no kind beside the kind `payload_admit`. -/
+statement is a requirement with no kind beside the requirement `payload_admit`, which also keeps
+no kind. -/
 theorem payload_admit_value : Regula.ExecutableContract admitPayload (fun admit =>
     ∀ (construction : AgentConstruction) (image : construction.Image),
       construction.profile.checkpointSupported = true →
@@ -760,7 +761,8 @@ theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
 
 /-- Candidate loading returns the image whose encoded payload it reads
 (`CurrentCheckpoint.candidate_roundtrip`). A kind does not state the value of a result, so
-this statement is a requirement with no kind beside the kind `candidate_load`. -/
+this statement is a requirement with no kind beside the requirement `candidate_load`, which also
+keeps no kind. -/
 theorem candidate_load_value : Regula.ExecutableContract loadCandidate (fun load =>
     ∀ (construction : AgentConstruction) (image : construction.Image),
       construction.profile.checkpointSupported = true →
