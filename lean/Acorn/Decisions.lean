@@ -7,6 +7,7 @@ import Regula.Contract
 import Regula.Decision
 import Acorn.Agreement
 import Acorn.FeatureRanking
+import Acorn.Host.Ansi
 import Acorn.Host.Campaign
 import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
@@ -72,12 +73,19 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Twenty-seven functions of this module have a contract and no kind. The reasons are four.
+Thirty-eight functions of this module have a contract and no kind. The reasons are five.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
   every configuration, and a complete or a two-way kind carries a refused input. The statement
   of `Host.World.step` is a property of the world that an accepted step returns, and no
-  theorem states which steps succeed.
+  theorem states which steps succeed. Ten transitions of an attempt and of the world refuse
+  where the world refuses an observation or a step: `Host.OwnedStep.environment`,
+  `Host.PreparedStep.environment`, `Host.Attempt.sense`, `Host.Attempt.tick`,
+  `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`, `Host.AnsiState.tick`,
+  `Host.World.initial` and `Host.World.observe`. No theorem states which observations or steps
+  succeed, or that the spawn search of `Host.World.initial` returns a spawn. A specification of
+  the accepted inputs of the other nine would name `Host.World.observe` or `Host.World.step`,
+  which run tests that these functions run.
 * The input holds a state whose invariant names tests that the function runs. Regula reads the
   type of the input of a specification, so RG1009
   (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses the kind although the
@@ -104,6 +112,10 @@ Twenty-seven functions of this module have a contract and no kind. The reasons a
   inputs need a round trip that is proved there. Regula does not count a contract of that
   library toward a registration of this one (https://github.com/rbeauchamp/regula/issues/271),
   so the function is not registered, and its refusal statement here keeps no kind.
+* The witnesses of the kind cost more than the timed verification step can hold. A two-way
+  kind is true of `Host.Released.environment`, and Regula's search finds no test that its input
+  type and the function share, but a closed input of it holds a proof that the world's
+  observation succeeds, which the kernel evaluates in about seventy seconds.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
@@ -5669,5 +5681,290 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
       state.drawBoundary_total aligned plan features observation closing estimate,
     ⟨Grid.interface, _, bank, .discounted, narrow, foreignFree, planningBoundary .none,
       .empty narrow, quiet, none, .zero, Option.isNone_iff_eq_none.mp (by decide +kernel)⟩⟩⟩
+
+
+/-! ## Host transitions
+
+The transitions of an attempt and of the world refuse where the world refuses an observation or
+a step. No theorem states which observations or steps succeed, and a specification that names
+`Host.World.observe` or `Host.World.step` reaches tests that these functions run, so each keeps a
+requirement with no kind. -/
+
+/-- The transition result of a release is the environment of an accepted release, and the
+refusal of a refused one, with the stage it kept dropped.
+
+The statement keeps no kind. A two-way kind is true of the function, a match on the two
+answers, and Regula's search finds no test that its input type and the function share. Its
+witnesses need a closed stage of an attempt, which holds a proof that the world's observation
+succeeds; no theorem of the executing library states an observation that succeeds, and the
+kernel takes about seventy seconds to evaluate the observation of the attempt `fresh`, more
+than the timed verification step can hold. -/
+theorem released_environment : Regula.ExecutableContract @Host.Released.environment
+    (fun environment =>
+      ∀ {config α goal cap} (released : Host.Released config α goal cap),
+        (∀ transition, environment released = .ok transition ↔
+          released = .accepted transition) ∧
+          ∀ error, environment released = .error error ↔
+            ∃ selected, released = .refused error selected) :=
+  ⟨fun released => by
+    cases released with
+    | accepted transition =>
+      exact ⟨fun other => by simp [Host.Released.environment],
+        fun error => by simp [Host.Released.environment]⟩
+    | refused error selected =>
+      exact ⟨fun other => by simp [Host.Released.environment],
+        fun other => by simp [Host.Released.environment]⟩⟩
+
+/-- The environment of a stage is the world's step on its action: an accepted transition holds
+the stage, and the world and the events of that step, and a refusal is the step's refusal.
+
+The statement keeps no kind. The stage is accepted exactly when the world's step accepts its
+action, and no theorem states which steps succeed (`world_step`). A specification of the accepted
+stages would name `Host.World.step`, which runs tests that the function runs, and the stage's
+input type reaches some of them (`Host.Inventory.owns`, the comparison of tile kinds) through the
+proof that its observation succeeded, so RG1009
+(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) would refuse a kind over it. -/
+theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
+    (fun environment =>
+      ∀ {config α goal cap} (selected : Host.OwnedStep config α goal cap),
+        (environment selected).map (fun transition => (transition.world, transition.result)) =
+            selected.before.run.world.step selected.action ∧
+          ∀ transition, environment selected = .ok transition →
+            transition.selected = selected) :=
+  ⟨fun selected => by
+    unfold Host.OwnedStep.environment
+    split
+    · rename_i error stepped
+      exact ⟨by rw [stepped]; rfl, fun _ refused => nomatch refused⟩
+    · rename_i world result stepped
+      exact ⟨stepped.symm, fun _ accepted => by cases accepted; rfl⟩⟩
+
+/-- The environment of a prepared step is the world's step on its action: an accepted transition
+holds the prepared step, and the world and the events of that step, and a refusal is the step's
+refusal. The statement keeps no kind, for the first reason that `owned_environment` states: no
+theorem states which steps succeed. -/
+theorem prepared_environment : Regula.ExecutableContract @Host.PreparedStep.environment
+    (fun environment =>
+      ∀ {config α β goal cap} (prepared : Host.PreparedStep config α β goal cap),
+        (environment prepared).map (fun transition => (transition.world, transition.result)) =
+            prepared.before.run.world.step prepared.action ∧
+          ∀ transition, environment prepared = .ok transition →
+            transition.prepared = prepared) :=
+  ⟨fun prepared => by
+    unfold Host.PreparedStep.environment
+    split
+    · rename_i error stepped
+      exact ⟨by rw [stepped]; rfl, fun _ refused => nomatch refused⟩
+    · rename_i world result stepped
+      exact ⟨stepped.symm, fun _ accepted => by cases accepted; rfl⟩⟩
+
+/-- An attempt has stopped: its steps reached the cap, or it has taken a step and the carried
+result ends it. -/
+def Stopped {config : Host.WorldConfig} {α : Type} {goal : Host.Goal} {cap : UInt64}
+    (attempt : Host.Attempt config α goal cap) : Prop :=
+  attempt.steps.val = cap.toNat ∨
+    (attempt.steps.val ≠ 0 ∧ attempt.run.carried.events.done = true)
+
+/-- The three outcomes of sensing an attempt. -/
+private theorem sense_exact {config : Host.WorldConfig} {α : Type} {goal : Host.Goal}
+    {cap : UInt64} (attempt : Host.Attempt config α goal cap) :
+    (attempt.sense = .ok none ↔ Stopped attempt) ∧
+      (∀ error, attempt.sense = .error error ↔
+        ¬Stopped attempt ∧ attempt.run.world.observe = .error error) ∧
+      ∀ input, attempt.sense = .ok (some input) → input.before = attempt := by
+  have finished : attempt.finished = true ↔ Stopped attempt := by
+    simp [Host.Attempt.finished, Stopped]
+  have bound := attempt.steps.isLt
+  unfold Host.Attempt.sense
+  by_cases stopped : Stopped attempt
+  · have done := finished.mpr stopped
+    simp [done, stopped, pure, Except.pure]
+  · have running : attempt.finished = false := by
+      cases h : attempt.finished
+      · rfl
+      · exact absurd (finished.mp h) stopped
+    have below : attempt.steps.val < cap.toNat := by
+      have : attempt.steps.val ≠ cap.toNat := fun same => stopped (.inl same)
+      omega
+    simp only [running, Bool.false_eq_true, ite_false, below, dite_true, stopped,
+      not_false_eq_true, true_and]
+    split
+    · rename_i failure observed
+      refine ⟨⟨fun same => (nomatch same), False.elim⟩, fun other => ?_,
+        fun _ refused => (nomatch refused)⟩
+      rw [observed]
+      constructor
+      · intro same
+        cases same
+        rfl
+      · intro same
+        cases same
+        rfl
+    · rename_i observation observed
+      refine ⟨⟨fun same => (nomatch same), False.elim⟩, fun other => ?_,
+        fun input accepted => ?_⟩
+      · constructor
+        · intro same
+          exact (nomatch same)
+        · intro same
+          rw [observed] at same
+          exact (nomatch same)
+      · cases accepted
+        rfl
+
+/-- Sensing returns no input exactly when the attempt has stopped, refuses exactly when it has
+not stopped and the world refuses its observation, with that refusal, and otherwise returns an
+input of the same attempt.
+
+The statement keeps no kind. Whether it accepts is whether the world's observation succeeds,
+and no theorem states which observations succeed. A specification of the accepted attempts would
+name `Host.World.observe`, which runs tests that sensing runs (`Host.Inventory.owns` and the
+comparison of tile kinds), so RG1009 would refuse a kind with it. -/
+theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense =>
+    ∀ {config α goal cap} (attempt : Host.Attempt config α goal cap),
+      (sense attempt = .ok none ↔ Stopped attempt) ∧
+        (∀ error, sense attempt = .error error ↔
+          ¬Stopped attempt ∧ attempt.run.world.observe = .error error) ∧
+        ∀ input, sense attempt = .ok (some input) → input.before = attempt) :=
+  ⟨fun attempt => sense_exact attempt⟩
+
+/-- A stopped attempt executes no action through its tick: the tick returns the attempt
+unchanged and no frame (`Host.Attempt.tick_finished`).
+
+The statement keeps no kind. A tick refuses where sensing refuses or the world refuses the
+action the agent chose, and no theorem states which steps succeed.
+
+**Not claimed:** which ticks succeed, or what a tick returns from an attempt that has not
+finished. -/
+theorem attempt_tick : Regula.ExecutableContract @Host.Attempt.tick (fun tick =>
+    ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
+      (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap),
+      attempt.finished = true → tick callbacks context attempt = .ok (attempt, none)) :=
+  ⟨fun callbacks context attempt finished =>
+    Host.Attempt.tick_finished callbacks context attempt finished⟩
+
+/-- A finished attempt continues as its own run with the attempt recorded, and the outcome's
+position and the terminal frame's position are that run's body position
+(`Host.Attempt.finish_position`).
+
+The statement keeps no kind. Finishing refuses exactly where the world refuses the final
+observation, and no theorem states which observations succeed.
+
+**Not claimed:** which attempts finish without a refusal. -/
+theorem attempt_finish : Regula.ExecutableContract @Host.Attempt.finish (fun finish =>
+    ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
+      (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap)
+      (run : Host.RunState config α) (outcome : Host.GoalOutcome) (frame : Host.StepFrame β),
+      finish callbacks context attempt = .ok (run, outcome, frame) →
+        run = { attempt.run with agent := (callbacks.recordAttempt attempt.run.agent goal.family
+            context.cycle attempt.steps.val.toUInt64 attempt.run.carried.events.done) } ∧
+          outcome.position = run.world.body.position.position ∧
+          frame.position = outcome.position) :=
+  ⟨fun callbacks context attempt run outcome frame finished =>
+    Host.Attempt.finish_position callbacks context attempt run outcome frame finished⟩
+
+/-- Closing an attempt returns what finishing it returns, and a refusal of finishing as a
+refusal that holds no stage. The native bookkeeping returns this value
+(`Host.finishAttempt_returned`).
+
+The statement keeps no kind, for the reason that `attempt_finish` states. -/
+theorem attempt_close : Regula.ExecutableContract @Host.Attempt.close (fun close =>
+    ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
+      (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap),
+      (∀ result, close callbacks context attempt = .ok result ↔
+        attempt.finish callbacks context = .ok result) ∧
+        ∀ refusal, close callbacks context attempt = .error refusal ↔
+          refusal.learned = none ∧ attempt.finish callbacks context = .error refusal.error) :=
+  ⟨fun callbacks context attempt => by
+    unfold Host.Attempt.close
+    cases attempt.finish callbacks context with
+    | error error =>
+      dsimp only
+      constructor
+      · intro result
+        exact ⟨fun same => (nomatch same), fun same => (nomatch same)⟩
+      · intro refusal
+        constructor
+        · intro same
+          cases same
+          exact ⟨rfl, rfl⟩
+        · intro ⟨kept, same⟩
+          cases refusal
+          cases kept
+          cases same
+          rfl
+    | ok result =>
+      dsimp only
+      constructor
+      · intro other
+        simp only [Except.ok.injEq]
+      · intro refusal
+        exact ⟨fun same => (nomatch same), fun ⟨_, same⟩ => (nomatch same)⟩⟩
+
+/-- When the fold of an attempt ends in a refused action, it holds the stage of one whole step
+on an attempt that the fold reached in fewer passes than its fuel, from which the world refused
+that action (`Host.Attempt.complete_learned`). Each native loop returns the value of this fold
+(`Host.runAttempt_complete`).
+
+The statement keeps no kind. The fold refuses where the world refuses an observation or an
+action, and no theorem states which observations or steps succeed.
+
+**Not claimed:** which folds end in a refusal, or the value of a fold that does not. -/
+theorem attempt_complete : Regula.ExecutableContract @Host.Attempt.complete (fun complete =>
+    ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
+      (context : Host.GoalContext) (fuel : Nat) (attempt : Host.Attempt config α goal cap)
+      (error : Host.WorldError) (learned : Host.OwnedStep config α goal cap),
+      complete callbacks context fuel attempt = .error ⟨error, some learned⟩ →
+        ∃ (passes : Nat) (reached : Host.Attempt config α goal cap)
+          (input : Host.DecisionInput config α goal cap),
+          passes < fuel ∧ Host.Attempt.Reaches callbacks passes attempt reached ∧
+            reached.finished = false ∧ reached.sense = .ok (some input) ∧
+            learned = input.selectOwned callbacks ∧
+            (input.selectOwned callbacks).environment = .error error) :=
+  ⟨fun callbacks context fuel attempt error learned refused =>
+    Host.Attempt.complete_learned callbacks context fuel attempt error learned refused⟩
+
+/-- A successful tick of the ANSI loop keeps the observation it consumed until an explicit
+refresh (`Host.AnsiState.tick_observation`).
+
+The statement keeps no kind. A tick refuses where the world refuses the agent's action or the
+step counter overflows, and no theorem states which steps succeed.
+
+**Not claimed:** which ticks succeed, or the world and the frame a tick returns. -/
+theorem ansi_tick : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
+    ∀ {config α β} (state next : Host.AnsiState config α)
+      (callbacks : Host.AgentCallbacks .learnThenAct α β) (index : Nat)
+      (frame : Host.AnsiFrame config),
+      tick state callbacks index = .ok (next, frame) → next.observation = state.observation) :=
+  ⟨fun state next callbacks index frame ticked =>
+    Host.AnsiState.tick_observation state next callbacks index frame ticked⟩
+
+/-- An initial world starts at time zero with no goal, full energy, facing north, no food and
+no harvest (`Host.World.initial_fields`).
+
+The statement keeps no kind. Initialization refuses where the spawn search or the placement of
+the deer refuses, and that the spawn search returns a spawn for every seed is not proved
+(`docs/design.md`, the world generator).
+
+**Not claimed:** which configurations initialize, or the spawn and the deer of an initial
+world. -/
+theorem world_initial : Regula.ExecutableContract Host.World.initial (fun initial =>
+    ∀ (config : Host.WorldConfig) (world : Host.World config), initial config = .ok world →
+      world.time = 0 ∧ world.goal = none ∧ world.goalStart = 0 ∧
+        world.body.energy = Host.Energy.new FeatureConstants.energyMax ∧
+        world.body.facing = .north ∧ world.food.entries = #[] ∧ world.harvested.size = 0) :=
+  ⟨fun config world initialized => Host.World.initial_fields config world initialized⟩
+
+/-- An observation carries the world's task relation, the input of the reward predicate
+(`Host.World.observe_task`).
+
+The statement keeps no kind. The observation refuses a tile at a signed coordinate boundary, and
+no theorem states which worlds it refuses.
+
+**Not claimed:** which worlds observe without a refusal, or the tiles of an observation. -/
+theorem world_observe : Regula.ExecutableContract @Host.World.observe (fun observe =>
+    ∀ {config} (world : Host.World config) (observation : Host.Observation),
+      observe world = .ok observation → observation.task = world.taskObservation) :=
+  ⟨fun world observation observed => Host.World.observe_task world observation observed⟩
 
 end Acorn.Decisions
