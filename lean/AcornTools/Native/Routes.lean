@@ -233,8 +233,8 @@ def routes : Array (String × String × Array String) := #[
   ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks___lam__0", #["lean_apply_3"]),
   ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks___lam__1", #["lean_apply_1"]),
   ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_State_restore", #["lp_acorn_Acorn_Handcrafted_Agent_restore___redArg"]),
-  ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign", #["lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks", "lp_acorn_Acorn_Host_runCampaign___redArg"]),
-  ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___lam__0", #["lp_acorn_Acorn_Handcrafted_AgentConstruction_initial"]),
+  ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___redArg", #["lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks", "lp_acorn_Acorn_Host_runCampaign___redArg"]),
+  ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___redArg___lam__0", #["lp_acorn_Acorn_Handcrafted_AgentConstruction_initial"]),
   ("Handcrafted/Agent", "lp_acorn_Acorn_Handcrafted_Agent_act", #["lp_acorn_Acorn_Handcrafted_Agent_advanceClock___redArg", "lp_acorn_Acorn_Handcrafted_Agent_frame___redArg", "lp_acorn_Acorn_Handcrafted_TemporalControl_alignedStep___redArg", "lp_acorn_Acorn_Handcrafted_Agent_retire___redArg"]),
   ("Host/AgentPrefix", "lp_acorn_Acorn_Handcrafted_Agent_runPrefix", #["lp_acorn_Acorn_Handcrafted_Agent_input"]),
   ("Host/Checkpoint/Frame", "lp_acorn_Acorn_Checkpoint_encode", #["lp_acorn_Acorn_Checkpoint_payloadCodec", "lp_acorn_Acorn_Rng_fnv"]),
@@ -310,9 +310,9 @@ def closures : Array (String × String × Array String) := #[
   ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks", #[
     "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks___lam__0",
     "lp_acorn_Acorn_Handcrafted_AgentConstruction_callbacks___lam__1"]),
-  ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign", #[
-    "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___lam__0",
-    "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___lam__1___boxed"]),
+  ("Host/AgentAdmission", "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___redArg", #[
+    "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___redArg___lam__0",
+    "lp_acorn_Acorn_Handcrafted_AgentConstruction_runCampaign___redArg___lam__1___boxed"]),
   ("Host/AgentInterface", "lp_acorn_Acorn_Handcrafted_Agent_callbacks", #[
     "lp_acorn_Acorn_Handcrafted_Agent_callbacks___lam__0___boxed",
     "lp_acorn_Acorn_Handcrafted_Chosen_learn___boxed"]),

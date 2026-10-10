@@ -120,9 +120,9 @@ def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
   | .differential => runNativeCampaign options build syncProgram sink outcome stop
   | .annealed =>
     let construction := AuditArm.annealed.construction options
-    construction.runCampaign options.common.world options.common.world.raw.seed
-      (nativeSelection options) options.campaign { StreamObserver.none with onOutcome := outcome }
-      none stop.requested
+    construction.runCampaign Grid.interface_timing options.common.world
+      options.common.world.raw.seed (nativeSelection options) options.campaign
+      { StreamObserver.none with onOutcome := outcome } none stop.requested
 
 /-- Execute the fixed audit once; scientific capture may retain its actual receipt. -/
 def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO AuditReceipt := do

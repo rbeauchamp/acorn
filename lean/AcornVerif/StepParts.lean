@@ -46,12 +46,23 @@ each percept is learned exactly once and in order, whether the world moves or wa
 the kernel. `Moving.interact_commutes`: one interaction is the same at both positions
 when the world's own change commutes with its transitions.
 
-The `Moving` world is a model. No executing world implements it, and the grid world
-waits for the agent, which its interface declares (`Grid.interface_timing`). The
-statement about the executed loops is `Acorn.Host.runReleasedSteps_complete`. The work
-of each part is an arbitrary function here, so the statements hold for every assignment
-of work; none is a measurement, and no theorem here bounds the work of the executed
-parts.
+The `Moving` world is a model, and no theorem states that an executing loop is an
+instance of it. Two worlds execute. The grid world waits for the agent, which its
+interface declares (`Grid.interface_timing`) and its campaign takes as an argument
+(`AgentConstruction.runCampaign`); a value that either of its attempt loops returns
+agrees with one pure fold of whole steps (`Acorn.Host.runAttemptSteps_complete`,
+`Acorn.Host.runReleasedSteps_complete`). The Microduck's world moves while the agent
+computes. Its interface declares a wall clock (`Microduck.interface_timing`), and the
+host loop of `Acorn.Host.Microduck.Loop`, which the executable `microduck-host` runs,
+holds that pace in every stage (`Stage.declared`). Of that loop's own definitions: the
+second part of a step starts only at the event that says the lines of its release were
+sent (`Stage.step_sent`, `Stage.step_learning`); a tick reaches the host while the agent
+computes (`Stage.step_tick`); and the agent a loop holds, or its task computes, is the
+fold of the two parts over the percepts it sensed, in order (`Loop.agent`).
+`Moving.loop_memory` states the same of the model, and no theorem connects the two. How
+the world moves is outside every statement. The work of each part is an arbitrary
+function here, so the statements hold for every assignment of work; none is a
+measurement, and no theorem here bounds the work of the executed parts.
 -/
 
 namespace AcornVerif.Kernel

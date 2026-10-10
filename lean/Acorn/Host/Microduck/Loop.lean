@@ -69,6 +69,11 @@ through `Awaiting.release` for the awaited cycle (`Stage.step_release`). After e
 loop starts at the origin and its instants do not go back, so `Idle.sense` is the only test
 of sensing.
 
+**The pace is the world's.** A loop starts only with the proof that the Microduck's
+interface declares, in its timing, the pace its host starts at (`Loop.start`), and the host of
+every stage holds that pace (`Stage.declared`). So no loop runs the world at a pace other than
+the one the interface declares.
+
 **What is sent.** At the start, the three opening requests: the subscription to the state
 stream on the state connection, the subscription to the depth stream on the depth connection
 and the command that enables the policy on the control connection, with the identifiers 0,
@@ -238,6 +243,25 @@ inductive Stage (State Choice : Type) where
   /-- The lines of the release were sent, and the agent computes the second part of its
   step. -/
   | learning (idle : Idle) (agent : Task State)
+
+/-- The pace of the host that a stage holds. -/
+def Stage.pace : Stage State Choice → Pace
+  | .ready idle _ => idle.calm.pace
+  | .choosing awaiting _ => awaiting.poised.pace
+  | .released idle _ => idle.calm.pace
+  | .learning idle _ => idle.calm.pace
+
+/-- **A loop runs at the pace its world declares.** For every stage, and so for the stage of
+every loop: the Microduck's interface declares a wall clock with the pace of the host that the
+stage holds. A step of a loop senses, ticks and releases only through that host's
+transitions, which read its pace. -/
+theorem Stage.declared (stage : Stage State Choice) :
+    Handcrafted.Microduck.interface.timing = .wallClock stage.pace := by
+  cases stage with
+  | ready idle _ => exact idle.declared
+  | choosing awaiting _ => exact awaiting.declared
+  | released idle _ => exact idle.declared
+  | learning idle _ => exact idle.declared
 
 /-- What a driver hands the loop. -/
 inductive Event where
@@ -640,9 +664,11 @@ step (the origin at the start). One constructor for each way to a stage. -/
 inductive Ran (stepper : Stepper State Choice) (initial : State) :
     List (Features.Percept Handcrafted.Microduck.interface) → Instant → Stage State Choice →
       Counts → Prop where
-  /-- The loop starts. -/
-  | start (pace : Pace) (keep : Keep) (origin : Instant) :
-      Ran stepper initial [] origin (.ready (Idle.start pace keep origin) initial) Counts.zero
+  /-- The loop starts, at the pace that the Microduck's interface declares. -/
+  | start {pace : Pace} (declared : Handcrafted.Microduck.interface.timing = .wallClock pace)
+      (keep : Keep) (origin : Instant) :
+      Ran stepper initial [] origin (.ready (Idle.start declared keep origin) initial)
+        Counts.zero
   /-- The loop takes a step at an instant not before the last one. -/
   | step {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last : Instant}
       {stage : Stage State Choice} {counts : Counts}
@@ -872,7 +898,7 @@ theorem Ran.held {stepper : Stepper State Choice} {initial : State}
     (ran : Ran stepper initial percepts last stage counts) :
     Held stepper initial percepts last stage counts := by
   induction ran with
-  | start pace keep origin => exact ⟨rfl, rfl, rfl, Nat.le_refl _⟩
+  | start => exact ⟨rfl, rfl, rfl, Nat.le_refl _⟩
   | @step percepts last stage counts _ now later event hold =>
     exact attend_held stepper initial percepts now _ _
       (react_held stepper initial percepts last now later event stage counts hold)
@@ -959,11 +985,13 @@ structure Loop (stepper : Stepper State Choice) (initial : State) where
 
 /-- The loop at its start: ready, with a host that has heard nothing and the starting agent,
 nothing counted, the origin as the instant of its last step, and the opening requests to
-send. -/
-def Loop.start (stepper : Stepper State Choice) (initial : State) (pace : Pace) (keep : Keep)
+send. The pace is the one of the proof that the Microduck's interface declares it, so a loop
+runs at no other pace (`Stage.declared`). -/
+def Loop.start (stepper : Stepper State Choice) (initial : State) {pace : Pace}
+    (declared : Handcrafted.Microduck.interface.timing = .wallClock pace) (keep : Keep)
     (origin : Instant) : Loop stepper initial × List Send :=
-  (⟨.ready (Idle.start pace keep origin) initial, Counts.zero, origin,
-      [], .start pace keep origin⟩,
+  (⟨.ready (Idle.start declared keep origin) initial, Counts.zero, origin,
+      [], .start declared keep origin⟩,
     opening.lines)
 
 /-- The instant of a step at a reading of the clock: the reading, or the instant of the last

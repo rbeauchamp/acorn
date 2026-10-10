@@ -90,12 +90,22 @@ of this section.
 
 The statements are about these functions. The grid world declares `synchronized`, and
 the Microduck's world a wall clock with its declared pace
-(`Acorn.Handcrafted.Microduck.interface_timing`). A host of a wall-clock world computes its verdicts with
-`Pace.outcome`: the host states of `Acorn.Host.Microduck.Session` define their standing
-as `Standing.during` of their last step and do so in their pure transitions, which the
-executable of `Acorn.Host.Microduck.Driver` runs through its loop
-(https://github.com/rbeauchamp/acorn/issues/95). Nothing
-here states that a world keeps in force the action that a standing names.
+(`Acorn.Handcrafted.Microduck.interface_timing`). The Microduck's host reads its pace from
+its interface by its type: a host of the Microduck's world starts only with the proof that
+the interface declares the pace it starts at, which the host of every stage of its loop
+holds (`Acorn.Host.Microduck.Stage.declared`). Every entry of the grid's host runs only the
+grid world, by its type, and takes each transition as one call of the world's step
+function. Of these entries, the campaign of a construction
+(`Acorn.Handcrafted.AgentConstruction.runCampaign`) takes the proof that the grid's
+interface declares `synchronized`, so it cannot be called while that interface declares a
+wall clock; the general entry `Acorn.Host.runCampaign`, the ANSI demo `Acorn.Host.runAnsi`
+and the random baseline `Acorn.Host.runRandomBaseline` take no such proof, since their
+modules do not import the module of the grid's interface.
+A host of a wall-clock world computes its verdicts with `Pace.outcome`: the host states of
+`Acorn.Host.Microduck.Session` define their standing as `Standing.during` of their last step
+and do so in their pure transitions, which the executable of `Acorn.Host.Microduck.Driver`
+runs through its loop (https://github.com/rbeauchamp/acorn/issues/95). Nothing here states
+that a world keeps in force the action that a standing names.
 -/
 namespace Acorn
 

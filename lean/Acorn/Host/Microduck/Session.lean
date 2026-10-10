@@ -29,6 +29,12 @@ sensed on the way and the identifiers given to requests on the way, each in orde
 and `Poised` are what the two phases hold, as plain data; the transitions on them are
 private, and the statements below are about the sealed types.
 
+**The pace is the world's.** A host starts only with the proof that the Microduck's
+interface declares, in its timing, the pace the host starts at (`Idle.start`), and no
+transition changes the pace, so every reachable host holds the pace that
+`Handcrafted.Microduck.interface` declares (`Reached.declared`, `Idle.declared`,
+`Awaiting.declared`). The cycles, deadlines and ticks below are of that pace.
+
 **Hearing a line** (`Idle.hear`, `Awaiting.hear`). While no percept awaits, a state frame
 replaces the latest one and a depth frame becomes the latest of two that the host keeps
 (`Idle.hear_frame`). Hearing changes neither the settings nor the record of a release nor
@@ -495,8 +501,9 @@ def issue (sent : Option (Nat × Command)) : List Nat :=
 sensed on the way and the identifiers that were given to requests on the way, each in
 order. There is one constructor for each transition, and no other way to a state. -/
 inductive Reached : List Reading → List Nat → Phase → Prop where
-  /-- A host starts. -/
-  | start (pace : Pace) (keep : Keep) (origin : Instant) :
+  /-- A host starts, at the pace that the Microduck's interface declares in its timing. -/
+  | start {pace : Pace} (declared : Handcrafted.Microduck.interface.timing = .wallClock pace)
+      (keep : Keep) (origin : Instant) :
       Reached [] [] (.idle (Calm.start pace keep origin))
   /-- A line is heard while no percept awaits. -/
   | hear {readings : List Reading} {issued : List Nat} {calm : Calm}
@@ -543,9 +550,12 @@ structure Awaiting where
   reached : ∃ readings issued, Reached readings issued (.awaiting poised)
 
 /-- A host before its first event: no action was released, no frame was heard and no
-percept awaits. Its first unused identifier is after those of the opening requests. -/
-def Idle.start (pace : Pace) (keep : Keep) (origin : Instant) : Idle :=
-  ⟨Calm.start pace keep origin, [], [], .start pace keep origin⟩
+percept awaits. Its first unused identifier is after those of the opening requests. Its pace
+is the one of the proof that the Microduck's interface declares it, so a host starts at no
+other pace (`Idle.declared`). -/
+def Idle.start {pace : Pace} (declared : Handcrafted.Microduck.interface.timing = .wallClock pace)
+    (keep : Keep) (origin : Instant) : Idle :=
+  ⟨Calm.start pace keep origin, [], [], .start declared keep origin⟩
 
 /-- One line of a daemon is heard while no percept awaits. A state frame replaces the
 latest one and is tested for showing the action of the last release; it is paired with a
@@ -1338,6 +1348,72 @@ def Phase.last : Phase → Option Sent
   | .idle calm => calm.last
   | .awaiting poised => poised.last
 
+/-- The pace that a state holds. -/
+def Phase.pace : Phase → Pace
+  | .idle calm => calm.pace
+  | .awaiting poised => poised.pace
+
+/-- **Every reachable state holds the pace that its world declares.** For every state reached
+from the start: the Microduck's interface declares a wall clock with the pace that the state
+holds. A host starts only with the proof that the interface declares its pace, and no
+transition changes the pace. -/
+theorem Reached.declared {readings : List Reading} {issued : List Nat} {phase : Phase}
+    (reached : Reached readings issued phase) :
+    Handcrafted.Microduck.interface.timing = .wallClock phase.pace := by
+  induction reached with
+  | start declared => exact declared
+  | @hear readings issued calm _ line hold =>
+    have kept : (calm.heard line).pace = calm.pace := by
+      cases line with
+      | result id accepted => cases accepted <;> rfl
+      | fault id => cases id <;> rfl
+      | state _ | depth _ | unread _ | notice | invalid => rfl
+    show _ = Timing.wallClock (calm.heard line).pace
+    rw [kept]
+    exact hold
+  | @tick readings issued calm _ now hold =>
+    show _ = Timing.wallClock (calm.ticked now).1.pace
+    rw [(Calm.ticked_keeps now calm).2.1]
+    exact hold
+  | @sense readings issued calm _ now poised sensed admitted hold =>
+    unfold Calm.sensed at admitted
+    split at admitted
+    · split at admitted
+      · rw [← (Prod.mk.inj (Option.some.inj admitted)).1]
+        exact hold
+      · exact nomatch admitted
+    · exact nomatch admitted
+  | @listen readings issued poised _ line hold =>
+    cases line <;> exact hold
+  | @watch readings issued poised _ now hold =>
+    show _ = Timing.wallClock (poised.ticked now).1.pace
+    rw [(Poised.ticked_keeps now poised).2.1]
+    exact hold
+  | @release readings issued poised _ index now action calm commands admitted hold =>
+    unfold Poised.released at admitted
+    split at admitted
+    · split at admitted
+      · rw [← (Prod.mk.inj (Option.some.inj admitted)).1]
+        exact hold
+      · exact nomatch admitted
+    · exact nomatch admitted
+
+/-- **A host with no percept awaiting runs at the pace its world declares.** For every such
+host: the Microduck's interface declares a wall clock with the pace the host holds, which its
+sensing, its ticks and its deadline rule read. -/
+theorem Idle.declared (idle : Idle) :
+    Handcrafted.Microduck.interface.timing = .wallClock idle.calm.pace := by
+  obtain ⟨_, _, reached⟩ := idle.reached
+  exact reached.declared
+
+/-- **A host with a percept awaiting runs at the pace its world declares.** For every such
+host: the Microduck's interface declares a wall clock with the pace the host holds, which its
+release, its ticks and its deadline rule read. -/
+theorem Awaiting.declared (awaiting : Awaiting) :
+    Handcrafted.Microduck.interface.timing = .wallClock awaiting.poised.pace := by
+  obtain ⟨_, _, reached⟩ := awaiting.reached
+  exact reached.declared
+
 /-- **The latch of the goal is the latch after the readings sensed, in order.** For every
 state reached with a list of sensed readings: the latch that the state holds is the fold of
 the adapter's `arm` over those readings, from a disarmed latch. So the event of the goal in
@@ -1902,7 +1978,8 @@ instance : Nonempty Awaiting := by
   let frame : State := ⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
     Vector.replicate 3 ⟨0, by decide⟩, Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩,
     .stand, false, false, none, ⟨false, false, false, false⟩⟩
-  let idle := (Idle.start Declared.pace Declared.keep ⟨0⟩).hear (.state frame)
+  let idle := (Idle.start Handcrafted.Microduck.interface_timing Declared.keep ⟨0⟩).hear
+    (.state frame)
   have sensing : (idle.sense ⟨0⟩).isSome = true :=
     (Idle.sense_admitted ⟨0⟩ idle).mpr ⟨⟨frame, rfl⟩, Nat.zero_le _⟩
   obtain ⟨⟨awaiting, _⟩, _⟩ := Option.isSome_iff_exists.mp sensing
