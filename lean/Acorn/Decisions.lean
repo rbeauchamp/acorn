@@ -142,11 +142,14 @@ two-way kind there, and `Host.World.observe`, `Host.Attempt.finish` and `Host.At
 have an accepted input stated there, because the observation of the attempt `fresh` succeeds by
 the terrain admission of `AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the
 rule `Host.considerSpawn` of the spawn search carry the two-way kind there (`spawn_count`,
-`spawn_consider`), with the values of their accepted results beside them, and the search
-`Host.selectSpawn` keeps a requirement with no kind there (`spawn_select`), because their
-theorems are in `AcornVerif.CurrentSpawn`. `Host.World.initial` has an accepted input stated
-there (`world_initial_accepts`), at a configuration of one tile whose spawn search succeeds by
-the terrain admission of `AcornVerif.CurrentTerrain`.
+`spawn_consider`), because their proofs need the terrain admission of
+`AcornVerif.CurrentTerrain` (`CurrentTerrain.tileKind_isOk`) and the checked translation of
+`AcornVerif.CurrentCertificates`. The values of their accepted results (`spawn_count_value`,
+`spawn_consider_value`) and the requirement with no kind of the search `Host.selectSpawn`
+(`spawn_select`) are stated there because their theorems are in `AcornVerif.CurrentSpawn`.
+`Host.World.initial` has an accepted input stated there (`world_initial_accepts`), at a
+configuration of one tile whose spawn search succeeds by the terrain admission of
+`AcornVerif.CurrentTerrain`.
 
 ## Tests that a specification does not share
 
