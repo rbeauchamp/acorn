@@ -97,16 +97,14 @@ Thirty-six functions of this module have a contract and no kind. The reasons are
   `Features.Lifecycle.candidate`, `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`,
   `Agent.restore`, `AgentConstruction.State.restore`, `PredictionControl.advanceRaw`, the two
   transitions `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose input
-  carries the
-  proof that the host is reached by the transitions, and nine selection functions of the
-  temporal controller: `TemporalControl.serve`, `TemporalControl.serveDraw`,
+  carries the proof that the host is reached by the transitions, and nine selection functions of
+  the temporal controller: `TemporalControl.serve`, `TemporalControl.serveDraw`,
   `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
   `TemporalControl.selectWithOperations`, `TemporalControl.select`, `TemporalControl.step`,
   `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. A temporal state reaches such
-  tests through the invariants of its learners, the stored-word check
-  `NumericState.resumable` of a learner read from an image among them, and its lifetime
-  records. A served step
-  reaches one of them, `Binary32.negative`, through the value predictions it reports, and has a
+  tests through the invariants of its learners, the stored-word check `NumericState.resumable`
+  of a learner read from an image among them, and its lifetime records. A served step reaches
+  one of them, `Binary32.negative`, through the value predictions it reports, and has a
   statement of the step it serves beside its contract (`temporal_serve_frame`,
   `serve_draw_frame`).
 * The specification is about a function with tests that the decision runs.
