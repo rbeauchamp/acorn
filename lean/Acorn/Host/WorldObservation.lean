@@ -43,7 +43,8 @@ def World.observeTile {config : WorldConfig} (world : World config) (occupied : 
   let (food, deer) := occupied[(position.x.val, position.y.val)]?.getD (false, false)
   return ⟨kind.code, if food then 1 else 0, if deer then 1 else 0⟩
 
-/-- Complete host observation; coordinates at a signed boundary may explicitly refuse. -/
+/-- Complete host observation. It refuses a window tile whose coordinates leave the signed
+range, and wherever `World.tileKind` refuses a tile of the window. -/
 def World.observe {config : WorldConfig} (world : World config) : Except WorldError Observation := do
   let occupied := world.occupancy
   let tiles ← Vector.ofFnM (fun row => Vector.ofFnM (world.observeTile occupied row))
