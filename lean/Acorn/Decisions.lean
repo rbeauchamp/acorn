@@ -72,7 +72,7 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Eighteen functions of this module have a contract and no kind. The reasons are four.
+Twenty-seven functions of this module have a contract and no kind. The reasons are four.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
   every configuration, and a complete or a two-way kind carries a refused input. The statement
@@ -85,9 +85,17 @@ Eighteen functions of this module have a contract and no kind. The reasons are f
   These are `Checkpoint.saveBytes`, `Checkpoint.load`, `Features.Lifecycle.lessUseful`,
   `Features.Lifecycle.candidate`, `Features.Lifecycle.prefer`, `Features.Controller.stepRaw`,
   `Agent.restore`, `Agent.input`, `Agent.runPrefix`, `DefaultConstruction.runPrefix`,
-  `AgentConstruction.State.restore`, `PredictionControl.advanceRaw`, and the two transitions
+  `AgentConstruction.State.restore`, `PredictionControl.advanceRaw`, the two transitions
   `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose input carries the
-  proof that the host is reached by the transitions.
+  proof that the host is reached by the transitions, and nine selection functions of the
+  temporal controller: `TemporalControl.serve`, `TemporalControl.serveDraw`,
+  `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
+  `TemporalControl.selectWithOperations`, `TemporalControl.select`, `TemporalControl.step`,
+  `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. A temporal state reaches ten
+  such tests through the invariants of its learners and its lifetime records. A served step
+  reaches one of them, `Binary32.negative`, through the value predictions it reports, and has a
+  statement of the step it serves beside its contract (`temporal_serve_frame`,
+  `serve_draw_frame`).
 * The specification is about a function with tests that the decision runs.
   `PolicySnapshot.consistent` accepts the masses of `PolicySnapshot.probabilities`, which runs
   three word comparisons, and RG1009 refuses the kind.
@@ -197,20 +205,16 @@ report of the definitions that have no contract is work of Regula
   interaction kernel and the world classes (`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state
   worlds, agents, goals and bounds as structures and propositions, so they declare no
   definition with such a result.
-* A theorem names the definition and no contract states it. These are transitions of the
-  world, of the attempt runner and of the temporal controller, and the readers of the lines and
-  the phases of a Microduck host (`Host.Microduck.Line.stateFrame`,
-  `Host.Microduck.Line.depthFrame`, `Host.Microduck.Phase.armed`, `Host.Microduck.Phase.last`
-  and `Host.Microduck.fitting`). This module makes no
-  statement about what a caller does with the result of such a definition. The draw-first
-  dispatch of the step order `act-then-learn` (`Handcrafted.TemporalControl.drawFirst`) is in
-  this group, as selection is: it returns no state when a declared potential has no source,
-  and `Handcrafted.TemporalControl.drawFirst_total` states that it returns one from every
-  aligned state. The age of the depth frame of a Microduck reading
-  (`Host.Microduck.Reading.age`) is in this group too: it refuses nothing, and it is absent
-  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`). Two
-  definitions of the Microduck adapter are in this group as well: the event of the goal
-  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
+* A theorem names the definition and no contract states it. These are transitions of the world
+  and of the attempt runner, and the readers of the lines and the phases of a Microduck host
+  (`Host.Microduck.Line.stateFrame`, `Host.Microduck.Line.depthFrame`,
+  `Host.Microduck.Phase.armed`, `Host.Microduck.Phase.last` and `Host.Microduck.fitting`). This
+  module makes no statement about what a caller does with the result of such a definition. The
+  age of the depth frame of a Microduck reading (`Host.Microduck.Reading.age`) is in this group
+  too: it refuses nothing, and it is absent exactly when the reading has no depth frame
+  (`Host.Microduck.Reading.age_present`). Two definitions of the Microduck adapter are in this
+  group as well: the event of the goal `Handcrafted.Microduck.achieved` and its latch
+  `Handcrafted.Microduck.arm`.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
@@ -268,8 +272,9 @@ This module declares theorems, specification predicates, the structures of the a
 the functions with a dependent type, and closed values that are inputs of the witnesses of
 kinds: `wide` and `last` for the terrain, the values of the section "Closed inputs of the
 kinds with a dependent type", `sourced`, `spot`, `sixteen` and `single` of the section
-"Classifiers and lookups", and `phased` and `primitiveOnly` of the section "The executing
-invocation, the named action and the agent's event folds".
+"Classifiers and lookups", `phased` and `primitiveOnly` of the section "The executing
+invocation, the named action and the agent's event folds", and `silent`, `quiet`,
+`foreignHeld` and `foreignFree` of the section "Temporal selection".
 No executable and no other module imports it, so no entry point links those definitions, and
 the registration attribute's module, which imports Lean's elaborator, is linked into no
 native entry point.
@@ -5168,5 +5173,492 @@ theorem agent_execute : Regula.ExecutableContract AgentConstruction.execute (fun
 
 attribute [regula_decision] AgentConstruction.execute
 
+/-! ## Temporal selection
+
+A served step of a committed run, `TemporalControl.serve` and its draw-first form
+`TemporalControl.serveDraw`, serves exactly when the dispatch phase holds a committed run with an
+action remaining. The other selection functions refuse only where the interest of an option names
+a source of potentials that the frame does not supply. The input of each holds a temporal state,
+and each keeps a requirement with no kind. -/
+
+/-- A dispatch phase serves exactly when it holds a committed run with an action remaining. -/
+private theorem serve_isSome {interface : Interface} {profile : FeatureProfile}
+    {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (state.serve features).isSome = true ↔ ∃ committed,
+      state.runtime.references.phase = .exploring committed ∧
+        0 < committed.run.remaining.val := by
+  unfold TemporalControl.serve
+  rcases state.runtime.references.phase with _ | committed | ⟨slot, activation⟩
+  · simp
+  · have remains := run_serve.1.iff ⟨_, committed.run⟩
+    change (committed.run.serve).isSome = true ↔ _ at remains
+    rw [show (∃ other, Occupancy.exploring committed = .exploring other ∧
+        0 < other.run.remaining.val) ↔ 0 < committed.run.remaining.val from
+      ⟨fun ⟨_, same, positive⟩ => by cases same; exact positive,
+        fun positive => ⟨_, rfl, positive⟩⟩, ← remains]
+    dsimp only
+    cases committed.run.serve <;> rfl
+  · simp
+
+/-- A dispatch phase serves first exactly when it holds a committed run with an action
+remaining. -/
+private theorem serveDraw_isSome {interface : Interface} {profile : FeatureProfile}
+    {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (state.serveDraw features).isSome = true ↔ ∃ committed,
+      state.runtime.references.phase = .exploring committed ∧
+        0 < committed.run.remaining.val := by
+  unfold TemporalControl.serveDraw
+  rcases state.runtime.references.phase with _ | committed | ⟨slot, activation⟩
+  · simp
+  · have remains := run_serve.1.iff ⟨_, committed.run⟩
+    change (committed.run.serve).isSome = true ↔ _ at remains
+    rw [show (∃ other, Occupancy.exploring committed = .exploring other ∧
+        0 < other.run.remaining.val) ↔ 0 < committed.run.remaining.val from
+      ⟨fun ⟨_, same, positive⟩ => by cases same; exact positive,
+        fun positive => ⟨_, rfl, positive⟩⟩, ← remains]
+    dsimp only
+    cases committed.run.serve <;> rfl
+  · simp
+
+/-- A temporal state serves a step of a committed run exactly when its dispatch phase holds a
+committed run with an action remaining. `temporal_serve_frame` states the step that it serves.
+
+The statement keeps no kind. Its input holds a temporal state, and Regula v0.10.0 reads the type
+of the input of a specification (https://github.com/rbeauchamp/regula/issues/270): through the
+invariants of the learners that type reaches `Binary32.negative`, which the function also reaches
+through the value predictions it reports (`Controller.predictAll`, whose weights are words of an
+interval ordered by `Binary32.key`). RG1009
+(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refused the kind with that test, as
+an audit of the kind stated with its witnesses showed, although the specification names no
+test. -/
+theorem temporal_serve : Regula.ExecutableContract @TemporalControl.serve (fun serve =>
+    ∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension)
+      (features : SwiftTd.ActiveSet dimension),
+      (serve state features).isSome = true ↔ ∃ committed,
+        state.runtime.references.phase = .exploring committed ∧
+          0 < committed.run.remaining.val) :=
+  ⟨fun state features => serve_isSome state features⟩
+
+/-- A served step repeats the committed action of the run in the dispatch phase, records the
+source `explorationContinuation`, leaves the run that `ExploratoryRun.serve` returns in the phase
+with no option, and leaves the action generator untouched (`TemporalControl.serve_frame`). It
+is a requirement with no kind beside `temporal_serve`, which states the states that serve. -/
+theorem temporal_serve_frame : Regula.ExecutableContract @TemporalControl.serve (fun serve =>
+    ∀ {interface profile config criterion dimension}
+      (state next : TemporalControl interface profile config criterion dimension)
+      (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions),
+      serve state features = some (next, decision) →
+        ∃ committed rest, state.runtime.references.phase = .exploring committed ∧
+          committed.run.serve = some (decision.action, rest) ∧
+          decision.source = .explorationContinuation ∧
+          next.runtime.references.phase = .exploring (.bare rest) ∧
+          next.runtime.references.rng = state.runtime.references.rng) :=
+  ⟨fun state next features decision served => state.serve_frame next features decision served⟩
+
+/-- A temporal state serves a step first exactly when its dispatch phase holds a committed run
+with an action remaining, the condition of `temporal_serve`. `serve_draw_frame` states the step
+that it serves. The statement keeps no kind, for the reason that `temporal_serve` states: an audit
+of the kind refused it with the same test. -/
+theorem serve_draw : Regula.ExecutableContract @TemporalControl.serveDraw (fun serve =>
+    ∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension)
+      (features : SwiftTd.ActiveSet dimension),
+      (serve state features).isSome = true ↔ ∃ committed,
+        state.runtime.references.phase = .exploring committed ∧
+          0 < committed.run.remaining.val) :=
+  ⟨fun state features => serveDraw_isSome state features⟩
+
+/-- A step served first repeats the committed action of the run in the dispatch phase, records
+the source `explorationContinuation`, leaves the run that `ExploratoryRun.serve` returns in the
+phase with no option, and leaves the action generator untouched. It owes the advance of the
+deferred meta clock exactly when the run held no option. It is a requirement with no kind beside
+`serve_draw`, which states the states that serve. -/
+theorem serve_draw_frame : Regula.ExecutableContract @TemporalControl.serveDraw (fun serve =>
+    ∀ {interface profile config criterion dimension}
+      (state next : TemporalControl interface profile config criterion dimension)
+      (features : SwiftTd.ActiveSet dimension) (skip : Bool)
+      (decision : TemporalDecision interface.actions),
+      serve state features = some (next, skip, decision) →
+        ∃ committed rest, state.runtime.references.phase = .exploring committed ∧
+          committed.run.serve = some (decision.action, rest) ∧
+          (skip = true ↔ committed.origin = none) ∧
+          decision.source = .explorationContinuation ∧
+          next.runtime.references.phase = .exploring (.bare rest) ∧
+          next.runtime.references.rng = state.runtime.references.rng) :=
+  ⟨fun state next features skip decision served => by
+    unfold TemporalControl.serveDraw at served
+    cases phase : state.runtime.references.phase with
+    | idle => simp [phase] at served
+    | option slot activation => simp [phase] at served
+    | exploring committed =>
+      simp only [phase] at served
+      cases hs : committed.run.serve with
+      | none => simp [hs] at served
+      | some pair =>
+        simp only [hs, bind, Option.bind, pure, Option.some.injEq] at served
+        cases served
+        refine ⟨committed, pair.2, rfl, hs, ?_, rfl, ?_, ?_⟩
+        · cases committed.origin <;> simp
+        · split <;> rfl
+        · split
+          all_goals exact congrArg (·.rng) (state.interrupt_frame committed.origin).2.1⟩
+
+/-- Signals of value zero with no declared origin, one for each horizon. -/
+def silent : (horizons : List Discount) → Cumulants horizons
+  | [] => .nil
+  | _ :: rest => .cons none .zero (silent rest)
+
+/-- A grid frame with no words, a zero symbol array, zero signals and no potential, which
+declares the spatial potentials as its source (`Frame.declared`). -/
+def quiet : Frame Grid.interface :=
+  ⟨[], Nat.zero_le _, nofun, Vector.replicate _ 0, silent _, Vector.replicate _ false, false⟩
+
+/-- The temporal state of `phased` with the option of the first slot executing, and with that
+option's interest replaced by a declared choice from the feature-channel source, which no frame
+supplies. -/
+def foreignHeld : TemporalControl Grid.interface ⟨.final, .perStep, .declared, .learned⟩ bank
+    .discounted narrow :=
+  let held := phased (.option ⟨0, by decide⟩ (.first true false))
+  held.withSkill ⟨0, by decide⟩
+    { held.runtime.lifecycle.consumers.skills.get ⟨0, by decide⟩ with
+      interest := .declared .featureChannels ⟨0, by decide⟩ }
+
+/-- The executing option of `foreignHeld` has no potential from the source a frame declares. -/
+private theorem foreignHeld_unsourced (features : SwiftTd.ActiveSet narrow) :
+    (foreignHeld.runtime.lifecycle.consumers.skills.get ⟨0, by decide⟩).interest.potential
+      features quiet.declared = none := by
+  have declared : (foreignHeld.runtime.lifecycle.consumers.skills.get ⟨0, by decide⟩).interest =
+      .declared .featureChannels ⟨0, by decide⟩ := by
+    simp [foreignHeld, TemporalControl.withSkill, Vector.get, Fin.cast]
+  rw [declared]
+  rfl
+
+/-- The temporal state of the grid interface, the profile with declared spatial subtasks, `bank`
+and `narrow` before any step, with the interest of the third option replaced by a declared choice
+from the feature-channel source. Its free dispatch draws the meta action that names that option,
+as the kernel evaluates from its action generator, so the dispatch refuses. -/
+def foreignFree : TemporalControl Grid.interface ⟨.final, .perStep, .declared, .spatial⟩ bank
+    .discounted narrow :=
+  let initial := TemporalControl.initial Grid.interface ⟨.final, .perStep, .declared, .spatial⟩
+    bank .discounted narrow
+  initial.withSkill ⟨2, by decide⟩
+    { initial.runtime.lifecycle.consumers.skills.get ⟨2, by decide⟩ with
+      interest := .declared .featureChannels ⟨2, by decide⟩ }
+
+/-- Selection refuses when an option executes under a hierarchy and its interest has no
+potential from the supplied source. -/
+private theorem select_unsourced {interface : Interface} {profile : FeatureProfile}
+    {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (hierarchy : profile.usesHierarchy = true)
+    (held : state.runtime.references.phase = .option slot activation)
+    (unsourced : (state.runtime.lifecycle.consumers.skills.get slot).interest.potential features
+      declared = none) :
+    state.selectWithOperations models plan features declared reward goal = none := by
+  unfold TemporalControl.selectWithOperations
+  have phase : (state.prepareSelection models features reward).runtime.references.phase =
+      .option slot activation := by
+    rw [← held]
+    unfold TemporalControl.prepareSelection
+    dsimp only
+    split <;> split <;> rfl
+  have lifecycle := state.prepare_lifecycle models features reward
+  generalize state.prepareSelection models features reward = prepared at phase lifecycle
+  have served : prepared.serve features = none := by
+    unfold TemporalControl.serve
+    rw [phase]
+  simp only [served, hierarchy, Bool.not_true, Bool.false_eq_true, ite_false]
+  rw [phase]
+  dsimp only
+  rw [show ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+      slot).interest.potential features declared = none by rw [← unsourced, ← lifecycle]; rfl]
+  rfl
+
+/-- Selection that draws first refuses when an option executes under a hierarchy and its
+interest has no potential from the supplied source. -/
+private theorem drawFirst_unsourced {interface : Interface} {profile : FeatureProfile}
+    {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (slot : Fin Acorn.FeatureConstants.skillCount)
+    (activation : OptionActivation (profile.mode != .frozen))
+    (hierarchy : profile.usesHierarchy = true)
+    (held : state.runtime.references.phase = .option slot activation)
+    (unsourced : (state.runtime.lifecycle.consumers.skills.get slot).interest.potential features
+      declared = none) :
+    state.drawFirst models plan features declared goal = none := by
+  unfold TemporalControl.drawFirst
+  have phase : (state.prepareDraw models features).runtime.references.phase =
+      .option slot activation := by
+    rw [← held]
+    unfold TemporalControl.prepareDraw
+    dsimp only
+    split <;> rfl
+  have lifecycle : (state.prepareDraw models features).runtime.lifecycle =
+      state.runtime.lifecycle := by
+    unfold TemporalControl.prepareDraw
+    dsimp only
+    split <;> rfl
+  generalize state.prepareDraw models features = prepared at phase lifecycle
+  have served : prepared.serveDraw features = none := by
+    unfold TemporalControl.serveDraw
+    rw [phase]
+  simp only [served, hierarchy, Bool.not_true, Bool.false_eq_true, ite_false]
+  rw [phase]
+  dsimp only
+  rw [show ((prepared.withPhase .idle).runtime.lifecycle.consumers.skills.get
+      slot).interest.potential features declared = none by rw [← unsourced, ← lifecycle]; rfl]
+  rfl
+
+/-- Selection accepts every aligned state with the potentials of a frame, and returns an aligned
+state (`TemporalControl.select_total`); it refuses `foreignHeld`, whose executing option declares a
+source that no frame supplies.
+
+The statement keeps no kind. Its input holds a temporal state, and Regula v0.10.0 reads the type
+of the input of a specification (https://github.com/rbeauchamp/regula/issues/270): that type
+reaches, through the invariants of the learners (`StepSizeRails`, `ManagedAdmission`) and the
+lifetime records (`Lifetime.settlementHorizon`), ten tests that selection also runs:
+`Binary32.isNaN`, `Binary64.isNaN`, `Binary32.isZero`, `Binary32.less`, `Binary64.less`,
+`Binary32.lessOrEqual`, `Binary32.magnitudeEq`, `Binary32.negative`,
+`Binary32.numericallyEqual` and `SwiftTd.nextReady`. RG1009
+(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses a kind over it, although
+the specification names none of them. The two conjuncts are the content of a complete kind: every
+input of the specification is accepted, and an input is refused. -/
+theorem select_operations : Regula.ExecutableContract @TemporalControl.selectWithOperations
+    (fun select =>
+      (∀ {interface profile config criterion dimension}
+        (state : TemporalControl interface profile config criterion dimension), state.Aligned →
+        ∀ (models : OptionModelOps criterion dimension)
+          (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+          (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
+          (reward : Binary32) (goal : Bool),
+          ∃ next decision, select state models plan features observation.declared reward goal =
+            some (next, decision) ∧ next.Aligned) ∧
+        ∃ (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
+          (criterion : Criterion) (dimension : Dimension)
+          (state : TemporalControl interface profile config criterion dimension)
+          (models : OptionModelOps criterion dimension)
+          (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+          (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
+          (reward : Binary32) (goal : Bool),
+          select state models plan features observation.declared reward goal = none) :=
+  ⟨⟨fun state aligned models plan features observation reward goal =>
+      state.select_total aligned models plan features observation reward goal,
+    ⟨Grid.interface, _, bank, .discounted, narrow, foreignHeld,
+      modelOperations .discounted narrow,
+      planningBoundary .none, .empty narrow, quiet, .zero, false,
+      select_unsourced _ _ _ _ _ _ _ ⟨0, by decide⟩ (.first true false) rfl rfl
+        (foreignHeld_unsourced _)⟩⟩⟩
+
+/-- Selection with the executed model operations and the planning boundary of a selection
+accepts every aligned state with the potentials of a frame, and returns an aligned state
+(`TemporalControl.select_total`); it refuses `foreignHeld`. The statement keeps no kind, for the
+reason that `select_operations` states. -/
+theorem temporal_select : Regula.ExecutableContract @TemporalControl.select (fun select =>
+    (∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension), state.Aligned →
+      ∀ (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+        (observation : Frame interface) (reward : Binary32) (goal : Bool),
+        ∃ next decision, select state planning features observation.declared reward goal =
+          some (next, decision) ∧ next.Aligned) ∧
+      ∃ (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
+        (criterion : Criterion) (dimension : Dimension)
+        (state : TemporalControl interface profile config criterion dimension)
+        (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+        (observation : Frame interface) (reward : Binary32) (goal : Bool),
+        select state planning features observation.declared reward goal = none) :=
+  ⟨⟨fun state aligned planning features observation reward goal =>
+      state.select_total aligned _ _ features observation reward goal,
+    ⟨Grid.interface, _, bank, .discounted, narrow, foreignHeld, .none, .empty narrow, quiet,
+      .zero,
+      false, select_unsourced _ _ _ _ _ _ _ ⟨0, by decide⟩ (.first true false) rfl rfl
+        (foreignHeld_unsourced _)⟩⟩⟩
+
+/-- A local temporal transition accepts every aligned state, and returns an aligned state
+(`TemporalControl.step_total`); it refuses `foreignHeld`, because its selection does
+(`TemporalControl.step_parts`). The statement keeps no kind, for the reason that
+`select_operations` states. -/
+theorem temporal_step : Regula.ExecutableContract @TemporalControl.step (fun step =>
+    (∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension), state.Aligned →
+      ∀ (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+        (observation : Frame interface) (reward : Binary32) (goal : Bool),
+        ∃ next decision, step state planning features observation reward goal =
+          some (next, decision) ∧ next.Aligned) ∧
+      ∃ (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
+        (criterion : Criterion) (dimension : Dimension)
+        (state : TemporalControl interface profile config criterion dimension)
+        (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
+        (observation : Frame interface) (reward : Binary32) (goal : Bool),
+        step state planning features observation reward goal = none) :=
+  ⟨⟨fun state aligned planning features observation reward goal =>
+      state.step_total aligned planning features observation reward goal,
+    ⟨Grid.interface, _, bank, .discounted, narrow, foreignHeld, .none, .empty narrow, quiet,
+      .zero,
+      false, by
+        rw [TemporalControl.step_parts]
+        change (foreignHeld.selectWithOperations _ _ _ quiet.declared _ _).map _ = none
+        rw [select_unsourced foreignHeld _ _ _ _ _ _ ⟨0, by decide⟩ (.first true false) rfl rfl
+          (foreignHeld_unsourced _)]
+        rfl⟩⟩⟩
+
+/-- Selection that draws first accepts every aligned state with the potentials of a frame, and
+returns an aligned state (`TemporalControl.drawFirst_total`); it refuses `foreignHeld`. The
+statement keeps no kind, for the reason that `select_operations` states. -/
+theorem draw_first : Regula.ExecutableContract @TemporalControl.drawFirst (fun draw =>
+    (∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension), state.Aligned →
+      ∀ (models : OptionModelOps criterion dimension)
+        (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+        (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) (goal : Bool),
+        ∃ next owed decision, draw state models plan features observation.declared goal =
+          some (next, owed, decision) ∧ next.Aligned) ∧
+      ∃ (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
+        (criterion : Criterion) (dimension : Dimension)
+        (state : TemporalControl interface profile config criterion dimension)
+        (models : OptionModelOps criterion dimension)
+        (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+        (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) (goal : Bool),
+        draw state models plan features observation.declared goal = none) :=
+  ⟨⟨fun state aligned models plan features observation goal =>
+      state.drawFirst_total aligned models plan features observation goal,
+    ⟨Grid.interface, _, bank, .discounted, narrow, foreignHeld,
+      modelOperations .discounted narrow,
+      planningBoundary .none, .empty narrow, quiet, false,
+      drawFirst_unsourced _ _ _ _ _ _ ⟨0, by decide⟩ (.first true false) rfl rfl
+        (foreignHeld_unsourced _)⟩⟩⟩
+
+/-- The dispatch of a drawn meta decision accepts exactly when the decision names no option, or
+names one whose interest is learned or declares the supplied source (`skill_of_meta_value`,
+`TemporalControl.learnMeta_interest`). The specification states the interest by its
+constructors.
+
+The statement keeps no kind: its input holds a temporal state, so RG1009 refuses a kind over it
+for the reason that `select_operations` states. -/
+theorem dispatch_meta : Regula.ExecutableContract @TemporalControl.dispatchMeta (fun dispatch =>
+    ∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension)
+      (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+      (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
+      (decision : PolicyDecision metaCount) (ended : Option EndEvent),
+      (dispatch state models features declared reward goal decision ended).isSome = true ↔
+        ∀ slot : Fin Acorn.FeatureConstants.skillCount, decision.action.val = slot.val + 1 →
+          (∃ assignment,
+              state.runtime.lifecycle.consumers.skills[slot.val].interest = .learned assignment) ∨
+            ∃ tag, state.runtime.lifecycle.consumers.skills[slot.val].interest =
+              .declared declared.origin tag) :=
+  ⟨fun state models features declared reward goal decision ended => by
+    rw [TemporalControl.dispatchMeta_eq]
+    have kept := state.learnMeta_interest features decision
+    generalize state.learnMeta features decision = learned at kept
+    dsimp only
+    cases named : skillOfMeta decision.action with
+    | none =>
+      refine ⟨fun _ slot same =>
+        absurd ((skill_of_meta_value.1 _ slot).mpr same) (by simp [named]), fun _ => rfl⟩
+    | some slot =>
+      dsimp only
+      have value := (skill_of_meta_value.1 decision.action slot).mp named
+      have only : ∀ other : Fin Acorn.FeatureConstants.skillCount,
+          decision.action.val = other.val + 1 → other = slot := fun other same =>
+        Fin.ext (by omega)
+      have interest : (learned.runtime.lifecycle.consumers.skills.get slot).interest =
+          state.runtime.lifecycle.consumers.skills[slot.val].interest := kept slot
+      rw [interest]
+      constructor
+      · intro accepted other same
+        rw [only other same]
+        revert accepted
+        cases state.runtime.lifecycle.consumers.skills[slot.val].interest with
+        | learned assignment => exact fun _ => .inl ⟨assignment, rfl⟩
+        | declared origin tag =>
+          simp only [Interest.potential]
+          split
+          · rename_i same
+            exact fun _ => .inr ⟨tag, by rw [same]⟩
+          · simp [bind, Option.bind]
+      · intro sourced
+        rcases sourced slot value with
+          ⟨assignment, learnedInterest⟩ | ⟨tag, declaredInterest⟩
+        · rw [learnedInterest]
+          rfl
+        · rw [declaredInterest]
+          simp [Interest.potential, bind, Option.bind]⟩
+
+/-- A free dispatch accepts every aligned state with the potentials of a frame, and returns an
+aligned state (`TemporalControl.boundary_total`); it refuses `foreignFree`, whose dispatch draws
+the meta action of an option that declares a source no frame supplies. The kernel evaluates that
+refusal, the draw included. The statement keeps no kind, for the reason that `select_operations`
+states. -/
+theorem at_boundary : Regula.ExecutableContract @TemporalControl.atBoundary (fun boundary =>
+    (∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension), state.Aligned →
+      ∀ (models : OptionModelOps criterion dimension)
+        (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+        (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
+        (reward : Binary32) (goal : Bool)
+        (closing : Option (Closing interface.actions config criterion dimension interface.layout
+          (EndingPayload (profile.mode != .frozen))))
+        (ended : Option EndEvent),
+        ∃ next decision, boundary state models plan features observation.declared reward goal
+          closing ended = some (next, decision) ∧ next.Aligned) ∧
+      ∃ (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
+        (criterion : Criterion) (dimension : Dimension)
+        (state : TemporalControl interface profile config criterion dimension)
+        (models : OptionModelOps criterion dimension)
+        (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+        (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
+        (reward : Binary32) (goal : Bool)
+        (closing : Option (Closing interface.actions config criterion dimension interface.layout
+          (EndingPayload (profile.mode != .frozen))))
+        (ended : Option EndEvent),
+        boundary state models plan features observation.declared reward goal closing ended =
+          none) :=
+  ⟨⟨fun state aligned models plan features observation reward goal closing ended =>
+      state.boundary_total aligned models plan features observation reward goal closing ended,
+    ⟨Grid.interface, _, bank, .discounted, narrow, foreignFree,
+      modelOperations .discounted narrow,
+      planningBoundary .none, .empty narrow, quiet, .zero, false, none, none,
+      Option.isNone_iff_eq_none.mp (by decide +kernel)⟩⟩⟩
+
+/-- A free dispatch that draws first accepts every aligned state with the potentials of a frame,
+and returns an aligned state (`TemporalControl.drawBoundary_total`); it refuses `foreignFree`, as
+`at_boundary` states, and the kernel evaluates that refusal. The statement keeps no kind, for the
+reason that `select_operations` states. -/
+theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary (fun boundary =>
+    (∀ {interface profile config criterion dimension}
+      (state : TemporalControl interface profile config criterion dimension), state.Aligned →
+      ∀ (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+        (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
+        (closing : Option (Closing interface.actions config criterion dimension interface.layout
+          (EndingPayload (profile.mode != .frozen))))
+        (estimate : Binary32),
+        ∃ next owed decision, boundary state plan features observation.declared closing estimate =
+          some (next, owed, decision) ∧ next.Aligned) ∧
+      ∃ (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
+        (criterion : Criterion) (dimension : Dimension)
+        (state : TemporalControl interface profile config criterion dimension)
+        (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+        (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
+        (closing : Option (Closing interface.actions config criterion dimension interface.layout
+          (EndingPayload (profile.mode != .frozen))))
+        (estimate : Binary32),
+        boundary state plan features observation.declared closing estimate = none) :=
+  ⟨⟨fun state aligned plan features observation closing estimate =>
+      state.drawBoundary_total aligned plan features observation closing estimate,
+    ⟨Grid.interface, _, bank, .discounted, narrow, foreignFree, planningBoundary .none,
+      .empty narrow, quiet, none, .zero, Option.isNone_iff_eq_none.mp (by decide +kernel)⟩⟩⟩
 
 end Acorn.Decisions
