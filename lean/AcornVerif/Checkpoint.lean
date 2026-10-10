@@ -6,20 +6,21 @@ Authors: acorn contributors
 import Mathlib.Data.List.Basic
 
 /-!
-# Receiver-bound checkpoint contracts
+# Checkpoint campaign, identity, filename and write-authorization contracts
 
-These structural specifications model a receiver-indexed checkpoint capability
-and admitted images. The receiver index represents exclusive ownership. Byte
-decoding, checksums, length checks, assignment legality and numerical admission
-are separate execution obligations; the current implementation linkage lives in
-`AcornVerif.CurrentCheckpoint` and the proof-bearing `Acorn.Host.Checkpoint` modules.
+These structural specifications model campaign admission, the representation identity
+of an image, sibling filenames and the write capability. Byte decoding, checksums,
+length checks, assignment legality and numerical admission are separate execution
+obligations; the current implementation linkage lives in `AcornVerif.CurrentCheckpoint`
+and the proof-bearing `Acorn.Host.Checkpoint` modules.
 
-Primary knowledge includes weights and log step sizes in canonical learner order.
-The model's transient part is the state a restore starts cold. The commit definition
-copies assignments and primary knowledge pointwise, without ranking or controller
-reset. Refusal is a pure admission result. The executed restore of format 19 stores
-every field of the agent and starts none cold (`AcornVerif.CurrentCheckpoint.load_saved`);
-no theorem links that restore to this model.
+Restore is stated over the executed definitions there, not modelled here. Exact
+installation is `AcornVerif.CurrentCheckpoint.load_saved` and
+`Acorn.Handcrafted.AgentConstruction.State.restore_exact`; refusal without change is
+`Acorn.Checkpoint.load_nonmutation` and
+`Acorn.Handcrafted.AgentConstruction.State.restore_refuses`; receiver identity is the
+header admission `Acorn.Checkpoint.admitHeader`, which `Acorn.Checkpoint.loadCandidate`
+runs before it decodes the payload.
 
 Identity is equality of every represented component. Natural-number tags abstract
 injective encodings of supported criteria and policies; supported-policy and
@@ -111,75 +112,6 @@ theorem identity_accepted_iff (receiver image : Identity) :
 theorem identity_mismatch_refused (receiver image : Identity) (h : image ≠ receiver) :
     ¬ identityAccepted receiver image := by
   exact fun accepted => h ((identity_accepted_iff receiver image).mp accepted)
-
-/-- Full mathematical state, with explicit durable and transient ownership. -/
-structure State (Slot Learner Assignment Knowledge Durable Transient : Type*) where
-  /-- Immutable representation. -/
-  identity : Identity
-  /-- Actual assignments by canonical option slot. -/
-  assignments : Slot → Assignment
-  /-- Primary knowledge by canonical learner index. -/
-  primary : Learner → Knowledge
-  /-- Other durable state. -/
-  durable : Durable
-  /-- State intentionally cold-started by restore. -/
-  transient : Transient
-
-/-- Image whose compatibility witness refers to this exact prior receiver. -/
-structure Admitted {S L A K D T : Type*} (receiver : State S L A K D T) where
-  /-- Image representation. -/
-  identity : Identity
-  /-- Evidence that every representation component matches. -/
-  compatible : identityAccepted receiver.identity identity
-  /-- Admitted assignments in their persisted order. -/
-  assignments : S → A
-  /-- Admitted, projected primary knowledge in its persisted order. -/
-  primary : L → K
-  /-- Admitted durable state. -/
-  durable : D
-
-/-- Infallible installation into the receiver that admitted the image. -/
-def commit {S L A K D T : Type*} {receiver : State S L A K D T}
-    (image : Admitted receiver) (cold : T) : State S L A K D T :=
-  ⟨receiver.identity, image.assignments, image.primary, image.durable, cold⟩
-
-/-- Every slot receives its own assignment, independently of any ranking. -/
-theorem commit_assignment {S L A K D T : Type*} (receiver : State S L A K D T)
-    (image : Admitted receiver) (cold : T) (slot : S) :
-    (commit image cold).assignments slot = image.assignments slot := rfl
-
-/-- Every learner receives its own admitted primary knowledge. -/
-theorem commit_primary {S L A K D T : Type*} (receiver : State S L A K D T)
-    (image : Admitted receiver) (cold : T) (learner : L) :
-    (commit image cold).primary learner = image.primary learner := rfl
-
-/-- Assignment and knowledge installation hold together for every pair of indices. -/
-theorem commit_pair {S L A K D T : Type*} (receiver : State S L A K D T)
-    (image : Admitted receiver) (cold : T) (slot : S) (learner : L) :
-    ((commit image cold).assignments slot, (commit image cold).primary learner) =
-      (image.assignments slot, image.primary learner) := rfl
-
-/-- Commit preserves the receiver identity and therefore the admitted image identity. -/
-theorem commit_identity {S L A K D T : Type*} (receiver : State S L A K D T)
-    (image : Admitted receiver) (cold : T) :
-    (commit image cold).identity = image.identity :=
-  ((identity_accepted_iff receiver.identity image.identity).mp image.compatible).symm
-
-/-- Admission either returns a receiver-bound image or refuses without a state update. -/
-def restore {S L A K D T : Type*} (receiver : State S L A K D T)
-    (admission : Option (Admitted receiver)) (cold : T) : State S L A K D T :=
-  match admission with
-  | none => receiver
-  | some image => commit image cold
-
-/-- Refusal preserves the whole arbitrary prior state, including transients. -/
-theorem refusal_unchanged {S L A K D T : Type*} (receiver : State S L A K D T)
-    (cold : T) : restore receiver none cold = receiver := rfl
-
-/-- Successful admission installs precisely the receiver-bound image. -/
-theorem restore_admitted {S L A K D T : Type*} (receiver : State S L A K D T)
-    (image : Admitted receiver) (cold : T) :
-    restore receiver (some image) cold = commit image cold := rfl
 
 /-- Appending a nonempty suffix strictly increases any finite filename's length. -/
 theorem appended_name_longer {α : Type*} (name suffix : List α) (h : suffix ≠ []) :

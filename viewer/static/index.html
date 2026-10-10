@@ -2156,7 +2156,7 @@ function drawMission(f, st, fast) {
   $("n_planning_v").textContent = `${fmt(f.planningSteps)} backups`;
   const perr = fast ? st.perr : Array.from(S.planningErrors.subarray(f.i*N_SKILL, f.i*N_SKILL+N_SKILL), Math.abs);
   const meanErr = observerMean(perr);
-  $("n_planning_c").innerHTML = `since process start / restore · mean |Bellman error| <b>${sig(meanErr)}</b>${win}`;
+  $("n_planning_c").innerHTML = `since the agent began, across checkpoint resumes · mean |Bellman error| <b>${sig(meanErr)}</b>${win}`;
   $("n_planning").classList.toggle("on", lit && A.planningChangedAt >= 0 && id - A.planningChangedAt < WIN && A.planningChangedAt <= id);
   // The strip's state word, and the stage clock's: what the reader is looking at.
   const stateWord = displayState();

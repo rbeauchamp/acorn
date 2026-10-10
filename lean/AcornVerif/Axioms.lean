@@ -613,30 +613,6 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Checkpoint.identity_mismatch_refused
 
-/-- info: 'AcornVerif.Checkpoint.commit_assignment' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.commit_assignment
-
-/-- info: 'AcornVerif.Checkpoint.commit_primary' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.commit_primary
-
-/-- info: 'AcornVerif.Checkpoint.commit_pair' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.commit_pair
-
-/-- info: 'AcornVerif.Checkpoint.commit_identity' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Checkpoint.commit_identity
-
-/-- info: 'AcornVerif.Checkpoint.refusal_unchanged' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.refusal_unchanged
-
-/-- info: 'AcornVerif.Checkpoint.restore_admitted' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.restore_admitted
-
 /-- info: 'AcornVerif.Checkpoint.appended_name_longer' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms Checkpoint.appended_name_longer
