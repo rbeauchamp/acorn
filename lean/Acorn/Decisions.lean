@@ -86,8 +86,9 @@ Thirty-five functions of this module have a contract and no kind. The reasons ar
   `Host.Attempt.tick`, `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`,
   `Host.AnsiState.tick`, `Host.BaselineAttempt.tick` and `Host.World.observe`;
   `Host.AnsiState.tick` also refuses where its step counter overflows. No theorem states which
-  observations or steps succeed, and a specification of their accepted inputs would name
-  `Host.World.observe` or `Host.World.step`, which run tests that these functions run.
+  observations or steps succeed. A specification of their accepted inputs would name
+  `Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that these functions
+  run, or `Host.World.step`, which decides propositions in the place of its tests.
   `Host.World.initial` refuses where the spawn search or the placement of the deer refuses, and
   no theorem states that the spawn search returns a spawn for every seed.
   `AgentConstruction.State.restore` refuses no input that its type admits: every image that
@@ -5511,9 +5512,10 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
 The transitions of an attempt and of the world refuse where the world refuses an observation or
 a step, the ANSI tick also where its step counter overflows, and initialization refuses where
 the spawn search or the placement of the deer refuses. No theorem states which observations or
-steps succeed, or that the spawn search returns a spawn for every seed, and a specification that
-names `Host.World.observe` or `Host.World.step` reaches tests that these functions run, so each
-keeps a requirement with no kind. `AcornVerif.Decisions` states an accepted input of the
+steps succeed, or that the spawn search returns a spawn for every seed, so each keeps a
+requirement with no kind; a specification that names `Host.World.observe` also reaches the
+ownership test `Host.Inventory.owns`, which the transitions of an attempt run.
+`AcornVerif.Decisions` states an accepted input of the
 observation, of finishing and of the fold, each at the attempt `fresh`, and of initialization, at
 a configuration of one tile, and `ansi_tick_accepts` here states one of the ANSI tick.
 `Host.Released.environment` keeps a requirement with no kind for another reason: its two-way kind
@@ -5550,8 +5552,8 @@ the stage, and the world and the events of that step, and a refusal is the step'
 
 The statement keeps no kind. The stage is accepted exactly when the world's step accepts its
 action, and no theorem states which steps succeed (`world_step`). A specification of the accepted
-stages would name `Host.World.step`, which runs tests that the function runs, and the stage's
-input type reaches some of them (`Host.Inventory.owns`, the comparison of tile kinds) through the
+stages would name `Host.World.step`, and the stage's input type reaches the ownership test
+`Host.Inventory.owns`, which the function runs through the crafting of the step, through the
 proof that its observation succeeded, so RG1009
 (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) would refuse a kind over it. -/
 theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
@@ -5642,8 +5644,8 @@ input of the same attempt.
 The statement keeps no kind. An attempt that has stopped is accepted without an observation;
 one that has not stopped is accepted exactly when the world's observation succeeds, and no
 theorem states which observations succeed. A specification of the accepted attempts would name
-`Host.World.observe`, which runs tests that sensing runs (`Host.Inventory.owns` and the
-comparison of tile kinds), so RG1009 would refuse a kind with it. -/
+`Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that sensing runs, so
+RG1009 would refuse a kind with it. -/
 theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense =>
     ∀ {config α goal cap} (attempt : Host.Attempt config α goal cap),
       (sense attempt = .ok none ↔ Stopped attempt) ∧

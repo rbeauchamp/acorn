@@ -80,9 +80,9 @@ their statements say what their results are.
 * The statement gives an accepted input of a host transition whose statement in
   `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
   `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
-  steps succeed or which configurations initialize, and a specification of the accepted inputs
-  would name `Host.World.observe`, `Host.World.step` or `Host.World.tileKind`, which run tests
-  that these functions run.
+  steps succeed or which configurations initialize. A specification of the accepted inputs of
+  the first three would name `Host.World.observe`, which runs the ownership test
+  `Host.Inventory.owns` that they run.
 * The statement relates the comparator to the agent's attempt, or bounds where a campaign ends
   unfinished: `Host.BaselineAttempt.tick`, `Host.runBaselineCampaign` and
   `Host.runRandomBaseline`. Their acceptance is the world step's or world generation's, and no
@@ -1234,10 +1234,9 @@ private theorem step_paid {config : Host.WorldConfig} {world middle : Host.World
     {action : Host.Action} {events : Host.StepResult}
     (stepped : world.step action = .ok (middle, events)) :
     (Host.payAndAct world action).isOk = true := by
-  unfold Host.World.step at stepped
-  cases paid : Host.payAndAct world action with
-  | error error => simp [paid, bind, Except.bind] at stepped
-  | ok active => rfl
+  obtain ⟨active, paid, -⟩ := CurrentStep.step_active world middle action events stepped
+  rw [paid]
+  rfl
 
 /-- An action replay succeeds exactly when a run of the executed world step over its actions
 exists (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). The specification names the
