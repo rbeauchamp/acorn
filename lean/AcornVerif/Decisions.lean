@@ -43,7 +43,9 @@ of the terrain do with its result. `pay_and_act` and `perform_action` keep their
 the kinds of the paid actions: what an accepted paid action does with the energy, and where an
 accepted move puts the body. `feature_image_admit` and `profile_admit_accepts` keep their
 complete kinds about the feature words of an agent image of a construction beside the two-way
-kinds `feature_image_admit_exact` and `profile_admit_exact`.
+kinds `feature_image_admit_exact` and `profile_admit_exact`. `execute_prefix` keeps its name
+beside the kind `agent_execute` of `Acorn.Decisions`: the safe path that an accepted fold
+follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this

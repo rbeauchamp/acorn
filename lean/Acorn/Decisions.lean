@@ -56,14 +56,15 @@ with one proved direction carries that direction alone. Five groups are register
   `Regula.Dependent.isOk` of that function: whether the result holds a value, with the value
   forgotten.
 * A function with a kind can carry a second statement beside it for what its kind does not
-  state: the value of an accepted result (`cli_value_found`, and each statement with a name
-  that ends in `_value`), the exact verdict on a part of the inputs (`capture_follows`, and
-  `task_observed` in `AcornVerif.Decisions`), a set of accepted inputs beside a sound kind,
-  which carries one accepted input (`schema_covers_empty`, `predicate_eval_programs`), or which
-  of several accepted results an input has (`microduck_outcome_judged`, for a verdict of five
-  outcomes whose kind states only which inputs the daemon accepted, and `microduck_line_read`,
-  for the lines of a daemon that a host reads). That statement is a
-  requirement with no kind, and the ownership audit requires it by name.
+  state: the value of an accepted result (`cli_value_found`, `execute_prefix` in
+  `AcornVerif.Decisions`, and each statement with a name that ends in `_value`), the exact
+  verdict on a part of the inputs (`capture_follows`, and `task_observed` in
+  `AcornVerif.Decisions`), a set of accepted inputs beside a sound kind, which carries one
+  accepted input (`schema_covers_empty`, `predicate_eval_programs`), or which of several
+  accepted results an input has (`microduck_outcome_judged`, for a verdict of five outcomes
+  whose kind states only which inputs the daemon accepted, and `microduck_line_read`, for the
+  lines of a daemon that a host reads). That statement is a requirement with no kind, and the
+  ownership audit requires it by name.
 * A function keeps a requirement with no kind where no kind is true of it, or where Regula
   refuses the kind. The function carries no `@[regula_decision]` registration, and the
   ownership audit requires the contract by name, with a statement that still refers to the
@@ -266,8 +267,9 @@ theorems beside each definition.
 This module declares theorems, specification predicates, the structures of the arguments of
 the functions with a dependent type, and closed values that are inputs of the witnesses of
 kinds: `wide` and `last` for the terrain, the values of the section "Closed inputs of the
-kinds with a dependent type", and `sourced`, `spot`, `sixteen` and `single` of the section
-"Classifiers and lookups".
+kinds with a dependent type", `sourced`, `spot`, `sixteen` and `single` of the section
+"Classifiers and lookups", and `phased` and `primitiveOnly` of the section "The executing
+invocation, the named action and the agent's event folds".
 No executable and no other module imports it, so no entry point links those definitions, and
 the registration attribute's module, which imports Lean's elaborator, is linked into no
 native entry point.
