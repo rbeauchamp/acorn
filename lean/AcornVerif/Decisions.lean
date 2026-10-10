@@ -30,9 +30,10 @@ No certificate checker is complete about its goal: a refused certificate establi
 about whether the goal can be reached. The blocked checker and the stance checker carry the
 sound kind, with an accepted certificate as the witness, and so do the constructors of their
 certificates. The replay checker and the constructor of its certificate carry the two-way kind
-about the action list: they accept exactly an action list whose run of the executed world step
-ends in a world in which the goal is attained (`Replays`). The walkable test is not a
-certificate checker, and it carries the two-way kind.
+about the action list: they accept exactly an action list of at least one and at most the cap
+actions whose run of the executed world step, from the world with the goal installed, ends in a
+world in which the goal is attained (`Replays`). The walkable test is not a certificate checker,
+and it carries the two-way kind.
 
 A function of this module with an argument or result type that depends on an earlier argument
 states its kind in the forms that `Acorn.Decisions` describes: about the function applied to
@@ -145,8 +146,9 @@ specification states that comparison as an equality.
 The kinds of the count and of the rule of the spawn search share the same quotient through
 `CurrentTerrain.LatticeAdmits`, and `Host.WorldConfig.side`, which the type of their world
 argument reads and which bounds the coordinates of the rule's box; none of them is a test. They
-name neither the comparison of tile kinds by their derived `BEq` that the count runs nor the
-walkability test `Host.TileKind.walkable` that the rule runs, which refuse nothing.
+name neither the comparison of tile kinds that the count runs, Lean's `instBEqOfDecidableEq` over
+the derived decidable equality, nor the walkability test `Host.TileKind.walkable` that the rule
+runs, which refuse nothing.
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
 tests that their functions run. This module keeps no list of them, and the examples that follow
@@ -1226,7 +1228,8 @@ theorem advance_actions_value : Regula.ExecutableContract @Host.World.advanceAct
     ⟨CurrentStep.actions_trace world final actions,
       fun ⟨_, run, same⟩ => same ▸ CurrentStep.trace_actions run⟩⟩
 
-/-- A step that succeeds paid for its action: the paid action succeeded. -/
+/-- A successful step has a successful paid action (`Host.payAndAct`); an action that the
+energy does not pay for rests the body, and `Host.payAndAct` succeeds then too. -/
 private theorem step_paid {config : Host.WorldConfig} {world middle : Host.World config}
     {action : Host.Action} {events : Host.StepResult}
     (stepped : world.step action = .ok (middle, events)) :

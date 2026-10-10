@@ -630,9 +630,10 @@ requires each contract by name. Among them are the certificate checkers. No
 checker is complete about its goal, so a refused certificate establishes
 nothing: the blocked checker and the stance checker carry the sound kind. The
 replay checker carries the two-way kind about its action list: it accepts
-exactly an action list whose run of the executed world step ends in a world in
-which the goal is attained. The world step decides propositions in the place of
-its tests, so that specification shares no test with the checker. The module
+exactly an action list of at least one and at most the cap actions whose run of
+the executed world step, from the world with the goal installed, ends in a world
+in which the goal is attained. The world step decides propositions in the place
+of its tests, so that specification shares no test with the checker. The module
 documentation of `lean/AcornVerif/Decisions.lean` lists the functions of that
 module that keep no kind, with the reason for each and which of them are also
 remaining work of issue 105.
