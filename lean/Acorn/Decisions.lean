@@ -4973,7 +4973,8 @@ that cannot restore, and under a resumable profile the restore returns the image
 (`AgentConstruction.State.restore_exact`).
 
 The statement keeps no kind: the function refuses no input that its type admits, and a
-complete or a two-way kind carries a refused input. -/
+complete or a two-way kind carries a refused input. A sound kind would state only that an
+accepted input has a resumable profile, which is less than this statement. -/
 theorem state_restore : Regula.ExecutableContract @AgentConstruction.State.restore
     (fun restore =>
       ∀ {construction : AgentConstruction} (state : construction.State)
