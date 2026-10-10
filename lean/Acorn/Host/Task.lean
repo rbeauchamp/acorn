@@ -18,7 +18,7 @@ inductive Direction where
   | east
   /-- Negative x. -/
   | west
-  deriving DecidableEq, BEq
+  deriving DecidableEq
 
 /-- The signed displacement of one movement. -/
 def Direction.delta : Direction → Int × Int
@@ -48,7 +48,7 @@ inductive Action where
   | craftBoat
   /-- Eat one food item. -/
   | eat
-  deriving DecidableEq, BEq
+  deriving DecidableEq
 
 /-- Stable action code for audit and agent composition. -/
 def Action.index : Action → Fin 9
@@ -119,7 +119,7 @@ inductive CraftError where
 /-- Transactional crafting: material subtraction occurs only after all checks. -/
 def Inventory.craft (inventory : Inventory) (tool : Craftable) : Except CraftError Inventory :=
   let (wood, stone) := tool.recipe
-  if inventory.owns tool then .error .alreadyOwned
+  if inventory.Owns tool then .error .alreadyOwned
   else if inventory.wood.toNat < wood then .error (.notEnoughWood inventory.wood.toNat wood)
   else if inventory.stone.toNat < stone then .error (.notEnoughStone inventory.stone.toNat stone)
   else
@@ -134,7 +134,7 @@ theorem Inventory.craft_exact (inventory next : Inventory) (tool : Craftable)
     next.wood.toNat + tool.recipe.1 = inventory.wood.toNat ∧
     next.stone.toNat + tool.recipe.2 = inventory.stone.toNat ∧ next.owns tool = true := by
   rcases hr : tool.recipe with ⟨wood, stone⟩
-  by_cases ho : inventory.owns tool = true
+  by_cases ho : inventory.Owns tool
   · simp [craft, ho] at h
   · by_cases hw : inventory.wood.toNat < wood
     · simp [craft, hr, ho, hw] at h

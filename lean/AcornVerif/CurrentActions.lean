@@ -217,11 +217,6 @@ theorem performAction_isOk {config : WorldConfig} (world : World config) (action
   | craftBoat => exact iff_of_true (idle_isOk world .craftBoat (.inr (.inr (.inl rfl)))) trivial
   | eat => exact iff_of_true (idle_isOk world .eat (.inr (.inr (.inr rfl)))) trivial
 
-/-- The comparison of an action with a harvest is the equality of the two. -/
-private theorem harvest_beq (action : Action) :
-    (action == .harvest) = true ↔ action = .harvest := by
-  cases action <;> decide
-
 /-- The energy of the body pays the cost that the paid action computes exactly when it pays the
 cost that `Cost` states. -/
 private theorem affords_iff {config : WorldConfig} (world : World config) (action : Action) :
@@ -230,10 +225,10 @@ private theorem affords_iff {config : WorldConfig} (world : World config) (actio
   unfold Affords Cost Action.energyCost
   rcases Nat.lt_or_ge world.dayPhase.val 4 with day | night
   · have night : ¬4 ≤ world.dayPhase.val := by omega
-    by_cases harvest : action = .harvest <;> simp [harvest, night, day, harvest_beq]
+    by_cases harvest : action = .harvest <;> simp [harvest, night, day]
   · have night : 4 ≤ world.dayPhase.val := night
     have day : ¬world.dayPhase.val < 4 := by omega
-    by_cases harvest : action = .harvest <;> simp [harvest, night, day, harvest_beq]
+    by_cases harvest : action = .harvest <;> simp [harvest, night, day]
 
 /-- **A paid action is refused exactly when the energy pays its cost and the terrain refuses the
 tile that the action reads.** An action that the energy does not pay for rests the body and is

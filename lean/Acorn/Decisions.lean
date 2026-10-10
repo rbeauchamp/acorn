@@ -132,10 +132,11 @@ is not registered here, and the ownership audit requires its contract in the sam
 certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified`
 are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
 statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
-No checker is complete, so `Host.regionBlocked` and `Host.stanceCertified` carry the sound
-kind. `Host.replayCertified` keeps a requirement with no kind: its specification is about runs
-of the executed world step, which the checker runs. `Host.walkableTile` carries the two-way
-kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind` and
+No checker is complete about its goal, so `Host.regionBlocked` and `Host.stanceCertified`
+carry the sound kind. `Host.replayCertified` carries the two-way kind about its action list,
+with `Host.ReplayCertificate.check` and the replay `Host.World.advanceActions`: their
+specifications are about runs of the executed world step, which decides propositions in the
+place of its tests. `Host.walkableTile` carries the two-way kind. The terrain generator `Host.terrain` and its readers `Host.World.tileKind` and
 `Host.World.enterable` carry the two-way kind there too, because the proof of their refusals
 needs the exact floor of `AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
 two-way kind there, and `Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete`
@@ -178,14 +179,18 @@ Each such condition is a proposition, with a theorem that connects the test with
   holds, with `FeatureProfile.checkpoint_iff`;
 * `Binary32.LessOrEqual`, the non-strict order by the signed keys of two words that are not NaNs,
   with `Binary32.lessOrEqual_iff`;
-* `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`.
+* `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`;
+* `Host.World.GoalSatisfied`, a goal installed in the world and attained on the stored fields of
+  the world (`Host.World.Attained`), with `Host.World.goalSatisfied_iff`;
+* `Host.FoodDue`, the food schedule on the clock and the interval, with `Host.foodDue_iff`.
 
 A function that a specification reaches decides the proposition in the place of the call of
 the test: the signed key `Binary32.key`, `Binary32.saturate`, `Agreement.units`,
 `Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`, `Conversion.toI64Word`,
 `Host.floor32`, `Host.castWord`, `Host.classifyTerrain`, `Host.World.enterable`, and the ordered
 maximum, the candidates and the masses of a frozen policy (`PolicySnapshot.best`,
-`PolicySnapshot.candidates`, `PolicySnapshot.probabilities`). The
+`PolicySnapshot.candidates`, `PolicySnapshot.probabilities`), crafting `Host.Inventory.craft`,
+the food spawn `Host.spawnFood` and the world step `Host.World.step`. The
 instance of each proposition runs its test, so the executed comparison is the same one. A
 specification that would name a test names the proposition: `inventory_craft` and
 `region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
@@ -197,6 +202,11 @@ functions stay a matter of review. For a contract with a kind, the account of th
 names each such function where the specification reaches it first. It does not name a function
 that the specification reaches only through a named one, and it does not name a projection
 function.
+
+The vocabulary of the world, `Host.Direction`, `Host.Action`, `Host.TileKind`, `Host.Position`
+and `Host.BoxPosition`, derives decidable equality and no `BEq` instance of its own: `==` on it
+is Lean's `instBEqOfDecidableEq`, which is no test. A specification about runs of the world step
+therefore shares no comparison of actions, tile kinds or positions with the step.
 
 ## What is not registered
 
@@ -1023,7 +1033,8 @@ attribute [regula_decision] Host.Action.rawEnergyCost
 
 /-- Crafting accepts exactly a tool that is not owned and whose recipe the inventory covers
 (`Host.Inventory.craft_exact`). Ownership is the proposition `Host.Inventory.Owns`, which
-names no test, and `Host.Inventory.owns_iff` connects it with the test that crafting runs. -/
+names no test; crafting decides it through its instance, which runs the test
+`Host.Inventory.owns` (`Host.Inventory.owns_iff`). -/
 theorem inventory_craft : Regula.ExecutableContract Host.Inventory.craft (fun craft =>
     Regula.Decides (·.isOk = true)
       (fun input : Host.Inventory × Host.Craftable =>
@@ -1034,9 +1045,8 @@ theorem inventory_craft : Regula.ExecutableContract Host.Inventory.craft (fun cr
     (fun ⟨inventory, tool⟩ => by
       show (inventory.craft tool).isOk = true ↔ ¬inventory.Owns tool ∧
         tool.recipe.1 ≤ inventory.wood.toNat ∧ tool.recipe.2 ≤ inventory.stone.toNat
-      rw [← inventory.owns_iff tool, Bool.not_eq_true]
       rcases recipe : tool.recipe with ⟨wood, stone⟩
-      by_cases owned : inventory.owns tool = true
+      by_cases owned : inventory.Owns tool
       · simp [Host.Inventory.craft, owned, Except.isOk, Except.toBool]
       · by_cases short : inventory.wood.toNat < wood
         · simp [Host.Inventory.craft, recipe, owned, short, Except.isOk, Except.toBool] <;>
@@ -2731,6 +2741,7 @@ attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidab
   Binary32.instDecidableNegative Binary32.instDecidableIsNaN Binary32.instDecidableLess
   Binary64.instDecidableIsNaN Binary64.instDecidableLess Host.instDecidableWalkable
   Host.instDecidableOwns Host.instDecidableInBox Handcrafted.instDecidableResumable
+  Host.instDecidableGoalSatisfied Host.instDecidableFoodDue
 
 /-! ## Decisions with a dependent type
 

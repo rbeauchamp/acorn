@@ -34,7 +34,7 @@ inductive TileKind where
   | stone
   /-- Ore. -/
   | ore
-  deriving DecidableEq, BEq
+  deriving DecidableEq
 
 /-- Stable channel encoding, exhaustive over the actual terrain type. -/
 def TileKind.code : TileKind → UInt8

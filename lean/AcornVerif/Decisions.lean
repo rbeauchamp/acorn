@@ -26,11 +26,13 @@ legality of every stored lifetime total rests on the real-valued bounds of
 `CurrentLifetime.stored_sum_legal`. What an accepted certificate establishes is a statement
 about runs of the executed world step, proved in `CurrentCertificates`.
 
-No certificate checker is complete: each kind below states what an accepted certificate
-establishes, and a refused certificate establishes nothing. The blocked checker and the stance
-checker carry the sound kind, with an accepted certificate as the witness, and so do the
-constructors of their certificates. The replay checker keeps a requirement with no kind. The
-walkable test is not a certificate checker, and it carries the two-way kind.
+No certificate checker is complete about its goal: a refused certificate establishes nothing
+about whether the goal can be reached. The blocked checker and the stance checker carry the
+sound kind, with an accepted certificate as the witness, and so do the constructors of their
+certificates. The replay checker and the constructor of its certificate carry the two-way kind
+about the action list: they accept exactly an action list whose run of the executed world step
+ends in a world in which the goal is attained (`Replays`). The walkable test is not a
+certificate checker, and it carries the two-way kind.
 
 A function of this module with an argument or result type that depends on an earlier argument
 states its kind in the forms that `Acorn.Decisions` describes: about the function applied to
@@ -65,16 +67,10 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Fourteen functions of this module have a contract and no kind. The reasons are five. Two more,
+Eleven functions of this module have a contract and no kind. The reasons are four. Two more,
 `Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
 their statements say what their results are.
 
-* The specification is a statement about runs of the executed world step, which the function
-  runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
-  `Host.World.advanceActions`. The step runs tests, and Regula's RG1009
-  (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses a kind whose
-  specification reaches a test that its function runs. A kind needs the world step stated with
-  propositions in the place of those tests.
 * The input holds a state whose invariant names tests that the function runs, and Regula reads
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
   `Checkpoint.load`, and `Checkpoint.admitPayload` and `Checkpoint.loadCandidate`, whose
@@ -97,7 +93,7 @@ their statements say what their results are.
   which tiles it reads depends on the kinds and walkability of the tiles before, and no theorem
   states which worlds it accepts.
 
-Kinds for the functions of the first two reasons are remaining work of
+Kinds for the functions of the first reason are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
 
 ## Tests that a specification does not share
@@ -105,20 +101,25 @@ https://github.com/rbeauchamp/acorn/issues/105.
 No specification of a contract with a kind here reaches a test that its function runs: Regula's
 RG1009 refuses such a contract, and `Acorn.Decisions` states the rule and lists the propositions
 that take the place of the tests. The specification of `exp_saturation` names the strict order
-`Binary32.Less`, and `Attained` names the ownership `Host.Inventory.Owns`. The specifications of
-the requirements `payload_admit` and `candidate_load`, which keep no kind, likewise name the
-resumable profile `FeatureProfile.Resumable` in the place of the test that the admissions run.
+`Binary32.Less`, and `Host.World.Attained` names the ownership `Host.Inventory.Owns`. The
+specifications of the requirements `payload_admit` and `candidate_load`, which keep no kind,
+likewise name the resumable profile `FeatureProfile.Resumable` in the place of the test that the
+admissions run. The specifications of `replay_certified`, `replay_check` and `advance_actions`
+name runs of the world step, which decides `Host.World.GoalSatisfied`, `Host.FoodDue` and
+`Host.Inventory.Owns` in the place of its tests and compares actions, tile kinds and positions by
+their decidable equality.
 
 A specification also names no reader that its function calls where the data has constructors
-or stored fields to state it by. `Attained` states a goal on the box indices, the inventory
-fields and the clock of the world, with no observation, no count reader and no embedding of a
-box position. `Harvests` states the tiles of a stance by equations on indices and coordinates
-and the move by `Offset` and `Heads`, with no offset table, no facing position and no checked
-translation. `SquareAdmits` states the tiles of a square by equations on the coordinates, with
-no checked translation, and the kind of the spawn rule states the box by bounds on the
-coordinates, with no box admission. `squared_admit_exact` states the discrepancy of two words by
-their rational values, with no unit map. A private lemma beside each connects the reader with
-the statement.
+or stored fields to state it by. `Host.World.Attained` states a goal on the box indices, the
+inventory fields and the clock of the world, with no observation, no count reader and no
+embedding of a box position. `Harvests` states the tiles of a stance by equations on indices
+and coordinates and the move by `Offset` and `Heads`, with no offset table, no facing position
+and no checked translation. `SquareAdmits` states the tiles of a square by equations on the
+coordinates, with no checked translation, and the kind of the spawn rule states the box by
+bounds on the coordinates, with no box admission. `squared_admit_exact` states the discrepancy of
+two words by their rational values, with no unit map. `Host.World.observe_satisfied_iff`
+connects the observation with `Host.World.Attained`, and a private lemma beside each of the
+others connects the reader with the statement.
 
 The kind of `sum_admit` names the writer `sumWords` of the form that it reads, which the
 admission does not call.
@@ -138,7 +139,8 @@ coordinates and the box indices and by the constructors of the action and the di
 `CurrentActions.Cost` states the cost by the constructors of the action and the constants of
 `FeatureConstants`. They name no direction table, offset table, checked translation, box
 admission, facing position or cost function. The paid action compares the action with a
-harvest by its derived `BEq`; the specification states that comparison as an equality.
+harvest by `==`, which is Lean's `instBEqOfDecidableEq` over the derived decidable equality; the
+specification states that comparison as an equality.
 
 The kinds of the count and of the rule of the spawn search share the same quotient through
 `CurrentTerrain.LatticeAdmits`, and `Host.WorldConfig.side`, which the type of their world
@@ -148,9 +150,7 @@ walkability test `Host.TileKind.walkable` that the rule runs, which refuse nothi
 
 RG1009 does not examine a statement with no kind, and statements with no kind here do reach
 tests that their functions run. This module keeps no list of them, and the examples that follow
-are not one. `replay_certified`, `replay_check` and `advance_actions` reach each test that the
-world step runs, through `CurrentStep.Trace`. `task_observed` names `Host.Inventory.owns` in its
-craft clause.
+are not one: `task_observed` names `Host.Inventory.owns` in its craft clause.
 
 Regula counts only a contract of the function's own library toward a decision registration,
 so the functions below carry no registration. The ownership audit requires each contract by
@@ -261,75 +261,97 @@ def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inv
   match goal with
   | .reach target => CurrentGoals.InGoalBox target position
   | .collect item count => count.toNat ≤ (inventory.count item).toNat
-  | .craft tool => inventory.owns tool = true
+  | .craft tool => inventory.Owns tool
   | .survive required => required.toNat ≤ elapsed.toNat
 
-/-- An observation that the completion predicate accepts is the observation of an achieved
-goal. -/
-private theorem satisfied_achieved (goal : Host.Goal) (position : Host.Position)
-    (inventory : Host.Inventory) (elapsed : UInt64)
-    (satisfied : (goal.observe position inventory elapsed).satisfied = true) :
-    Achieved goal position inventory elapsed := by
-  cases goal with
-  | reach target => exact (CurrentGoals.reach_satisfied_iff _ _ _ _).mp satisfied
-  | collect item count => exact (CurrentGoals.collect_satisfied_iff _ _ _ _ _).mp satisfied
-  | craft tool =>
-    rw [CurrentGoals.craft_satisfied] at satisfied
-    exact satisfied
-  | survive required => exact (CurrentGoals.survive_satisfied_iff _ _ _ _).mp satisfied
+/-- The arguments of `Host.replayCertified` and of `Host.ReplayCertificate.check`, in order. -/
+structure Replay where
+  /-- The world configuration. -/
+  config : Host.WorldConfig
+  /-- The world before the goal is installed. -/
+  world : Host.World config
+  /-- The goal to install. -/
+  goal : Host.Goal
+  /-- The most actions the list may hold. -/
+  cap : Nat
+  /-- The actions to replay. -/
+  actions : List Host.Action
 
-/-- A goal is reached from a world within a cap: some run of at least one and at most `cap`
-executed steps, from the world with the goal installed, ends in a world in which the goal is
-achieved. The end is stated on the final position, inventory and elapsed time, and it names no
-completion test. For a craft goal `Achieved` names the ownership test `Host.Inventory.owns`.
-The run is a run of the executed world step, which is the subject of the claim. -/
-def Reaches {config : Host.WorldConfig} (world : Host.World config) (goal : Host.Goal)
-    (cap : Nat) : Prop :=
-  ∃ (trace : List (Host.Action × Host.StepResult)) (final : Host.World config),
-    CurrentStep.Trace (world.setGoal goal) trace final ∧ 0 < trace.length ∧
-      trace.length ≤ cap ∧
-      Achieved goal final.body.position.position final.body.inventory
-        (final.time.toNat - final.goalStart.toNat).toUInt64
+/-- An action list replays its goal from a world within a cap: the list holds at least one and
+at most `cap` actions, and the run of the executed world step over them, from the world with the
+goal installed, ends in a world in which the goal is attained (`Host.World.Attained`, on the
+stored fields of the final world). The run is a run of the executed world step, which is the
+subject of the claim. -/
+def Replays {config : Host.WorldConfig} (world : Host.World config) (goal : Host.Goal) (cap : Nat)
+    (actions : List Host.Action) : Prop :=
+  0 < actions.length ∧ actions.length ≤ cap ∧
+    ∃ (trace : List (Host.Action × Host.StepResult)) (final : Host.World config),
+      CurrentStep.Trace (world.setGoal goal) trace final ∧ trace.map (·.1) = actions ∧
+        final.Attained goal
 
-/-- An accepted action list shows that its goal is reached. -/
-private theorem replay_reaches {config : Host.WorldConfig} {world : Host.World config}
-    {goal : Host.Goal} {cap : Nat} {actions : List Host.Action}
-    (accepted : Host.replayCertified world goal cap actions = true) : Reaches world goal cap := by
-  obtain ⟨trace, final, run, nonempty, short, satisfied⟩ :=
-    CurrentCertificates.replay_feasible accepted
-  have installed : final.goal = some goal := by
-    rw [CurrentCertificates.trace_goal run]
-    rfl
-  rw [CurrentGoals.goalSatisfied_eq final goal installed] at satisfied
-  exact ⟨trace, final, run, nonempty, short, satisfied_achieved _ _ _ _ satisfied⟩
+/-- The replay checker accepts exactly an action list that replays its goal: the run of the
+fold is a run of the step (`CurrentStep.actions_trace`, `CurrentStep.trace_actions`), it keeps
+the installed goal (`CurrentCertificates.trace_goal`), and the completion flag of its final
+world is set exactly when that goal is attained (`Host.World.goalSatisfied_iff`). -/
+private theorem replayCertified_iff {config : Host.WorldConfig} (world : Host.World config)
+    (goal : Host.Goal) (cap : Nat) (actions : List Host.Action) :
+    Host.replayCertified world goal cap actions = true ↔ Replays world goal cap actions := by
+  constructor
+  · intro accepted
+    unfold Host.replayCertified at accepted
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at accepted
+    obtain ⟨⟨nonempty, short⟩, replayed⟩ := accepted
+    cases run : (world.setGoal goal).advanceActions actions with
+    | error error =>
+      rw [run] at replayed
+      exact absurd replayed Bool.false_ne_true
+    | ok final =>
+      rw [run] at replayed
+      obtain ⟨trace, traced, mapped⟩ := CurrentStep.actions_trace _ _ _ run
+      have installed : final.goal = some goal := by
+        rw [CurrentCertificates.trace_goal traced]
+        rfl
+      obtain ⟨other, same, attained⟩ := (Host.World.goalSatisfied_iff final).mp replayed
+      rw [installed] at same
+      cases same
+      refine ⟨?_, short, trace, final, traced, mapped, attained⟩
+      cases actions with
+      | nil => exact absurd nonempty (by decide)
+      | cons action rest => exact Nat.succ_pos _
+  · rintro ⟨positive, short, trace, final, traced, mapped, attained⟩
+    have run := CurrentStep.trace_actions traced
+    rw [mapped] at run
+    have installed : final.goal = some goal := by
+      rw [CurrentCertificates.trace_goal traced]
+      rfl
+    unfold Host.replayCertified
+    simp only [run, Bool.and_eq_true, decide_eq_true_eq]
+    refine ⟨⟨?_, short⟩, (Host.World.goalSatisfied_iff final).mpr ⟨goal, installed, attained⟩⟩
+    cases actions with
+    | nil => exact absurd positive (Nat.lt_irrefl 0)
+    | cons action rest => rfl
 
-/-- The replay checker accepts only an action list that shows its goal reached from its world
-within its cap (`CurrentCertificates.replay_feasible` with the four goal-family theorems): some
-run of at least one and at most `cap` executed steps, from the world with the goal installed,
-ends in a world in which the goal is achieved. It refuses the empty action list and every list
-longer than the cap.
+/-- The replay checker accepts exactly an action list that replays its goal (`Replays`): at least
+one and at most `cap` actions whose run of the executed world step, from the world with the goal
+installed, ends in a world in which the goal is attained. The specification names the world
+step, which decides the propositions `Host.World.GoalSatisfied`, `Host.FoodDue` and
+`Host.Inventory.Owns` and compares actions, tile kinds and positions by their equality, and
+`Host.World.Attained` in the place of the completion predicate that the checker runs. The
+accepted input is the action `wait` from the empty world of `wide` with the goal to survive no
+step, at the cap one; the kernel evaluates that step. The refused input is the empty action list.
 
-The statement keeps no kind. Its specification is a statement about runs of the executed world
-step, which is the subject of the claim and which the checker runs. The step runs tests, among
-them `Host.Inventory.owns`, `Host.TaskObservation.satisfied`, `Host.foodDue` and the
-comparisons of actions, positions and tile kinds, and Regula's RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses a kind whose specification
-reaches a test that its function runs. A kind needs the world step stated with propositions in
-the place of those tests, which is remaining work of
-https://github.com/rbeauchamp/acorn/issues/105.
-
-**Not claimed:** completeness. The checker refuses an action list that does not itself reach
-the goal, whether or not the goal can be reached. -/
+**Not claimed:** completeness about the goal. The checker refuses an action list that does not
+itself replay the goal, whether or not the goal can be reached. -/
 theorem replay_certified : Regula.ExecutableContract @Host.replayCertified (fun check =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
-      (∀ actions : List Host.Action, @check config world goal cap actions = true →
-        Reaches world goal cap) ∧
-        @check config world goal cap [] = false ∧
-        ∀ actions : List Host.Action, cap < actions.length →
-          @check config world goal cap actions = false) :=
-  ⟨fun _ _ _ cap =>
-      ⟨fun _ => replay_reaches, by simp [Host.replayCertified],
-        fun actions longer => by simp [Host.replayCertified, Nat.not_le.mpr longer]⟩⟩
+    Regula.Decides (· = true)
+      (fun input : Replay => Replays input.world input.goal input.cap input.actions)
+      (fun input : Replay =>
+        @check input.config input.world input.goal input.cap input.actions)) :=
+  ⟨decides (fun input => replayCertified_iff input.world input.goal input.cap input.actions)
+    ⟨⟨wide, Host.World.empty wide, .survive 0, 1, [.wait]⟩,
+      (replayCertified_iff _ _ _ _).mp (by decide +kernel)⟩
+    ⟨⟨wide, Host.World.empty wide, .survive 0, 1, []⟩,
+      fun ⟨positive, _⟩ => absurd positive (Nat.lt_irrefl 0)⟩⟩
 
 /-- The goal box of a target is unreachable from a start tile: after any run of steps and goal
 installations from a world whose body is on the start tile, the body is outside the goal box.
@@ -493,28 +515,25 @@ theorem stance_certified_refused : Regula.ExecutableContract Host.stanceCertifie
       config.side = 1 → check config stance direction item = false) :=
   ⟨fun _ stance direction item single => single_refused single stance direction item⟩
 
-/-- Replay checking returns a certificate only for an action list that shows its goal reached
-(`replay_certified` states the relation), and it refuses the empty action list. The statement
-names the relation and not the Boolean checker that the constructor calls.
-
-The statement keeps no kind. Its specification is a statement about runs of the executed world
-step, which is the subject of the claim and which the checker runs. The step runs tests, among
-them `Host.Inventory.owns`, `Host.TaskObservation.satisfied`, `Host.foodDue` and the
-comparisons of actions, positions and tile kinds, and Regula's RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses a kind whose specification
-reaches a test that its function runs. A kind needs the world step stated with propositions in
-the place of those tests, which is remaining work of
-https://github.com/rbeauchamp/acorn/issues/105. -/
+/-- Replay checking returns a certificate exactly for an action list that replays its goal
+(`Replays`, which `replay_certified` states): the constructor returns a certificate exactly where
+the checker accepts. The witnesses are those of `replay_certified`. -/
 theorem replay_check : Regula.ExecutableContract @Host.ReplayCertificate.check (fun check =>
-    ∀ (config : Host.WorldConfig) (world : Host.World config) (goal : Host.Goal) (cap : Nat),
-      (∀ actions : List Host.Action, (@check config world goal cap actions).isSome = true →
-        Reaches world goal cap) ∧
-        @check config world goal cap [] = none) :=
-  ⟨fun _ world goal cap =>
-      ⟨fun actions present => by
-          obtain ⟨certificate, -⟩ := Option.isSome_iff_exists.mp present
-          exact replay_reaches certificate.accepted,
-        by simp [Host.ReplayCertificate.check, Host.replayCertified]⟩⟩
+    Regula.Decides (· = true)
+      (fun input : Replay => Replays input.world input.goal input.cap input.actions)
+      (Regula.Dependent.isSome fun input : Replay =>
+        @check input.config input.world input.goal input.cap input.actions)) :=
+  ⟨.of_iff
+    (fun input => by
+      change (Host.ReplayCertificate.check input.world input.goal input.cap input.actions).isSome =
+        true ↔ _
+      rw [← replayCertified_iff]
+      unfold Host.ReplayCertificate.check
+      split
+      · exact ⟨fun _ => by assumption, fun _ => rfl⟩
+      · exact ⟨fun present => by simp at present, fun accepted => by contradiction⟩)
+    ⟨⟨wide, Host.World.empty wide, .survive 0, 1, [.wait]⟩, by decide +kernel⟩
+    ⟨⟨wide, Host.World.empty wide, .survive 0, 1, []⟩, by decide⟩⟩
 
 /-- The arguments of `Host.BlockedCertificate.check`, in order. -/
 structure BlockedCheck where
@@ -833,7 +852,7 @@ theorem task_satisfied : Regula.ExecutableContract Host.TaskObservation.satisfie
            achieved
        | craft tool =>
          rw [CurrentGoals.craft_satisfied]
-         exact achieved
+         exact (Host.Inventory.owns_iff _ _).mpr achieved
        | survive required =>
          exact (CurrentGoals.survive_satisfied_iff required position inventory elapsed).mpr
            achieved
@@ -985,112 +1004,21 @@ theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun e
           (fun base => CurrentStep.passable base world.body.inventory.boat)) :=
   ⟨fun _ => CurrentStep.enterable_static⟩
 
-/-- The inventory holds a count of an item: the stored field of that item is at least the
-count. Stated by the constructor of the item, with no count reader. -/
-def Holds (inventory : Host.Inventory) (item : Host.Item) (count : UInt32) : Prop :=
-  (item = .wood ∧ count.toNat ≤ inventory.wood.toNat) ∨
-    (item = .stone ∧ count.toNat ≤ inventory.stone.toNat) ∨
-    (item = .food ∧ count.toNat ≤ inventory.food.toNat) ∨
-    (item = .gold ∧ count.toNat ≤ inventory.gold.toNat)
-
-/-- The count reader `Host.Inventory.count` reads the field that `Holds` names. -/
-private theorem holds_count (inventory : Host.Inventory) (item : Host.Item) (count : UInt32) :
-    Holds inventory item count ↔ count.toNat ≤ (inventory.count item).toNat := by
-  cases item <;> simp [Holds, Host.Inventory.count]
-
-/-- A goal is attained in a world, on the stored fields of the world: the two box indices of
-the body are within three tiles of the target of a reach goal, the inventory holds the count
-of a collect goal or owns the tool of a craft goal, and the clock is at least the duration of
-a survive goal after the clock of the installation. The radius is the literal three, and the
-elapsed time is a difference of natural numbers. -/
-def Attained {config : Host.WorldConfig} (world : Host.World config) (goal : Host.Goal) : Prop :=
-  match goal with
-  | .reach target =>
-    (target.x.val - (world.body.position.x.val : Int)).natAbs ≤ 3 ∧
-      (target.y.val - (world.body.position.y.val : Int)).natAbs ≤ 3
-  | .collect item count => Holds world.body.inventory item count
-  | .craft tool => world.body.inventory.Owns tool
-  | .survive required => required.toNat ≤ world.time.toNat - world.goalStart.toNat
-
-/-- The completion predicate accepts the observation of a world's goal exactly when the goal
-is attained in the world. The observation embeds the box indices as coordinates, reads the
-count and the ownership through their readers, and converts the elapsed time to a word; the
-four family theorems and the bound of the clock connect them with `Attained`. -/
-private theorem attained_iff {config : Host.WorldConfig} (world : Host.World config)
-    (goal : Host.Goal) :
-    Attained world goal ↔ (goal.observe world.body.position.position world.body.inventory
-      (world.time.toNat - world.goalStart.toNat).toUInt64).satisfied = true := by
-  cases goal with
-  | reach target =>
-    refine Iff.trans ?_ (CurrentGoals.reach_satisfied_iff _ _ _ _).symm
-    exact Iff.rfl
-  | collect item count =>
-    exact (holds_count _ _ _).trans (CurrentGoals.collect_satisfied_iff _ _ _ _ _).symm
-  | craft tool =>
-    rw [CurrentGoals.craft_satisfied]
-    exact (Host.Inventory.owns_iff _ _).symm
-  | survive required =>
-    rw [CurrentGoals.survive_satisfied_iff]
-    have elapsed : ((world.time.toNat - world.goalStart.toNat).toUInt64).toNat =
-        world.time.toNat - world.goalStart.toNat := by
-      have bound := world.time.toNat_lt
-      exact Nat.mod_eq_of_lt (by omega)
-    rw [elapsed]
-    exact Iff.rfl
-
 /-- The world's completion flag is set exactly when a goal is installed and attained
-(`CurrentGoals.goalSatisfied_eq` with the four family theorems). The specification is
-`Attained`, on the installed goal and the stored fields of the world. It names neither the
-completion predicate `Host.TaskObservation.satisfied` nor `Host.Goal.observe`, which the flag
-applies, and no reader of a position or of an inventory. The accepted input is the empty world
-of `wide` with the goal to survive no step, and the refused input is that world with no
-goal. -/
+(`Host.World.goalSatisfied_iff`). The specification is `Host.World.Attained`, on the installed
+goal and the stored fields of the world. It names neither the completion predicate
+`Host.TaskObservation.satisfied` nor `Host.Goal.observe`, which the flag applies, and no reader
+of a position or of an inventory. The accepted input is the empty world of `wide` with the goal
+to survive no step, and the refused input is that world with no goal. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
     Regula.Decides (· = true)
       (fun input : (config : Host.WorldConfig) × Host.World config => ∃ goal,
-        input.2.goal = some goal ∧ Attained input.2 goal)
+        input.2.goal = some goal ∧ input.2.Attained goal)
       (fun input : (config : Host.WorldConfig) × Host.World config =>
         @satisfied input.1 input.2)) :=
-  ⟨decides
-    (fun input => by
-      show input.2.goalSatisfied = true ↔ _
-      cases installed : input.2.goal with
-      | none =>
-        refine ⟨fun satisfied => ?_, fun ⟨_, same, _⟩ => (nomatch same)⟩
-        have flag : input.2.goalSatisfied = false := by
-          unfold Host.World.goalSatisfied Host.World.taskObservation
-          rw [installed]
-          rfl
-        rw [flag] at satisfied
-        exact absurd satisfied Bool.false_ne_true
-      | some goal =>
-        rw [CurrentGoals.goalSatisfied_eq input.2 goal installed]
-        exact ⟨fun satisfied => ⟨goal, rfl, (attained_iff _ _).mpr satisfied⟩,
-          fun ⟨other, same, attained⟩ => by
-            cases same
-            exact (attained_iff _ _).mp attained⟩)
+  ⟨decides (fun input => Host.World.goalSatisfied_iff input.2)
     ⟨⟨wide, (Host.World.empty wide).setGoal (.survive 0)⟩, .survive 0, rfl, Nat.zero_le _⟩
     ⟨⟨wide, .empty wide⟩, fun ⟨_, installed, _⟩ => (nomatch installed)⟩⟩
-
-/-- An action replay returns a world exactly when a run of the executed world step over those
-actions ends in that world (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`).
-
-The statement keeps no kind. Its specification is a statement about runs of the executed world
-step, which is the subject of the claim and which the replay runs. The step runs tests, among
-them `Host.Inventory.owns`, `Host.TaskObservation.satisfied`, `Host.foodDue` and the
-comparisons of actions, positions and tile kinds, and Regula's RG1009
-(https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses a kind whose specification
-reaches a test that its function runs. A kind needs the world step stated with propositions in
-the place of those tests, which is remaining work of
-https://github.com/rbeauchamp/acorn/issues/105. -/
-theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (fun advance =>
-    ∀ (config : Host.WorldConfig) (world final : Host.World config)
-      (actions : List Host.Action),
-      @advance config world actions = .ok final ↔
-        ∃ trace, CurrentStep.Trace world trace final ∧ trace.map (·.1) = actions) :=
-  ⟨fun _ world final actions =>
-    ⟨CurrentStep.actions_trace world final actions,
-      fun ⟨_, run, same⟩ => same ▸ CurrentStep.trace_actions run⟩⟩
 
 /-- What the readers of the terrain do with its result: enterability is the terrain result
 mapped through static passability with the body's boat, so a terrain refusal is the only
@@ -1273,6 +1201,81 @@ theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perf
   ⟨fun _ world action direction position active ⟨heads, column, row, enter⟩ performed =>
     CurrentCertificates.perform_move world action direction position (heads_direction heads)
       (CurrentCertificates.translate_of_eq _ _ _ _ column row) enter active performed⟩
+
+/-! ## Runs of the world step -/
+
+/-- The arguments of `Host.World.advanceActions`, in order. -/
+structure AdvanceActions where
+  /-- The world configuration. -/
+  config : Host.WorldConfig
+  /-- The world the run starts from. -/
+  world : Host.World config
+  /-- The actions to replay. -/
+  actions : List Host.Action
+
+/-- An action replay returns a world exactly when a run of the executed world step over those
+actions ends in that world (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). It is a
+requirement with no kind beside the kind `advance_actions`: the world of an accepted replay. -/
+theorem advance_actions_value : Regula.ExecutableContract @Host.World.advanceActions
+    (fun advance =>
+      ∀ (config : Host.WorldConfig) (world final : Host.World config)
+        (actions : List Host.Action),
+        @advance config world actions = .ok final ↔
+          ∃ trace, CurrentStep.Trace world trace final ∧ trace.map (·.1) = actions) :=
+  ⟨fun _ world final actions =>
+    ⟨CurrentStep.actions_trace world final actions,
+      fun ⟨_, run, same⟩ => same ▸ CurrentStep.trace_actions run⟩⟩
+
+/-- A step that succeeds paid for its action: the paid action succeeded. -/
+private theorem step_paid {config : Host.WorldConfig} {world middle : Host.World config}
+    {action : Host.Action} {events : Host.StepResult}
+    (stepped : world.step action = .ok (middle, events)) :
+    (Host.payAndAct world action).isOk = true := by
+  unfold Host.World.step at stepped
+  cases paid : Host.payAndAct world action with
+  | error error => simp [paid, bind, Except.bind] at stepped
+  | ok active => rfl
+
+/-- An action replay succeeds exactly when a run of the executed world step over its actions
+exists (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). The specification names the
+world step, which decides the propositions `Host.World.GoalSatisfied`, `Host.FoodDue` and
+`Host.Inventory.Owns` and compares actions, tile kinds and positions by their equality. The
+accepted input is the empty action list from the empty world of `wide`. The refused input is a
+harvest from the empty world of `wideAt` at the scale one half, whose paid action the terrain
+refuses (`pay_and_act_lattice`). `advance_actions_value` states the world that an accepted
+replay returns. -/
+theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (fun advance =>
+    Regula.Decides (· = true)
+      (fun input : AdvanceActions => ∃ (trace : List (Host.Action × Host.StepResult))
+        (final : Host.World input.config),
+        CurrentStep.Trace input.world trace final ∧ trace.map (·.1) = input.actions)
+      (Regula.Dependent.isOk fun input : AdvanceActions =>
+        @advance input.config input.world input.actions)) :=
+  ⟨decides
+    (fun input => by
+      change (input.world.advanceActions input.actions).isOk = true ↔ _
+      constructor
+      · intro accepted
+        cases run : input.world.advanceActions input.actions with
+        | error error =>
+          rw [run] at accepted
+          exact absurd accepted (by simp [Except.isOk, Except.toBool])
+        | ok final =>
+          obtain ⟨trace, traced, mapped⟩ := CurrentStep.actions_trace _ _ _ run
+          exact ⟨trace, final, traced, mapped⟩
+      · rintro ⟨trace, final, traced, mapped⟩
+        rw [← mapped, CurrentStep.trace_actions traced]
+        rfl)
+    ⟨⟨wide, Host.World.empty wide, []⟩, [], _, .done _, rfl⟩
+    ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, [.harvest]⟩, fun ⟨trace, final, traced, mapped⟩ => by
+      cases traced with
+      | done => exact absurd mapped (by simp)
+      | step stepped later =>
+        simp only [List.map_cons, List.cons.injEq] at mapped
+        rw [mapped.1] at stepped
+        exact absurd ((harvest_faced ⟨0x3f000000⟩).mp
+          ((CurrentActions.payAndAct_isOk _ _).mp (step_paid stepped) harvest_paid))
+          (by decide +kernel)⟩⟩
 
 /-! ## Accepted inputs of the host transitions
 
