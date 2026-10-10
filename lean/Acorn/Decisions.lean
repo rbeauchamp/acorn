@@ -237,18 +237,24 @@ report of the definitions that have no contract is work of Regula
   `Host.octaveLoop` and `Host.fbm`) are in this group too: `AcornVerif.CurrentTerrain` states
   the positions that each admits (`valueNoise_isOk`, `octaveLoop_isOk`, `fbm_isOk`). Two
   definitions of the Microduck adapter are in this group as well: the event of the goal
-  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
+  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`. The spawn search
+  of world generation (`Host.selectSpawn`, the rule `Host.considerSpawn` that it applies to each
+  candidate and the count `Host.countKindNear` that the rule applies) is in this group as well:
+  `AcornVerif.CurrentSpawn` states the postcondition of the search (`selectSpawn_post`), the
+  outcomes of the rule (`considerSpawn_outcome`) and the value of a count (`countKindNear_eq`).
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. Five definitions are the exception.
+the end of this module states those. Eight definitions are the exception.
 `Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
 requires it by name. `Handcrafted.TemporalControl.takeoverValue`, which
-`Handcrafted.TemporalControl.step` applies, and `Host.valueNoise`, `Host.octaveLoop` and
+`Handcrafted.TemporalControl.step` applies, `Host.valueNoise`, `Host.octaveLoop` and
 `Host.fbm`, which `Host.terrain` applies and the registered `Host.impassable` reaches through
-it, have no contract either; the group above names the theorems that state them. The tests
+it, and `Host.selectSpawn`, `Host.considerSpawn` and `Host.countKindNear`, which the registered
+`Host.World.initial` applies through the spawn search, have no contract either; the group above
+names the theorems that state them. The tests
 `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, which
 `Handcrafted.Microduck.near` and `Handcrafted.Microduck.clear` apply, are registered decisions
 with the contracts `microduck_upright` and `microduck_fresh`, beside the contracts

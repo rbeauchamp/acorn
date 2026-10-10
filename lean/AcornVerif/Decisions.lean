@@ -85,7 +85,9 @@ Eleven functions of this module have a contract and no kind. The reasons are fou
 * The statement relates the comparator to the agent's attempt, or bounds where a campaign ends
   unfinished: `Host.BaselineAttempt.tick`, `Host.runBaselineCampaign` and
   `Host.runRandomBaseline`. Their acceptance is the world step's or world generation's, and no
-  theorem states which steps succeed or which configurations initialize.
+  theorem states which steps succeed or which configurations initialize. The comparator's
+  campaign also refuses as unfinished when its fuel runs out, and the random baseline also
+  refuses at campaign admission and on an unbounded plan.
 
 Kinds for the functions of the first two reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
@@ -1872,41 +1874,59 @@ theorem baseline_corresponds : Regula.ExecutableContract @Host.BaselineAttempt.t
       fun frame acted drawn => CurrentRunner.tick_corresponds callbacks context attempt next frame
         state related acted drawn⟩⟩
 
-/-- A comparator campaign from a cursor within its cycle budget (its cycle is below the plan's
-cycle count), with fuel that covers the attempts left in its budget
-(`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends unfinished
-(`CurrentRunner.baseline_campaign_finishes`).
+/-- A comparator campaign with no fuel ends unfinished, and a comparator campaign from a cursor
+within its cycle budget (its cycle is below the plan's cycle count), with fuel that covers the
+attempts left in its budget (`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends
+unfinished (`CurrentRunner.baseline_campaign_finishes`).
 
-The statement keeps no kind. It fixes one direction: a campaign that does not end unfinished can
-still refuse where the world refuses a step, and no theorem states which steps succeed.
+The statement keeps no kind. A constant function fails it: with no fuel the result is the
+refusal `unfinished`, and with fuel that covers the budget the result is not. A campaign that
+does not end unfinished can still refuse where the world refuses a step, and no theorem states
+which steps succeed.
 
 **Not claimed:** which campaigns return a record, or the record. -/
 theorem campaign_finishes : Regula.ExecutableContract @Host.runBaselineCampaign (fun run =>
+    (∀ {config} (curriculum : Host.Curriculum) (plan : Host.CampaignPlan curriculum.size)
+      (cursor : Host.CampaignCursor plan) (world : Host.World config) (rng : Rng.Xoshiro256)
+      (outcomes : Array Host.BaselineOutcome),
+      run curriculum plan 0 cursor world rng outcomes = .error .unfinished) ∧
     ∀ {config} (curriculum : Host.Curriculum) (plan : Host.CampaignPlan curriculum.size)
       (fuel : Nat) (cursor : Host.CampaignCursor plan) (world : Host.World config)
       (rng : Rng.Xoshiro256) (outcomes : Array Host.BaselineOutcome),
       cursor.cycle.toNat < plan.cycles.toNat →
       plan.attemptBudget ≤ fuel + CurrentRunner.cursorRank cursor →
       run curriculum plan fuel cursor world rng outcomes ≠ .error .unfinished) :=
-  ⟨fun curriculum plan fuel cursor world rng outcomes before covered =>
-    CurrentRunner.baseline_campaign_finishes curriculum plan fuel cursor world rng outcomes before
-      covered⟩
+  ⟨⟨fun _ _ _ _ _ _ => rfl,
+    fun curriculum plan fuel cursor world rng outcomes before covered =>
+      CurrentRunner.baseline_campaign_finishes curriculum plan fuel cursor world rng outcomes
+        before covered⟩⟩
 
-/-- The comparator's campaign over an admitted plan with at least one cycle never ends
-unfinished (`CurrentRunner.baseline_finishes`).
+/-- The comparator's campaign refuses at campaign admission a specification with no steps
+(`stepCapZero`) and a specification with steps, no goals and no cycles (`emptyUnbounded`,
+`CurrentRunner.empty_unbounded_refused`), and over an admitted plan with at least one cycle it
+never ends unfinished (`CurrentRunner.baseline_finishes`).
 
-The statement keeps no kind. It fixes one direction: the campaign can still refuse where world
-generation or a world step refuses, and no theorem states which configurations initialize or
-which steps succeed (`Acorn.Decisions.world_initial`).
+The statement keeps no kind. A constant function fails it: the two refusals of admission
+differ. The campaign over an admitted plan can still refuse where world generation or a world
+step refuses, and no theorem states which configurations initialize or which steps succeed
+(`Acorn.Decisions.world_initial`).
 
 **Not claimed:** which campaigns return a record, or the record. -/
 theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBaseline (fun run =>
+    (∀ (config : Host.WorldConfig) (seed attempts goals cycles : UInt64),
+      run config seed ⟨0, attempts, goals, cycles⟩ = .error (.campaign .stepCapZero)) ∧
+    (∀ (config : Host.WorldConfig) (seed steps attempts : UInt64), 0 < steps.toNat →
+      run config seed ⟨steps, attempts, 0, 0⟩ = .error (.campaign .emptyUnbounded)) ∧
     ∀ (config : Host.WorldConfig) (seed : UInt64) (spec : Host.CampaignSpec)
       (plan : Host.CampaignPlan (Host.standardCurriculum config seed).size),
       Host.CampaignPlan.admit (Host.standardCurriculum config seed).size spec = .ok plan →
       plan.cycles.toNat ≠ 0 → run config seed spec ≠ .error .unfinished) :=
-  ⟨fun config seed spec plan admitted bounded =>
-    CurrentRunner.baseline_finishes config seed spec plan admitted bounded⟩
+  ⟨⟨fun _ _ _ _ _ => by simp [Host.runRandomBaseline, Host.CampaignPlan.admit],
+    fun _ _ _ _ positive => by
+      simp only [Host.runRandomBaseline, CurrentRunner.empty_unbounded_refused, positive,
+        ↓reduceIte],
+    fun config seed spec plan admitted bounded =>
+      CurrentRunner.baseline_finishes config seed spec plan admitted bounded⟩⟩
 
 /-! ## Learner admissions -/
 
