@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Regula.Contract
+import Acorn.Host.Ansi
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentActions
 import AcornVerif.CurrentAgent
@@ -49,7 +50,10 @@ follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
-library. Each contract states only what its theorem proves.
+library. The accepted inputs of four host transitions and the two-way kind of
+`Host.Released.environment` are stated here because the observation of their inputs succeeds
+by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem
+proves.
 
 ## Statements that keep no kind
 
@@ -58,7 +62,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Five functions of this module have a contract and no kind. The reasons are two.
+Nine functions of this module have a contract and no kind. The reasons are three.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -70,8 +74,14 @@ Five functions of this module have a contract and no kind. The reasons are two.
   the type of the input of a specification (https://github.com/rbeauchamp/regula/issues/270):
   `Checkpoint.load` and `Agent.input`. For `Agent.input`, an audit of the kind stated with its
   witnesses named the eleven shared tests that `Acorn.Decisions.agent_input` lists.
+* The statement gives an accepted input of a host transition whose statement in
+  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
+  `Host.Attempt.complete` and `Host.AnsiState.tick`. No theorem states which observations or
+  steps succeed, and a specification of the accepted inputs would name `Host.World.observe` or
+  `Host.World.step`, which run tests that these functions run.
 
-Kinds for these functions are remaining work of https://github.com/rbeauchamp/acorn/issues/105.
+Kinds for the functions of the first two reasons are remaining work of
+https://github.com/rbeauchamp/acorn/issues/105.
 
 ## Tests that a specification does not share
 
@@ -1636,6 +1646,214 @@ theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perf
   ⟨fun _ world action direction position active ⟨heads, column, row, enter⟩ performed =>
     CurrentCertificates.perform_move world action direction position (heads_direction heads)
       (CurrentCertificates.translate_of_eq _ _ _ _ column row) enter active performed⟩
+
+/-! ## Accepted inputs of the host transitions
+
+`Acorn.Decisions` states the host transitions of an attempt and of the world with no kind. Its
+statements of the observation, of finishing, of the fold and of the ANSI tick are about an
+accepted result alone, which a function that refuses every input also satisfies. The statements
+below give each of the four an accepted input, and state the two-way kind of
+`Host.Released.environment`, whose accepted input holds a stage with an observation that
+succeeded.
+
+Each input is made from the attempt `fresh`, whose body is at the center of the box of `wide`,
+`2 ^ 62 - 1` on both axes, at the noise scale one. Its observation succeeds by the terrain
+admission of `CurrentTerrain` (`fresh_observes`): each tile of the window translates inside the
+signed range, and the quotients of its coordinates by the four octave scales are `2 ^ 62` to
+`2 ^ 59`, below the last coordinate, so the value noise admits the tile. The kernel evaluates
+those quotients, of eleven coordinates by four scales, and not the observation. It evaluates the
+world's step on the action `wait` from that attempt (`fresh_waits`), which reads no terrain. -/
+
+/-- An attempt of `wide` at its first step, with the given step cap: the attempt
+`Acorn.Decisions.fresh`, which no module may import. -/
+def fresh (cap : UInt64) : Host.Attempt wide Unit (.survive 0) cap :=
+  ⟨⟨(Host.World.empty wide).setGoal (.survive 0), (), {}, 0⟩, rfl, 0, .zero, .wait⟩
+
+/-- A success holds a value. -/
+private theorem ok_of_isOk {ε α : Type} {result : Except ε α} (accepted : result.isOk = true) :
+    ∃ value, result = .ok value := by
+  cases result with
+  | error error => exact absurd accepted (by simp [Except.isOk, Except.toBool])
+  | ok value => exact ⟨value, rfl⟩
+
+/-- A vector made by a fallible function succeeds where each of its entries succeeds. -/
+private theorem ofFnM_isOk {ε α : Type} {n : Nat} (f : Fin n → Except ε α)
+    (each : ∀ index, (f index).isOk = true) : (Vector.ofFnM f).isOk = true := by
+  have values : f = fun index => pure (Classical.choose (ok_of_isOk (each index))) :=
+    funext fun index => Classical.choose_spec (ok_of_isOk (each index))
+  rw [values, Vector.ofFnM_pure]
+  rfl
+
+/-- The observation of a world succeeds where each tile of its window translates inside the
+signed range and the value noise admits the tile at the noise scale of the world
+(`CurrentTerrain.tileKind_isOk`). -/
+private theorem observe_isOk {config : Host.WorldConfig} (world : Host.World config)
+    (window : ∀ row column : Fin Host.patchSide, ∃ tile,
+      world.body.position.position.translate ((column.val : Int) - (Host.patchSide / 2 : Nat))
+          ((row.val : Int) - (Host.patchSide / 2 : Nat)) = some tile ∧
+        CurrentTerrain.LatticeAdmits tile config.raw.baseScale) :
+    world.observe.isOk = true := by
+  have tiles : ∀ row column, (world.observeTile world.occupancy row column).isOk = true := by
+    intro row column
+    obtain ⟨tile, translated, admits⟩ := window row column
+    obtain ⟨kind, kinded⟩ := ok_of_isOk ((CurrentTerrain.tileKind_isOk world tile).mpr admits)
+    unfold Host.World.observeTile
+    simp only [translated, kinded]
+    rfl
+  obtain ⟨rows, built⟩ := ok_of_isOk (ofFnM_isOk _ fun row => ofFnM_isOk _ (tiles row))
+  unfold Host.World.observe
+  simp only [built, bind, Except.bind, pure, Except.pure]
+  rfl
+
+/-- Each coordinate of the window of `fresh`, `2 ^ 62 - 6` to `2 ^ 62 + 4`, has a quotient by each
+octave scale of the noise scale one that is not past the last coordinate. The kernel evaluates
+the forty-four quotients. -/
+private theorem window_admits : ∀ offset : Fin Host.patchSide, ∀ octave : Fin 4,
+    ¬CurrentTerrain.PastLast
+      ((Host.coordinateFloatWord (Int64.ofInt (2 ^ 62 - 6 + offset.val))).div
+        (CurrentTerrain.octaveScale ⟨0x3f800000⟩ octave.val)) := by
+  decide +kernel
+
+/-- The observation of the world of `fresh` succeeds: each tile of the window translates inside
+the signed range, and the value noise admits it (`window_admits`). -/
+private theorem fresh_observes (cap : UInt64) : ((fresh cap).run.world.observe).isOk = true := by
+  have center : ((Host.World.empty wide).body.position.x.val : Int) = 2 ^ 62 - 1 ∧
+      ((Host.World.empty wide).body.position.y.val : Int) = 2 ^ 62 - 1 := by decide
+  have radius : ((Host.patchSide / 2 : Nat) : Int) = 5 := rfl
+  refine observe_isOk _ fun row column => ?_
+  have columnBound := column.isLt
+  have rowBound := row.isLt
+  have side : Host.patchSide = 11 := rfl
+  refine ⟨⟨⟨2 ^ 62 - 6 + column.val, by omega⟩, ⟨2 ^ 62 - 6 + row.val, by omega⟩⟩,
+    CurrentCertificates.translate_of_eq _ _ _ _ ?_ ?_,
+    fun octave below => ⟨window_admits column ⟨octave, below⟩, window_admits row ⟨octave, below⟩⟩⟩
+  · change (2 ^ 62 - 6 + column.val : Int) = ((Host.World.empty wide).body.position.x.val : Int) + _
+    rw [center.1]
+    omega
+  · change (2 ^ 62 - 6 + row.val : Int) = ((Host.World.empty wide).body.position.y.val : Int) + _
+    rw [center.2]
+    omega
+
+/-- The world's step on the action `wait` from the attempt `fresh` at the step cap one succeeds.
+The step reads no terrain: the action changes nothing, the world has no deer, and food is due only
+at the clock zero. The kernel evaluates it. -/
+private theorem fresh_waits : ((fresh 1).run.world.step .wait).isOk = true := by
+  decide +kernel
+
+/-- Finishing an attempt succeeds where the world's observation of the attempt succeeds. -/
+private theorem finish_isOk {order : StepOrder} {config : Host.WorldConfig} {α β : Type}
+    {goal : Host.Goal} {cap : UInt64} (callbacks : Host.AgentCallbacks order α β)
+    (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap)
+    (observed : attempt.run.world.observe.isOk = true) :
+    (attempt.finish callbacks context).isOk = true := by
+  obtain ⟨observation, observed⟩ := ok_of_isOk observed
+  unfold Host.Attempt.finish
+  simp only [observed, bind, Except.bind, pure, Except.pure]
+  rfl
+
+/-- The fold of an attempt at the fuel zero succeeds where finishing the attempt succeeds. -/
+private theorem complete_isOk {order : StepOrder} {config : Host.WorldConfig} {α β : Type}
+    {goal : Host.Goal} {cap : UInt64} (callbacks : Host.AgentCallbacks order α β)
+    (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap)
+    (finished : (attempt.finish callbacks context).isOk = true) :
+    (Host.Attempt.complete callbacks context 0 attempt).isOk = true := by
+  obtain ⟨result, finished⟩ := ok_of_isOk finished
+  simp only [Host.Attempt.complete, Host.Attempt.close, finished]
+  rfl
+
+/-- The observation accepts the world of `fresh` (`fresh_observes`).
+`Acorn.Decisions.world_observe` states what an accepted observation carries and keeps no kind for
+the reason given there; this statement is a requirement with no kind beside it, and a function
+that refuses every world fails it.
+
+**Not claimed:** which other worlds observe without a refusal. -/
+theorem world_observe_accepts : Regula.ExecutableContract @Host.World.observe (fun observe =>
+    ∀ cap : UInt64, (observe (fresh cap).run.world).isOk = true) :=
+  ⟨fresh_observes⟩
+
+/-- Finishing accepts the attempt `fresh`, for every step cap, callbacks and context: its final
+observation is that of `fresh_observes`. `Acorn.Decisions.attempt_finish` states what an accepted
+finish returns and keeps no kind for the reason given there; this statement is a requirement
+with no kind beside it, and a function that refuses every attempt fails it.
+
+**Not claimed:** which other attempts finish without a refusal. -/
+theorem attempt_finish_accepts : Regula.ExecutableContract @Host.Attempt.finish (fun finish =>
+    ∀ {order β} (callbacks : Host.AgentCallbacks order Unit β) (context : Host.GoalContext)
+      (cap : UInt64), (finish callbacks context (fresh cap)).isOk = true) :=
+  ⟨fun callbacks context cap => finish_isOk callbacks context (fresh cap) (fresh_observes cap)⟩
+
+/-- The fold accepts the attempt `fresh` at the fuel zero, for every step cap, callbacks and
+context: at the fuel zero it finishes the attempt, which `attempt_finish_accepts` accepts.
+`Acorn.Decisions.attempt_complete` states what a fold that ends in a refused action holds and
+keeps no kind for the reason given there; this statement is a requirement with no kind beside
+it, and a function that refuses every input fails it.
+
+**Not claimed:** which other folds end without a refusal. -/
+theorem attempt_complete_accepts : Regula.ExecutableContract @Host.Attempt.complete
+    (fun complete =>
+      ∀ {order β} (callbacks : Host.AgentCallbacks order Unit β) (context : Host.GoalContext)
+        (cap : UInt64), (complete callbacks context 0 (fresh cap)).isOk = true) :=
+  ⟨fun callbacks context cap => complete_isOk callbacks context (fresh cap)
+    (finish_isOk callbacks context (fresh cap) (fresh_observes cap))⟩
+
+/-- Callbacks whose whole step selects the action `wait` and keeps the agent `()`. -/
+def waiting : Host.AgentCallbacks .learnThenAct Unit Unit :=
+  ⟨Unit, fun _ _ _ => (.wait, ()), fun _ => (), fun _ _ _ => (), fun _ _ _ _ _ => (), fun _ => (),
+    fun _ => ⟨.zero, .zero, .zero⟩⟩
+
+/-- The ANSI tick accepts the world of `fresh` with a step counter of zero and the callbacks
+`waiting`, for every observation it holds and every goal index: the world's step on `wait`
+succeeds (`fresh_waits`), and the counter advances to one. `Acorn.Decisions.ansi_tick` states
+what an accepted tick keeps and keeps no kind for the reason given there; this statement is a
+requirement with no kind beside it, and a function that refuses every input fails it.
+
+**Not claimed:** which other ticks succeed. -/
+theorem ansi_tick_accepts : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
+    ∀ (observation : Host.Observation) (index : Nat),
+      (tick (⟨(fresh 1).run.world, (), {}, observation, 0⟩ : Host.AnsiState wide Unit) waiting
+        index).isOk = true) :=
+  ⟨fun observation index => by
+    obtain ⟨⟨world, result⟩, stepped⟩ := ok_of_isOk fresh_waits
+    unfold Host.AnsiState.tick
+    simp only [Host.AgentCallbacks.act, waiting, stepped, Except.mapError, bind, Except.bind]
+    rfl⟩
+
+/-- The arguments of `Host.Released.environment`, in order. -/
+structure ReleasedEnvironment where
+  /-- The world configuration. -/
+  config : Host.WorldConfig
+  /-- The type of the value that the stage holds. -/
+  agent : Type
+  /-- The goal of the attempt. -/
+  goal : Host.Goal
+  /-- The step cap. -/
+  cap : UInt64
+  /-- The world's answer to the released action. -/
+  released : Host.Released config agent goal cap
+
+/-- The transition result of a release succeeds exactly when the world accepted the released
+action. The accepted input is the acceptance of the stage of `fresh` that waits, whose
+observation and step succeed (`fresh_observes`, `fresh_waits`), and the refused input is the
+refusal of that stage. `Acorn.Decisions.released_environment` states the value of the result, as
+a requirement with no kind. -/
+theorem released_environment_exact : Regula.ExecutableContract @Host.Released.environment
+    (fun environment =>
+      Regula.Decides (· = true)
+        (fun input : ReleasedEnvironment => ∃ accepted, input.released = .accepted accepted)
+        (Regula.Dependent.isOk fun input : ReleasedEnvironment =>
+          @environment input.config input.agent input.goal input.cap input.released)) := by
+  obtain ⟨observation, sensed⟩ := ok_of_isOk (fresh_observes 1)
+  obtain ⟨⟨world, result⟩, stepped⟩ := ok_of_isOk fresh_waits
+  let stage : Host.OwnedStep wide Unit (.survive 0) 1 :=
+    ⟨fresh 1, by decide, observation, sensed, .wait, ()⟩
+  exact ⟨decides
+    (fun input => by
+      cases input with
+      | mk config agent goal cap released =>
+        cases released <;> simp [Regula.Dependent.isOk, Host.Released.environment, Except.isOk,
+          Except.toBool])
+    ⟨⟨_, _, _, _, .accepted ⟨stage, world, result, stepped⟩⟩, _, rfl⟩
+    ⟨⟨_, _, _, _, .refused .coordinateOverflow stage⟩, fun ⟨_, refused⟩ => nomatch refused⟩⟩
 
 /-! ## Learner admissions -/
 
