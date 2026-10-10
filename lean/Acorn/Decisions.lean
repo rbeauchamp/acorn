@@ -305,9 +305,9 @@ contracts `microduck_sense` and `microduck_release`, which keep no kind, as thei
 
 What the list does not hold:
 
-* This module cannot register a function of `NativeApp`: Regula counts only a contract of the
-  function's own library and refuses a registration written for a declaration of another.
-  Each is in the group that no theorem names. `Bootstrap` decides only in `IO`.
+* This module cannot register a function of `NativeApp`: Regula refuses a registration written
+  for a declaration of another library. Each is in the group that no theorem names. `Bootstrap`
+  decides only in `IO`.
 * An effect is not in the list: its result type is `IO`. An effect with a pure core is covered
   through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.resume` on the
   bytes it read, which is the verdict of `Checkpoint.load` through `Except.map`
@@ -521,6 +521,22 @@ def fresh (cap : UInt64) : Host.Attempt wide Unit (.survive 0) cap :=
 
 /-- A frozen meta policy with zero values and the declared exploration rate. -/
 def level : PolicySnapshot metaCount := ⟨Vector.replicate _ .zero, declaredRate⟩
+
+/-- The resumable profile: final hierarchy, per-step credit, the declared rate and learned
+subtasks. -/
+def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
+
+/-- A profile that is not resumable: control with primitive actions only. -/
+def primitive : FeatureProfile := ⟨.primitiveOnly, .perStep, .declared, .learned⟩
+
+/-- A construction of the given profile over `bank` and `narrow`, with the discounted criterion,
+no planning and the learn-then-act order. -/
+def construction (profile : FeatureProfile) : AgentConstruction :=
+  ⟨profile, .discounted, .none, .learnThenAct, bank, narrow⟩
+
+/-- An observation of no goal, with every byte zero. -/
+def blank : Host.Observation :=
+  ⟨.replicate _ (.replicate _ ⟨0, 0, 0⟩), 0, 0, .none, ⟨0, 0, 0, 0, false, false⟩⟩
 
 /-! ## Machine comparisons -/
 
@@ -3174,18 +3190,6 @@ theorem checkpoint_decode_value : Regula.ExecutableContract Checkpoint.decode (f
     ∀ payload : Checkpoint.Payload, decode (Checkpoint.encode payload) = some payload) :=
   ⟨Checkpoint.roundtrip⟩
 
-/-- The resumable profile: final hierarchy, per-step credit, the declared rate and learned
-subtasks. -/
-def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
-
-/-- A profile that is not resumable: control with primitive actions only. -/
-def primitive : FeatureProfile := ⟨.primitiveOnly, .perStep, .declared, .learned⟩
-
-/-- A construction of the given profile over `bank` and `narrow`, with the discounted criterion,
-no planning and the learn-then-act order. -/
-def construction (profile : FeatureProfile) : AgentConstruction :=
-  ⟨profile, .discounted, .none, .learnThenAct, bank, narrow⟩
-
 /-- The arguments of `Checkpoint.saveBytes`, in order. -/
 structure SaveBytes where
   /-- The construction. -/
@@ -3448,10 +3452,6 @@ theorem agent_restore : Regula.ExecutableContract @Agent.restore (fun restore =>
       fun supported => nomatch supported.1⟩⟩
 
 attribute [regula_decision] Agent.restore
-
-/-- An observation of no goal, with every byte zero. -/
-def blank : Host.Observation :=
-  ⟨.replicate _ (.replicate _ ⟨0, 0, 0⟩), 0, 0, .none, ⟨0, 0, 0, 0, false, false⟩⟩
 
 /-- The arguments of `Handcrafted.PredictionControl.advanceRaw`, in order. -/
 structure PredictionAdvance where

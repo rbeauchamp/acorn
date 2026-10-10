@@ -84,7 +84,9 @@ their statements say what their results are.
   so reaches the reader's tests. An audit with Regula v0.11.0 refused the kind under RG1009 for
   those tests. Which images there are depends on them, so the two sides share them in substance and
   not only by the reading: a kind needs a statement of the written payloads that does not depend on
-  those tests.
+  those tests. Kinds for these two functions are remaining work of
+  https://github.com/rbeauchamp/acorn/issues/105, and they need a statement of the written
+  payloads that does not depend on the tests the admissions run.
 * The statement gives an accepted input of a host transition whose statement in
   `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
   `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
