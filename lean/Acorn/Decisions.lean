@@ -8,6 +8,7 @@ import Regula.Decision
 import Acorn.Agreement
 import Acorn.FeatureRanking
 import Acorn.Host.Ansi
+import Acorn.Host.Baseline
 import Acorn.Host.Campaign
 import Acorn.Host.Certificate
 import Acorn.Host.Checkpoint.Snapshot
@@ -73,21 +74,21 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Thirty-eight functions of this module have a contract and no kind. The reasons are four.
+Forty functions of this module have a contract and no kind. The reasons are four.
 
-* No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts
-  every configuration, and a complete or a two-way kind carries a refused input. The statement
-  of `Host.World.step` is a property of the world that an accepted step returns, and no
-  theorem states which steps succeed. Nine transitions of an attempt and of the world refuse
-  where the world refuses an observation or a step: `Host.OwnedStep.environment`,
-  `Host.PreparedStep.environment`, `Host.Attempt.sense`, `Host.Attempt.tick`,
-  `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`, `Host.AnsiState.tick`
-  and `Host.World.observe`; `Host.AnsiState.tick` also refuses where its step counter
-  overflows. No theorem states which observations or steps succeed, and a
-  specification of their accepted inputs would name `Host.World.observe` or `Host.World.step`,
-  which run tests that these functions run. `Host.World.initial` refuses where the spawn search
-  or the placement of the deer refuses, and no theorem states that the spawn search returns a
-  spawn for every seed.
+* No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
+  configuration, and a complete or a two-way kind carries a refused input. The statement of
+  `Host.World.step` is a property of the world that an accepted step returns, and no theorem
+  states which steps succeed. Eleven transitions of an attempt, of the comparator and of the
+  world refuse where the world refuses an observation or a step: `Host.OwnedStep.environment`,
+  `Host.PreparedStep.environment`, `Host.PreparedStep.commit`, `Host.Attempt.sense`,
+  `Host.Attempt.tick`, `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`,
+  `Host.AnsiState.tick`, `Host.BaselineAttempt.tick` and `Host.World.observe`;
+  `Host.AnsiState.tick` also refuses where its step counter overflows. No theorem states which
+  observations or steps succeed, and a specification of their accepted inputs would name
+  `Host.World.observe` or `Host.World.step`, which run tests that these functions run.
+  `Host.World.initial` refuses where the spawn search or the placement of the deer refuses, and
+  no theorem states that the spawn search returns a spawn for every seed.
 * The input holds a state whose invariant names tests that the function runs. Regula reads the
   type of the input of a specification, so RG1009
   (https://rbeauchamp.github.io/regula/v/0.10.0/rules/RG1009/) refuses the kind although the
@@ -221,33 +222,39 @@ report of the definitions that have no contract is work of Regula
   interaction kernel and the world classes (`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state
   worlds, agents, goals and bounds as structures and propositions, so they declare no
   definition with such a result.
-* A theorem names the definition and no contract states it. These are transitions of the world
-  and of the attempt runner, and the readers of the lines and the phases of a Microduck host
-  (`Host.Microduck.Line.stateFrame`, `Host.Microduck.Line.depthFrame`,
-  `Host.Microduck.Phase.armed`, `Host.Microduck.Phase.last` and `Host.Microduck.fitting`). This
-  module makes no statement about what a caller does with the result of such a definition. The
-  age of the depth frame of a Microduck reading (`Host.Microduck.Reading.age`) is in this group
-  too: it refuses nothing, and it is absent exactly when the reading has no depth frame
-  (`Host.Microduck.Reading.age_present`). The value toward which the span of an interrupted
-  option closes (`Handcrafted.TemporalControl.takeoverValue`) refuses nothing either: it is
-  absent on every frame that interrupts no option (`AcornVerif.CurrentTemporal.takeover_none`),
-  and `AcornVerif.CurrentTemporal.takeover_value` states its value where a span closes. The value
+* A theorem names the definition and no contract states it. These are the readers of the lines
+  and the phases of a Microduck host (`Host.Microduck.Line.stateFrame`,
+  `Host.Microduck.Line.depthFrame`, `Host.Microduck.Phase.armed`, `Host.Microduck.Phase.last`
+  and `Host.Microduck.fitting`). This module makes no statement about what a caller does with
+  the result of such a definition. The age of the depth frame of a Microduck reading
+  (`Host.Microduck.Reading.age`) is in this group too: it refuses nothing, and it is absent
+  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`). The value
+  toward which the span of an interrupted option closes
+  (`Handcrafted.TemporalControl.takeoverValue`) refuses nothing either: it is absent on every
+  frame that interrupts no option (`AcornVerif.CurrentTemporal.takeover_none`), and
+  `AcornVerif.CurrentTemporal.takeover_value` states its value where a span closes. The value
   noise of the terrain, its fold over the octaves and a field of the terrain (`Host.valueNoise`,
   `Host.octaveLoop` and `Host.fbm`) are in this group too: `AcornVerif.CurrentTerrain` states
   the positions that each admits (`valueNoise_isOk`, `octaveLoop_isOk`, `fbm_isOk`). Two
   definitions of the Microduck adapter are in this group as well: the event of the goal
-  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
+  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`. The spawn search
+  of world generation (`Host.selectSpawn`, the rule `Host.considerSpawn` that it applies to each
+  candidate and the count `Host.countKindNear` that the rule applies) is in this group as well:
+  `AcornVerif.CurrentSpawn` states the postcondition of the search (`selectSpawn_post`), the
+  outcomes of the rule (`considerSpawn_outcome`) and the value of a count (`countKindNear_eq`).
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those. Five definitions are the exception.
+the end of this module states those. Eight definitions are the exception.
 `Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
 requires it by name. `Handcrafted.TemporalControl.takeoverValue`, which
-`Handcrafted.TemporalControl.step` applies, and `Host.valueNoise`, `Host.octaveLoop` and
+`Handcrafted.TemporalControl.step` applies, `Host.valueNoise`, `Host.octaveLoop` and
 `Host.fbm`, which `Host.terrain` applies and the registered `Host.impassable` reaches through
-it, have no contract either; the group above names the theorems that state them. The tests
+it, and `Host.selectSpawn`, `Host.considerSpawn` and `Host.countKindNear`, which the registered
+`Host.World.initial` applies through the spawn search, have no contract either; the group above
+names the theorems that state them. The tests
 `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, which
 `Handcrafted.Microduck.near` and `Handcrafted.Microduck.clear` apply, are registered decisions
 with the contracts `microduck_upright` and `microduck_fresh`, beside the contracts
@@ -6028,5 +6035,112 @@ theorem world_observe : Regula.ExecutableContract @Host.World.observe (fun obser
     ∀ {config} (world : Host.World config) (observation : Host.Observation),
       observe world = .ok observation → observation.task = world.taskObservation) :=
   ⟨fun world observation observed => Host.World.observe_task world observation observed⟩
+
+
+/-- Committing a prepared step refuses exactly when the world's step on its action refuses, with
+that refusal; an accepted commit holds the world and the result of that step, and one more step
+of the attempt.
+
+The statement keeps no kind, for the first reason that `owned_environment` states: the commit is
+accepted exactly when the world's step accepts its action, and no theorem states which steps
+succeed. -/
+theorem prepared_commit : Regula.ExecutableContract @Host.PreparedStep.commit (fun commit =>
+    ∀ {order config α β goal cap} (prepared : Host.PreparedStep config α β goal cap)
+      (callbacks : Host.AgentCallbacks order α β),
+      (∀ error, commit prepared callbacks = .error error ↔
+        prepared.before.run.world.step prepared.action = .error error) ∧
+        ∀ next, commit prepared callbacks = .ok next →
+          ∃ result,
+            prepared.before.run.world.step prepared.action = .ok (next.run.world, result) ∧
+            next.run.carried = result.raw ∧ next.steps.val = prepared.before.steps.val + 1) :=
+  ⟨fun prepared callbacks => by
+    unfold Host.PreparedStep.commit Host.PreparedStep.environment
+    split
+    · rename_i error stepped
+      refine ⟨fun other => ?_, fun _ accepted => (nomatch accepted)⟩
+      rw [stepped]
+      constructor
+      · intro same
+        cases same
+        rfl
+      · intro same
+        cases same
+        rfl
+    · rename_i world result stepped
+      refine ⟨fun other => ?_, fun next accepted => ?_⟩
+      · constructor
+        · intro same
+          exact (nomatch same)
+        · intro same
+          rw [stepped] at same
+          exact (nomatch same)
+      · cases accepted
+        exact ⟨result, stepped, rfl, rfl⟩⟩
+
+/-- The outcomes of a tick of the comparator. -/
+private theorem baselineTick_exact {config : Host.WorldConfig} {cap : UInt64}
+    (state : Host.BaselineAttempt config cap) :
+    (state.result.done = true ∨ cap.toNat ≤ state.steps.val → state.tick = .ok state) ∧
+      (state.result.done = false → state.steps.val < cap.toNat →
+        (∀ error, state.tick = .error error ↔
+          state.world.step (Host.baselineAction state.rng).1 = .error error) ∧
+          ∀ next, state.tick = .ok next →
+            state.world.step (Host.baselineAction state.rng).1 = .ok (next.world, next.result) ∧
+              next.rng = (Host.baselineAction state.rng).2 ∧
+              next.steps.val = state.steps.val + 1) := by
+  constructor
+  · intro stopped
+    unfold Host.BaselineAttempt.tick
+    by_cases done : state.result.done = true
+    · simp [done]
+    · have capped : cap.toNat ≤ state.steps.val := by
+        rcases stopped with same | capped
+        · exact absurd same done
+        · exact capped
+      have notBelow : ¬state.steps.val < cap.toNat := Nat.not_lt.mpr capped
+      simp [done, notBelow]
+  · intro running below
+    unfold Host.BaselineAttempt.tick
+    simp only [running, Bool.false_eq_true, ite_false, below, dite_true]
+    split
+    · rename_i error stepped
+      refine ⟨fun other => ?_, fun _ accepted => (nomatch accepted)⟩
+      rw [stepped]
+      constructor
+      · intro same
+        cases same
+        rfl
+      · intro same
+        cases same
+        rfl
+    · rename_i world result stepped
+      refine ⟨fun other => ?_, fun next accepted => ?_⟩
+      · constructor
+        · intro same
+          exact (nomatch same)
+        · intro same
+          rw [stepped] at same
+          exact (nomatch same)
+      · cases accepted
+        exact ⟨stepped, rfl, rfl⟩
+
+/-- A tick of the comparator returns its state unchanged once the goal is satisfied or the cap
+is reached; otherwise it refuses exactly when the world's step on the action drawn from its
+stream refuses, with that refusal, and an accepted tick holds the world and the result of that
+step, the advanced stream and one more step.
+
+The statement keeps no kind. A tick is accepted where the world's step accepts the drawn action,
+and no theorem states which steps succeed. -/
+theorem baseline_tick : Regula.ExecutableContract @Host.BaselineAttempt.tick (fun tick =>
+    ∀ {config cap} (state : Host.BaselineAttempt config cap),
+      (state.result.done = true ∨ cap.toNat ≤ state.steps.val → tick state = .ok state) ∧
+        (state.result.done = false → state.steps.val < cap.toNat →
+          (∀ error, tick state = .error error ↔
+            state.world.step (Host.baselineAction state.rng).1 = .error error) ∧
+            ∀ next, tick state = .ok next →
+              state.world.step (Host.baselineAction state.rng).1 = .ok (next.world, next.result) ∧
+                next.rng = (Host.baselineAction state.rng).2 ∧
+                next.steps.val = state.steps.val + 1)) :=
+  ⟨fun state => baselineTick_exact state⟩
 
 end Acorn.Decisions

@@ -11,6 +11,7 @@ import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentExponential
+import AcornVerif.CurrentRunner
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentTerrain
 import AcornVerif.Endurance
@@ -50,10 +51,10 @@ follows.
 
 The round trips of the composed checkpoint admissions, the goal completion predicate, checked
 translation and precision derivation are stated here because their theorems are in this
-library. The accepted inputs of three host transitions and the two-way kind of
-`Host.Released.environment` are stated here because the observation of their inputs succeeds
-by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem
-proves.
+library, and so are the correspondence of the comparator with the agent's attempt and the bounds
+of the comparator's campaigns. The accepted inputs of three host transitions and the two-way kind
+of `Host.Released.environment` are stated here because the observation of their inputs succeeds
+by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem proves.
 
 ## Statements that keep no kind
 
@@ -62,7 +63,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Eight functions of this module have a contract and no kind. The reasons are three.
+Eleven functions of this module have a contract and no kind. The reasons are four.
 
 * The specification is a statement about runs of the executed world step, which the function
   runs: `Host.replayCertified`, `Host.ReplayCertificate.check` and
@@ -79,6 +80,12 @@ Eight functions of this module have a contract and no kind. The reasons are thre
   `Host.Attempt.complete`. No theorem states which observations or
   steps succeed, and a specification of the accepted inputs would name `Host.World.observe` or
   `Host.World.step`, which run tests that these functions run.
+* The statement relates the comparator to the agent's attempt, or bounds where a campaign ends
+  unfinished: `Host.BaselineAttempt.tick`, `Host.runBaselineCampaign` and
+  `Host.runRandomBaseline`. Their acceptance is the world step's or world generation's, and no
+  theorem states which steps succeed or which configurations initialize. The comparator's
+  campaign also refuses as unfinished when its fuel runs out, and the random baseline also
+  refuses at campaign admission and on an unbounded plan.
 
 Kinds for the functions of the first two reasons are remaining work of
 https://github.com/rbeauchamp/acorn/issues/105.
@@ -1832,6 +1839,92 @@ theorem released_environment_exact : Regula.ExecutableContract @Host.Released.en
           Except.toBool])
     ⟨⟨_, _, _, _, .accepted ⟨stage, world, result, stepped⟩⟩, _, rfl⟩
     ⟨⟨_, _, _, _, .refused .coordinateOverflow stage⟩, fun ⟨_, refused⟩ => nomatch refused⟩⟩
+
+/-! ## The comparator and the attempt runner
+
+The random comparator of an attempt corresponds with the agent's attempt step by step. A
+campaign from a cursor within its cycle budget, with fuel that covers the attempts left in its
+budget (`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends unfinished, and neither does
+the campaign over an admitted plan with at least one cycle. The theorems of
+`AcornVerif.CurrentRunner` state these. -/
+
+/-- A tick of the comparator from a state that corresponds with an agent's attempt follows the
+agent's tick: where the agent's tick takes no step the comparator's returns its state, and where
+it takes a step whose action the comparator's stream draws, the comparator's tick is accepted
+with a state that corresponds with the agent's next attempt and the advanced stream
+(`CurrentRunner.idle_corresponds`, `CurrentRunner.tick_corresponds`).
+
+The statement keeps no kind. It relates the comparator to the agent's tick through
+`CurrentRunner.Corresponds`, a relation of this library, and the acceptance of a tick is the
+world step's, which no theorem states (`Acorn.Decisions.baseline_tick`). -/
+theorem baseline_corresponds : Regula.ExecutableContract @Host.BaselineAttempt.tick
+    (fun tick =>
+      ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
+        (context : Host.GoalContext) (attempt next : Host.Attempt config α goal cap)
+        (state : Host.BaselineAttempt config cap), CurrentRunner.Corresponds attempt state →
+        (attempt.tick callbacks context = .ok (next, none) → tick state = .ok state) ∧
+          ∀ frame, attempt.tick callbacks context = .ok (next, some frame) →
+            (Host.baselineAction state.rng).1 = frame.action →
+            ∃ after, tick state = .ok after ∧ CurrentRunner.Corresponds next after ∧
+              after.rng = (Host.baselineAction state.rng).2) :=
+  ⟨fun callbacks context attempt next state related =>
+    ⟨fun idle => CurrentRunner.idle_corresponds callbacks context attempt next state related idle,
+      fun frame acted drawn => CurrentRunner.tick_corresponds callbacks context attempt next frame
+        state related acted drawn⟩⟩
+
+/-- A comparator campaign with no fuel ends unfinished, and a comparator campaign from a cursor
+within its cycle budget (its cycle is below the plan's cycle count), with fuel that covers the
+attempts left in its budget (`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends
+unfinished (`CurrentRunner.baseline_campaign_finishes`).
+
+The statement keeps no kind. A constant function fails it: with no fuel the result is the
+refusal `unfinished`, and with fuel that covers the budget the result is not. A campaign that
+does not end unfinished can still refuse where the world refuses a step, and no theorem states
+which steps succeed.
+
+**Not claimed:** which campaigns return a record, or the record. -/
+theorem campaign_finishes : Regula.ExecutableContract @Host.runBaselineCampaign (fun run =>
+    (∀ {config} (curriculum : Host.Curriculum) (plan : Host.CampaignPlan curriculum.size)
+      (cursor : Host.CampaignCursor plan) (world : Host.World config) (rng : Rng.Xoshiro256)
+      (outcomes : Array Host.BaselineOutcome),
+      run curriculum plan 0 cursor world rng outcomes = .error .unfinished) ∧
+    ∀ {config} (curriculum : Host.Curriculum) (plan : Host.CampaignPlan curriculum.size)
+      (fuel : Nat) (cursor : Host.CampaignCursor plan) (world : Host.World config)
+      (rng : Rng.Xoshiro256) (outcomes : Array Host.BaselineOutcome),
+      cursor.cycle.toNat < plan.cycles.toNat →
+      plan.attemptBudget ≤ fuel + CurrentRunner.cursorRank cursor →
+      run curriculum plan fuel cursor world rng outcomes ≠ .error .unfinished) :=
+  ⟨⟨fun _ _ _ _ _ _ => rfl,
+    fun curriculum plan fuel cursor world rng outcomes before covered =>
+      CurrentRunner.baseline_campaign_finishes curriculum plan fuel cursor world rng outcomes
+        before covered⟩⟩
+
+/-- The comparator's campaign refuses at campaign admission a specification with no steps
+(`stepCapZero`) and a specification with steps, no goals and no cycles (`emptyUnbounded`,
+`CurrentRunner.empty_unbounded_refused`), and over an admitted plan with at least one cycle it
+never ends unfinished (`CurrentRunner.baseline_finishes`).
+
+The statement keeps no kind. A constant function fails it: the two refusals of admission
+differ. The campaign over an admitted plan can still refuse where world generation or a world
+step refuses, and no theorem states which configurations initialize or which steps succeed
+(`Acorn.Decisions.world_initial`).
+
+**Not claimed:** which campaigns return a record, or the record. -/
+theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBaseline (fun run =>
+    (∀ (config : Host.WorldConfig) (seed attempts goals cycles : UInt64),
+      run config seed ⟨0, attempts, goals, cycles⟩ = .error (.campaign .stepCapZero)) ∧
+    (∀ (config : Host.WorldConfig) (seed steps attempts : UInt64), 0 < steps.toNat →
+      run config seed ⟨steps, attempts, 0, 0⟩ = .error (.campaign .emptyUnbounded)) ∧
+    ∀ (config : Host.WorldConfig) (seed : UInt64) (spec : Host.CampaignSpec)
+      (plan : Host.CampaignPlan (Host.standardCurriculum config seed).size),
+      Host.CampaignPlan.admit (Host.standardCurriculum config seed).size spec = .ok plan →
+      plan.cycles.toNat ≠ 0 → run config seed spec ≠ .error .unfinished) :=
+  ⟨⟨fun _ _ _ _ _ => by simp [Host.runRandomBaseline, Host.CampaignPlan.admit],
+    fun _ _ _ _ positive => by
+      simp only [Host.runRandomBaseline, CurrentRunner.empty_unbounded_refused, positive,
+        ↓reduceIte],
+    fun config seed spec plan admitted bounded =>
+      CurrentRunner.baseline_finishes config seed spec plan admitted bounded⟩⟩
 
 /-! ## Learner admissions -/
 
