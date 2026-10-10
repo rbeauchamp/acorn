@@ -31,7 +31,8 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
 - **Every visit, experience-free agents.** In visits of `cap` steps, every experience-free
   agent, the uniform-random comparator included, solves at most `49 + 7 cap` members on each
   visit (`find_visits_need`, `comparator_find_visits`). At a cap of 3000 and a window of
-  radius 120 that is at most 21049 of the window's 57600 targets (`far_window_visits`).
+  radius 120 that is at most 21049 of the at least 57551 members in the window: the window's
+  57600 tiles less at most 49 within three tiles of the start (`far_window_visits`).
 - **First success, every agent.** On each visit every agent solves at most `49 + 7 cap`
   members it has not solved before, and over `n` visits at most `n (49 + 7 cap)`
   (`find_visits_first_success`, `find_visits_ever`).
@@ -40,8 +41,13 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   is not experience-free (`find_replay_learns`), solves on every later visit each member it
   has solved once (`find_replay`). If its explorations of the visits up to one visit meet
   more than `49 + 7 cap` targets, on that visit it solves all of them while every
-  experience-free agent solves fewer on every visit (`find_replay_separates`); whether an
-  exploration meets a target depends on the terrain and is a hypothesis there.
+  experience-free agent solves fewer on every visit (`find_replay_separates`). Whether an
+  exploration meets a target depends on the terrain, so the theorem takes it as a hypothesis;
+  `witness_separation` discharges it in one admitted world (seed 55, side 64, noise scale
+  one): three visits of seven steps east, west and south from the box's center meet 147
+  members, more than the bound 98, so there the replaying agent solves 147 on visit 2 and
+  every experience-free agent fewer on every visit. The kernel evaluates the executed step
+  along the three walks, 21 steps (`witness_walk`); the count is structural.
 
 Hypotheses and limits. The class is of target positions over one host world: reading a bound
 as a fraction of seeds would assume that the seed hash places targets independently of the
@@ -464,9 +470,20 @@ theorem find_replay_separates (config : Host.WorldConfig) (mode : TaskFeatureMod
 
 /-! ## The far window -/
 
+/-- A target is a member of the class exactly when its tile is not within three tiles of the
+body's start. -/
+theorem member_tile (live : Live config) (target : Host.Position) :
+    ¬ InGoalBox target live.world.body.position.position ↔
+      tile target ∉ box 3 (tile live.world.body.position.position) :=
+  not_congr ⟨box_of_goalBox target _, fun near => by
+    have close := mem_box.mp near
+    exact close⟩
+
 /-- At a cap of 3000 steps and a window of radius 120, every experience-free agent solves on
-each visit at most 21049 of the window's 57600 concealed targets: at least 36551 are
-unsolved, and 21049 is under 36.6 percent of 57600. -/
+each visit at most 21049 of the members in the window. The window has 57600 tiles; the tiles
+of the members in it are those not within three tiles of the start, at least 57551 of them,
+and at least 36502 of those are tiles of no member the agent solves. 21049 is under 36.6
+percent of 57551. -/
 theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (side : Host.Coordinate) {agent : Kernel.Agent Grid.interface}
     (free : Kernel.ExperienceFree agent) (count : ℕ)
@@ -474,21 +491,194 @@ theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (window : ∀ target ∈ solved, InWindow side 120 target.1)
     (each : ∀ target ∈ solved, Kernel.SolvesOnVisit (findClass config mode live)
       (fun _ => completion config mode 3000) 3000 agent count target) :
-    solved.card ≤ 21049 ∧ (windowTiles side 120).card = 57600 ∧
-      36551 ≤ (windowTiles side 120 \ solved.image (fun target => tile target.1)).card ∧
-      21049 * 1000 < 366 * 57600 := by
+    solved.card ≤ 21049 ∧
+      57551 ≤ (windowTiles side 120 \ box 3 (tile live.world.body.position.position)).card ∧
+      36502 ≤ ((windowTiles side 120 \ box 3 (tile live.world.body.position.position)) \
+        solved.image (fun target => tile target.1)).card ∧
+      21049 * 1000 < 366 * 57551 := by
   have few : solved.card ≤ 21049 :=
     find_visits_need config mode live 3000 free count solved each
-  have total : (windowTiles side 120).card = 57600 := card_windowTiles side 120
-  have inside : solved.image (fun target => tile target.1) ⊆ windowTiles side 120 := by
+  have admitted := Finset.le_card_sdiff (box 3 (tile live.world.body.position.position))
+    (windowTiles side 120)
+  rw [card_windowTiles, card_box] at admitted
+  have inside : solved.image (fun target => tile target.1) ⊆
+      windowTiles side 120 \ box 3 (tile live.world.body.position.position) := by
     intro point chosen
     obtain ⟨target, picked, rfl⟩ := Finset.mem_image.mp chosen
-    exact (mem_windowTiles side 120 target.1).mpr (window target picked)
+    exact Finset.mem_sdiff.mpr ⟨(mem_windowTiles side 120 target.1).mpr (window target picked),
+      (member_tile live target.1).mp target.2⟩
   have split := Finset.card_sdiff_add_card_eq_card inside
   have image : (solved.image (fun target => tile target.1)).card = solved.card :=
     Finset.card_image_of_injective solved
       (fun first second same => Subtype.ext (tile_injective same))
-  refine ⟨few, total, ?_, by decide⟩
-  omega
+  refine ⟨few, by omega, by omega, by decide⟩
+
+/-! ## A world in which the separation holds -/
+
+/-- The configuration of the separation witness: seed 55, a box of side 64, a noise scale of
+one, a day of one step, and no food or deer. -/
+def witnessConfig : Host.WorldConfig :=
+  ⟨⟨55, ⟨64, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+
+/-- The host world of the witness: the configuration's empty world, with the body at the box's
+center and its energy full, and an empty carried result. -/
+def witnessLive : Live witnessConfig := ⟨Host.World.empty witnessConfig, {}⟩
+
+/-- The exploration of the witness: east at every step of visit 0, west on visit 1 and south
+on every later visit. -/
+def witnessExplore (visit : ℕ) (_ : ℕ) : Kernel.Act Grid.interface :=
+  code (match visit with | 0 => .east | 1 => .west | _ => .south)
+
+/-- The tile each visit of the witness ends on: seven tiles east, west and south of the
+center `(32, 32)`. -/
+def witnessEnd : ℕ → ℤ × ℤ
+  | 0 => (39, 32)
+  | 1 => (25, 32)
+  | _ => (32, 39)
+
+/-- The body of the witness starts on the center `(32, 32)`. -/
+theorem witness_start : tile witnessLive.world.body.position.position = (32, 32) := by
+  decide
+
+/-- Seven steps of each of the first three visits' explorations carry the body, from the
+witness world, to that visit's end tile. The kernel evaluates the executed world step,
+including the terrain of the 21 tiles entered. -/
+theorem witness_walk (visit : ℕ) (within : visit ≤ 2) :
+    (physicalPath (physical witnessLive.world) (witnessExplore visit) 7).map
+      (fun world => tile world.body.position.position) = some (witnessEnd visit) := by
+  rcases (by omega : visit = 0 ∨ visit = 1 ∨ visit = 2) with rfl | rfl | rfl
+  · decide +kernel
+  · decide +kernel
+  · decide +kernel
+
+/-- Every concealed target within three tiles of a visit's end tile is met by that visit's
+exploration at its seventh step. -/
+theorem witness_meets (mode : TaskFeatureMode) (cap visit : ℕ) (within : visit ≤ 2)
+    (target : Host.Position) (near : tile target ∈ box 3 (witnessEnd visit)) :
+    (completion witnessConfig mode cap).satisfied
+      (Kernel.path (gridWorld witnessConfig mode) (member witnessLive target)
+        (witnessExplore visit) 7) := by
+  have track := path_physical mode
+    ⟨witnessLive.world.setGoal (.find target), witnessLive.carried⟩ (witnessExplore visit) 7
+  change (Kernel.path (gridWorld witnessConfig mode) (member witnessLive target)
+    (witnessExplore visit) 7).map (fun state => physical state.world) =
+      physicalPath (physical witnessLive.world) (witnessExplore visit) 7 at track
+  have walked := witness_walk visit within
+  cases reached : Kernel.path (gridWorld witnessConfig mode) (member witnessLive target)
+      (witnessExplore visit) 7 with
+  | none =>
+    rw [reached] at track
+    rw [← track] at walked
+    cases walked
+  | some final =>
+    rw [reached] at track
+    rw [← track] at walked
+    have here : tile final.world.body.position.position = witnessEnd visit :=
+      Option.some.inj walked
+    have installed : final.world.goal = some (.find target) :=
+      path_goal mode ⟨witnessLive.world.setGoal (.find target), witnessLive.carried⟩ final
+        (witnessExplore visit) 7 reached
+    have close : tile target ∈ box 3 (tile final.world.body.position.position) := by
+      rw [here]
+      exact near
+    refine ⟨final, rfl, (find_goal_iff final.world target installed).mpr ?_⟩
+    have inside := mem_box.mp close
+    exact inside
+
+/-- The coordinate of an integer, clamped to the signed 64-bit range. -/
+def clampCoordinate (value : ℤ) : Host.Coordinate :=
+  ⟨max (-(2 ^ 63)) (min value (2 ^ 63 - 1)), by omega⟩
+
+/-- The position of a lattice point, each coordinate clamped to the signed range. -/
+def pointPosition (point : ℤ × ℤ) : Host.Position :=
+  ⟨clampCoordinate point.1, clampCoordinate point.2⟩
+
+/-- The tiles of the witness's members: those within three tiles of the three end tiles. -/
+def witnessTiles : Finset (ℤ × ℤ) :=
+  box 3 (witnessEnd 0) ∪ box 3 (witnessEnd 1) ∪ box 3 (witnessEnd 2)
+
+/-- A tile of the witness is within three tiles of one of the three end tiles. -/
+theorem witnessTiles_near (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
+    ∃ visit, visit ≤ 2 ∧ point ∈ box 3 (witnessEnd visit) := by
+  simp only [witnessTiles, Finset.mem_union] at inside
+  rcases inside with (first | second) | third
+  · exact ⟨0, by omega, first⟩
+  · exact ⟨1, by omega, second⟩
+  · exact ⟨2, by omega, third⟩
+
+/-- Every tile of the witness is the tile of its position, and lies more than three tiles
+from the start. -/
+theorem witnessTiles_admitted (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
+    tile (pointPosition point) = point ∧ point ∉ box 3 (32, 32) := by
+  obtain ⟨visit, within, near⟩ := witnessTiles_near point inside
+  rw [mem_box] at near
+  rcases (by omega : visit = 0 ∨ visit = 1 ∨ visit = 2) with rfl | rfl | rfl <;>
+    simp only [witnessEnd] at near <;>
+    refine ⟨Prod.ext ?_ ?_, fun far => ?_⟩ <;>
+    (try rw [mem_box] at far) <;>
+    simp only [tile, pointPosition, clampCoordinate] at * <;>
+    omega
+
+/-- The witness has 147 member tiles: the three boxes are disjoint. -/
+theorem card_witnessTiles : witnessTiles.card = 147 := by
+  have apart : ∀ (first second : ℤ × ℤ) (point : ℤ × ℤ),
+      7 ≤ (first.1 - second.1).natAbs ∨ 7 ≤ (first.2 - second.2).natAbs →
+      point ∈ box 3 first → point ∉ box 3 second := by
+    intro first second point far near close
+    rw [mem_box] at near close
+    omega
+  rw [witnessTiles, Finset.card_union_of_disjoint, Finset.card_union_of_disjoint, card_box,
+    card_box, card_box]
+  · exact Finset.disjoint_left.mpr fun point near =>
+      apart _ _ point (by simp only [witnessEnd]; omega) near
+  · refine Finset.disjoint_left.mpr fun point near => ?_
+    rcases Finset.mem_union.mp near with first | second
+    · exact apart _ _ point (by simp only [witnessEnd]; omega) first
+    · exact apart _ _ point (by simp only [witnessEnd]; omega) second
+
+/-- The separation holds in the executed grid world. In the witness world, with visits of seven
+steps, the replaying agent with the achievement flag as its signal solves on visit 2 the 147
+concealed targets within three tiles of the three end tiles, while on every visit every
+experience-free agent solves fewer: 147 is more than the covering bound 49 + 7 · 7 = 98. -/
+theorem witness_separation (mode : TaskFeatureMode) :
+    ∃ members : Finset (findClass witnessConfig mode witnessLive).Index,
+      49 + 7 * 7 < members.card ∧
+      (∀ target ∈ members, Kernel.SolvesOnVisit (findClass witnessConfig mode witnessLive)
+        (fun _ => completion witnessConfig mode 7) 7
+        (Kernel.replay Grid.interface 7 achievedSignal witnessExplore) 2 target) ∧
+      ∀ agent : Kernel.Agent Grid.interface, Kernel.ExperienceFree agent →
+        ∀ (count : ℕ) (solved : Finset (findClass witnessConfig mode witnessLive).Index),
+          (∀ target ∈ solved, Kernel.SolvesOnVisit (findClass witnessConfig mode witnessLive)
+            (fun _ => completion witnessConfig mode 7) 7 agent count target) →
+            solved.card < members.card := by
+  let admit :
+      { point // point ∈ witnessTiles } → (findClass witnessConfig mode witnessLive).Index :=
+    fun point => ⟨pointPosition point.1, by
+      rw [member_tile, witness_start, (witnessTiles_admitted point.1 point.2).1]
+      exact (witnessTiles_admitted point.1 point.2).2⟩
+  have injective : Function.Injective admit := by
+    intro first second same
+    have tiles := congrArg (fun target : (findClass witnessConfig mode witnessLive).Index =>
+      tile target.1) same
+    simp only [admit, (witnessTiles_admitted first.1 first.2).1,
+      (witnessTiles_admitted second.1 second.2).1] at tiles
+    exact Subtype.ext tiles
+  let members := witnessTiles.attach.map ⟨admit, injective⟩
+  have count : members.card = 147 := by
+    rw [Finset.card_map, Finset.card_attach, card_witnessTiles]
+  have explored : ∀ target ∈ members, ∃ visit, visit ≤ 2 ∧
+      ∃ step, 1 ≤ step ∧ step ≤ 7 ∧ (completion witnessConfig mode 7).satisfied
+        (Kernel.path (gridWorld witnessConfig mode) (member witnessLive target.1)
+          (witnessExplore visit) step) := by
+    intro target chosen
+    obtain ⟨point, -, rfl⟩ := Finset.mem_map.mp chosen
+    obtain ⟨visit, within, near⟩ := witnessTiles_near point.1 point.2
+    refine ⟨visit, within, 7, by omega, le_refl 7, witness_meets mode 7 visit within _ ?_⟩
+    change tile (pointPosition point.1) ∈ box 3 (witnessEnd visit)
+    rw [(witnessTiles_admitted point.1 point.2).1]
+    exact near
+  have separated := find_replay_separates witnessConfig mode witnessLive 7 witnessExplore members
+    2 explored (by rw [count]; decide)
+  exact ⟨members, by rw [count]; decide, separated⟩
 
 end AcornVerif.CurrentConcealedTarget

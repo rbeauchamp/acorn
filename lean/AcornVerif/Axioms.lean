@@ -3518,6 +3518,18 @@ info: 'AcornVerif.CurrentConcealedTarget.far_window_visits' depends on axioms: [
 #print axioms AcornVerif.CurrentConcealedTarget.far_window_visits
 
 /--
+info: 'AcornVerif.CurrentConcealedTarget.witness_walk' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.witness_walk
+
+/--
+info: 'AcornVerif.CurrentConcealedTarget.witness_separation' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentConcealedTarget.witness_separation
+
+/--
 info: 'AcornVerif.Kernel.replay_explored' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
