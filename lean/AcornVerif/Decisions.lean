@@ -81,9 +81,10 @@ their statements say what their results are.
   image declares the invariants of its learners, which name the stored-word check
   `NumericState.resumable` and the other tests that the admissions run. It names the writer
   `Checkpoint.imagePayload` too, whose format holds the reader of each field beside its writer and
-  so reaches the reader's tests. RG1009 refuses the kind for those tests. Which images there are
-  depends on them, so the two sides share them in substance and not only by the reading: a kind
-  needs a statement of the written payloads that does not depend on those tests.
+  so reaches the reader's tests. An audit with Regula v0.11.0 refused the kind under RG1009 for
+  those tests. Which images there are depends on them, so the two sides share them in substance and
+  not only by the reading: a kind needs a statement of the written payloads that does not depend on
+  those tests.
 * The statement gives an accepted input of a host transition whose statement in
   `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
   `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
@@ -757,14 +758,13 @@ private theorem payload_iff (construction : AgentConstruction)
 /-- Payload admission accepts exactly the payloads of the agent images of a resumable
 construction (`payload_iff`). `payload_admit_value` states the image that it returns.
 
-The statement keeps no kind. RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses the two-way kind with this
-specification. The specification quantifies over agent images, whose type declares the invariants
-of their learners, and it names the writer `imagePayload`, whose format holds the reader of each
-field beside its writer. Both reach ten tests that the admission runs, among them the stored-word
-check `NumericState.resumable`, `Binary32.isNaN` and `Binary32.less`. Which images there are
-depends on those tests, so a kind needs a statement of the written payloads that does not depend
-on them. -/
+The statement keeps no kind. An audit with Regula v0.11.0 refused the two-way kind with this
+specification under RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/). The
+specification quantifies over agent images, whose type declares the invariants of their learners,
+and it names the writer `imagePayload`, whose format holds the reader of each field beside its
+writer. Both reach ten tests that the admission runs, among them the stored-word check
+`NumericState.resumable`, `Binary32.isNaN` and `Binary32.less`. Which images there are depends on
+those tests, so a kind needs a statement of the written payloads that does not depend on them. -/
 theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
     ∀ (construction : AgentConstruction) (payload : Payload),
       (admit construction payload).isOk = true ↔
@@ -804,8 +804,8 @@ private theorem candidate_iff (construction : AgentConstruction) (bytes : List U
 /-- Candidate loading accepts exactly the encoded payloads of the agent images of a resumable
 construction (`candidate_iff`). `candidate_load_value` states the image that it returns.
 
-The statement keeps no kind, for the reason that `payload_admit` gives: RG1009 refuses the kind
-for the same ten tests. -/
+The statement keeps no kind, for the reason that `payload_admit` gives: an audit with Regula
+v0.11.0 refused the kind under RG1009 for the same ten tests. -/
 theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
     ∀ (construction : AgentConstruction) (bytes : List UInt8),
       (load construction bytes).isOk = true ↔
@@ -2105,8 +2105,9 @@ for every receiver of that construction (`CurrentCheckpoint.save_load`). The sou
 The statement keeps no kind. The complete kind with these bytes as its specification quantifies
 over the states of the construction, whose type declares the invariants of the learners, and names
 the writer `Checkpoint.snapshot`, whose format holds the reader of each field beside its writer.
-Both reach tests that loading runs, and RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses that kind. -/
+Both reach tests that loading runs, so by the documented reading of RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) the rule refuses that kind. This is a
+conclusion from the reading; no audit of the kind has run. -/
 theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun load =>
     ∀ (construction : AgentConstruction) (source receiver : construction.State),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧

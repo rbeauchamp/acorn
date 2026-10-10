@@ -96,26 +96,29 @@ Twenty-nine functions of this module have a contract and no kind. The reasons ar
   `Checkpoint.loadCandidate` admits belongs to a resumable construction
   (`CurrentCheckpoint.unresumable_unloaded`), and under a resumable profile the restore returns
   the image's agent (`AgentConstruction.State.restore_exact`).
-* The specification reads a part of the input whose type declares an invariant that names tests
-  that the function runs. RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/)
-  does not enter the declaration of the input type itself, but it reads the declaration of the
-  result type of a field that the specification reads, and of the type of a definition that
-  the specification applies to such a field, so it refuses the kind although the specification
-  names none of those tests (https://github.com/rbeauchamp/regula/issues/320). These are
-  `Features.Lifecycle.lessUseful`, `Features.Lifecycle.candidate` and
-  `Features.Lifecycle.prefer`, whose specifications read the stored utilities of the lifecycle
-  state; the two transitions `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`,
-  whose host carries the proof that it is reached by the transitions; and nine selection
-  functions of the temporal controller, whose specifications read the temporal state:
-  `TemporalControl.serve`, `TemporalControl.serveDraw`, `TemporalControl.dispatchMeta`,
-  `TemporalControl.atBoundary`, `TemporalControl.selectWithOperations`,
-  `TemporalControl.select`, `TemporalControl.step`, `TemporalControl.drawBoundary` and
-  `TemporalControl.drawFirst`. A temporal state reaches such tests through the invariants of its
-  learners, the stored-word check `NumericState.resumable` of a learner read from an image among
-  them, and its lifetime records, and a lifecycle state through the invariants of the learners of
-  its consumers. A served step reaches one of them,
-  `Binary32.negative`, through the value predictions it reports, and has a statement of the step
-  it serves beside its contract (`temporal_serve_frame`, `serve_draw_frame`).
+* The specification reads a part of the input whose type declares an invariant that names tests that
+  the function runs. RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) does not
+  enter the declaration of the input type itself, but it reads the declaration of the result type of
+  a field that the specification reads, and of the type of a definition that the specification
+  applies to such a field, so it refuses the kind although the specification names none of those
+  tests (https://github.com/rbeauchamp/regula/issues/320). These are
+  `Features.Lifecycle.lessUseful`, `Features.Lifecycle.candidate` and `Features.Lifecycle.prefer`,
+  whose specifications read the stored utilities of the lifecycle state; the two transitions
+  `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose host carries the proof
+  that it is reached by the transitions; and nine selection functions of the temporal controller,
+  whose specifications read the temporal state: `TemporalControl.serve`,
+  `TemporalControl.serveDraw`, `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
+  `TemporalControl.selectWithOperations`, `TemporalControl.select`, `TemporalControl.step`,
+  `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. An audit with Regula v0.11.0
+  refused the kinds of the three lifecycle functions for the tests `Binary32.isNaN`, `Binary32.less`
+  and `Binary32.negative`, which the declaration of the lifecycle state reaches through the
+  invariants of the learners of its consumers. For the transitions and the selection functions the
+  refusal is a conclusion from the documented reading, and no audit of their kinds has run. A
+  temporal state reaches such tests through the invariants of its learners, the stored-word check
+  `NumericState.resumable` of a learner read from an image among them, and its lifetime records. A
+  served step reaches one of them, `Binary32.negative`, through the value predictions it reports,
+  and has a statement of the step it serves beside its contract (`temporal_serve_frame`,
+  `serve_draw_frame`).
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
@@ -1848,11 +1851,13 @@ awaits is in the type of the host. Both outcomes occur: a host that only started
 refused, and a host that started and heard a state frame is accepted, which is how the
 instance of `Nonempty Host.Microduck.Awaiting` is made.
 
-The statement keeps no kind. The type of a host carries the proof that the host is reached
-by the transitions, which names every transition and so the tests that this one runs. A
-specification reads the host, a field of the input, and RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that field's type and refuses
-the kind, although the specification names none of those tests (https://github.com/rbeauchamp/regula/issues/320).
+The statement keeps no kind. The type of a host carries the proof that the host is reached by the
+transitions, which names every transition and so the tests that this one runs. A specification reads
+the host, a field of the input, and RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that field's
+type (https://github.com/rbeauchamp/regula/issues/320). By that reading the rule refuses the kind,
+although the specification names none of those tests; this is a conclusion from the documented
+reading, and no audit of the kind has run.
 
 **Not claimed:** what the percept is built from and the state after it, which
 `Host.Microduck.Idle.sense_iff` states; that the frame held was heard since the last
@@ -3290,12 +3295,13 @@ attribute [regula_decision] Features.Interest.sameAssignment
 /-- The utility comparison accepts exactly a unit whose stored utility key is strictly below
 the other's (`Lifecycle.lessUseful_iff`).
 
-The statement keeps no kind. RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses the kind: the specification reads the stored utility keys through the lifecycle state, a field of the input, and the
-rule reads the declaration of that field's type. Through the invariants of the learners of the
-lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
-`Binary32.negative`, which the comparison runs (https://github.com/rbeauchamp/regula/issues/320). The
-specification names none of those tests. -/
+The statement keeps no kind. An audit with Regula v0.11.0 refused the kind under RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/): the specification reads the stored
+utility keys through the lifecycle state, a field of the input, and the rule reads the declaration
+of that field's type. Through the invariants of the learners of the lifecycle state, that
+declaration reaches `Binary32.isNaN`, `Binary32.less` and `Binary32.negative`, which the comparison
+runs (https://github.com/rbeauchamp/regula/issues/320). The specification names none of those tests.
+-/
 theorem less_useful : Regula.ExecutableContract @Features.Lifecycle.lessUseful (fun test =>
     ∀ {shape actions config criterion dimension discounts}
       (state : Features.Lifecycle shape actions config criterion dimension discounts)
@@ -3656,12 +3662,12 @@ unit can be replaced and has the least stored utility among the units that can
 (`Lifecycle.candidate_none_iff`, `candidate_eligible`, `candidate_least`). The specification
 `Replaceable` is stated on stored data and names no eligibility test.
 
-The statement keeps no kind. RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses the kind: the specification that some unit can be replaced reads the lifecycle state, a field of the input, and the
-rule reads the declaration of that field's type. Through the invariants of the learners of the
-lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
-`Binary32.negative`, which the selection runs (https://github.com/rbeauchamp/regula/issues/320). The
-specification names none of those tests. -/
+The statement keeps no kind. An audit with Regula v0.11.0 refused the kind under RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/): the specification that some unit can
+be replaced reads the lifecycle state, a field of the input, and the rule reads the declaration of
+that field's type. Through the invariants of the learners of the lifecycle state, that declaration
+reaches `Binary32.isNaN`, `Binary32.less` and `Binary32.negative`, which the selection runs
+(https://github.com/rbeauchamp/regula/issues/320). The specification names none of those tests. -/
 theorem lifecycle_candidate :
     Regula.ExecutableContract @Features.Lifecycle.candidate (fun candidate =>
     ∀ {shape actions config criterion dimension discounts}
@@ -4215,12 +4221,13 @@ can, it selects that unit when there is no choice, and with a choice it selects 
 exactly when the stored utility key of the unit is below the key of the choice
 (`Lifecycle.lessUseful_iff`).
 
-The statement keeps no kind. RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses the kind: the specification that the step had a choice or the unit can be replaced reads the lifecycle state, a field of the input, and the
-rule reads the declaration of that field's type. Through the invariants of the learners of the
-lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
-`Binary32.negative`, which the preference step runs (https://github.com/rbeauchamp/regula/issues/320). The
-specification names none of those tests. -/
+The statement keeps no kind. An audit with Regula v0.11.0 refused the kind under RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/): the specification that the step had a
+choice or the unit can be replaced reads the lifecycle state, a field of the input, and the rule
+reads the declaration of that field's type. Through the invariants of the learners of the lifecycle
+state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and `Binary32.negative`, which the
+preference step runs (https://github.com/rbeauchamp/regula/issues/320). The specification names none
+of those tests. -/
 theorem lifecycle_prefer : Regula.ExecutableContract @Features.Lifecycle.prefer (fun prefer =>
     ∀ {shape actions config criterion dimension discounts}
       (state : Features.Lifecycle shape actions config criterion dimension discounts)
@@ -5144,13 +5151,14 @@ private theorem serveDraw_isSome {interface : Interface} {profile : FeatureProfi
 /-- A temporal state serves a step of a committed run exactly when its dispatch phase holds a
 committed run with an action remaining. `temporal_serve_frame` states the step that it serves.
 
-The statement keeps no kind. Its specification reads the temporal state, a field of its input,
-and RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that
+The statement keeps no kind. Its specification reads the temporal state, a field of its input, and
+RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that
 field's type (https://github.com/rbeauchamp/regula/issues/320): through the invariants of the
 learners that type reaches `Binary32.negative`, which the function also reaches through the value
-predictions it reports (`Controller.predictAll`, whose weights are words of an interval ordered
-by `Binary32.key`), so the rule refuses a kind over it, although the specification names no
-test. -/
+predictions it reports (`Controller.predictAll`, whose weights are words of an interval ordered by
+`Binary32.key`). By that reading the rule refuses a kind over it, although the specification names
+no test. This is a conclusion from the documented reading: an audit with Regula v0.10.0 refused the
+kind with that test, and no audit of it with v0.11.0 has run. -/
 theorem temporal_serve : Regula.ExecutableContract @TemporalControl.serve (fun serve =>
     ∀ {interface profile config criterion dimension}
       (state : TemporalControl interface profile config criterion dimension)
@@ -5178,8 +5186,9 @@ theorem temporal_serve_frame : Regula.ExecutableContract @TemporalControl.serve 
 
 /-- A temporal state serves a step first exactly when its dispatch phase holds a committed run
 with an action remaining, the condition of `temporal_serve`. `serve_draw_frame` states the step
-that it serves. The statement keeps no kind, for the reason that `temporal_serve` states: an audit
-of the kind refused it with the same test. -/
+that it serves. The statement keeps no kind, for the reason that `temporal_serve` states, with the
+same test; the refusal is likewise a conclusion from the documented reading of RG1009, not the
+result of an audit with Regula v0.11.0. -/
 theorem serve_draw : Regula.ExecutableContract @TemporalControl.serveDraw (fun serve =>
     ∀ {interface profile config criterion dimension}
       (state : TemporalControl interface profile config criterion dimension)
@@ -5342,14 +5351,15 @@ private theorem drawFirst_unsourced {interface : Interface} {profile : FeaturePr
 state (`TemporalControl.select_total`); it refuses `foreignHeld`, whose executing option declares a
 source that no frame supplies.
 
-The statement keeps no kind. Its specification reads the temporal state, a field of its input,
-and RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that
-field's type (https://github.com/rbeauchamp/regula/issues/320): that type reaches, through the
+The statement keeps no kind. A specification of it reads the temporal state, a field of its input,
+and RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of
+that field's type (https://github.com/rbeauchamp/regula/issues/320): that type reaches, through the
 invariants of the learners (`StepSizeRails`, `ManagedAdmission`) and the lifetime records
 (`Lifetime.settlementHorizon`), tests that selection also runs, among them `Binary32.isNaN`,
-`Binary32.less`, `Binary32.negative` and `SwiftTd.nextReady`. RG1009 refuses a kind over it,
-although the specification names none of them. The two conjuncts are the content of a complete kind: every
-input of the specification is accepted, and an input is refused. -/
+`Binary32.less`, `Binary32.negative` and `SwiftTd.nextReady`. By that reading the rule refuses a
+kind over it, although the specification names none of them; no audit of the kind has run. The two
+conjuncts are the content of a complete kind: every input of the specification is accepted, and an
+input is refused. -/
 theorem select_operations : Regula.ExecutableContract @TemporalControl.selectWithOperations
     (fun select =>
       (∀ {interface profile config criterion dimension}
@@ -5615,13 +5625,13 @@ theorem released_environment : Regula.ExecutableContract @Host.Released.environm
 /-- The environment of a stage is the world's step on its action: an accepted transition holds
 the stage, and the world and the events of that step, and a refusal is the step's refusal.
 
-The statement keeps no kind. The stage is accepted exactly when the world's step accepts its
-action, and no theorem states which steps succeed (`world_step`). A specification of the accepted
-stages would read the stage, whose type carries the proof that its observation succeeded, which
-reaches the ownership test `Host.Inventory.owns` that the function runs through the crafting of
-the step. RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of such a
-part of the input (https://github.com/rbeauchamp/regula/issues/320), so it would refuse a kind over
-it. -/
+The statement keeps no kind. The stage is accepted exactly when the world's step accepts its action,
+and no theorem states which steps succeed (`world_step`). A specification of the accepted stages
+would read the stage, whose type carries the proof that its observation succeeded, which reaches the
+ownership test `Host.Inventory.owns` that the function runs through the crafting of the step. RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of such a part of
+the input (https://github.com/rbeauchamp/regula/issues/320), so by that reading it would refuse a
+kind over it; no audit of such a kind has run. -/
 theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
     (fun environment =>
       ∀ {config α goal cap} (selected : Host.OwnedStep config α goal cap),
@@ -6028,11 +6038,11 @@ functions registered here, and RG1008
 stays registered without its kind. The registration stays in this module, because Regula refuses a
 registration that the proof library writes for a function of this library. -/
 
-attribute [regula_decision] Checkpoint.load Checkpoint.admitSum Agreement.precision Portable.expSaturation
-  Features.Interest.potential Host.Endurance.rankIndex Host.Position.translate
-  Host.TaskObservation.satisfied Host.World.goalSatisfied Host.World.advanceActions
-  Host.World.tileKind Host.World.enterable Host.terrain Host.walkableTile Host.regionBlocked
-  Host.replayCertified Host.stanceCertified Host.ReplayCertificate.check
+attribute [regula_decision] Checkpoint.load Checkpoint.admitSum Agreement.precision
+  Portable.expSaturation Features.Interest.potential Host.Endurance.rankIndex
+  Host.Position.translate Host.TaskObservation.satisfied Host.World.goalSatisfied
+  Host.World.advanceActions Host.World.tileKind Host.World.enterable Host.terrain Host.walkableTile
+  Host.regionBlocked Host.replayCertified Host.stanceCertified Host.ReplayCertificate.check
   Host.StanceCertificate.check Host.BlockedCertificate.check Host.countKindNear Host.considerSpawn
   Host.payAndAct Host.performAction Host.Released.environment
 
