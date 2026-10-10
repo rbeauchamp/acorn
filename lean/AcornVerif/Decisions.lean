@@ -53,10 +53,8 @@ The round trips of the composed checkpoint admissions, the goal completion predi
 translation and precision derivation are stated here because their theorems are in this
 library, and so are the correspondence of the comparator with the agent's attempt and the bounds
 of the comparator's campaigns. The accepted inputs of three host transitions and the two-way kind
-of
-`Host.Released.environment` are stated here because the observation of their inputs succeeds
-by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem
-proves.
+of `Host.Released.environment` are stated here because the observation of their inputs succeeds
+by the terrain admission of `CurrentTerrain`. Each contract states only what its theorem proves.
 
 ## Statements that keep no kind
 
