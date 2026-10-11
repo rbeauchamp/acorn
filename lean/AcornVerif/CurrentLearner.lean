@@ -1366,7 +1366,7 @@ theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx 
 repeated members admitted by unrestricted standalone second loops. -/
 theorem normalized_count (state : NumericState config dimension) :
     state.normalizedStepSizeSum.2 = state.eligibleCount := by
-  simp only [NumericState.normalizedStepSizeSum, NumericState.eligibleCount]
+  simp only [NumericState.normalizedStepSizeSum_def, NumericState.eligibleCount]
   split
   · rename_i empty
     simp_all

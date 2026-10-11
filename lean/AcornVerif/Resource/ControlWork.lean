@@ -11,10 +11,12 @@ import AcornVerif.Resource.LearnerWork
 /-!
 # Work of the learners' admitted entries, the controllers and the policies
 
-Twins of `Managed.apply` and the shared-error controller of `Acorn.Sarsa`, and the bounds of the
-frozen policy's functions in `Acorn.Policy` and `Acorn.Exploration`, which are the values of their
-costed definitions; the policy's twins carry those bounds. A learner entry's bound reads the
-learner's eligible entries, and every admitted learner has at most the capacity of its dimension
+The bounds of a learner record's entry, retirement and credit, of a controller's predictions,
+clear, release, snapshot and derived rate, of the normalized step-size sum, and of the frozen
+policy's functions, which are the values of their costed definitions; their twins carry those
+bounds, each with a `_costed` theorem. Twins of the controllers' updates of `Acorn.Sarsa`, which
+follow their executed definitions. A learner entry's bound reads the learner's eligible entries,
+and every admitted learner has at most the capacity of its dimension
 (`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted entry is a
 function of the capacity and the length of the feature list it reads. A controller's update
 visits each of its rows, and a policy's loops visit its actions.
@@ -37,100 +39,126 @@ variable {config : Acorn.Config} {dimension : Dimension} {actions : Nat} {count 
 
 /-! ## Learner entries -/
 
-/-- Twin of `Managed.apply`: the executed learner, with the work of its entry and of the
-learner's record. -/
+/-- `Managed.apply` with the bound of its costed definition: the learner's record and the
+entry at the learner's eligible entries. -/
 def managedApply (κ : Costs) (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) : Costed (Managed config dimension) :=
-  Costed.via (learner.apply entry permitted)
-    (Costed.charge (κ .managedEntry) (entryApply κ entry learner.state))
+  ⟨learner.apply entry permitted,
+    κ .managedEntry + entryBound κ dimension.capacity learner.state.transient.eligible.size entry⟩
 
-/-- The entry's twin computes the learner's executed state. -/
-theorem managedApply_run (κ : Costs) (learner : Managed config dimension)
+theorem managedApply_costed (κ : Costs) (learner : Managed config dimension)
     (entry : SwiftTd.Entry dimension) (permitted : SwiftTd.Permitted entry learner.phase) :
-    (entryApply κ entry learner.state).val = (learner.apply entry permitted).state :=
-  entryApply_val κ entry learner.state
+    (learner.applyCosted entry permitted).Within κ
+      (managedApply κ learner entry permitted).work := by
+  unfold Managed.applyCosted
+  refine Acorn.Costed.charge_within ?_
+  refine (Acorn.Costed.bind_within (b := 0)
+    (Acorn.Costed.attach_within (applyCosted_within κ entry learner.state)) ?_).mono
+    (Nat.le_of_eq (Nat.add_zero _))
+  exact Acorn.Costed.pure_within _ κ
 
 /-- An admitted learner's entry is bounded at the capacity of its dimension. -/
 theorem managedApply_work (κ : Costs) (learner : Managed config dimension)
     (entry : SwiftTd.Entry dimension) (permitted : SwiftTd.Permitted entry learner.phase) :
     (managedApply κ learner entry permitted).work ≤
       κ .managedEntry + entryBound κ dimension.capacity dimension.capacity entry :=
-  Nat.add_le_add_left (Nat.le_trans (entryApply_work κ entry learner.state)
-    (entryBound_mono κ _ (CurrentFeatureConsumers.managed_capacity learner) entry)) _
-
-/-- The costed composition of `Managed.credit`: a first loop, then the restart test and a
-clear on a pending restart. -/
-def creditRun (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
-    (restart : Bool) : Costed (Managed config dimension) := do
-  let credited ← managedApply κ learner (.first delta vd decay) trivial
-  Costed.charge (κ .creditRestart)
-    (Costed.ite (restart = true) (managedApply κ credited .clear trivial) (Costed.pure credited))
-
-theorem creditRun_val (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
-    (restart : Bool) :
-    (creditRun κ learner delta vd decay restart).val =
-      (learner.credit delta vd decay restart).val := by
-  cases restart <;> rfl
-
-/-- Twin of `Managed.credit`. -/
-def credit (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
-    (restart : Bool) : Costed { result : Managed config dimension // result.phase = true } :=
-  Costed.via (learner.credit delta vd decay restart) (creditRun κ learner delta vd decay restart)
+  Nat.add_le_add_left
+    (entryBound_mono κ _ (CurrentFeatureConsumers.managed_capacity learner) entry) _
 
 /-- Bound of a row's credit: its first loop, the restart test and a possible clear. -/
 abbrev creditBound (κ : Costs) (capacity : Nat) : Nat :=
   κ .managedEntry + firstLoopBound κ capacity +
     (κ .creditRestart + (κ .managedEntry + zeroBound κ capacity))
 
+theorem creditCosted_within (κ : Costs) (learner : Managed config dimension)
+    (delta vd decay : Binary32) (restart : Bool) :
+    (learner.creditCosted delta vd decay restart).Within κ (creditBound κ dimension.capacity) := by
+  unfold Managed.creditCosted creditBound
+  refine Acorn.Costed.bind_within ((Acorn.Costed.attach_within
+    (managedApply_costed κ learner (.first delta vd decay) trivial)).mono
+    (managedApply_work κ learner (.first delta vd decay) trivial)) ?_
+  refine Acorn.Costed.charge_within ?_
+  split
+  · refine (Acorn.Costed.bind_within (b := 0) ((Acorn.Costed.attach_within
+      (managedApply_costed κ _ .clear trivial)).mono
+        (managedApply_work κ _ .clear trivial)) ?_).mono (Nat.le_of_eq (Nat.add_zero _))
+    exact Acorn.Costed.pure_within _ κ
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+
+/-- `Managed.credit` with its bound. -/
+def credit (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
+    (restart : Bool) : Costed { result : Managed config dimension // result.phase = true } :=
+  ⟨learner.credit delta vd decay restart, creditBound κ dimension.capacity⟩
+
 theorem credit_work (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
     (restart : Bool) :
     (credit κ learner delta vd decay restart).work ≤ creditBound κ dimension.capacity :=
-  Costed.bind_work_le (managedApply_work κ learner (.first delta vd decay) trivial) fun credited =>
-    Costed.charge_work_le (Nat.le_trans (Costed.ite_work_le _ _ _)
-      (Nat.max_le.mpr ⟨managedApply_work κ credited .clear trivial, Nat.zero_le _⟩))
+  Nat.le_refl _
+
+theorem credit_costed (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
+    (restart : Bool) :
+    (learner.creditCosted delta vd decay restart).Within κ
+      (credit κ learner delta vd decay restart).work :=
+  creditCosted_within κ learner delta vd decay restart
 
 /-! ## The shared-error controller -/
-
-/-- Twin of `Controller.predictAll`: one prediction for each row. -/
-def predictAll (κ : Costs) (controller : Controller config dimension actions)
-    (features : SwiftTd.ActiveSet dimension) : Costed (Vector Binary32 actions) :=
-  Costed.mapVector (κ .visit) (fun learner => linearPrediction κ learner.state features)
-    controller.learners
-
-theorem predictAll_val (κ : Costs) (controller : Controller config dimension actions)
-    (features : SwiftTd.ActiveSet dimension) :
-    (predictAll κ controller features).val = controller.predictAll features := rfl
 
 /-- Bound of the predictions of `rows` rows over `width` features. -/
 abbrev predictAllBound (κ : Costs) (rows width : Nat) : Nat :=
   Library.vectorMap.work (κ .visit) rows (Library.foldl.work (κ .visit) width (κ .sumTerm))
 
+theorem predictAllCosted_within (κ : Costs) (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) :
+    (controller.predictAllCosted features).Within κ
+      (predictAllBound κ actions features.indices.length) :=
+  Acorn.Costed.mapVector_within fun learner _ =>
+    linearPredictionCosted_within κ learner.state features
+
+/-- `Controller.predictAll` with its bound. -/
+def predictAll (κ : Costs) (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) : Costed (Vector Binary32 actions) :=
+  ⟨controller.predictAll features, predictAllBound κ actions features.indices.length⟩
+
+theorem predictAll_val (κ : Costs) (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) :
+    (predictAll κ controller features).val = controller.predictAll features := rfl
+
 theorem predictAll_work (κ : Costs) (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) :
     (predictAll κ controller features).work ≤
-      predictAllBound κ actions features.indices.length :=
-  Costed.mapVector_work_le _ _ _ _ fun learner _ => linearPrediction_work κ learner.state features
+      predictAllBound κ actions features.indices.length := Nat.le_refl _
 
-/-- Twin of `Controller.clear`: one clear for each row. -/
-def clear (κ : Costs) (controller : Controller config dimension actions) :
-    Costed (Controller config dimension actions) := do
-  let learners ← Costed.mapVector (κ .visit) (fun learner => managedApply κ learner .clear trivial)
-    controller.learners
-  Costed.op (κ .controllerClose) ⟨learners, .zero, .zero, false⟩
-
-theorem clear_val (κ : Costs) (controller : Controller config dimension actions) :
-    (clear κ controller).val = controller.clear := rfl
+theorem predictAll_costed (κ : Costs) (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) :
+    (controller.predictAllCosted features).Within κ (predictAll κ controller features).work :=
+  predictAllCosted_within κ controller features
 
 /-- Bound of a controller clear of `rows` rows. -/
 abbrev clearBound (κ : Costs) (rows capacity : Nat) : Nat :=
   Library.vectorMap.work (κ .visit) rows (κ .managedEntry + zeroBound κ capacity) +
     κ .controllerClose
 
+theorem clearCosted_within (κ : Costs) (controller : Controller config dimension actions) :
+    controller.clearCosted.Within κ (clearBound κ actions dimension.capacity) := by
+  unfold Controller.clearCosted clearBound
+  exact Acorn.Costed.bind_within (Acorn.Costed.mapVector_within fun learner _ =>
+    (managedApply_costed κ learner .clear trivial).mono
+      (managedApply_work κ learner .clear trivial))
+    (Acorn.Costed.op_within _ _ κ)
+
+/-- `Controller.clear` with its bound. -/
+def clear (κ : Costs) (controller : Controller config dimension actions) :
+    Costed (Controller config dimension actions) :=
+  ⟨controller.clear, clearBound κ actions dimension.capacity⟩
+
+theorem clear_val (κ : Costs) (controller : Controller config dimension actions) :
+    (clear κ controller).val = controller.clear := rfl
+
 theorem clear_work (κ : Costs) (controller : Controller config dimension actions) :
-    (clear κ controller).work ≤ clearBound κ actions dimension.capacity :=
-  Costed.bind_work_le
-    (Costed.mapVector_work_le _ _ _ _ fun learner _ => managedApply_work κ learner .clear trivial)
-    fun _ => Nat.le_refl _
+    (clear κ controller).work ≤ clearBound κ actions dimension.capacity := Nat.le_refl _
+
+theorem clear_costed (κ : Costs) (controller : Controller config dimension actions) :
+    controller.clearCosted.Within κ (clear κ controller).work := clearCosted_within κ controller
 
 /-- Twin of `Controller.creditStep`: the taken row's credit and second loop, which
 `detachedUpdate` runs on the row it takes out of the table, then one indexed map that credits
@@ -209,28 +237,38 @@ theorem valuesStep_work (κ : Costs) (controller : Controller config dimension a
       κ .valuesOpen + creditStepBound κ actions dimension.capacity features.indices.length :=
   Nat.add_le_add_left (creditStep_work ..) _
 
-/-- Twin of `Controller.release`: one release for each row. -/
-def release (κ : Costs) (controller : Controller config dimension actions) :
-    Costed (Controller config dimension actions) := do
-  let learners ← Costed.mapVector (κ .visit)
-    (fun learner => managedApply κ learner .release trivial) controller.learners
-  Costed.op (κ .controllerClose) { controller with learners := learners, vDelta := .zero }
-
-theorem release_val (κ : Costs) (controller : Controller config dimension actions) :
-    (release κ controller).val = controller.release := rfl
-
 /-- Bound of the release of one row at a capacity. -/
 abbrev releaseBound (κ : Costs) (capacity : Nat) : Nat :=
   Library.foldlArray.work (κ .visit) capacity (κ .clearRegisters) + κ .releaseClose
+
+theorem releaseCosted_within (κ : Costs) (controller : Controller config dimension actions) :
+    controller.releaseCosted.Within κ
+      (Library.vectorMap.work (κ .visit) actions
+        (κ .managedEntry + releaseBound κ dimension.capacity) + κ .controllerClose) := by
+  unfold Controller.releaseCosted
+  exact Acorn.Costed.bind_within (Acorn.Costed.mapVector_within fun learner _ =>
+    (managedApply_costed κ learner .release trivial).mono
+      (managedApply_work κ learner .release trivial))
+    (Acorn.Costed.op_within _ _ κ)
+
+/-- `Controller.release` with its bound. -/
+def release (κ : Costs) (controller : Controller config dimension actions) :
+    Costed (Controller config dimension actions) :=
+  ⟨controller.release, Library.vectorMap.work (κ .visit) actions
+    (κ .managedEntry + releaseBound κ dimension.capacity) + κ .controllerClose⟩
+
+theorem release_val (κ : Costs) (controller : Controller config dimension actions) :
+    (release κ controller).val = controller.release := rfl
 
 theorem release_work (κ : Costs) (controller : Controller config dimension actions) :
     (release κ controller).work ≤
       Library.vectorMap.work (κ .visit) actions
         (κ .managedEntry + releaseBound κ dimension.capacity) + κ .controllerClose :=
-  Costed.bind_work_le
-    (Costed.mapVector_work_le _ _ _ _ fun learner _ =>
-      managedApply_work κ learner .release trivial)
-    fun _ => Nat.le_refl _
+  Nat.le_refl _
+
+theorem release_costed (κ : Costs) (controller : Controller config dimension actions) :
+    controller.releaseCosted.Within κ (release κ controller).work :=
+  releaseCosted_within κ controller
 
 /-- Twin of `Controller.stopStep`, in the listed composition of `Controller.stopStep_eq`:
 each row's credit and then its release. -/
@@ -449,9 +487,9 @@ theorem drawPersistentCosted_within (κ : Costs) (snapshot : PolicySnapshot coun
 
 /-! ### The policies in the twins' accounting
 
-Each definition below is the executed policy function with the bound proved above of its costed
-definition as its work; its `_costed` theorem checks that the costed definition is within that
-work. -/
+Each definition below that has a `_costed` theorem is the executed function with the bound proved
+of its costed definition as its work, and that theorem checks that the costed definition is within
+it. `policyStep` and `persistentStep` are twins that follow their executed definitions. -/
 
 /-- `PolicySnapshot.best` with its bound. -/
 def best (κ : Costs) (snapshot : PolicySnapshot count) : Costed Binary32 :=
@@ -541,12 +579,21 @@ theorem drawPersistent_costed (κ : Costs) (snapshot : PolicySnapshot count)
     (snapshot.drawPersistentCosted rng).Within κ (drawPersistent κ snapshot rng).work :=
   drawPersistentCosted_within κ snapshot rng
 
-/-- Twin of `Controller.snapshot`. -/
+theorem snapshotCosted_within (κ : Costs)
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
+    (controller.snapshotCosted features epsilon).Within κ
+      (predictAllBound κ count.word.toNat features.indices.length + κ .snapshot) := by
+  unfold Controller.snapshotCosted
+  exact Acorn.Costed.bind_within (predictAllCosted_within κ controller features)
+    (Acorn.Costed.op_within _ _ κ)
+
+/-- `Controller.snapshot` with its bound. -/
 def snapshot (κ : Costs) (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
-    Costed (PolicySnapshot count) := do
-  let values ← predictAll κ controller features
-  Costed.op (κ .snapshot) ⟨values, epsilon⟩
+    Costed (PolicySnapshot count) :=
+  ⟨controller.snapshot features epsilon,
+    predictAllBound κ count.word.toNat features.indices.length + κ .snapshot⟩
 
 theorem snapshot_val (κ : Costs) (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
@@ -555,8 +602,13 @@ theorem snapshot_val (κ : Costs) (controller : Controller config dimension coun
 theorem snapshot_work (κ : Costs) (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
     (snapshot κ controller features epsilon).work ≤
-      predictAllBound κ count.word.toNat features.indices.length + κ .snapshot :=
-  Costed.bind_work_le (predictAll_work κ controller features) fun _ => Nat.le_refl _
+      predictAllBound κ count.word.toNat features.indices.length + κ .snapshot := Nat.le_refl _
+
+theorem snapshot_costed (κ : Costs) (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
+    (controller.snapshotCosted features epsilon).Within κ
+      (snapshot κ controller features epsilon).work :=
+  snapshotCosted_within κ controller features epsilon
 
 /-- Twin of `Controller.policyStep`. -/
 def policyStep (κ : Costs) (controller : Controller config dimension count.word.toNat)
@@ -608,64 +660,46 @@ theorem persistentStep_work (κ : Costs) (controller : Controller config dimensi
       policyStepBound κ count.word.toNat dimension.capacity features.indices.length :=
   Nat.add_le_add_left (valuesStep_work ..) _
 
-/-- Twin of `NumericState.normalizedStepSizeSum`: one term for each eligible entry. -/
-def normalizedStepSizeSum (κ : Costs) (state : NumericState config dimension) :
-    Costed (Binary32 × Nat) :=
-  Costed.ite (state.transient.eligible.isEmpty = true) (Costed.op (κ .normalizedOpen) (.zero, 0))
-    (do
-      let lo := state.rails.range.lower
-      let span := state.rails.range.upper.sub lo
-      let entries ← Costed.scanArray .toList (κ .visit) state.transient.eligible
-        state.transient.eligible.toList
-      let terms ← Costed.map (κ .visit)
-        (fun idx => Costed.op (κ .normalizedTerm) (((state.beta.get idx).value.sub lo).div span))
-        entries
-      let total ← sumFrom κ .zero terms
-      Costed.op (κ .normalizedOpen) (total, state.transient.eligible.size))
-
-theorem normalizedStepSizeSum_val (κ : Costs) (state : NumericState config dimension) :
-    (normalizedStepSizeSum κ state).val = state.normalizedStepSizeSum := rfl
-
 /-- Bound of a normalized step-size sum over `size` eligible entries. -/
 abbrev normalizedBound (κ : Costs) (size : Nat) : Nat :=
   Library.toList.control (κ .visit) size +
     (Library.map.work (κ .visit) size (κ .normalizedTerm)) +
     Library.foldl.work (κ .visit) size (κ .sumTerm) + κ .normalizedOpen
 
+theorem normalizedStepSizeSumCosted_within (κ : Costs) (state : NumericState config dimension) :
+    state.normalizedStepSizeSumCosted.Within κ
+      (normalizedBound κ state.transient.eligible.size) := by
+  unfold NumericState.normalizedStepSizeSumCosted normalizedBound
+  split
+  · exact (Acorn.Costed.op_within _ _ κ).mono (Nat.le_add_left _ _)
+  · refine Acorn.Costed.Within.mono
+      (a := Library.toList.control (κ .visit) state.transient.eligible.size +
+        (Library.map.work (κ .visit) state.transient.eligible.size (κ .normalizedTerm) +
+          (Library.foldl.work (κ .visit) state.transient.eligible.size (κ .sumTerm) +
+            κ .normalizedOpen))) ?_ (by omega)
+    refine Acorn.Costed.bind_within (Acorn.Costed.arrayToList_within _ κ) ?_
+    refine Acorn.Costed.bind_within
+      ((Acorn.Costed.map_within fun _ _ => Acorn.Costed.op_within _ _ κ).mono ?_) ?_
+    · simp [Acorn.Costed.arrayToList_val]
+    refine Acorn.Costed.bind_within ((sumFromCosted_within κ _ _).mono ?_)
+      (Acorn.Costed.op_within _ _ κ)
+    simp [Acorn.Costed.map_val, Acorn.Costed.arrayToList_val]
+
+/-- `NumericState.normalizedStepSizeSum` with its bound. -/
+def normalizedStepSizeSum (κ : Costs) (state : NumericState config dimension) :
+    Costed (Binary32 × Nat) :=
+  ⟨state.normalizedStepSizeSum, normalizedBound κ state.transient.eligible.size⟩
+
+theorem normalizedStepSizeSum_val (κ : Costs) (state : NumericState config dimension) :
+    (normalizedStepSizeSum κ state).val = state.normalizedStepSizeSum := rfl
+
 theorem normalizedStepSizeSum_work (κ : Costs) (state : NumericState config dimension) :
-    (normalizedStepSizeSum κ state).work ≤ normalizedBound κ state.transient.eligible.size := by
-  have terms := Costed.map_work_le (κ .visit) (κ .normalizedTerm)
-    (fun idx => Costed.op (κ .normalizedTerm)
-      (((state.beta.get idx).value.sub state.rails.range.lower).div
-        (state.rails.range.upper.sub state.rails.range.lower)))
-    state.transient.eligible.toList (fun _ _ => Nat.le_refl _)
-  have total := sumFrom_work κ .zero
-    (state.transient.eligible.toList.map fun idx =>
-      ((state.beta.get idx).value.sub state.rails.range.lower).div
-        (state.rails.range.upper.sub state.rails.range.lower))
-  simp only [List.length_map, Array.length_toList] at terms total
-  unfold normalizedStepSizeSum
-  refine Costed.ite_work_bound _ (Nat.le_add_left _ _) ?_
-  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at terms
-    (Costed.bind_work_le_at total (Nat.le_refl _)))) ?_
-  simp only [normalizedBound]
-  omega
+    (normalizedStepSizeSum κ state).work ≤ normalizedBound κ state.transient.eligible.size :=
+  Nat.le_refl _
 
-/-- Twin of `Controller.exploreRate`: each row's normalized sum, then the projection. -/
-def exploreRate (κ : Costs) (controller : Controller config dimension count.word.toNat) :
-    Costed SwiftTd.ExploreRate := do
-  let rows ← Costed.scanVector .toList (κ .visit) controller.learners controller.learners.toList
-  let totals ← Costed.foldl (κ .visit)
-    (fun (sum, size) learner => do
-      let contribution ← normalizedStepSizeSum κ learner.state
-      Costed.op (κ .rateTerm) (sum.add contribution.1, size + contribution.2))
-    (Binary32.zero, 0) rows
-  Costed.op (κ .rateClose) (SwiftTd.ExploreRate.project <| if totals.2 == 0 then
-      (controller.learners.get (firstAction count)).state.initialNormalizedStepSize config
-    else totals.1.div (Binary32.ofUInt64 totals.2.toUInt64))
-
-theorem exploreRate_val (κ : Costs) (controller : Controller config dimension count.word.toNat) :
-    (exploreRate κ controller).val = controller.exploreRate := rfl
+theorem normalizedStepSizeSum_costed (κ : Costs) (state : NumericState config dimension) :
+    state.normalizedStepSizeSumCosted.Within κ (normalizedStepSizeSum κ state).work :=
+  normalizedStepSizeSumCosted_within κ state
 
 /-- Bound of a derived exploration rate of `rows` rows at a capacity. -/
 abbrev rateBound (κ : Costs) (rows capacity : Nat) : Nat :=
@@ -681,17 +715,39 @@ theorem normalizedBound_mono (κ : Costs) {size limit : Nat} (fits : size ≤ li
   simp only [normalizedBound]
   omega
 
+theorem exploreRateCosted_within (κ : Costs)
+    (controller : Controller config dimension count.word.toNat) :
+    controller.exploreRateCosted.Within κ (rateBound κ count.word.toNat dimension.capacity) := by
+  unfold Controller.exploreRateCosted rateBound
+  refine Acorn.Costed.Within.mono
+    (a := Library.toList.control (κ .visit) count.word.toNat +
+      (Library.foldl.work (κ .visit) count.word.toNat (normalizedBound κ dimension.capacity +
+        κ .rateTerm) + κ .rateClose)) ?_ (by omega)
+  refine Acorn.Costed.bind_within (Acorn.Costed.toList_within _ κ) ?_
+  refine Acorn.Costed.bind_within ((Acorn.Costed.foldl_within
+    (bound := normalizedBound κ dimension.capacity + κ .rateTerm) fun acc learner _ => ?_).mono ?_)
+    (Acorn.Costed.op_within _ _ κ)
+  · obtain ⟨_, _⟩ := acc
+    exact Acorn.Costed.bind_within ((normalizedStepSizeSumCosted_within κ learner.state).mono
+      (normalizedBound_mono κ (CurrentFeatureConsumers.managed_capacity learner)))
+      (Acorn.Costed.op_within _ _ κ)
+  · simp [Acorn.Costed.toList_val]
+
+/-- `Controller.exploreRate` with its bound. -/
+def exploreRate (κ : Costs) (controller : Controller config dimension count.word.toNat) :
+    Costed SwiftTd.ExploreRate :=
+  ⟨controller.exploreRate, rateBound κ count.word.toNat dimension.capacity⟩
+
+theorem exploreRate_val (κ : Costs) (controller : Controller config dimension count.word.toNat) :
+    (exploreRate κ controller).val = controller.exploreRate := rfl
+
 theorem exploreRate_work (κ : Costs) (controller : Controller config dimension count.word.toNat) :
-    (exploreRate κ controller).work ≤ rateBound κ count.word.toNat dimension.capacity := by
-  unfold exploreRate
-  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at
-    (Costed.foldl_work_le (κ .visit) (normalizedBound κ dimension.capacity + κ .rateTerm) _ _ _
-      fun acc learner _ => ?_) (Nat.le_refl _))) ?_
-  · obtain ⟨sum, size⟩ := acc
-    exact Costed.bind_work_le_at (Nat.le_trans (normalizedStepSizeSum_work κ learner.state)
-      (normalizedBound_mono κ (CurrentFeatureConsumers.managed_capacity learner))) (Nat.le_refl _)
-  · simp only [Vector.length_toList, rateBound]
-    omega
+    (exploreRate κ controller).work ≤ rateBound κ count.word.toNat dimension.capacity :=
+  Nat.le_refl _
+
+theorem exploreRate_costed (κ : Costs) (controller : Controller config dimension count.word.toNat) :
+    controller.exploreRateCosted.Within κ (exploreRate κ controller).work :=
+  exploreRateCosted_within κ controller
 
 /-- Bound of a policy mean over `size` values. -/
 abbrev expectedBound (κ : Costs) (size : Nat) : Nat :=

@@ -120,7 +120,7 @@ theorem release_rows (controller : Controller config dimension actions) (action 
     (controller.release.learners.get action).state.eligibleCount = 0 ∧
       (controller.release.learners.get action).state.weights.get idx =
         (controller.learners.get action).state.weights.get idx := by
-  simp only [Controller.release, vector_get, Vector.getElem_map]
+  simp only [Controller.release_def, vector_get, Vector.getElem_map]
   exact ⟨rfl, (release_knowledge _ idx).1⟩
 
 /-- The selected row executes first-loop credit then precisely one second loop. -/
@@ -154,7 +154,7 @@ theorem terminal_clears (controller : Controller config dimension actions)
     (action : Action actions) :
     ((controller.terminal reward).learners.get action).state.transient =
       TransientState.zero dimension := by
-  simp [Controller.terminal_eq, Controller.clear, Vector.get, Managed.apply,
+  simp [Controller.terminal_eq, Controller.clear_def, Vector.get, Managed.apply_state,
     SwiftTd.Entry.apply_def, NumericState.clearTransient_def]
 
 /-- Controller observations are finite because they sum the actual refined weights,
@@ -164,8 +164,8 @@ theorem prediction_finite (controller : Controller config dimension actions)
     ((controller.predictAll features).get action).Finite := by
   have result := CurrentPrediction.legal_weight_sum_bound config.rule
     (features.indices.map fun idx => ((controller.learners.get action).state.weights.get idx))
-  simpa [Controller.predictAll, Vector.get, NumericState.linearPrediction_eq_sumFrom, List.map_map,
-    Fin.cast, Function.comp_def] using result.1
+  simpa [Controller.predictAll_def, Vector.get, NumericState.linearPrediction_eq_sumFrom,
+    List.map_map, Fin.cast, Function.comp_def] using result.1
 
 /-- An actual greedy draw returns a threshold candidate whenever one exists;
 otherwise its exact raw-domain behavior is the first-action fallback. -/
