@@ -174,9 +174,10 @@ theorem greedy_support {count : Word.Count} (snapshot : PolicySnapshot count)
     if snapshot.candidates = [] then (snapshot.greedy rng).1 = firstAction count
     else (snapshot.greedy rng).1 ∈ snapshot.candidates := by
   cases h : snapshot.candidates with
-  | nil => simp [PolicySnapshot.greedy, h, reservoir]
+  | nil => simp [PolicySnapshot.greedy_def, h, reservoir_nil]
   | cons action rest =>
-    simpa [PolicySnapshot.greedy, h] using reservoir_nonempty action rest (firstAction count) rng
+    simpa [PolicySnapshot.greedy_def, h] using
+      reservoir_nonempty action rest (firstAction count) rng
 
 /-- Every finite sequence of actual local control transitions retains the receiver's
 same configuration, legal knowledge and resource scheduling; no replay is stored. -/

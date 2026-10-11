@@ -278,7 +278,7 @@ theorem declared_persistent_explored {count : Word.Count} (snapshot : PolicySnap
       decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
   rw [← declared_branch]
   cases branch : rng.nextF64.1.less (Conversion.widen Handcrafted.declaredRate.value) <;>
-    simp [PolicySnapshot.drawPersistent, beginExploration, declared, branch]
+    simp [PolicySnapshot.drawPersistent_def, beginExploration, declared, branch]
 
 /-- Reach at the declared rate, over the executed selection. Under the declared rate
 policy, every decision the selection returns is a served step of the committed run the

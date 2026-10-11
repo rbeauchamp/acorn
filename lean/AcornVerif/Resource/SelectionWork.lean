@@ -226,7 +226,8 @@ theorem choosePrimitiveRun_work (κ : Costs)
       primitiveBound κ interface.actions.word.toNat dimension.capacity features.indices.length :=
   Costed.bind_work_le (controlRate_work κ state) fun rate =>
     Costed.bind_work_le (snapshot_work κ _ features rate) fun snapshot =>
-      Costed.bind_work_le (drawPersistent_work κ snapshot _) fun _ => Nat.le_refl _
+      Costed.bind_work_le (drawPersistent_work κ snapshot state.runtime.references.rng)
+        fun _ => Nat.le_refl _
 
 /-- The costed run of `TemporalControl.refreshFree`: the refresh of the free dispatch. -/
 def refreshFreeRun (κ : Costs)
@@ -304,7 +305,8 @@ theorem drawMetaRun_work (κ : Costs)
       drawMetaBound κ interface.actions.word.toNat dimension.capacity features.indices.length :=
   Costed.bind_work_le (metaRate_work κ state) fun rate =>
     Costed.bind_work_le (snapshot_work κ _ features rate) fun snapshot =>
-      Costed.bind_work_le (draw_work κ snapshot _) fun _ => Nat.le_refl _
+      Costed.bind_work_le (draw_work κ snapshot state.runtime.references.rng) fun _ =>
+        Nat.le_refl _
 
 /-- A started option's continuation holds the start frame. -/
 theorem beginTemporal_frame {actions : Word.Count} {discounts : List Discount}

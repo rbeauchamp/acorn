@@ -304,7 +304,8 @@ establishes, which a later increment of requirement R8 owes:
   the segment rule described below is the intended reading of `words`, part of no
   checked statement (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
-- the cost discipline of the costed learner, described below;
+- the cost discipline of the costed definitions of the learner, of the frozen policy
+  and of its exploration, described below;
 - the correspondence of the twins of the encoding and of selection with the executed
   definitions: the twins' charges were compared with the compiled call multisets of
   one build by a one-time inventory, an observation that no gate repeats.
@@ -327,18 +328,26 @@ and then reads, cache behaviour and time are not counted.
 the values of their costed definitions ([cost semantics](../lean/Acorn/Cost.lean)):
 `NumericState.step` is the value of `NumericState.stepCosted`, and so are the
 prediction, both loops, a trajectory's start, a terminal step, a planning step, a
-release, a retirement, the ordered sums and the fresh transient record. A costed
-definition's work is a type former and a proof, which the compiler erases, so the
-definition compiles to the code of its value. That erasure is a trust assumption on the
-compiler: a comparison of the generated C of the costed learner with that of the same
-definitions written without work found them equal up to the renaming of the definitions
-and their local variables, an observation of one build that no gate repeats.
-The loops the learner's bounds count are therefore the loops that run, under that
-assumption and one discipline that no theorem states, because Lean gives a pure term
-no operational meaning. Every function a combinator takes is costed, so its work is
-counted: the steps of a fold, the operation of a map, the test of a search
-(`Costed.findIdx?`) and the continuation of a sequence; the costed type has only the
-instances that do-blocks need, so no derived map applies a callback outside the count.
+release, a retirement, the ordered sums and the fresh transient record. So are the
+functions of a frozen policy: its ordered maximum, candidates, reservoir, greedy draw,
+nominal masses, draw and mean (`Acorn.Policy`), and its persistent draw and served
+masses (`Acorn.Exploration`). A costed definition's work is a type former and a proof,
+which the compiler erases, so the definition compiles to the code of its value. That
+erasure is a trust assumption on the compiler: a comparison of the generated C of each
+costed definition and its callers with that of the same definitions written without
+work found them equal up to the renaming of the definitions and their local variables
+and, in four callers of the policy's functions (`TemporalControl.choosePrimitive`,
+`TemporalControl.serve`, `TemporalControl.serveDraw`, `Skill.followTemporal`), the
+order of the parallel moves into a join point, an observation of one build each that
+no gate repeats. The loops the costed definitions' bounds count are therefore the
+loops that run, under that assumption and one discipline that no theorem states,
+because Lean gives a pure term no operational meaning. Every function a combinator
+takes is costed, so its work is counted: the steps of a fold, the operation of a map,
+the tests of a search (`Costed.findIdx?`) and a filter, and the continuation of a
+sequence; a scan of a list or a vector (its listing, a drop, a length, the indices
+below a count) is charged its row with no function to count; the costed type has only
+the instances that do-blocks need, so no derived map applies a callback outside the
+count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
@@ -368,9 +377,9 @@ less work would satisfy it. For those definitions the bound is a bound of the tw
 accounting; reading it as a bound of the executed code needs the correspondence of
 each twin's charges with the definition's compiled calls, which the one-time inventory
 observed in one build and no theorem states.
-The twins read the learner through twins of its own whose work is the bound proved
-of its costed definition, which a theorem of each checks
-(`AcornVerif.Resource.Twin.step_costed`).
+The twins read the learner and the policy through twins of their own whose work is
+the bound proved of the costed definition, which a theorem of each checks
+(`AcornVerif.Resource.Twin.step_costed`, `AcornVerif.Resource.Twin.draw_costed`).
 
 **What bounds each loop.** The frame's active features are at most
 `tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is

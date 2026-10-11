@@ -8,13 +8,13 @@ import Acorn.Cost
 /-!
 # Work of the definitions not yet costed
 
-The learner's executed definitions are the values of costed definitions (`Acorn.Costed`), so the
-loops their bounds count are the loops that run, under the trust assumption that the compiler
-erases the work (`Acorn.Cost`). The other definitions of the agent's step are
-not yet costed. For each of them a **twin** here is a `Costed` computation, a value with a `Nat`
-of work, written beside the executed definition to follow its control flow. A twin's value
-theorem states that its value is the executed definition's, by `rfl`, by induction on the same
-recursion, or, through `via`, by reading.
+The learner's and the frozen policy's executed definitions are the values of costed definitions
+(`Acorn.Costed`), so the loops their bounds count are the loops that run, under the trust
+assumption that the compiler erases the work (`Acorn.Cost`). The other definitions of the
+agent's step are not yet costed. For each of them a **twin** here is a `Costed` computation, a
+value with a `Nat` of work, written beside the executed definition to follow its control flow.
+A twin's value theorem states that its value is the executed definition's, by `rfl`, by
+induction on the same recursion, or, through `via`, by reading.
 
 **What a twin establishes.** A value theorem does not tie a twin's work to the executed code:
 Lean's logic gives a pure term no operational meaning, and a twin of the same value with less
@@ -24,8 +24,9 @@ compiled call multisets of one build by a one-time inventory, an observation of 
 no gate repeats. A bound proved here bounds the twin's accounting. It is not a bound of the
 executed code, which would need that correspondence as a checked statement, owed by a later
 increment of requirement R8 (rbeauchamp/acorn#90). A definition that is the value of its costed
-definition, as each of the learner's is, is bounded through that definition instead
-(`AcornVerif.Resource.LearnerWork`).
+definition, as each of the learner's and the frozen policy's is, is bounded through that
+definition instead (`AcornVerif.Resource.LearnerWork` for the learner's,
+`AcornVerif.Resource.ControlWork` for the policy's).
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of
@@ -194,11 +195,6 @@ theorem optBind_work_le (first : Costed (Option α)) (next : α → Costed (Opti
   · exact Nat.add_le_add_left (each _) _
 
 /-! ## Arithmetic of bounds -/
-
-/-- Larger bounds of both branches bound the larger branch. -/
-theorem max_le_max {a b c d : Nat} (left : a ≤ c) (right : b ≤ d) : max a b ≤ max c d :=
-  Nat.max_le.mpr
-    ⟨Nat.le_trans left (Nat.le_max_left _ _), Nat.le_trans right (Nat.le_max_right _ _)⟩
 
 /-- One more visit of a loop: a visit within the per-visit bound followed by the rest. -/
 theorem visit_le {visit rest count perVisit exit : Nat} (fits : visit ≤ perVisit)
