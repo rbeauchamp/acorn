@@ -364,9 +364,12 @@ values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the val
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, and
 the terms a costed definition evaluates in its own body. Each must be
-computed without a loop, each loop must run in a combinator or a costed definition, and
-each path of a recursion must pass a charge. The combinators cannot enforce this:
-`Costed.pure` accepts any value, the learner's step among them, at no work. The
+computed without a costed definition and with no loop except those the cost semantics
+lists as left inside a segment, whose trip counts are bounded by constants of the code
+(the at most 33 steps of `Portable.pow` among them); every other loop must run in a
+combinator or a costed definition, and each path of a recursion must pass a charge. The
+combinators cannot enforce this: `Costed.pure` accepts any value, the learner's step
+among them, at no work. The
 discipline is checked by reading until the rule that
 [Regula issue 333](https://github.com/rbeauchamp/regula/issues/333) proposes checks it.
 

@@ -55,12 +55,12 @@ that depends on the configuration or the state and works on the return counts th
 of its row (`Library.fillVacant`). The cost discipline below requires this of costed definitions; of
 the twins it is a property of their charge placement, checked by reading, which the one-time
 compiled-call inventory of one build did not compare. The loops left inside a segment have trip
-counts fixed by the code: the three options and their slots, the four meta actions, the 32 samples
-of a projection, including the return of their sum's recursion (`Library.sum`, one pass), the at
-most 15 doublings of the ranked width's search (`rankExponentFrom`) and the at most 33 steps of
-`Portable.pow`. A cost model (`Costs`) assigns each site a cost, and every work bound holds for
-every cost model. No theorem derives the cost of a site in word operations; the scalar operations
-that the native resource audit bounds are the operations with an extracted cost.
+counts bounded by constants of the code: the three options and their slots, the four meta actions,
+the 32 samples of a projection, including the return of their sum's recursion (`Library.sum`, one
+pass), the at most 15 doublings of the ranked width's search (`rankExponentFrom`) and the at most
+33 steps of `Portable.pow`. A cost model (`Costs`) assigns each site a cost, and every work bound
+holds for every cost model. No theorem derives the cost of a site in word operations; the scalar
+operations that the native resource audit bounds are the operations with an extracted cost.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
@@ -112,18 +112,19 @@ takes. The values a costed definition passes in, which are all its uncosted entr
 
 The private constructor's work field is set only by the combinators here.
 
-Each must be computed by a stretch that runs no loop and calls no costed definition, a loop
-must run only in a loop combinator or a costed definition, each path to a recursive call
-must pass a charge, and a level that works after its recursive call returns must charge there. The
-combinators cannot enforce it: `pure` accepts any value, so
-`Costed.pure (state.step config features reward)` has work zero although its value runs the
-learner. Lean's logic gives a pure term no operational meaning, so no theorem states the
-discipline; it is a syntactic property, checked by reading until the cost-closed rule that
-rbeauchamp/regula#333 proposes checks it. That a library loop makes the passes `Library.passes`
-states is read once from the library's runtime implementation, which each row of `Library`
-cites. That the compiler erases the work, since `work` is a type former and `single` a proof,
-and leaves the code of the value as written is a trust assumption on the compiler's erasure. A
-comparison of the generated C of the costed learner with that of the same definitions written
+Each must be computed by a stretch that calls no costed definition and runs no loop except those
+that **Sites** lists as left inside a segment, whose trip counts are bounded by constants of the
+code (the at most 33 steps of `Portable.pow` among them). Every other loop must run only in a loop
+combinator or a costed definition, each path to a recursive call must pass a charge, and a level
+that works after its recursive call returns must charge there. The combinators cannot enforce it:
+`pure` accepts any value, so `Costed.pure (state.step config features reward)` has work zero
+although its value runs the learner. Lean's logic gives a pure term no operational meaning, so no
+theorem states the discipline; it is a syntactic property, checked by reading until the cost-closed
+rule that rbeauchamp/regula#333 proposes checks it. That a library loop makes the passes
+`Library.passes` states is read once from the library's runtime implementation, which each row of
+`Library` cites. That the compiler erases the work, since `work` is a type former and `single` a
+proof, and leaves the code of the value as written is a trust assumption on the compiler's erasure.
+A comparison of the generated C of the costed learner with that of the same definitions written
 without work found them equal up to renaming. A comparison of the generated C of the costed
 policy and exploration definitions and their callers with that of the same definitions written
 without work found them equal up to the renaming of the definitions and their local variables

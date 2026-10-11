@@ -31,11 +31,13 @@ The learner's, the learner record's, the policy's and the controllers' costed pa
 `AcornVerif.Resource.Work` lists) are the work of their executed functions, whose definitions are
 the values of their costed definitions, under the cost discipline of `Acorn.Cost`: every value a
 costed definition passes in, the uncosted entry points that `Acorn.Cost` lists, is computed
-without a loop and without a costed definition, which is checked by reading until
-rbeauchamp/regula#333 checks it. The other parts, among them the controllers' initial value and
-reset (`Controller.initial`, `Controller.resetAction`), the encoding and selection, are twins
-(`AcornVerif.Resource.Work`) whose charges were compared with the compiled call multisets of one
-build by a one-time inventory, an observation of that build which no gate repeats.
+without a costed definition and with no loop except those `Acorn.Cost` lists as left inside a
+segment, whose trip counts are bounded by constants of the code (the at most 33 steps of
+`Portable.pow` among them), which is checked by reading until rbeauchamp/regula#333 checks it.
+The other parts, among them the controllers' initial value and reset (`Controller.initial`,
+`Controller.resetAction`), the encoding and selection, are twins (`AcornVerif.Resource.Work`)
+whose charges were compared with the compiled call multisets of one build by a one-time
+inventory, an observation of that build which no gate repeats.
 
 **Word operations.** A site's cost in word operations is not derived from the compiled code.
 `AcornVerif.Resource.Twin.choose_words` bounds the accounting of the first part's twin charged at
