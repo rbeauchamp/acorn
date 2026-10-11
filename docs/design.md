@@ -487,7 +487,9 @@ Operation in real time needs three more parts. The first and the third are built
 - a driver of a host loop for a world on a wall clock, which reads the declared timing and
   counts a missed deadline as a fault: `microduck-host`
   ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
-- a bound of the work of each part of a step;
+- a bound of the work of each part of a step, begun in
+  [the work of the first part](#the-work-of-the-first-part), which states what is proved
+  and on what it rests;
 - the exact save and restore of the agent: the [checkpoint](#checkpoints) holds every
   field of the agent's state, and loading the bytes a save writes returns the state that
   was saved (`CurrentCheckpoint.load_saved`).
