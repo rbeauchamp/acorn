@@ -342,7 +342,8 @@ learner's normalized step-size sum. A controller's initial value and reset
 (`Controller.initial`, `Controller.resetAction`) are not costed yet and have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`);
 its updates `Controller.startStep`, `step`, `smdpStep`, `closeStep` and `backupStep` are
-not costed yet and have none. So is the encoding of a frame (`Agent.frame`): the words
+not costed yet and have none. The encoding of a frame is also the value of its costed
+definition (`Agent.frame`), and so are the definitions it runs: the words
 the coder reads (`Agent.words`, from the stored predictions' words and their feedback
 words), each generated unit's projection and output (`Bank.activations`), the tiled and
 imprinted features and their concatenation, the first-occurrence filtering with its
