@@ -9,13 +9,13 @@ import AcornVerif.Resource.LearnerWork
 /-!
 # Work of the encoding of a frame
 
-Twins of the clock, the words the coder reads (`Agent.words`) and the encoding of a frame
-(`Agent.frame`). The words are the world's frame words and one feedback word for each
-stored prediction. Each generated unit sums 32 samples of the frame's patch. The sensor
-words are hashed once for each tiling, the active units are appended, and the list is made
-unique with one membership flag for each feature slot. The flags are written in full for
-every frame, so the encoding's work includes the capacity of the feature space whatever the
-frame (`Features.UniqueBuilder.empty`).
+Twins of the words the coder reads (`Agent.words`) and the encoding of a frame (`Agent.frame`). The
+clock advance is charged under the `choose` site in `AcornVerif.Resource.StepWork`. The words are
+the world's frame words and one feedback word for each stored prediction. Each generated unit sums
+32 samples of the frame's patch. The sensor words are hashed once for each tiling, the active units
+are appended, and the list is made unique with one membership flag for each feature slot. The flags
+are written in full for every frame, so the encoding's work includes the capacity of the feature
+space whatever the frame (`Features.UniqueBuilder.empty`).
 -/
 
 namespace AcornVerif.Resource.Twin

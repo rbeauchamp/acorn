@@ -28,16 +28,15 @@ the operations its charge marks. What a charge counts is its *segment*, defined 
 - each operation belongs to the segment of the first charge point at or after it, and the operations
   after the part's last charge point belong to that last one, so the segments partition the trace.
 
-The segment of an operation is decided by its position alone, so a site's named operations can lie
-in another charge's segment: after the site's own point, or before a charge stacked ahead of it.
-`words site` is the largest number of word operations of a segment at a charge point of that site,
-and `SiteBounds` (`AcornVerif.Resource.Twin.SiteBounds`) is the hypothesis `words site ≤ κ site`. In
-the SwiftTD loops (`learnFirstLoopGoCosted`, `learnSecondLoopGoCosted`, `planWeightsGoCosted`) an
-element's work runs before its visit's stacked charges or, as the arguments of the recursive call,
-after them, so a `visit` segment holds a whole element and, in the first loop, a prune; the segments
-of `firstElement`, `secondElement`, `prune` and `planElement` are empty, and `κ visit` must cover an
-element and a prune. The docstrings of `secondOpen`, `choose` and `select` say where their named
-operations lie.
+The segment of an operation is decided by its position alone, so a site's segment can include
+operations its docstring does not name, and a site's named operations can lie in another charge's
+segment: after the site's own point, or before a charge stacked ahead of it. `words site` is the
+largest number of word operations of a segment at a charge point of that site, and `SiteBounds`
+(`AcornVerif.Resource.Twin.SiteBounds`) is the hypothesis `words site ≤ κ site`, so `κ site` must
+cover the largest segment of that site. A `visit` segment of the SwiftTD loops
+(`learnFirstLoopGoCosted`, `learnSecondLoopGoCosted`, `planWeightsGoCosted`) can include the work of
+a whole element and, in the first loop, a prune, and the first visits of the second and planning
+loops can include operations their opens name, so `κ visit` must cover the largest visit segment.
 
 Every segment is bounded by a constant of the code: every loop whose trip count depends on the
 configuration or the state runs in a loop combinator or a costed recursion, which has a charge point
@@ -107,9 +106,7 @@ namespace Acorn
 /-- The constant stretches of the agent's step. Each constructor names the operations its
 charge marks; a charge counts its segment (the module's **Sites**). -/
 inductive Site where
-  /-- The control of one visit of a loop: its test, its advance and its branch. Its segment holds
-  every operation since the previous charge point (the module's **Sites**); in the SwiftTD loops
-  that is a whole element and, in the first loop, a prune. -/
+  /-- The control of one visit of a loop: its test, its advance and its branch. -/
   | visit
   /-- One binary32 addition of an ordered sum, with the read of its term. -/
   | sumTerm
@@ -124,9 +121,7 @@ inductive Site where
   | prune
   /-- The first SwiftTD loop's exit: the pruned worklist stored as the eligible list. -/
   | firstClose
-  /-- The second SwiftTD loop's entry: the overshoot test, the scale and the complement. Its charge
-  point lies between the τ sum and the loop, so the overshoot test is in the segment of the τ sum's
-  first charge point and the scale and complement in that of the loop's first visit. -/
+  /-- The second SwiftTD loop's entry: the overshoot test, the scale and the complement. -/
   | secondOpen
   /-- One element of the second SwiftTD loop. -/
   | secondElement
@@ -286,13 +281,9 @@ inductive Site where
   | stepOption
   /-- A free boundary's closing record and event. -/
   | atBoundary
-  /-- Selection's branch tests, phase write and the stopping estimate. Its charge point lies before
-  the match it wraps, so these are in the segment of the first charge point of the branch taken, or
-  of the first part's last charge point when the branch makes none. -/
+  /-- Selection's branch tests and phase write. -/
   | select
-  /-- The agent's clock advance and the chosen value's record. Its charge point is at the step's
-  entry, so the clock advance is in the segment of the encoding's first charge point and the record,
-  built after selection's last charge, in that of the first part's last. -/
+  /-- The agent's clock advance and the chosen value's record. -/
   | choose
 
 /-- A cost model: the cost of each site, counted once for the segment of each charge of the
