@@ -305,8 +305,7 @@ establishes, which a later increment of requirement R8 owes:
   checked statement (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed definitions of the learner, of a learner's record,
-  of the controllers' row maps, of the frozen policy and of its exploration, described
-  below;
+  of the controllers, of the frozen policy and of its exploration, described below;
 - the correspondence of the twins of the encoding and of selection with the executed
   definitions: the twins' charges were compared with the compiled call multisets of
   one build by a one-time inventory, an observation that no gate repeats.
@@ -334,7 +333,9 @@ functions of a frozen policy: its ordered maximum, candidates, reservoir, greedy
 nominal masses, draw and mean (`Acorn.Policy`), and its persistent draw and served
 masses (`Acorn.Exploration`). So are a learner record's entry, retirement and credit
 (`Managed.apply`, `Managed.retire`, `Managed.credit`), a controller's predictions, clear,
-release, snapshot and derived rate, and a learner's normalized step-size sum. A costed
+release, snapshot and derived rate and each of its updates (`Controller.creditStep`,
+`valuesStep`, `stopStep`, `terminal`, `retire`, `plan`, `policyStep`, `persistentStep`), and a
+learner's normalized step-size sum. A costed
 definition's work is a type former and a proof, which the compiler erases, so the
 definition compiles to the code of its value. That
 erasure is a trust assumption on the compiler: a comparison of the generated C of each
@@ -381,8 +382,8 @@ less work would satisfy it. For those definitions the bound is a bound of the tw
 accounting; reading it as a bound of the executed code needs the correspondence of
 each twin's charges with the definition's compiled calls, which the one-time inventory
 observed in one build and no theorem states.
-The twins read the learner, a learner's record, the controllers' row maps and the
-policy through twins of their own whose work is the bound proved of the costed
+The twins read the learner, a learner's record, the controllers and the policy through
+twins of their own whose work is the bound proved of the costed
 definition, which a theorem of each checks (`AcornVerif.Resource.Twin.step_costed`,
 `AcornVerif.Resource.Twin.managedApply_costed`, `AcornVerif.Resource.Twin.draw_costed`).
 

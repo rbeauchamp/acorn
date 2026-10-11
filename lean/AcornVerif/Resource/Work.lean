@@ -8,8 +8,8 @@ import Acorn.Cost
 /-!
 # Work of the definitions not yet costed
 
-The executed definitions of the learner, of a learner's record, of the controllers' row maps and
-of the frozen policy are the values of costed definitions (`Acorn.Costed`), so the loops their
+The executed definitions of the learner, of a learner's record, of the controllers and of the
+frozen policy are the values of costed definitions (`Acorn.Costed`), so the loops their
 bounds count are the loops that run, under the trust assumption that the compiler erases the work
 (`Acorn.Cost`). The other definitions of the agent's step are not yet costed. For each of them a **twin** here is a `Costed` computation, a
 value with a `Nat` of work, written beside the executed definition to follow its control flow.
@@ -25,8 +25,8 @@ no gate repeats. A bound proved here bounds the twin's accounting. It is not a b
 executed code, which would need that correspondence as a checked statement, owed by a later
 increment of requirement R8 (rbeauchamp/acorn#90). A definition that is the value of its costed
 definition is bounded through that definition instead (`AcornVerif.Resource.LearnerWork` for the
-learner's, `AcornVerif.Resource.ControlWork` for the learner record's, the controllers' row maps'
-and the policy's).
+learner's, `AcornVerif.Resource.ControlWork` for the learner record's, the controllers' and the
+policy's).
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of

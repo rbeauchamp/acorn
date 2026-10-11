@@ -180,6 +180,15 @@ def detachedUpdate {α β : Type} {size : Nat} (items : Vector α size) (index :
   let (updated, observed) := update taken
   (rest.set index.val updated index.isLt, observed)
 
+/-- `detachedUpdate` with a costed update: the update's work on the element it takes out, and the
+same detour through `takeOut`. -/
+def detachedUpdateCosted {α β : Type} {size : Nat} (items : Vector α size) (index : Fin size)
+    (update : α → Costed (α × β)) : Costed (Vector α size × β) :=
+  let next : Fin size := ⟨(index.val + 1) % size, Nat.mod_lt _ (Nat.zero_lt_of_lt index.isLt)⟩
+  let (taken, rest) := takeOut items index (items.get next)
+  Costed.bind (update taken) fun (updated, observed) =>
+    Costed.pure (rest.set index.val updated index.isLt, observed)
+
 /-- The detached update is the plain one: the element at `index` becomes the first
 component of `update`'s result on it, and the second component is returned. The
 stand-in reference is overwritten and never observed. -/
@@ -211,14 +220,31 @@ def Controller.readers {config : Acorn.Config} {dimension : Dimension} {actions 
     (controller : Controller config dimension actions) : List (PackedLearner dimension) :=
   controller.learners.toList.map (fun learner => ⟨config, learner⟩)
 
+/-- The controller's retirement with its work: one retirement for each row, then the
+controller's record. -/
+def Controller.retireCosted {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
+    (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
+    Costed (Controller config dimension actions) :=
+  let ⟨learners, vOld, vDelta, restart⟩ := controller
+  Costed.bind (Costed.mapVector (·.retireCosted feature) learners) fun rows =>
+    Costed.op .controllerClose ⟨rows, vOld, vDelta, restart⟩
+
 /-- Every controller learner resets the retired slot. The shared previous value,
 weight-change aggregate and action-restart marker are kept, so only the slot's
 own state changes. -/
 def Controller.retire {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
     Controller config dimension actions :=
-  let ⟨learners, vOld, vDelta, restart⟩ := controller
-  ⟨learners.map (·.retire feature), vOld, vDelta, restart⟩
+  (controller.retireCosted feature).val
+
+/-- A controller's retirement retires the feature in every row. -/
+theorem Controller.retire_def {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
+    (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
+    controller.retire feature =
+      let ⟨learners, vOld, vDelta, restart⟩ := controller
+      ⟨learners.map (·.retire feature), vOld, vDelta, restart⟩ := by
+  cases controller
+  rfl
 
 /-- One new action identity resets its learner and schedules a trace restart;
 shared lags are retained for pending credit to unchanged actions. -/
@@ -583,7 +609,8 @@ theorem Ensemble.reader_count {config : Config} {criterion : Criterion} {dimensi
 theorem Controller.retire_readers {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
     (controller.retire feature).readers = controller.readers.map (PackedLearner.retire feature) := by
-  simp [Controller.retire, Controller.readers, Vector.toList_map, List.map_map, Function.comp_def, PackedLearner.retire]
+  simp [Controller.retire_def, Controller.readers, Vector.toList_map, List.map_map, Function.comp_def,
+    PackedLearner.retire]
 
 /-- Model scanning preserves its intentional alias under the actual reset. -/
 theorem Model.retire_readers {dimension : Dimension} {criterion : Criterion}

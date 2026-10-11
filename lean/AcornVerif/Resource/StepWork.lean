@@ -27,12 +27,12 @@ end. None of them is a bound of the executed first part's work: reading them as 
 trust assumption and correspondences that no theorem checks, which a later increment of
 requirement R8 (rbeauchamp/acorn#90) owes. The trust assumption is that the compiler erases a
 costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
-The learner's, the learner record's, the controllers' row maps' and the policy's parts are the
+The learner's, the learner record's, the controllers' and the policy's parts are the
 work of their executed functions, whose definitions are the values of their costed definitions,
 under the cost discipline of `Acorn.Cost`: every value a costed definition passes in, the
 uncosted entry points that `Acorn.Cost` lists, is computed without a loop and without a costed
 definition, which is checked by reading until rbeauchamp/regula#333 checks it.
-The other parts, the controllers' updates, the encoding and selection among them, are twins
+The other parts, the encoding and selection among them, are twins
 (`AcornVerif.Resource.Work`) whose charges were compared with the compiled call multisets of one
 build by a one-time inventory, an observation of that build which no gate repeats.
 
@@ -156,8 +156,8 @@ theorem choose_learnThenAct (state : Agent interface profile config criterion di
 executed first part, and its accounting is at most `chooseBound`, for every cost model, agent
 state and percept. It is not a bound of the executed first part's work: that reading rests on the
 compiler's erasure of the work of the costed definitions of the learner, of a learner's record
-(its entry, retirement and credit), of the controllers' row maps (their predictions, clear,
-release, snapshot and derived rate), of the frozen policy and of its exploration, a trust
+(its entry, retirement and credit), of the controllers (their predictions, clear, release,
+snapshot, derived rate and updates), of the frozen policy and of its exploration, a trust
 assumption, on the cost discipline of the same costed definitions, checked by reading, and on
 the twins' correspondence with the executed encoding and selection, observed in one build by a
 one-time inventory of its compiled calls; a later increment of requirement R8 owes it. -/
@@ -176,8 +176,8 @@ theorem choose_work (κ : Costs)
 that reading needs `words` to count the segments of the executed code, the intended reading of
 `SiteBounds` that no checked statement contains, and in addition the compiler's erasure of the
 work of the costed definitions of the learner, of a learner's record (its entry, retirement and
-credit), of the controllers' row maps (their predictions, clear, release, snapshot and derived
-rate), of the frozen policy and of its exploration, a trust assumption, the cost discipline of
+credit), of the controllers (their predictions, clear, release, snapshot, derived rate and
+updates), of the frozen policy and of its exploration, a trust assumption, the cost discipline of
 the same costed definitions, checked by reading, and the twins' correspondence with the
 executed encoding and selection, observed in one build by a one-time inventory of its compiled
 calls; a later increment of requirement R8 owes it. -/

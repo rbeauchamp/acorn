@@ -133,7 +133,7 @@ theorem selected_row (controller : Controller config dimension actions)
         ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld)
         controller.vDelta decay controller.restartPending).val.state.learnSecondLoop
           config features .zero).1 := by
-  simp [Controller.valuesStep, Controller.creditStep_eq, Vector.get, Fin.cast]
+  simp [Controller.valuesStep_def, Controller.creditStep_eq, Vector.get, Fin.cast]
 
 /-- Every unselected row receives the same first-loop error, without a second loop. -/
 theorem unselected_row (controller : Controller config dimension actions)
@@ -146,7 +146,7 @@ theorem unselected_row (controller : Controller config dimension actions)
         ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld)
         controller.vDelta decay controller.restartPending).val.state := by
   have indices : other.val ≠ action.val := fun h => different (Fin.ext h)
-  simp [Controller.valuesStep, Controller.creditStep_eq, Vector.get, Fin.cast, Ne.symm indices]
+  simp [Controller.valuesStep_def, Controller.creditStep_eq, Vector.get, Fin.cast, Ne.symm indices]
 
 /-- Terminal closeout clears all trajectory registers in every action row. -/
 theorem terminal_clears (controller : Controller config dimension actions)

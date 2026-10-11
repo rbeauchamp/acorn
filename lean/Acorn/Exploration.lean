@@ -188,6 +188,17 @@ theorem PolicySnapshot.drawPersistent_def {count : Word.Count} (snapshot : Polic
   dsimp only
   cases (beginExploration count snapshot.epsilon rng).1 <;> rfl
 
+/-- Frozen-decision credit for a persistent draw with its work: the discount and trace decay of
+the duration, then the update over the snapshot's values. -/
+def Controller.persistentStepCosted {count : Word.Count} {config : Acorn.Config}
+    {dimension : Dimension} (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
+    (drawn : PersistentDecision count) (reward : Binary32) (duration : UInt32) :
+    Costed (Controller config dimension count.word.toNat) :=
+  Costed.charge .policyOpen <|
+    controller.valuesStepCosted features snapshot.values drawn.action reward
+      (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
+
 /-- Frozen-decision credit for a persistent draw from `snapshot`: the action the draw
 returned and the snapshot's original values, the update `Controller.policyStep` makes
 for a plain draw. -/
@@ -196,8 +207,18 @@ def Controller.persistentStep {count : Word.Count} {config : Acorn.Config} {dime
     (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
     (drawn : PersistentDecision count) (reward : Binary32) (duration : UInt32) :
     Controller config dimension count.word.toNat :=
-  controller.valuesStep features snapshot.values drawn.action reward
-    (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
+  (controller.persistentStepCosted features snapshot drawn reward duration).val
+
+/-- Persistent-draw credit is the update over the snapshot's values at the duration's discount and
+trace decay. -/
+theorem Controller.persistentStep_def {count : Word.Count} {config : Acorn.Config}
+    {dimension : Dimension} (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
+    (drawn : PersistentDecision count) (reward : Binary32) (duration : UInt32) :
+    controller.persistentStep features snapshot drawn reward duration =
+      controller.valuesStep features snapshot.values drawn.action reward
+        (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration) :=
+  rfl
 
 /-- The credit is `Controller.policyStep`'s for every frozen decision of the same
 snapshot and action, so a persistent draw is credited as a plain draw of that action. -/
@@ -208,7 +229,7 @@ theorem Controller.persistentStep_policy {count : Word.Count} {config : Acorn.Co
     (same : decision.action = drawn.action) :
     controller.policyStep features decision reward duration =
       controller.persistentStep features decision.snapshot drawn reward duration := by
-  simp only [Controller.persistentStep, Controller.policyStep, same]
+  simp only [Controller.persistentStep_def, Controller.policyStep_def, same]
 
 /-- The served masses with their work: one mass for each action. -/
 def servedProbabilitiesCosted {count : Word.Count} (action : Action count.word.toNat) :

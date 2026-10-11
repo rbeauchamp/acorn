@@ -70,9 +70,10 @@ values, and as its work each callback's work once and the control of its row of 
 (`Library`, `Library.control`): each of the row's passes, a `visit` for each element and one for
 the pass's end. A loop's bound is therefore `Library.work`: its trip count times a bound of one
 callback, and its row's control. Every function a combinator takes is costed: the steps of
-`foldl` and `foldlArray`, the operations of `map`, `mapVector` and `ofFn`, the tests of `findIdx?`
-and `filter`, and the continuation of `bind`. `attach` pairs a computation's result with its
-equation, for a proof that names the result, and its work is that computation's work. A *scan*
+`foldl` and `foldlArray`, the operations of `map`, `mapVector`, `mapFinIdx` and `ofFn`, the tests
+of `findIdx?` and `filter`, the continuation of `bind` and the arms of `ite`. `attach` pairs a
+computation's result with its equation, for a proof that names the result, and its work is that
+computation's work. A *scan*
 (`toList`, `arrayToList`, `drop`, `finRange`, `length`) is a library loop that takes no function:
 its value is the library function of the collection it names, and its work is the control of its
 row over the elements it visits, the whole collection or, for `drop`, the elements it drops. A
@@ -99,8 +100,9 @@ takes. The values a costed definition passes in, which are all its uncosted entr
 - the value parameters of the combinators: the value of `pure`; the site and value of `op`;
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
   collection of `foldl` and `foldlArray`; the collection of `map`, `filter` and `length`; the
-  vector of `mapVector` and `toList`; the array of `findIdx?` and `arrayToList`; the count and the
-  list of `drop`; the count of `finRange` and of `ofFn` (`bind` and `attach` take none);
+  vector of `mapVector`, `mapFinIdx` and `toList`; the array of `findIdx?` and `arrayToList`; the
+  count and the list of `drop`; the count of `finRange` and of `ofFn`; the condition of `ite` (`bind`
+  and `attach` take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -123,9 +125,9 @@ policy and exploration definitions and their callers with that of the same defin
 without work found them equal up to the renaming of the definitions and their local variables
 and, in four callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`,
 `TemporalControl.serveDraw`, `Skill.followTemporal`), the order of the parallel moves into a
-join point. The same holds of the costed definitions of a learner's record, the controllers'
-row maps and the normalized step-size sum and their callers, where `TemporalControl.serveDraw`
-again differs only in that order. Each is an observation of one build, which no gate repeats. A
+join point. The same holds of the costed definitions of a learner's record, the controllers and
+the normalized step-size sum and their callers, where `TemporalControl.serveDraw` again differs
+only in that order. Each is an observation of one build, which no gate repeats. A
 bound in word operations bounds the accounting under `SiteBounds`; no checked statement says that
 a segment of the executed code does at most its site's cost in word operations.
 
@@ -522,6 +524,17 @@ parts adds. -/
       fun m ⟨a, b, firstWork, nextWork, same⟩ => by
         rw [same, firstUnique a firstWork, nextUnique b nextWork]⟩⟩
 
+/-- A branch: the value of the arm the condition selects, with that arm's work. Each arm is a
+thunk, so only the selected arm is computed. -/
+@[inline] def ite (condition : Prop) [Decidable condition] (yes no : Unit → Costed α) : Costed α :=
+  ⟨if condition then (yes ()).val else (no ()).val,
+    fun κ n => if condition then (yes ()).work κ n else (no ()).work κ n, fun κ => by
+      by_cases holds : condition
+      · simp only [holds, ↓reduceIte]
+        exact (yes ()).single κ
+      · simp only [holds, ↓reduceIte]
+        exact (no ()).single κ⟩
+
 /-- The `pure` of `do` blocks. There is no `Functor` or `Monad` instance, whose derived `map`
 and `seq` would apply a callback that is not costed. -/
 instance : Pure Costed := ⟨Costed.pure⟩
@@ -566,6 +579,21 @@ theorem bind_within {first : Costed α} {next : α → Costed β} {κ : Costs} {
 
 /-- A sequence is bounded by a bound of its first part and a bound of its continuation at each
 result. -/
+theorem ite_val (condition : Prop) [Decidable condition] (yes no : Unit → Costed α) :
+    (ite condition yes no).val = if condition then (yes ()).val else (no ()).val := rfl
+
+/-- A branch is bounded by a bound of each arm under its condition. -/
+theorem ite_within {condition : Prop} [Decidable condition] {yes no : Unit → Costed α}
+    {κ : Costs} {bound : Nat} (yesFits : condition → (yes ()).Within κ bound)
+    (noFits : ¬condition → (no ()).Within κ bound) : (ite condition yes no).Within κ bound := by
+  intro n work
+  change (if condition then (yes ()).work κ n else (no ()).work κ n) at work
+  by_cases holds : condition
+  · simp only [holds, ↓reduceIte] at work
+    exact yesFits holds n work
+  · simp only [holds, ↓reduceIte] at work
+    exact noFits holds n work
+
 theorem bind_within_all {first : Costed α} {next : α → Costed β} {κ : Costs} {a b : Nat}
     (firstFits : first.Within κ a) (nextFits : ∀ value, (next value).Within κ b) :
     (first >>= next).Within κ (a + b) :=
@@ -799,6 +827,37 @@ theorem mapVector_within {count : Nat} {operation : α → Costed β} {items : V
     rw [same]
     have counted := mapSteps_within items.toList each steps work
     rw [Vector.length_toList] at counted
+    exact Nat.add_le_add_right counted _
+
+/-- A map over a vector with each element's index (`Library.mapFinIdx`): its operations' work and
+the control of its row. -/
+@[inline] def mapFinIdx {count : Nat} (items : Vector α count)
+    (operation : (index : Nat) → α → index < count → Costed β) : Costed (Vector β count) :=
+  ⟨items.mapFinIdx fun index item bound => (operation index item bound).val,
+    fun κ n => ∃ steps, mapSteps (fun index : Fin count =>
+        operation index.val (items.get index) index.isLt) (List.finRange count) κ steps ∧
+      n = steps + Library.mapFinIdx.control (κ .visit) count,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := mapSteps_single (fun index : Fin count =>
+        operation index.val (items.get index) index.isLt) κ (List.finRange count)
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
+
+theorem mapFinIdx_val {count : Nat} (items : Vector α count)
+    (operation : (index : Nat) → α → index < count → Costed β) :
+    (mapFinIdx items operation).val =
+      items.mapFinIdx fun index item bound => (operation index item bound).val := rfl
+
+/-- An indexed map whose every operation is within `bound` is within its row's work at that
+bound. -/
+theorem mapFinIdx_within {count : Nat} {items : Vector α count}
+    {operation : (index : Nat) → α → index < count → Costed β} {κ : Costs} {bound : Nat}
+    (each : ∀ index : Fin count, (operation index.val (items.get index) index.isLt).Within κ bound) :
+    (mapFinIdx items operation).Within κ (Library.mapFinIdx.work (κ .visit) count bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    have counted := mapSteps_within (List.finRange count) (fun index _ => each index) steps work
+    rw [List.length_finRange] at counted
     exact Nat.add_le_add_right counted _
 
 /-- A vector built from a costed operation at each index, by `Vector.ofFn` (`Library.ofFn`): the

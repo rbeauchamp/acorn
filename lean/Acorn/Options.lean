@@ -324,7 +324,7 @@ theorem Skill.optionCredit_action (skill : Skill actions config criterion dimens
     (reward : Binary32) (gain : RewardRate) (same : first.action = second.action) :
     skill.optionCredit activation next first reward gain =
       skill.optionCredit activation next second reward gain := by
-  simp only [Skill.optionCredit, Controller.persistentStep, same]
+  simp only [Skill.optionCredit, Controller.persistentStep_def, same]
 
 /-- A frozen activation's credit writes nothing, whatever was drawn. -/
 theorem Skill.optionCredit_frozen (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)

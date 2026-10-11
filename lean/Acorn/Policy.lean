@@ -279,13 +279,34 @@ theorem PolicySnapshot.draw_snapshot (snapshot : PolicySnapshot count) (rng : Rn
 theorem PolicySnapshot.draw_admitted (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
     (snapshot.draw rng).1.action.val < count.word.toNat := (snapshot.draw rng).1.action.isLt
 
+/-- Frozen-decision credit with its work: the discount and trace decay of the duration, then the
+update over the decision's values. -/
+def Controller.policyStepCosted {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision count)
+    (reward : Binary32) (duration : UInt32) :
+    Costed (Controller config dimension count.word.toNat) :=
+  Costed.charge .policyOpen <|
+    controller.valuesStepCosted features decision.snapshot.values decision.action reward
+      (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
+
 /-- Frozen-decision SMDP credit uses the sampled action and its original values. -/
 def Controller.policyStep {config : Acorn.Config} {dimension : Dimension}
     (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision count)
     (reward : Binary32) (duration : UInt32) : Controller config dimension count.word.toNat :=
-  controller.valuesStep features decision.snapshot.values decision.action reward
-    (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
+  (controller.policyStepCosted features decision reward duration).val
+
+/-- Frozen-decision credit is the update over the decision's values at the duration's discount
+and trace decay. -/
+theorem Controller.policyStep_def {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision count)
+    (reward : Binary32) (duration : UInt32) :
+    controller.policyStep features decision reward duration =
+      controller.valuesStep features decision.snapshot.values decision.action reward
+        (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration) :=
+  rfl
 
 /-- The frozen values with their work: the predictions, then the snapshot's record. -/
 def Controller.snapshotCosted {config : Acorn.Config} {dimension : Dimension}
