@@ -286,33 +286,35 @@ and returns no agent, in every order.
 
 ### The work of the first part
 
-The work of the first part of a step is bounded by a function of the world's
-interface, the feature configuration and the dimension of the feature space, for
-every agent state and every percept, under the two orders whose first part is
-selection, `learn-then-act` and `plan-after-act`
+The accounting of the work of the first part of a step is bounded by a function of
+the world's interface, the feature configuration and the dimension of the feature
+space, for every agent state and every percept, under the two orders whose first part
+is selection, `learn-then-act` and `plan-after-act`
 ([definitions](../lean/AcornVerif/Resource/StepWork.lean),
 `AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
-order). The theorems bound the accounting of the first part's twin. The deadline of a
-world on a wall clock needs a bound of the executed first part, which runs from the
-step's entry until the action is released, and reading the twin's bound as one rests on
-four things no theorem yet establishes:
+order). The theorems bound the accounting of the first part's twin; none of them is a
+bound of the executed first part's work. The deadline of a world on a wall clock needs
+a bound of the executed first part, which runs from the step's entry until the action
+is released. Reading the twin's bound as one rests on four things no theorem yet
+establishes, which a later increment of requirement R8 owes:
 
-- that the segment of each charge of a site, described below, runs at most a given
-  number of word operations: the bound in word operations holds under
-  that hypothesis
-  (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
+- that a cost model in word operations counts the segments of the executed code:
+  `choose_words` bounds the accounting charged at a cost model `words` under
+  `SiteBounds words κ`, which states only `words site ≤ κ site` for every site, and
+  the segment rule described below is the intended reading of `words`, part of no
+  checked statement (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed learner, described below;
 - the correspondence of the twins of the encoding and of selection with the executed
   definitions: the twins' charges were compared with the compiled call multisets of
   one build by a one-time inventory, an observation that no gate repeats.
 
-**What is counted.** Work is a count of the operations of the compiled definitions
-in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
+**What is counted.** Work is an accounting in a cost model, whose intended reading is
+a count of the operations of the compiled definitions: each visit of a loop costs `visit`, and each **site**, a stretch of
 code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
-sites. What each charge counts is its **segment** of the operations the compiled code
-runs during one call of the first part, defined once in the
+sites. The intended reading of what each charge counts is its **segment** of the
+operations the compiled code runs during one call of the first part, defined once in the
 [cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment is
 bounded by a constant of the code. Allocation, reference counting, the copy of a shared
 array when it is written ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
@@ -360,9 +362,10 @@ the twin's value is the executed definition's, by definitional unfolding, by
 induction on the same recursion (`rankedRun_val`), or, where the definition builds
 its result through a private constructor and proofs, by reading. A value theorem
 does not tie a twin's work to the executed code, since a twin of the same value with
-less work would satisfy it. For those definitions the bound is a bound of the twins,
-and it bounds the executed code through the correspondence of each twin's charges with
-the definition's compiled calls, which the one-time inventory observed in one build.
+less work would satisfy it. For those definitions the bound is a bound of the twins'
+accounting; reading it as a bound of the executed code needs the correspondence of
+each twin's charges with the definition's compiled calls, which the one-time inventory
+observed in one build and no theorem states.
 The twins read the learner through twins of its own whose work is the bound proved
 of its costed definition, which a theorem of each checks
 (`AcornVerif.Resource.Twin.step_costed`).

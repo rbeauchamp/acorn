@@ -27,21 +27,21 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
 
 /-! ## The words the coder reads -/
 
-/-- The costed recursion of `PredictionCache.words`: one read for each stored prediction, and a
-visit for its end. -/
+/-- The costed recursion of `PredictionCache.words`: a visit before each descent, one read for
+each stored prediction on return, and a visit for its end. -/
 def cacheWordsRun (κ : Costs) : {discounts : List Discount} → PredictionCache discounts →
     Costed (List Binary32)
   | _, .nil => Costed.op (κ .visit) []
-  | _, .cons value rest => do
+  | _, .cons value rest => Costed.charge (κ .visit) do
     let tail ← cacheWordsRun κ rest
-    Costed.op (κ .visit + κ .read) (value.value :: tail)
+    Costed.op (κ .read) (value.value :: tail)
 
 theorem cacheWordsRun_val (κ : Costs) {discounts : List Discount}
     (cache : PredictionCache discounts) : (cacheWordsRun κ cache).val = cache.words := by
   induction cache with
   | nil => rfl
   | cons value rest ih =>
-    simp only [cacheWordsRun, Costed.bind_val, ih]
+    simp only [cacheWordsRun, Costed.charge, Costed.bind_val, ih]
     rfl
 
 theorem cacheWordsRun_work (κ : Costs) {discounts : List Discount}
@@ -50,16 +50,17 @@ theorem cacheWordsRun_work (κ : Costs) {discounts : List Discount}
   induction cache with
   | nil => simp [cacheWordsRun]
   | cons value rest ih =>
-    simp only [cacheWordsRun, Costed.bind_work, pass, List.length_cons, Nat.succ_mul] at ih ⊢
+    simp only [cacheWordsRun, Costed.charge, Costed.bind_work, pass, List.length_cons,
+      Nat.succ_mul] at ih ⊢
     omega
 
-/-- The costed recursion of `feedbackWords`: one word for each stored prediction, and a visit for
-its end. -/
+/-- The costed recursion of `feedbackWords`: a visit before each descent, one word for each
+stored prediction on return, and a visit for its end. -/
 def feedbackWordsRun (κ : Costs) (base : UInt64) :
     List Discount → List Binary32 → Nat → Costed (List SensorWord)
-  | discount :: discounts, value :: values, index => do
+  | discount :: discounts, value :: values, index => Costed.charge (κ .visit) do
     let tail ← feedbackWordsRun κ base discounts values (index + 1)
-    Costed.op (κ .visit + κ .feedbackWord)
+    Costed.op (κ .feedbackWord)
       (⟨base + index.toUInt64, (predictionBucket value discount.horizon).val.toUInt64⟩ :: tail)
   | [], _, _ => Costed.op (κ .visit) []
   | _ :: _, [], _ => Costed.op (κ .visit) []
@@ -74,7 +75,7 @@ theorem feedbackWordsRun_val (κ : Costs) (base : UInt64) (discounts : List Disc
     cases values with
     | nil => rfl
     | cons value others =>
-      simp only [feedbackWordsRun, Costed.bind_val, ih]
+      simp only [feedbackWordsRun, Costed.charge, Costed.bind_val, ih]
       rfl
 
 theorem feedbackWordsRun_work (κ : Costs) (base : UInt64) (discounts : List Discount)
@@ -88,7 +89,8 @@ theorem feedbackWordsRun_work (κ : Costs) (base : UInt64) (discounts : List Dis
     | nil => simp [feedbackWordsRun]
     | cons value others =>
       have tail := ih others (index + 1)
-      simp only [feedbackWordsRun, Costed.bind_work, pass, List.length_cons, Nat.succ_mul] at tail ⊢
+      simp only [feedbackWordsRun, Costed.charge, Costed.bind_work, pass, List.length_cons,
+        Nat.succ_mul] at tail ⊢
       omega
 
 /-- Twin of `Agent.words`: the stored predictions read, their feedback words, and the

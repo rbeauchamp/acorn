@@ -10,14 +10,15 @@ import AcornVerif.Resource.Work
 # Work of the SwiftTD learner
 
 The learner's executed definitions in `Acorn.SwiftTd`, and the ordered sums and the fresh
-transient record they use, are the values of their costed definitions (`Acorn.Costed`), so the
-loops a bound proved here counts are the loops of the code that runs, under the trust assumption
-that the compiler erases the work (`Acorn.Cost`). A bound counts the work of that code under the
-cost discipline of `Acorn.Cost`: every function a combinator takes is
-costed, and every value a costed definition passes in, the uncosted entry points that
-`Acorn.Cost` lists, is computed without a loop and without a costed definition. The combinators
-cannot enforce the second, since `Costed.pure` accepts any value; it is checked by reading until
-the cost-closed rule of rbeauchamp/regula#333 checks it.
+transient record they use, are the values of their costed definitions (`Acorn.Costed`). A bound
+proved here bounds the accounting of those costed definitions. Reading it as the work of the code
+that runs rests on the trust assumption that the compiler erases the work (`Acorn.Cost`) and on the
+cost discipline of `Acorn.Cost`: every function a combinator takes is costed, and every value a
+costed definition passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without
+a loop and without a costed definition. The combinators cannot enforce the second, since
+`Costed.pure` accepts any value; it is checked by reading until the cost-closed rule of
+rbeauchamp/regula#333 checks it. A later increment of requirement R8 (rbeauchamp/acorn#90) owes that
+reading as a checked statement.
 
 Each bound is a function of the number of eligible entries of the learner the definition receives
 and of the length of the feature list it reads. No bound depends on the learner's values: the

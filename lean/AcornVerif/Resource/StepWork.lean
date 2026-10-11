@@ -21,10 +21,11 @@ by the configuration (`Agent.frame_length`), every learner's eligible entries by
 its dimension, every stored frame by the same capacity, and every other loop by a count the
 type of its collection fixes.
 
-**What the bound covers.** The theorems bound the work of the first part's twin, which
+**What the bound covers.** The theorems bound the accounting of the first part's twin, which
 counts each loop as the passes of its runtime implementation, with one visit for each pass's
-end. Read as the work of the executed first part, they rest on a trust assumption and two
-correspondences that no theorem checks. The trust assumption is that the compiler erases a
+end. None of them is a bound of the executed first part's work: reading them as one rests on a
+trust assumption and correspondences that no theorem checks, which a later increment of
+requirement R8 (rbeauchamp/acorn#90) owes. The trust assumption is that the compiler erases a
 costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
 The learner's part is the work of the executed learner, whose definitions are the values of
 their costed definitions, under the cost discipline of `Acorn.Cost`: every value
@@ -35,10 +36,12 @@ The other parts, the encoding and selection among them, are twins (`AcornVerif.R
 whose charges were compared with the compiled call multisets of one build by a one-time
 inventory, an observation of that build which no gate repeats.
 
-**Word operations.** A site's cost in word operations is not derived from the compiled code. The
-bound in word operations (`AcornVerif.Resource.Twin.choose_words`) holds under the hypothesis
-`SiteBounds words κ`: the segment of each charge of a site, as `Acorn.Cost` defines it, runs at
-most `κ site` word operations.
+**Word operations.** A site's cost in word operations is not derived from the compiled code.
+`AcornVerif.Resource.Twin.choose_words` bounds the accounting of the first part's twin charged at
+a cost model `words` by `chooseBound κ`, under the hypothesis `SiteBounds words κ`, which states
+only `words site ≤ κ site` for every site. That `words site` counts the word operations of a
+segment of the executed code, as `Acorn.Cost` defines segments, is the intended reading of
+`words` and is part of no checked statement.
 -/
 
 namespace AcornVerif.Resource.Twin
@@ -107,10 +110,11 @@ theorem chooseSelected_work (κ : Costs)
       Nat.le_trans (selectRun_work κ _ _ _ _ _ _)
         (selectBound_mono κ _ _ _ _ _ (Agent.frame_length _ percept.frame))
 
-/-- `SiteBounds words κ`: `words site ≤ κ site` for every site, where `words site` is the largest
-number of word operations, on the word machine of `AcornVerif.Resource.WordKernel` with one for each
-instruction, of a segment at a charge point of that site, as `Acorn.Cost` defines segments. No
-theorem derives `words`; a bound in word operations holds under this hypothesis. -/
+/-- `SiteBounds words κ`: `words site ≤ κ site` for every site, a relation between two cost
+models. Nothing in it ties `words` to execution, and two zero cost models satisfy it. The intended
+reading of `words site` is the largest number of word operations, on the word machine of
+`AcornVerif.Resource.WordKernel` with one for each instruction, of a segment at a charge point of
+that site, as `Acorn.Cost` defines segments; no checked statement contains that reading. -/
 def SiteBounds (words κ : Costs) : Prop := ∀ site, words site ≤ κ site
 
 set_option maxHeartbeats 400000 in
@@ -149,11 +153,12 @@ theorem choose_learnThenAct (state : Agent interface profile config criterion di
   rfl
 
 /-- **The work bound of the first part's twin under `learnThenAct`.** The twin's value is the
-executed first part, and its work is at most `chooseBound`, for every cost model, agent state
-and percept. As the work of the executed first part it rests on the compiler's erasure of the
-costed learner's work, a trust assumption, on the cost discipline of the costed learner, checked
-by reading, and on the twins' correspondence with the executed encoding and selection, observed
-in one build by a one-time inventory of its compiled calls. -/
+executed first part, and its accounting is at most `chooseBound`, for every cost model, agent
+state and percept. It is not a bound of the executed first part's work: that reading rests on the
+compiler's erasure of the costed learner's work, a trust assumption, on the cost discipline of the
+costed learner, checked by reading, and on the twins' correspondence with the executed encoding and
+selection, observed in one build by a one-time inventory of its compiled calls; a later increment
+of requirement R8 owes it. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -163,13 +168,14 @@ theorem choose_work (κ : Costs)
         chooseBound κ interface config dimension :=
   ⟨rfl, chooseSelected_work κ state .learnThenAct (by decide) percept⟩
 
-/-- **The twin accounting of the first part under `learnThenAct` in word operations.** If the
-segment of each charge of a site runs at most `κ site` word operations, the work of the first part's
-twin counted in the word operations of its sites is at most `chooseBound κ`, for every agent state
-and percept. Read as the word operations of the executed first part, it rests in addition on the
-compiler's erasure of the costed learner's work, a trust assumption, on the cost discipline of the
-costed learner, checked by reading, and on the twins' correspondence with the executed encoding and
-selection, observed in one build by a one-time inventory of its compiled calls. -/
+/-- **The twin accounting of the first part under `learnThenAct` at a second cost model.** Under
+`SiteBounds words κ`, the accounting of the first part's twin charged at `words` is at most
+`chooseBound κ`, for every agent state and percept. It is not a bound of executed word operations:
+that reading needs `words` to count the segments of the executed code, the intended reading of
+`SiteBounds` that no checked statement contains, and in addition the compiler's erasure of the
+costed learner's work, a trust assumption, the cost discipline of the costed learner, checked by
+reading, and the twins' correspondence with the executed encoding and selection, observed in one
+build by a one-time inventory of its compiled calls; a later increment of requirement R8 owes it. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

@@ -21,8 +21,9 @@ Lean's logic gives a pure term no operational meaning, and a twin of the same va
 work would satisfy the same theorem. That a twin's loops and charges are those of the executed
 definition is a correspondence no theorem states: the twins' charges were compared with the
 compiled call multisets of one build by a one-time inventory, an observation of that build which
-no gate repeats. A bound proved here bounds the twin, and bounds the executed code only through
-that correspondence. A definition that is the value of its costed
+no gate repeats. A bound proved here bounds the twin's accounting. It is not a bound of the
+executed code, which would need that correspondence as a checked statement, owed by a later
+increment of requirement R8 (rbeauchamp/acorn#90). A definition that is the value of its costed
 definition, as each of the learner's is, is bounded through that definition instead
 (`AcornVerif.Resource.LearnerWork`).
 
@@ -39,8 +40,8 @@ scan names its row where it is used, so each count is stated once, in the table.
 
 **What is counted.** Each loop visit is charged `visit`, and each stretch of constant work is
 charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost model assigns its site
-(`Acorn.Site`). What each charge counts is its segment, which `Acorn.Cost` defines. Every bound
-holds for every cost model.
+(`Acorn.Site`). The intended reading of what each charge counts is its segment, which
+`Acorn.Cost` defines and no checked statement contains. Every bound holds for every cost model.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of
 an array that is shared when it is written (issue 84 of the repository; the write itself is

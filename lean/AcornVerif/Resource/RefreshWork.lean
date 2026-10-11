@@ -324,20 +324,21 @@ theorem candidateList_length (dimension : Dimension) (config : Features.Config)
   simpa using List.length_filterMap_le (candidateOfWeight config weights)
     (List.finRange config.units.count)
 
-/-- The costed recursion of `ranked`: a visit of the recursion for each step; for each ranked
-block, the search for the best candidate (`List.foldl`) and the removal of its block
-(`List.filter`), each at one comparison for each candidate; and a visit for its end. An empty
-list has no best candidate and runs no loop. -/
+/-- The costed recursion of `ranked`: for each ranked block, the search for the best candidate
+(`List.foldl`) and the removal of its block (`List.filter`), each at one comparison for each
+candidate, charged before the descent, and a visit of the recursion on the return, where the
+block's candidate is put before the rest; and a visit for its end. An empty list has no best
+candidate and runs no loop. -/
 def rankedRun (κ : Costs) : Nat → List (Candidate config) → Costed (List (Candidate config))
   | 0, _ => Costed.op (κ .visit) []
-  | count + 1, items => Costed.charge (κ .visit)
-      (match Features.best items with
-        | none => Costed.op (κ .visit) []
-        | some chosen => Costed.charge
-            (Library.foldl.work (κ .visit) items.length (κ .compare) +
-              Library.filter.work (κ .visit) items.length (κ .compare)) (do
-          let rest ← rankedRun κ count (withoutBlock items chosen)
-          Costed.pure (chosen :: rest)))
+  | count + 1, items =>
+      match Features.best items with
+      | none => Costed.charge (κ .visit) (Costed.op (κ .visit) [])
+      | some chosen => Costed.charge
+          (Library.foldl.work (κ .visit) items.length (κ .compare) +
+            Library.filter.work (κ .visit) items.length (κ .compare)) (do
+        let rest ← rankedRun κ count (withoutBlock items chosen)
+        Costed.op (κ .visit) (chosen :: rest))
 
 theorem rankedRun_val (κ : Costs) (count : Nat) (items : List (Candidate config)) :
     (rankedRun κ count items).val = ranked count items := by
