@@ -72,7 +72,8 @@ the pass's end. A loop's bound is therefore `Library.work`: its trip count times
 callback, and its row's control. Every function a combinator takes is costed: the steps of
 `foldl` and `foldlArray`, the operations of `map`, `mapVector` and `ofFn`, the tests of `findIdx?`
 and `filter`, and the continuation of `bind`. `attach` pairs a computation's result with its
-equation, for a proof that names the result. A *scan* (`toList`, `arrayToList`, `drop`,
+equation, for a proof that names the result, and its work is that computation's work. A *scan*
+(`toList`, `arrayToList`, `drop`,
 `finRange`, `length`) is a library loop that takes no function: its value is the library function
 of the collection it names, and its work is the control of its row over the elements it visits,
 the whole collection or, for `drop`, the elements it drops. A recursion of Acorn's own is a costed recursion whose
@@ -94,8 +95,7 @@ takes. The values a costed definition passes in, which are all its uncosted entr
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
   collection of `foldl` and `foldlArray`; the collection of `map`, `filter` and `length`; the
   vector of `mapVector` and `toList`; the array of `findIdx?` and `arrayToList`; the count and the
-  list of `drop`; the count of `finRange` and of `ofFn`; the computation of `attach` (`bind` takes
-  none);
+  list of `drop`; the count of `finRange` and of `ofFn` (`bind` and `attach` take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
