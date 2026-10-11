@@ -84,9 +84,14 @@ every recursive call is under a charge and whose end is charged a visit.
 (`single`), so a bound is never vacuous (`within_iff`).
 
 **What is trusted.** That the counted work covers each operation of the compiled code rests on
-the cost discipline of the costed definitions: the learner's, the frozen policy's
-(`PolicySnapshot.bestCosted`, `candidatesCosted`, `reservoirCosted`, `greedyCosted`,
-`probabilitiesCosted`, `drawCosted` and `expectedCosted` in `Acorn.Policy`) and its exploration's
+the cost discipline of the costed definitions: the learner's, a learner record's entry,
+retirement and credit (`Managed.applyCosted` and `Managed.retireCosted` in
+`Acorn.FeatureConsumers`, `Managed.creditCosted` in `Acorn.Sarsa`), the controllers' predictions,
+clear, release, snapshot and derived rate (`Controller.predictAllCosted`, `clearCosted` and
+`releaseCosted` in `Acorn.Sarsa`, `Controller.snapshotCosted` and `exploreRateCosted` in
+`Acorn.Policy`), the frozen policy's (`PolicySnapshot.bestCosted`, `candidatesCosted`,
+`reservoirCosted`, `greedyCosted`, `probabilitiesCosted`, `drawCosted` and `expectedCosted` in
+`Acorn.Policy`) and its exploration's
 (`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
