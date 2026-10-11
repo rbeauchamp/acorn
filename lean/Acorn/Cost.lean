@@ -70,8 +70,10 @@ values, and as its work each callback's work once and the control of its row of 
 (`Library`, `Library.control`): each of the row's passes, a `visit` for each element and one for
 the pass's end. A loop's bound is therefore `Library.work`: its trip count times a bound of one
 callback, and its row's control. Every function a combinator takes is costed: the steps of
-`foldl` and `foldlArray`, the operation of `map`, the test of `findIdx?` and the continuation of
-`bind`. A recursion of Acorn's own is a costed recursion whose every recursive call is under a
+`foldl` and `foldlArray`, the operations of `map`, `mapVector` and `ofFn`, the tests of `findIdx?` and
+`filter`, and the continuation of `bind`. A *scan* (`toList`, `drop`, `finRange`, `length`) is a
+library loop that takes no function: its value is the library function of the collection it
+names, and its work is the control of its row over that collection. A recursion of Acorn's own is a costed recursion whose every recursive call is under a
 charge and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
@@ -85,8 +87,9 @@ in, which are all its uncosted entry points, are:
 
 - the value parameters of the combinators: the value of `pure`; the site and value of `op`;
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
-  collection of `foldl` and `foldlArray`; the collection of `map`; the array of `findIdx?`
-  (`bind` takes none);
+  collection of `foldl` and `foldlArray`; the collection of `map`, `filter` and `length`; the
+  vector of `mapVector` and `toList`; the array of `findIdx?`; the count and the list of `drop`;
+  the count of `finRange` (`bind` takes none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -732,6 +735,132 @@ theorem findIdx?_within {items : Array α} {test : α → Costed Bool} {κ : Cos
     have counted := mapSteps_within items.toList each steps work
     rw [Array.length_toList] at counted
     exact Nat.add_le_add_right counted _
+
+/-- The elements of `items` whose costed test holds, in order, by the library function
+`List.filter` (`Library.filter`): the work of each element's test and the control of its row. -/
+@[inline] def filter (test : α → Costed Bool) (items : List α) : Costed (List α) :=
+  ⟨items.filter fun item => (test item).val,
+    fun κ n => ∃ steps, mapSteps test items κ steps ∧
+      n = steps + Library.filter.control (κ .visit) items.length,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := mapSteps_single test κ items
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
+
+theorem filter_val (test : α → Costed Bool) (items : List α) :
+    (filter test items).val = items.filter fun item => (test item).val := rfl
+
+/-- A filter whose every test is within `bound` is within its row's work at that bound. -/
+theorem filter_within {test : α → Costed Bool} {items : List α} {κ : Costs} {bound : Nat}
+    (each : ∀ item ∈ items, (test item).Within κ bound) :
+    (filter test items).Within κ (Library.filter.work (κ .visit) items.length bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    exact Nat.add_le_add_right (mapSteps_within items each steps work) _
+
+/-- A map over a vector (`Library.vectorMap`): its operations' work and the control of its row. -/
+@[inline] def mapVector {count : Nat} (operation : α → Costed β) (items : Vector α count) :
+    Costed (Vector β count) :=
+  ⟨items.map fun item => (operation item).val,
+    fun κ n => ∃ steps, mapSteps operation items.toList κ steps ∧
+      n = steps + Library.vectorMap.control (κ .visit) count,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := mapSteps_single operation κ items.toList
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
+
+theorem mapVector_val {count : Nat} (operation : α → Costed β) (items : Vector α count) :
+    (mapVector operation items).val = items.map fun item => (operation item).val := rfl
+
+/-- A map over a vector whose every operation is within `bound` is within its row's work at that
+bound. -/
+theorem mapVector_within {count : Nat} {operation : α → Costed β} {items : Vector α count}
+    {κ : Costs} {bound : Nat} (each : ∀ item ∈ items.toList, (operation item).Within κ bound) :
+    (mapVector operation items).Within κ (Library.vectorMap.work (κ .visit) count bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    have counted := mapSteps_within items.toList each steps work
+    rw [Vector.length_toList] at counted
+    exact Nat.add_le_add_right counted _
+
+/-- A vector built from a costed operation at each index, by `Vector.ofFn` (`Library.ofFn`): the
+operations' work and the control of its row. -/
+@[inline] def ofFn {count : Nat} (operation : Fin count → Costed β) : Costed (Vector β count) :=
+  ⟨Vector.ofFn fun index => (operation index).val,
+    fun κ n => ∃ steps, mapSteps operation (List.finRange count) κ steps ∧
+      n = steps + Library.ofFn.control (κ .visit) count,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := mapSteps_single operation κ (List.finRange count)
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
+
+theorem ofFn_val {count : Nat} (operation : Fin count → Costed β) :
+    (ofFn operation).val = Vector.ofFn fun index => (operation index).val := rfl
+
+/-- A built vector whose every operation is within `bound` is within its row's work at that
+bound. -/
+theorem ofFn_within {count : Nat} {operation : Fin count → Costed β} {κ : Costs} {bound : Nat}
+    (each : ∀ index, (operation index).Within κ bound) :
+    (ofFn operation).Within κ (Library.ofFn.work (κ .visit) count bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    have counted := mapSteps_within (List.finRange count) (fun index _ => each index) steps work
+    rw [List.length_finRange] at counted
+    exact Nat.add_le_add_right counted _
+
+/-! ## Scans -/
+
+/-- The elements of a vector as a list, by `Vector.toList` (`Library.toList`): the control of its
+row. -/
+@[inline] def toList {count : Nat} (items : Vector α count) : Costed (List α) :=
+  ⟨items.toList, fun κ n => n = Library.toList.control (κ .visit) count,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem toList_val {count : Nat} (items : Vector α count) : (toList items).val = items.toList :=
+  rfl
+
+theorem toList_within {count : Nat} (items : Vector α count) (κ : Costs) :
+    (toList items).Within κ (Library.toList.control (κ .visit) count) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- A list without its first `count` elements, by `List.drop` (`Library.drop`): the control of
+its row over the elements it drops. -/
+@[inline] def drop (count : Nat) (items : List α) : Costed (List α) :=
+  ⟨items.drop count, fun κ n => n = Library.drop.control (κ .visit) (min count items.length),
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem drop_val (count : Nat) (items : List α) : (drop count items).val = items.drop count :=
+  rfl
+
+/-- A drop is within its row's control over the count it drops. -/
+theorem drop_within (count : Nat) (items : List α) (κ : Costs) :
+    (drop count items).Within κ (Library.drop.control (κ .visit) count) :=
+  fun _ same => by
+    rw [same]
+    exact Library.control_mono _ (Nat.min_le_left _ _)
+
+/-- The indices below `count` in order, by `List.finRange` (`Library.finRange`): the control of
+its row. -/
+@[inline] def finRange (count : Nat) : Costed (List (Fin count)) :=
+  ⟨List.finRange count, fun κ n => n = Library.finRange.control (κ .visit) count,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem finRange_val (count : Nat) : (finRange count).val = List.finRange count := rfl
+
+theorem finRange_within (count : Nat) (κ : Costs) :
+    (finRange count).Within κ (Library.finRange.control (κ .visit) count) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- The length of a list, by `List.length` (`Library.length`): the control of its row. -/
+@[inline] def length (items : List α) : Costed Nat :=
+  ⟨items.length, fun κ n => n = Library.length.control (κ .visit) items.length,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem length_val (items : List α) : (length items).val = items.length := rfl
+
+theorem length_within (items : List α) (κ : Costs) :
+    (length items).Within κ (Library.length.control (κ .visit) items.length) :=
+  fun _ same => Nat.le_of_eq same
 
 end Costed
 

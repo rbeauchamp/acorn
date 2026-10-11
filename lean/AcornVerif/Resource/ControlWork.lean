@@ -11,12 +11,13 @@ import AcornVerif.Resource.LearnerWork
 /-!
 # Work of the learners' admitted entries, the controllers and the policies
 
-Twins of `Managed.apply`, the shared-error controller of `Acorn.Sarsa` and the policies of
-`Acorn.Policy` and `Acorn.Exploration`. A learner entry's bound reads the learner's
-eligible entries, and every admitted learner has at most the capacity of its dimension
-(`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted entry
-is a function of the capacity and the length of the feature list it reads. A
-controller's update visits each of its rows, and a policy's loops visit its actions.
+Twins of `Managed.apply` and the shared-error controller of `Acorn.Sarsa`, and the bounds of the
+frozen policy's functions in `Acorn.Policy` and `Acorn.Exploration`, which are the values of their
+costed definitions; the policy's twins carry those bounds. A learner entry's bound reads the
+learner's eligible entries, and every admitted learner has at most the capacity of its dimension
+(`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted entry is a
+function of the capacity and the length of the feature list it reads. A controller's update
+visits each of its rows, and a policy's loops visit its actions.
 
 `Controller.creditStep` takes the taken row out of its table (`detachedUpdate`) so that the
 runtime can reuse the row's storage, and its twin follows that composition: the taken row's
@@ -342,146 +343,65 @@ theorem plan_work (κ : Costs) (controller : Controller config dimension actions
 
 /-! ## Policies -/
 
-/-- Twin of `PolicySnapshot.best`: the first value read, the values listed, the first one
-dropped, then one comparison for each other value. -/
-def best (κ : Costs) (snapshot : PolicySnapshot count) : Costed Binary32 := do
-  let first ← Costed.op (κ .read) (snapshot.values.get (firstAction count))
-  let values ← Costed.scanVector .toList (κ .visit) snapshot.values snapshot.values.toList
-  let rest ← Costed.scanList .drop (κ .visit) (values.take 1) (values.drop 1)
-  Costed.foldl (κ .visit)
-    (fun best value => Costed.op (κ .compare) (if best.Less value then value else best))
-    first rest
-
-theorem best_val (κ : Costs) (snapshot : PolicySnapshot count) :
-    (best κ snapshot).val = snapshot.best := rfl
-
 /-- Bound of an ordered maximum over `size` values. -/
 abbrev bestBound (κ : Costs) (size : Nat) : Nat :=
   κ .read + (Library.toList.control (κ .visit) size +
     (Library.drop.control (κ .visit) 1 + Library.foldl.work (κ .visit) size (κ .compare)))
 
-theorem best_work (κ : Costs) (snapshot : PolicySnapshot count) :
-    (best κ snapshot).work ≤ bestBound κ count.word.toNat := by
-  have dropped : Library.drop.control (κ .visit) (snapshot.values.toList.take 1).length ≤
-      Library.drop.control (κ .visit) 1 :=
-    Library.control_mono _ (by rw [List.length_take]; exact Nat.min_le_left _ _)
-  have shorter := Library.foldl.work_mono (visit := κ .visit) (Nat.sub_le count.word.toNat 1)
-    (Nat.le_refl (κ .compare))
-  unfold best
-  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at
-    (Nat.le_refl _) (Costed.bind_work_le_at (Nat.le_refl _)
-      (Costed.foldl_work_le (κ .visit) (κ .compare) _ _ _ fun _ _ _ => Nat.le_refl _)))) ?_
-  simp only [List.length_drop, Vector.length_toList, bestBound]
-  omega
-
-/-- Twin of `PolicySnapshot.candidates`: the maximum, the tie threshold, the action list, then
-one test for each action. -/
-def candidates (κ : Costs) (snapshot : PolicySnapshot count) :
-    Costed (List (Action count.word.toNat)) := do
-  let top ← best κ snapshot
-  let threshold ← Costed.op (κ .tieThreshold) (top.sub tieWindow)
-  let range ← Costed.scanList .finRange (κ .visit) (List.finRange count.word.toNat)
-    (List.finRange count.word.toNat)
-  Costed.filter (κ .visit)
-    (fun action => Costed.op (κ .candidate)
-      (decide (threshold.LessOrEqual (snapshot.values.get action))))
-    range
-
-theorem candidates_val (κ : Costs) (snapshot : PolicySnapshot count) :
-    (candidates κ snapshot).val = snapshot.candidates := rfl
+theorem bestCosted_within (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.bestCosted.Within κ (bestBound κ count.word.toNat) := by
+  unfold PolicySnapshot.bestCosted bestBound
+  refine Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ) ?_
+  refine Acorn.Costed.bind_within (Acorn.Costed.toList_within _ κ) ?_
+  refine Acorn.Costed.bind_within (Acorn.Costed.drop_within _ _ κ) ?_
+  refine (Acorn.Costed.foldl_within fun _ _ _ => Acorn.Costed.op_within _ _ κ).mono ?_
+  exact Library.foldl.work_mono (by simp [Acorn.Costed.drop_val, Acorn.Costed.toList_val])
+    (Nat.le_refl _)
 
 /-- Bound of the near-maximum candidates over `size` values. -/
 abbrev candidatesBound (κ : Costs) (size : Nat) : Nat :=
   bestBound κ size + (κ .tieThreshold + (Library.finRange.control (κ .visit) size +
     Library.filter.work (κ .visit) size (κ .candidate)))
 
-theorem candidates_work (κ : Costs) (snapshot : PolicySnapshot count) :
-    (candidates κ snapshot).work ≤ candidatesBound κ count.word.toNat := by
-  unfold candidates
-  refine Nat.le_trans (Costed.bind_work_le_at (best_work κ snapshot)
-    (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at (Nat.le_refl _)
-      (Costed.filter_work_le (κ .visit) (κ .candidate) _ _ fun _ _ => Nat.le_refl _)))) ?_
-  simp only [List.length_finRange, candidatesBound]
-  omega
+theorem candidatesCosted_within (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.candidatesCosted.Within κ (candidatesBound κ count.word.toNat) := by
+  unfold PolicySnapshot.candidatesCosted candidatesBound
+  refine Acorn.Costed.bind_within (bestCosted_within κ snapshot) ?_
+  refine Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ) ?_
+  refine Acorn.Costed.bind_within (Acorn.Costed.finRange_within _ κ) ?_
+  refine (Acorn.Costed.filter_within fun _ _ => Acorn.Costed.op_within _ _ κ).mono ?_
+  simp [Acorn.Costed.finRange_val]
 
 theorem candidates_length (snapshot : PolicySnapshot count) :
     snapshot.candidates.length ≤ count.word.toNat := by
   have filtered := List.length_filter_le
     (fun action => decide ((snapshot.best.sub tieWindow).LessOrEqual (snapshot.values.get action)))
     (List.finRange count.word.toNat)
-  simpa only [PolicySnapshot.candidates, List.length_finRange] using filtered
+  simpa only [PolicySnapshot.candidates_def, List.length_finRange] using filtered
 
-/-- The costed recursion of `reservoir`, by the same recursion: one draw for each pending
-candidate, and a visit for its end. -/
-def reservoirRun (κ : Costs) : List (Action actions) → UInt64 → Action actions →
-    Rng.Xoshiro256 → Costed (Action actions × Rng.Xoshiro256)
-  | [], _, pick, rng => Costed.op (κ .visit) (pick, rng)
-  | action :: rest, seen, pick, rng =>
-    let seen := seen + 1
-    let draw := rng.nextBelow (Word.Count.ofWord seen)
-    Costed.charge (κ .visit + κ .reservoirDraw)
-      (reservoirRun κ rest seen (if draw.1.val == 0 then action else pick) draw.2)
-
-theorem reservoirRun_val (κ : Costs) (pending : List (Action actions)) (seen : UInt64)
+theorem reservoirCosted_within (κ : Costs) (pending : List (Action actions)) (seen : UInt64)
     (pick : Action actions) (rng : Rng.Xoshiro256) :
-    (reservoirRun κ pending seen pick rng).val = reservoir pending seen pick rng := by
+    (reservoirCosted pending seen pick rng).Within κ
+      (pass (κ .visit) pending.length (κ .reservoirDraw)) := by
   induction pending generalizing seen pick rng with
-  | nil => rfl
+  | nil => exact (Acorn.Costed.op_within _ _ κ).mono (by simp [pass])
   | cons action rest ih =>
-    rw [reservoirRun, reservoir]
-    exact ih _ _ _
-
-theorem reservoirRun_work (κ : Costs) (pending : List (Action actions)) (seen : UInt64)
-    (pick : Action actions) (rng : Rng.Xoshiro256) :
-    (reservoirRun κ pending seen pick rng).work ≤
-      pass (κ .visit) pending.length (κ .reservoirDraw) := by
-  induction pending generalizing seen pick rng with
-  | nil => simp [reservoirRun]
-  | cons action rest ih =>
-    have restBound := ih (seen + 1)
+    have restFits := ih (seen + 1)
       (if (rng.nextBelow (Word.Count.ofWord (seen + 1))).1.val == 0 then action else pick)
       (rng.nextBelow (Word.Count.ofWord (seen + 1))).2
-    simp only [reservoirRun, Costed.charge, pass, List.length_cons, Nat.succ_mul] at restBound ⊢
+    refine (Acorn.Costed.charge_within (Acorn.Costed.charge_within restFits)).mono ?_
+    simp only [pass, List.length_cons, Nat.succ_mul]
     omega
-
-/-- Twin of `PolicySnapshot.greedy`. -/
-def greedy (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    Costed (Action count.word.toNat × Rng.Xoshiro256) := do
-  let pending ← candidates κ snapshot
-  Costed.via (reservoir pending 0 (firstAction count) rng)
-    (reservoirRun κ pending 0 (firstAction count) rng)
-
-theorem greedy_val (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    (greedy κ snapshot rng).val = snapshot.greedy rng := rfl
 
 /-- Bound of a greedy draw over `size` values. -/
 abbrev greedyBound (κ : Costs) (size : Nat) : Nat :=
   candidatesBound κ size + pass (κ .visit) size (κ .reservoirDraw)
 
-theorem greedy_work (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    (greedy κ snapshot rng).work ≤ greedyBound κ count.word.toNat :=
-  Costed.bind_work_le_at (candidates_work κ snapshot)
-    (Nat.le_trans (reservoirRun_work κ _ 0 _ rng)
+theorem greedyCosted_within (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.greedyCosted rng).Within κ (greedyBound κ count.word.toNat) :=
+  Acorn.Costed.bind_within (candidatesCosted_within κ snapshot)
+    ((reservoirCosted_within κ _ 0 _ rng).mono
       (pass_mono (candidates_length snapshot) (Nat.le_refl _)))
-
-/-- Twin of `PolicySnapshot.probabilities`: the candidates and their count, the maximum,
-then one mass for each action. -/
-def probabilities (κ : Costs) (snapshot : PolicySnapshot count) :
-    Costed (Vector Binary32 count.word.toNat) := do
-  let pending ← candidates κ snapshot
-  let size ← Costed.scanList .length (κ .visit) pending pending.length
-  let top ← best κ snapshot
-  let explore := snapshot.epsilon.value.div (Binary32.ofUInt64 count.word)
-  let greedy := (Binary32.one.sub snapshot.epsilon.value).div (Binary32.ofUInt64 size.toUInt64)
-  let threshold := top.sub tieWindow
-  Costed.charge (κ .probabilitiesOpen)
-    (Costed.mapVector (κ .visit)
-      (fun value => Costed.op (κ .probability)
-        (explore.add (if threshold.LessOrEqual value then greedy else .zero)))
-      snapshot.values)
-
-theorem probabilities_val (κ : Costs) (snapshot : PolicySnapshot count) :
-    (probabilities κ snapshot).val = snapshot.probabilities := rfl
 
 /-- Bound of the nominal masses over `size` values. -/
 abbrev probabilitiesBound (κ : Costs) (size : Nat) : Nat :=
@@ -489,76 +409,137 @@ abbrev probabilitiesBound (κ : Costs) (size : Nat) : Nat :=
     κ .probabilitiesOpen +
     Library.vectorMap.work (κ .visit) size (κ .probability)
 
-theorem probabilities_work (κ : Costs) (snapshot : PolicySnapshot count) :
-    (probabilities κ snapshot).work ≤ probabilitiesBound κ count.word.toNat := by
-  have size := Library.length.control_mono (visit := κ .visit) (candidates_length snapshot)
-  unfold probabilities
-  refine Nat.le_trans (Costed.bind_work_le_at (candidates_work κ snapshot)
-    (Costed.bind_work_le_at (Nat.le_refl _)
-      (Costed.bind_work_le (best_work κ snapshot) fun _ =>
-        Nat.add_le_add_left (Costed.mapVector_work_le (κ .visit) (κ .probability) _
-          snapshot.values fun _ _ => Nat.le_refl _) (κ .probabilitiesOpen)))) ?_
-  simp only [candidates_val, probabilitiesBound]
+theorem probabilitiesCosted_within (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.probabilitiesCosted.Within κ (probabilitiesBound κ count.word.toNat) := by
+  have size : Library.length.control (κ .visit) snapshot.candidatesCosted.val.length ≤
+      Library.length.control (κ .visit) count.word.toNat :=
+    Library.control_mono _ (candidates_length snapshot)
+  refine (Acorn.Costed.bind_within (candidatesCosted_within κ snapshot)
+    (Acorn.Costed.bind_within (Acorn.Costed.length_within _ κ)
+      (Acorn.Costed.bind_within (bestCosted_within κ snapshot)
+        (Acorn.Costed.charge_within
+          (Acorn.Costed.mapVector_within fun _ _ => Acorn.Costed.op_within _ _ κ))))).mono ?_
+  simp only [probabilitiesBound]
   omega
 
-/-- The costed composition of `PolicySnapshot.draw`: the branch draw, then the uniform or
-the greedy draw. -/
-def drawRun (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    Costed (Action count.word.toNat × Rng.Xoshiro256) :=
-  let branch := rng.nextF64
-  let explored := branch.1.less (Conversion.widen snapshot.epsilon.value)
-  Costed.charge (κ .drawClose)
-    (Costed.ite (explored = true) (Costed.op (κ .uniform) (uniformAction count branch.2))
-      (greedy κ snapshot branch.2))
-
-theorem drawRun_val (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    (drawRun κ snapshot rng).val = ((snapshot.draw rng).1.action, (snapshot.draw rng).2) := by
-  simp only [drawRun, Costed.charge, PolicySnapshot.draw]
-  split <;> rfl
-
-/-- Twin of `PolicySnapshot.draw`. -/
-def draw (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    Costed (PolicyDecision count × Rng.Xoshiro256) :=
-  Costed.via (snapshot.draw rng) (drawRun κ snapshot rng)
-
-theorem draw_work (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    (draw κ snapshot rng).work ≤
-      κ .drawClose + max (κ .uniform) (greedyBound κ count.word.toNat) :=
-  Nat.add_le_add_left (Nat.le_trans (Costed.ite_work_le _ _ _)
-    (Costed.max_le_max (Nat.le_refl _) (greedy_work κ snapshot _))) _
-
-/-- Twin of `PolicySnapshot.drawPersistent`: a run begun, or the greedy draw, and the
-nominal masses. -/
-def drawPersistent (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    Costed (PersistentDecision count × Rng.Xoshiro256) :=
-  let begun := beginExploration count snapshot.epsilon rng
-  Costed.charge (κ .explorationBegin) <|
-  match begun.1 with
-  | some run => do
-    let masses ← probabilities κ snapshot
-    Costed.pure (⟨run.action, true, some run, masses⟩, begun.2)
-  | none => do
-    let chosen ← greedy κ snapshot begun.2
-    let masses ← probabilities κ snapshot
-    Costed.pure (⟨chosen.1, false, none, masses⟩, chosen.2)
-
-theorem drawPersistent_val (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    (drawPersistent κ snapshot rng).val = snapshot.drawPersistent rng := by
-  cases begun : (beginExploration count snapshot.epsilon rng).1 <;>
-    simp only [drawPersistent, PolicySnapshot.drawPersistent, Costed.charge, begun] <;> rfl
+theorem drawCosted_within (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.drawCosted rng).Within κ
+      (κ .drawClose + max (κ .uniform) (greedyBound κ count.word.toNat)) :=
+  Acorn.Costed.charge_within ((Acorn.Costed.bind_within_all
+    (Acorn.Costed.within_ite (bound := max (κ .uniform) (greedyBound κ count.word.toNat))
+      ((Acorn.Costed.op_within _ _ κ).mono (Nat.le_max_left _ _))
+      ((greedyCosted_within κ snapshot _).mono (Nat.le_max_right _ _)))
+    fun _ => Acorn.Costed.pure_within _ κ).mono (Nat.le_of_eq (Nat.add_zero _)))
 
 /-- Bound of a persistent draw over `size` values. -/
 abbrev persistentBound (κ : Costs) (size : Nat) : Nat :=
   κ .explorationBegin + (greedyBound κ size + probabilitiesBound κ size)
 
+theorem drawPersistentCosted_within (κ : Costs) (snapshot : PolicySnapshot count)
+    (rng : Rng.Xoshiro256) :
+    (snapshot.drawPersistentCosted rng).Within κ (persistentBound κ count.word.toNat) := by
+  unfold PolicySnapshot.drawPersistentCosted
+  refine Acorn.Costed.charge_within ?_
+  split
+  · exact (Acorn.Costed.bind_within_all (probabilitiesCosted_within κ snapshot) fun _ =>
+      Acorn.Costed.pure_within _ κ).mono (by omega)
+  · exact (Acorn.Costed.bind_within_all (greedyCosted_within κ snapshot _) fun _ =>
+      Acorn.Costed.bind_within_all (probabilitiesCosted_within κ snapshot) fun _ =>
+        Acorn.Costed.pure_within _ κ).mono (by omega)
+
+/-! ### The policies in the twins' accounting
+
+Each definition below is the executed policy function with the bound proved above of its costed
+definition as its work; its `_costed` theorem checks that the costed definition is within that
+work. -/
+
+/-- `PolicySnapshot.best` with its bound. -/
+def best (κ : Costs) (snapshot : PolicySnapshot count) : Costed Binary32 :=
+  ⟨snapshot.best, bestBound κ count.word.toNat⟩
+
+theorem best_val (κ : Costs) (snapshot : PolicySnapshot count) :
+    (best κ snapshot).val = snapshot.best := rfl
+
+theorem best_work (κ : Costs) (snapshot : PolicySnapshot count) :
+    (best κ snapshot).work ≤ bestBound κ count.word.toNat := Nat.le_refl _
+
+theorem best_costed (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.bestCosted.Within κ (best κ snapshot).work := bestCosted_within κ snapshot
+
+/-- `PolicySnapshot.candidates` with its bound. -/
+def candidates (κ : Costs) (snapshot : PolicySnapshot count) :
+    Costed (List (Action count.word.toNat)) :=
+  ⟨snapshot.candidates, candidatesBound κ count.word.toNat⟩
+
+theorem candidates_val (κ : Costs) (snapshot : PolicySnapshot count) :
+    (candidates κ snapshot).val = snapshot.candidates := rfl
+
+theorem candidates_work (κ : Costs) (snapshot : PolicySnapshot count) :
+    (candidates κ snapshot).work ≤ candidatesBound κ count.word.toNat := Nat.le_refl _
+
+theorem candidates_costed (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.candidatesCosted.Within κ (candidates κ snapshot).work :=
+  candidatesCosted_within κ snapshot
+
+/-- `PolicySnapshot.greedy` with its bound. -/
+def greedy (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    Costed (Action count.word.toNat × Rng.Xoshiro256) :=
+  ⟨snapshot.greedy rng, greedyBound κ count.word.toNat⟩
+
+theorem greedy_val (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (greedy κ snapshot rng).val = snapshot.greedy rng := rfl
+
+theorem greedy_work (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (greedy κ snapshot rng).work ≤ greedyBound κ count.word.toNat := Nat.le_refl _
+
+theorem greedy_costed (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.greedyCosted rng).Within κ (greedy κ snapshot rng).work :=
+  greedyCosted_within κ snapshot rng
+
+/-- `PolicySnapshot.probabilities` with its bound. -/
+def probabilities (κ : Costs) (snapshot : PolicySnapshot count) :
+    Costed (Vector Binary32 count.word.toNat) :=
+  ⟨snapshot.probabilities, probabilitiesBound κ count.word.toNat⟩
+
+theorem probabilities_val (κ : Costs) (snapshot : PolicySnapshot count) :
+    (probabilities κ snapshot).val = snapshot.probabilities := rfl
+
+theorem probabilities_work (κ : Costs) (snapshot : PolicySnapshot count) :
+    (probabilities κ snapshot).work ≤ probabilitiesBound κ count.word.toNat := Nat.le_refl _
+
+theorem probabilities_costed (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.probabilitiesCosted.Within κ (probabilities κ snapshot).work :=
+  probabilitiesCosted_within κ snapshot
+
+/-- `PolicySnapshot.draw` with its bound. -/
+def draw (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    Costed (PolicyDecision count × Rng.Xoshiro256) :=
+  ⟨snapshot.draw rng, κ .drawClose + max (κ .uniform) (greedyBound κ count.word.toNat)⟩
+
+theorem draw_work (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (draw κ snapshot rng).work ≤
+      κ .drawClose + max (κ .uniform) (greedyBound κ count.word.toNat) := Nat.le_refl _
+
+theorem draw_costed (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.drawCosted rng).Within κ (draw κ snapshot rng).work :=
+  drawCosted_within κ snapshot rng
+
+/-- `PolicySnapshot.drawPersistent` with its bound. -/
+def drawPersistent (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    Costed (PersistentDecision count × Rng.Xoshiro256) :=
+  ⟨snapshot.drawPersistent rng, persistentBound κ count.word.toNat⟩
+
+theorem drawPersistent_val (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (drawPersistent κ snapshot rng).val = snapshot.drawPersistent rng := rfl
+
 theorem drawPersistent_work (κ : Costs) (snapshot : PolicySnapshot count)
     (rng : Rng.Xoshiro256) :
-    (drawPersistent κ snapshot rng).work ≤ persistentBound κ count.word.toNat := by
-  have masses := probabilities_work κ snapshot
-  have chosen := greedy_work κ snapshot (beginExploration count snapshot.epsilon rng).2
-  cases begun : (beginExploration count snapshot.epsilon rng).1 <;>
-    simp only [drawPersistent, Costed.charge, begun, Costed.bind_work, Costed.pure,
-      persistentBound] <;> omega
+    (drawPersistent κ snapshot rng).work ≤ persistentBound κ count.word.toNat := Nat.le_refl _
+
+theorem drawPersistent_costed (κ : Costs) (snapshot : PolicySnapshot count)
+    (rng : Rng.Xoshiro256) :
+    (snapshot.drawPersistentCosted rng).Within κ (drawPersistent κ snapshot rng).work :=
+  drawPersistentCosted_within κ snapshot rng
 
 /-- Twin of `Controller.snapshot`. -/
 def snapshot (κ : Costs) (controller : Controller config dimension count.word.toNat)
@@ -712,60 +693,61 @@ theorem exploreRate_work (κ : Costs) (controller : Controller config dimension 
   · simp only [Vector.length_toList, rateBound]
     omega
 
-/-- Twin of `PolicySnapshot.expected`: the first value read, the values listed once, then the
-lower bound, the maximum, the tie threshold and the totals, each fold a pass over the list. -/
-def expected (κ : Costs) (snapshot : PolicySnapshot count) : Costed Binary32 := do
-  let first ← Costed.op (κ .read) (snapshot.values.get (firstAction count))
-  let values ← Costed.scanVector .toList (κ .visit) snapshot.values snapshot.values.toList
-  let lower ← Costed.foldl (κ .visit)
-    (fun lo value => Costed.op (κ .compare) (if value.less lo then value else lo)) first values
-  let upper ← best κ snapshot
-  let threshold ← Costed.op (κ .tieThreshold) (upper.sub tieWindow)
-  let totals ← Costed.foldl (κ .visit)
-    (fun (all, tied, n) value => Costed.op (κ .expectedTerm)
-      (all.add (Conversion.widen value),
-        if threshold.lessOrEqual value then tied.add (Conversion.widen value) else tied,
-        if threshold.lessOrEqual value then n + 1 else n))
-    (Binary64.ofUInt64 0, Binary64.ofUInt64 0, 0) values
-  let eps := Conversion.widen snapshot.epsilon.value
-  let value := ((Binary64.ofUInt64 1).sub eps).mul
-    (totals.2.1.div (Binary64.ofUInt64 totals.2.2.toUInt64))
-  let value := value.add (eps.mul (totals.1.div (Binary64.ofUInt64 count.word)))
-  Costed.op (κ .expectedClose) ((Conversion.narrow value).saturate lower upper)
-
-theorem expected_val (κ : Costs) (snapshot : PolicySnapshot count) :
-    (expected κ snapshot).val = snapshot.expected := rfl
-
 /-- Bound of a policy mean over `size` values. -/
 abbrev expectedBound (κ : Costs) (size : Nat) : Nat :=
   κ .read + (Library.toList.control (κ .visit) size +
     (Library.foldl.work (κ .visit) size (κ .compare) + (bestBound κ size + (κ .tieThreshold +
       (Library.foldl.work (κ .visit) size (κ .expectedTerm) + κ .expectedClose)))))
 
-theorem expected_work (κ : Costs) (snapshot : PolicySnapshot count) :
-    (expected κ snapshot).work ≤ expectedBound κ count.word.toNat := by
-  unfold expected
-  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at
-    (Nat.le_refl _) (Costed.bind_work_le_at
-      (Costed.foldl_work_le (κ .visit) (κ .compare) _ _ _ fun _ _ _ => Nat.le_refl _)
-      (Costed.bind_work_le_at (best_work κ snapshot) (Costed.bind_work_le_at (Nat.le_refl _)
-        (Costed.bind_work_le_at (Costed.foldl_work_le (κ .visit) (κ .expectedTerm) _ _ _
-          fun acc _ _ => ?_) (Nat.le_refl _))))))) ?_
-  · obtain ⟨all, tied, n⟩ := acc
-    exact Nat.le_refl _
-  · simp only [Vector.length_toList, expectedBound]
-    omega
+theorem expectedCosted_within (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.expectedCosted.Within κ (expectedBound κ count.word.toNat) := by
+  unfold PolicySnapshot.expectedCosted expectedBound
+  refine Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ) ?_
+  refine Acorn.Costed.bind_within (Acorn.Costed.toList_within _ κ) ?_
+  refine Acorn.Costed.bind_within
+    ((Acorn.Costed.foldl_within fun _ _ _ => Acorn.Costed.op_within _ _ κ).mono ?_) ?_
+  · simp [Acorn.Costed.toList_val]
+  refine Acorn.Costed.bind_within (bestCosted_within κ snapshot) ?_
+  refine Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ) ?_
+  refine Acorn.Costed.bind_within
+    ((Acorn.Costed.foldl_within (bound := κ .expectedTerm) fun acc _ _ => ?_).mono ?_) ?_
+  · obtain ⟨_, _, _⟩ := acc
+    exact Acorn.Costed.op_within _ _ κ
+  · simp [Acorn.Costed.toList_val]
+  · exact Acorn.Costed.op_within _ _ κ
 
-/-- Twin of `servedProbabilities`: one mass for each action. -/
+/-- `PolicySnapshot.expected` with its bound. -/
+def expected (κ : Costs) (snapshot : PolicySnapshot count) : Costed Binary32 :=
+  ⟨snapshot.expected, expectedBound κ count.word.toNat⟩
+
+theorem expected_val (κ : Costs) (snapshot : PolicySnapshot count) :
+    (expected κ snapshot).val = snapshot.expected := rfl
+
+theorem expected_work (κ : Costs) (snapshot : PolicySnapshot count) :
+    (expected κ snapshot).work ≤ expectedBound κ count.word.toNat := Nat.le_refl _
+
+theorem expected_costed (κ : Costs) (snapshot : PolicySnapshot count) :
+    snapshot.expectedCosted.Within κ (expected κ snapshot).work := expectedCosted_within κ snapshot
+
+theorem servedProbabilitiesCosted_within (κ : Costs) (action : Action count.word.toNat) :
+    (Features.servedProbabilitiesCosted action).Within κ
+      (Library.ofFn.work (κ .visit) count.word.toNat (κ .read)) :=
+  Acorn.Costed.ofFn_within fun _ => Acorn.Costed.op_within _ _ κ
+
+/-- `servedProbabilities` with its bound. -/
 def servedProbabilities (κ : Costs) (action : Action count.word.toNat) :
     Costed (Vector Binary32 count.word.toNat) :=
-  Costed.ofFn (κ .visit) fun query => Costed.op (κ .read) (if query = action then .one else .zero)
+  ⟨Features.servedProbabilities action, Library.ofFn.work (κ .visit) count.word.toNat (κ .read)⟩
 
 theorem servedProbabilities_val (κ : Costs) (action : Action count.word.toNat) :
     (servedProbabilities κ action).val = Features.servedProbabilities action := rfl
 
 theorem servedProbabilities_work (κ : Costs) (action : Action count.word.toNat) :
     (servedProbabilities κ action).work ≤ Library.ofFn.work (κ .visit) count.word.toNat (κ .read) :=
-  Costed.ofFn_work_le _ _ _ fun _ => Nat.le_refl _
+  Nat.le_refl _
+
+theorem servedProbabilities_costed (κ : Costs) (action : Action count.word.toNat) :
+    (Features.servedProbabilitiesCosted action).Within κ (servedProbabilities κ action).work :=
+  servedProbabilitiesCosted_within κ action
 
 end AcornVerif.Resource.Twin

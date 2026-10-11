@@ -1082,7 +1082,7 @@ theorem persistent_branch {count : Word.Count} (snapshot : PolicySnapshot count)
     (rng : Rng.Xoshiro256) :
     (snapshot.drawPersistent rng).1.explored = (snapshot.draw rng).1.explored := by
   cases branch : rng.nextF64.1.less (Conversion.widen snapshot.epsilon.value) <;>
-    simp [PolicySnapshot.drawPersistent, beginExploration, PolicySnapshot.draw, branch]
+    simp [PolicySnapshot.drawPersistent_def, beginExploration, PolicySnapshot.draw_def, branch]
 
 /-- What a persistent draw commits, for every snapshot and generator state. An exploring
 draw commits the uniform action of the generator state after the duration draw, with the
@@ -1102,7 +1102,7 @@ theorem persistent_draw {count : Word.Count} (snapshot : PolicySnapshot count)
         (snapshot.drawPersistent rng).1.action = (snapshot.greedy rng.nextF64.2).1) ∧
       (snapshot.drawPersistent rng).1.probabilities = snapshot.probabilities := by
   cases branch : rng.nextF64.1.less (Conversion.widen snapshot.epsilon.value) <;>
-    simp [PolicySnapshot.drawPersistent, beginExploration, branch]
+    simp [PolicySnapshot.drawPersistent_def, beginExploration, branch]
 
 /-- A persistent draw reports masses consistent with the policy it was drawn from, so
 the frame an executing option draws is a sample of its own distribution, the first

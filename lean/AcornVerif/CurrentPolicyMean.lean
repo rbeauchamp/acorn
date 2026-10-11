@@ -626,7 +626,7 @@ theorem expected_bound (snapshot : PolicySnapshot count) (radius : ℚ)
     intro word
     have inside := saturate_hull word _ _ (bounded low).1 (bounded high).1
     exact ⟨inside.1, le_trans inside.2 (max_le (bounded low).2 (bounded high).2)⟩
-  unfold PolicySnapshot.expected
+  rw [PolicySnapshot.expected_def]
   simp only [lowerSame, upperSame]
   exact hull _
 

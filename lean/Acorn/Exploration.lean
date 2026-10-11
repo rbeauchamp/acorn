@@ -152,15 +152,41 @@ structure PersistentDecision (count : Word.Count) where
   /-- Nominal masses at the draw, before persistence conditions later steps. -/
   probabilities : Vector Binary32 count.word.toNat
 
+/-- The persistent draw with its work: a run begun, or the greedy draw, and the nominal
+masses. -/
+def PolicySnapshot.drawPersistentCosted {count : Word.Count} (snapshot : PolicySnapshot count)
+    (rng : Rng.Xoshiro256) : Costed (PersistentDecision count × Rng.Xoshiro256) :=
+  let draw := beginExploration count snapshot.epsilon rng
+  Costed.charge .explorationBegin <|
+  match draw.1 with
+  | some run => do
+    let explored := true
+    let masses ← snapshot.probabilitiesCosted
+    Costed.pure (⟨run.action, explored, some run, masses⟩, draw.2)
+  | none => do
+    let greedy ← snapshot.greedyCosted draw.2
+    let explored := false
+    let masses ← snapshot.probabilitiesCosted
+    Costed.pure (⟨greedy.1, explored, none, masses⟩, greedy.2)
+
 /-- Persistent exploration or the existing ordered greedy reservoir. -/
 def PolicySnapshot.drawPersistent {count : Word.Count} (snapshot : PolicySnapshot count)
     (rng : Rng.Xoshiro256) : PersistentDecision count × Rng.Xoshiro256 :=
-  let draw := beginExploration count snapshot.epsilon rng
-  match draw.1 with
-  | some run => (⟨run.action, true, some run, snapshot.probabilities⟩, draw.2)
-  | none =>
-    let greedy := snapshot.greedy draw.2
-    (⟨greedy.1, false, none, snapshot.probabilities⟩, greedy.2)
+  (snapshot.drawPersistentCosted rng).val
+
+/-- A persistent draw begins a run, or takes the greedy draw, and reports the nominal masses. -/
+theorem PolicySnapshot.drawPersistent_def {count : Word.Count} (snapshot : PolicySnapshot count)
+    (rng : Rng.Xoshiro256) :
+    snapshot.drawPersistent rng =
+      let draw := beginExploration count snapshot.epsilon rng
+      match draw.1 with
+      | some run => (⟨run.action, true, some run, snapshot.probabilities⟩, draw.2)
+      | none =>
+        let greedy := snapshot.greedy draw.2
+        (⟨greedy.1, false, none, snapshot.probabilities⟩, greedy.2) := by
+  unfold PolicySnapshot.drawPersistent PolicySnapshot.drawPersistentCosted
+  dsimp only
+  cases (beginExploration count snapshot.epsilon rng).1 <;> rfl
 
 /-- Frozen-decision credit for a persistent draw from `snapshot`: the action the draw
 returned and the snapshot's original values, the update `Controller.policyStep` makes
@@ -184,14 +210,24 @@ theorem Controller.persistentStep_policy {count : Word.Count} {config : Acorn.Co
       controller.persistentStep features decision.snapshot drawn reward duration := by
   simp only [Controller.persistentStep, Controller.policyStep, same]
 
+/-- The served masses with their work: one mass for each action. -/
+def servedProbabilitiesCosted {count : Word.Count} (action : Action count.word.toNat) :
+    Costed (Vector Binary32 count.word.toNat) :=
+  Costed.ofFn fun query => Costed.op .read (if query = action then .one else .zero)
+
 /-- Served steps have point-mass observations, regardless of the boundary epsilon. -/
 def servedProbabilities {count : Word.Count} (action : Action count.word.toNat) :
-    Vector Binary32 count.word.toNat := Vector.ofFn fun query => if query = action then .one else .zero
+    Vector Binary32 count.word.toNat := (servedProbabilitiesCosted action).val
+
+/-- The served masses are one at the served action and zero elsewhere. -/
+theorem servedProbabilities_def {count : Word.Count} (action : Action count.word.toNat) :
+    servedProbabilities action =
+      Vector.ofFn fun query => if query = action then .one else .zero := rfl
 
 /-- The selected action is the only nonzero reported mass while a run persists. -/
 theorem served_probability {count : Word.Count} (action query : Action count.word.toNat) :
     (servedProbabilities action).get query = (if query = action then .one else .zero) := by
-  simp [servedProbabilities, Vector.get, Fin.cast]
+  simp [servedProbabilities_def, Vector.get, Fin.cast]
 
 /-- A served step cannot provide support for a different action, even with
 positive boundary epsilon. This is a conditional statement over every run. -/
