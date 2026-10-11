@@ -69,7 +69,9 @@ repeats. That a site's stretch does at most its cost in word operations is the h
 each bound in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
-array that is shared when it is written (issue 84 of the repository), cache behaviour and time.
+array that is shared when it is written (issue 84 of the repository), the one-time
+initialization of a closed term, a value with no free variable that the compiled code builds
+once for the process and then reads, cache behaviour and time.
 No unit here is a second, a byte or an instruction of a particular processor.
 -/
 
@@ -81,7 +83,8 @@ inductive Site where
   | visit
   /-- One binary32 addition of an ordered sum, with the read of its term. -/
   | sumTerm
-  /-- The read of one stored element into a list or vector being built. -/
+  /-- The read of one stored element into a list or vector being built, or as the first
+  accumulator of a fold. -/
   | read
   /-- The first SwiftTD loop's entry: the worklist is taken and the eligible list emptied. -/
   | firstOpen
@@ -97,7 +100,7 @@ inductive Site where
   | secondElement
   /-- The TD error of a SwiftTD step and the store of its prediction and accumulator. -/
   | stepClose
-  /-- A fresh transient record apart from its nine register vectors. -/
+  /-- A fresh transient record apart from its zero register vectors. -/
   | zeroTransient
   /-- The store of a new trajectory's anchor prediction and accumulator. -/
   | beginClose
@@ -113,6 +116,14 @@ inductive Site where
   | releaseClose
   /-- A retired index's registers cleared, its weight zeroed and its step size re-anchored. -/
   | retire
+  /-- A managed learner's record after one entry: its next phase and the record itself. -/
+  | managedEntry
+  /-- A row credit's test of a pending restart. -/
+  | creditRestart
+  /-- The error or target a learner entry reads that its caller forms: a terminal credit's
+  error and trace decay, a stopped trajectory's error, a ranked row's discounted target or a
+  deviation learner's target. -/
+  | learnerError
   /-- A shared-error update's store of the rows, the taken row and the lags. -/
   | creditClose
   /-- The on-policy error of a shared-error update. -/
@@ -125,6 +136,8 @@ inductive Site where
   | compare
   /-- One near-maximum test of an action's value against the tie threshold. -/
   | candidate
+  /-- A policy's tie threshold: its maximum less the tie window. -/
+  | tieThreshold
   /-- One reservoir step: a bounded draw and the selection of the pick. -/
   | reservoirDraw
   /-- One action's nominal mass. -/
@@ -143,7 +156,8 @@ inductive Site where
   | snapshot
   /-- One learner's contribution to a derived exploration rate. -/
   | rateTerm
-  /-- The projection of a derived exploration rate, with the fresh-feature fallback. -/
+  /-- The projection of an exploration rate: a derived rate, with its fresh-feature fallback,
+  or an annealed rate. -/
   | rateClose
   /-- A normalized step-size sum's emptiness test, its endpoints and its result. -/
   | normalizedOpen
@@ -159,7 +173,8 @@ inductive Site where
   | sampleTerm
   /-- A generated unit's output from its projection. -/
   | activation
-  /-- One sensor word hashed into a feature slot for one tiling. -/
+  /-- One word hashed into a feature slot: a sensor word for one tiling, a unit or a model
+  age. -/
   | hashFeature
   /-- One unit's output tested and its feature slot computed. -/
   | imprint
@@ -207,7 +222,7 @@ inductive Site where
   | planBoundary
   /-- A fresh learner's rails and record, apart from its vectors. -/
   | initialState
-  /-- One unit's Demon-0 weight tested for a ranking candidate. -/
+  /-- One unit's Demon-0 weight tested for a ranking candidate, with its feature slot computed. -/
   | rankCandidate
   /-- The ranked width's search, of at most 15 doublings. -/
   | rankWidth
@@ -302,14 +317,18 @@ inductive Library where
   /-- `++` on lists, replaced by `List.appendTR` (`List.append_eq_appendTR`): `List.reverse` of
   the first list, then `List.reverseAux` over it. -/
   | append
+  /-- `List.drop` (`Init.Data.List.Basic`), which no `csimp` replaces: a structural recursion
+  over the elements it drops, one loop. -/
+  | drop
   /-- `List.dropLast`, replaced by `List.dropLastTR` (`List.dropLast_eq_dropLastTR`):
   `List.toArray` (two), `Array.pop`, then `Array.toList` (one). -/
   | dropLast
   /-- `List.zipIdx`, replaced by `List.zipIdxTR` (`List.zipIdx_eq_zipIdxTR`): `List.toArray`
   (two), then `Array.foldr` (one). -/
   | zipIdx
-  /-- `List.sum`, a `List.foldr`, replaced by `List.foldrTR` (`List.foldr_eq_foldrTR`):
-  `List.toArray` (two), then `Array.foldr` (one). -/
+  /-- `List.sum` of integers, a `List.foldr`. The specialization that runs is the toolchain's
+  `List.foldr` at `Lean.Omega.IntList.sum` (`Init.Omega.IntList`), whose compiled code is the
+  structural recursion, not `List.foldrTR`: one loop. -/
   | sum
   /-- Acorn's `fillVacant`, a structural recursion over the held positions: one loop. -/
   | fillVacant
@@ -338,9 +357,10 @@ def Library.passes : Library → Nat
   | .reverse => 1
   | .vectorEq => 1
   | .append => 2
+  | .drop => 1
   | .dropLast => 3
   | .zipIdx => 3
-  | .sum => 3
+  | .sum => 1
   | .fillVacant => 1
 
 /-- The loop control of the library loop `row` over `count` elements: each of its passes visits

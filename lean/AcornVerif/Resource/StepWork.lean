@@ -32,7 +32,8 @@ a costed definition passes in, the uncosted entry points that `Acorn.Cost` lists
 without a loop and without a costed definition, which is checked by reading until
 rbeauchamp/regula#333 checks it.
 The other parts, the encoding and selection among them, are twins (`AcornVerif.Resource.Work`)
-whose loops and charges follow the executed definitions by reading.
+whose charges were compared with the compiled call multisets of one build by a one-time
+inventory, an observation of that build which no gate repeats.
 
 **Word operations.** A site's cost in word operations is not derived from the compiled code. The
 bound in word operations (`AcornVerif.Resource.Twin.choose_words`) holds under the hypothesis
@@ -149,8 +150,9 @@ theorem choose_learnThenAct (state : Agent interface profile config criterion di
 /-- **The work bound of the first part's twin under `learnThenAct`.** The twin's value is the
 executed first part, and its work is at most `chooseBound`, for every cost model, agent state
 and percept. As the work of the executed first part it rests on the compiler's erasure of the
-costed learner's work, a trust assumption, and on the cost discipline of the costed learner and
-the twins' correspondence with the executed encoding and selection, both checked by reading. -/
+costed learner's work, a trust assumption, on the cost discipline of the costed learner, checked
+by reading, and on the twins' correspondence with the executed encoding and selection, observed
+in one build by a one-time inventory of its compiled calls. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -164,9 +166,9 @@ theorem choose_work (κ : Costs)
 site's stretch runs at most `κ site` word operations, the work of the first part's twin counted
 in the word operations of its sites is at most `chooseBound κ`, for every agent state and
 percept. Read as the word operations of the executed first part, it rests in addition on the
-compiler's erasure of the costed learner's work, a trust assumption, and on the cost discipline
-of the costed learner and the twins' correspondence with the executed encoding and selection,
-both checked by reading. -/
+compiler's erasure of the costed learner's work, a trust assumption, on the cost discipline of
+the costed learner, checked by reading, and on the twins' correspondence with the executed
+encoding and selection, observed in one build by a one-time inventory of its compiled calls. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

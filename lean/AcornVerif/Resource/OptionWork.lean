@@ -79,15 +79,16 @@ theorem frozenPolicy_work (κ : Costs) (skill : Skill actions config criterion d
   Costed.bind_work_le (skillRate_work κ skill rate) fun epsilon =>
     snapshot_work κ skill.policy features epsilon
 
-/-- The costed run of `Interest.potential`: a learned assignment's membership test of the
-frame, or a declared value read. -/
+/-- The costed run of `Interest.potential`: a learned assignment's feature slot and, when it
+has one, its membership test of the frame, or a declared value read. -/
 def interestPotentialRun (κ : Costs) (interest : Interest config)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
     Costed (Option Potential) :=
   match interest with
-  | .learned assignment => Costed.charge (κ .assignmentPotential)
-      (Costed.scanList .contains (κ .visit + κ .compare) features.indices
-        (some (assignment.potential features)))
+  | .learned assignment => Costed.via (some (assignment.potential features))
+      (Costed.charge (κ .assignmentPotential) (match assignment.feature dimension with
+        | none => Costed.pure ()
+        | some _ => Costed.scanList .contains (κ .visit + κ .compare) features.indices ()))
   | .declared origin tag => Costed.op (κ .declaredPotential)
       (if origin = declared.origin then some (declared.values.get tag) else none)
 
@@ -114,10 +115,17 @@ theorem interestPotential_work (κ : Costs) (interest : Interest config)
     (interestPotential κ interest features declared).work ≤
       potentialBound κ features.indices.length := by
   change (interestPotentialRun κ interest features declared).work ≤ _
-  cases interest
-  · simp only [interestPotentialRun, Costed.charge, potentialBound]
-    omega
-  · simp only [interestPotentialRun, Costed.op, potentialBound]
+  cases interest with
+  | learned assignment =>
+    refine Nat.le_trans (Costed.charge_work_le (cost := κ .assignmentPotential)
+      (bound := Library.contains.control (κ .visit + κ .compare) features.indices.length) ?_) ?_
+    · split
+      · exact Nat.zero_le _
+      · exact Nat.le_refl _
+    · simp only [potentialBound]
+      omega
+  | declared origin tag =>
+    simp only [interestPotentialRun, Costed.op, potentialBound]
     omega
 
 /-! ## Decisions and starts -/

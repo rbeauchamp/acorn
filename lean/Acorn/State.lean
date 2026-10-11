@@ -470,19 +470,14 @@ structure TransientState (dimension : Dimension) where
   /-- Previous prediction anchor. -/
   vOld : Binary32
 
-/-- Fresh process-local registers with their work: nine register vectors written in full. -/
+/-- Fresh process-local registers with their work: one zero vector of each register type, which
+every register vector of that type shares. -/
 def TransientState.zeroCosted (dimension : Dimension) : Costed (TransientState dimension) := do
-  let z ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
-  let zDelta ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
-  let zBar ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
-  let lastAlpha ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
-  let deltaWeight ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
-  let h ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
-  let hOld ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
-  let hTemp ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
-  let p ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
+  let trace ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
+  let gradient ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
   Costed.op .zeroTransient
-    { z, zDelta, zBar, lastAlpha, deltaWeight, h, hOld, hTemp, p, eligible := #[],
+    { z := trace, zDelta := trace, zBar := trace, lastAlpha := trace, deltaWeight := gradient,
+      h := gradient, hOld := gradient, hTemp := gradient, p := gradient, eligible := #[],
       vDelta := .zero, vOld := .zero }
 
 /-- Fresh process-local registers have exact zero words and no eligible entries. -/

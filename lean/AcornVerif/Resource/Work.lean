@@ -19,8 +19,10 @@ recursion, or, through `via`, by reading.
 **What a twin establishes.** A value theorem does not tie a twin's work to the executed code:
 Lean's logic gives a pure term no operational meaning, and a twin of the same value with less
 work would satisfy the same theorem. That a twin's loops and charges are those of the executed
-definition is a correspondence by reading, so a bound proved here bounds the twin, and bounds
-the executed code only through that reading. A definition that is the value of its costed
+definition is a correspondence no theorem states: the twins' charges were compared with the
+compiled call multisets of one build by a one-time inventory, an observation of that build which
+no gate repeats. A bound proved here bounds the twin, and bounds the executed code only through
+that correspondence. A definition that is the value of its costed
 definition, as each of the learner's is, is bounded through that definition instead
 (`AcornVerif.Resource.LearnerWork`).
 
@@ -41,7 +43,8 @@ site (`Acorn.Site`). Every bound holds for every cost model.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of
 an array that is shared when it is written (issue 84 of the repository; the write itself is
-charged as part of its stretch), cache behaviour and time. No unit here is a second, a byte
+charged as part of its stretch), the one-time initialization of a closed term, which a twin
+takes as a `pure` value, cache behaviour and time. No unit here is a second, a byte
 or an instruction of a particular processor. The work is a `Nat` of the proofs; nothing here
 runs in the agent.
 -/

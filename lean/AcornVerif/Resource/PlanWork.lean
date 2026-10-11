@@ -164,8 +164,9 @@ theorem lookAheadBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     inputBound, planBound]
   omega
 
-/-- The costed run of `planningBoundary`: no planning clears the errors; expectation planning
-backs up every option at the frame, then at the stored frame search control selects. -/
+/-- The costed run of `planningBoundary`: no planning stores cleared errors, a closed term of the
+compiled code; expectation planning backs up every option at the frame, then at the stored frame
+search control selects. -/
 def planningBoundaryRun (κ : Costs) (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
@@ -173,9 +174,9 @@ def planningBoundaryRun (κ : Costs) (selection : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (gain : RewardRate) (rate : SwiftTd.ExploreRate) :
     Costed (PlanningResult criterion dimension) :=
   match selection with
-  | .none => do
-    let errors ← Costed.replicate (κ .visit) Acorn.FeatureConstants.skillCount Binary32.zero
-    Costed.op (κ .planBoundary) { state with errors := errors }
+  | .none =>
+    Costed.op (κ .planBoundary)
+      { state with errors := Vector.replicate Acorn.FeatureConstants.skillCount Binary32.zero }
   | .expectation => do
     let current ← backupAll κ state skills features gain rate
     let swept ← sweepAll κ current skills current.recent.selected gain rate
@@ -203,8 +204,7 @@ def planningBoundary (κ : Costs) (selection : PlanningSelection)
 
 /-- Bound of a free boundary's planning over `width` features at a capacity. -/
 abbrev planningBound (κ : Costs) (capacity positions width : Nat) : Nat :=
-  Library.replicate.control (κ .visit) Acorn.FeatureConstants.skillCount +
-    (backupAllBound κ positions width + sweepAllBound κ positions capacity) + κ .planBoundary
+  backupAllBound κ positions width + sweepAllBound κ positions capacity + κ .planBoundary
 
 theorem planningBoundary_work (κ : Costs) (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
@@ -216,8 +216,7 @@ theorem planningBoundary_work (κ : Costs) (selection : PlanningSelection)
         features.indices.length := by
   change (planningBoundaryRun κ selection state skills features gain rate).work ≤ _
   cases selection
-  · simp only [planningBoundaryRun, Costed.bind_work, planningBound]
-    omega
+  · exact Nat.le_add_left _ _
   · unfold planningBoundaryRun
     refine Nat.le_trans (Costed.bind_work_le (backupAll_work κ state skills features gain rate)
       fun current => Costed.bind_work_le (show _ ≤ sweepAllBound κ _ dimension.capacity from

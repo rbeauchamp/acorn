@@ -18,12 +18,14 @@ eligible entries, and every admitted learner has at most the capacity of its dim
 is a function of the capacity and the length of the feature list it reads. A
 controller's update visits each of its rows, and a policy's loops visit its actions.
 
-Where an executed definition takes a row out of its table so that the runtime can reuse
-the row's storage (`detachedUpdate`), the twin follows the listed composition the
-repository proves equal to it (`Controller.creditStep_eq`, `Controller.stopStep_eq`,
-`Controller.terminal_eq`): both compositions make the same learner entries on the same
-rows. Calls of the scalar operations that the native resource audit admits, including
-the bounded halving loop of `Portable.pow`, are stretches of constant work here.
+`Controller.creditStep` takes the taken row out of its table (`detachedUpdate`) so that the
+runtime can reuse the row's storage, and its twin follows that composition: the taken row's
+credit and second loop, then one indexed map that credits every other row.
+`Controller.stopStep` and `Controller.terminal` consume the controller before updating its
+rows; their twins follow the listed compositions the repository proves equal to them
+(`Controller.stopStep_eq`, `Controller.terminal_eq`), which run the same loops. Calls of the
+scalar operations that the native resource audit admits, including the bounded halving loop of
+`Portable.pow`, are stretches of constant work here.
 -/
 
 namespace AcornVerif.Resource.Twin
@@ -34,10 +36,12 @@ variable {config : Acorn.Config} {dimension : Dimension} {actions : Nat} {count 
 
 /-! ## Learner entries -/
 
-/-- Twin of `Managed.apply`: the executed learner, with the work of its entry. -/
+/-- Twin of `Managed.apply`: the executed learner, with the work of its entry and of the
+learner's record. -/
 def managedApply (κ : Costs) (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) : Costed (Managed config dimension) :=
-  Costed.via (learner.apply entry permitted) (entryApply κ entry learner.state)
+  Costed.via (learner.apply entry permitted)
+    (Costed.charge (κ .managedEntry) (entryApply κ entry learner.state))
 
 /-- The entry's twin computes the learner's executed state. -/
 theorem managedApply_run (κ : Costs) (learner : Managed config dimension)
@@ -49,16 +53,17 @@ theorem managedApply_run (κ : Costs) (learner : Managed config dimension)
 theorem managedApply_work (κ : Costs) (learner : Managed config dimension)
     (entry : SwiftTd.Entry dimension) (permitted : SwiftTd.Permitted entry learner.phase) :
     (managedApply κ learner entry permitted).work ≤
-      entryBound κ dimension.capacity dimension.capacity entry :=
-  Nat.le_trans (entryApply_work κ entry learner.state)
-    (entryBound_mono κ _ (CurrentFeatureConsumers.managed_capacity learner) entry)
+      κ .managedEntry + entryBound κ dimension.capacity dimension.capacity entry :=
+  Nat.add_le_add_left (Nat.le_trans (entryApply_work κ entry learner.state)
+    (entryBound_mono κ _ (CurrentFeatureConsumers.managed_capacity learner) entry)) _
 
-/-- The costed composition of `Managed.credit`: a first loop, then a clear on a pending
-restart. -/
+/-- The costed composition of `Managed.credit`: a first loop, then the restart test and a
+clear on a pending restart. -/
 def creditRun (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
     (restart : Bool) : Costed (Managed config dimension) := do
   let credited ← managedApply κ learner (.first delta vd decay) trivial
-  Costed.ite (restart = true) (managedApply κ credited .clear trivial) (Costed.pure credited)
+  Costed.charge (κ .creditRestart)
+    (Costed.ite (restart = true) (managedApply κ credited .clear trivial) (Costed.pure credited))
 
 theorem creditRun_val (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
     (restart : Bool) :
@@ -71,16 +76,17 @@ def credit (κ : Costs) (learner : Managed config dimension) (delta vd decay : B
     (restart : Bool) : Costed { result : Managed config dimension // result.phase = true } :=
   Costed.via (learner.credit delta vd decay restart) (creditRun κ learner delta vd decay restart)
 
-/-- Bound of a row's credit: its first loop and a possible clear. -/
+/-- Bound of a row's credit: its first loop, the restart test and a possible clear. -/
 abbrev creditBound (κ : Costs) (capacity : Nat) : Nat :=
-  firstLoopBound κ capacity + zeroBound κ capacity
+  κ .managedEntry + firstLoopBound κ capacity +
+    (κ .creditRestart + (κ .managedEntry + zeroBound κ capacity))
 
 theorem credit_work (κ : Costs) (learner : Managed config dimension) (delta vd decay : Binary32)
     (restart : Bool) :
     (credit κ learner delta vd decay restart).work ≤ creditBound κ dimension.capacity :=
   Costed.bind_work_le (managedApply_work κ learner (.first delta vd decay) trivial) fun credited =>
-    Nat.le_trans (Costed.ite_work_le _ _ _)
-      (Nat.max_le.mpr ⟨managedApply_work κ credited .clear trivial, Nat.zero_le _⟩)
+    Costed.charge_work_le (Nat.le_trans (Costed.ite_work_le _ _ _)
+      (Nat.max_le.mpr ⟨managedApply_work κ credited .clear trivial, Nat.zero_le _⟩))
 
 /-! ## The shared-error controller -/
 
@@ -116,7 +122,8 @@ theorem clear_val (κ : Costs) (controller : Controller config dimension actions
 
 /-- Bound of a controller clear of `rows` rows. -/
 abbrev clearBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  Library.vectorMap.work (κ .visit) rows (zeroBound κ capacity) + κ .controllerClose
+  Library.vectorMap.work (κ .visit) rows (κ .managedEntry + zeroBound κ capacity) +
+    κ .controllerClose
 
 theorem clear_work (κ : Costs) (controller : Controller config dimension actions) :
     (clear κ controller).work ≤ clearBound κ actions dimension.capacity :=
@@ -124,35 +131,42 @@ theorem clear_work (κ : Costs) (controller : Controller config dimension action
     (Costed.mapVector_work_le _ _ _ _ fun learner _ => managedApply_work κ learner .clear trivial)
     fun _ => Nat.le_refl _
 
-/-- Twin of `Controller.creditStep`, in the listed composition of `Controller.creditStep_eq`:
-every row's credit, then the taken row's second loop. -/
+/-- Twin of `Controller.creditStep`: the taken row's credit and second loop, which
+`detachedUpdate` runs on the row it takes out of the table, then one indexed map that credits
+every other row and keeps the taken one. -/
 def creditStep (κ : Costs) (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions)
     (lag delta decay : Binary32) : Costed (Controller config dimension actions) := do
-  let rows ← Costed.mapVector (κ .visit)
-    (fun learner => credit κ learner delta controller.vDelta decay controller.restartPending)
-    controller.learners
-  let chosen := rows.get action
-  Costed.bind (secondLoop κ config chosen.val.state features .zero) fun _ =>
+  let vDelta := controller.vDelta
+  let restart := controller.restartPending
+  let chosen ← credit κ (controller.learners.get action) delta vDelta decay restart
+  Costed.discard (secondLoop κ config chosen.val.state features .zero)
+  let taken := detachedUpdate controller.learners action fun learner =>
+    let chosen := learner.credit delta vDelta decay restart
     let second := chosen.val.state.learnSecondLoop config features .zero
-    Costed.op (κ .creditClose)
-      ⟨(rows.map Subtype.val).set action.val
-          ⟨second.1, false,
-            .transition (.second features .zero) chosen.property chosen.val.admitted⟩
-          action.isLt, lag, second.2, false⟩
+    (⟨second.1, false,
+        .transition (.second features .zero) chosen.property chosen.val.admitted⟩, second.2)
+  let rows ← Costed.mapFinIdx (κ .visit)
+    (fun index (learner : Managed config dimension) _ =>
+      Costed.ite (index = action.val) (Costed.pure learner)
+        (Costed.via (learner.credit delta vDelta decay restart).val
+          (credit κ learner delta vDelta decay restart)))
+    taken.1
+  Costed.op (κ .creditClose) ⟨rows, lag, taken.2, false⟩
 
 theorem creditStep_val (κ : Costs) (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions)
     (lag delta decay : Binary32) :
     (creditStep κ controller features action lag delta decay).val =
       controller.creditStep features action lag delta decay := by
-  rw [Controller.creditStep_eq]
+  cases controller
   rfl
 
-/-- Bound of a shared-error update of `rows` rows over `width` features. -/
+/-- Bound of a shared-error update of `rows` rows over `width` features: the taken row's credit
+and second loop, then the indexed map at a credit for each row. -/
 abbrev creditStepBound (κ : Costs) (rows capacity width : Nat) : Nat :=
-  Library.vectorMap.work (κ .visit) rows (creditBound κ capacity) +
-    (secondLoopBound κ width + κ .creditClose)
+  creditBound κ capacity + (secondLoopBound κ width +
+    (Library.mapFinIdx.work (κ .visit) rows (creditBound κ capacity) + κ .creditClose))
 
 theorem creditStep_work (κ : Costs) (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions)
@@ -160,10 +174,16 @@ theorem creditStep_work (κ : Costs) (controller : Controller config dimension a
     (creditStep κ controller features action lag delta decay).work ≤
       creditStepBound κ actions dimension.capacity features.indices.length :=
   Costed.bind_work_le
-    (Costed.mapVector_work_le _ _ _ _ fun learner _ =>
-      credit_work κ learner delta controller.vDelta decay controller.restartPending)
-    fun _ => Costed.bind_work_le (secondLoop_work κ config _ features .zero) fun _ =>
-      Nat.le_refl _
+    (credit_work κ (controller.learners.get action) delta controller.vDelta decay
+      controller.restartPending)
+    fun chosen => Costed.bind_work_le
+      (Costed.discard_work_le (secondLoop_work κ config chosen.val.state features .zero))
+      fun _ => Costed.bind_work_le
+        (Costed.mapFinIdx_work_le (κ .visit) (creditBound κ dimension.capacity) _ _
+          fun _ learner _ => Nat.le_trans (Costed.ite_work_le _ _ _)
+            (Nat.max_le.mpr ⟨Nat.zero_le _,
+              credit_work κ learner delta controller.vDelta decay controller.restartPending⟩))
+        fun _ => Nat.le_refl _
 
 /-- Twin of `Controller.valuesStep`. -/
 def valuesStep (κ : Costs) (controller : Controller config dimension actions)
@@ -204,8 +224,8 @@ abbrev releaseBound (κ : Costs) (capacity : Nat) : Nat :=
 
 theorem release_work (κ : Costs) (controller : Controller config dimension actions) :
     (release κ controller).work ≤
-      Library.vectorMap.work (κ .visit) actions (releaseBound κ dimension.capacity) +
-        κ .controllerClose :=
+      Library.vectorMap.work (κ .visit) actions
+        (κ .managedEntry + releaseBound κ dimension.capacity) + κ .controllerClose :=
   Costed.bind_work_le
     (Costed.mapVector_work_le _ _ _ _ fun learner _ =>
       managedApply_work κ learner .release trivial)
@@ -229,8 +249,8 @@ theorem stopStep_val (κ : Costs) (controller : Controller config dimension acti
 
 /-- Bound of a stopping credit of `rows` rows. -/
 abbrev stopBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  Library.vectorMap.work (κ .visit) rows (creditBound κ capacity + releaseBound κ capacity) +
-    κ .controllerClose
+  Library.vectorMap.work (κ .visit) rows
+    (creditBound κ capacity + (κ .managedEntry + releaseBound κ capacity)) + κ .controllerClose
 
 theorem stopStep_work (κ : Costs) (controller : Controller config dimension actions)
     (delta : Binary32) :
@@ -243,14 +263,15 @@ theorem stopStep_work (κ : Costs) (controller : Controller config dimension act
     fun _ => Nat.le_refl _
 
 /-- Twin of `Controller.terminal`, in the listed composition of `Controller.terminal_eq`:
-each row's first loop, then the controller's clear. -/
+the terminal error and trace decay, each row's first loop, then the controller's clear. -/
 def terminal (κ : Costs) (controller : Controller config dimension actions) (reward : Binary32) :
-    Costed (Controller config dimension actions) := do
-  let credited ← Costed.mapVector (κ .visit)
-    (fun learner => managedApply κ learner
-      (.first (reward.sub controller.vOld) controller.vDelta controller.traceDecay) trivial)
-    controller.learners
-  clear κ (Controller.mk credited controller.vOld controller.vDelta controller.restartPending)
+    Costed (Controller config dimension actions) :=
+  Costed.charge (κ .learnerError) (do
+    let credited ← Costed.mapVector (κ .visit)
+      (fun learner => managedApply κ learner
+        (.first (reward.sub controller.vOld) controller.vDelta controller.traceDecay) trivial)
+      controller.learners
+    clear κ (Controller.mk credited controller.vOld controller.vDelta controller.restartPending))
 
 theorem terminal_val (κ : Costs) (controller : Controller config dimension actions)
     (reward : Binary32) : (terminal κ controller reward).val = controller.terminal reward := by
@@ -259,15 +280,16 @@ theorem terminal_val (κ : Costs) (controller : Controller config dimension acti
 
 /-- Bound of a terminal credit of `rows` rows. -/
 abbrev terminalCreditBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  Library.vectorMap.work (κ .visit) rows (firstLoopBound κ capacity) + clearBound κ rows capacity
+  κ .learnerError + (Library.vectorMap.work (κ .visit) rows
+    (κ .managedEntry + firstLoopBound κ capacity) + clearBound κ rows capacity)
 
 theorem terminal_work (κ : Costs) (controller : Controller config dimension actions)
     (reward : Binary32) :
     (terminal κ controller reward).work ≤ terminalCreditBound κ actions dimension.capacity :=
-  Costed.bind_work_le
+  Costed.charge_work_le (Costed.bind_work_le
     (Costed.mapVector_work_le _ _ _ _ fun learner _ => managedApply_work κ learner
       (.first (reward.sub controller.vOld) controller.vDelta controller.traceDecay) trivial)
-    fun _ => clear_work κ _
+    fun _ => clear_work κ _)
 
 /-- Twin of `Controller.retire`: one retirement for each row. -/
 def retire (κ : Costs) (controller : Controller config dimension actions)
@@ -286,8 +308,8 @@ theorem retire_val (κ : Costs) (controller : Controller config dimension action
 theorem retire_work (κ : Costs) (controller : Controller config dimension actions)
     (feature : FeatIdx dimension) :
     (retire κ controller feature).work ≤
-      Library.vectorMap.work (κ .visit) actions
-        (κ .retire + Library.findIdx.work (κ .visit) dimension.capacity (κ .compare)) +
+      Library.vectorMap.work (κ .visit) actions (κ .managedEntry +
+        (κ .retire + Library.findIdx.work (κ .visit) dimension.capacity (κ .compare))) +
         κ .controllerClose :=
   Costed.bind_work_le
     (Costed.mapVector_work_le _ _ _ _ fun learner _ =>
@@ -320,53 +342,66 @@ theorem plan_work (κ : Costs) (controller : Controller config dimension actions
 
 /-! ## Policies -/
 
-/-- Twin of `PolicySnapshot.best`: the values listed, then one comparison for each. -/
+/-- Twin of `PolicySnapshot.best`: the first value read, the values listed, the first one
+dropped, then one comparison for each other value. -/
 def best (κ : Costs) (snapshot : PolicySnapshot count) : Costed Binary32 := do
+  let first ← Costed.op (κ .read) (snapshot.values.get (firstAction count))
   let values ← Costed.scanVector .toList (κ .visit) snapshot.values snapshot.values.toList
+  let rest ← Costed.scanList .drop (κ .visit) (values.take 1) (values.drop 1)
   Costed.foldl (κ .visit)
     (fun best value => Costed.op (κ .compare) (if best.Less value then value else best))
-    (snapshot.values.get (firstAction count)) (values.drop 1)
+    first rest
 
 theorem best_val (κ : Costs) (snapshot : PolicySnapshot count) :
     (best κ snapshot).val = snapshot.best := rfl
 
 /-- Bound of an ordered maximum over `size` values. -/
 abbrev bestBound (κ : Costs) (size : Nat) : Nat :=
-  Library.toList.control (κ .visit) size + Library.foldl.work (κ .visit) size (κ .compare)
+  κ .read + (Library.toList.control (κ .visit) size +
+    (Library.drop.control (κ .visit) 1 + Library.foldl.work (κ .visit) size (κ .compare)))
 
 theorem best_work (κ : Costs) (snapshot : PolicySnapshot count) :
     (best κ snapshot).work ≤ bestBound κ count.word.toNat := by
-  unfold best
-  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _)
-    (Costed.foldl_work_le (κ .visit) (κ .compare) _ _ _ fun _ _ _ => Nat.le_refl _)) ?_
+  have dropped : Library.drop.control (κ .visit) (snapshot.values.toList.take 1).length ≤
+      Library.drop.control (κ .visit) 1 :=
+    Library.control_mono _ (by rw [List.length_take]; exact Nat.min_le_left _ _)
   have shorter := Library.foldl.work_mono (visit := κ .visit) (Nat.sub_le count.word.toNat 1)
     (Nat.le_refl (κ .compare))
+  unfold best
+  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at
+    (Nat.le_refl _) (Costed.bind_work_le_at (Nat.le_refl _)
+      (Costed.foldl_work_le (κ .visit) (κ .compare) _ _ _ fun _ _ _ => Nat.le_refl _)))) ?_
   simp only [List.length_drop, Vector.length_toList, bestBound]
   omega
 
-/-- Twin of `PolicySnapshot.candidates`: the maximum, the action list, then one test for
-each action. -/
+/-- Twin of `PolicySnapshot.candidates`: the maximum, the tie threshold, the action list, then
+one test for each action. -/
 def candidates (κ : Costs) (snapshot : PolicySnapshot count) :
     Costed (List (Action count.word.toNat)) := do
   let top ← best κ snapshot
-  let threshold := top.sub tieWindow
+  let threshold ← Costed.op (κ .tieThreshold) (top.sub tieWindow)
   let range ← Costed.scanList .finRange (κ .visit) (List.finRange count.word.toNat)
     (List.finRange count.word.toNat)
-  Costed.scanList .filter (κ .visit + κ .candidate) range
-    (range.filter fun action => decide (threshold.LessOrEqual (snapshot.values.get action)))
+  Costed.filter (κ .visit)
+    (fun action => Costed.op (κ .candidate)
+      (decide (threshold.LessOrEqual (snapshot.values.get action))))
+    range
 
 theorem candidates_val (κ : Costs) (snapshot : PolicySnapshot count) :
     (candidates κ snapshot).val = snapshot.candidates := rfl
 
 /-- Bound of the near-maximum candidates over `size` values. -/
 abbrev candidatesBound (κ : Costs) (size : Nat) : Nat :=
-  bestBound κ size + (Library.finRange.control (κ .visit) size +
-    Library.filter.control (κ .visit + κ .candidate) size)
+  bestBound κ size + (κ .tieThreshold + (Library.finRange.control (κ .visit) size +
+    Library.filter.work (κ .visit) size (κ .candidate)))
 
 theorem candidates_work (κ : Costs) (snapshot : PolicySnapshot count) :
     (candidates κ snapshot).work ≤ candidatesBound κ count.word.toNat := by
-  have top := best_work κ snapshot
-  simp only [candidates, Costed.bind_work, List.length_finRange, candidatesBound]
+  unfold candidates
+  refine Nat.le_trans (Costed.bind_work_le_at (best_work κ snapshot)
+    (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at (Nat.le_refl _)
+      (Costed.filter_work_le (κ .visit) (κ .candidate) _ _ fun _ _ => Nat.le_refl _)))) ?_
+  simp only [List.length_finRange, candidatesBound]
   omega
 
 theorem candidates_length (snapshot : PolicySnapshot count) :
@@ -677,16 +712,15 @@ theorem exploreRate_work (κ : Costs) (controller : Controller config dimension 
   · simp only [Vector.length_toList, rateBound]
     omega
 
-/-- Twin of `PolicySnapshot.expected`: the lower bound, the maximum and the totals, each a
-pass over the values. -/
+/-- Twin of `PolicySnapshot.expected`: the first value read, the values listed once, then the
+lower bound, the maximum, the tie threshold and the totals, each fold a pass over the list. -/
 def expected (κ : Costs) (snapshot : PolicySnapshot count) : Costed Binary32 := do
-  let first := snapshot.values.get (firstAction count)
-  let lows ← Costed.scanVector .toList (κ .visit) snapshot.values snapshot.values.toList
-  let lower ← Costed.foldl (κ .visit)
-    (fun lo value => Costed.op (κ .compare) (if value.less lo then value else lo)) first lows
-  let upper ← best κ snapshot
-  let threshold := upper.sub tieWindow
+  let first ← Costed.op (κ .read) (snapshot.values.get (firstAction count))
   let values ← Costed.scanVector .toList (κ .visit) snapshot.values snapshot.values.toList
+  let lower ← Costed.foldl (κ .visit)
+    (fun lo value => Costed.op (κ .compare) (if value.less lo then value else lo)) first values
+  let upper ← best κ snapshot
+  let threshold ← Costed.op (κ .tieThreshold) (upper.sub tieWindow)
   let totals ← Costed.foldl (κ .visit)
     (fun (all, tied, n) value => Costed.op (κ .expectedTerm)
       (all.add (Conversion.widen value),
@@ -704,18 +738,19 @@ theorem expected_val (κ : Costs) (snapshot : PolicySnapshot count) :
 
 /-- Bound of a policy mean over `size` values. -/
 abbrev expectedBound (κ : Costs) (size : Nat) : Nat :=
-  Library.toList.control (κ .visit) size + Library.foldl.work (κ .visit) size (κ .compare) +
-    bestBound κ size + Library.toList.control (κ .visit) size +
-    Library.foldl.work (κ .visit) size (κ .expectedTerm) + κ .expectedClose
+  κ .read + (Library.toList.control (κ .visit) size +
+    (Library.foldl.work (κ .visit) size (κ .compare) + (bestBound κ size + (κ .tieThreshold +
+      (Library.foldl.work (κ .visit) size (κ .expectedTerm) + κ .expectedClose)))))
 
 theorem expected_work (κ : Costs) (snapshot : PolicySnapshot count) :
     (expected κ snapshot).work ≤ expectedBound κ count.word.toNat := by
   unfold expected
   refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _) (Costed.bind_work_le_at
-    (Costed.foldl_work_le (κ .visit) (κ .compare) _ _ _ fun _ _ _ => Nat.le_refl _)
-    (Costed.bind_work_le_at (best_work κ snapshot) (Costed.bind_work_le_at (Nat.le_refl _)
-      (Costed.bind_work_le_at (Costed.foldl_work_le (κ .visit) (κ .expectedTerm) _ _ _
-        fun acc _ _ => ?_) (Nat.le_refl _)))))) ?_
+    (Nat.le_refl _) (Costed.bind_work_le_at
+      (Costed.foldl_work_le (κ .visit) (κ .compare) _ _ _ fun _ _ _ => Nat.le_refl _)
+      (Costed.bind_work_le_at (best_work κ snapshot) (Costed.bind_work_le_at (Nat.le_refl _)
+        (Costed.bind_work_le_at (Costed.foldl_work_le (κ .visit) (κ .expectedTerm) _ _ _
+          fun acc _ _ => ?_) (Nat.le_refl _))))))) ?_
   · obtain ⟨all, tied, n⟩ := acc
     exact Nat.le_refl _
   · simp only [Vector.length_toList, expectedBound]

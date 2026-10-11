@@ -303,15 +303,18 @@ yet establishes:
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed learner, described below;
 - the correspondence of the twins of the encoding and of selection with the executed
-  definitions, which is by reading.
+  definitions: the twins' charges were compared with the compiled call multisets of
+  this build by a one-time inventory, an observation of one build that no gate
+  repeats.
 
 **What is counted.** Work is a count of the operations of the compiled definitions
 in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
 code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
 sites. Allocation, reference counting, the copy of a shared array when it is written
-([#84](https://github.com/rbeauchamp/acorn/issues/84)), cache behaviour and time
-are not counted.
+([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
+initialization of a closed term, which the compiled code builds once for the process
+and then reads, cache behaviour and time are not counted.
 
 **How the count follows the executed code.** The learner's executed definitions are
 the values of their costed definitions ([cost semantics](../lean/Acorn/Cost.lean)):
@@ -355,9 +358,10 @@ induction on the same recursion (`rankedRun_val`), or, where the definition buil
 its result through a private constructor and proofs, by reading. A value theorem
 does not tie a twin's work to the executed code, since a twin of the same value with
 less work would satisfy it. For those definitions the bound is a bound of the twins,
-and it bounds the executed code through the reading of each twin's loops and charges
-against the definition. The twins read the learner through twins of its own whose work
-is the bound proved of its costed definition, which a theorem of each checks
+and it bounds the executed code through the correspondence of each twin's charges with
+the definition's compiled calls, which the one-time inventory observed in one build.
+The twins read the learner through twins of its own whose work is the bound proved
+of its costed definition, which a theorem of each checks
 (`AcornVerif.Resource.Twin.step_costed`).
 
 **What bounds each loop.** The frame's active features are at most
@@ -381,9 +385,11 @@ space rather than with the frame:
 The ranked width enters as its square in the rows' predictions and as its cube in
 the forgetting of changed positions after a reranking. The width itself is a search
 of at most 15 doublings, charged the site `rankWidth` at each evaluation the compiled
-code makes: twice for a row input, once for the ranked dimension of each update of a
-transition part, once for each forgetting of its rows and once for each retirement
-of a deviation learner's column.
+code makes: twice for a row input; once for the ranked dimension of each update of a
+transition part, at its start, step, terminal credit and stop; once for each
+forgetting of its rows; once for each retirement of a deviation learner's column; and
+once each for a ranking's lookup table, an empty ranking, a fresh transition part,
+the ranked slots, the changed positions, the occupied positions and an indicator.
 
 The first part under `act-then-learn`, the second part in each order and the memory
 of the agent state are not bounded here.

@@ -193,17 +193,14 @@ theorem stepCosted_within (κ : Costs) (config : Acorn.Config)
 
 /-- Bound of a fresh transient record at a capacity. -/
 abbrev zeroBound (κ : Costs) (capacity : Nat) : Nat :=
-  9 * Library.replicate.control (κ .visit) capacity + κ .zeroTransient
+  2 * Library.replicate.control (κ .visit) capacity + κ .zeroTransient
 
 theorem zeroCosted_within (κ : Costs) (dimension : Dimension) :
     (TransientState.zeroCosted dimension).Within κ (zeroBound κ dimension.capacity) := by
   have each := fun {β : Type} (value : β) =>
     Acorn.Costed.replicate_within dimension.capacity value κ
   refine (Acorn.Costed.bind_within (each _) <| Acorn.Costed.bind_within (each _) <|
-    Acorn.Costed.bind_within (each _) <| Acorn.Costed.bind_within (each _) <|
-    Acorn.Costed.bind_within (each _) <| Acorn.Costed.bind_within (each _) <|
-    Acorn.Costed.bind_within (each _) <| Acorn.Costed.bind_within (each _) <|
-    Acorn.Costed.bind_within (each _) <| Acorn.Costed.op_within _ _ κ).mono ?_
+    Acorn.Costed.op_within _ _ κ).mono ?_
   simp only [zeroBound]
   omega
 
