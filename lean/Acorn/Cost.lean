@@ -44,19 +44,23 @@ later increment of requirement R8 (rbeauchamp/acorn#90) owes. A `visit` segment 
 a whole element and, in the first loop, a prune, and the first visits of the second and planning
 loops can include operations their opens name, so `κ visit` must cover the largest visit segment.
 
-Every segment is bounded by a constant of the code: every loop whose trip count depends on the
+Every segment is bounded by a constant of the code in the operations counted. The copy of an array
+into a larger buffer when a push outgrows its capacity, whose length depends on the state, is, like
+allocation, outside the count (**What is not counted**). Every loop whose trip count depends on the
 configuration or the state runs in a loop combinator or a costed recursion, which has a charge point
 on each iteration, so no segment contains one. A costed recursion charges each level before its
 recursive call, and charges again on the return where the level works after the call returns, so
-neither its descent nor its return falls in one segment. The cost discipline below requires this of
-costed definitions; of the twins it is a property of their charge placement, checked by reading,
-which the one-time compiled-call inventory of one build did not compare. The
-loops left inside a segment have trip counts fixed by the code: the three options and their slots,
-the four meta actions, the 32 samples of a projection, the at most 15 doublings of the ranked
-width's search (`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. A cost model
-(`Costs`) assigns each site a cost, and every work bound holds for every cost model. No theorem
-derives the cost of a site in word operations; the scalar operations that the native resource audit
-bounds are the operations with an extracted cost.
+neither its descent nor its return falls in one segment. A library loop whose recursion has a depth
+that depends on the configuration or the state and works on the return counts that return as a pass
+of its row (`Library.fillVacant`). The cost discipline below requires this of costed definitions; of
+the twins it is a property of their charge placement, checked by reading, which the one-time
+compiled-call inventory of one build did not compare. The loops left inside a segment have trip
+counts fixed by the code: the three options and their slots, the four meta actions, the 32 samples
+of a projection, including the return of their sum's recursion (`Library.sum`, one pass), the at
+most 15 doublings of the ranked width's search (`rankExponentFrom`) and the at most 33 steps of
+`Portable.pow`. A cost model (`Costs`) assigns each site a cost, and every work bound holds for
+every cost model. No theorem derives the cost of a site in word operations; the scalar operations
+that the native resource audit bounds are the operations with an extracted cost.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
@@ -104,9 +108,10 @@ repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
 says that a segment of the executed code does at most its site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
-array that is shared when it is written (issue 84 of the repository), the one-time
-initialization of a closed term, a value with no free variable that the compiled code builds
-once for the process and then reads, cache behaviour and time.
+array that is shared when it is written (issue 84 of the repository), the copy of an array into a
+larger buffer when a push outgrows its capacity, the one-time initialization of a closed term, a
+value with no free variable that the compiled code builds once for the process and then reads,
+cache behaviour and time.
 No unit here is a second, a byte or an instruction of a particular processor.
 -/
 
@@ -368,7 +373,9 @@ inductive Library where
   `List.foldr` at `Lean.Omega.IntList.sum` (`Init.Omega.IntList`), whose compiled code is the
   structural recursion, not `List.foldrTR`: one loop. -/
   | sum
-  /-- Acorn's `fillVacant`, a structural recursion over the held positions: one loop. -/
+  /-- Acorn's `fillVacant`, a structural recursion over the held positions that puts each
+  position's slot before the rest after its recursive call returns: two passes, its descent and
+  then its return. -/
   | fillVacant
 
 /-- The passes of a library loop's runtime implementation over the collection it is charged
@@ -399,7 +406,7 @@ def Library.passes : Library → Nat
   | .dropLast => 3
   | .zipIdx => 3
   | .sum => 1
-  | .fillVacant => 1
+  | .fillVacant => 2
 
 /-- The loop control of the library loop `row` over `count` elements: each of its passes visits
 each element once and ends with one visit. -/

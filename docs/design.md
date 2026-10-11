@@ -316,8 +316,10 @@ code whose work is a constant of the compiled code, costs its own constant
 sites. The intended reading of what each charge counts is its **segment** of the
 operations the compiled code runs during one call of the first part, defined once in the
 [cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment is
-bounded by a constant of the code. Allocation, reference counting, the copy of a shared
-array when it is written ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
+bounded by a constant of the code in the operations counted. Allocation, reference
+counting, the copy of a shared array when it is written
+([#84](https://github.com/rbeauchamp/acorn/issues/84)), the copy of an array into a larger
+buffer when a push outgrows its capacity, whose length depends on the state, the one-time
 initialization of a closed term, which the compiled code builds once for the process
 and then reads, cache behaviour and time are not counted.
 

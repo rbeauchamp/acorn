@@ -199,15 +199,17 @@ theorem modelInitial_work (κ : Costs) (dimension : Dimension) (criterion : Crit
     simp only [modelInitialBound]
     omega
 
-/-- The costed run of `GradientBank.initial`: one visit of its recursion, the projected zero
-weight and two weight vectors for each question, and a visit for its end. -/
+/-- The costed recursion of `GradientBank.initial`: for each question, the projected zero weight
+and two weight vectors, charged before the descent, and a visit of the recursion on the return,
+where the question is put before the rest; and a visit for its end. -/
 def bankInitialRun (κ : Costs) (dimension : Dimension) : (discounts : List Discount) → Costed Unit
   | [] => Costed.op (κ .visit) ()
-  | _ :: rest => Costed.charge (κ .visit + κ .initialState) do
+  | _ :: rest => Costed.charge (κ .initialState) do
     Costed.discard (Costed.replicate (κ .visit) dimension.capacity (0 : Nat))
     Costed.discard (Costed.ofFn (count := dimension.capacity) (κ .visit) fun _ =>
       Costed.op (κ .write) ())
     bankInitialRun κ dimension rest
+    Costed.op (κ .visit) ()
 
 /-- Bound of a fresh question bank of `questions` questions at a capacity. -/
 abbrev bankInitialBound (κ : Costs) (questions capacity : Nat) : Nat :=

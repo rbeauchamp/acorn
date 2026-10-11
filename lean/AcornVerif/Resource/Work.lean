@@ -45,10 +45,10 @@ charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost mod
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of
 an array that is shared when it is written (issue 84 of the repository; the write itself is
-charged as part of its stretch), the one-time initialization of a closed term, which a twin
-takes as a `pure` value, cache behaviour and time. No unit here is a second, a byte
-or an instruction of a particular processor. The work is a `Nat` of the proofs; nothing here
-runs in the agent.
+charged as part of its stretch), the copy of an array into a larger buffer when a push outgrows
+its capacity, the one-time initialization of a closed term, which a twin takes as a `pure` value,
+cache behaviour and time. No unit here is a second, a byte or an instruction of a particular
+processor. The work is a `Nat` of the proofs; nothing here runs in the agent.
 -/
 
 namespace AcornVerif.Resource
