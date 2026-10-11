@@ -14,12 +14,20 @@ alone, and reading `val` compiles to nothing (a trust assumption, below). The de
 runs is the definition whose work the bounds count, and a definition with the plain result type
 is the `val` of its costed definition.
 
-**Sites.** A *site* (`Site`) is a stretch of executed code whose work is a constant of the
-compiled code, together with every definition it calls. It contains no loop, or only loops whose
-trip count is a constant of the code and whose bodies are such stretches: the three options,
-the four meta actions, the 32 samples of a projection, the at most 15 doublings of the ranked
-width's search and the at most 33 steps of `Portable.pow`. A cost model (`Costs`) assigns each
-site a cost, and every work bound holds for every cost model. No theorem derives the cost of a
+**Sites.** A *site* (`Site`) is a kind of constant stretch of executed code; each constructor
+names the operations that identify its stretch. A charge of a site covers the operations of its
+stretch and every operation the compiled code runs on the same execution path since the previous
+charge, with every definition those operations call; the operations after the last charge of a
+decision go to that last charge. Each operation of a decision therefore falls in exactly one
+charge's *segment*. Every segment is bounded by a constant of the code: every loop whose trip
+count depends on the configuration or the state runs in a loop combinator or a costed recursion
+that charges a `visit` on each iteration, so no segment contains one. The cost discipline below
+requires this of costed definitions, and the one-time compiled-call inventory of one build
+observed it of the twins. The loops left inside a segment have trip counts fixed by the code:
+the three options and their slots, the four meta actions, the 32 samples of a projection, the at
+most 15 doublings of the ranked width's search (`rankExponentFrom`) and the at most 33 steps of
+`Portable.pow`. A cost model (`Costs`) assigns each site a cost, and every work bound holds for
+every cost model. No theorem derives the cost of a
 site in word operations; the scalar operations that the native resource audit bounds are the
 operations with an extracted cost.
 
@@ -77,7 +85,8 @@ No unit here is a second, a byte or an instruction of a particular processor.
 
 namespace Acorn
 
-/-- The constant stretches of the agent's step. -/
+/-- The constant stretches of the agent's step. A charge of a site covers the operations its
+constructor names and every operation on the same execution path since the previous charge. -/
 inductive Site where
   /-- The control of one visit of a loop: its test, its advance and its branch. -/
   | visit
@@ -220,7 +229,8 @@ inductive Site where
   | backupClose
   /-- A planning boundary's work count, its search-control advance and its result. -/
   | planBoundary
-  /-- A fresh learner's rails and record, apart from its vectors. -/
+  /-- A fresh learner's rails and record, or a fresh question's projected zero weight, apart
+  from their vectors. -/
   | initialState
   /-- One unit's Demon-0 weight tested for a ranking candidate, with its feature slot computed. -/
   | rankCandidate
@@ -258,7 +268,8 @@ inductive Site where
   /-- The agent's clock advance and the chosen value's record. -/
   | choose
 
-/-- A cost model: the cost of each site. -/
+/-- A cost model: the cost of each site, charged once for each segment that ends at a charge of
+the site. -/
 abbrev Costs := Site → Nat
 
 /-- The library loops that costed code and the twins of `AcornVerif.Resource.Work` run. Each

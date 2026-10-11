@@ -471,7 +471,9 @@ structure TransientState (dimension : Dimension) where
   vOld : Binary32
 
 /-- Fresh process-local registers with their work: one zero vector of each register type, which
-every register vector of that type shares. -/
+every register vector of that type shares. The compiled code of one build was observed to build
+one array, which all nine register vectors share once the register types are erased; the charge
+of two vectors is a sound over-charge that the distinct register types force. -/
 def TransientState.zeroCosted (dimension : Dimension) : Costed (TransientState dimension) := do
   let trace ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
   let gradient ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)

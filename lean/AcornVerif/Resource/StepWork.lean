@@ -37,7 +37,8 @@ inventory, an observation of that build which no gate repeats.
 
 **Word operations.** A site's cost in word operations is not derived from the compiled code. The
 bound in word operations (`AcornVerif.Resource.Twin.choose_words`) holds under the hypothesis
-`SiteBounds words κ`: each site's stretch runs at most `κ site` word operations.
+`SiteBounds words κ`: each segment that ends at a charge of a site runs at most `κ site` word
+operations.
 -/
 
 namespace AcornVerif.Resource.Twin
@@ -106,10 +107,14 @@ theorem chooseSelected_work (κ : Costs)
       Nat.le_trans (selectRun_work κ _ _ _ _ _ _)
         (selectBound_mono κ _ _ _ _ _ (Agent.frame_length _ percept.frame))
 
-/-- `SiteBounds words κ`: each site's stretch runs at most `κ site` word operations, where
-`words site` is the number of word operations the compiled code of the stretch runs on the word
-machine of `AcornVerif.Resource.WordKernel`, one for each instruction. No theorem derives
-`words`; a bound in word operations holds under this hypothesis. -/
+/-- `SiteBounds words κ`: each segment that ends at a charge of a site runs at most `κ site` word
+operations, where `words site` is the largest number of word operations of such a segment on the
+word machine of `AcornVerif.Resource.WordKernel`, one for each instruction. A segment is the
+operations of the charge's stretch and every operation the compiled code runs on the same
+execution path since the previous charge, the operations after a decision's last charge going to
+that charge (`Acorn.Cost`). Every segment is bounded by a constant of the code, so `words` is a
+finite hypothesis. No theorem derives `words`; a bound in word operations holds under this
+hypothesis. -/
 def SiteBounds (words κ : Costs) : Prop := ∀ site, words site ≤ κ site
 
 set_option maxHeartbeats 400000 in
@@ -163,12 +168,13 @@ theorem choose_work (κ : Costs)
   ⟨rfl, chooseSelected_work κ state .learnThenAct (by decide) percept⟩
 
 /-- **The twin accounting of the first part under `learnThenAct` in word operations.** If each
-site's stretch runs at most `κ site` word operations, the work of the first part's twin counted
-in the word operations of its sites is at most `chooseBound κ`, for every agent state and
-percept. Read as the word operations of the executed first part, it rests in addition on the
-compiler's erasure of the costed learner's work, a trust assumption, on the cost discipline of
-the costed learner, checked by reading, and on the twins' correspondence with the executed
-encoding and selection, observed in one build by a one-time inventory of its compiled calls. -/
+segment that ends at a charge of a site runs at most `κ site` word operations, the work of the
+first part's twin counted in the word operations of its sites is at most `chooseBound κ`, for
+every agent state and percept. Read as the word operations of the executed first part, it rests
+in addition on the compiler's erasure of the costed learner's work, a trust assumption, on the
+cost discipline of the costed learner, checked by reading, and on the twins' correspondence with
+the executed encoding and selection, observed in one build by a one-time inventory of its
+compiled calls. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

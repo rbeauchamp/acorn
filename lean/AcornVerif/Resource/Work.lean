@@ -39,7 +39,10 @@ scan names its row where it is used, so each count is stated once, in the table.
 
 **What is counted.** Each loop visit is charged `visit`, and each stretch of constant work is
 charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost model assigns its
-site (`Acorn.Site`). Every bound holds for every cost model.
+site (`Acorn.Site`). A charge covers its stretch and every operation of the executed code on the
+same execution path since the previous charge (`Acorn.Cost`), so a test, read or record
+construction between two charges is counted in the charge that follows it. Every bound holds for
+every cost model.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of
 an array that is shared when it is written (issue 84 of the repository; the write itself is

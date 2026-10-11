@@ -297,22 +297,33 @@ world on a wall clock needs a bound of the executed first part, because the acti
 released after it, and reading the twin's bound as one rests on four things no theorem
 yet establishes:
 
-- that each site's stretch of compiled code runs at most a given number of word
-  operations: the bound in word operations holds under that hypothesis
+- that each segment of compiled code that ends at a charge of a site, described
+  below, runs at most a given number of word operations: the bound in word operations
+  holds under that hypothesis
   (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed learner, described below;
 - the correspondence of the twins of the encoding and of selection with the executed
   definitions: the twins' charges were compared with the compiled call multisets of
-  this build by a one-time inventory, an observation of one build that no gate
-  repeats.
+  one build by a one-time inventory, an observation that no gate repeats.
 
 **What is counted.** Work is a count of the operations of the compiled definitions
 in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
 code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
-sites. Allocation, reference counting, the copy of a shared array when it is written
-([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
+sites. A charge of a site covers its stretch and every operation the compiled code runs
+on the same execution path since the previous charge, and the operations after the last
+charge of a decision go to that last charge, so each operation falls in exactly one
+charge's **segment**: a branch test, a read or a record construction between two
+charges is counted in the charge that follows it. Every segment is bounded by a
+constant of the code. Every loop whose trip count depends on the configuration or the
+state charges `visit` on each iteration, as the cost discipline below requires of
+costed definitions and as the one-time inventory observed of the twins in one build, so
+a segment holds only loops whose trip counts the code fixes: the three options and
+their slots, the four meta actions, the 32 samples of a projection, the at most 15
+doublings of the ranked width's search (`rankExponentFrom`) and the at most 33 steps of
+`Portable.pow`. Allocation, reference counting, the copy of a shared array when it is
+written ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
 initialization of a closed term, which the compiled code builds once for the process
 and then reads, cache behaviour and time are not counted.
 
@@ -376,8 +387,10 @@ space rather than with the frame:
 
 - the unique encoding writes one membership flag for every slot on every frame;
 - a learner's first loop visits its eligible traces, bounded only by the capacity;
-- a start or a terminal credit clears nine registers for every slot of each learner,
-  and a fresh option writes every slot of each of its learners;
+- a start or a terminal credit builds a zero register vector over every slot for each
+  learner: the twin charges two, one of each register type, and the compiled code of
+  one build was observed to build one array that all nine registers share; a fresh
+  option writes every slot of each of its learners;
 - a changed feature ranking rebuilds a lookup table over every slot;
 - planning's stored frame is bounded only by the capacity, because a frame read from
   a checkpoint image is admitted at any length up to it.
