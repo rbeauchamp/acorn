@@ -15,8 +15,8 @@ The bounds of a learner record's entry, retirement and credit, of a controller's
 clear, release, snapshot and derived rate, of the normalized step-size sum, and of the frozen
 policy's functions, which are the values of their costed definitions; their twins carry those
 bounds, each with a `_costed` theorem. Twins of the controllers' updates of `Acorn.Sarsa`, which
-follow their executed definitions. A learner entry's bound reads the
-learner's eligible entries, and every admitted learner has at most the capacity of its dimension
+follow their executed definitions. A learner entry's bound reads the learner's eligible entries,
+and every admitted learner has at most the capacity of its dimension
 (`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted entry is a
 function of the capacity and the length of the feature list it reads. A controller's update
 visits each of its rows, and a policy's loops visit its actions.

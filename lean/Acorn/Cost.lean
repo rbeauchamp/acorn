@@ -73,11 +73,11 @@ callback, and its row's control. Every function a combinator takes is costed: th
 `foldl` and `foldlArray`, the operations of `map`, `mapVector` and `ofFn`, the tests of `findIdx?`
 and `filter`, and the continuation of `bind`. `attach` pairs a computation's result with its
 equation, for a proof that names the result, and its work is that computation's work. A *scan*
-(`toList`, `arrayToList`, `drop`,
-`finRange`, `length`) is a library loop that takes no function: its value is the library function
-of the collection it names, and its work is the control of its row over the elements it visits,
-the whole collection or, for `drop`, the elements it drops. A recursion of Acorn's own is a costed recursion whose
-every recursive call is under a charge and whose end is charged a visit.
+(`toList`, `arrayToList`, `drop`, `finRange`, `length`) is a library loop that takes no function:
+its value is the library function of the collection it names, and its work is the control of its
+row over the elements it visits, the whole collection or, for `drop`, the elements it drops. A
+recursion of Acorn's own is a costed recursion whose every recursive call is under a charge and
+whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
@@ -125,9 +125,9 @@ and, in four callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`
 `TemporalControl.serveDraw`, `Skill.followTemporal`), the order of the parallel moves into a
 join point. The same holds of the costed definitions of a learner's record, the controllers'
 row maps and the normalized step-size sum and their callers, where `TemporalControl.serveDraw`
-again differs only in that order. Each is an observation of one build, which no gate repeats. A bound in word
-operations bounds the accounting under `SiteBounds`; no checked statement says that a segment of
-the executed code does at most its site's cost in word operations.
+again differs only in that order. Each is an observation of one build, which no gate repeats. A
+bound in word operations bounds the accounting under `SiteBounds`; no checked statement says that
+a segment of the executed code does at most its site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a
