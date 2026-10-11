@@ -577,8 +577,7 @@ theorem bind_within {first : Costed α} {next : α → Costed β} {κ : Costs} {
     rw [same]
     exact Nat.add_le_add (firstFits here firstWork) (nextFits later nextWork)
 
-/-- A sequence is bounded by a bound of its first part and a bound of its continuation at each
-result. -/
+/-- A branch's value is the value of the arm its condition selects. -/
 theorem ite_val (condition : Prop) [Decidable condition] (yes no : Unit → Costed α) :
     (ite condition yes no).val = if condition then (yes ()).val else (no ()).val := rfl
 
@@ -594,6 +593,8 @@ theorem ite_within {condition : Prop} [Decidable condition] {yes no : Unit → C
   · simp only [holds, ↓reduceIte] at work
     exact noFits holds n work
 
+/-- A sequence is bounded by a bound of its first part and a bound of its continuation at each
+result. -/
 theorem bind_within_all {first : Costed α} {next : α → Costed β} {κ : Costs} {a b : Nat}
     (firstFits : first.Within κ a) (nextFits : ∀ value, (next value).Within κ b) :
     (first >>= next).Within κ (a + b) :=

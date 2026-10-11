@@ -163,6 +163,7 @@ def routes : Array (String × String × Array String) := #[
   ("Sarsa", "lp_acorn_Acorn_Features_Controller_creditStepCosted___lam__0", #["lp_acorn_Acorn_Features_Managed_creditCosted", "lp_acorn_Acorn_NumericState_learnSecondLoopCosted___redArg"]),
   ("Sarsa", "lp_acorn___private_Init_Data_Array_Basic_0__Array_mapFinIdxMUnsafe_map___at___00Acorn_Features_Controller_creditStepCosted_spec__0___redArg", #["lp_acorn_Acorn_Features_Managed_creditCosted"]),
   ("FeatureConsumers", "lp_acorn_Acorn_Features_detachedUpdate___redArg", #["lp_acorn_Acorn_Features_takeOut___redArg", "lean_apply_1"]),
+  ("FeatureConsumers", "lp_acorn_Acorn_Features_detachedUpdateCosted___redArg", #["lp_acorn_Acorn_Features_takeOut___redArg", "lean_apply_1"]),
   ("Sarsa", "lp_acorn_Acorn_Features_Controller_stopStepCosted___redArg", #["lp_acorn___private_Init_Data_Array_Basic_0__Array_mapMUnsafe_map___at___00Acorn_Features_Controller_stopStepCosted_spec__0"]),
   ("Sarsa", "lp_acorn_Acorn_Features_Controller_stopStep___redArg", #["lp_acorn_Acorn_Features_Controller_stopStepCosted___redArg"]),
   ("Sarsa", "lp_acorn___private_Init_Data_Array_Basic_0__Array_mapMUnsafe_map___at___00Acorn_Features_Controller_stopStepCosted_spec__0", #["lp_acorn_Acorn_Features_Managed_creditCosted", "lp_acorn_Acorn_Features_Managed_applyCosted___redArg"]),
