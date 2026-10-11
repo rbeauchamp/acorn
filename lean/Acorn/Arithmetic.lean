@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Admission
+import Acorn.Cost
 
 /-!
 # Standard native arithmetic boundary
@@ -45,25 +46,45 @@ def div (left right : Binary32) : Binary32 :=
 /-- Unsigned word conversion uses the standard modeled conversion primitive. -/
 def ofUInt64 (word : UInt64) : Binary32 := ⟨word.toFloat32.toBits⟩
 
+/-- A left-to-right machine sum with its work: one visit and one `sumTerm` for each value. -/
+def sumFromCosted (initial : Binary32) (values : List Binary32) : Costed Binary32 :=
+  Costed.foldl (fun total value => Costed.op .sumTerm (total.add value)) initial values
+
 /-- A left-to-right machine sum; reassociation is not part of this definition. -/
 def sumFrom (initial : Binary32) (values : List Binary32) : Binary32 :=
-  values.foldl add initial
+  (sumFromCosted initial values).val
 
-/-- Read and add each term in input order without constructing a mapped list. -/
+theorem sumFrom_def (initial : Binary32) (values : List Binary32) :
+    sumFrom initial values = values.foldl add initial := rfl
+
+/-- Read and add each term in input order without constructing a mapped list, with its work:
+for each value, the work of its costed read and one stretch at `site`, and the fold's control. The
+site names the addition of what a term reads. -/
+@[inline] def sumMapCosted {α : Type} (site : Site) (initial : Binary32) (values : List α)
+    (read : α → Costed Binary32) : Costed Binary32 :=
+  Costed.foldl (fun total value => Costed.bind (read value) fun term =>
+    Costed.op site (total.add term)) initial values
+
+/-- Read and add each term in input order without constructing a mapped list. The value does
+not depend on the site. -/
 @[inline] def sumMap {α : Type} (initial : Binary32) (values : List α)
     (read : α → Binary32) : Binary32 :=
-  values.foldl (fun total value => total.add (read value)) initial
+  (sumMapCosted .sumTerm initial values fun value => Costed.pure (read value)).val
+
+theorem sumMap_def {α : Type} (initial : Binary32) (values : List α) (read : α → Binary32) :
+    sumMap initial values read = values.foldl (fun total value => total.add (read value)) initial :=
+  rfl
 
 /-- Fusion preserves every rounded addition, for every initial word and input. -/
 theorem sumMap_eq {α : Type} (initial : Binary32) (values : List α)
     (read : α → Binary32) :
     sumMap initial values read = sumFrom initial (values.map read) := by
-  simp [sumMap, sumFrom, List.foldl_map]
+  simp [sumMap_def, sumFrom_def, List.foldl_map]
 
 /-- Splitting an ordered sum preserves the intermediate machine accumulator. -/
 theorem sumFrom_append (initial : Binary32) (first second : List Binary32) :
     sumFrom initial (first ++ second) = sumFrom (sumFrom initial first) second := by
-  simp [sumFrom, List.foldl_append]
+  simp [sumFrom_def, List.foldl_append]
 
 end Binary32
 

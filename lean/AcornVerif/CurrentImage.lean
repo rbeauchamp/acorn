@@ -252,7 +252,7 @@ theorem zero_words (index : FeatIdx dimension) :
   obtain _ | _ | _ | _ | _ | _ | _ | _ | _ | position := position
   all_goals first
     | (exfalso; omega)
-    | simp [registerWords, TransientState.zero, vector_get]
+    | simp [registerWords, TransientState.zero_def, vector_get]
 
 /-- The register words of the support invariant are the stored words of a slot. -/
 theorem registers_words (state : NumericState config dimension) (index : FeatIdx dimension) :

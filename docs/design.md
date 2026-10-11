@@ -284,6 +284,122 @@ observer's own effects, the terminal frame, the resource counters and the
 reported durations are outside them. A campaign reports the error of a refusal
 and returns no agent, in every order.
 
+### The work of the first part
+
+The work of the first part of a step is bounded by a function of the world's
+interface, the feature configuration and the dimension of the feature space, for
+every agent state and every percept, under the two orders whose first part is
+selection, `learn-then-act` and `plan-after-act`
+([definitions](../lean/AcornVerif/Resource/StepWork.lean),
+`AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
+order). The theorems bound the accounting of the first part's twin. The deadline of a
+world on a wall clock needs a bound of the executed first part, which runs from the
+step's entry until the action is released, and reading the twin's bound as one rests on
+four things no theorem yet establishes:
+
+- that the segment of each charge of a site, described below, runs at most a given
+  number of word operations: the bound in word operations holds under
+  that hypothesis
+  (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
+- the compiler's erasure of a costed definition's work, described below;
+- the cost discipline of the costed learner, described below;
+- the correspondence of the twins of the encoding and of selection with the executed
+  definitions: the twins' charges were compared with the compiled call multisets of
+  one build by a one-time inventory, an observation that no gate repeats.
+
+**What is counted.** Work is a count of the operations of the compiled definitions
+in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
+code whose work is a constant of the compiled code, costs its own constant
+([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
+sites. What each charge counts is its **segment** of the operations the compiled code
+runs during one call of the first part, defined once in the
+[cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment is
+bounded by a constant of the code. Allocation, reference counting, the copy of a shared
+array when it is written ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
+initialization of a closed term, which the compiled code builds once for the process
+and then reads, cache behaviour and time are not counted.
+
+**How the count follows the executed code.** The learner's executed definitions are
+the values of their costed definitions ([cost semantics](../lean/Acorn/Cost.lean)):
+`NumericState.step` is the value of `NumericState.stepCosted`, and so are the
+prediction, both loops, a trajectory's start, a terminal step, a planning step, a
+release, a retirement, the ordered sums and the fresh transient record. A costed
+definition's work is a type former and a proof, which the compiler erases, so the
+definition compiles to the code of its value. That erasure is a trust assumption on the
+compiler: a comparison of the generated C of the costed learner with that of the same
+definitions written without work found them equal up to the renaming of the definitions
+and their local variables, an observation of one build that no gate repeats.
+The loops the learner's bounds count are therefore the loops that run, under that
+assumption and one discipline that no theorem states, because Lean gives a pure term
+no operational meaning. Every function a combinator takes is costed, so its work is
+counted: the steps of a fold, the operation of a map, the test of a search
+(`Costed.findIdx?`) and the continuation of a sequence; the costed type has only the
+instances that do-blocks need, so no derived map applies a callback outside the count.
+The uncosted entry points are
+values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
+`Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
+element of `Costed.replicate`, the collections and initial accumulators of the loops, and
+the terms a costed definition evaluates in its own body. Each must be
+computed without a loop, each loop must run in a combinator or a costed definition, and
+each path of a recursion must pass a charge. The combinators cannot enforce this:
+`Costed.pure` accepts any value, the learner's step among them, at no work. The
+discipline is checked by reading until the rule that
+[Regula issue 333](https://github.com/rbeauchamp/regula/issues/333) proposes checks it.
+
+Each loop is charged the passes of its runtime implementation, with one visit for each
+pass's end. One table states the passes of every library loop that costed code and the
+twins run, each row citing the definition and the compiler replacement that runs
+(`Acorn.Library`, `Library.passes`), and every loop's control is a function of its row
+(`Library.control`), so changing a row changes every charge and bound that uses it:
+the library's map of a list, for instance, runs as a loop and a reversal, two passes, and
+turning a list into an array takes two, a length and a copy.
+
+The other definitions of the first part are not costed yet. Each has a twin that
+carries its work beside its value ([twins](../lean/AcornVerif/Resource/Work.lean)):
+the twin's value is the executed definition's, by definitional unfolding, by
+induction on the same recursion (`rankedRun_val`), or, where the definition builds
+its result through a private constructor and proofs, by reading. A value theorem
+does not tie a twin's work to the executed code, since a twin of the same value with
+less work would satisfy it. For those definitions the bound is a bound of the twins,
+and it bounds the executed code through the correspondence of each twin's charges with
+the definition's compiled calls, which the one-time inventory observed in one build.
+The twins read the learner through twins of its own whose work is the bound proved
+of its costed definition, which a theorem of each checks
+(`AcornVerif.Resource.Twin.step_costed`).
+
+**What bounds each loop.** The frame's active features are at most
+`tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is
+bounded by the type of its collection or by an invariant every agent state carries:
+each admitted learner has at most as many eligible traces as its dimension has slots
+(`AcornVerif.CurrentFeatureConsumers.managed_capacity`), and a stored frame of
+planning has at most as many features as the dimension has slots
+(`AcornVerif.CurrentLearner.active_cardinality`). No loop of the first part is
+unbounded by the configuration. Several terms scale with the capacity of the feature
+space rather than with the frame:
+
+- the unique encoding writes one membership flag for every slot on every frame;
+- a learner's first loop visits its eligible traces, bounded only by the capacity;
+- a start or a terminal credit builds a zero register vector over every slot for
+  each learner: the costed definition (`TransientState.zeroCosted`) charges two, one
+  of each register type, and the compiled code of one build was observed to build one
+  array that all nine registers share; a fresh option writes every slot of each of its
+  learners;
+- a changed feature ranking rebuilds a lookup table over every slot;
+- planning's stored frame is bounded only by the capacity, because a frame read from
+  a checkpoint image is admitted at any length up to it.
+
+The ranked width enters as its square in the rows' predictions and as its cube in
+the forgetting of changed positions after a reranking. The width itself is a search
+of at most 15 doublings, charged the site `rankWidth` at each evaluation the compiled
+code makes: twice for a row input; once for the ranked dimension of each update of a
+transition part, at its start, step, terminal credit and stop; once for each
+forgetting of its rows; once for each retirement of a deviation learner's column; and
+once each for a ranking's lookup table, an empty ranking, a fresh transition part,
+the ranked slots, the changed positions, the occupied positions and an indicator.
+
+The first part under `act-then-learn`, the second part in each order and the memory
+of the agent state are not bounded here.
+
 ### The time a world declares
 
 A world declares its **timing** in its interface
@@ -371,7 +487,9 @@ Operation in real time needs three more parts. The first and the third are built
 - a driver of a host loop for a world on a wall clock, which reads the declared timing and
   counts a missed deadline as a fault: `microduck-host`
   ([issue #95](https://github.com/rbeauchamp/acorn/issues/95));
-- a bound of the work of each part of a step;
+- a bound of the work of each part of a step, begun in
+  [the work of the first part](#the-work-of-the-first-part), which states what is proved
+  and on what it rests;
 - the exact save and restore of the agent: the [checkpoint](#checkpoints) holds every
   field of the agent's state, and loading the bytes a save writes returns the state that
   was saved (`CurrentCheckpoint.load_saved`).

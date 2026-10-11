@@ -154,8 +154,8 @@ theorem terminal_clears (controller : Controller config dimension actions)
     (action : Action actions) :
     ((controller.terminal reward).learners.get action).state.transient =
       TransientState.zero dimension := by
-  simp [Controller.terminal_eq, Controller.clear, Vector.get, Managed.apply, SwiftTd.Entry.apply,
-    NumericState.clearTransient]
+  simp [Controller.terminal_eq, Controller.clear, Vector.get, Managed.apply,
+    SwiftTd.Entry.apply_def, NumericState.clearTransient_def]
 
 /-- Controller observations are finite because they sum the actual refined weights,
 not because the output is clamped or a separately written prediction model is assumed. -/
