@@ -8,13 +8,21 @@ import Acorn.Cost
 /-!
 # Work of the definitions not yet costed
 
-The executed definitions of the learner, of a learner's record, of the controllers' row maps and
-of the frozen policy are the values of costed definitions (`Acorn.Costed`), so the loops their
-bounds count are the loops that run, under the trust assumption that the compiler erases the work
-(`Acorn.Cost`). The other definitions of the agent's step are not yet costed. For each of them a **twin** here is a `Costed` computation, a
-value with a `Nat` of work, written beside the executed definition to follow its control flow.
-A twin's value theorem states that its value is the executed definition's, by `rfl`, by
-induction on the same recursion, or, through `via`, by reading.
+The executed definitions of the learner, of a learner's record, of the frozen policy, of the
+controllers' predictions, clear, release, snapshot and derived rate, and of the controllers'
+updates `Controller.creditStep`, `Controller.valuesStep`, `Controller.stopStep`,
+`Controller.terminal`, `Controller.retire`, `Controller.plan`, `Controller.policyStep` and
+`Controller.persistentStep` are the values of costed definitions (`Acorn.Costed`), so the loops
+their bounds count are the loops that run, under the trust assumption that the compiler erases
+the work (`Acorn.Cost`). The other definitions of the agent's step are not yet costed. Of the
+controllers' definitions, `Controller.initial` and `Controller.resetAction` have twins
+(`AcornVerif.Resource.Twin.controllerInitial` and `AcornVerif.Resource.Twin.resetAction` in
+`AcornVerif.Resource.RefreshWork`), and the updates `Controller.startStep`, `Controller.step`,
+`Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep` have none yet. A
+**twin** here is a `Costed` computation, a value with a `Nat` of work, written beside the
+executed definition to follow its control flow. A twin's value theorem states that its value is
+the executed definition's, by `rfl`, by induction on the same recursion, or, through `via`, by
+reading.
 
 **What a twin establishes.** A value theorem does not tie a twin's work to the executed code:
 Lean's logic gives a pure term no operational meaning, and a twin of the same value with less
@@ -25,8 +33,8 @@ no gate repeats. A bound proved here bounds the twin's accounting. It is not a b
 executed code, which would need that correspondence as a checked statement, owed by a later
 increment of requirement R8 (rbeauchamp/acorn#90). A definition that is the value of its costed
 definition is bounded through that definition instead (`AcornVerif.Resource.LearnerWork` for the
-learner's, `AcornVerif.Resource.ControlWork` for the learner record's, the controllers' row maps'
-and the policy's).
+learner's, `AcornVerif.Resource.ControlWork` for the learner record's, the controllers' costed
+parts and updates, and the policy's).
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of

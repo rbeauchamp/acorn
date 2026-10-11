@@ -15,7 +15,8 @@ proved here bounds the accounting of those costed definitions. Reading it as the
 that runs rests on the trust assumption that the compiler erases the work (`Acorn.Cost`) and on the
 cost discipline of `Acorn.Cost`: every function a combinator takes is costed, and every value a
 costed definition passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without
-a loop and without a costed definition. The combinators cannot enforce the second, since
+a costed definition and with no loop except those `Acorn.Cost` lists as left inside a segment, whose
+trip counts are bounded by constants of the code. The combinators cannot enforce the second, since
 `Costed.pure` accepts any value; it is checked by reading until the cost-closed rule of
 rbeauchamp/regula#333 checks it. A later increment of requirement R8 (rbeauchamp/acorn#90) owes that
 reading as a checked statement.

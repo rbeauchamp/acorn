@@ -355,7 +355,9 @@ theorem stopFollowingRun_work (κ : Costs)
       stopFollowingBound κ actions.word.toNat dimension.capacity
         (rankDimension dimension).capacity features.indices.length := by
   unfold stopFollowingRun
-  exact Costed.bind_work_le (stopStep_work κ skill.policy _) fun _ =>
+  exact Costed.bind_work_le (stopStep_work κ skill.policy ((terminalCumulant
+    (criterion.center reward 1 gain) (skill.interest.stoppingValue estimate potential)
+    following.previous).sub skill.policy.vOld)) fun _ =>
     Costed.charge_work_le (Costed.ite_work_bound _
       (Costed.discard_work_le (modelStop_work κ skill.model value features reward))
       (Nat.zero_le _))

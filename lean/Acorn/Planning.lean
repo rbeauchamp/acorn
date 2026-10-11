@@ -70,17 +70,43 @@ def planningSlots : List (Fin Acorn.FeatureConstants.skillCount) := List.ofFn id
 /-- Feature vectors backed up at one boundary: the current one and one stored one. -/
 def planningFrames : Nat := 2
 
+/-- A planning step with its work: the planned row's planning step, then the controller's
+record. -/
+def Controller.planCosted {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
+    (controller : Controller config dimension actions) (action : Action actions)
+    (features : SwiftTd.ActiveSet dimension) (target : Binary32) :
+    Costed (Controller config dimension actions × Binary32) :=
+  let learner := controller.learners.get action
+  Costed.bind (Costed.attach (learner.state.planStepCosted config features target)) fun result =>
+    let updated : Managed config dimension :=
+      ⟨result.val.1, learner.phase, by
+        rw [result.property]
+        exact SwiftTd.Entry.apply_plan features target learner.state ▸
+          .transition (.plan features target) trivial learner.admitted⟩
+    Costed.op .planClose
+      ({ controller with learners := controller.learners.set action.val updated action.isLt },
+        result.val.2)
+
 /-- Plan through the actual learner without changing controller trajectory lags. -/
 def Controller.plan {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (action : Action actions)
     (features : SwiftTd.ActiveSet dimension) (target : Binary32) :
     Controller config dimension actions × Binary32 :=
-  let learner := controller.learners.get action
-  let result := learner.state.planStep config features target
-  let updated : Managed config dimension :=
-    ⟨result.1, learner.phase, SwiftTd.Entry.apply_plan features target learner.state ▸
-      .transition (.plan features target) trivial learner.admitted⟩
-  ({ controller with learners := controller.learners.set action.val updated action.isLt }, result.2)
+  (controller.planCosted action features target).val
+
+/-- A planning step replaces the planned row by its planned learner and returns the step's
+error. -/
+theorem Controller.plan_def {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
+    (controller : Controller config dimension actions) (action : Action actions)
+    (features : SwiftTd.ActiveSet dimension) (target : Binary32) :
+    controller.plan action features target =
+      let learner := controller.learners.get action
+      let result := learner.state.planStep config features target
+      let updated : Managed config dimension :=
+        ⟨result.1, learner.phase, SwiftTd.Entry.apply_plan features target learner.state ▸
+          .transition (.plan features target) trivial learner.admitted⟩
+      ({ controller with learners := controller.learners.set action.val updated action.isLt },
+        result.2) := rfl
 
 /-- One planning look-ahead: predict the option's outcome at the feature vector under
 the value weights the controller holds now, and move the option's action value

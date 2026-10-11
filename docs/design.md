@@ -305,11 +305,12 @@ establishes, which a later increment of requirement R8 owes:
   checked statement (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed definitions of the learner, of a learner's record,
-  of the controllers' row maps, of the frozen policy and of its exploration, described
-  below;
-- the correspondence of the twins of the encoding and of selection with the executed
-  definitions: the twins' charges were compared with the compiled call multisets of
-  one build by a one-time inventory, an observation that no gate repeats.
+  of the controllers' predictions, clear, release, snapshot, derived rate and updates
+  listed below, of the frozen policy and of its exploration, described below;
+- the correspondence of the twins of the encoding and of selection, among them the
+  controllers' initial value and reset, with the executed definitions: the twins'
+  charges were compared with the compiled call multisets of one build by a one-time
+  inventory, an observation that no gate repeats.
 
 **What is counted.** Work is an accounting in a cost model, whose intended reading is
 a count of the operations of the compiled definitions: each visit of a loop costs `visit`, and each **site**, a stretch of
@@ -334,7 +335,13 @@ functions of a frozen policy: its ordered maximum, candidates, reservoir, greedy
 nominal masses, draw and mean (`Acorn.Policy`), and its persistent draw and served
 masses (`Acorn.Exploration`). So are a learner record's entry, retirement and credit
 (`Managed.apply`, `Managed.retire`, `Managed.credit`), a controller's predictions, clear,
-release, snapshot and derived rate, and a learner's normalized step-size sum. A costed
+release, snapshot and derived rate and its updates `Controller.creditStep`, `valuesStep`,
+`stopStep`, `terminal`, `retire`, `plan`, `policyStep` and `persistentStep`, and a
+learner's normalized step-size sum. A controller's initial value and reset
+(`Controller.initial`, `Controller.resetAction`) are not costed yet and have twins
+(`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`);
+its updates `Controller.startStep`, `step`, `smdpStep`, `closeStep` and `backupStep` are
+not costed yet and have none. A costed
 definition's work is a type former and a proof, which the compiler erases, so the
 definition compiles to the code of its value. That
 erasure is a trust assumption on the compiler: a comparison of the generated C of each
@@ -347,19 +354,22 @@ no gate repeats. The loops the costed definitions' bounds count are therefore th
 loops that run, under that assumption and one discipline that no theorem states,
 because Lean gives a pure term no operational meaning. Every function a combinator
 takes is costed, so its work is counted: the steps of a fold, the operation of a map,
-the tests of a search (`Costed.findIdx?`) and a filter, and the continuation of a
-sequence; a scan of a list, a vector or an array (its listing, a drop, a length, the
-indices below a count) is charged its row with no function to count; the costed type has only
+the tests of a search (`Costed.findIdx?`) and a filter, the continuation of a
+sequence and the arms of a branch (`Costed.ite`); a scan of a list, a vector or an
+array (its listing, a drop, a length, the indices below a count) is charged its row with no function to count; the costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
-element of `Costed.replicate`, the collections and initial accumulators of the loops, and
-the terms a costed definition evaluates in its own body. Each must be
-computed without a loop, each loop must run in a combinator or a costed definition, and
-each path of a recursion must pass a charge. The combinators cannot enforce this:
-`Costed.pure` accepts any value, the learner's step among them, at no work. The
+element of `Costed.replicate`, the collections and initial accumulators of the loops, the
+condition of `Costed.ite`, and the terms a costed definition evaluates in its own body.
+Each must be computed without a costed definition and with no loop except those the cost semantics
+lists as left inside a segment, whose trip counts are bounded by constants of the code
+(the at most 33 steps of `Portable.pow` among them); every other loop must run in a
+combinator or a costed definition, and each path of a recursion must pass a charge. The
+combinators cannot enforce this: `Costed.pure` accepts any value, the learner's step
+among them, at no work. The
 discipline is checked by reading until the rule that
 [Regula issue 333](https://github.com/rbeauchamp/regula/issues/333) proposes checks it.
 
@@ -381,8 +391,8 @@ less work would satisfy it. For those definitions the bound is a bound of the tw
 accounting; reading it as a bound of the executed code needs the correspondence of
 each twin's charges with the definition's compiled calls, which the one-time inventory
 observed in one build and no theorem states.
-The twins read the learner, a learner's record, the controllers' row maps and the
-policy through twins of their own whose work is the bound proved of the costed
+The twins read the learner, a learner's record, the controllers' costed parts and updates
+and the policy through twins of their own whose work is the bound proved of the costed
 definition, which a theorem of each checks (`AcornVerif.Resource.Twin.step_costed`,
 `AcornVerif.Resource.Twin.managedApply_costed`, `AcornVerif.Resource.Twin.draw_costed`).
 

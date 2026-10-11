@@ -101,6 +101,27 @@ theorem Managed.credit_def (learner : Managed config dimension) (delta vd decay 
   unfold Managed.credit Managed.creditCosted
   cases restart <;> rfl
 
+/-- The shared-error update with its work: the taken row's credit and second loop, which
+`detachedUpdateCosted` runs on the row it takes out of the table, then one indexed map that credits
+every other row and keeps the taken one, then the controller's record. -/
+def Controller.creditStepCosted (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions)
+    (lag delta decay : Binary32) : Costed (Controller config dimension actions) :=
+  let ⟨learners, _, vDelta, restart⟩ := controller
+  Costed.bind (detachedUpdateCosted learners action fun learner =>
+      Costed.bind (Costed.attach (learner.creditCosted delta vDelta decay restart)) fun chosen =>
+        Costed.bind (Costed.attach (chosen.val.val.state.learnSecondLoopCosted config features .zero))
+          fun second => Costed.pure (⟨second.val.1, false, by
+            rw [second.property]
+            exact .transition (.second features .zero) chosen.val.property chosen.val.val.admitted⟩,
+            second.val.2))
+    fun taken =>
+      Costed.bind (Costed.mapFinIdx taken.1 fun index learner _ =>
+          Costed.ite (index = action.val) (fun _ => Costed.pure learner) fun _ =>
+            Costed.bind (learner.creditCosted delta vDelta decay restart) fun credited =>
+              Costed.pure credited.val)
+        fun rows => Costed.op .creditClose ⟨rows, lag, taken.2, false⟩
+
 /-- Shared-error update toward a supplied error, trace decay and lag. Every first
 loop receives the error and the old shared accumulator; only the taken row runs
 loop two, from zero. The caller owns the meaning of the error: the on-policy
@@ -113,15 +134,25 @@ a performance expectation, not a proved property (see `detachedUpdate`). -/
 def Controller.creditStep (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions)
     (lag delta decay : Binary32) : Controller config dimension actions :=
-  let ⟨learners, _, vDelta, restart⟩ := controller
-  let taken := detachedUpdate learners action fun learner =>
-    let chosen := learner.credit delta vDelta decay restart
-    let second := chosen.val.state.learnSecondLoop config features .zero
-    (⟨second.1, false, .transition (.second features .zero) chosen.property chosen.val.admitted⟩,
-      second.2)
-  ⟨taken.1.mapFinIdx fun index learner _ =>
-      if index = action.val then learner else (learner.credit delta vDelta decay restart).val,
-    lag, taken.2, false⟩
+  (controller.creditStepCosted features action lag delta decay).val
+
+/-- The shared-error update is the taken row's credit and second loop, then the credit of every
+other row. -/
+theorem Controller.creditStep_def (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions)
+    (lag delta decay : Binary32) :
+    controller.creditStep features action lag delta decay =
+      let ⟨learners, _, vDelta, restart⟩ := controller
+      let taken := detachedUpdate learners action fun learner =>
+        let chosen := learner.credit delta vDelta decay restart
+        let second := chosen.val.state.learnSecondLoop config features .zero
+        (⟨second.1, false,
+            .transition (.second features .zero) chosen.property chosen.val.admitted⟩, second.2)
+      ⟨taken.1.mapFinIdx fun index learner _ =>
+          if index = action.val then learner else (learner.credit delta vDelta decay restart).val,
+        lag, taken.2, false⟩ := by
+  cases controller
+  rfl
 
 /-- The executing shared-error update is the listed one: every row takes the first
 loop with the old shared accumulator, and only the taken row then runs loop two,
@@ -144,7 +175,7 @@ theorem Controller.creditStep_eq (controller : Controller config dimension actio
     have row : (learners.map fun learner => learner.credit delta vDelta decay restart).get action =
         (learners.get action).credit delta vDelta decay restart :=
       Vector.getElem_map _ action.isLt
-    simp only [Controller.creditStep, detachedUpdate_eq, row]
+    simp only [Controller.creditStep_def, detachedUpdate_eq, row]
     congr 1
     apply Vector.ext
     intro position inside
@@ -155,6 +186,14 @@ theorem Controller.creditStep_eq (controller : Controller config dimension actio
       simp only [Vector.getElem_mapFinIdx, Vector.getElem_map,
         Vector.getElem_set_ne action.isLt inside here, there, ite_false]
 
+/-- The update over a value snapshot with its work: its error, then the shared-error update. -/
+def Controller.valuesStepCosted (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
+    (action : Action actions) (reward bootstrap decay : Binary32) :
+    Costed (Controller config dimension actions) :=
+  Costed.charge .valuesOpen <| controller.creditStepCosted features action (values.get action)
+    ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld) decay
+
 /-- Complete shared-error update over a supplied immutable value snapshot.
 Every first loop receives the old shared accumulator; only the selected row
 runs loop two, from zero. The snapshot belongs to the caller's decision clock.
@@ -163,8 +202,15 @@ def Controller.valuesStep (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
     (action : Action actions) (reward bootstrap decay : Binary32) :
     Controller config dimension actions :=
-  controller.creditStep features action (values.get action)
-    ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld) decay
+  (controller.valuesStepCosted features values action reward bootstrap decay).val
+
+/-- The update over a value snapshot is the shared-error update at the sampled bootstrap. -/
+theorem Controller.valuesStep_def (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
+    (action : Action actions) (reward bootstrap decay : Binary32) :
+    controller.valuesStep features values action reward bootstrap decay =
+      controller.creditStep features action (values.get action)
+        ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld) decay := rfl
 
 /-- The release with its work: one release for each row, then the controller's record. -/
 def Controller.releaseCosted (controller : Controller config dimension actions) :
@@ -194,6 +240,15 @@ def Controller.startStep (controller : Controller config dimension actions)
     Controller config dimension actions :=
   controller.release.creditStep features action lag .zero .zero
 
+/-- Stopping credit with its work: each row's credit and release, then the controller's record. -/
+def Controller.stopStepCosted (controller : Controller config dimension actions)
+    (delta : Binary32) : Costed (Controller config dimension actions) :=
+  let ⟨learners, _, vDelta, restart⟩ := controller
+  Costed.bind (Costed.mapVector (fun learner =>
+      Costed.bind (learner.creditCosted delta vDelta .zero restart) fun credited =>
+        credited.val.applyCosted .release trivial) learners)
+    fun rows => Costed.op .controllerClose ⟨rows, .zero, .zero, false⟩
+
 /-- Stopping credit at zero trace decay: the factor γλ(1 − β) of Sutton, Machado et
 al., *Reward-respecting subtasks for model-based reinforcement learning*,
 Artificial Intelligence 324 (2023), 104001, arXiv:2202.03466v4, §3, procedure
@@ -203,9 +258,18 @@ so nothing stays eligible for any trace word. No row runs loop two and both
 shared lags restart. -/
 def Controller.stopStep (controller : Controller config dimension actions) (delta : Binary32) :
     Controller config dimension actions :=
-  let ⟨learners, _, vDelta, restart⟩ := controller
-  ⟨learners.map (fun learner =>
-    (learner.credit delta vDelta .zero restart).val.apply .release trivial), .zero, .zero, false⟩
+  (controller.stopStepCosted delta).val
+
+/-- Stopping credit credits each row at zero trace decay and then releases it. -/
+theorem Controller.stopStep_def (controller : Controller config dimension actions)
+    (delta : Binary32) :
+    controller.stopStep delta =
+      let ⟨learners, _, vDelta, restart⟩ := controller
+      ⟨learners.map (fun learner =>
+        (learner.credit delta vDelta .zero restart).val.apply .release trivial), .zero, .zero,
+        false⟩ := by
+  cases controller
+  rfl
 
 /-- Stopping credit in terms of the controller's own fields. The executing form
 consumes the controller before its rows are updated; the rows and both lags are
@@ -248,15 +312,34 @@ def Controller.closeStep (controller : Controller config dimension actions)
     ((reward.add ((Portable.pow config.rule.gamma duration).mul continuation)).sub
       controller.vOld)
 
-/-- Terminal credit closes existing traces without adding a successor action. -/
-def Controller.terminal (controller : Controller config dimension actions) (reward : Binary32) :
-    Controller config dimension actions :=
+/-- Terminal credit with its work: the terminal error and trace decay, each row's first loop,
+then the controller's clear. -/
+def Controller.terminalCosted (controller : Controller config dimension actions)
+    (reward : Binary32) : Costed (Controller config dimension actions) :=
   let decay := controller.traceDecay
   let ⟨learners, vOld, vDelta, restart⟩ := controller
   let delta := reward.sub vOld
-  let credited := learners.map
-    (fun learner => learner.apply (.first delta vDelta decay) trivial)
-  (Controller.mk credited vOld vDelta restart).clear
+  Costed.charge .learnerError <| Costed.bind (Costed.mapVector
+      (fun learner => learner.applyCosted (.first delta vDelta decay) trivial) learners)
+    fun credited => (Controller.mk credited vOld vDelta restart).clearCosted
+
+/-- Terminal credit closes existing traces without adding a successor action. -/
+def Controller.terminal (controller : Controller config dimension actions) (reward : Binary32) :
+    Controller config dimension actions :=
+  (controller.terminalCosted reward).val
+
+/-- Terminal credit is each row's first loop at the terminal error, then the clear. -/
+theorem Controller.terminal_def (controller : Controller config dimension actions)
+    (reward : Binary32) :
+    controller.terminal reward =
+      let decay := controller.traceDecay
+      let ⟨learners, vOld, vDelta, restart⟩ := controller
+      let delta := reward.sub vOld
+      let credited := learners.map
+        (fun learner => learner.apply (.first delta vDelta decay) trivial)
+      (Controller.mk credited vOld vDelta restart).clear := by
+  cases controller
+  rfl
 
 /-- Terminal credit in terms of the controller's own fields. The executing form
 consumes the controller before its rows are updated; every row takes the same
@@ -294,7 +377,7 @@ theorem Controller.valuesStep_lag (controller : Controller config dimension acti
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
     (action : Action actions) (reward bootstrap decay : Binary32) :
     (controller.valuesStep features values action reward bootstrap decay).vOld = values.get action := by
-  rw [Controller.valuesStep, Controller.creditStep_eq]
+  rw [Controller.valuesStep_def, Controller.creditStep_eq]
 
 /-- The on-policy update is the shared-error update at its sampled bootstrap, for
 every state and raw input word. -/

@@ -178,7 +178,7 @@ theorem controller_retire_values {actions : Nat}
     intro action
     have same := retireIndex_prediction learners[action.val].state idx features
     simp only [NumericState.predict_def] at same
-    simpa [Features.Controller.predictAll_def, Features.Controller.retire,
+    simpa [Features.Controller.predictAll_def, Features.Controller.retire_def,
       Features.Managed.retire_def, Features.Managed.apply_state, Entry.apply_def] using same
 
 variable {shape : Features.PatchShape} {actions : Word.Count} {features : Features.Config}
