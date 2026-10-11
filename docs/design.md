@@ -293,12 +293,12 @@ selection, `learn-then-act` and `plan-after-act`
 ([definitions](../lean/AcornVerif/Resource/StepWork.lean),
 `AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
 order). The theorems bound the accounting of the first part's twin. The deadline of a
-world on a wall clock needs a bound of the executed first part, because the action is
-released after it, and reading the twin's bound as one rests on four things no theorem
-yet establishes:
+world on a wall clock needs a bound of the executed first part, which runs from the
+step's entry until the action is released, and reading the twin's bound as one rests on
+four things no theorem yet establishes:
 
-- that the segment of compiled code of each charge of a site, described below, runs
-  at most a given number of word operations: the bound in word operations holds under
+- that the segment of each charge of a site, described below, runs at most a given
+  number of word operations: the bound in word operations holds under
   that hypothesis
   (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
@@ -311,23 +311,11 @@ yet establishes:
 in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
 code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
-sites. A charge counts its **segment**, and the segment is the only definition of what
-it counts: every operation the compiled code runs belongs to the segment of the first
-charge at or after it in execution order, and the operations after the last charge of a
-decision go to that last charge, so each operation is in exactly one segment, and a
-branch test, a read or a record construction between two charges is counted in the
-charge that follows it. A site's docstring names the operations its charge marks;
-where a site is charged before a nested computation that makes its own charges, the
-named operations that run after that nested charge are counted in a later charge's
-segment. Every segment is bounded by a
-constant of the code. Every loop whose trip count depends on the configuration or the
-state charges `visit` on each iteration, as the cost discipline below requires of
-costed definitions and as the one-time inventory observed of the twins in one build, so
-a segment holds only loops whose trip counts the code fixes: the three options and
-their slots, the four meta actions, the 32 samples of a projection, the at most 15
-doublings of the ranked width's search (`rankExponentFrom`) and the at most 33 steps of
-`Portable.pow`. Allocation, reference counting, the copy of a shared array when it is
-written ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
+sites. What each charge counts is its **segment** of the operations the compiled code
+runs during one call of the first part, defined once in the
+[cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment is
+bounded by a constant of the code. Allocation, reference counting, the copy of a shared
+array when it is written ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the one-time
 initialization of a closed term, which the compiled code builds once for the process
 and then reads, cache behaviour and time are not counted.
 

@@ -37,8 +37,8 @@ inventory, an observation of that build which no gate repeats.
 
 **Word operations.** A site's cost in word operations is not derived from the compiled code. The
 bound in word operations (`AcornVerif.Resource.Twin.choose_words`) holds under the hypothesis
-`SiteBounds words κ`: the segment of each charge of a site runs at most `κ site` word
-operations.
+`SiteBounds words κ`: the segment of each charge of a site, as `Acorn.Cost` defines it, runs at
+most `κ site` word operations.
 -/
 
 namespace AcornVerif.Resource.Twin
@@ -107,16 +107,10 @@ theorem chooseSelected_work (κ : Costs)
       Nat.le_trans (selectRun_work κ _ _ _ _ _ _)
         (selectBound_mono κ _ _ _ _ _ (Agent.frame_length _ percept.frame))
 
-/-- `SiteBounds words κ`: the segment of each charge of a site runs at most `κ site` word
-operations, where `words site` is the largest number of word operations of the segment of a charge
-of that site on the word machine of `AcornVerif.Resource.WordKernel`, one for each instruction.
-Every operation of a decision belongs to the segment of the first charge at or after it in execution
-order, and the operations after the last charge to that last charge, so each operation is in exactly
-one segment (`Acorn.Cost`). A site's docstring names the operations its charge marks; where a site
-is charged before a nested computation that makes its own charges, the named operations that run
-after that nested charge are counted in a later charge's segment. Every segment is bounded by a
-constant of the code, so `words` is a finite hypothesis. No theorem derives `words`; a bound in word
-operations holds under this hypothesis. -/
+/-- `SiteBounds words κ`: `words site ≤ κ site` for every site, where `words site` is the largest
+number of word operations, on the word machine of `AcornVerif.Resource.WordKernel` with one for each
+instruction, of a segment at a charge point of that site, as `Acorn.Cost` defines segments. No
+theorem derives `words`; a bound in word operations holds under this hypothesis. -/
 def SiteBounds (words κ : Costs) : Prop := ∀ site, words site ≤ κ site
 
 set_option maxHeartbeats 400000 in

@@ -14,21 +14,38 @@ alone, and reading `val` compiles to nothing (a trust assumption, below). The de
 runs is the definition whose work the bounds count, and a definition with the plain result type
 is the `val` of its costed definition.
 
-**Sites.** A *site* (`Site`) is a kind of constant stretch of executed code. A charge is a point of
-a decision's execution: an `op` at the value it charges, a `charge` before the computation it wraps.
-A charge counts its *segment*, and the segment is the only definition of what it counts: every
-operation the compiled code runs, with every definition it calls, belongs to the segment of the
-first charge at or after it in execution order, and the operations after the last charge of a
-decision go to that last charge, so each operation is in exactly one segment. A site's docstring
-names the operations its charge marks; where a site is charged before a nested computation that
-makes its own charges, the named operations that run after that nested charge are counted in a later
-charge's segment. Every segment is bounded by a constant of the code: every loop whose trip count
-depends on the configuration or the state runs in a loop combinator or a costed recursion that
-charges a `visit` on each iteration, so no segment contains one. The cost discipline below requires
-this of costed definitions, and the one-time compiled-call inventory of one build observed it of the
-twins. The loops left inside a segment have trip counts fixed by the code: the three options and
-their slots, the four meta actions, the 32 samples of a projection, the at most 15 doublings of the
-ranked width's search (`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. A cost model
+**Sites.** A *site* (`Site`) is a kind of constant stretch of executed code, and its docstring names
+the operations its charge marks. What a charge counts is its *segment*, defined here once:
+
+- the *trace* is the word operations the compiled code runs during one call of a bounded part, as
+  one flat sequence. The bounded part here is the first part, from the step's entry until the action
+  is released, including the `Chosen` record built after selection's last charge. An operation
+  inside a callee is itself an operation of the trace, at its own position;
+- the *charge points* are an `op` at the value it charges, a `charge` before the computation it
+  wraps, a loop combinator's visits at fixed points of each pass (each element's visit before that
+  element's step, which is its callback in a pass that runs one, and the pass's end visit after its
+  last element), and a costed recursion's charges where the recursion makes them;
+- each operation belongs to the segment of the first charge point at or after it, and the operations
+  after the part's last charge point belong to that last one, so the segments partition the trace.
+
+The segment of an operation is decided by its position alone, so a site's named operations can lie
+in another charge's segment: after the site's own point, or before a charge stacked ahead of it.
+`words site` is the largest number of word operations of a segment at a charge point of that site,
+and `SiteBounds` (`AcornVerif.Resource.Twin.SiteBounds`) is the hypothesis `words site ≤ κ site`. In
+the SwiftTD loops (`learnFirstLoopGoCosted`, `learnSecondLoopGoCosted`, `planWeightsGoCosted`) an
+element's work runs before its visit's stacked charges or, as the arguments of the recursive call,
+after them, so a `visit` segment holds a whole element and, in the first loop, a prune; the segments
+of `firstElement`, `secondElement`, `prune` and `planElement` are empty, and `κ visit` must cover an
+element and a prune. The docstrings of `secondOpen`, `choose` and `select` say where their named
+operations lie.
+
+Every segment is bounded by a constant of the code: every loop whose trip count depends on the
+configuration or the state runs in a loop combinator or a costed recursion, which has a charge point
+on each iteration, so no segment contains one. The cost discipline below requires this of costed
+definitions, and the one-time compiled-call inventory of one build observed it of the twins. The
+loops left inside a segment have trip counts fixed by the code: the three options and their slots,
+the four meta actions, the 32 samples of a projection, the at most 15 doublings of the ranked
+width's search (`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. A cost model
 (`Costs`) assigns each site a cost, and every work bound holds for every cost model. No theorem
 derives the cost of a site in word operations; the scalar operations that the native resource audit
 bounds are the operations with an extracted cost.
@@ -90,7 +107,9 @@ namespace Acorn
 /-- The constant stretches of the agent's step. Each constructor names the operations its
 charge marks; a charge counts its segment (the module's **Sites**). -/
 inductive Site where
-  /-- The control of one visit of a loop: its test, its advance and its branch. -/
+  /-- The control of one visit of a loop: its test, its advance and its branch. Its segment holds
+  every operation since the previous charge point (the module's **Sites**); in the SwiftTD loops
+  that is a whole element and, in the first loop, a prune. -/
   | visit
   /-- One binary32 addition of an ordered sum, with the read of its term. -/
   | sumTerm
@@ -105,7 +124,9 @@ inductive Site where
   | prune
   /-- The first SwiftTD loop's exit: the pruned worklist stored as the eligible list. -/
   | firstClose
-  /-- The second SwiftTD loop's entry: the overshoot test, the scale and the complement. -/
+  /-- The second SwiftTD loop's entry: the overshoot test, the scale and the complement. Its charge
+  point lies between the τ sum and the loop, so the overshoot test is in the segment of the τ sum's
+  first charge point and the scale and complement in that of the loop's first visit. -/
   | secondOpen
   /-- One element of the second SwiftTD loop. -/
   | secondElement
@@ -265,9 +286,13 @@ inductive Site where
   | stepOption
   /-- A free boundary's closing record and event. -/
   | atBoundary
-  /-- Selection's branch tests, phase write and the stopping estimate. -/
+  /-- Selection's branch tests, phase write and the stopping estimate. Its charge point lies before
+  the match it wraps, so these are in the segment of the first charge point of the branch taken, or
+  of the first part's last charge point when the branch makes none. -/
   | select
-  /-- The agent's clock advance and the chosen value's record. -/
+  /-- The agent's clock advance and the chosen value's record. Its charge point is at the step's
+  entry, so the clock advance is in the segment of the encoding's first charge point and the record,
+  built after selection's last charge, in that of the first part's last. -/
   | choose
 
 /-- A cost model: the cost of each site, counted once for the segment of each charge of the

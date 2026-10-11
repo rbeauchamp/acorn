@@ -38,14 +38,9 @@ control of its row over the collection it names (`scanList`, `scanArray`, `scanV
 scan names its row where it is used, so each count is stated once, in the table.
 
 **What is counted.** Each loop visit is charged `visit`, and each stretch of constant work is
-charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost model assigns its
-site (`Acorn.Site`). A charge counts its segment (`Acorn.Cost`): every operation of the executed
-code belongs to the segment of the first charge at or after it in execution order, and the
-operations after the last charge to that last charge, so a test, read or record construction
-between two charges is counted in the charge that follows it. A site's docstring names the
-operations its charge marks; where a site is charged before a nested computation that makes its
-own charges, the named operations that run after that nested charge are counted in a later
-charge's segment. Every bound holds for every cost model.
+charged where a twin says `Costed.op` or `Costed.charge`, at the cost a cost model assigns its site
+(`Acorn.Site`). What each charge counts is its segment, which `Acorn.Cost` defines. Every bound
+holds for every cost model.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of
 an array that is shared when it is written (issue 84 of the repository; the write itself is
@@ -141,7 +136,7 @@ theorem discard_work_le {twin : Costed α} {bound : Nat} (fits : twin.work ≤ b
     (discard twin).work ≤ bound := fits
 
 /-- A branch: the value and the work of the branch the condition selects. The
-selection is counted in the segment of the first charge at or after it. -/
+selection is an operation of the trace, in the segment `Acorn.Cost` assigns it by its position. -/
 @[reducible] def ite (condition : Prop) [Decidable condition] (yes no : Costed α) :
     Costed α :=
   ⟨if condition then yes.val else no.val, if condition then yes.work else no.work⟩
