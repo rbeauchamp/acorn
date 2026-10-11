@@ -94,9 +94,9 @@ theorem fold_reversed : ∀ (indices : List (FeatIdx dimension)) (builder : Uniq
 theorem unique_self (indices : List (FeatIdx dimension)) (fresh : indices.Nodup) :
     (unique indices).indices = indices := by
   have folded := fold_reversed indices (UniqueBuilder.empty dimension) fresh
-    (by simp [UniqueBuilder.empty])
-  simp only [UniqueBuilder.empty, List.append_nil] at folded
-  simp [unique, UniqueBuilder.finish, UniqueBuilder.empty, folded]
+    (by simp [UniqueBuilder.empty_def])
+  simp only [UniqueBuilder.empty_def, List.append_nil] at folded
+  simp [unique_def, UniqueBuilder.finish_def, UniqueBuilder.empty_def, folded]
 
 /-- Two active sets with the same slots are equal. -/
 theorem activeSet_ext {first second : SwiftTd.ActiveSet dimension}

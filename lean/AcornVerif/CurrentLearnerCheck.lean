@@ -90,7 +90,7 @@ theorem presence_nodup (indices : List (FeatIdx dimension)) :
     (indices.foldl UniqueBuilder.add (UniqueBuilder.empty dimension)).reversed.length =
       indices.length ↔ indices.Nodup := by
   have kept := fold_length indices (UniqueBuilder.empty dimension)
-  simp only [UniqueBuilder.empty, List.length_nil, Nat.zero_add, List.not_mem_nil,
+  simp only [UniqueBuilder.empty_def, List.length_nil, Nat.zero_add, List.not_mem_nil,
     not_false_eq_true, implies_true, and_true] at kept
   exact kept
 
@@ -100,7 +100,7 @@ theorem presence_seen (indices : List (FeatIdx dimension)) (index : FeatIdx dime
       index ∈ indices := by
   rw [(indices.foldl UniqueBuilder.add (UniqueBuilder.empty dimension)).exact, decide_eq_true_iff]
   have kept := mem_unique indices index
-  simp only [unique, UniqueBuilder.finish, List.mem_reverse] at kept
+  simp only [unique_def, UniqueBuilder.finish_def, List.mem_reverse] at kept
   exact kept
 
 /-- The nine-word test is the zero register vector of the support invariant. -/

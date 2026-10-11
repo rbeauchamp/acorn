@@ -1225,7 +1225,7 @@ def Agent.chooseSelected (state : Agent interface profile config criterion dimen
     (order : StepOrder) (_selects : order ≠ .actThenLearn) (percept : Percept interface) :
     Chosen interface profile config criterion dimension planning :=
   let prepared := state.advanceClock
-  let frame := prepared.frame percept.frame
+  let frame := (prepared.frameCosted percept.frame).val
   let selected := prepared.control.alignedSelect prepared.aligned (firstPlanning order planning)
     frame.active percept.frame percept.reward percept.frame.achieved
   have kept := selected.1.1.deferred_frame order planning frame.active .settled percept.reward
@@ -1251,7 +1251,7 @@ def Agent.chooseDrawn (state : Agent interface profile config criterion dimensio
     (percept : Percept interface) :
     Chosen interface profile config criterion dimension planning :=
   let prepared := state.advanceClock
-  let frame := prepared.frame percept.frame
+  let frame := (prepared.frameCosted percept.frame).val
   let drawn := prepared.control.alignedDraw prepared.aligned frame.active percept.frame
     percept.frame.achieved
   have kept := drawn.1.1.deferred_frame .actThenLearn planning frame.active drawn.1.2.1

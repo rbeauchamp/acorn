@@ -103,7 +103,7 @@ def presence {dimension : Dimension} (indices : List (FeatIdx dimension)) : Uniq
 theorem presence_mem {dimension : Dimension} (indices : List (FeatIdx dimension))
     (index : FeatIdx dimension) : index ∈ (presence indices).reversed ↔ index ∈ indices := by
   have kept := mem_unique indices index
-  simp only [unique, UniqueBuilder.finish, List.mem_reverse] at kept
+  simp only [unique_def, UniqueBuilder.finish_def, List.mem_reverse] at kept
   exact kept
 
 /-- An active set read from a stored list: the list is admitted when no slot repeats, so

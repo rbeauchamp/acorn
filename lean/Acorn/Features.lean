@@ -94,9 +94,21 @@ structure UniqueBuilder (dimension : Dimension) where
   /-- No prior index repeats. -/
   nodup : reversed.Nodup
 
+/-- The empty builder with its work: the membership flags written. -/
+def UniqueBuilder.emptyCosted (dimension : Dimension) : Costed (UniqueBuilder dimension) := do
+  let reversed : List (FeatIdx dimension) := []
+  let seen ← Costed.attach (Costed.replicate dimension.capacity false)
+  Costed.pure ⟨reversed, seen.val, by rw [seen.property, Costed.replicate_val]; simp [reversed],
+    by simp [reversed]⟩
+
 /-- Empty output and a clear membership vector. -/
 def UniqueBuilder.empty (dimension : Dimension) : UniqueBuilder dimension :=
-  ⟨[], Vector.replicate dimension.capacity false, by simp, by simp⟩
+  (UniqueBuilder.emptyCosted dimension).val
+
+/-- The empty builder has no output and every flag clear. -/
+theorem UniqueBuilder.empty_def (dimension : Dimension) :
+    UniqueBuilder.empty dimension =
+      ⟨[], Vector.replicate dimension.capacity false, by simp, by simp⟩ := rfl
 
 /-- Constant-index admission followed by a single slot write and list cons. -/
 def UniqueBuilder.add {dimension : Dimension} (builder : UniqueBuilder dimension)
@@ -115,16 +127,31 @@ def UniqueBuilder.add {dimension : Dimension} (builder : UniqueBuilder dimension
           simp [Ne.symm hv, builder.exact, he]
       nodup := List.nodup_cons.mpr ⟨absent, builder.nodup⟩ }
 
+/-- The forward output with its work: the reversal of the reverse output. -/
+def UniqueBuilder.finishCosted {dimension : Dimension} (builder : UniqueBuilder dimension) :
+    Costed (SwiftTd.ActiveSet dimension) := do
+  let forward ← Costed.attach (Costed.reverse builder.reversed)
+  Costed.pure ⟨forward.val, by
+    rw [forward.property, Costed.reverse_val]
+    apply List.pairwise_reverse.mpr
+    exact builder.nodup.imp (fun h => Ne.symm h)⟩
+
 /-- Forward first-occurrence output. The scratch dies at this boundary. -/
 def UniqueBuilder.finish {dimension : Dimension} (builder : UniqueBuilder dimension) :
-    SwiftTd.ActiveSet dimension := ⟨builder.reversed.reverse, by
+    SwiftTd.ActiveSet dimension :=
+  builder.finishCosted.val
+
+/-- The forward output is the reverse output reversed. -/
+theorem UniqueBuilder.finish_def {dimension : Dimension} (builder : UniqueBuilder dimension) :
+    builder.finish = ⟨builder.reversed.reverse, by
       apply List.pairwise_reverse.mpr
-      exact builder.nodup.imp (fun h => Ne.symm h)⟩
+      exact builder.nodup.imp (fun h => Ne.symm h)⟩ := rfl
 
 /-- The scratch-backed operation is exactly ordered absent insertion. -/
 theorem UniqueBuilder.add_finish {dimension : Dimension} (builder : UniqueBuilder dimension)
     (index : FeatIdx dimension) : (builder.add index).finish = insert builder.finish index := by
-  unfold UniqueBuilder.add insert UniqueBuilder.finish
+  simp only [UniqueBuilder.finish_def]
+  unfold UniqueBuilder.add insert
   simp only [builder.exact, decide_eq_true_eq, List.mem_reverse]
   split <;> simp_all [List.reverse_cons]
 
@@ -136,10 +163,24 @@ theorem UniqueBuilder.fold_finish {dimension : Dimension} (indices : List (FeatI
   | nil => rfl
   | cons head tail ih => simp [List.foldl_cons, ih, UniqueBuilder.add_finish]
 
+/-- First-occurrence filtering with its work: the membership flags written, one admission for
+each index, and the reversal of the output. -/
+def uniqueCosted {dimension : Dimension} (indices : List (FeatIdx dimension)) :
+    Costed (SwiftTd.ActiveSet dimension) := do
+  let empty ← UniqueBuilder.emptyCosted dimension
+  let built ← Costed.foldl (fun builder index => Costed.op .uniqueAdd (builder.add index)) empty
+    indices
+  built.finishCosted
+
 /-- First-occurrence filtering, using one native membership flag per dimension slot. -/
 def unique {dimension : Dimension} (indices : List (FeatIdx dimension)) :
     SwiftTd.ActiveSet dimension :=
-  (indices.foldl UniqueBuilder.add (UniqueBuilder.empty dimension)).finish
+  (uniqueCosted indices).val
+
+/-- First-occurrence filtering folds the admissions into the empty builder and finishes it. -/
+theorem unique_def {dimension : Dimension} (indices : List (FeatIdx dimension)) :
+    unique indices = (indices.foldl UniqueBuilder.add (UniqueBuilder.empty dimension)).finish :=
+  rfl
 
 /-- Complete ordering correspondence with the first-occurrence insertion definition. -/
 theorem unique_order {dimension : Dimension} (indices : List (FeatIdx dimension)) :
@@ -362,11 +403,28 @@ theorem signed_sum_bounds (terms : List Int)
     simp only [List.length_cons, List.sum_cons]
     omega
 
+/-- A unit's signed projection with its work: its samples listed and numbered, one term for each,
+and their sum. -/
+def projectionValueCosted {shape : PatchShape} {config : Config} (bank : Bank shape config)
+    (patch : Patch shape) (unit : Fin config.units.count) : Costed Int := do
+  let start := 0
+  let samples ← Costed.toList (bank.projections.get unit)
+  let numbered ← Costed.zipIdx samples start
+  let terms ← Costed.map (fun (sample, j) =>
+    Costed.op .sampleTerm (sampleTerm config.seed unit.val j patch sample)) numbered
+  Costed.sum terms
+
 /-- Signed projection over exactly 32 terms. -/
 def projectionValue {shape : PatchShape} {config : Config} (bank : Bank shape config)
     (patch : Patch shape) (unit : Fin config.units.count) : Int :=
-  ((bank.projections.get unit).toList.zipIdx.map fun (sample, j) =>
-    sampleTerm config.seed unit.val j patch sample).sum
+  (projectionValueCosted bank patch unit).val
+
+/-- A unit's projection is the sum of its numbered samples' terms. -/
+theorem projectionValue_def {shape : PatchShape} {config : Config} (bank : Bank shape config)
+    (patch : Patch shape) (unit : Fin config.units.count) :
+    projectionValue bank patch unit =
+      ((bank.projections.get unit).toList.zipIdx.map fun (sample, j) =>
+        sampleTerm config.seed unit.val j patch sample).sum := rfl
 
 /-- The executing projection fits the current signed accumulator for every input. -/
 theorem projectionValue_bounds {shape : PatchShape} {config : Config} (bank : Bank shape config)
@@ -379,30 +437,84 @@ theorem projectionValue_bounds {shape : PatchShape} {config : Config} (bank : Ba
         obtain ⟨⟨sample, j⟩, _, same⟩ := List.mem_map.mp member
         subst term
         exact sampleTerm_bounds config.seed unit.val j patch sample)
-  simpa [projectionValue] using bounded
+  simpa [projectionValue_def] using bounded
+
+/-- Each unit's output with its work: one projection and its test for each unit. -/
+def Bank.activationsCosted {shape : PatchShape} {config : Config} (bank : Bank shape config)
+    (patch : Patch shape) : Costed (Vector Bool config.units.count) :=
+  Costed.ofFn fun unit => do
+    let zero : Int := 0
+    let value ← projectionValueCosted bank patch unit
+    Costed.op .activation (decide (zero < value))
 
 /-- Each unit's binary output on one input: its signed projection is positive. -/
 def Bank.activations {shape : PatchShape} {config : Config} (bank : Bank shape config)
     (patch : Patch shape) : Vector Bool config.units.count :=
-  Vector.ofFn fun unit => decide (0 < projectionValue bank patch unit)
+  (bank.activationsCosted patch).val
+
+/-- A unit's output is whether its projection is positive. -/
+theorem Bank.activations_def {shape : PatchShape} {config : Config} (bank : Bank shape config)
+    (patch : Patch shape) :
+    bank.activations patch = Vector.ofFn fun unit => decide (0 < projectionValue bank patch unit) :=
+  rfl
+
+/-- The tiled features with their work: the tilings listed, then for each tiling one hash for
+each word, and the elements of each tiling's features copied into the result. -/
+def tiledFeaturesCosted (dimension : Dimension) (config : Config) (words : List SensorWord) :
+    Costed (List (FeatIdx dimension)) := do
+  let tilings ← Costed.range config.tilings.toNat
+  Costed.flatMap (fun tiling => Costed.map (fun word => Costed.op .hashFeature
+    (FeatIdx.fromHash dimension (Rng.hash3 (config.seed ^^^ tiling.toUInt64)
+      word.channel word.value))) words) tilings
 
 /-- Tiling-major sensor words. -/
 def tiledFeatures (dimension : Dimension) (config : Config) (words : List SensorWord) :
     List (FeatIdx dimension) :=
-  (List.range config.tilings.toNat).flatMap (fun tiling => words.map fun word =>
-    FeatIdx.fromHash dimension (Rng.hash3 (config.seed ^^^ tiling.toUInt64)
-      word.channel word.value))
+  (tiledFeaturesCosted dimension config words).val
+
+/-- The tiled features hash each word once for each tiling, tiling by tiling. -/
+theorem tiledFeatures_def (dimension : Dimension) (config : Config) (words : List SensorWord) :
+    tiledFeatures dimension config words =
+      (List.range config.tilings.toNat).flatMap (fun tiling => words.map fun word =>
+        FeatIdx.fromHash dimension (Rng.hash3 (config.seed ^^^ tiling.toUInt64)
+          word.channel word.value)) := rfl
+
+/-- The imprinted features with their work: the units listed, then one test for each. -/
+def imprintFeaturesCosted (dimension : Dimension) (config : Config)
+    (active : Vector Bool config.units.count) : Costed (List (FeatIdx dimension)) := do
+  let units ← Costed.finRange config.units.count
+  Costed.filterMap (fun unit => Costed.op .imprint
+    (if active[unit.val] then some (unitFeature dimension config unit) else none)) units
 
 /-- Active bank units in bank order, each at its slot. -/
 def imprintFeatures (dimension : Dimension) (config : Config)
     (active : Vector Bool config.units.count) : List (FeatIdx dimension) :=
-  (List.finRange config.units.count).filterMap (fun unit =>
-    if active[unit.val] then some (unitFeature dimension config unit) else none)
+  (imprintFeaturesCosted dimension config active).val
+
+/-- The imprinted features are the slots of the active units, in unit order. -/
+theorem imprintFeatures_def (dimension : Dimension) (config : Config)
+    (active : Vector Bool config.units.count) :
+    imprintFeatures dimension config active =
+      (List.finRange config.units.count).filterMap (fun unit =>
+        if active[unit.val] then some (unitFeature dimension config unit) else none) := rfl
+
+/-- The raw encoding with its work: the tiled and imprinted features and their concatenation. -/
+def rawEncodeWithCosted (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) : Costed (List (FeatIdx dimension)) := do
+  let tiled ← tiledFeaturesCosted dimension config words
+  let imprinted ← imprintFeaturesCosted dimension config active
+  Costed.append tiled imprinted
 
 /-- Raw order: tiling-major sensor words, then the given active bank units. -/
 def rawEncodeWith (dimension : Dimension) (config : Config) (words : List SensorWord)
     (active : Vector Bool config.units.count) : List (FeatIdx dimension) :=
-  tiledFeatures dimension config words ++ imprintFeatures dimension config active
+  (rawEncodeWithCosted dimension config words active).val
+
+/-- The raw encoding is the tiled features followed by the imprinted ones. -/
+theorem rawEncodeWith_def (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) :
+    rawEncodeWith dimension config words active =
+      tiledFeatures dimension config words ++ imprintFeatures dimension config active := rfl
 
 /-- Raw order: tiling-major sensor words, then positive bank units. -/
 def rawEncode (dimension : Dimension) {shape : PatchShape} {config : Config}
@@ -427,7 +539,8 @@ theorem rawEncodeWith_length (dimension : Dimension) (config : Config)
       if active[unit.val] then some (unitFeature dimension config unit) else none)
     (List.finRange config.units.count)
   simp only [List.length_finRange] at imprintBound
-  simp only [rawEncodeWith, tiledFeatures, imprintFeatures, List.length_append, tiled_length,
+  simp only [rawEncodeWith_def, tiledFeatures_def, imprintFeatures_def, List.length_append,
+    tiled_length,
     List.length_range]
   omega
 
@@ -438,10 +551,22 @@ theorem rawEncode_length (dimension : Dimension) {shape : PatchShape} {config : 
       config.tilings.toNat * words.length + config.units.count :=
   rawEncodeWith_length dimension config words (bank.activations patch)
 
+/-- The encoding with its work: the raw encoding and its first-occurrence filtering. -/
+def encodeWithCosted (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) : Costed (SwiftTd.ActiveSet dimension) := do
+  let raw ← rawEncodeWithCosted dimension config words active
+  uniqueCosted raw
+
 /-- Encoding from supplied unit outputs, the argument SwiftTD consumes. -/
 def encodeWith (dimension : Dimension) (config : Config) (words : List SensorWord)
     (active : Vector Bool config.units.count) : SwiftTd.ActiveSet dimension :=
-  unique (rawEncodeWith dimension config words active)
+  (encodeWithCosted dimension config words active).val
+
+/-- The encoding is the first-occurrence filtering of the raw encoding. -/
+theorem encodeWith_def (dimension : Dimension) (config : Config) (words : List SensorWord)
+    (active : Vector Bool config.units.count) :
+    encodeWith dimension config words active =
+      unique (rawEncodeWith dimension config words active) := rfl
 
 /-- Encoding returns the actual binary-feature argument consumed by SwiftTD. -/
 def encode (dimension : Dimension) {shape : PatchShape} {config : Config}
@@ -465,7 +590,7 @@ theorem encodeWith_length (dimension : Dimension) (config : Config) (words : Lis
   have rawBound := rawEncodeWith_length dimension config words active
   rw [← unique_order] at filtered
   simp only [SwiftTd.ActiveSet.empty, List.length_nil, Nat.zero_add] at filtered
-  simpa [encodeWith] using Nat.le_trans filtered rawBound
+  simpa [encodeWith_def] using Nat.le_trans filtered rawBound
 
 /-- The actual unique encoding satisfies the same raw-input resource bound. -/
 theorem encode_length (dimension : Dimension) {shape : PatchShape} {config : Config}

@@ -151,18 +151,33 @@ def PredictionCache.initial : (discounts : List Discount) → PredictionCache di
   | [] => .nil
   | discount :: rest => .cons (Prediction.project discount .zero) (PredictionCache.initial rest)
 
+/-- The stored words with their work: a visit before each descent, one read for each stored
+prediction on the return, and a visit for the end. -/
+def PredictionCache.wordsCosted {discounts : List Discount} :
+    PredictionCache discounts → Costed (List Binary32)
+  | .nil => Costed.op .visit []
+  | .cons value rest => Costed.charge .visit do
+    let tail ← rest.wordsCosted
+    Costed.op .read (value.value :: tail)
+
 /-- Read the stored temporal words without reinterpreting them as current predictions. -/
 def PredictionCache.words {discounts : List Discount} (cache : PredictionCache discounts) : List Binary32 :=
-  match cache with
-  | .nil => []
-  | .cons value rest => value.value :: rest.words
+  cache.wordsCosted.val
+
+/-- An empty cache stores no word. -/
+theorem PredictionCache.words_nil : (PredictionCache.nil).words = [] := rfl
+
+/-- A cache stores its first prediction's word, then the words of the rest. -/
+theorem PredictionCache.words_cons {discount : Discount} {rest : List Discount}
+    (value : Prediction discount) (tail : PredictionCache rest) :
+    (PredictionCache.cons value tail).words = value.value :: tail.words := rfl
 
 /-- Reading preserves the complete prediction-channel count. -/
 theorem PredictionCache.length {discounts : List Discount} (cache : PredictionCache discounts) :
     cache.words.length = discounts.length := by
   induction cache with
   | nil => rfl
-  | cons value rest ih => simp [PredictionCache.words, ih]
+  | cons value rest ih => simp [PredictionCache.words_cons, ih]
 
 /-- One exclusive dispatch occupancy; no closing owner is stored at an end-of-step boundary. -/
 inductive Occupancy (activation exploration : Type) where
@@ -386,13 +401,31 @@ theorem FeatureRuntime.retire_occupied {shape : PatchShape} {config : Config} {c
   unfold FeatureRuntime.retire
   simp only [occupied, Ensemble.releaseAll_unheld _ _ kept] <;> rfl
 
+/-- The current frame with its work: the frame of the current bank. -/
+def FeatureRuntime.encodeCurrentCosted {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount}
+    {activation exploration decision : Type}
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
+    (words : List SensorWord) (patch : Patch shape) :
+    Costed (EncodingFrame dimension state.lifecycle.representation.bank words patch) :=
+  EncodingFrame.computeCosted dimension state.lifecycle.representation.bank words patch
+
 /-- A materialized input is indexed by this receiver's current bank and observation. -/
 def FeatureRuntime.encodeCurrent {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {activation exploration decision : Type}
     (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
     (words : List SensorWord) (patch : Patch shape) :
     EncodingFrame dimension state.lifecycle.representation.bank words patch :=
-  EncodingFrame.compute dimension state.lifecycle.representation.bank words patch
+  (state.encodeCurrentCosted words patch).val
+
+/-- The current frame is the frame of the current bank. -/
+theorem FeatureRuntime.encodeCurrent_def {shape : PatchShape} {config : Config}
+    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount}
+    {activation exploration decision : Type}
+    (state : FeatureRuntime shape actions config criterion dimension discounts activation exploration decision)
+    (words : List SensorWord) (patch : Patch shape) :
+    state.encodeCurrent words patch =
+      EncodingFrame.compute dimension state.lifecycle.representation.bank words patch := rfl
 
 /-- The ranking is installed only at a free boundary. Active options and committed
 exploration keep every objective. There is no detached closing owner at this

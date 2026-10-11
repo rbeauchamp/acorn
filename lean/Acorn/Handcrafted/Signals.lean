@@ -48,26 +48,52 @@ def predictionBucket (value horizon : Binary32) : Fin Acorn.FeatureConstants.pre
     have := Nat.min_le_right idx (Acorn.FeatureConstants.predictionBuckets - 1)
     omega⟩
 
+/-- The feedback words with their work: for each stored prediction, its word before the descent
+and its cons on the return, and a visit for the end. -/
+def feedbackWordsCosted (base : UInt64) :
+    List Discount → List Binary32 → Nat → Costed (List SensorWord)
+  | discount :: discounts, value :: values, index =>
+    let word : SensorWord :=
+      ⟨base + index.toUInt64, (predictionBucket value discount.horizon).val.toUInt64⟩
+    Costed.charge .feedbackWord do
+      let tail ← feedbackWordsCosted base discounts values (index + 1)
+      Costed.op .visit (word :: tail)
+  | [], _, _ => Costed.op .visit []
+  | _ :: _, [], _ => Costed.op .visit []
+
 /-- Prediction feedback words in layout order, one per stored prediction, numbered
 from `index`: the channel is `base` plus the position and the value is the
 prediction's bucket at its own horizon. -/
-def feedbackWords (base : UInt64) : List Discount → List Binary32 → Nat → List SensorWord
-  | discount :: discounts, value :: values, index =>
-    ⟨base + index.toUInt64, (predictionBucket value discount.horizon).val.toUInt64⟩ ::
-      feedbackWords base discounts values (index + 1)
-  | [], _, _ => []
-  | _ :: _, [], _ => []
+def feedbackWords (base : UInt64) (discounts : List Discount) (values : List Binary32)
+    (index : Nat) : List SensorWord :=
+  (feedbackWordsCosted base discounts values index).val
+
+/-- A question with a stored prediction gives its word, then the words of the rest. -/
+theorem feedbackWords_cons_cons (base : UInt64) (discount : Discount) (discounts : List Discount)
+    (value : Binary32) (values : List Binary32) (index : Nat) :
+    feedbackWords base (discount :: discounts) (value :: values) index =
+      ⟨base + index.toUInt64, (predictionBucket value discount.horizon).val.toUInt64⟩ ::
+        feedbackWords base discounts values (index + 1) := rfl
+
+/-- No question gives no word. -/
+theorem feedbackWords_nil (base : UInt64) (values : List Binary32) (index : Nat) :
+    feedbackWords base [] values index = [] := by
+  cases values <;> rfl
+
+/-- No stored prediction gives no word. -/
+theorem feedbackWords_cons_nil (base : UInt64) (discount : Discount) (discounts : List Discount)
+    (index : Nat) : feedbackWords base (discount :: discounts) [] index = [] := rfl
 
 /-- Feedback has one word per question that has a stored prediction. -/
 theorem feedbackWords_length (base : UInt64) (discounts : List Discount) (values : List Binary32)
     (index : Nat) :
     (feedbackWords base discounts values index).length = min discounts.length values.length := by
   induction discounts generalizing values index with
-  | nil => simp [feedbackWords]
+  | nil => simp [feedbackWords_nil]
   | cons discount rest ih =>
     cases values with
-    | nil => simp [feedbackWords]
-    | cons value others => simp [feedbackWords, ih, Nat.succ_min_succ]
+    | nil => simp [feedbackWords_cons_nil]
+    | cons value others => simp [feedbackWords_cons_cons, ih, Nat.succ_min_succ]
 
 /-- The word at each position names that position's channel and buckets that position's
 prediction at that position's horizon. -/
@@ -84,10 +110,10 @@ theorem feedbackWords_getElem (base : UInt64) (discounts : List Discount) (value
     | nil => simp at stored
     | cons value others =>
       cases position with
-      | zero => simp [feedbackWords]
+      | zero => simp [feedbackWords_cons_cons]
       | succ position =>
-        simp only [feedbackWords, List.getElem_cons_succ]
-        rw [ih others (index + 1) position (by simpa [feedbackWords] using inside)
+        simp only [feedbackWords_cons_cons, List.getElem_cons_succ]
+        rw [ih others (index + 1) position (by simpa [feedbackWords_cons_cons] using inside)
           (by simpa using horizon) (by simpa using stored)]
         simp [Nat.add_assoc, Nat.add_comm 1 position]
 
