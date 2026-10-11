@@ -14,22 +14,24 @@ alone, and reading `val` compiles to nothing (a trust assumption, below). The de
 runs is the definition whose work the bounds count, and a definition with the plain result type
 is the `val` of its costed definition.
 
-**Sites.** A *site* (`Site`) is a kind of constant stretch of executed code; each constructor
-names the operations that identify its stretch. A charge of a site covers the operations of its
-stretch and every operation the compiled code runs on the same execution path since the previous
-charge, with every definition those operations call; the operations after the last charge of a
-decision go to that last charge. Each operation of a decision therefore falls in exactly one
-charge's *segment*. Every segment is bounded by a constant of the code: every loop whose trip
-count depends on the configuration or the state runs in a loop combinator or a costed recursion
-that charges a `visit` on each iteration, so no segment contains one. The cost discipline below
-requires this of costed definitions, and the one-time compiled-call inventory of one build
-observed it of the twins. The loops left inside a segment have trip counts fixed by the code:
-the three options and their slots, the four meta actions, the 32 samples of a projection, the at
-most 15 doublings of the ranked width's search (`rankExponentFrom`) and the at most 33 steps of
-`Portable.pow`. A cost model (`Costs`) assigns each site a cost, and every work bound holds for
-every cost model. No theorem derives the cost of a
-site in word operations; the scalar operations that the native resource audit bounds are the
-operations with an extracted cost.
+**Sites.** A *site* (`Site`) is a kind of constant stretch of executed code. A charge is a point of
+a decision's execution: an `op` at the value it charges, a `charge` before the computation it wraps.
+A charge counts its *segment*, and the segment is the only definition of what it counts: every
+operation the compiled code runs, with every definition it calls, belongs to the segment of the
+first charge at or after it in execution order, and the operations after the last charge of a
+decision go to that last charge, so each operation is in exactly one segment. A site's docstring
+names the operations its charge marks; where a site is charged before a nested computation that
+makes its own charges, the named operations that run after that nested charge are counted in a later
+charge's segment. Every segment is bounded by a constant of the code: every loop whose trip count
+depends on the configuration or the state runs in a loop combinator or a costed recursion that
+charges a `visit` on each iteration, so no segment contains one. The cost discipline below requires
+this of costed definitions, and the one-time compiled-call inventory of one build observed it of the
+twins. The loops left inside a segment have trip counts fixed by the code: the three options and
+their slots, the four meta actions, the 32 samples of a projection, the at most 15 doublings of the
+ranked width's search (`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. A cost model
+(`Costs`) assigns each site a cost, and every work bound holds for every cost model. No theorem
+derives the cost of a site in word operations; the scalar operations that the native resource audit
+bounds are the operations with an extracted cost.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
@@ -73,8 +75,8 @@ cites. That the compiler erases the work, since `work` is a type former and `sin
 and leaves the code of the value as written is a trust assumption on the compiler's erasure. A
 comparison of the generated C of the costed learner with that of the same definitions written
 without work found them equal up to renaming; it is an observation of one build, which no gate
-repeats. That a site's stretch does at most its cost in word operations is the hypothesis of
-each bound in word operations.
+repeats. That the segment of each charge of a site does at most the site's cost in word
+operations is the hypothesis of each bound in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the one-time
@@ -85,8 +87,8 @@ No unit here is a second, a byte or an instruction of a particular processor.
 
 namespace Acorn
 
-/-- The constant stretches of the agent's step. A charge of a site covers the operations its
-constructor names and every operation on the same execution path since the previous charge. -/
+/-- The constant stretches of the agent's step. Each constructor names the operations its
+charge marks; a charge counts its segment (the module's **Sites**). -/
 inductive Site where
   /-- The control of one visit of a loop: its test, its advance and its branch. -/
   | visit
@@ -268,8 +270,8 @@ inductive Site where
   /-- The agent's clock advance and the chosen value's record. -/
   | choose
 
-/-- A cost model: the cost of each site, charged once for each segment that ends at a charge of
-the site. -/
+/-- A cost model: the cost of each site, counted once for the segment of each charge of the
+site. -/
 abbrev Costs := Site → Nat
 
 /-- The library loops that costed code and the twins of `AcornVerif.Resource.Work` run. Each

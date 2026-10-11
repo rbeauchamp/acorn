@@ -297,9 +297,9 @@ world on a wall clock needs a bound of the executed first part, because the acti
 released after it, and reading the twin's bound as one rests on four things no theorem
 yet establishes:
 
-- that each segment of compiled code that ends at a charge of a site, described
-  below, runs at most a given number of word operations: the bound in word operations
-  holds under that hypothesis
+- that the segment of compiled code of each charge of a site, described below, runs
+  at most a given number of word operations: the bound in word operations holds under
+  that hypothesis
   (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed learner, described below;
@@ -311,11 +311,15 @@ yet establishes:
 in a cost model: each visit of a loop costs `visit`, and each **site**, a stretch of
 code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
-sites. A charge of a site covers its stretch and every operation the compiled code runs
-on the same execution path since the previous charge, and the operations after the last
-charge of a decision go to that last charge, so each operation falls in exactly one
-charge's **segment**: a branch test, a read or a record construction between two
-charges is counted in the charge that follows it. Every segment is bounded by a
+sites. A charge counts its **segment**, and the segment is the only definition of what
+it counts: every operation the compiled code runs belongs to the segment of the first
+charge at or after it in execution order, and the operations after the last charge of a
+decision go to that last charge, so each operation is in exactly one segment, and a
+branch test, a read or a record construction between two charges is counted in the
+charge that follows it. A site's docstring names the operations its charge marks;
+where a site is charged before a nested computation that makes its own charges, the
+named operations that run after that nested charge are counted in a later charge's
+segment. Every segment is bounded by a
 constant of the code. Every loop whose trip count depends on the configuration or the
 state charges `visit` on each iteration, as the cost discipline below requires of
 costed definitions and as the one-time inventory observed of the twins in one build, so
@@ -387,10 +391,11 @@ space rather than with the frame:
 
 - the unique encoding writes one membership flag for every slot on every frame;
 - a learner's first loop visits its eligible traces, bounded only by the capacity;
-- a start or a terminal credit builds a zero register vector over every slot for each
-  learner: the twin charges two, one of each register type, and the compiled code of
-  one build was observed to build one array that all nine registers share; a fresh
-  option writes every slot of each of its learners;
+- a start or a terminal credit builds a zero register vector over every slot for
+  each learner: the costed definition (`TransientState.zeroCosted`) charges two, one
+  of each register type, and the compiled code of one build was observed to build one
+  array that all nine registers share; a fresh option writes every slot of each of its
+  learners;
 - a changed feature ranking rebuilds a lookup table over every slot;
 - planning's stored frame is bounded only by the capacity, because a frame read from
   a checkpoint image is admitted at any length up to it.
