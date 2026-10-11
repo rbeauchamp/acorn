@@ -23,9 +23,11 @@ type of its collection fixes.
 
 **What the bound covers.** The theorems bound the work of the first part's twin, which
 counts each loop as the passes of its runtime implementation, with one visit for each pass's
-end. Read as the work of the executed first part, they rest on two correspondences that no
-theorem checks. The learner's part is the work of the executed learner, whose definitions are
-the values of their costed definitions, under the cost discipline of `Acorn.Cost`: every value
+end. Read as the work of the executed first part, they rest on a trust assumption and two
+correspondences that no theorem checks. The trust assumption is that the compiler erases a
+costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
+The learner's part is the work of the executed learner, whose definitions are the values of
+their costed definitions, under the cost discipline of `Acorn.Cost`: every value
 a costed definition passes in, the uncosted entry points that `Acorn.Cost` lists, is computed
 without a loop and without a costed definition, which is checked by reading until
 rbeauchamp/regula#333 checks it.
@@ -146,9 +148,9 @@ theorem choose_learnThenAct (state : Agent interface profile config criterion di
 
 /-- **The work bound of the first part's twin under `learnThenAct`.** The twin's value is the
 executed first part, and its work is at most `chooseBound`, for every cost model, agent state
-and percept. As the work of the executed first part it rests on the cost discipline of the
-costed learner and on the twins' correspondence with the executed encoding and selection, both
-checked by reading. -/
+and percept. As the work of the executed first part it rests on the compiler's erasure of the
+costed learner's work, a trust assumption, and on the cost discipline of the costed learner and
+the twins' correspondence with the executed encoding and selection, both checked by reading. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -162,8 +164,9 @@ theorem choose_work (κ : Costs)
 site's stretch runs at most `κ site` word operations, the work of the first part's twin counted
 in the word operations of its sites is at most `chooseBound κ`, for every agent state and
 percept. Read as the word operations of the executed first part, it rests in addition on the
-cost discipline of the costed learner and on the twins' correspondence with the executed
-encoding and selection, both checked by reading. -/
+compiler's erasure of the costed learner's work, a trust assumption, and on the cost discipline
+of the costed learner and the twins' correspondence with the executed encoding and selection,
+both checked by reading. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

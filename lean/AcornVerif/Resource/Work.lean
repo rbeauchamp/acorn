@@ -9,7 +9,8 @@ import Acorn.Cost
 # Work of the definitions not yet costed
 
 The learner's executed definitions are the values of costed definitions (`Acorn.Costed`), so the
-loops their bounds count are the loops that run. The other definitions of the agent's step are
+loops their bounds count are the loops that run, under the trust assumption that the compiler
+erases the work (`Acorn.Cost`). The other definitions of the agent's step are
 not yet costed. For each of them a **twin** here is a `Costed` computation, a value with a `Nat`
 of work, written beside the executed definition to follow its control flow. A twin's value
 theorem states that its value is the executed definition's, by `rfl`, by induction on the same

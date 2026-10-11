@@ -11,8 +11,9 @@ import AcornVerif.Resource.Work
 
 The learner's executed definitions in `Acorn.SwiftTd`, and the ordered sums and the fresh
 transient record they use, are the values of their costed definitions (`Acorn.Costed`), so the
-loops a bound proved here counts are the loops of the code that runs. A bound counts the work of
-that code under the cost discipline of `Acorn.Cost`: every function a combinator takes is
+loops a bound proved here counts are the loops of the code that runs, under the trust assumption
+that the compiler erases the work (`Acorn.Cost`). A bound counts the work of that code under the
+cost discipline of `Acorn.Cost`: every function a combinator takes is
 costed, and every value a costed definition passes in, the uncosted entry points that
 `Acorn.Cost` lists, is computed without a loop and without a costed definition. The combinators
 cannot enforce the second, since `Costed.pure` accepts any value; it is checked by reading until
