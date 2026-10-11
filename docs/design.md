@@ -304,7 +304,8 @@ establishes, which a later increment of requirement R8 owes:
   the segment rule described below is the intended reading of `words`, part of no
   checked statement (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
 - the compiler's erasure of a costed definition's work, described below;
-- the cost discipline of the costed learner, described below;
+- the cost discipline of the costed definitions of the learner, of the frozen policy
+  and of its exploration, described below;
 - the correspondence of the twins of the encoding and of selection with the executed
   definitions: the twins' charges were compared with the compiled call multisets of
   one build by a one-time inventory, an observation that no gate repeats.
@@ -333,12 +334,13 @@ nominal masses, draw and mean (`Acorn.Policy`), and its persistent draw and serv
 masses (`Acorn.Exploration`). A costed definition's work is a type former and a proof,
 which the compiler erases, so the definition compiles to the code of its value. That
 erasure is a trust assumption on the compiler: a comparison of the generated C of each
-costed definition with that of the same definition written without work found them
-equal up to the renaming of the definitions and their local variables and the order of
-the parallel moves into a join point, an observation of one build each that no gate
-repeats. The loops the costed definitions' bounds count are therefore the loops that
-run, under that
-assumption and one discipline that no theorem states, because Lean gives a pure term
+costed definition and its callers with that of the same definitions written without
+work found them equal up to the renaming of the definitions and their local variables
+and, in four callers of the policy's functions (`TemporalControl.choosePrimitive`,
+`TemporalControl.serve`, `TemporalControl.serveDraw`, `Skill.followTemporal`), the
+order of the parallel moves into a join point, an observation of one build each that
+no gate repeats. The loops the costed definitions' bounds count are therefore the
+loops that run, under that assumption and one discipline that no theorem states, because Lean gives a pure term
 no operational meaning. Every function a combinator takes is costed, so its work is
 counted: the steps of a fold, the operation of a map, the tests of a search
 (`Costed.findIdx?`) and a filter, and the continuation of a sequence; a scan of a list

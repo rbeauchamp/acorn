@@ -157,10 +157,10 @@ theorem choose_learnThenAct (state : Agent interface profile config criterion di
 /-- **The work bound of the first part's twin under `learnThenAct`.** The twin's value is the
 executed first part, and its accounting is at most `chooseBound`, for every cost model, agent
 state and percept. It is not a bound of the executed first part's work: that reading rests on the
-compiler's erasure of the costed learner's work, a trust assumption, on the cost discipline of the
-costed learner, checked by reading, and on the twins' correspondence with the executed encoding and
-selection, observed in one build by a one-time inventory of its compiled calls; a later increment
-of requirement R8 owes it. -/
+compiler's erasure of the work of the costed learner, policy and exploration, a trust assumption,
+on the cost discipline of the costed learner, policy and exploration, checked by reading, and on
+the twins' correspondence with the executed encoding and selection, observed in one build by a
+one-time inventory of its compiled calls; a later increment of requirement R8 owes it. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -175,9 +175,10 @@ theorem choose_work (κ : Costs)
 `chooseBound κ`, for every agent state and percept. It is not a bound of executed word operations:
 that reading needs `words` to count the segments of the executed code, the intended reading of
 `SiteBounds` that no checked statement contains, and in addition the compiler's erasure of the
-costed learner's work, a trust assumption, the cost discipline of the costed learner, checked by
-reading, and the twins' correspondence with the executed encoding and selection, observed in one
-build by a one-time inventory of its compiled calls; a later increment of requirement R8 owes it. -/
+work of the costed learner, policy and exploration, a trust assumption, the cost discipline of the
+costed learner, policy and exploration, checked by reading, and the twins' correspondence with the
+executed encoding and selection, observed in one build by a one-time inventory of its compiled
+calls; a later increment of requirement R8 owes it. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

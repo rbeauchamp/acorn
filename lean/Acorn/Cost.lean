@@ -70,20 +70,24 @@ values, and as its work each callback's work once and the control of its row of 
 (`Library`, `Library.control`): each of the row's passes, a `visit` for each element and one for
 the pass's end. A loop's bound is therefore `Library.work`: its trip count times a bound of one
 callback, and its row's control. Every function a combinator takes is costed: the steps of
-`foldl` and `foldlArray`, the operations of `map`, `mapVector` and `ofFn`, the tests of `findIdx?` and
-`filter`, and the continuation of `bind`. A *scan* (`toList`, `drop`, `finRange`, `length`) is a
-library loop that takes no function: its value is the library function of the collection it
-names, and its work is the control of its row over that collection. A recursion of Acorn's own is a costed recursion whose every recursive call is under a
-charge and whose end is charged a visit.
+`foldl` and `foldlArray`, the operations of `map`, `mapVector` and `ofFn`, the tests of `findIdx?`
+and `filter`, and the continuation of `bind`. A *scan* (`toList`, `drop`, `finRange`, `length`) is
+a library loop that takes no function: its value is the library function of the collection it
+names, and its work is the control of its row over the elements it visits, the whole collection
+or, for `drop`, the elements it drops. A recursion of Acorn's own is a costed recursion whose
+every recursive call is under a charge and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
 (`single`), so a bound is never vacuous (`within_iff`).
 
 **What is trusted.** That the counted work covers each operation of the compiled code rests on
-the cost discipline of the costed definitions. A combinator counts the work of every function
-it takes, but not the computation of a value it takes. The values a costed definition passes
-in, which are all its uncosted entry points, are:
+the cost discipline of the costed definitions: the learner's, the frozen policy's
+(`PolicySnapshot.bestCosted`, `candidatesCosted`, `reservoirCosted`, `greedyCosted`,
+`probabilitiesCosted`, `drawCosted` and `expectedCosted` in `Acorn.Policy`) and its exploration's
+(`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`).
+A combinator counts the work of every function it takes, but not the computation of a value it
+takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
 - the value parameters of the combinators: the value of `pure`; the site and value of `op`;
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
@@ -107,9 +111,14 @@ states is read once from the library's runtime implementation, which each row of
 cites. That the compiler erases the work, since `work` is a type former and `single` a proof,
 and leaves the code of the value as written is a trust assumption on the compiler's erasure. A
 comparison of the generated C of the costed learner with that of the same definitions written
-without work found them equal up to renaming; it is an observation of one build, which no gate
-repeats. A bound in word operations bounds the accounting under `SiteBounds`; no checked statement
-says that a segment of the executed code does at most its site's cost in word operations.
+without work found them equal up to renaming. A comparison of the generated C of the costed
+policy and exploration definitions and their callers with that of the same definitions written
+without work found them equal up to the renaming of the definitions and their local variables
+and, in four callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`,
+`TemporalControl.serveDraw`, `Skill.followTemporal`), the order of the parallel moves into a
+join point. Each is an observation of one build, which no gate repeats. A bound in word
+operations bounds the accounting under `SiteBounds`; no checked statement says that a segment of
+the executed code does at most its site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a
