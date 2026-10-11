@@ -93,8 +93,9 @@ in, which are all its uncosted entry points, are:
 The private constructor's work field is set only by the combinators here.
 
 Each must be computed by a stretch that runs no loop and calls no costed definition, a loop
-must run only in a loop combinator or a costed definition, and each path to a recursive call
-must pass a charge. The combinators cannot enforce it: `pure` accepts any value, so
+must run only in a loop combinator or a costed definition, each path to a recursive call
+must pass a charge, and a level that works after its recursive call returns must charge there. The
+combinators cannot enforce it: `pure` accepts any value, so
 `Costed.pure (state.step config features reward)` has work zero although its value runs the
 learner. Lean's logic gives a pure term no operational meaning, so no theorem states the
 discipline; it is a syntactic property, checked by reading until the cost-closed rule that

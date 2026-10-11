@@ -351,7 +351,7 @@ theorem entryBound_mono (κ : Costs) (capacity : Nat) {count limit : Nat} (fits 
 Each twin below is an executed learner definition's value with, as its work, the bound that
 the section above proves of its costed definition. Its `_costed` theorem states that the costed
 definition, whose value the executed definition is, is within the twin's work, so a bound of the
-twin's work bounds the work of the executed learner. -/
+twin's work bounds the accounting of the costed learner. -/
 
 /-- `Binary32.sumMap` with terms at `term`. -/
 def sumMap (κ : Costs) (term : Site) (initial : Binary32) (values : List α)

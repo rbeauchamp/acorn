@@ -90,8 +90,8 @@ theorem selectBound_mono (κ : Costs) (rows capacity positions questions units :
     Library.work, Library.control, Library.passes]
   gcongr
 
-/-- **The work of the first part of the step under an order whose first part is selection**,
-for every cost of the sites, every agent state and every percept: a function of the
+/-- **The bound of the accounting of the first part's twin under an order whose first part is
+selection**, for every cost of the sites, every agent state and every percept: a function of the
 interface, the feature configuration and the dimension. -/
 abbrev chooseBound (κ : Costs) (interface : Interface) (config : Features.Config)
     (dimension : Dimension) : Nat :=
