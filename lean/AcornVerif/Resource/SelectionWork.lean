@@ -74,8 +74,11 @@ abbrev metaRateBound (κ : Costs) (rows capacity : Nat) : Nat :=
 theorem metaRate_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     (metaRate κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
-  rateRun_work _ _ _ _ _ (Nat.le_trans (exploreRate_work κ _) (Nat.le_add_right _ _))
-    (Nat.le_trans (exploreRate_work κ _) (Nat.le_add_left _ _))
+  rateRun_work _ _ _ _ _
+    (Nat.le_trans (exploreRate_work (count := metaCount) κ
+      state.runtime.lifecycle.consumers.metaController) (Nat.le_add_right _ _))
+    (Nat.le_trans (exploreRate_work (count := interface.actions) κ
+      state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
     (by change κ .rateClose ≤ _; simp only [metaRateBound, rateBound]; omega)
 
 /-- Twin of `TemporalControl.controlRate`: the primitive rate, or the projection of an annealed
@@ -89,8 +92,11 @@ def controlRate (κ : Costs)
 theorem controlRate_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     (controlRate κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
-  rateRun_work _ _ _ _ _ (Nat.le_trans (exploreRate_work κ _) (Nat.le_add_left _ _))
-    (Nat.le_trans (exploreRate_work κ _) (Nat.le_add_left _ _))
+  rateRun_work _ _ _ _ _
+    (Nat.le_trans (exploreRate_work (count := interface.actions) κ
+      state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
+    (Nat.le_trans (exploreRate_work (count := interface.actions) κ
+      state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
     (by change κ .rateClose ≤ _; simp only [metaRateBound, rateBound]; omega)
 
 /-- Twin of `TemporalControl.skillRate`: the primitive rate, or none; an annealed skill rate is a
@@ -105,7 +111,9 @@ theorem skillSource_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     (skillSource κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
   rateRun_work _ _ _ _ _ (Nat.zero_le _)
-    (Nat.le_trans (exploreRate_work κ _) (Nat.le_add_left _ _)) (Nat.zero_le _)
+    (Nat.le_trans (exploreRate_work (count := interface.actions) κ
+      state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
+    (Nat.zero_le _)
 
 /-- Twin of `TemporalControl.valueFunction`. -/
 def valueFunction (κ : Costs)
@@ -196,8 +204,10 @@ theorem serveRun_work (κ : Costs)
     split
     · exact Nat.zero_le _
     · rename_i action _ _
-      exact Costed.bind_work_le (predictAll_work κ _ features) fun _ =>
-        Costed.bind_work_le (Costed.ite_work_bound _ (predictAll_work κ _ features)
+      exact Costed.bind_work_le
+        (predictAll_work κ state.runtime.lifecycle.consumers.control features) fun _ =>
+        Costed.bind_work_le (Costed.ite_work_bound _
+          (predictAll_work κ state.runtime.lifecycle.consumers.metaController features)
           (Nat.zero_le _)) fun _ =>
           Costed.bind_work_le (servedProbabilities_work κ action) fun _ => Nat.le_refl _
   · exact Nat.zero_le _

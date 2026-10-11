@@ -954,17 +954,40 @@ def activeAlpha (state : NumericState config dimension) : Binary32 :=
       (state.transient.eligible.toList.map fun idx => (state.beta.get idx).alpha)).div
       (Binary32.ofUInt64 state.transient.eligible.size.toUInt64)
 
+/-- The normalized sum with its work: the eligible entries listed, one term for each, their
+ordered sum, and the count. -/
+def normalizedStepSizeSumCosted (state : NumericState config dimension) :
+    Costed (Binary32 × Nat) :=
+  if state.transient.eligible.isEmpty then Costed.op .normalizedOpen (.zero, 0)
+  else do
+    let lo := state.rails.range.lower
+    let span := state.rails.range.upper.sub lo
+    let initial := Binary32.zero
+    let entries ← Costed.arrayToList state.transient.eligible
+    let terms ← Costed.map (fun idx => Costed.op .normalizedTerm
+      (((state.beta.get idx).value.sub lo).div span)) entries
+    let total ← Binary32.sumFromCosted initial terms
+    Costed.op .normalizedOpen (total, state.transient.eligible.size)
+
 /-- Sum of the normalized log step sizes over the eligible set, with the count
 of terms: `ν(β) = (β − ln η_min) / (ln η − ln η_min)` in the additive
 β-coordinate the optimizer works in. The endpoints come from this learner's
 own rails. -/
 def normalizedStepSizeSum (state : NumericState config dimension) : Binary32 × Nat :=
-  if state.transient.eligible.isEmpty then (.zero, 0)
-  else
-    let lo := state.rails.range.lower
-    let span := state.rails.range.upper.sub lo
-    (Binary32.sumFrom .zero (state.transient.eligible.toList.map fun idx =>
-      ((state.beta.get idx).value.sub lo).div span), state.transient.eligible.size)
+  state.normalizedStepSizeSumCosted.val
+
+/-- The normalized sum is zero over an empty eligible set, and otherwise the ordered sum of the
+normalized terms with their count. -/
+theorem normalizedStepSizeSum_def (state : NumericState config dimension) :
+    state.normalizedStepSizeSum =
+      if state.transient.eligible.isEmpty then (.zero, 0)
+      else
+        let lo := state.rails.range.lower
+        let span := state.rails.range.upper.sub lo
+        (Binary32.sumFrom .zero (state.transient.eligible.toList.map fun idx =>
+          ((state.beta.get idx).value.sub lo).div span), state.transient.eligible.size) := by
+  unfold normalizedStepSizeSum normalizedStepSizeSumCosted
+  split <;> rfl
 
 /-- The normalized log step size a fresh feature starts at, `ν(ln α_init)`,
 recomputed from the configuration as the observer owner does. -/
@@ -1076,7 +1099,7 @@ def nextReady (entry : Entry dimension) (before : Bool) : Bool :=
   | .plan .. | .retire .. => before
 
 /-- The resource contract requires readiness only for standalone loop two. -/
-def Permitted (entry : Entry dimension) (ready : Bool) : Prop :=
+@[reducible] def Permitted (entry : Entry dimension) (ready : Bool) : Prop :=
   match entry with
   | .second .. => ready = true
   | _ => True

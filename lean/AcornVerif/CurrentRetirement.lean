@@ -178,8 +178,8 @@ theorem controller_retire_values {actions : Nat}
     intro action
     have same := retireIndex_prediction learners[action.val].state idx features
     simp only [NumericState.predict_def] at same
-    simpa [Features.Controller.predictAll, Features.Controller.retire, Features.Managed.retire,
-      Features.Managed.apply, Entry.apply_def] using same
+    simpa [Features.Controller.predictAll_def, Features.Controller.retire,
+      Features.Managed.retire_def, Features.Managed.apply_state, Entry.apply_def] using same
 
 variable {shape : Features.PatchShape} {actions : Word.Count} {features : Features.Config}
   {criterion : Features.Criterion}
@@ -226,8 +226,8 @@ theorem replace_aggregates
   intro reader _
   have kept := CurrentLearner.retire_registers reader.2.state
     (Features.unitFeature dimension features unit)
-  simp only [Function.comp, Features.PackedLearner.retire, Features.Managed.retire,
-    Features.Managed.apply, Entry.apply_def]
+  simp only [Function.comp, Features.PackedLearner.retire, Features.Managed.retire_def,
+    Features.Managed.apply_state, Entry.apply_def]
   rw [kept.2.2.2.1, kept.2.2.2.2]
 
 /-- The new unit's term preserves the numerical value of every finite partial sum

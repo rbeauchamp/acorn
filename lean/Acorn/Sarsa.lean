@@ -37,25 +37,69 @@ theorem Action.admit_none (actions raw : Nat) :
 
 variable {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
 
+/-- The raw values with their work: one prediction for each row. -/
+def Controller.predictAllCosted (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) : Costed (Vector Binary32 actions) :=
+  Costed.mapVector (fun learner => learner.state.linearPredictionCosted features)
+    controller.learners
+
 /-- All raw values in action order, before any learning is performed. -/
 def Controller.predictAll (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) : Vector Binary32 actions :=
-  controller.learners.map (fun learner => learner.state.linearPrediction features)
+  (controller.predictAllCosted features).val
+
+/-- The raw values are each row's prediction. -/
+theorem Controller.predictAll_def (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) :
+    controller.predictAll features =
+      controller.learners.map (fun learner => learner.state.linearPrediction features) := rfl
 
 /-- The immutable rule owns both the bootstrap and trace multiplier. -/
 def Controller.traceDecay (_controller : Controller config dimension actions) : Binary32 :=
   config.rule.gamma.mul config.lambda
 
+/-- The clear with its work: one clear for each row, then the controller's record. -/
+def Controller.clearCosted (controller : Controller config dimension actions) :
+    Costed (Controller config dimension actions) := do
+  let learners ← Costed.mapVector (fun learner => learner.applyCosted .clear trivial)
+    controller.learners
+  Costed.op .controllerClose ⟨learners, .zero, .zero, false⟩
+
 /-- Clear every learner's transient state, both shared lags and the restart flag. -/
 def Controller.clear (controller : Controller config dimension actions) :
     Controller config dimension actions :=
-  ⟨controller.learners.map (fun learner => learner.apply .clear trivial), .zero, .zero, false⟩
+  controller.clearCosted.val
+
+/-- A clear clears each row and both shared lags. -/
+theorem Controller.clear_def (controller : Controller config dimension actions) :
+    controller.clear =
+      ⟨controller.learners.map (fun learner => learner.apply .clear trivial), .zero, .zero,
+        false⟩ := rfl
+
+/-- A row's credit with its work: its first loop, then the restart test and a clear on a pending
+restart. -/
+def Managed.creditCosted (learner : Managed config dimension) (delta vd decay : Binary32)
+    (restart : Bool) : Costed { result : Managed config dimension // result.phase = true } :=
+  Costed.bind (Costed.attach (learner.applyCosted (.first delta vd decay) trivial)) fun credited =>
+    Costed.charge .creditRestart <|
+      if restart then
+        Costed.bind (Costed.attach (credited.val.applyCosted .clear trivial)) fun cleared =>
+          Costed.pure ⟨cleared.val, by rw [cleared.property]; rfl⟩
+      else Costed.pure ⟨credited.val, by rw [credited.property]; rfl⟩
 
 /-- A credited row is ready for a second loop, including a pending identity reset. -/
 def Managed.credit (learner : Managed config dimension) (delta vd decay : Binary32)
     (restart : Bool) : { result : Managed config dimension // result.phase = true } :=
-  let credited := learner.apply (.first delta vd decay) trivial
-  if restart then ⟨credited.apply .clear trivial, rfl⟩ else ⟨credited, rfl⟩
+  (learner.creditCosted delta vd decay restart).val
+
+/-- A credit is the first loop, then a clear on a pending restart. -/
+theorem Managed.credit_def (learner : Managed config dimension) (delta vd decay : Binary32)
+    (restart : Bool) :
+    learner.credit delta vd decay restart =
+      let credited := learner.apply (.first delta vd decay) trivial
+      if restart then ⟨credited.apply .clear trivial, rfl⟩ else ⟨credited, rfl⟩ := by
+  unfold Managed.credit Managed.creditCosted
+  cases restart <;> rfl
 
 /-- Shared-error update toward a supplied error, trace decay and lag. Every first
 loop receives the error and the old shared accumulator; only the taken row runs
@@ -122,13 +166,25 @@ def Controller.valuesStep (controller : Controller config dimension actions)
   controller.creditStep features action (values.get action)
     ((reward.add (bootstrap.mul (values.get action))).sub controller.vOld) decay
 
+/-- The release with its work: one release for each row, then the controller's record. -/
+def Controller.releaseCosted (controller : Controller config dimension actions) :
+    Costed (Controller config dimension actions) := do
+  let learners ← Costed.mapVector (fun learner => learner.applyCosted .release trivial)
+    controller.learners
+  Costed.op .controllerClose { controller with learners := learners, vDelta := .zero }
+
 /-- Release every row's eligible traces and the shared accumulator, keeping all
 knowledge and the previous prediction. The work is the eligible lengths. -/
 def Controller.release (controller : Controller config dimension actions) :
     Controller config dimension actions :=
-  { controller with
-    learners := controller.learners.map (fun learner => learner.apply .release trivial)
-    vDelta := .zero }
+  controller.releaseCosted.val
+
+/-- A release releases each row and the shared accumulator. -/
+theorem Controller.release_def (controller : Controller config dimension actions) :
+    controller.release =
+      { controller with
+        learners := controller.learners.map (fun learner => learner.apply .release trivial)
+        vDelta := .zero } := rfl
 
 /-- Start a trajectory at the taken action on existing storage. Every earlier trace
 is released first, so no first loop visits one and no earlier transition is

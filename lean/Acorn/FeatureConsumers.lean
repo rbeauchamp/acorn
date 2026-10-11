@@ -93,17 +93,55 @@ structure Managed (config : Acorn.Config) (dimension : Dimension) where
 def Managed.initial (config : Acorn.Config) (dimension : Dimension) : Managed config dimension :=
   ⟨NumericState.initial config dimension, true, .initial⟩
 
+/-- A learner entry with its work: the learner's record, then the entry. -/
+def Managed.applyCosted {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
+    (permitted : SwiftTd.Permitted entry learner.phase) : Costed (Managed config dimension) :=
+  Costed.charge .managedEntry <| Costed.bind (Costed.attach (entry.applyCosted learner.state))
+    fun state => Costed.pure ⟨state.val, SwiftTd.nextReady entry learner.phase, by
+      rw [state.property]
+      exact .transition entry permitted learner.admitted⟩
+
 /-- Apply any current learner entry under its explicit scheduling premise. -/
 def Managed.apply {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) : Managed config dimension :=
-  ⟨entry.apply learner.state, SwiftTd.nextReady entry learner.phase,
-    .transition entry permitted learner.admitted⟩
+  (learner.applyCosted entry permitted).val
+
+/-- An applied entry is the entry's state with the next phase and the extended admission. -/
+theorem Managed.apply_def {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
+    (permitted : SwiftTd.Permitted entry learner.phase) :
+    learner.apply entry permitted = ⟨entry.apply learner.state, SwiftTd.nextReady entry learner.phase,
+      .transition entry permitted learner.admitted⟩ := rfl
+
+/-- An applied entry's state is the entry applied to the learner's state. -/
+theorem Managed.apply_state {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
+    (permitted : SwiftTd.Permitted entry learner.phase) :
+    (learner.apply entry permitted).state = entry.apply learner.state := rfl
+
+/-- An applied entry's phase is the entry's next phase. -/
+theorem Managed.apply_phase {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
+    (permitted : SwiftTd.Permitted entry learner.phase) :
+    (learner.apply entry permitted).phase = SwiftTd.nextReady entry learner.phase := rfl
+
+/-- A retirement with its work: the retirement entry. -/
+def Managed.retireCosted {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (feature : FeatIdx dimension) :
+    Costed (Managed config dimension) :=
+  learner.applyCosted (.retire feature) trivial
 
 /-- Receiver-owned reset of all nine registers, knowledge, eligibility and aggregates. -/
 def Managed.retire {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (feature : FeatIdx dimension) : Managed config dimension :=
-  learner.apply (.retire feature) trivial
+  (learner.retireCosted feature).val
+
+/-- A retirement is the retirement entry. -/
+theorem Managed.retire_def {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (feature : FeatIdx dimension) :
+    learner.retire feature = learner.apply (.retire feature) trivial := rfl
 
 /-- A common read-only carrier preserves each consumer's own immutable configuration. -/
 abbrev PackedLearner (dimension : Dimension) := Σ config : Acorn.Config, Managed config dimension

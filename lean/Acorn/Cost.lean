@@ -71,10 +71,11 @@ values, and as its work each callback's work once and the control of its row of 
 the pass's end. A loop's bound is therefore `Library.work`: its trip count times a bound of one
 callback, and its row's control. Every function a combinator takes is costed: the steps of
 `foldl` and `foldlArray`, the operations of `map`, `mapVector` and `ofFn`, the tests of `findIdx?`
-and `filter`, and the continuation of `bind`. A *scan* (`toList`, `drop`, `finRange`, `length`) is
-a library loop that takes no function: its value is the library function of the collection it
-names, and its work is the control of its row over the elements it visits, the whole collection
-or, for `drop`, the elements it drops. A recursion of Acorn's own is a costed recursion whose
+and `filter`, and the continuation of `bind`. `attach` pairs a computation's result with its
+equation, for a proof that names the result. A *scan* (`toList`, `arrayToList`, `drop`,
+`finRange`, `length`) is a library loop that takes no function: its value is the library function
+of the collection it names, and its work is the control of its row over the elements it visits,
+the whole collection or, for `drop`, the elements it drops. A recursion of Acorn's own is a costed recursion whose
 every recursive call is under a charge and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
@@ -92,8 +93,9 @@ takes. The values a costed definition passes in, which are all its uncosted entr
 - the value parameters of the combinators: the value of `pure`; the site and value of `op`;
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
   collection of `foldl` and `foldlArray`; the collection of `map`, `filter` and `length`; the
-  vector of `mapVector` and `toList`; the array of `findIdx?`; the count and the list of `drop`;
-  the count of `finRange` (`bind` takes none);
+  vector of `mapVector` and `toList`; the array of `findIdx?` and `arrayToList`; the count and the
+  list of `drop`; the count of `finRange` and of `ofFn`; the computation of `attach` (`bind` takes
+  none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -116,7 +118,9 @@ policy and exploration definitions and their callers with that of the same defin
 without work found them equal up to the renaming of the definitions and their local variables
 and, in four callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`,
 `TemporalControl.serveDraw`, `Skill.followTemporal`), the order of the parallel moves into a
-join point. Each is an observation of one build, which no gate repeats. A bound in word
+join point. The same holds of the costed definitions of a learner's record, the controllers'
+row maps and the normalized step-size sum and their callers, where `TemporalControl.serveDraw`
+again differs only in that order. Each is an observation of one build, which no gate repeats. A bound in word
 operations bounds the accounting under `SiteBounds`; no checked statement says that a segment of
 the executed code does at most its site's cost in word operations.
 
@@ -817,6 +821,16 @@ theorem ofFn_within {count : Nat} {operation : Fin count → Costed β} {κ : Co
     rw [List.length_finRange] at counted
     exact Nat.add_le_add_right counted _
 
+/-- A computation's result together with its equation, for a caller whose proof names the
+result: the computation's work and no more. -/
+@[inline] def attach (x : Costed α) : Costed {value : α // value = x.val} :=
+  ⟨⟨x.val, rfl⟩, x.work, x.single⟩
+
+theorem attach_val (x : Costed α) : (attach x).val.val = x.val := rfl
+
+theorem attach_within {x : Costed α} {κ : Costs} {bound : Nat} (fits : x.Within κ bound) :
+    (attach x).Within κ bound := fits
+
 /-! ## Scans -/
 
 /-- The elements of a vector as a list, by `Vector.toList` (`Library.toList`): the control of its
@@ -830,6 +844,18 @@ theorem toList_val {count : Nat} (items : Vector α count) : (toList items).val 
 
 theorem toList_within {count : Nat} (items : Vector α count) (κ : Costs) :
     (toList items).Within κ (Library.toList.control (κ .visit) count) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- The elements of an array as a list, by `Array.toList` (`Library.toList`): the control of its
+row. -/
+@[inline] def arrayToList (items : Array α) : Costed (List α) :=
+  ⟨items.toList, fun κ n => n = Library.toList.control (κ .visit) items.size,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem arrayToList_val (items : Array α) : (arrayToList items).val = items.toList := rfl
+
+theorem arrayToList_within (items : Array α) (κ : Costs) :
+    (arrayToList items).Within κ (Library.toList.control (κ .visit) items.size) :=
   fun _ same => Nat.le_of_eq same
 
 /-- A list without its first `count` elements, by `List.drop` (`Library.drop`): the control of

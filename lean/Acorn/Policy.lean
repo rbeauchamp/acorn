@@ -287,22 +287,56 @@ def Controller.policyStep {config : Acorn.Config} {dimension : Dimension}
   controller.valuesStep features decision.snapshot.values decision.action reward
     (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
 
+/-- The frozen values with their work: the predictions, then the snapshot's record. -/
+def Controller.snapshotCosted {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
+    Costed (PolicySnapshot count) := do
+  let values ← controller.predictAllCosted features
+  Costed.op .snapshot ⟨values, epsilon⟩
+
 /-- Freeze current controller values with the caller's resolved rate. -/
 def Controller.snapshot {config : Acorn.Config} {dimension : Dimension}
     (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) : PolicySnapshot count :=
-  ⟨controller.predictAll features, epsilon⟩
+  (controller.snapshotCosted features epsilon).val
+
+/-- A snapshot holds the predictions and the rate. -/
+theorem Controller.snapshot_def {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
+    controller.snapshot features epsilon = ⟨controller.predictAll features, epsilon⟩ := rfl
+
+/-- The derived rate with its work: the rows listed, each row's normalized sum, then the
+projection. -/
+def Controller.exploreRateCosted {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat) : Costed SwiftTd.ExploreRate := do
+  let initial := (Binary32.zero, 0)
+  let rows ← Costed.toList controller.learners
+  let totals ← Costed.foldl (fun (sum, count) learner => do
+    let contribution ← learner.state.normalizedStepSizeSumCosted
+    Costed.op .rateTerm (sum.add contribution.1, count + contribution.2)) initial rows
+  Costed.op .rateClose (SwiftTd.ExploreRate.project <| if totals.2 == 0 then
+    (controller.learners.get (firstAction count)).state.initialNormalizedStepSize config
+  else totals.1.div (Binary32.ofUInt64 totals.2.toUInt64))
 
 /-- PAR-10 concatenates eligible pairs across all action learners in order.
 This is Acorn's own normalized-step-size map, not a Swift-Sarsa equation. -/
 def Controller.exploreRate {config : Acorn.Config} {dimension : Dimension}
     (controller : Controller config dimension count.word.toNat) : SwiftTd.ExploreRate :=
-  let totals := controller.learners.toList.foldl (fun (sum, count) learner =>
-    let contribution := learner.state.normalizedStepSizeSum
-    (sum.add contribution.1, count + contribution.2)) (Binary32.zero, 0)
-  SwiftTd.ExploreRate.project <| if totals.2 == 0 then
-    (controller.learners.get (firstAction count)).state.initialNormalizedStepSize config
-  else totals.1.div (Binary32.ofUInt64 totals.2.toUInt64)
+  controller.exploreRateCosted.val
+
+/-- The derived rate is the projection of the rows' mean normalized step size, or the fresh
+feature's when no row has an eligible entry. -/
+theorem Controller.exploreRate_def {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat) :
+    controller.exploreRate =
+      let totals := controller.learners.toList.foldl (fun (sum, count) learner =>
+        let contribution := learner.state.normalizedStepSizeSum
+        (sum.add contribution.1, count + contribution.2)) (Binary32.zero, 0)
+      SwiftTd.ExploreRate.project <| if totals.2 == 0 then
+        (controller.learners.get (firstAction count)).state.initialNormalizedStepSize config
+      else totals.1.div (Binary32.ofUInt64 totals.2.toUInt64) := rfl
 
 /-- The policy mean with its work: the first value read, the values listed once, then the lower
 bound, the maximum, the tie threshold and the totals, each fold a pass over the list. -/
