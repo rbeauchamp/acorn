@@ -354,17 +354,17 @@ no gate repeats. The loops the costed definitions' bounds count are therefore th
 loops that run, under that assumption and one discipline that no theorem states,
 because Lean gives a pure term no operational meaning. Every function a combinator
 takes is costed, so its work is counted: the steps of a fold, the operation of a map,
-the tests of a search (`Costed.findIdx?`) and a filter, and the continuation of a
-sequence; a scan of a list, a vector or an array (its listing, a drop, a length, the
-indices below a count) is charged its row with no function to count; the costed type has only
+the tests of a search (`Costed.findIdx?`) and a filter, the continuation of a
+sequence and the arms of a branch (`Costed.ite`); a scan of a list, a vector or an
+array (its listing, a drop, a length, the indices below a count) is charged its row with no function to count; the costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
-element of `Costed.replicate`, the collections and initial accumulators of the loops, and
-the terms a costed definition evaluates in its own body. Each must be
-computed without a costed definition and with no loop except those the cost semantics
+element of `Costed.replicate`, the collections and initial accumulators of the loops, the
+condition of `Costed.ite`, and the terms a costed definition evaluates in its own body.
+Each must be computed without a costed definition and with no loop except those the cost semantics
 lists as left inside a segment, whose trip counts are bounded by constants of the code
 (the at most 33 steps of `Portable.pow` among them); every other loop must run in a
 combinator or a costed definition, and each path of a recursion must pass a charge. The
