@@ -99,12 +99,14 @@ theorem rankedActive_work (κ : Costs) (ranked : RankedFeatures dimension)
       Library.filterMap.work (κ .visit) features.indices.length (κ .position) :=
   Costed.filterMap_work_le _ _ _ _ fun _ _ => Nat.le_refl _
 
-/-- Twin of `RankedFeatures.input`: the active positions and the bias appended. -/
+/-- Twin of `RankedFeatures.input`: the active positions, the bias position, which evaluates the
+ranked width, and the bias appended at the ranked dimension, which evaluates it again. -/
 def rankedInput (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Costed (SwiftTd.ActiveSet (rankDimension dimension)) := do
   let active ← rankedActive κ ranked features
-  Costed.charge (κ .rankWidth) (insert κ active (RankedFeatures.bias dimension))
+  let bias ← Costed.op (κ .rankWidth) (RankedFeatures.bias dimension)
+  Costed.charge (κ .rankWidth) (insert κ active bias)
 
 theorem rankedInput_val (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
@@ -113,7 +115,7 @@ theorem rankedInput_val (κ : Costs) (ranked : RankedFeatures dimension)
 /-- Bound of a row input over `width` features. -/
 abbrev rowInputBound (κ : Costs) (width : Nat) : Nat :=
   (Library.filterMap.work (κ .visit) width (κ .position)) +
-    (κ .rankWidth + inputBound κ width)
+    (κ .rankWidth + (κ .rankWidth + inputBound κ width))
 
 theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
@@ -128,7 +130,8 @@ theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
     Library.append.control_mono (ranked.active_length features)
   unfold rankedInput
   refine Nat.le_trans (Costed.bind_work_le_at (rankedActive_work κ ranked features)
-    (Costed.charge_work_le (Nat.le_of_eq (insert_work κ _ (RankedFeatures.bias dimension))))) ?_
+    (Costed.bind_work_le_at (Nat.le_refl _)
+      (Costed.charge_work_le (Nat.le_of_eq (insert_work κ _ (RankedFeatures.bias dimension)))))) ?_
   simp only [rowInputBound, inputBound]
   omega
 
@@ -499,12 +502,14 @@ theorem updateRows_work (κ : Costs) (transition : Transition dimension criterio
       (Costed.mapFinIdx_work_le (κ .visit) deviationBound _ _ fun _ _ _ => deviationFits _ _)
       fun _ => Nat.le_refl _
 
-/-- Twin of `Transition.begin`. -/
+/-- Twin of `Transition.begin`: the row input, the ranked dimension the updates read, which
+evaluates the ranked width, and the updates. -/
 def transitionBegin (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) := do
   let input ← rankedInput κ transition.ranked features
-  updateRows κ transition (fun _ row => managedApply κ row (.beginTrajectory input) trivial)
-    (fun _ learner => managedApply κ learner (.beginTrajectory input) trivial)
+  Costed.charge (κ .rankWidth)
+    (updateRows κ transition (fun _ row => managedApply κ row (.beginTrajectory input) trivial)
+      (fun _ learner => managedApply κ learner (.beginTrajectory input) trivial))
 
 theorem transitionBegin_val (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
@@ -514,8 +519,8 @@ theorem transitionBegin_val (κ : Costs) (transition : Transition dimension crit
 
 /-- Bound of a transition part's start over `width` features. -/
 abbrev transitionBeginBound (κ : Costs) (positions width : Nat) : Nat :=
-  rowInputBound κ width + updateRowsBound κ positions (beginBound κ positions (width + 1))
-    (beginBound κ positions (width + 1))
+  rowInputBound κ width + (κ .rankWidth + updateRowsBound κ positions
+    (beginBound κ positions (width + 1)) (beginBound κ positions (width + 1)))
 
 theorem transitionBegin_work (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
@@ -524,18 +529,20 @@ theorem transitionBegin_work (κ : Costs) (transition : Transition dimension cri
   have width := transition.ranked.input_length features
   unfold transitionBegin
   exact Costed.bind_work_le_at (rankedInput_work κ transition.ranked features)
-    (updateRows_work κ transition _ _ _ _
+    (Costed.charge_work_le (updateRows_work κ transition _ _ _ _
       (fun _ row => Nat.le_trans (managedApply_work κ row (.beginTrajectory _) trivial)
         (beginBound_mono κ _ width))
       (fun _ learner => Nat.le_trans (managedApply_work κ learner (.beginTrajectory _) trivial)
-        (beginBound_mono κ _ width)))
+        (beginBound_mono κ _ width))))
 
-/-- Twin of `Transition.step`. -/
+/-- Twin of `Transition.step`: the row input, the ranked dimension the updates read, which
+evaluates the ranked width, and the updates. -/
 def transitionStep (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) := do
   let input ← rankedInput κ transition.ranked features
-  updateRows κ transition (fun _ row => managedApply κ row (.step input .zero) trivial)
-    (fun _ learner => managedApply κ learner (.step input .zero) trivial)
+  Costed.charge (κ .rankWidth)
+    (updateRows κ transition (fun _ row => managedApply κ row (.step input .zero) trivial)
+      (fun _ learner => managedApply κ learner (.step input .zero) trivial))
 
 theorem transitionStep_val (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
@@ -545,8 +552,8 @@ theorem transitionStep_val (κ : Costs) (transition : Transition dimension crite
 
 /-- Bound of a transition part's step over `width` features. -/
 abbrev transitionStepBound (κ : Costs) (positions width : Nat) : Nat :=
-  rowInputBound κ width + updateRowsBound κ positions (stepBound κ positions (width + 1))
-    (stepBound κ positions (width + 1))
+  rowInputBound κ width + (κ .rankWidth + updateRowsBound κ positions
+    (stepBound κ positions (width + 1)) (stepBound κ positions (width + 1)))
 
 theorem transitionStep_work (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
@@ -555,11 +562,11 @@ theorem transitionStep_work (κ : Costs) (transition : Transition dimension crit
   have width := transition.ranked.input_length features
   unfold transitionStep
   exact Costed.bind_work_le_at (rankedInput_work κ transition.ranked features)
-    (updateRows_work κ transition _ _ _ _
+    (Costed.charge_work_le (updateRows_work κ transition _ _ _ _
       (fun _ row => Nat.le_trans (managedApply_work κ row (.step _ _) trivial)
         (stepBound_mono κ _ width))
       (fun _ learner => Nat.le_trans (managedApply_work κ learner (.step _ _) trivial)
-        (stepBound_mono κ _ width)))
+        (stepBound_mono κ _ width))))
 
 /-- Twin of `Transition.outcome`: the indicator, the value function's predictions, the
 ranked values, the two nominal values and each meta action's deviation. -/
@@ -599,14 +606,15 @@ theorem outcome_work (κ : Costs) (transition : Transition dimension criterion)
             Costed.bind_work_le (Costed.ofFn_work_le _ _ _ fun _ => Nat.le_refl _) fun _ =>
               Nat.le_refl _
 
-/-- Twin of `Transition.terminal`. -/
+/-- Twin of `Transition.terminal`: the ranked dimension the updates read, which evaluates the
+ranked width, and the updates. -/
 def transitionTerminal (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
-  updateRows κ transition
+  Costed.charge (κ .rankWidth) (updateRows κ transition
     (fun position row => managedApply κ row
       (.terminal (criterion.rule.gamma.mul (outcome.seen.get position).value)) trivial)
     (fun action learner => managedApply κ learner (.terminal (outcome.deviations.get action))
-      trivial)
+      trivial))
 
 theorem transitionTerminal_val (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
@@ -617,11 +625,12 @@ theorem transitionTerminal_val (κ : Costs) (transition : Transition dimension c
 theorem transitionTerminal_work (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
     (transitionTerminal κ transition outcome).work ≤
-      updateRowsBound κ (rankDimension dimension).capacity
+      κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
         (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity)
         (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity) :=
-  updateRows_work κ transition _ _ _ _ (fun _ row => managedApply_work κ row (.terminal _) trivial)
-    (fun _ learner => managedApply_work κ learner (.terminal _) trivial)
+  Costed.charge_work_le (updateRows_work κ transition _ _ _ _
+    (fun _ row => managedApply_work κ row (.terminal _) trivial)
+    (fun _ learner => managedApply_work κ learner (.terminal _) trivial))
 
 /-- Twin of `Managed.stopTrajectory`: a first loop, then a release. -/
 def stopTrajectory {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
@@ -645,13 +654,14 @@ theorem stopTrajectory_work {learnerConfig : Acorn.Config} {space : Dimension} (
   Costed.bind_work_le (managedApply_work κ learner (.first _ _ _) trivial) fun first =>
     managedApply_work κ first .release trivial
 
-/-- Twin of `Transition.stop`. -/
+/-- Twin of `Transition.stop`: the ranked dimension the updates read, which evaluates the ranked
+width, and the updates. -/
 def transitionStop (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
-  updateRows κ transition
+  Costed.charge (κ .rankWidth) (updateRows κ transition
     (fun position row => stopTrajectory κ row
       (criterion.rule.gamma.mul (outcome.seen.get position).value))
-    (fun action learner => stopTrajectory κ learner (outcome.deviations.get action))
+    (fun action learner => stopTrajectory κ learner (outcome.deviations.get action)))
 
 theorem transitionStop_val (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
@@ -662,11 +672,11 @@ theorem transitionStop_val (κ : Costs) (transition : Transition dimension crite
 theorem transitionStop_work (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
     (transitionStop κ transition outcome).work ≤
-      updateRowsBound κ (rankDimension dimension).capacity
+      κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
         (stopTrajectoryBound κ (rankDimension dimension).capacity)
         (stopTrajectoryBound κ (rankDimension dimension).capacity) :=
-  updateRows_work κ transition _ _ _ _ (fun _ row => stopTrajectory_work κ row _)
-    (fun _ learner => stopTrajectory_work κ learner _)
+  Costed.charge_work_le (updateRows_work κ transition _ _ _ _
+    (fun _ row => stopTrajectory_work κ row _) (fun _ learner => stopTrajectory_work κ learner _))
 
 /-! ## A whole model -/
 
@@ -842,8 +852,8 @@ def modelTerminal (κ : Costs) (model : Model dimension criterion)
 /-- Bound of a model's terminal step over `width` features. -/
 abbrev modelTerminalWorkBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   outcomeBound κ positions width + (3 * modelTerminalBound κ capacity +
-    (updateRowsBound κ positions (terminalBound κ positions positions)
-      (terminalBound κ positions positions) + κ .modelClose))
+    ((κ .rankWidth + updateRowsBound κ positions (terminalBound κ positions positions)
+      (terminalBound κ positions positions)) + κ .modelClose))
 
 theorem modelTerminal_work (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -867,9 +877,9 @@ theorem modelTerminal_work (κ : Costs) (model : Model dimension criterion)
             Nat.le_refl _) ?_
     change _ ≤ outcomeBound κ (rankDimension dimension).capacity features.indices.length +
       (3 * modelTerminalBound κ dimension.capacity +
-        (updateRowsBound κ (rankDimension dimension).capacity
+        ((κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
           (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity)
-          (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity) +
+          (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity)) +
           κ .modelClose))
     omega
   | differential r c d transition =>
@@ -882,9 +892,9 @@ theorem modelTerminal_work (κ : Costs) (model : Model dimension criterion)
               Nat.le_refl _) ?_
     change _ ≤ outcomeBound κ (rankDimension dimension).capacity features.indices.length +
       (3 * modelTerminalBound κ dimension.capacity +
-        (updateRowsBound κ (rankDimension dimension).capacity
+        ((κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
           (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity)
-          (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity) +
+          (terminalBound κ (rankDimension dimension).capacity (rankDimension dimension).capacity)) +
           κ .modelClose))
     omega
 
@@ -923,8 +933,8 @@ def modelStop (κ : Costs) (model : Model dimension criterion)
 /-- Bound of a model's stopped trajectory over `width` features. -/
 abbrev modelStopBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   outcomeBound κ positions width + (3 * stopTrajectoryBound κ capacity +
-    (updateRowsBound κ positions (stopTrajectoryBound κ positions)
-      (stopTrajectoryBound κ positions) + κ .modelClose))
+    ((κ .rankWidth + updateRowsBound κ positions (stopTrajectoryBound κ positions)
+      (stopTrajectoryBound κ positions)) + κ .modelClose))
 
 theorem modelStop_work (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)

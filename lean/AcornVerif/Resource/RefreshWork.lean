@@ -672,14 +672,15 @@ theorem changed_length (before after : RankedFeatures dimension) :
       after.slots[position.val] != before.slots[position.val])
     (List.finRange (rankDimension dimension).capacity)
 
-/-- Twin of `Transition.forget`: for each row, the test of its position, then a fresh row or
-one retirement for each changed position. -/
+/-- Twin of `Transition.forget`: the ranked dimension the rows read, which evaluates the ranked
+width once for the call, then for each row the test of its position, then a fresh row or one
+retirement for each changed position. -/
 def forget (κ : Costs)
     (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
       (rankDimension dimension).capacity) (positions : List (RankIdx dimension)) :
     Costed (Vector (Managed (criterion.config .demon) (rankDimension dimension))
       (rankDimension dimension).capacity) :=
-  Costed.mapFinIdx (κ .visit)
+  Costed.charge (κ .rankWidth) (Costed.mapFinIdx (κ .visit)
     (fun index row bound => Costed.bind
       (Costed.scanList .contains (κ .visit + κ .compare) positions ()) fun _ =>
         Costed.ite (positions.contains ⟨index, bound⟩ = true)
@@ -687,7 +688,7 @@ def forget (κ : Costs)
           (Costed.foldl (κ .visit)
             (fun learner position => managedApply κ learner (.retire position) trivial)
             row positions))
-    rows
+    rows)
 
 theorem forget_val (κ : Costs)
     (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
@@ -696,7 +697,7 @@ theorem forget_val (κ : Costs)
 
 /-- Bound of the rows' forgetting of `size` changed positions. -/
 abbrev forgetBound (κ : Costs) (positions size : Nat) : Nat :=
-  Library.mapFinIdx.work (κ .visit) positions
+  κ .rankWidth + Library.mapFinIdx.work (κ .visit) positions
     (Library.contains.control (κ .visit + κ .compare) size +
     (learnerInitialBound κ positions +
       Library.foldl.work (κ .visit) size
@@ -707,7 +708,7 @@ theorem forget_work (κ : Costs)
       (rankDimension dimension).capacity) (positions : List (RankIdx dimension)) :
     (forget κ rows positions).work ≤
       forgetBound κ (rankDimension dimension).capacity positions.length :=
-  Costed.mapFinIdx_work_le _ _ _ _ fun _ row _ =>
+  Costed.charge_work_le (Costed.mapFinIdx_work_le _ _ _ _ fun _ row _ =>
     Costed.bind_work_le (Nat.le_refl _) fun _ =>
       Costed.ite_work_bound _
         (Nat.le_trans (learnerInitialRun_work κ _ _) (Nat.le_add_right _ _))
@@ -716,16 +717,18 @@ theorem forget_work (κ : Costs)
             (κ .compare)) _ row
           positions fun learner position _ =>
             managedApply_work κ learner (.retire position) trivial)
-          (Nat.le_add_left _ _))
+          (Nat.le_add_left _ _)))
 
-/-- Twin of `Transition.forgetColumns`: each learner retires every changed position. -/
+/-- Twin of `Transition.forgetColumns`: each learner retires every changed position, and each
+retirement evaluates the ranked width for the ranked dimension it reads. -/
 def forgetColumns (κ : Costs) {count : Nat}
     (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) count)
     (positions : List (RankIdx dimension)) :
     Costed (Vector (Managed (criterion.config .demon) (rankDimension dimension)) count) :=
   Costed.mapVector (κ .visit)
     (fun learner => Costed.foldl (κ .visit)
-      (fun current position => managedApply κ current (.retire position) trivial)
+      (fun current position =>
+        Costed.charge (κ .rankWidth) (managedApply κ current (.retire position) trivial))
       learner positions)
     learners
 
@@ -739,11 +742,11 @@ theorem forgetColumns_work (κ : Costs) {count : Nat}
     (positions : List (RankIdx dimension)) :
     (forgetColumns κ learners positions).work ≤
       Library.vectorMap.work (κ .visit) count (Library.foldl.work (κ .visit) positions.length
-        (κ .retire + Library.findIdx.work (κ .visit) (rankDimension dimension).capacity
-          (κ .compare))) :=
+        (κ .rankWidth + (κ .retire + Library.findIdx.work (κ .visit)
+          (rankDimension dimension).capacity (κ .compare)))) :=
   Costed.mapVector_work_le _ _ _ _ fun learner _ =>
     Costed.foldl_work_le (κ .visit) _ _ learner positions fun current position _ =>
-      managedApply_work κ current (.retire position) trivial
+      Costed.charge_work_le (managedApply_work κ current (.retire position) trivial)
 
 /-- Twin of `Transition.rerank`: the ranking installed, its changed positions, and every
 row and deviation learner forgetting them. -/
@@ -766,14 +769,14 @@ theorem forgetBound_mono (κ : Costs) (positions : Nat) {size limit : Nat} (fits
   have tests := Library.contains.control_mono (visit := κ .visit + κ .compare) fits
   have retires := Library.foldl.work_mono (visit := κ .visit) fits
     (Nat.le_refl (κ .retire + Library.findIdx.work (κ .visit) positions (κ .compare)))
-  exact Library.mapFinIdx.work_mono (Nat.le_refl _)
-    (Nat.add_le_add tests (Nat.add_le_add_left retires _))
+  exact Nat.add_le_add_left (Library.mapFinIdx.work_mono (Nat.le_refl _)
+    (Nat.add_le_add tests (Nat.add_le_add_left retires _))) _
 
 /-- Bound of the deviation learners' forgetting of `size` changed positions. -/
 abbrev columnsBound (κ : Costs) (positions size : Nat) : Nat :=
   Library.vectorMap.work (κ .visit) Acorn.FeatureConstants.metaActionCount
     (Library.foldl.work (κ .visit) size
-      (κ .retire + Library.findIdx.work (κ .visit) positions (κ .compare)))
+      (κ .rankWidth + (κ .retire + Library.findIdx.work (κ .visit) positions (κ .compare))))
 
 /-- Bound of a transition part's reranking with an order of `size` slots. -/
 abbrev transitionRerankBound (κ : Costs) (capacity positions size : Nat) : Nat :=

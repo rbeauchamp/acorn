@@ -19,8 +19,9 @@ recursion, or, through `via`, by reading.
 Lean's logic gives a pure term no operational meaning, and a twin of the same value with less
 work would satisfy the same theorem. That a twin's loops and charges are those of the executed
 definition is a correspondence by reading, so a bound proved here bounds the twin, and bounds
-the executed code only through that reading. Each definition moves out of this accounting when
-it becomes the value of its costed definition, as the learner did.
+the executed code only through that reading. A definition that is the value of its costed
+definition, as each of the learner's is, is bounded through that definition instead
+(`AcornVerif.Resource.LearnerWork`).
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of

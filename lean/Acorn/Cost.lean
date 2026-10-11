@@ -8,10 +8,11 @@ Authors: acorn contributors
 # The work of an executed computation
 
 A definition whose work Acorn bounds returns a `Costed` value: its result together with the
-work of computing it. The work is a proposition about a cost model, so the compiler erases it:
-a definition that returns `Costed α` compiles to the code of its result alone, and reading
-`val` compiles to nothing. The definition that runs is the definition whose work the bounds
-count, and a definition with the plain result type is the `val` of its costed definition.
+work of computing it. The work is a type former and a proof about a cost model, which the
+compiler erases, so a definition that returns `Costed α` compiles to the code of its result
+alone, and reading `val` compiles to nothing (a trust assumption, below). The definition that
+runs is the definition whose work the bounds count, and a definition with the plain result type
+is the `val` of its costed definition.
 
 **Sites.** A *site* (`Site`) is a stretch of executed code whose work is a constant of the
 compiled code, together with every definition it calls. It contains no loop, or only loops whose
@@ -60,9 +61,12 @@ learner. Lean's logic gives a pure term no operational meaning, so no theorem st
 discipline; it is a syntactic property, checked by reading until the cost-closed rule that
 rbeauchamp/regula#333 proposes checks it. That a library loop makes the passes `Library.passes`
 states is read once from the library's runtime implementation, which each row of `Library`
-cites. That erasing the work leaves the compiled value code as written is checked by comparing
-the generated C. That a site's stretch does at most its cost in word operations is the
-hypothesis of each bound in word operations.
+cites. That the compiler erases the work, since `work` is a type former and `single` a proof,
+and leaves the code of the value as written is a trust assumption on the compiler's erasure. A
+comparison of the generated C of the costed learner with that of the same definitions written
+without work found them equal up to renaming; it is an observation of one build, which no gate
+repeats. That a site's stretch does at most its cost in word operations is the hypothesis of
+each bound in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), cache behaviour and time.
@@ -366,7 +370,7 @@ structure Costed (α : Type) where
   private mk ::
   /-- The result. -/
   val : α
-  /-- `work κ n`: under the cost model `κ`, computing the result does `n` work. A proposition,
+  /-- `work κ n`: under the cost model `κ`, computing the result does `n` work. A type former,
   so the compiler erases it. -/
   work : Costs → Nat → Prop
   /-- Under each cost model the work is one number. -/

@@ -294,12 +294,13 @@ selection, `learn-then-act` and `plan-after-act`
 `AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
 order). The theorems bound the accounting of the first part's twin. The deadline of a
 world on a wall clock needs a bound of the executed first part, because the action is
-released after it, and reading the twin's bound as one rests on three things no theorem
+released after it, and reading the twin's bound as one rests on four things no theorem
 yet establishes:
 
 - that each site's stretch of compiled code runs at most a given number of word
   operations: the bound in word operations holds under that hypothesis
   (`AcornVerif.Resource.Twin.SiteBounds`, `choose_words`);
+- the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed learner, described below;
 - the correspondence of the twins of the encoding and of selection with the executed
   definitions, which is by reading.
@@ -317,15 +318,18 @@ the values of their costed definitions ([cost semantics](../lean/Acorn/Cost.lean
 `NumericState.step` is the value of `NumericState.stepCosted`, and so are the
 prediction, both loops, a trajectory's start, a terminal step, a planning step, a
 release, a retirement, the ordered sums and the fresh transient record. A costed
-definition's work is a proposition, which the compiler erases, so the definition
-compiles to the code of its value: the generated C of each converted definition is
-the code it had before, up to the renaming of the definition and its local variables.
-The loops the learner's bounds count are therefore the loops that run, under one
-discipline that no theorem states, because Lean gives a pure term no operational
-meaning. Every function a combinator takes is costed, so its work is counted: the steps
-of a fold, the operation of a map, the test of a search (`Costed.findIdx?`) and the
-continuation of a sequence; the costed type has only the instances that do-blocks need,
-so no derived map applies a callback outside the count. The uncosted entry points are
+definition's work is a type former and a proof, which the compiler erases, so the
+definition compiles to the code of its value. That erasure is a trust assumption on the
+compiler: a comparison of the generated C of the costed learner with that of the same
+definitions written without work found them equal up to the renaming of the definitions
+and their local variables, an observation of one build that no gate repeats.
+The loops the learner's bounds count are therefore the loops that run, under that
+assumption and one discipline that no theorem states, because Lean gives a pure term
+no operational meaning. Every function a combinator takes is costed, so its work is
+counted: the steps of a fold, the operation of a map, the test of a search
+(`Costed.findIdx?`) and the continuation of a sequence; the costed type has only the
+instances that do-blocks need, so no derived map applies a callback outside the count.
+The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, and
@@ -352,7 +356,9 @@ its result through a private constructor and proofs, by reading. A value theorem
 does not tie a twin's work to the executed code, since a twin of the same value with
 less work would satisfy it. For those definitions the bound is a bound of the twins,
 and it bounds the executed code through the reading of each twin's loops and charges
-against the definition.
+against the definition. The twins read the learner through twins of its own whose work
+is the bound proved of its costed definition, which a theorem of each checks
+(`AcornVerif.Resource.Twin.step_costed`).
 
 **What bounds each loop.** The frame's active features are at most
 `tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is
@@ -373,7 +379,11 @@ space rather than with the frame:
   a checkpoint image is admitted at any length up to it.
 
 The ranked width enters as its square in the rows' predictions and as its cube in
-the forgetting of changed positions after a reranking.
+the forgetting of changed positions after a reranking. The width itself is a search
+of at most 15 doublings, charged the site `rankWidth` at each evaluation the compiled
+code makes: twice for a row input, once for the ranked dimension of each update of a
+transition part, once for each forgetting of its rows and once for each retirement
+of a deviation learner's column.
 
 The first part under `act-then-learn`, the second part in each order and the memory
 of the agent state are not bounded here.
