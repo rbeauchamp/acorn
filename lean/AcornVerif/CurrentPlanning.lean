@@ -258,7 +258,7 @@ theorem sum_rounding (terms : List (Binary32 × ℚ)) (initial : Binary32)
       |numerical32 (Binary32.sumFrom initial (terms.map Prod.fst))| ≤
         |numerical32 initial| + 102 * (terms.length : ℚ) := by
   induction terms generalizing initial with
-  | nil => simp [Binary32.sumFrom, finite]
+  | nil => simp [Binary32.sumFrom_def, finite]
   | cons term rest ih =>
     obtain ⟨termFinite, termBound, termClose⟩ := close term (by simp)
     have count : (((term :: rest).length : Nat) : ℚ) = (rest.length : ℚ) + 1 := by simp
@@ -278,7 +278,7 @@ theorem sum_rounding (terms : List (Binary32 × ℚ)) (initial : Binary32)
       (fun other member => close other (List.mem_cons_of_mem term member))
     have same : Binary32.sumFrom initial ((term :: rest).map Prod.fst) =
         Binary32.sumFrom (initial.add term.1) (rest.map Prod.fst) := by
-      simp [Binary32.sumFrom]
+      simp [Binary32.sumFrom_def]
     have expand : ((rest.length : ℚ) + 1) * termRadius =
         (rest.length : ℚ) * termRadius + termRadius := by ring
     have step : (1 : ℚ) / 2048 + 1 / 131072 = termRadius := by
@@ -1835,7 +1835,7 @@ theorem plan_empty {cfg : Acorn.Config} {actions : Nat}
     rw [Vector.getElem_set_self]
     change ((controller.learners.get row).state.planStep cfg
       (SwiftTd.ActiveSet.empty dimension) target).1 = _
-    unfold NumericState.planStep
+    rw [NumericState.planStep_def]
     dsimp only
     split <;> rfl
   · rw [CurrentModels.plan_other controller action row same]

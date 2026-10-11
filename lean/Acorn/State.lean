@@ -470,20 +470,36 @@ structure TransientState (dimension : Dimension) where
   /-- Previous prediction anchor. -/
   vOld : Binary32
 
+/-- Fresh process-local registers with their work: one zero vector of each register type, which
+every register vector of that type shares. The compiled code of one build was observed to build
+one array, which all nine register vectors share once the register types are erased; the charge
+of two vectors is a sound over-charge that the distinct register types force. -/
+def TransientState.zeroCosted (dimension : Dimension) : Costed (TransientState dimension) := do
+  let trace ← Costed.replicate dimension.capacity (⟨.zero⟩ : TraceRegister)
+  let gradient ← Costed.replicate dimension.capacity (⟨.zero⟩ : MetaRegister)
+  Costed.op .zeroTransient
+    { z := trace, zDelta := trace, zBar := trace, lastAlpha := trace, deltaWeight := gradient,
+      h := gradient, hOld := gradient, hTemp := gradient, p := gradient, eligible := #[],
+      vDelta := .zero, vOld := .zero }
+
 /-- Fresh process-local registers have exact zero words and no eligible entries. -/
-def TransientState.zero (dimension : Dimension) : TransientState dimension where
-  z := Vector.replicate _ ⟨.zero⟩
-  zDelta := Vector.replicate _ ⟨.zero⟩
-  zBar := Vector.replicate _ ⟨.zero⟩
-  lastAlpha := Vector.replicate _ ⟨.zero⟩
-  deltaWeight := Vector.replicate _ ⟨.zero⟩
-  h := Vector.replicate _ ⟨.zero⟩
-  hOld := Vector.replicate _ ⟨.zero⟩
-  hTemp := Vector.replicate _ ⟨.zero⟩
-  p := Vector.replicate _ ⟨.zero⟩
-  eligible := #[]
-  vDelta := .zero
-  vOld := .zero
+def TransientState.zero (dimension : Dimension) : TransientState dimension :=
+  (TransientState.zeroCosted dimension).val
+
+theorem TransientState.zero_def (dimension : Dimension) :
+    TransientState.zero dimension =
+      { z := Vector.replicate _ ⟨.zero⟩
+        zDelta := Vector.replicate _ ⟨.zero⟩
+        zBar := Vector.replicate _ ⟨.zero⟩
+        lastAlpha := Vector.replicate _ ⟨.zero⟩
+        deltaWeight := Vector.replicate _ ⟨.zero⟩
+        h := Vector.replicate _ ⟨.zero⟩
+        hOld := Vector.replicate _ ⟨.zero⟩
+        hTemp := Vector.replicate _ ⟨.zero⟩
+        p := Vector.replicate _ ⟨.zero⟩
+        eligible := #[]
+        vDelta := .zero
+        vOld := .zero } := rfl
 
 /-- Numeric storage binds all knowledge to one configuration and dimension.
 The complete learner transition is owned by the subsequent learner module. -/

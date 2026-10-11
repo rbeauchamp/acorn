@@ -97,7 +97,7 @@ theorem prediction_bound (state : NumericState config dimension) (features : Act
       |numerical32 (state.predict features)| ≤ predictionRadius features.indices.length := by
   have bound := legal_weight_sum_bound config.rule
     (features.indices.map fun idx => state.weights.get idx)
-  simpa [NumericState.predict, NumericState.linearPrediction_eq_sumFrom,
+  simpa [NumericState.predict_def, NumericState.linearPrediction_eq_sumFrom,
     List.map_map, Function.comp_def] using bound
 
 /-- Clearing installs exact zero registers and an empty eligible sequence. -/
@@ -243,18 +243,18 @@ def Ready (state : NumericState config dimension) : Prop :=
 theorem clear_core (state : NumericState config dimension) : CoreInv state.clearTransient := by
   constructor
   · intro idx _
-    simp only [registers, NumericState.clearTransient, TransientState.zero,
+    simp only [registers, NumericState.clearTransient_def, TransientState.zero_def,
       vector_get, Vector.getElem_replicate]
     rfl
   · intro idx
-    simp only [ReferenceLegal, NumericState.clearTransient, TransientState.zero,
+    simp only [ReferenceLegal, NumericState.clearTransient_def, TransientState.zero_def,
       vector_get, Vector.getElem_replicate]
     exact ⟨by decide, le_refl 0, by change (0:ℚ) ≤ 5; norm_num⟩
 
 /-- Reset also establishes the next admission's uniqueness and nonzero-trace
 premises by its empty eligible sequence. -/
 theorem clear_ready (state : NumericState config dimension) : Ready state.clearTransient := by
-  simp [Ready, NumericState.clearTransient, TransientState.zero]
+  simp [Ready, NumericState.clearTransient_def, TransientState.zero_def]
 
 /-- Initialization establishes the same invariants through its actual storage constructor. -/
 theorem initial_core : CoreInv (NumericState.initial config dimension) :=
@@ -461,7 +461,7 @@ theorem first_loop_go_core (state : NumericState config dimension)
     (support : Supported state work) (references : ReferencesLegal state) :
     CoreInv (NumericState.learnFirstLoopGo config delta vDelta decay state work pos) := by
   induction state, work, pos using
-      NumericState.learnFirstLoopGo.induct config delta vDelta decay with
+      NumericState.learnFirstLoopGoCosted.induct config delta vDelta decay with
   | case1 state work pos valid idx next equation ih =>
     dsimp only [idx] at equation ih
     have nextSupport : Supported next work := by
@@ -474,7 +474,7 @@ theorem first_loop_go_core (state : NumericState config dimension)
       simpa only [← unchanged] using references idx
     have result := ih (prune_supported next work pos valid nextSupport)
       (clear_feature_references next work[pos] nextReferences)
-    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_left valid]
     simpa only [equation, ite_true] using result
   | case2 state work pos valid idx next prune equation noPrune ih =>
     dsimp only [idx] at equation ih
@@ -487,10 +487,10 @@ theorem first_loop_go_core (state : NumericState config dimension)
       intro idx
       simpa only [← unchanged] using references idx
     have result := ih nextSupport nextReferences
-    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_left valid]
     simpa only [equation, ite_eq_right noPrune] using result
   | case3 state work pos finished =>
-    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_right finished]
     exact ⟨support, references⟩
 
 /-- The public first loop preserves the core invariant with no scheduling or
@@ -749,7 +749,7 @@ theorem first_loop_go_ready (state : NumericState config dimension)
     (processed : Processed state work pos) :
     Ready (NumericState.learnFirstLoopGo config delta vDelta decay state work pos) := by
   induction state, work, pos using
-      NumericState.learnFirstLoopGo.induct config delta vDelta decay with
+      NumericState.learnFirstLoopGoCosted.induct config delta vDelta decay with
   | case1 state work pos valid idx next equation ih =>
     dsimp only [idx] at equation ih
     have nextReferences : ReferencesLegal next := by
@@ -763,7 +763,7 @@ theorem first_loop_go_ready (state : NumericState config dimension)
     have result := ih (swap_remove_nodup work pos valid unique)
       (clear_feature_references next work[pos] nextReferences)
       (prune_processed next work pos valid unique nextProcessed)
-    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_left valid]
     simpa only [equation, ite_true] using result
   | case2 state work pos valid idx next prune equation noPrune ih =>
     dsimp only [idx] at equation ih
@@ -788,10 +788,10 @@ theorem first_loop_go_ready (state : NumericState config dimension)
         exact here
       · exact earlier j inside (by omega)
     have result := ih unique nextReferences nextProcessed
-    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_left valid]
     simpa only [equation, ite_eq_right noPrune] using result
   | case3 state work pos finished =>
-    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_right finished]
     refine ⟨unique, ?_⟩
     intro idx member
     obtain ⟨j, inside, rfl⟩ := Array.mem_iff_getElem.mp member
@@ -803,7 +803,7 @@ second-loop admission. It does not manufacture uniqueness from a duplicate input
 theorem first_loop_ready (state : NumericState config dimension) (delta vDelta decay : Binary32)
     (unique : state.transient.eligible.toList.Nodup) (references : ReferencesLegal state) :
     Ready (state.learnFirstLoop config delta vDelta decay) := by
-  unfold NumericState.learnFirstLoop
+  rw [NumericState.learnFirstLoop_def]
   apply first_loop_go_ready
   · exact unique
   · exact references
@@ -827,7 +827,7 @@ theorem first_loop_go_empty (state : NumericState config dimension)
     (NumericState.learnFirstLoopGo config delta vDelta decay state work pos).transient.eligible =
       #[] := by
   induction state, work, pos using
-      NumericState.learnFirstLoopGo.induct config delta vDelta decay with
+      NumericState.learnFirstLoopGoCosted.induct config delta vDelta decay with
   | case1 state work pos valid idx next equation ih =>
     dsimp only [idx] at equation ih
     have nextReferences : ReferencesLegal next := by
@@ -844,7 +844,7 @@ theorem first_loop_go_empty (state : NumericState config dimension)
         (first_element_frame state work[pos] other different delta vDelta decay).2.2
       rw [equation] at kept
       exact kept
-    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_left valid]
     simp only [equation, ite_true]
     refine ih start (swap_remove_nodup work pos valid unique)
       (clear_feature_references next work[pos] nextReferences) ?_
@@ -880,7 +880,7 @@ theorem first_loop_go_empty (state : NumericState config dimension)
     rw [trace, absorbed pos valid] at nonzero
     contradiction
   | case3 state work pos finished =>
-    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_right finished]
     subst start
     have empty : work.size = 0 := by omega
     exact Array.eq_empty_of_size_eq_zero empty
@@ -892,7 +892,7 @@ theorem first_loop_empty (state : NumericState config dimension) (delta vDelta d
     (absorbed : ∀ idx ∈ state.transient.eligible,
       ((state.transient.z.get idx).value.mul decay).isZero = true) :
     (state.learnFirstLoop config delta vDelta decay).transient.eligible = #[] := by
-  unfold NumericState.learnFirstLoop
+  rw [NumericState.learnFirstLoop_def]
   apply first_loop_go_empty
   · rfl
   · exact unique
@@ -980,7 +980,7 @@ theorem clear_feature_supported (state : NumericState config dimension) (idx : F
 matching eligible occurrence and zeroing the retired slot and aggregates. -/
 theorem retire_core (state : NumericState config dimension) (idx : FeatIdx dimension)
     (core : CoreInv state) : CoreInv (state.retireIndex idx) := by
-  unfold NumericState.retireIndex
+  rw [NumericState.retireIndex_def]
   split
   · rename_i pos found
     obtain ⟨valid, same, _⟩ := Array.findIdx?_eq_some_iff_getElem.mp found
@@ -1076,16 +1076,16 @@ theorem release_core (state : NumericState config dimension) (core : CoreInv sta
 
 /-- Release establishes the next admission's premises by its empty eligible sequence. -/
 theorem release_ready (state : NumericState config dimension) : Ready state.releaseEligible := by
-  simp [Ready, NumericState.releaseEligible]
+  simp [Ready, NumericState.releaseEligible_def]
 
 /-- With nothing eligible, a first loop is the identity for arbitrary raw error,
 accumulator and decay words: it reads no trace and writes no weight. -/
 theorem first_loop_idle (state : NumericState config dimension) (delta vDelta decay : Binary32)
     (empty : state.transient.eligible = #[]) :
     state.learnFirstLoop config delta vDelta decay = state := by
-  unfold NumericState.learnFirstLoop
+  rw [NumericState.learnFirstLoop_def]
   dsimp only
-  rw [empty, NumericState.learnFirstLoopGo, dite_eq_right (by simp)]
+  rw [empty, NumericState.learnFirstLoopGo_def, dite_eq_right (by simp)]
   cases state with
   | mk rails weights beta alpha evaluated transient =>
     cases transient
@@ -1157,7 +1157,7 @@ theorem swap_remove_absent {α : Type} (items : Array α) (pos : Nat) (valid : p
 theorem retire_unique (state : NumericState config dimension) (idx : FeatIdx dimension)
     (unique : state.transient.eligible.toList.Nodup) :
     (state.retireIndex idx).transient.eligible.toList.Nodup := by
-  unfold NumericState.retireIndex
+  rw [NumericState.retireIndex_def]
   split
   · exact swap_remove_nodup _ _ _ unique
   · exact unique
@@ -1167,7 +1167,7 @@ from the unique surviving sequence and every other trace is unchanged. -/
 theorem retire_ready (state : NumericState config dimension) (idx : FeatIdx dimension)
     (ready : Ready state) : Ready (state.retireIndex idx) := by
   refine ⟨retire_unique state idx ready.1, ?_⟩
-  unfold NumericState.retireIndex
+  rw [NumericState.retireIndex_def]
   split
   · rename_i pos found
     obtain ⟨valid, same, _⟩ := Array.findIdx?_eq_some_iff_getElem.mp found
@@ -1233,7 +1233,7 @@ theorem entry_schedule (entry : Entry dimension) (state : NumericState config di
   | release => exact ⟨(release_ready state).1, fun _ => release_ready state⟩
   | plan features target =>
     have same := plan_transient state features target
-    exact ⟨by simpa only [Entry.apply, same] using invariant.2.1,
+    exact ⟨by simpa only [Entry.apply_def, same] using invariant.2.1,
       fun hp => ready_of_transient_eq state _ same (invariant.2.2 hp)⟩
   | retire idx =>
     exact ⟨retire_unique state idx invariant.2.1,
@@ -1287,18 +1287,18 @@ theorem first_loop_go_size (state : NumericState config dimension)
     (NumericState.learnFirstLoopGo config delta vDelta decay state work pos).eligibleCount ≤
       work.size := by
   induction state, work, pos using
-      NumericState.learnFirstLoopGo.induct config delta vDelta decay with
+      NumericState.learnFirstLoopGoCosted.induct config delta vDelta decay with
   | case1 state work pos valid idx next equation ih =>
     dsimp only [idx] at equation ih
-    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_left valid]
     simp only [equation, ite_true]
     exact le_trans ih (by rw [swap_remove_size]; omega)
   | case2 state work pos valid idx next prune equation noPrune ih =>
     dsimp only [idx] at equation ih
-    rw [NumericState.learnFirstLoopGo, dite_eq_left valid]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_left valid]
     simpa only [equation, ite_eq_right noPrune] using ih
   | case3 state work pos finished =>
-    rw [NumericState.learnFirstLoopGo, dite_eq_right finished]
+    rw [NumericState.learnFirstLoopGo_def, dite_eq_right finished]
     exact le_refl _
 
 /-- Logical retained slots are counted from every executing state vector,
@@ -1349,7 +1349,7 @@ theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx 
     ((state.retireIndex idx).beta.get idx).value = state.rails.initial.value ∧
     (state.retireIndex idx).transient.vOld = state.transient.vOld ∧
     (state.retireIndex idx).transient.vDelta = state.transient.vDelta := by
-  unfold NumericState.retireIndex
+  rw [NumericState.retireIndex_def]
   have zero := config.rule.domain.symmetric_project_identity
     Binary32.zero config.rule.domain.zeroLegal
   split <;> simp [registers, NumericState.removeEligibleAt,

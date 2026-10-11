@@ -322,14 +322,14 @@ theorem prediction_sumFrom_bound (count : Nat) (initial : Binary32) (values : Li
     (Binary32.sumFrom initial values).Finite ∧
       |numerical32 (Binary32.sumFrom initial values)| ≤ predictionRadius (count+values.length) := by
   induction values generalizing count initial with
-  | nil => simpa only [Binary32.sumFrom,List.foldl_nil,List.length_nil,Nat.add_zero] using
+  | nil => simpa only [Binary32.sumFrom_def,List.foldl_nil,List.length_nil,Nat.add_zero] using
       And.intro finite bound
   | cons value rest ih =>
     have next := prediction_sum_step count initial value finite (weights value (by simp)).1
       bound (weights value (by simp)).2
     have tailProof := ih (count+1) (initial.add value) next.1 next.2
       (fun v hv => weights v (List.mem_cons_of_mem value hv))
-    simpa only [Binary32.sumFrom,List.foldl_cons,List.length_cons,Nat.add_assoc,Nat.add_comm,
+    simpa only [Binary32.sumFrom_def,List.foldl_cons,List.length_cons,Nat.add_assoc,Nat.add_comm,
       Nat.add_left_comm] using tailProof
 
 /-- Starting from zero, the actual ordered sum of any list of legally stored weights is finite
