@@ -90,9 +90,13 @@ retirement and credit (`Managed.applyCosted` and `Managed.retireCosted` in
 `Acorn.FeatureConsumers`, `Managed.creditCosted` in `Acorn.Sarsa`), the controllers' predictions,
 clear, release, snapshot and derived rate (`Controller.predictAllCosted`, `clearCosted` and
 `releaseCosted` in `Acorn.Sarsa`, `Controller.snapshotCosted` and `exploreRateCosted` in
-`Acorn.Policy`), the frozen policy's (`PolicySnapshot.bestCosted`, `candidatesCosted`,
-`reservoirCosted`, `greedyCosted`, `probabilitiesCosted`, `drawCosted` and `expectedCosted` in
-`Acorn.Policy`) and its exploration's
+`Acorn.Policy`), the controllers' updates and their helper (`Controller.creditStepCosted`,
+`valuesStepCosted`, `stopStepCosted` and `terminalCosted` in `Acorn.Sarsa`,
+`Controller.retireCosted` and the helper `detachedUpdateCosted` in `Acorn.FeatureConsumers`,
+`Controller.planCosted` in `Acorn.Planning`, `Controller.policyStepCosted` in `Acorn.Policy`,
+`Controller.persistentStepCosted` in `Acorn.Exploration`), the frozen policy's
+(`PolicySnapshot.bestCosted`, `candidatesCosted`, `reservoirCosted`, `greedyCosted`,
+`probabilitiesCosted`, `drawCosted` and `expectedCosted` in `Acorn.Policy`) and its exploration's
 (`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
@@ -101,8 +105,8 @@ takes. The values a costed definition passes in, which are all its uncosted entr
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
   collection of `foldl` and `foldlArray`; the collection of `map`, `filter` and `length`; the
   vector of `mapVector`, `mapFinIdx` and `toList`; the array of `findIdx?` and `arrayToList`; the
-  count and the list of `drop`; the count of `finRange` and of `ofFn`; the condition of `ite` (`bind`
-  and `attach` take none);
+  count and the list of `drop`; the count of `finRange` and of `ofFn`; the condition of `ite`
+  (`bind` and `attach` take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -125,11 +129,12 @@ policy and exploration definitions and their callers with that of the same defin
 without work found them equal up to the renaming of the definitions and their local variables
 and, in four callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`,
 `TemporalControl.serveDraw`, `Skill.followTemporal`), the order of the parallel moves into a
-join point. The same holds of the costed definitions of a learner's record, the controllers and
-the normalized step-size sum and their callers, where `TemporalControl.serveDraw` again differs
-only in that order. Each is an observation of one build, which no gate repeats. A
-bound in word operations bounds the accounting under `SiteBounds`; no checked statement says that
-a segment of the executed code does at most its site's cost in word operations.
+join point. The same holds of the costed definitions of a learner's record, the controllers'
+parts and updates listed above and the normalized step-size sum and their callers, where
+`TemporalControl.serveDraw` again differs only in that order. Each is an observation of one
+build, which no gate repeats. A bound in word operations bounds the accounting under
+`SiteBounds`; no checked statement says that a segment of the executed code does at most its
+site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a

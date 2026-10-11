@@ -12,9 +12,15 @@ import AcornVerif.Resource.LearnerWork
 # Work of the learners' admitted entries, the controllers and the policies
 
 The bounds of the costed definitions of a learner record (its entry, retirement and credit), of
-the shared-error controller of `Acorn.Sarsa` (its predictions, clear, release, snapshot, derived
-rate and every update) and of the frozen policy's functions in `Acorn.Policy` and
-`Acorn.Exploration`. Each definition here is the executed function with the bound proved of its
+the shared-error controller (its predictions, clear, release, snapshot and derived rate and its
+updates `Controller.creditStep`, `Controller.valuesStep`, `Controller.stopStep`,
+`Controller.terminal`, `Controller.retire`, `Controller.plan`, `Controller.policyStep` and
+`Controller.persistentStep`), of the normalized step-size sum and of the frozen policy's
+functions in `Acorn.Policy` and `Acorn.Exploration`. The controller's initial value and reset
+(`Controller.initial`, `Controller.resetAction`) are not yet costed and have twins in
+`AcornVerif.Resource.RefreshWork`; its updates `Controller.startStep`, `Controller.step`,
+`Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep` are not yet costed and
+have no twin. Each definition here is the executed function with the bound proved of its
 costed definition as its work, and its `_costed` theorem checks that the costed definition is
 within it. A learner entry's bound reads the learner's eligible entries, and every admitted
 learner has at most the capacity of its dimension
