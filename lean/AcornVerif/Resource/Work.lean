@@ -11,10 +11,10 @@ import Acorn.Cost
 The learner's and the frozen policy's executed definitions are the values of costed definitions
 (`Acorn.Costed`), so the loops their bounds count are the loops that run, under the trust
 assumption that the compiler erases the work (`Acorn.Cost`). The other definitions of the
-agent's step are not yet costed. For each of them a **twin** here is a `Costed` computation, a value with a `Nat`
-of work, written beside the executed definition to follow its control flow. A twin's value
-theorem states that its value is the executed definition's, by `rfl`, by induction on the same
-recursion, or, through `via`, by reading.
+agent's step are not yet costed. For each of them a **twin** here is a `Costed` computation, a
+value with a `Nat` of work, written beside the executed definition to follow its control flow.
+A twin's value theorem states that its value is the executed definition's, by `rfl`, by
+induction on the same recursion, or, through `via`, by reading.
 
 **What a twin establishes.** A value theorem does not tie a twin's work to the executed code:
 Lean's logic gives a pure term no operational meaning, and a twin of the same value with less

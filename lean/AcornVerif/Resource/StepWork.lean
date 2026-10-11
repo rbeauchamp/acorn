@@ -29,14 +29,12 @@ requirement R8 (rbeauchamp/acorn#90) owes. The trust assumption is that the comp
 costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
 The learner's and the policy's parts are the work of the executed learner and policy functions,
 whose definitions are the values of their costed definitions, under the cost discipline of
-`Acorn.Cost`: every value
-a costed definition passes in, the uncosted entry points that `Acorn.Cost` lists, is computed
-without a loop and without a costed definition, which is checked by reading until
-rbeauchamp/regula#333 checks it.
+`Acorn.Cost`: every value a costed definition passes in, the uncosted entry points that
+`Acorn.Cost` lists, is computed without a loop and without a costed definition, which is checked
+by reading until rbeauchamp/regula#333 checks it.
 The other parts, the controllers, the encoding and selection among them, are twins
-(`AcornVerif.Resource.Work`)
-whose charges were compared with the compiled call multisets of one build by a one-time
-inventory, an observation of that build which no gate repeats.
+(`AcornVerif.Resource.Work`) whose charges were compared with the compiled call multisets of one
+build by a one-time inventory, an observation of that build which no gate repeats.
 
 **Word operations.** A site's cost in word operations is not derived from the compiled code.
 `AcornVerif.Resource.Twin.choose_words` bounds the accounting of the first part's twin charged at

@@ -340,13 +340,14 @@ and, in four callers of the policy's functions (`TemporalControl.choosePrimitive
 `TemporalControl.serve`, `TemporalControl.serveDraw`, `Skill.followTemporal`), the
 order of the parallel moves into a join point, an observation of one build each that
 no gate repeats. The loops the costed definitions' bounds count are therefore the
-loops that run, under that assumption and one discipline that no theorem states, because Lean gives a pure term
-no operational meaning. Every function a combinator takes is costed, so its work is
-counted: the steps of a fold, the operation of a map, the tests of a search
-(`Costed.findIdx?`) and a filter, and the continuation of a sequence; a scan of a list
-or a vector (its listing, a drop, a length, the indices below a count) is charged its
-row with no function to count; the costed type has only the
-instances that do-blocks need, so no derived map applies a callback outside the count.
+loops that run, under that assumption and one discipline that no theorem states,
+because Lean gives a pure term no operational meaning. Every function a combinator
+takes is costed, so its work is counted: the steps of a fold, the operation of a map,
+the tests of a search (`Costed.findIdx?`) and a filter, and the continuation of a
+sequence; a scan of a list or a vector (its listing, a drop, a length, the indices
+below a count) is charged its row with no function to count; the costed type has only
+the instances that do-blocks need, so no derived map applies a callback outside the
+count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
