@@ -371,17 +371,20 @@ because Lean gives a pure term no operational meaning. Every function a combinat
 takes is costed, so its work is counted: the steps of a fold, the operation of a map,
 of a filtering map and of a flattening map, whose results' elements are charged as
 well, the tests of a search (`Costed.findIdx?`) and a filter, the continuation of a
-sequence and the arms of a branch (`Costed.ite`); a scan of a list, a vector or an
-array (its listing, a drop, a length, the indices or numbers below a count, a
-numbering, a join, a reversal, an integer sum) is charged its row with no function to
-count; the costed type has only
+sequence and the arms of a branch (`Costed.ite`) and of a dependent branch, whose arms
+read the condition's proof (`Costed.dite`); a scan of a list, a vector or an array (its
+listing, a drop, a length, the indices or numbers below a count, a numbering, a join, a
+reversal, an integer sum, a membership test) is charged its row with no function to
+count, and the membership test of a list (`Costed.mem`) one comparison for each visit
+as well; the costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, the
-condition of `Costed.ite`, and the terms a costed definition evaluates in its own body.
+condition of `Costed.ite` and of `Costed.dite`, the element and the list of `Costed.mem`,
+and the terms a costed definition evaluates in its own body.
 Each must be computed without a costed definition and with no loop except those the cost semantics
 lists as left inside a segment, whose trip counts are bounded by constants of the code
 (the at most 33 steps of `Portable.pow` among them); every other loop must run in a
