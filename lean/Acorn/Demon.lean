@@ -70,19 +70,51 @@ structure DemonBankOutput (dimension : Dimension) (discounts : List Discount) wh
   /-- Evaluated cumulants, one per slot. -/
   cumulants : Vector Binary32 discounts.length
 
+/-- `DemonBank.step` with its work: each demon's learner step, the rest of the bank's step, then
+this demon's record, prediction, error and cumulant put before the rest's; the end of the bank is
+charged a visit. -/
+def DemonBank.stepCosted {dimension : Dimension} {discounts : List Discount}
+    (bank : DemonBank dimension discounts) (features : SwiftTd.ActiveSet dimension)
+    (rewards : Cumulants discounts) : Costed (DemonBankOutput dimension discounts) :=
+  match bank, rewards with
+  | .nil, .nil => Costed.op .visit ⟨.nil, .nil, #v[], #v[]⟩
+  | .cons learner rest, .cons _origin reward rewards => Costed.charge .visit do
+    let result ← Costed.attach (learner.state.stepCosted _ features reward)
+    let next ← rest.stepCosted features rewards
+    let bank := DemonBank.cons ⟨result.val.1, false, by
+      rw [result.property]
+      exact .transition (.step features reward) trivial learner.admitted⟩ next.bank
+    let predictions := PredictionCache.cons (Prediction.project _ result.val.2.value)
+      next.predictions
+    let error := result.val.2.error.abs
+    Costed.charge .demonOutput do
+      let errors ← Costed.prepend error next.errors
+      let cumulants ← Costed.prepend reward next.cumulants
+      Costed.op .demonClose ⟨bank, predictions, errors, cumulants⟩
+
 /-- Update each prediction learner once through the same managed entry. -/
 def DemonBank.step {dimension : Dimension} {discounts : List Discount}
     (bank : DemonBank dimension discounts) (features : SwiftTd.ActiveSet dimension)
     (rewards : Cumulants discounts) : DemonBankOutput dimension discounts :=
-  match bank, rewards with
-  | .nil, .nil => ⟨.nil, .nil, #v[], #v[]⟩
-  | .cons learner rest, .cons _origin reward rewards =>
-    let result := learner.state.step _ features reward
-    let next := rest.step features rewards
-    ⟨.cons ⟨result.1, false, .transition (.step features reward) trivial learner.admitted⟩ next.bank,
-      .cons (Prediction.project _ result.2.value) next.predictions,
-      (#v[result.2.error.abs] ++ next.errors).cast (by simp [Nat.add_comm]),
-      (#v[reward] ++ next.cumulants).cast (by simp [Nat.add_comm])⟩
+  (bank.stepCosted features rewards).val
+
+/-- A bank step runs each demon's learner step and the rest of the bank's, and puts this demon's
+record, prediction, error and cumulant before the rest's. -/
+theorem DemonBank.step_def {dimension : Dimension} {discounts : List Discount}
+    (bank : DemonBank dimension discounts) (features : SwiftTd.ActiveSet dimension)
+    (rewards : Cumulants discounts) :
+    bank.step features rewards =
+      match bank, rewards with
+      | .nil, .nil => ⟨.nil, .nil, #v[], #v[]⟩
+      | .cons learner rest, .cons _origin reward rewards =>
+        let result := learner.state.step _ features reward
+        let next := rest.step features rewards
+        ⟨.cons ⟨result.1, false, .transition (.step features reward) trivial learner.admitted⟩
+            next.bank,
+          .cons (Prediction.project _ result.2.value) next.predictions,
+          (#v[result.2.error.abs] ++ next.errors).cast (by simp [Nat.add_comm]),
+          (#v[reward] ++ next.cumulants).cast (by simp [Nat.add_comm])⟩ := by
+  cases bank <;> cases rewards <;> rfl
 
 /-- Every prediction returned by a demon step inhabits its own signal range. -/
 theorem Demon.step_prediction_legal {S Obs Res : Type} [Signal S Obs Res]

@@ -293,10 +293,14 @@ is selection, `learn-then-act` and `plan-after-act`
 ([definitions](../lean/AcornVerif/Resource/StepWork.lean),
 `AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
 order). The theorems bound the accounting of the first part's twin; none of them is a
-bound of the executed first part's work. The deadline of a world on a wall clock needs
-a bound of the executed first part, which runs from the step's entry until the action
-is released. Reading the twin's bound as one rests on four things no theorem yet
-establishes, which a later increment of requirement R8 owes:
+bound of the executed first part's work. The first part runs from the step's entry
+until `Agent.choose` returns, including the construction of its `Chosen` value; the
+world receives the action after the second part under `learn-then-act`, and between the
+two parts under `plan-after-act` and `act-then-learn`. The deadline of a world on a wall
+clock needs a bound of the executed work before the action is released; under
+`learn-then-act` that work also includes the second part, whose bound R8 still owes.
+Reading the twin's bound as a bound of the executed first part rests on four things no
+theorem yet establishes, which a later increment of requirement R8 owes:
 
 - that a cost model in word operations counts the segments of the executed code:
   `choose_words` bounds the accounting charged at a cost model `words` under
@@ -318,9 +322,11 @@ a count of the operations of the compiled definitions: each visit of a loop cost
 code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
 sites. The intended reading of what each charge counts is its **segment** of the
-operations the compiled code runs during one call of the first part, defined once in the
-[cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment is
-bounded by a constant of the code in the operations counted. Allocation, reference
+operations the compiled code runs during one call of a part of the step, here the first part,
+or of a costed definition, defined once in the
+[cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment of the first
+part, and every segment of a costed definition's own call read over that call's operations,
+is bounded by a constant of the code in the operations counted. Allocation, reference
 counting, the copy of a shared array when it is written
 ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the copy of an array into a larger
 buffer when a push outgrows its capacity, whose length depends on the state, the one-time
@@ -340,8 +346,15 @@ release, snapshot and derived rate and its updates `Controller.creditStep`, `val
 `stopStep`, `terminal`, `retire`, `plan`, `policyStep`, `persistentStep`, `startStep`,
 `step`, `smdpStep`, `closeStep` and `backupStep` with the tree-backup error
 (`Controller.backupError`) and an action's mass (`PolicySnapshot.mass`), and a learner's
-normalized step-size sum. A controller's initial value and reset (`Controller.initial`,
-`Controller.resetAction`) are not costed yet and have twins
+normalized step-size sum. So is the prediction demons' bank step of the second part
+(`DemonBank.step`): each demon's error and cumulant are put before a copy of the rest of
+the bank's (`Costed.prepend`), so its bound
+(`AcornVerif.Resource.Twin.demonBankStepCosted_within`) grows with the square of the
+number of demons; with the capacity of the dimension in place of the active set's length
+it is a function of the configuration
+(`AcornVerif.Resource.Twin.demonBankStepCosted_within_capacity`). A controller's initial
+value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
+have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
 The encoding of a frame is also the value of its costed
 definition (`Agent.frame`), and so are the words
@@ -382,17 +395,19 @@ of a filtering map and of a flattening map, whose results' elements are charged 
 well, the tests of a search (`Costed.findIdx?`) and a filter, the continuation of a
 sequence and the arms of a branch (`Costed.ite`) and of a dependent branch, whose arms
 read the condition's proof (`Costed.dite`); a scan of a list, a vector or an array (its
-listing, a drop, a length, the indices or numbers below a count, a numbering, a join, a
-reversal, an integer sum, a membership test) is charged its row with no function to
-count, and the membership test of a list (`Costed.mem`) one comparison for each visit
-as well; the costed type has only
+listing, a drop, a length, the indices or numbers below a count, a numbering, a join, an
+element put before a vector, a reversal, an integer sum, a membership test) is charged its
+row with no function to count, the membership test of a list (`Costed.mem`) one comparison
+for each visit as well, and an element put before a vector (`Costed.prepend`) one read of
+the element; the costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, the
-condition of `Costed.ite` and of `Costed.dite`, the element and the list of `Costed.mem`,
+condition of `Costed.ite` and of `Costed.dite`, the element and the vector of
+`Costed.prepend`, the element and the list of `Costed.mem`,
 and the terms a costed definition evaluates in its own body.
 Each must be computed without a costed definition and with no loop except those the cost semantics
 lists as left inside a segment, whose trip counts are bounded by constants of the code
@@ -460,7 +475,17 @@ once each for a ranking's lookup table, an empty ranking, a fresh transition par
 the ranked slots, the changed positions, the occupied positions and an indicator.
 
 The first part under `act-then-learn`, the second part in each order and the memory
-of the agent state are not bounded here.
+of the agent state are not bounded here. The second part runs stretches outside the
+costed definitions. In the second part, the operations of those stretches belong to the
+segment of the next charge of a costed definition, or of the part's last charge, so the
+second part's segments are not yet bounded by constants of the code and its bound is an
+open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
+channels of the demons' lifetime records, whose trip count depends on the configuration,
+with no charge point. That is why the claim that every segment is bounded by a constant
+of the code is limited to the first part and to each costed definition's own call. The
+executed `detachedUpdate` is not yet the value of its costed definition
+`detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
+is owed by a later increment of R8.
 
 ### The time a world declares
 

@@ -19,16 +19,22 @@ the operations its charge marks. The intended reading of what a charge counts is
 defined here once. No checked statement contains this reading:
 
 - the *trace* is the word operations the compiled code runs during one call of a bounded part, as
-  one flat sequence. The bounded part here is the first part, from the step's entry until the action
-  is released, including the `Chosen` record built after selection's last charge. An operation
-  inside a callee is itself an operation of the trace, at its own position;
+  one flat sequence. The bounded parts are the first part, from the step's entry until
+  `Agent.choose` returns, including the `Chosen` record built after selection's last charge, and the
+  second part, from the entry of `Chosen.learn` until it returns. The world receives the action
+  after the second part under `learn-then-act`, and between the two parts under `plan-after-act` and
+  `act-then-learn`. For the bound of a costed definition the trace is the word operations of one
+  call of that definition, from its entry to its return. An operation inside a callee is itself an
+  operation of the trace, at its own position;
 - the *charge points* are an `op` at the value it charges, a `charge` before the computation it
   wraps, a loop's visits at fixed points of each pass, whether a loop combinator, a scan or a charge
   of its row's work or control charges them (each element's visit before that element's step,
   which is its callback in a pass that runs one, and the pass's end visit after its last element),
-  and a costed recursion's charges where the recursion makes them;
+  `prepend`'s read at the vector it builds, after the operations that build that vector and before
+  the pass over the vector it puts the element before, and a costed recursion's charges where the
+  recursion makes them;
 - each operation belongs to the segment of the first charge point at or after it, and the operations
-  after the part's last charge point belong to that last one, so the segments partition the trace.
+  after the trace's last charge point belong to that last one, so the segments partition the trace.
 
 The segment of an operation is decided by its position alone, so a site's segment can include
 operations its docstring does not name, and a site's named operations can lie in another charge's
@@ -44,23 +50,33 @@ later increment of requirement R8 (rbeauchamp/acorn#90) owes. A `visit` segment 
 a whole element and, in the first loop, a prune, and the first visits of the second and planning
 loops can include operations their opens name, so `κ visit` must cover the largest visit segment.
 
-Every segment is bounded by a constant of the code in the operations counted. The copy of an array
-into a larger buffer when a push outgrows its capacity, whose length depends on the state, is, like
-allocation, outside the count (**What is not counted**). Every loop whose trip count depends on the
-configuration or the state runs in a loop combinator or a costed recursion, which has a charge point
-on each iteration, so no segment contains one. A costed recursion charges each level before its
-recursive call, and charges again on the return where the level works after the call returns, so
-neither its descent nor its return falls in one segment. A library loop whose recursion has a depth
-that depends on the configuration or the state and works on the return counts that return as a pass
-of its row (`Library.fillVacant`). The cost discipline below requires this of costed definitions; of
-the twins it is a property of their charge placement, checked by reading, which the one-time
-compiled-call inventory of one build did not compare. The loops left inside a segment have trip
-counts bounded by constants of the code: the three options and their slots, the four meta actions,
-the 32 samples of a projection, including the return of their sum's recursion (`Library.sum`, one
-pass), the at most 15 doublings of the ranked width's search (`rankExponentFrom`) and the at most
-33 steps of `Portable.pow`. A cost model (`Costs`) assigns each site a cost, and every work bound
-holds for every cost model. No theorem derives the cost of a site in word operations; the scalar
-operations that the native resource audit bounds are the operations with an extracted cost.
+Every segment of the first part, and every segment of each costed definition's own call read over
+that call's trace, is bounded by a constant of the code in the operations counted. The copy of an
+array into a larger buffer when a push outgrows its capacity, whose length depends on the state, is,
+like allocation, outside the count (**What is not counted**). Every loop of these whose trip count
+depends on the configuration or the state runs in a loop combinator or a costed recursion, which has
+a charge point on each iteration, so no segment contains one. A costed recursion charges each level
+before its recursive call, and charges again on the return where the level works after the call
+returns, so neither its descent nor its return falls in one segment. A library loop whose recursion
+has a depth that depends on the configuration or the state and works on the return counts that
+return as a pass of its row (`Library.fillVacant`). The cost discipline below requires this of
+costed definitions; of the twins it is a property of their charge placement, checked by reading,
+which the one-time compiled-call inventory of one build did not compare. The loops left inside a
+segment have trip counts bounded by constants of the code: the three options and their slots, the
+four meta actions, the 32 samples of a projection, including the return of their sum's recursion
+(`Library.sum`, one pass), the at most 15 doublings of the ranked width's search
+(`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. A cost model (`Costs`) assigns each
+site a cost, and every work bound holds for every cost model. No theorem derives the cost of a site
+in word operations; the scalar operations that the native resource audit bounds are the operations
+with an extracted cost.
+
+The second part runs stretches outside the costed definitions. In the second part's trace the
+operations of those stretches belong to the segment of the next costed charge point, or of the
+part's last one, so the second part's segments are not yet bounded by constants of the code and its
+bound is an open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
+channels of the demons' lifetime records, whose trip count depends on the configuration, with no
+charge point. That is why the claim above that every segment is bounded by a constant of the code
+is limited to the first part and to each costed definition's own call.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
@@ -75,60 +91,66 @@ the operations of `map`, `mapVector`, `mapFinIdx`, `ofFn`, `filterMap` and `flat
 charges the elements of each result to its row `flatMapResult`. `attach` pairs a computation's
 result with its equation, for a proof that names the result, and its work is that computation's
 work. A *scan* (`toList`, `arrayToList`, `drop`, `finRange`, `length`, `range`, `zipIdx`, `append`,
-`reverse`, `sum`, `mem`) is a library loop that takes no function: its value is the library function
-of the collection it names, and its work is the control of its row over the elements it visits, the
-whole collection or, for `drop`, the elements it drops and, for `append`, its first list; `sum`
-charges each visit the addition of its term (`sumTerm`) and `mem` one comparison (`compare`) as
-well. A recursion of Acorn's own is a costed recursion whose every recursive call is under a charge
-and whose end is charged a visit.
+`prepend`, `reverse`, `sum`, `mem`) is a library loop that takes no function: its value is the
+library function of the collection it names, and its work is the control of its row over the
+elements it visits, the whole collection or, for `drop`, the elements it drops, for `append`, its
+first list and, for `prepend`, the vector it puts the element before; `sum` charges each visit the
+addition of its term (`sumTerm`) and `mem` one comparison (`compare`) as well, and `prepend` charges
+the read of its element into a new vector (`read`) once. A recursion of Acorn's own is a costed
+recursion whose every recursive call is under a charge and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
 (`single`), so a bound is never vacuous (`within_iff`).
 
-**What is trusted.** That the counted work covers each operation of the compiled code rests on
-the cost discipline of the costed definitions: the learner's, a learner record's entry,
-retirement and credit (`Managed.applyCosted` and `Managed.retireCosted` in
-`Acorn.FeatureConsumers`, `Managed.creditCosted` in `Acorn.Sarsa`), the controllers' predictions,
-clear, release, snapshot and derived rate (`Controller.predictAllCosted`, `clearCosted` and
-`releaseCosted` in `Acorn.Sarsa`, `Controller.snapshotCosted` and `exploreRateCosted` in
-`Acorn.Policy`), the controllers' updates and their helper (`Controller.creditStepCosted`,
-`valuesStepCosted`, `stopStepCosted` and `terminalCosted` in `Acorn.Sarsa`,
-`Controller.retireCosted` and the helper `detachedUpdateCosted` in `Acorn.FeatureConsumers`,
-`Controller.planCosted` in `Acorn.Planning`, `Controller.policyStepCosted` in `Acorn.Policy`,
-`Controller.persistentStepCosted` in `Acorn.Exploration`, `Controller.startStepCosted`,
-`stepCosted`, `smdpStepCosted` and `closeStepCosted` in `Acorn.Sarsa`, and
-`Controller.backupStepCosted`, `backupErrorCosted` and `PolicySnapshot.massCosted` in
-`Acorn.Policy`), the frozen policy's
-(`PolicySnapshot.bestCosted`, `candidatesCosted`, `reservoirCosted`, `greedyCosted`,
-`probabilitiesCosted`, `drawCosted` and `expectedCosted` in `Acorn.Policy`), its exploration's
-(`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`)
-and the encoding of a frame's (`projectionValueCosted`, `Bank.activationsCosted`,
-`tiledFeaturesCosted`, `imprintFeaturesCosted`, `rawEncodeWithCosted`,
-`UniqueBuilder.emptyCosted`, `UniqueBuilder.finishCosted`, `uniqueCosted` and `encodeWithCosted`
-in `Acorn.Features`, `EncodingFrame.computeCosted` in `Acorn.FeatureHistory`,
-`PredictionCache.wordsCosted` and `FeatureRuntime.encodeCurrentCosted` in
-`Acorn.FeatureReferences`, `feedbackWordsCosted` in `Acorn.Handcrafted.Signals`,
-`Agent.wordsCosted` and `Agent.frameCosted` in `Acorn.Handcrafted.Agent`) and the option models'
-input, ranked features and prediction (`insertCosted` in `Acorn.Features`, `modelInputCosted` in
-`Acorn.FeatureModelInput`, `RankedFeatures.activeCosted`, `inputCosted`, `indicatorCosted` and
-`occupiedCosted` in `Acorn.RankedFeatures`, `comparisonValueCosted` in `Acorn.Options`,
+**What is trusted.** That the counted work covers each operation of the compiled code rests on the
+cost discipline of the costed definitions: the learner's (`NumericState.linearPredictionCosted`,
+`predictCosted`, `clearTransientCosted`, `releaseEligibleCosted`, `learnFirstLoopGoCosted`,
+`learnFirstLoopCosted`, `learnSecondLoopGoCosted`, `learnSecondLoopCosted`, `stepCosted`,
+`beginTrajectoryCosted`, `terminalStepCosted`, `planWeightsGoCosted`, `planStepCosted`,
+`retireIndexCosted` and `normalizedStepSizeSumCosted` and `SwiftTd.Entry.applyCosted` in
+`Acorn.SwiftTd`, `TransientState.zeroCosted` in `Acorn.State`, and the ordered sums
+`Binary32.sumFromCosted` and `sumMapCosted` in `Acorn.Arithmetic`), a learner record's entry,
+retirement and credit (`Managed.applyCosted` and `Managed.retireCosted` in `Acorn.FeatureConsumers`,
+`Managed.creditCosted` in `Acorn.Sarsa`), the controllers' predictions, clear, release, snapshot and
+derived rate (`Controller.predictAllCosted`, `clearCosted` and `releaseCosted` in `Acorn.Sarsa`,
+`Controller.snapshotCosted` and `exploreRateCosted` in `Acorn.Policy`), the controllers' updates and
+their helper (`Controller.creditStepCosted`, `valuesStepCosted`, `stopStepCosted` and
+`terminalCosted` in `Acorn.Sarsa`, `Controller.retireCosted` and the helper `detachedUpdateCosted`
+in `Acorn.FeatureConsumers`, `Controller.planCosted` in `Acorn.Planning`,
+`Controller.policyStepCosted` in `Acorn.Policy`, `Controller.persistentStepCosted` in
+`Acorn.Exploration`, `Controller.startStepCosted`, `stepCosted`, `smdpStepCosted` and
+`closeStepCosted` in `Acorn.Sarsa`, and `Controller.backupStepCosted`, `backupErrorCosted` and
+`PolicySnapshot.massCosted` in `Acorn.Policy`), the frozen policy's (`PolicySnapshot.bestCosted`,
+`candidatesCosted`, `reservoirCosted`, `greedyCosted`, `probabilitiesCosted`, `drawCosted` and
+`expectedCosted` in `Acorn.Policy`), its exploration's (`PolicySnapshot.drawPersistentCosted` and
+`servedProbabilitiesCosted` in `Acorn.Exploration`) and the encoding of a frame's
+(`projectionValueCosted`, `Bank.activationsCosted`, `tiledFeaturesCosted`, `imprintFeaturesCosted`,
+`rawEncodeWithCosted`, `UniqueBuilder.emptyCosted`, `UniqueBuilder.finishCosted`, `uniqueCosted` and
+`encodeWithCosted` in `Acorn.Features`, `EncodingFrame.computeCosted` in `Acorn.FeatureHistory`,
+`PredictionCache.wordsCosted` and `FeatureRuntime.encodeCurrentCosted` in `Acorn.FeatureReferences`,
+`feedbackWordsCosted` in `Acorn.Handcrafted.Signals`, `Agent.wordsCosted` and `Agent.frameCosted` in
+`Acorn.Handcrafted.Agent`) and the option models' input, ranked features and prediction
+(`insertCosted` in `Acorn.Features`, `modelInputCosted` in `Acorn.FeatureModelInput`,
+`RankedFeatures.activeCosted`, `inputCosted`, `indicatorCosted` and `occupiedCosted` in
+`Acorn.RankedFeatures`, `comparisonValueCosted` in `Acorn.Options`,
 `ValueFunction.rankedValuesCosted`, `Transition.expectedAtCosted`, `outcomeValuesCosted`,
 `lookaheadCosted` and `Model.predictCosted` in `Acorn.Models`) and updates
-(`Transition.outcomeCosted`, `updateRowsCosted`, `beginCosted`, `stepCosted`, `terminalCosted`
-and `stopCosted`, `Managed.stopTrajectoryCosted`, and `Model.beginCosted`, `stepCosted`,
-`terminalCosted` and `stopCosted` in `Acorn.Models`).
+(`Transition.outcomeCosted`, `updateRowsCosted`, `beginCosted`, `stepCosted`, `terminalCosted` and
+`stopCosted`, `Managed.stopTrajectoryCosted`, and `Model.beginCosted`, `stepCosted`,
+`terminalCosted` and `stopCosted` in `Acorn.Models`), and the prediction demons' bank step
+(`DemonBank.stepCosted` in `Acorn.Demon`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
-- the value parameters of the combinators: the value of `pure`; the site and value of `op`;
-  the site of `charge`; the count and element of `replicate`; the initial accumulator and the
-  collection of `foldl` and `foldlArray`; the collection of `map`, `filter`, `filterMap`,
-  `flatMap`, `length`, `reverse` and `sum`; the collection and start of `zipIdx`; the two lists
-  of `append`; the element and the list of `mem`; the vector of `mapVector`, `mapFinIdx` and
-  `toList`; the array of `findIdx?` and `arrayToList`; the count and the list of `drop`; the count
-  of `range`, `finRange` and `ofFn`; the condition of `ite` and of `dite` (`bind` and `attach`
-  take none);
+- the value parameters of the combinators: the value of `pure`; the site and value of `op`; the site
+  of `charge`; the count and element of `replicate`; the initial accumulator and the collection of
+  `foldl` and `foldlArray`; the collection of `map`, `filter`, `filterMap`, `flatMap`, `length`,
+  `reverse` and `sum`; the collection and start of `zipIdx`; the two lists of `append`; the element
+  and the vector of `prepend`; the element and the list of `mem`; the vector of `mapVector`,
+  `mapFinIdx` and `toList`; the array of `findIdx?` and `arrayToList`; the count and the list of
+  `drop`; the count of `range`, `finRange` and `ofFn`; the condition of `ite` and of `dite` (`bind`
+  and `attach` take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -158,7 +180,8 @@ that order, and of the costed definitions of the encoding of a frame and their c
 `NumericState.resumable` and `Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does,
 call a specialization of that fold of their own with the body of the one they shared with `unique`,
 and of the costed definitions of an option model's input, ranked features, prediction and updates
-and of the controllers' remaining updates, and their callers. Each is an observation of one build,
+and of the controllers' remaining updates and the prediction demons' bank step, and their
+callers. Each is an observation of one build,
 which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
 checked statement says that a segment of the executed code does at most its site's cost in word
 operations.
@@ -297,6 +320,11 @@ inductive Site where
   | deviation
   /-- The record of an option model after its learners are updated. -/
   | modelClose
+  /-- A demon's learner record and its projected prediction, each put before the rest of its
+  bank's, and its absolute error. -/
+  | demonOutput
+  /-- The record of a demon bank's outputs: its learners, predictions, errors and cumulants. -/
+  | demonClose
   /-- An assignment's feature slot computed before its membership test. -/
   | assignmentPotential
   /-- A declared potential read from the frame's declared values. -/
@@ -418,6 +446,9 @@ inductive Library where
   /-- `++` on lists, replaced by `List.appendTR` (`List.append_eq_appendTR`): `List.reverse` of
   the first list, then `List.reverseAux` over it. -/
   | append
+  /-- `++` on vectors, `Array.append`: an `Array.foldl` over the second array that pushes each of
+  its elements, implemented by `Array.foldlMUnsafe`: one loop. -/
+  | vectorAppend
   /-- `List.drop` (`Init.Data.List.Basic`), which no `csimp` replaces: a structural recursion
   over the elements it drops, one loop. -/
   | drop
@@ -460,6 +491,7 @@ def Library.passes : Library → Nat
   | .reverse => 1
   | .vectorEq => 1
   | .append => 2
+  | .vectorAppend => 1
   | .drop => 1
   | .dropLast => 3
   | .zipIdx => 3
@@ -1174,6 +1206,23 @@ theorem append_val (first second : List α) : (append first second).val = first 
 
 theorem append_within (first second : List α) (κ : Costs) :
     (append first second).Within κ (Library.append.control (κ .visit) first.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- A vector with `head` put before `tail`, by `#v[head] ++ tail` (`Library.vectorAppend`): the
+read of `head` into a new vector (`read`), charged at that vector after the operations that build
+it and before the pass over `tail`, then the control of its row over `tail`, the only one it
+walks. -/
+@[inline] def prepend {count : Nat} (head : α) (tail : Vector α count) :
+    Costed (Vector α (count + 1)) :=
+  ⟨(#v[head] ++ tail).cast (Nat.add_comm 1 count),
+    fun κ n => n = κ .read + Library.vectorAppend.control (κ .visit) count,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem prepend_val {count : Nat} (head : α) (tail : Vector α count) :
+    (prepend head tail).val = (#v[head] ++ tail).cast (Nat.add_comm 1 count) := rfl
+
+theorem prepend_within {count : Nat} (head : α) (tail : Vector α count) (κ : Costs) :
+    (prepend head tail).Within κ (κ .read + Library.vectorAppend.control (κ .visit) count) :=
   fun _ same => Nat.le_of_eq same
 
 /-- A list in reverse order, by `List.reverse` (`Library.reverse`): the control of its row. -/
