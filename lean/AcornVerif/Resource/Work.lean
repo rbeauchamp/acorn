@@ -13,7 +13,8 @@ controllers' predictions, clear, release, snapshot and derived rate, and of the 
 updates `Controller.creditStep`, `Controller.valuesStep`, `Controller.stopStep`,
 `Controller.terminal`, `Controller.retire`, `Controller.plan`, `Controller.policyStep` and
 `Controller.persistentStep`, of the encoding of a frame, and of an option model's input, ranked
-features, comparison value and prediction are the values of costed definitions (`Acorn.Costed`),
+features, comparison value, prediction and updates are the values of costed definitions
+(`Acorn.Costed`),
 each of which `Acorn.Cost` names, so the loops their bounds count are the loops that run, under
 the trust assumption that the compiler erases the work (`Acorn.Cost`). The other definitions of
 the agent's step are not yet costed. Of the controllers' definitions, `Controller.initial` and
@@ -37,7 +38,7 @@ definition is bounded through that definition instead (`AcornVerif.Resource.Lear
 learner's, `AcornVerif.Resource.ControlWork` for the learner record's, the controllers' costed
 parts and updates, and the policy's, `AcornVerif.Resource.EncodeWork` for the encoding's,
 `AcornVerif.Resource.ModelWork` for the option models' input, ranked features, comparison
-value and prediction).
+value, prediction and updates).
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of

@@ -307,7 +307,7 @@ establishes, which a later increment of requirement R8 owes:
 - the cost discipline of the costed definitions of the learner, of a learner's record,
   of the controllers' predictions, clear, release, snapshot, derived rate and updates
   listed below, of the frozen policy and of its exploration, of the encoding of a frame,
-  and of an option model's input, ranked features and prediction, described below;
+  and of an option model's input, ranked features, prediction and updates, described below;
 - the correspondence of the twins of selection, among them the controllers' initial
   value and reset, with the executed definitions: the twins'
   charges were compared with the compiled call multisets of one build by a one-time
@@ -354,8 +354,15 @@ with its age slot inserted (`modelInput`, `insert`), its ranked features
 `RankedFeatures.occupied`), the rows' expected values (`Transition.expectedAt`), the
 ranked values (`ValueFunction.rankedValues`), the predicted outcome's values
 (`Transition.outcomeValues`), the look-ahead (`Transition.lookahead`), the comparison
-value of a policy (`comparisonValue`) and the model's prediction (`Model.predict`). An
-option model's updates are not costed yet and have twins. A costed
+value of a policy (`comparisonValue`) and the model's prediction (`Model.predict`). So are
+an option model's start, step, terminal step and stopped trajectory (`Model.begin`,
+`Model.step`, `Model.terminal`, `Model.stop`), its transition part's (`Transition.begin`,
+`Transition.step`, `Transition.terminal`, `Transition.stop`), the outcome of a terminal frame
+(`Transition.outcome`) and a learner's stopped trajectory (`Managed.stopTrajectory`); a
+model's restart (`Model.restart`) is not costed yet. `Transition.updateRows` keeps its plain
+form beside its costed form `Transition.updateRowsCosted`, and
+`Transition.updateRows_costed` states that the plain form is the costed form's value at
+updates that do no work of their own. A costed
 definition's work is a type former and a proof, which the compiler erases, so the
 definition compiles to the code of its value. That
 erasure is a trust assumption on the compiler: a comparison of the generated C of each

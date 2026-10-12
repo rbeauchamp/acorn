@@ -41,7 +41,8 @@ theorem terminal_clears (model : Model dimension criterion)
     (member : reader ∈ (model.terminal value features reward).stored) :
     reader.2.state.transient = TransientState.zero dimension := by
   cases model <;>
-    simp only [Model.terminal, Model.stored, List.mem_cons, List.not_mem_nil, or_false] at member
+    simp only [Model.terminal_def, Model.stored, List.mem_cons, List.not_mem_nil,
+      or_false] at member
   · rcases member with rfl | rfl <;> rfl
   · rcases member with rfl | rfl | rfl <;> rfl
 
@@ -68,7 +69,7 @@ theorem terminal_clears_rows (model : Model dimension criterion)
     ((model.terminal value features reward).transition.rows[position.val]).state.transient =
       TransientState.zero (rankDimension dimension) := by
   cases model <;>
-    simp [Model.terminal, Model.transition, Transition.terminal,
+    simp [Model.terminal_def, Model.transition, Transition.terminal_def,
       Transition.updateRows] at occupied ⊢ <;>
     simp [occupied] <;> rfl
 
