@@ -13,11 +13,13 @@ controllers' predictions, clear, release, snapshot and derived rate, and of the 
 updates `Controller.creditStep`, `Controller.valuesStep`, `Controller.stopStep`,
 `Controller.terminal`, `Controller.retire`, `Controller.plan`, `Controller.policyStep` and
 `Controller.persistentStep`, of the encoding of a frame (`Agent.words` and `Agent.frame` with
-the definitions they call), and of an option model's input, ranked features and prediction
+the definitions they call), and of an option model's input, the ranked features its transition
+part reads (`RankedFeatures.indicator` among them), the comparison value and its prediction
 (`Model.predict` with the definitions it calls) are the values of costed definitions
-(`Acorn.Costed`), so the loops their bounds count are the loops that run, under the trust assumption that the compiler
-erases the work (`Acorn.Cost`). The other definitions of the agent's step are not yet costed. Of the
-controllers' definitions, `Controller.initial` and `Controller.resetAction` have twins
+(`Acorn.Costed`), so the loops their bounds count are the loops that run, under the trust
+assumption that the compiler erases the work (`Acorn.Cost`). The other definitions of the
+agent's step are not yet costed. Of the controllers' definitions, `Controller.initial` and
+`Controller.resetAction` have twins
 (`AcornVerif.Resource.Twin.controllerInitial` and `AcornVerif.Resource.Twin.resetAction` in
 `AcornVerif.Resource.RefreshWork`), and the updates `Controller.startStep`, `Controller.step`,
 `Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep` have none yet. A
@@ -37,8 +39,8 @@ increment of requirement R8 (rbeauchamp/acorn#90). A definition that is the valu
 definition is bounded through that definition instead (`AcornVerif.Resource.LearnerWork` for the
 learner's, `AcornVerif.Resource.ControlWork` for the learner record's, the controllers' costed
 parts and updates, and the policy's, `AcornVerif.Resource.EncodeWork` for the encoding's,
-`AcornVerif.Resource.ModelWork` for the option models' input, ranked features and
-prediction).
+`AcornVerif.Resource.ModelWork` for the option models' input, ranked features, comparison
+value and prediction).
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of
