@@ -320,8 +320,8 @@ theorem Transition.outcome_shared (transition : Transition dimension criterion)
 bind the ranked dimension, the learner configuration and the discount once, outside the
 per-learner functions, so no update re-derives the ranked width. A vacant
 position models no slot: its row is fresh, predicts nothing that is read, and is left
-as it is, so the work of a model update is the number of occupied positions plus the
-meta action count, and not the ranked width. -/
+as it is. The traversal visits every row, so its control grows with the ranked width;
+only the rows of occupied positions and the deviation learners run learner updates. -/
 def Transition.updateRows (transition : Transition dimension criterion)
     (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
       Managed (criterion.config .demon) (rankDimension dimension))
