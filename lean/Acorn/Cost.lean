@@ -29,7 +29,9 @@ defined here once. No checked statement contains this reading:
   wraps, a loop's visits at fixed points of each pass, whether a loop combinator, a scan or a charge
   of its row's work or control charges them (each element's visit before that element's step,
   which is its callback in a pass that runs one, and the pass's end visit after its last element),
-  and a costed recursion's charges where the recursion makes them;
+  `prepend`'s read at the vector it builds, after the operations that build that vector and before
+  the pass over the vector it puts the element before, and a costed recursion's charges where the
+  recursion makes them;
 - each operation belongs to the segment of the first charge point at or after it, and the operations
   after the part's last charge point belong to that last one, so the segments partition the trace.
 
@@ -1209,8 +1211,9 @@ theorem append_within (first second : List α) (κ : Costs) :
   fun _ same => Nat.le_of_eq same
 
 /-- A vector with `head` put before `tail`, by `#v[head] ++ tail` (`Library.vectorAppend`): the
-read of `head` into a new vector (`read`), charged at that vector, then the control of its row over
-`tail`, the only one it walks. -/
+read of `head` into a new vector (`read`), charged at that vector after the operations that build
+it and before the pass over `tail`, then the control of its row over `tail`, the only one it
+walks. -/
 @[inline] def prepend {count : Nat} (head : α) (tail : Vector α count) :
     Costed (Vector α (count + 1)) :=
   ⟨(#v[head] ++ tail).cast (Nat.add_comm 1 count),
