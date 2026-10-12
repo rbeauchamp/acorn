@@ -9,11 +9,11 @@ import AcornVerif.Resource.ControlWork
 /-!
 # Work of the option models
 
-The bounds of the costed definitions of an option model's input, of the ranked features its
-transition part reads (`Acorn.RankedFeatures`) and of its prediction (`Acorn.Models`), and twins of
-its updates, which are not yet costed. Each definition here for a costed definition is the
-executed function with the bound proved of its costed definition as its work, and its `_costed`
-theorem checks that the costed definition is within it. A transition part has one row
+The bounds of the costed definitions of an option model's input, of its ranked features
+(`Acorn.RankedFeatures`) and of its prediction (`Acorn.Models`), and twins of its updates, which
+are not yet costed. Each definition here for a costed definition is the executed function with
+the bound proved of its costed definition as its work, and its `_costed` theorem checks that the
+costed definition is within it. A transition part has one row
 for each ranked position, `(rankDimension dimension).capacity` rows, each an admitted learner
 over the ranked positions, and one deviation learner for each meta action. A row's input is
 the frame's active ranked positions and the bias position, so it has at most one position

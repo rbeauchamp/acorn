@@ -343,24 +343,19 @@ learner's normalized step-size sum. A controller's initial value and reset
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`);
 its updates `Controller.startStep`, `step`, `smdpStep`, `closeStep` and `backupStep` are
 not costed yet and have none. The encoding of a frame is also the value of its costed
-definition (`Agent.frame`), and so are the definitions it runs: the words
+definition (`Agent.frame`), and so are the words
 the coder reads (`Agent.words`, from the stored predictions' words and their feedback
 words), each generated unit's projection and output (`Bank.activations`), the tiled and
 imprinted features and their concatenation, the first-occurrence filtering with its
 builder's empty value and finish (`unique`), and the frame of the current bank
-(`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). So is an option model's
-prediction (`Model.predict`), and so are the definitions it runs: the model input with
-its age slot inserted (`modelInput`, `insert`), the transition part's row input
-(`RankedFeatures.input`, which reads the active ranked positions,
-`RankedFeatures.active`, and inserts the bias position), the rows' expected values
-(`Transition.expectedAt`), the ranked values (`ValueFunction.rankedValues`, which reads
-the occupied positions, `RankedFeatures.occupied`), the predicted outcome's values
-(`Transition.outcomeValues`), the look-ahead (`Transition.lookahead`) and the comparison
-value of a policy (`comparisonValue`). So is the indicator (`RankedFeatures.indicator`),
-the ranked features of an observed frame as expected values and the vector a transition
-part is trained toward, which `Model.predict` does not run: the update paths
-`Transition.residual` and `Transition.outcome` call it. An option model's updates are
-not costed yet and have twins. A costed
+(`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). So are an option model's input
+with its age slot inserted (`modelInput`, `insert`), its ranked features
+(`RankedFeatures.active`, `RankedFeatures.input`, `RankedFeatures.indicator`,
+`RankedFeatures.occupied`), the rows' expected values (`Transition.expectedAt`), the
+ranked values (`ValueFunction.rankedValues`), the predicted outcome's values
+(`Transition.outcomeValues`), the look-ahead (`Transition.lookahead`), the comparison
+value of a policy (`comparisonValue`) and the model's prediction (`Model.predict`). An
+option model's updates are not costed yet and have twins. A costed
 definition's work is a type former and a proof, which the compiler erases, so the
 definition compiles to the code of its value. That
 erasure is a trust assumption on the compiler: a comparison of the generated C of each
@@ -418,18 +413,13 @@ less work would satisfy it. For those definitions the bound is a bound of the tw
 accounting; reading it as a bound of the executed code needs the correspondence of
 each twin's charges with the definition's compiled calls, which the one-time inventory
 observed in one build and no theorem states.
-The twins read the learner, a learner's record, the controllers' costed parts and updates,
-the policy, the encoding of a frame, and an option model's input, its ranked features (the
-active positions, the row input, the indicator and the occupied positions), the comparison
-value and its prediction through twins of their own whose work is the bound proved of the
-costed definition, which a theorem of each checks
-(`AcornVerif.Resource.Twin.step_costed`, `AcornVerif.Resource.Twin.managedApply_costed`,
-`AcornVerif.Resource.Twin.draw_costed`, `AcornVerif.Resource.Twin.frame_costed`,
-`AcornVerif.Resource.Twin.predict_costed`, `AcornVerif.Resource.Twin.indicator_costed`).
-The option model's twins are read by the twins of its updates
-(`AcornVerif.Resource.ModelWork`), of selection and of an option
-(`AcornVerif.Resource.SelectionWork`, `AcornVerif.Resource.OptionWork`) and of planning
-(`AcornVerif.Resource.PlanWork`).
+Where a twin charges the work of a costed definition, it reads that definition's adapter:
+a twin whose value is the executed definition's and whose work is the bound proved of the
+costed definition, which a theorem of each adapter checks (for example
+`AcornVerif.Resource.Twin.step_costed`, `AcornVerif.Resource.Twin.managedApply_costed`,
+`AcornVerif.Resource.Twin.draw_costed`, `AcornVerif.Resource.Twin.frame_costed` and
+`AcornVerif.Resource.Twin.predict_costed`). Which adapters a twin reads is what its own
+definition in the `AcornVerif.Resource` modules names.
 
 **What bounds each loop.** The frame's active features are at most
 `tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is
