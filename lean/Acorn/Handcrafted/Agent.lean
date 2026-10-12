@@ -70,13 +70,28 @@ def Agent.advanceClock (state : Agent interface profile config criterion dimensi
   ⟨{ state.control with runtime := { state.control.runtime with
       lifecycle := state.control.runtime.lifecycle.advance } }, state.aligned, state.episodes⟩
 
+/-- The words with their work: the stored predictions read, their feedback words, and the
+frame's words copied before them. -/
+def Agent.wordsCosted (state : Agent interface profile config criterion dimension planning)
+    (observation : Frame interface) : Costed (List SensorWord) := do
+  let frameWords := observation.words
+  let stored ← state.control.runtime.references.demonPredictions.wordsCosted
+  let feedback ← feedbackWordsCosted interface.feedback interface.layout stored 0
+  Costed.append frameWords feedback
+
 /-- The words the coder reads at a frame: the world's, then the feedback of the
 predictions this receiver stored at the preceding step. -/
 def Agent.words (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) : List SensorWord :=
-  observation.words ++
-    feedbackWords interface.feedback interface.layout
-      state.control.runtime.references.demonPredictions.words 0
+  (state.wordsCosted observation).val
+
+/-- The coder reads the frame's words, then the feedback words of the stored predictions. -/
+theorem Agent.words_def (state : Agent interface profile config criterion dimension planning)
+    (observation : Frame interface) :
+    state.words observation =
+      observation.words ++
+        feedbackWords interface.feedback interface.layout
+          state.control.runtime.references.demonPredictions.words 0 := rfl
 
 /-- No word of the frame shares a channel with a feedback word. The coder's two word
 sources are therefore distinct as words; their hashed feature slots can still
@@ -91,13 +106,29 @@ theorem Agent.words_disjoint (state : Agent interface profile config criterion d
   rw [same, feedbackWords_reserved _ feedback produced] at clear
   cases clear
 
+/-- One frame with its work: the words, then the current bank's frame of them. -/
+def Agent.frameCosted (state : Agent interface profile config criterion dimension planning)
+    (observation : Frame interface) :
+    Costed (EncodingFrame dimension state.control.runtime.lifecycle.representation.bank
+      (state.words observation) observation.symbols) := do
+  let read ← Costed.attach (state.wordsCosted observation)
+  Eq.ndrec (motive := fun words => Costed (EncodingFrame dimension
+      state.control.runtime.lifecycle.representation.bank words observation.symbols))
+    (state.control.runtime.encodeCurrentCosted read.val observation.symbols) read.property
+
 /-- Encode one frame with this exact receiver's old cache and current bank: the coder
 reads the frame's words and the feedback, and the generated units read its symbols. -/
 def Agent.frame (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) :
     EncodingFrame dimension state.control.runtime.lifecycle.representation.bank
       (state.words observation) observation.symbols :=
-  state.control.runtime.encodeCurrent (state.words observation) observation.symbols
+  (state.frameCosted observation).val
+
+/-- A frame is the current bank's frame of the words the coder reads. -/
+theorem Agent.frame_def (state : Agent interface profile config criterion dimension planning)
+    (observation : Frame interface) :
+    state.frame observation =
+      state.control.runtime.encodeCurrent (state.words observation) observation.symbols := rfl
 
 /-- In every world the coder reads at most the interface's word count plus one
 feedback word per prediction question. -/
@@ -107,7 +138,7 @@ theorem Agent.words_length (state : Agent interface profile config criterion dim
   have feedback := feedbackWords_length interface.feedback interface.layout
     state.control.runtime.references.demonPredictions.words 0
   have world := observation.bounded
-  simp only [Agent.words, List.length_append]
+  simp only [Agent.words_def, List.length_append]
   omega
 
 /-- In every world the active features of one frame are bounded by a function of the
@@ -168,7 +199,7 @@ def Agent.act (state : Agent interface profile config criterion dimension planni
     Agent interface profile config criterion dimension planning ×
       TemporalDecision interface.actions :=
   let prepared := state.advanceClock
-  let frame := prepared.frame percept.frame
+  let frame := (prepared.frameCosted percept.frame).val
   let result := prepared.control.alignedStep prepared.aligned planning frame.active percept.frame
     percept.reward percept.frame.achieved
   let next : Agent interface profile config criterion dimension planning :=

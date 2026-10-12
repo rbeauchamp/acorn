@@ -496,11 +496,27 @@ structure EncodingFrame (dimension : Dimension) {shape : PatchShape} {config : C
   /-- Erased execution correspondence. -/
   fresh : active = encode dimension bank words patch
 
+/-- A frame with its work: the unit outputs, then the encoding of the words and those outputs. -/
+def EncodingFrame.computeCosted (dimension : Dimension) {shape : PatchShape} {config : Config}
+    (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
+    Costed (EncodingFrame dimension bank words patch) := do
+  let units ← Costed.attach (bank.activationsCosted patch)
+  let active ← Costed.attach (encodeWithCosted dimension config words units.val)
+  Costed.pure ⟨units.val, units.property, active.val, by
+    rw [active.property, units.property]
+    rfl⟩
+
 /-- Construct a frame by executing the unit outputs and the encoder once. -/
 def EncodingFrame.compute (dimension : Dimension) {shape : PatchShape} {config : Config}
     (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
     EncodingFrame dimension bank words patch :=
-  let units := bank.activations patch
-  ⟨units, rfl, encodeWith dimension config words units, rfl⟩
+  (EncodingFrame.computeCosted dimension bank words patch).val
+
+/-- A frame holds the unit outputs and the encoding of the words and those outputs. -/
+theorem EncodingFrame.compute_def (dimension : Dimension) {shape : PatchShape} {config : Config}
+    (bank : Bank shape config) (words : List SensorWord) (patch : Patch shape) :
+    EncodingFrame.compute dimension bank words patch =
+      ⟨bank.activations patch, rfl,
+        encodeWith dimension config words (bank.activations patch), rfl⟩ := rfl
 
 end Acorn.Features

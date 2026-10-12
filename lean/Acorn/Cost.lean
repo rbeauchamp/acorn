@@ -70,13 +70,15 @@ values, and as its work each callback's work once and the control of its row of 
 (`Library`, `Library.control`): each of the row's passes, a `visit` for each element and one for
 the pass's end. A loop's bound is therefore `Library.work`: its trip count times a bound of one
 callback, and its row's control. Every function a combinator takes is costed: the steps of
-`foldl` and `foldlArray`, the operations of `map`, `mapVector`, `mapFinIdx` and `ofFn`, the tests
-of `findIdx?` and `filter`, the continuation of `bind` and the arms of `ite`. `attach` pairs a
-computation's result with its equation, for a proof that names the result, and its work is that
-computation's work. A *scan*
-(`toList`, `arrayToList`, `drop`, `finRange`, `length`) is a library loop that takes no function:
-its value is the library function of the collection it names, and its work is the control of its
-row over the elements it visits, the whole collection or, for `drop`, the elements it drops. A
+`foldl` and `foldlArray`, the operations of `map`, `mapVector`, `mapFinIdx`, `ofFn`, `filterMap`
+and `flatMap`, the tests of `findIdx?` and `filter`, the continuation of `bind` and the arms of
+`ite`; `flatMap` also charges the elements of each result to its row `flatMapResult`. `attach`
+pairs a computation's result with its equation, for a proof that names the result, and its work
+is that computation's work. A *scan* (`toList`, `arrayToList`, `drop`, `finRange`, `length`,
+`range`, `zipIdx`, `append`, `reverse`, `sum`) is a library loop that takes no function: its value
+is the library function of the collection it names, and its work is the control of its row over
+the elements it visits, the whole collection or, for `drop`, the elements it drops and, for
+`append`, its first list; `sum` charges each visit the addition of its term (`sumTerm`) as well. A
 recursion of Acorn's own is a costed recursion whose every recursive call is under a charge and
 whose end is charged a visit.
 
@@ -96,17 +98,25 @@ clear, release, snapshot and derived rate (`Controller.predictAllCosted`, `clear
 `Controller.planCosted` in `Acorn.Planning`, `Controller.policyStepCosted` in `Acorn.Policy`,
 `Controller.persistentStepCosted` in `Acorn.Exploration`), the frozen policy's
 (`PolicySnapshot.bestCosted`, `candidatesCosted`, `reservoirCosted`, `greedyCosted`,
-`probabilitiesCosted`, `drawCosted` and `expectedCosted` in `Acorn.Policy`) and its exploration's
-(`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`).
+`probabilitiesCosted`, `drawCosted` and `expectedCosted` in `Acorn.Policy`), its exploration's
+(`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`)
+and the encoding of a frame's (`projectionValueCosted`, `Bank.activationsCosted`,
+`tiledFeaturesCosted`, `imprintFeaturesCosted`, `rawEncodeWithCosted`,
+`UniqueBuilder.emptyCosted`, `UniqueBuilder.finishCosted`, `uniqueCosted` and `encodeWithCosted`
+in `Acorn.Features`, `EncodingFrame.computeCosted` in `Acorn.FeatureHistory`,
+`PredictionCache.wordsCosted` and `FeatureRuntime.encodeCurrentCosted` in
+`Acorn.FeatureReferences`, `feedbackWordsCosted` in `Acorn.Handcrafted.Signals`,
+`Agent.wordsCosted` and `Agent.frameCosted` in `Acorn.Handcrafted.Agent`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
 - the value parameters of the combinators: the value of `pure`; the site and value of `op`;
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
-  collection of `foldl` and `foldlArray`; the collection of `map`, `filter` and `length`; the
-  vector of `mapVector`, `mapFinIdx` and `toList`; the array of `findIdx?` and `arrayToList`; the
-  count and the list of `drop`; the count of `finRange` and of `ofFn`; the condition of `ite`
-  (`bind` and `attach` take none);
+  collection of `foldl` and `foldlArray`; the collection of `map`, `filter`, `filterMap`,
+  `flatMap`, `length`, `reverse` and `sum`; the collection and start of `zipIdx`; the two lists
+  of `append`; the vector of `mapVector`, `mapFinIdx` and `toList`; the array of `findIdx?` and
+  `arrayToList`; the count and the list of `drop`; the count of `range`, `finRange` and `ofFn`;
+  the condition of `ite` (`bind` and `attach` take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -132,10 +142,13 @@ and, in four callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`
 `TemporalControl.serveDraw`, `Skill.followTemporal`), the order of the parallel moves into a
 join point. The same holds of the costed definitions of a learner's record, the controllers'
 parts and updates listed above and the normalized step-size sum and their callers, where
-`TemporalControl.serveDraw` again differs only in that order. Each is an observation of one
-build, which no gate repeats. A bound in word operations bounds the accounting under
-`SiteBounds`; no checked statement says that a segment of the executed code does at most its
-site's cost in word operations.
+`TemporalControl.serveDraw` again differs only in that order, and of the costed definitions of
+the encoding of a frame and their callers, where `NumericState.resumable` and
+`Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does, call a specialization of
+that fold of their own with the body of the one they shared with `unique`. Each is an
+observation of one build, which no gate repeats. A bound in word operations bounds the
+accounting under `SiteBounds`; no checked statement says that a segment of the executed code
+does at most its site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a
@@ -152,7 +165,8 @@ charge marks; a charge counts its segment (the module's **Sites**). -/
 inductive Site where
   /-- The control of one visit of a loop: its test, its advance and its branch. -/
   | visit
-  /-- One binary32 addition of an ordered sum, with the read of its term. -/
+  /-- One addition of an ordered sum with the read of its term: a binary32 addition, or the
+  integer addition of a projection's term. -/
   | sumTerm
   /-- The read of one stored element into a list or vector being built, or as the first
   accumulator of a fold. -/
@@ -811,6 +825,102 @@ theorem filter_within {test : α → Costed Bool} {items : List α} {κ : Costs}
     rw [same]
     exact Nat.add_le_add_right (mapSteps_within items each steps work) _
 
+/-- The results of a costed operation on the elements of `items` that it keeps, in order, by the
+library function `List.filterMap` (`Library.filterMap`): the work of each element's operation and
+the control of its row. -/
+@[inline] def filterMap (operation : α → Costed (Option β)) (items : List α) :
+    Costed (List β) :=
+  ⟨items.filterMap fun item => (operation item).val,
+    fun κ n => ∃ steps, mapSteps operation items κ steps ∧
+      n = steps + Library.filterMap.control (κ .visit) items.length,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := mapSteps_single operation κ items
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
+
+theorem filterMap_val (operation : α → Costed (Option β)) (items : List α) :
+    (filterMap operation items).val = items.filterMap fun item => (operation item).val := rfl
+
+/-- A filtering map whose every operation is within `bound` is within its row's work at that
+bound. -/
+theorem filterMap_within {operation : α → Costed (Option β)} {items : List α} {κ : Costs}
+    {bound : Nat} (each : ∀ item ∈ items, (operation item).Within κ bound) :
+    (filterMap operation items).Within κ (Library.filterMap.work (κ .visit) items.length bound) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    exact Nat.add_le_add_right (mapSteps_within items each steps work) _
+
+/-- The work of the operations of a flattening loop: each operation's work and the control of
+the row `flatMapResult` over the elements of its result. -/
+def flatMapSteps (operation : α → Costed (List β)) : List α → Costs → Nat → Prop
+  | [], _, n => n = 0
+  | item :: rest, κ, n => ∃ here later, (operation item).work κ here ∧
+      flatMapSteps operation rest κ later ∧
+      n = here + Library.flatMapResult.control (κ .visit) (operation item).val.length + later
+
+theorem flatMapSteps_single (operation : α → Costed (List β)) (κ : Costs) (items : List α) :
+    ∃ n, flatMapSteps operation items κ n ∧
+      ∀ m, flatMapSteps operation items κ m → m = n := by
+  induction items with
+  | nil => exact ⟨0, rfl, fun _ same => same⟩
+  | cons item rest ih =>
+    obtain ⟨here, opHeld, opUnique⟩ := (operation item).single κ
+    obtain ⟨later, restHeld, restUnique⟩ := ih
+    refine ⟨_, ⟨here, later, opHeld, restHeld, rfl⟩, fun m work => ?_⟩
+    obtain ⟨a, b, opWork, restWork, same⟩ := work
+    rw [same, opUnique a opWork, restUnique b restWork]
+
+/-- The operations of a flattening loop, each within `bound` with a result of at most `size`
+elements, are within the trip count times that bound and that result's control. -/
+theorem flatMapSteps_within {operation : α → Costed (List β)} {κ : Costs} {bound size : Nat} :
+    ∀ items : List α, (∀ item ∈ items, (operation item).Within κ bound) →
+      (∀ item ∈ items, (operation item).val.length ≤ size) →
+      ∀ n, flatMapSteps operation items κ n →
+        n ≤ items.length * (bound + Library.flatMapResult.control (κ .visit) size) := by
+  intro items
+  induction items with
+  | nil =>
+    intro _ _ n work
+    have same : n = 0 := work
+    omega
+  | cons item rest ih =>
+    intro each sizes n work
+    obtain ⟨here, later, opWork, restWork, same⟩ := work
+    have headFits := each item (List.mem_cons_self ..) here opWork
+    have headSize := Library.control_mono .flatMapResult (visit := κ .visit)
+      (sizes item (List.mem_cons_self ..))
+    have restFits := ih (fun item member => each item (List.mem_cons_of_mem _ member))
+      (fun item member => sizes item (List.mem_cons_of_mem _ member)) later restWork
+    rw [same, List.length_cons, Nat.succ_mul]
+    omega
+
+/-- The concatenation of the results of a costed operation on each element of `items`, by the
+library function `List.flatMap` (`Library.flatMap`): the work of each element's operation, the
+control of the row `flatMapResult` over the elements of each result, and the control of its
+row. -/
+@[inline] def flatMap (operation : α → Costed (List β)) (items : List α) : Costed (List β) :=
+  ⟨items.flatMap fun item => (operation item).val,
+    fun κ n => ∃ steps, flatMapSteps operation items κ steps ∧
+      n = steps + Library.flatMap.control (κ .visit) items.length,
+    fun κ => by
+      obtain ⟨steps, held, unique⟩ := flatMapSteps_single operation κ items
+      exact ⟨_, ⟨steps, held, rfl⟩, fun m ⟨other, work, same⟩ => by
+        rw [same, unique other work]⟩⟩
+
+theorem flatMap_val (operation : α → Costed (List β)) (items : List α) :
+    (flatMap operation items).val = items.flatMap fun item => (operation item).val := rfl
+
+/-- A flattening loop whose every operation is within `bound` with a result of at most `size`
+elements is within its row's work at that bound and that result's control. -/
+theorem flatMap_within {operation : α → Costed (List β)} {items : List α} {κ : Costs}
+    {bound size : Nat} (each : ∀ item ∈ items, (operation item).Within κ bound)
+    (sizes : ∀ item ∈ items, (operation item).val.length ≤ size) :
+    (flatMap operation items).Within κ (Library.flatMap.work (κ .visit) items.length
+      (bound + Library.flatMapResult.control (κ .visit) size)) :=
+  fun _ ⟨steps, work, same⟩ => by
+    rw [same]
+    exact Nat.add_le_add_right (flatMapSteps_within items each sizes steps work) _
+
 /-- A map over a vector (`Library.vectorMap`): its operations' work and the control of its row. -/
 @[inline] def mapVector {count : Nat} (operation : α → Costed β) (items : Vector α count) :
     Costed (Vector β count) :=
@@ -966,6 +1076,66 @@ theorem length_val (items : List α) : (length items).val = items.length := rfl
 
 theorem length_within (items : List α) (κ : Costs) :
     (length items).Within κ (Library.length.control (κ .visit) items.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- The numbers below `count` in order, by `List.range` (`Library.range`): the control of its
+row. -/
+@[inline] def range (count : Nat) : Costed (List Nat) :=
+  ⟨List.range count, fun κ n => n = Library.range.control (κ .visit) count,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem range_val (count : Nat) : (range count).val = List.range count := rfl
+
+theorem range_within (count : Nat) (κ : Costs) :
+    (range count).Within κ (Library.range.control (κ .visit) count) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- The elements of a list each with its position from `start`, by `List.zipIdx`
+(`Library.zipIdx`): the control of its row. -/
+@[inline] def zipIdx (items : List α) (start : Nat := 0) : Costed (List (α × Nat)) :=
+  ⟨items.zipIdx start, fun κ n => n = Library.zipIdx.control (κ .visit) items.length,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem zipIdx_val (items : List α) (start : Nat) :
+    (zipIdx items start).val = items.zipIdx start := rfl
+
+theorem zipIdx_within (items : List α) (start : Nat) (κ : Costs) :
+    (zipIdx items start).Within κ (Library.zipIdx.control (κ .visit) items.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- Two lists joined, by `++` (`Library.append`): the control of its row over the first list,
+the only one it walks. -/
+@[inline] def append (first second : List α) : Costed (List α) :=
+  ⟨first ++ second, fun κ n => n = Library.append.control (κ .visit) first.length,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem append_val (first second : List α) : (append first second).val = first ++ second := rfl
+
+theorem append_within (first second : List α) (κ : Costs) :
+    (append first second).Within κ (Library.append.control (κ .visit) first.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- A list in reverse order, by `List.reverse` (`Library.reverse`): the control of its row. -/
+@[inline] def reverse (items : List α) : Costed (List α) :=
+  ⟨items.reverse, fun κ n => n = Library.reverse.control (κ .visit) items.length,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem reverse_val (items : List α) : (reverse items).val = items.reverse := rfl
+
+theorem reverse_within (items : List α) (κ : Costs) :
+    (reverse items).Within κ (Library.reverse.control (κ .visit) items.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- The sum of a list of integers, by `List.sum` (`Library.sum`): the control of its row, each
+visit charged the addition of its term (`sumTerm`) as well. -/
+@[inline] def sum (items : List Int) : Costed Int :=
+  ⟨items.sum, fun κ n => n = Library.sum.control (κ .visit + κ .sumTerm) items.length,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem sum_val (items : List Int) : (sum items).val = items.sum := rfl
+
+theorem sum_within (items : List Int) (κ : Costs) :
+    (sum items).Within κ (Library.sum.control (κ .visit + κ .sumTerm) items.length) :=
   fun _ same => Nat.le_of_eq same
 
 end Costed

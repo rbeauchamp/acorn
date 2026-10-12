@@ -491,7 +491,7 @@ theorem frame_learners
   have runtime : first.control.runtime = second.control.runtime := congrArg Prod.fst same
   refine ⟨?_, ?_⟩
   · rw [(first.frame observation).fresh, (second.frame observation).fresh]
-    unfold Agent.words
+    simp only [Agent.words_def]
     rw [runtime]
   · rw [(first.frame observation).freshUnits, (second.frame observation).freshUnits, runtime]
 
