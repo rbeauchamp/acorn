@@ -9,10 +9,12 @@ import Acorn.Cost
 # Work of the definitions not yet costed
 
 An executed definition whose costed definition `Acorn.Cost` names is that costed definition's value
-(`Acorn.Costed`), except `Transition.updateRows`, whose plain form stays beside its costed form
-(`Transition.updateRows_costed`), so the loops its bound counts are the loops that run, under the
-trust assumption that the compiler erases the work (`Acorn.Cost`). The other definitions of the
-agent's step are not yet costed. Of the controllers' definitions, `Controller.initial` and
+(`Acorn.Costed`), with two exceptions, so the loops its bound counts are the loops that run, under
+the trust assumption that the compiler erases the work (`Acorn.Cost`). `Transition.updateRows` keeps
+its plain form beside its costed form (`Transition.updateRows_costed`), and `detachedUpdate` keeps
+its plain form beside its costed form `detachedUpdateCosted`, with no theorem relating them. The
+other definitions of the agent's step are not yet costed. Of the controllers' definitions,
+`Controller.initial` and
 `Controller.resetAction` have twins (`AcornVerif.Resource.Twin.controllerInitial` and
 `AcornVerif.Resource.Twin.resetAction` in `AcornVerif.Resource.RefreshWork`). A **twin** here is a
 `Costed` computation, a value with a `Nat` of work, written beside the executed definition to follow

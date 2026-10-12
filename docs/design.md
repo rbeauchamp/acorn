@@ -297,8 +297,10 @@ bound of the executed first part's work. The first part runs from the step's ent
 until `Agent.choose` returns, including the construction of its `Chosen` value; the
 world receives the action after the second part under `learn-then-act`, and between the
 two parts under `plan-after-act` and `act-then-learn`. The deadline of a world on a wall
-clock needs a bound of the executed work before the action is released. Reading the twin's bound as one rests on four things no theorem yet
-establishes, which a later increment of requirement R8 owes:
+clock needs a bound of the executed work before the action is released; under
+`learn-then-act` that work also includes the second part, whose bound R8 still owes.
+Reading the twin's bound as a bound of the executed first part rests on four things no
+theorem yet establishes, which a later increment of requirement R8 owes:
 
 - that a cost model in word operations counts the segments of the executed code:
   `choose_words` bounds the accounting charged at a cost model `words` under
@@ -483,7 +485,10 @@ off-policy learning of the options (`TemporalControl.takeoverValue`,
 closing update (`TemporalControl.closeSpan`), the completion of a primitive step apart
 from the controller's credit and the demons' bank step (`TemporalControl.finish`: the
 signal values, the lifetime records of the options and the demons, the gain, the
-options' questions and the record of the frame), and the tester (`Agent.retire`).
+options' questions and the record of the frame), and the tester (`Agent.retire`). The
+executed `detachedUpdate` is not yet the value of its costed definition
+`detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
+is owed by a later increment of R8.
 
 ### The time a world declares
 
