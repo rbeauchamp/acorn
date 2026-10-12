@@ -306,8 +306,8 @@ establishes, which a later increment of requirement R8 owes:
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed definitions of the learner, of a learner's record,
   of the controllers' predictions, clear, release, snapshot, derived rate and updates
-  listed below, of the frozen policy and of its exploration, and of the encoding of a
-  frame, described below;
+  listed below, of the frozen policy and of its exploration, of the encoding of a frame,
+  and of an option model's input, ranked features and prediction, described below;
 - the correspondence of the twins of selection, among them the controllers' initial
   value and reset, with the executed definitions: the twins'
   charges were compared with the compiled call multisets of one build by a one-time
@@ -343,12 +343,19 @@ learner's normalized step-size sum. A controller's initial value and reset
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`);
 its updates `Controller.startStep`, `step`, `smdpStep`, `closeStep` and `backupStep` are
 not costed yet and have none. The encoding of a frame is also the value of its costed
-definition (`Agent.frame`), and so are the definitions it runs: the words
+definition (`Agent.frame`), and so are the words
 the coder reads (`Agent.words`, from the stored predictions' words and their feedback
 words), each generated unit's projection and output (`Bank.activations`), the tiled and
 imprinted features and their concatenation, the first-occurrence filtering with its
 builder's empty value and finish (`unique`), and the frame of the current bank
-(`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). A costed
+(`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). So are an option model's input
+with its age slot inserted (`modelInput`, `insert`), its ranked features
+(`RankedFeatures.active`, `RankedFeatures.input`, `RankedFeatures.indicator`,
+`RankedFeatures.occupied`), the rows' expected values (`Transition.expectedAt`), the
+ranked values (`ValueFunction.rankedValues`), the predicted outcome's values
+(`Transition.outcomeValues`), the look-ahead (`Transition.lookahead`), the comparison
+value of a policy (`comparisonValue`) and the model's prediction (`Model.predict`). An
+option model's updates are not costed yet and have twins. A costed
 definition's work is a type former and a proof, which the compiler erases, so the
 definition compiles to the code of its value. That
 erasure is a trust assumption on the compiler: a comparison of the generated C of each
@@ -365,17 +372,20 @@ because Lean gives a pure term no operational meaning. Every function a combinat
 takes is costed, so its work is counted: the steps of a fold, the operation of a map,
 of a filtering map and of a flattening map, whose results' elements are charged as
 well, the tests of a search (`Costed.findIdx?`) and a filter, the continuation of a
-sequence and the arms of a branch (`Costed.ite`); a scan of a list, a vector or an
-array (its listing, a drop, a length, the indices or numbers below a count, a
-numbering, a join, a reversal, an integer sum) is charged its row with no function to
-count; the costed type has only
+sequence and the arms of a branch (`Costed.ite`) and of a dependent branch, whose arms
+read the condition's proof (`Costed.dite`); a scan of a list, a vector or an array (its
+listing, a drop, a length, the indices or numbers below a count, a numbering, a join, a
+reversal, an integer sum, a membership test) is charged its row with no function to
+count, and the membership test of a list (`Costed.mem`) one comparison for each visit
+as well; the costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, the
-condition of `Costed.ite`, and the terms a costed definition evaluates in its own body.
+condition of `Costed.ite` and of `Costed.dite`, the element and the list of `Costed.mem`,
+and the terms a costed definition evaluates in its own body.
 Each must be computed without a costed definition and with no loop except those the cost semantics
 lists as left inside a segment, whose trip counts are bounded by constants of the code
 (the at most 33 steps of `Portable.pow` among them); every other loop must run in a
@@ -403,11 +413,13 @@ less work would satisfy it. For those definitions the bound is a bound of the tw
 accounting; reading it as a bound of the executed code needs the correspondence of
 each twin's charges with the definition's compiled calls, which the one-time inventory
 observed in one build and no theorem states.
-The twins read the learner, a learner's record, the controllers' costed parts and updates,
-the policy and the encoding of a frame through twins of their own whose work is the bound
-proved of the costed definition, which a theorem of each checks
-(`AcornVerif.Resource.Twin.step_costed`, `AcornVerif.Resource.Twin.managedApply_costed`,
-`AcornVerif.Resource.Twin.draw_costed`, `AcornVerif.Resource.Twin.frame_costed`).
+Where a twin charges the work of a costed definition, it reads that definition's adapter:
+a twin whose value is the executed definition's and whose work is the bound proved of the
+costed definition, which a theorem of each adapter checks (for example
+`AcornVerif.Resource.Twin.step_costed`, `AcornVerif.Resource.Twin.managedApply_costed`,
+`AcornVerif.Resource.Twin.draw_costed`, `AcornVerif.Resource.Twin.frame_costed` and
+`AcornVerif.Resource.Twin.predict_costed`). Which adapters a twin reads is what its own
+definition in the `AcornVerif.Resource` modules names.
 
 **What bounds each loop.** The frame's active features are at most
 `tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is

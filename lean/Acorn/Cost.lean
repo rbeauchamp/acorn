@@ -64,23 +64,23 @@ operations that the native resource audit bounds are the operations with an extr
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
-only instances, so `do` blocks sequence costed computations and nothing maps an uncosted
-callback. Each loop combinator has as its value the library loop applied to its callbacks'
-values, and as its work each callback's work once and the control of its row of the table
-(`Library`, `Library.control`): each of the row's passes, a `visit` for each element and one for
-the pass's end. A loop's bound is therefore `Library.work`: its trip count times a bound of one
-callback, and its row's control. Every function a combinator takes is costed: the steps of
-`foldl` and `foldlArray`, the operations of `map`, `mapVector`, `mapFinIdx`, `ofFn`, `filterMap`
-and `flatMap`, the tests of `findIdx?` and `filter`, the continuation of `bind` and the arms of
-`ite`; `flatMap` also charges the elements of each result to its row `flatMapResult`. `attach`
-pairs a computation's result with its equation, for a proof that names the result, and its work
-is that computation's work. A *scan* (`toList`, `arrayToList`, `drop`, `finRange`, `length`,
-`range`, `zipIdx`, `append`, `reverse`, `sum`) is a library loop that takes no function: its value
-is the library function of the collection it names, and its work is the control of its row over
-the elements it visits, the whole collection or, for `drop`, the elements it drops and, for
-`append`, its first list; `sum` charges each visit the addition of its term (`sumTerm`) as well. A
-recursion of Acorn's own is a costed recursion whose every recursive call is under a charge and
-whose end is charged a visit.
+only instances, so `do` blocks sequence costed computations and nothing maps an uncosted callback.
+Each loop combinator has as its value the library loop applied to its callbacks' values, and as its
+work each callback's work once and the control of its row of the table (`Library`,
+`Library.control`): each of the row's passes, a `visit` for each element and one for the pass's end.
+A loop's bound is therefore `Library.work`: its trip count times a bound of one callback, and its
+row's control. Every function a combinator takes is costed: the steps of `foldl` and `foldlArray`,
+the operations of `map`, `mapVector`, `mapFinIdx`, `ofFn`, `filterMap` and `flatMap`, the tests of
+`findIdx?` and `filter`, the continuation of `bind` and the arms of `ite` and `dite`; `flatMap` also
+charges the elements of each result to its row `flatMapResult`. `attach` pairs a computation's
+result with its equation, for a proof that names the result, and its work is that computation's
+work. A *scan* (`toList`, `arrayToList`, `drop`, `finRange`, `length`, `range`, `zipIdx`, `append`,
+`reverse`, `sum`, `mem`) is a library loop that takes no function: its value is the library function
+of the collection it names, and its work is the control of its row over the elements it visits, the
+whole collection or, for `drop`, the elements it drops and, for `append`, its first list; `sum`
+charges each visit the addition of its term (`sumTerm`) and `mem` one comparison (`compare`) as
+well. A recursion of Acorn's own is a costed recursion whose every recursive call is under a charge
+and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
@@ -106,7 +106,12 @@ and the encoding of a frame's (`projectionValueCosted`, `Bank.activationsCosted`
 in `Acorn.Features`, `EncodingFrame.computeCosted` in `Acorn.FeatureHistory`,
 `PredictionCache.wordsCosted` and `FeatureRuntime.encodeCurrentCosted` in
 `Acorn.FeatureReferences`, `feedbackWordsCosted` in `Acorn.Handcrafted.Signals`,
-`Agent.wordsCosted` and `Agent.frameCosted` in `Acorn.Handcrafted.Agent`).
+`Agent.wordsCosted` and `Agent.frameCosted` in `Acorn.Handcrafted.Agent`) and the option models'
+input, ranked features and prediction (`insertCosted` in `Acorn.Features`, `modelInputCosted` in
+`Acorn.FeatureModelInput`, `RankedFeatures.activeCosted`, `inputCosted`, `indicatorCosted` and
+`occupiedCosted` in `Acorn.RankedFeatures`, `comparisonValueCosted` in `Acorn.Options`,
+`ValueFunction.rankedValuesCosted`, `Transition.expectedAtCosted`, `outcomeValuesCosted`,
+`lookaheadCosted` and `Model.predictCosted` in `Acorn.Models`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -114,9 +119,10 @@ takes. The values a costed definition passes in, which are all its uncosted entr
   the site of `charge`; the count and element of `replicate`; the initial accumulator and the
   collection of `foldl` and `foldlArray`; the collection of `map`, `filter`, `filterMap`,
   `flatMap`, `length`, `reverse` and `sum`; the collection and start of `zipIdx`; the two lists
-  of `append`; the vector of `mapVector`, `mapFinIdx` and `toList`; the array of `findIdx?` and
-  `arrayToList`; the count and the list of `drop`; the count of `range`, `finRange` and `ofFn`;
-  the condition of `ite` (`bind` and `attach` take none);
+  of `append`; the element and the list of `mem`; the vector of `mapVector`, `mapFinIdx` and
+  `toList`; the array of `findIdx?` and `arrayToList`; the count and the list of `drop`; the count
+  of `range`, `finRange` and `ofFn`; the condition of `ite` and of `dite` (`bind` and `attach`
+  take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -145,8 +151,9 @@ parts and updates listed above and the normalized step-size sum and their caller
 `TemporalControl.serveDraw` again differs only in that order, and of the costed definitions of
 the encoding of a frame and their callers, where `NumericState.resumable` and
 `Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does, call a specialization of
-that fold of their own with the body of the one they shared with `unique`. Each is an
-observation of one build, which no gate repeats. A bound in word operations bounds the
+that fold of their own with the body of the one they shared with `unique`, and of the costed
+definitions of an option model's input, ranked features and prediction and their callers. Each
+is an observation of one build, which no gate repeats. A bound in word operations bounds the
 accounting under `SiteBounds`; no checked statement says that a segment of the executed code
 does at most its site's cost in word operations.
 
@@ -613,6 +620,39 @@ theorem ite_within {condition : Prop} [Decidable condition] {yes no : Unit → C
   · simp only [holds, ↓reduceIte] at work
     exact noFits holds n work
 
+/-- A dependent branch: the value of the arm the condition selects, each arm reading the
+condition's proof, with that arm's work. -/
+@[inline] def dite (condition : Prop) [Decidable condition] (yes : condition → Costed α)
+    (no : ¬condition → Costed α) : Costed α :=
+  ⟨if holds : condition then (yes holds).val else (no holds).val,
+    fun κ n => if holds : condition then (yes holds).work κ n else (no holds).work κ n,
+    fun κ => by
+      by_cases holds : condition
+      · simp only [holds, ↓reduceDIte]
+        exact (yes holds).single κ
+      · simp only [holds, ↓reduceDIte]
+        exact (no holds).single κ⟩
+
+/-- A dependent branch's value is the value of the arm its condition selects. -/
+theorem dite_val (condition : Prop) [Decidable condition] (yes : condition → Costed α)
+    (no : ¬condition → Costed α) :
+    (dite condition yes no).val = if holds : condition then (yes holds).val else (no holds).val :=
+  rfl
+
+/-- A dependent branch is bounded by a bound of each arm under its condition. -/
+theorem dite_within {condition : Prop} [Decidable condition] {yes : condition → Costed α}
+    {no : ¬condition → Costed α} {κ : Costs} {bound : Nat}
+    (yesFits : ∀ holds, (yes holds).Within κ bound)
+    (noFits : ∀ holds, (no holds).Within κ bound) :
+    (dite condition yes no).Within κ bound := by
+  intro n work
+  change (if holds : condition then (yes holds).work κ n else (no holds).work κ n) at work
+  by_cases holds : condition
+  · simp only [holds, ↓reduceDIte] at work
+    exact yesFits holds n work
+  · simp only [holds, ↓reduceDIte] at work
+    exact noFits holds n work
+
 /-- A sequence is bounded by a bound of its first part and a bound of its continuation at each
 result. -/
 theorem bind_within_all {first : Costed α} {next : α → Costed β} {κ : Costs} {a b : Nat}
@@ -1076,6 +1116,20 @@ theorem length_val (items : List α) : (length items).val = items.length := rfl
 
 theorem length_within (items : List α) (κ : Costs) :
     (length items).Within κ (Library.length.control (κ .visit) items.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- Whether `item` is an element of `items`, by the membership test of a list
+(`Library.contains`): the control of its row, each visit charged one comparison (`compare`) as
+well. -/
+@[inline] def mem [DecidableEq α] (item : α) (items : List α) : Costed Bool :=
+  ⟨decide (item ∈ items), fun κ n => n = Library.contains.control (κ .visit + κ .compare)
+    items.length, fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem mem_val [DecidableEq α] (item : α) (items : List α) :
+    (mem item items).val = decide (item ∈ items) := rfl
+
+theorem mem_within [DecidableEq α] (item : α) (items : List α) (κ : Costs) :
+    (mem item items).Within κ (Library.contains.control (κ .visit + κ .compare) items.length) :=
   fun _ same => Nat.le_of_eq same
 
 /-- The numbers below `count` in order, by `List.range` (`Library.range`): the control of its

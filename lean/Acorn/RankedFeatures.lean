@@ -340,18 +340,33 @@ theorem RankedFeatures.position_complete (ranked : RankedFeatures dimension)
   · rename_i outside
     exact absurd inside outside
 
-/-- The ranked positions active in a frame, in the frame's own feature order. Two
-distinct active slots never share a position, so the result is a binary feature set
-over the ranked dimension. -/
-def RankedFeatures.active (ranked : RankedFeatures dimension)
-    (features : SwiftTd.ActiveSet dimension) : SwiftTd.ActiveSet (rankDimension dimension) :=
-  ⟨features.indices.filterMap ranked.position, by
+/-- The active positions with their work: one position lookup for each active feature. -/
+def RankedFeatures.activeCosted (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    Costed (SwiftTd.ActiveSet (rankDimension dimension)) := do
+  let found ← Costed.attach (Costed.filterMap
+    (fun feature => Costed.op .position (ranked.position feature)) features.indices)
+  Costed.pure ⟨found.val, by
+    rw [found.property, Costed.filterMap_val]
+    show (features.indices.filterMap ranked.position).Pairwise _
     apply List.Pairwise.filterMap ranked.position ?_ features.nodup
     intro first second different left foundLeft right foundRight same
     apply different
     have held := ranked.position_slot first left foundLeft
     rw [same, ranked.position_slot second right foundRight] at held
     exact (Option.some.inj held).symm⟩
+
+/-- The ranked positions active in a frame, in the frame's own feature order. Two
+distinct active slots never share a position, so the result is a binary feature set
+over the ranked dimension. -/
+def RankedFeatures.active (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) : SwiftTd.ActiveSet (rankDimension dimension) :=
+  (ranked.activeCosted features).val
+
+/-- The active positions are the positions found for the frame's features, in order. -/
+theorem RankedFeatures.active_def (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (ranked.active features).indices = features.indices.filterMap ranked.position := rfl
 
 /-- Every active ranked slot contributes a position holding it. -/
 theorem RankedFeatures.active_complete (ranked : RankedFeatures dimension)
@@ -389,11 +404,29 @@ def RankedFeatures.bias (dimension : Dimension) : RankIdx dimension :=
 theorem RankedFeatures.bias_vacant (ranked : RankedFeatures dimension) :
     ranked.slots[(RankedFeatures.bias dimension).val] = none := ranked.reserved
 
+/-- A row input with its work: the ranked dimension the insertion reads, which evaluates the
+ranked width, the active positions, the bias position, which evaluates it again, and the bias
+inserted. -/
+def RankedFeatures.inputCosted (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    Costed (SwiftTd.ActiveSet (rankDimension dimension)) :=
+  let ranks := rankDimension dimension
+  Costed.charge .rankWidth do
+    let active ← ranked.activeCosted features
+    let bias ← Costed.op .rankWidth (RankedFeatures.bias dimension)
+    insertCosted (dimension := ranks) active bias
+
 /-- The input every row of a transition part reads at a frame: the active ranked
 positions, then the always-active bias position. -/
 def RankedFeatures.input (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) : SwiftTd.ActiveSet (rankDimension dimension) :=
-  insert (ranked.active features) (RankedFeatures.bias dimension)
+  (ranked.inputCosted features).val
+
+/-- A row input is the active positions with the bias position inserted. -/
+theorem RankedFeatures.input_def (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    ranked.input features = insert (ranked.active features) (RankedFeatures.bias dimension) :=
+  rfl
 
 /-- The bias is in every input, and every other input position is an active one. -/
 theorem RankedFeatures.input_membership (ranked : RankedFeatures dimension)
@@ -426,21 +459,49 @@ def Expectation.absent : Expectation := Bounded32.project expectationRange .zero
 /-- The feature is present. -/
 def Expectation.present : Expectation := Bounded32.project expectationRange Binary32.one
 
+/-- The indicator with its work: a vector of absent values, which evaluates the ranked width,
+the active positions, and one write for each. -/
+def RankedFeatures.indicatorCosted (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    Costed (Vector Expectation (rankDimension dimension).capacity) := do
+  let absent ← Costed.charge .rankWidth
+    (Costed.replicate (rankDimension dimension).capacity Expectation.absent)
+  let active ← ranked.activeCosted features
+  Costed.foldl (fun seen position => Costed.op .write
+    (seen.set position.val Expectation.present position.isLt)) absent active.indices
+
 /-- The ranked features of an observed frame as expected values: one at each active
 position and zero elsewhere. This is the vector a transition part is trained toward,
 and the argument at which the value function's ranked part is read for a real frame. -/
 def RankedFeatures.indicator (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Vector Expectation (rankDimension dimension).capacity :=
-  (ranked.active features).indices.foldl
-    (fun seen position => seen.set position.val Expectation.present position.isLt)
-    (Vector.replicate _ Expectation.absent)
+  (ranked.indicatorCosted features).val
+
+/-- The indicator writes the present value at each active position of an absent vector. -/
+theorem RankedFeatures.indicator_def (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    ranked.indicator features = (ranked.active features).indices.foldl
+      (fun seen position => seen.set position.val Expectation.present position.isLt)
+      (Vector.replicate _ Expectation.absent) := rfl
+
+/-- The occupied positions with their work: the positions listed, which evaluates the ranked
+width, then one read for each. -/
+def RankedFeatures.occupiedCosted (ranked : RankedFeatures dimension) :
+    Costed (List (RankIdx dimension × FeatIdx dimension)) := do
+  let positions ← Costed.charge .rankWidth (Costed.finRange (rankDimension dimension).capacity)
+  Costed.filterMap (fun position => Costed.op .read
+    ((ranked.slots[position.val]).map fun feature => (position, feature))) positions
 
 /-- Every occupied position with its slot, in position order. -/
 def RankedFeatures.occupied (ranked : RankedFeatures dimension) :
     List (RankIdx dimension × FeatIdx dimension) :=
-  (List.finRange (rankDimension dimension).capacity).filterMap fun position =>
-    (ranked.slots[position.val]).map fun feature => (position, feature)
+  ranked.occupiedCosted.val
+
+/-- The occupied positions are the positions that hold a slot, paired with it. -/
+theorem RankedFeatures.occupied_def (ranked : RankedFeatures dimension) :
+    ranked.occupied = (List.finRange (rankDimension dimension).capacity).filterMap
+      fun position => (ranked.slots[position.val]).map fun feature => (position, feature) := rfl
 
 /-- There are at most as many occupied positions as positions. -/
 theorem RankedFeatures.occupied_length (ranked : RankedFeatures dimension) :
@@ -449,7 +510,7 @@ theorem RankedFeatures.occupied_length (ranked : RankedFeatures dimension) :
     (fun position : RankIdx dimension =>
       (ranked.slots[position.val]).map fun feature => (position, feature))
     (List.finRange (rankDimension dimension).capacity)
-  simpa [RankedFeatures.occupied] using bound
+  simpa [RankedFeatures.occupied_def] using bound
 
 /-- Fill each vacant position with the next entrant, in order; a held position is
 kept, and positions past the last entrant stay vacant. -/

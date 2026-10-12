@@ -166,7 +166,7 @@ theorem prepareRun_work (κ : Costs)
   Costed.charge_work_le (Costed.ite_work_bound _ (Costed.discard_work_le
     (Costed.mapVector_work_le _ _ _ _ fun skill _ =>
       Costed.bind_work_le (valueFunction_work κ _) fun value =>
-        Costed.bind_work_le (predict_work κ skill.model value features _) fun _ =>
+        Costed.bind_work_le (predict_work κ skill.model value features ⟨0, by decide⟩) fun _ =>
           Nat.le_refl _)) (Nat.zero_le _))
 
 /-- The costed run of `TemporalControl.serve`: a committed run with a step left repeats its
@@ -479,7 +479,8 @@ theorem dispatchMetaRun_work (κ : Costs)
       | some potential =>
         exact Costed.bind_work_le (valueFunction_work κ _) fun value =>
           Costed.bind_work_le (skillSource_work κ _) fun source =>
-            Costed.bind_work_le (comparisonValue_work κ criterion _) fun estimate =>
+            Costed.bind_work_le (comparisonValue_work κ criterion decision.snapshot)
+              fun estimate =>
               Costed.bind_work_le (settleTemporal_work κ _ value features potential goal estimate
                 source reward _ _) fun settled =>
                 Costed.bind_work_le_at (beginTemporal_work κ settled features potential _ source)

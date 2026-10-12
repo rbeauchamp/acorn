@@ -103,6 +103,17 @@ def Criterion.modelContinuation (criterion : Criterion) (raw : Binary32) : Binar
 
 variable {dimension : Dimension} {criterion : Criterion}
 
+/-- The ranked values with their work: the occupied positions, then for each meta action one
+product for each occupied position. -/
+def ValueFunction.rankedValuesCosted (value : ValueFunction criterion dimension)
+    (ranked : RankedFeatures dimension)
+    (expected : Vector Expectation (rankDimension dimension).capacity) :
+    Costed (Vector Binary32 metaCount.word.toNat) := do
+  let occupied ← ranked.occupiedCosted
+  Costed.mapVector (fun learner => Binary32.sumMapCosted .productTerm .zero occupied fun entry =>
+    Costed.pure ((learner.state.weights.get entry.2).value.mul (expected.get entry.1).value))
+    value.controller.learners
+
 /-- Each action value of an expected feature vector, read at the ranked slots alone:
 `Σ_j w_a[slot j] · n_j` over the occupied positions in position order. Each is the
 value function's own weights applied to the predicted features (Sutton, Machado et
@@ -111,10 +122,17 @@ def ValueFunction.rankedValues (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity) :
     Vector Binary32 metaCount.word.toNat :=
-  let occupied := ranked.occupied
-  value.controller.learners.map fun learner =>
-    Binary32.sumMap .zero occupied fun entry =>
-      (learner.state.weights.get entry.2).value.mul (expected.get entry.1).value
+  (value.rankedValuesCosted ranked expected).val
+
+/-- Each action value sums the products of its weights and the expected values over the
+occupied positions. -/
+theorem ValueFunction.rankedValues_def (value : ValueFunction criterion dimension)
+    (ranked : RankedFeatures dimension)
+    (expected : Vector Expectation (rankDimension dimension).capacity) :
+    value.rankedValues ranked expected =
+      value.controller.learners.map fun learner =>
+        Binary32.sumMap .zero ranked.occupied fun entry =>
+          (learner.state.weights.get entry.2).value.mul (expected.get entry.1).value := rfl
 
 /-- Nominal value of an expected feature vector over the ranked slots: the same
 maximum or policy mean `ValueFunction.nominal` takes of a frame's action values. -/
@@ -124,13 +142,27 @@ def ValueFunction.rankedNominal (value : ValueFunction criterion dimension)
   comparisonValue criterion
     (⟨value.rankedValues ranked expected, value.epsilon⟩ : PolicySnapshot metaCount)
 
+/-- The rows' expected values with their work: one prediction for each row, admitted. -/
+def Transition.expectedAtCosted (transition : Transition dimension criterion)
+    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
+    Costed (Vector Expectation (rankDimension dimension).capacity) :=
+  Costed.mapVector (fun row => do
+    let range := expectationRange
+    let raw ← row.state.linearPredictionCosted input
+    Costed.op .project (Bounded32.project range raw)) transition.rows
+
 /-- The transition part's prediction at a row input: each row's ordered weight sum,
 admitted as an expected feature value. -/
 def Transition.expectedAt (transition : Transition dimension criterion)
     (input : SwiftTd.ActiveSet (rankDimension dimension)) :
     Vector Expectation (rankDimension dimension).capacity :=
-  transition.rows.map fun row =>
-    Bounded32.project expectationRange (row.state.linearPrediction input)
+  (transition.expectedAtCosted input).val
+
+/-- Each row's expected value is its linear prediction, admitted to the expectation range. -/
+theorem Transition.expectedAt_def (transition : Transition dimension criterion)
+    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
+    transition.expectedAt input = transition.rows.map fun row =>
+      Bounded32.project expectationRange (row.state.linearPrediction input) := rfl
 
 /-- The transition part's prediction `n̂(x, o)` at a frame: each row's ordered weight
 sum over the active ranked positions and the constant input, admitted as an expected
@@ -139,6 +171,20 @@ def Transition.expected (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
     Vector Expectation (rankDimension dimension).capacity :=
   transition.expectedAt (transition.ranked.input features)
+
+/-- The predicted outcome's values with their work: the row input, the rows' expected values, the
+ranked values, then each meta action's deviation and value. -/
+def Transition.outcomeValuesCosted (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) : Costed (Vector Binary32 metaCount.word.toNat) := do
+  let input ← transition.ranked.inputCosted features
+  let expected ← transition.expectedAtCosted input
+  let ranked ← value.rankedValuesCosted transition.ranked expected
+  let wide := Conversion.widen shared
+  Costed.ofFn fun action => do
+    let shared64 := (Conversion.widen (ranked.get action)).add wide
+    let deviation ← (transition.deviations.get action).state.linearPredictionCosted input
+    Costed.op .outcomeValue (Conversion.narrow (shared64.add (Conversion.widen deviation)))
 
 /-- The value of the predicted outcome for each meta action: the current value weights
 applied to the predicted ranked features, plus the predicted shared residual, plus
@@ -155,20 +201,45 @@ as it was. -/
 def Transition.outcomeValues (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : Vector Binary32 metaCount.word.toNat :=
-  let input := transition.ranked.input features
-  let ranked := value.rankedValues transition.ranked (transition.expectedAt input)
-  let wide := Conversion.widen shared
-  Vector.ofFn fun action =>
-    Conversion.narrow (((Conversion.widen (ranked.get action)).add wide).add
-      (Conversion.widen ((transition.deviations.get action).state.linearPrediction input)))
+  (transition.outcomeValuesCosted value features shared).val
+
+/-- Each meta action's value adds the ranked value, the shared residual and the action's
+deviation in binary64 and narrows the total once. -/
+theorem Transition.outcomeValues_def (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) :
+    transition.outcomeValues value features shared =
+      let input := transition.ranked.input features
+      let ranked := value.rankedValues transition.ranked (transition.expectedAt input)
+      let wide := Conversion.widen shared
+      Vector.ofFn fun action =>
+        Conversion.narrow (((Conversion.widen (ranked.get action)).add wide).add
+          (Conversion.widen ((transition.deviations.get action).state.linearPrediction input))) :=
+  rfl
+
+/-- The look-ahead with its work: the predicted outcome's values, then their comparison value. -/
+def Transition.lookaheadCosted (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) : Costed Binary32 := do
+  let actions := metaCount
+  let values ← transition.outcomeValuesCosted value features shared
+  comparisonValueCosted (count := actions) criterion
+    (⟨values, value.epsilon⟩ : PolicySnapshot actions)
 
 /-- Nominal value of the predicted outcome: the maximum or policy mean of its
 per-action values. -/
 def Transition.lookahead (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : Binary32 :=
-  comparisonValue criterion
-    (⟨transition.outcomeValues value features shared, value.epsilon⟩ : PolicySnapshot metaCount)
+  (transition.lookaheadCosted value features shared).val
+
+/-- The look-ahead is the comparison value of the predicted outcome's values. -/
+theorem Transition.lookahead_def (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) :
+    transition.lookahead value features shared = comparisonValue criterion
+      (⟨transition.outcomeValues value features shared, value.epsilon⟩ :
+        PolicySnapshot metaCount) := rfl
 
 /-- The part of an observed frame's nominal value its ranked features do not carry:
 the frame's nominal value minus the nominal value of its ranked features alone,
@@ -276,22 +347,56 @@ def Transition.terminal (transition : Transition dimension criterion)
     (fun action learner => Managed.apply (config := config) (dimension := rank) learner
       (.terminal (outcome.deviations.get action)) trivial)
 
+/-- A model prediction with its work: the model input, then each learner's prediction and the
+transition part's look-ahead. -/
+def Model.predictCosted (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) : Costed (ModelPrediction criterion) :=
+  Costed.bind (modelInputCosted criterion base age) fun features =>
+  match model with
+  | .discounted reward continuation transition => do
+    let range := Criterion.discounted.modelRewardRange
+    let r ← reward.state.predictCosted features
+    let rewardWord := Bounded32.project range r
+    let c ← continuation.state.linearPredictionCosted features
+    let look ← transition.lookaheadCosted value base c
+    Costed.op .prediction ⟨rewardWord, Criterion.discounted.modelContinuation look,
+      Bounded32.project _ .one⟩
+  | .differential reward continuation duration transition => do
+    let range := Criterion.differential.modelRewardRange
+    let r ← reward.state.predictCosted features
+    let rewardWord := Bounded32.project range r
+    let c ← continuation.state.linearPredictionCosted features
+    let look ← transition.lookaheadCosted value base c
+    let durationRange := modelDurationRange
+    let d ← duration.state.predictCosted features
+    Costed.op .prediction ⟨rewardWord, look, Bounded32.project durationRange d⟩
+
 /-- Evaluate current stored learners at the actual age-augmented input, under the
 current value function. The reward and residual read the age-augmented features;
 the transition rows read the ranked features, which carry no age. -/
 def Model.predict (model : Model dimension criterion) (value : ValueFunction criterion dimension)
     (base : SwiftTd.ActiveSet dimension) (age : ModelAge) : ModelPrediction criterion :=
-  let features := modelInput criterion base age
-  match model with
-  | .discounted reward continuation transition =>
-    ⟨Bounded32.project _ (reward.state.predict features),
-      Criterion.discounted.modelContinuation
-        (transition.lookahead value base (continuation.state.linearPrediction features)),
-      Bounded32.project _ .one⟩
-  | .differential reward continuation duration transition =>
-    ⟨Bounded32.project _ (reward.state.predict features),
-      transition.lookahead value base (continuation.state.linearPrediction features),
-      Bounded32.project _ (duration.state.predict features)⟩
+  (model.predictCosted value base age).val
+
+/-- A prediction reads each learner at the model input and the transition part's look-ahead
+at the continuation's prediction. -/
+theorem Model.predict_def (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) :
+    model.predict value base age =
+      let features := modelInput criterion base age
+      match model with
+      | .discounted reward continuation transition =>
+        ⟨Bounded32.project _ (reward.state.predict features),
+          Criterion.discounted.modelContinuation
+            (transition.lookahead value base (continuation.state.linearPrediction features)),
+          Bounded32.project _ .one⟩
+      | .differential reward continuation duration transition =>
+        ⟨Bounded32.project _ (reward.state.predict features),
+          transition.lookahead value base (continuation.state.linearPrediction features),
+          Bounded32.project _ (duration.state.predict features)⟩ := by
+  cases model <;> rfl
 
 /-- Prime all model learners on initiation features at age zero. -/
 def Model.begin (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension) :
@@ -454,6 +559,6 @@ theorem Transition.updateRows_frame (transition : Transition dimension criterion
 /-- A model that ranks no slot has no occupied position. -/
 theorem RankedFeatures.empty_occupied (dimension : Dimension) :
     (RankedFeatures.empty dimension).occupied = [] := by
-  simp [RankedFeatures.occupied, RankedFeatures.empty, RankedFeatures.ofSlots]
+  simp [RankedFeatures.occupied_def, RankedFeatures.empty, RankedFeatures.ofSlots]
 
 end Acorn.Features
