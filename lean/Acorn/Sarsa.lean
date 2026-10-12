@@ -232,13 +232,28 @@ theorem Controller.release_def (controller : Controller config dimension actions
         learners := controller.learners.map (fun learner => learner.apply .release trivial)
         vDelta := .zero } := rfl
 
+/-- A trajectory's start with its work: the release of every row, then the taken row's
+credit. -/
+def Controller.startStepCosted (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions) (lag : Binary32) :
+    Costed (Controller config dimension actions) := do
+  let released ← controller.releaseCosted
+  released.creditStepCosted features action lag .zero .zero
+
 /-- Start a trajectory at the taken action on existing storage. Every earlier trace
 is released first, so no first loop visits one and no earlier transition is
 credited; the taken row then lays its traces. -/
 def Controller.startStep (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions) (lag : Binary32) :
     Controller config dimension actions :=
-  controller.release.creditStep features action lag .zero .zero
+  (controller.startStepCosted features action lag).val
+
+/-- A trajectory's start releases every row, then credits the taken row with zero error and
+decay. -/
+theorem Controller.startStep_def (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions) (lag : Binary32) :
+    controller.startStep features action lag =
+      controller.release.creditStep features action lag .zero .zero := rfl
 
 /-- Stopping credit with its work: each row's credit and release, then the controller's record. -/
 def Controller.stopStepCosted (controller : Controller config dimension actions)
@@ -284,21 +299,67 @@ theorem Controller.stopStep_eq (controller : Controller config dimension actions
   cases controller
   rfl
 
+/-- A primitive continuing update with its work: every row's prediction, then the update at
+those values. -/
+def Controller.stepCosted (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions) (reward : Binary32) :
+    Costed (Controller config dimension actions × Vector Binary32 actions) := do
+  let values ← controller.predictAllCosted features
+  let next ← controller.valuesStepCosted features values action reward config.rule.gamma
+    controller.traceDecay
+  Costed.pure (next, values)
+
 /-- Primitive continuing update: prediction precedes every weight write. -/
 def Controller.step (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions) (reward : Binary32) :
     Controller config dimension actions × Vector Binary32 actions :=
-  let values := controller.predictAll features
-  (controller.valuesStep features values action reward config.rule.gamma controller.traceDecay, values)
+  (controller.stepCosted features action reward).val
+
+/-- A primitive continuing update reads every row's prediction, then updates at those values. -/
+theorem Controller.step_def (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions) (reward : Binary32) :
+    controller.step features action reward =
+      let values := controller.predictAll features
+      (controller.valuesStep features values action reward config.rule.gamma
+        controller.traceDecay, values) := rfl
+
+/-- A duration credit with its work: every row's prediction, then the update at those values
+with the duration's powers of the discount and the trace decay. -/
+def Controller.smdpStepCosted (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions)
+    (reward : Binary32) (duration : UInt32) :
+    Costed (Controller config dimension actions × Vector Binary32 actions) := do
+  let values ← controller.predictAllCosted features
+  let next ← Costed.charge .policyOpen <| controller.valuesStepCosted features values action
+    reward (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
+  Costed.pure (next, values)
 
 /-- Duration credit retains the exact portable power and multiplication order. -/
 def Controller.smdpStep (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions)
     (reward : Binary32) (duration : UInt32) :
     Controller config dimension actions × Vector Binary32 actions :=
-  let values := controller.predictAll features
-  (controller.valuesStep features values action reward (Portable.pow config.rule.gamma duration)
-    (Portable.pow controller.traceDecay duration), values)
+  (controller.smdpStepCosted features action reward duration).val
+
+/-- A duration credit reads every row's prediction, then updates at those values with the
+duration's powers of the discount and the trace decay. -/
+theorem Controller.smdpStep_def (controller : Controller config dimension actions)
+    (features : SwiftTd.ActiveSet dimension) (action : Action actions)
+    (reward : Binary32) (duration : UInt32) :
+    controller.smdpStep features action reward duration =
+      let values := controller.predictAll features
+      (controller.valuesStep features values action reward
+        (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration),
+        values) := rfl
+
+/-- A span's close with its work: the duration's discount, its error, then the stopping
+credit. -/
+def Controller.closeStepCosted (controller : Controller config dimension actions)
+    (reward continuation : Binary32) (duration : UInt32) :
+    Costed (Controller config dimension actions) := do
+  let discount ← Costed.op .policyOpen (Portable.pow config.rule.gamma duration)
+  let delta := (reward.add (discount.mul continuation)).sub controller.vOld
+  Costed.charge .learnerError (controller.stopStepCosted delta)
 
 /-- Close a span toward a supplied continuation value and release every trace. The
 error is the one `Controller.valuesStep` forms at the same reward and discount when the
@@ -308,9 +369,15 @@ for a later error. -/
 def Controller.closeStep (controller : Controller config dimension actions)
     (reward continuation : Binary32) (duration : UInt32) :
     Controller config dimension actions :=
-  controller.stopStep
-    ((reward.add ((Portable.pow config.rule.gamma duration).mul continuation)).sub
-      controller.vOld)
+  (controller.closeStepCosted reward continuation duration).val
+
+/-- A span's close credits the stopping error at the continuation value. -/
+theorem Controller.closeStep_def (controller : Controller config dimension actions)
+    (reward continuation : Binary32) (duration : UInt32) :
+    controller.closeStep reward continuation duration =
+      controller.stopStep
+        ((reward.add ((Portable.pow config.rule.gamma duration).mul continuation)).sub
+          controller.vOld) := rfl
 
 /-- Terminal credit with its work: the terminal error and trace decay, each row's first loop,
 then the controller's clear. -/

@@ -9,21 +9,21 @@ import Acorn.Cost
 # Work of the definitions not yet costed
 
 The executed definitions of the learner, of a learner's record, of the frozen policy, of the
-controllers' predictions, clear, release, snapshot and derived rate, and of the controllers'
-updates `Controller.creditStep`, `Controller.valuesStep`, `Controller.stopStep`,
-`Controller.terminal`, `Controller.retire`, `Controller.plan`, `Controller.policyStep` and
-`Controller.persistentStep`, of the encoding of a frame, and of an option model's input, ranked
-features, comparison value, prediction and updates are the values of costed definitions
-(`Acorn.Costed`), each of which `Acorn.Cost` names, so the loops their bounds count are the loops
-that run, under the trust assumption that the compiler erases the work (`Acorn.Cost`). The other
-definitions of the agent's step are not yet costed. Of the controllers' definitions,
-`Controller.initial` and `Controller.resetAction` have twins
+controllers' predictions, clear, release, snapshot and derived rate, and of the controllers' updates
+`Controller.creditStep`, `Controller.valuesStep`, `Controller.stopStep`, `Controller.terminal`,
+`Controller.retire`, `Controller.plan`, `Controller.policyStep`, `Controller.persistentStep`,
+`Controller.startStep`, `Controller.step`, `Controller.smdpStep`, `Controller.closeStep` and
+`Controller.backupStep` with the tree-backup error `Controller.backupError`, of the encoding of a
+frame, and of an option model's input, ranked features, comparison value, prediction and updates
+are the values of costed definitions (`Acorn.Costed`), each of which `Acorn.Cost` names, so the
+loops their bounds count are the loops that run, under the trust assumption that the compiler
+erases the work (`Acorn.Cost`). The other definitions of the agent's step are not yet costed. Of
+the controllers' definitions, `Controller.initial` and `Controller.resetAction` have twins
 (`AcornVerif.Resource.Twin.controllerInitial` and `AcornVerif.Resource.Twin.resetAction` in
-`AcornVerif.Resource.RefreshWork`), and the updates `Controller.startStep`, `Controller.step`,
-`Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep` have none yet. A **twin**
-here is a `Costed` computation, a value with a `Nat` of work, written beside the executed definition
-to follow its control flow. A twin's value theorem states that its value is the executed
-definition's, by `rfl`, by induction on the same recursion, or, through `via`, by reading.
+`AcornVerif.Resource.RefreshWork`). A **twin** here is a `Costed` computation, a value with a `Nat`
+of work, written beside the executed definition to follow its control flow. A twin's value theorem
+states that its value is the executed definition's, by `rfl`, by induction on the same recursion,
+or, through `via`, by reading.
 
 **What a twin establishes.** A value theorem does not tie a twin's work to the executed code:
 Lean's logic gives a pure term no operational meaning, and a twin of the same value with less

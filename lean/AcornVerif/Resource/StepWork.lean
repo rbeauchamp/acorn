@@ -83,8 +83,8 @@ theorem selectBound_mono (κ : Costs) (rows capacity positions questions units :
       selectBound κ rows capacity positions questions units limit := by
   simp only [selectBound, prepareBound, serveBound, primitiveBound, atBoundaryBound,
     optionBranchBound, planFreeBound, drawMetaBound, closeOptionBound, dispatchBound,
-    planningBound, backupAllBound, lookAheadBound, predictBound, inputBound, lookaheadBound,
-    outcomeValuesBound, rowInputBound, expectedAtBound, planBound, predictAllBound,
+    planningBound, backupAllBound, backupErrorBound, lookAheadBound, predictBound, inputBound,
+    lookaheadBound, outcomeValuesBound, rowInputBound, expectedAtBound, planBound, predictAllBound,
     potentialBound, decideBound, frozenBound, stepOptionBound, stepTemporalBound, optionStepBound,
     policyStepBound, creditStepBound, secondLoopBound, modelStepBound, transitionStepBound,
     stepBound, updateRowsBound, endTemporalBound, modelTerminalWorkBound, outcomeBound,
@@ -126,9 +126,9 @@ set_option maxHeartbeats 400000 in
 theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (interface : Interface)
     (config : Features.Config) (dimension : Dimension) :
     chooseBound words interface config dimension ≤ chooseBound κ interface config dimension := by
-  simp only [chooseBound, atBoundaryBound, backupAllBound, bankInitialBound, beginBound,
-    beginOptionBound, beginTemporalBound, bestBound, candidateListBound, candidatesBound,
-    changedBound, clearBound, closeOptionBound, columnsBound, comparisonBound,
+  simp only [chooseBound, atBoundaryBound, backupAllBound, backupErrorBound, bankInitialBound,
+    beginBound, beginOptionBound, beginTemporalBound, bestBound, candidateListBound,
+    candidatesBound, changedBound, clearBound, closeOptionBound, columnsBound, comparisonBound,
     controllerInitialBound, creditBound, creditStepBound, decideBound, dispatchBound,
     drawMetaBound, encodeBound, endTemporalBound, expectedAtBound, expectedBound,
     firstLoopBound, firstVisit, forgetBound, frameBound, frozenBound, greedyBound,

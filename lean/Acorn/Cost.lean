@@ -96,7 +96,10 @@ clear, release, snapshot and derived rate (`Controller.predictAllCosted`, `clear
 `valuesStepCosted`, `stopStepCosted` and `terminalCosted` in `Acorn.Sarsa`,
 `Controller.retireCosted` and the helper `detachedUpdateCosted` in `Acorn.FeatureConsumers`,
 `Controller.planCosted` in `Acorn.Planning`, `Controller.policyStepCosted` in `Acorn.Policy`,
-`Controller.persistentStepCosted` in `Acorn.Exploration`), the frozen policy's
+`Controller.persistentStepCosted` in `Acorn.Exploration`, `Controller.startStepCosted`,
+`stepCosted`, `smdpStepCosted` and `closeStepCosted` in `Acorn.Sarsa`, and
+`Controller.backupStepCosted`, `backupErrorCosted` and `PolicySnapshot.massCosted` in
+`Acorn.Policy`), the frozen policy's
 (`PolicySnapshot.bestCosted`, `candidatesCosted`, `reservoirCosted`, `greedyCosted`,
 `probabilitiesCosted`, `drawCosted` and `expectedCosted` in `Acorn.Policy`), its exploration's
 (`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`)
@@ -155,9 +158,10 @@ that order, and of the costed definitions of the encoding of a frame and their c
 `NumericState.resumable` and `Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does,
 call a specialization of that fold of their own with the body of the one they shared with `unique`,
 and of the costed definitions of an option model's input, ranked features, prediction and updates
-and their callers. Each is an observation of one build, which no gate repeats. A bound in word
-operations bounds the accounting under `SiteBounds`; no checked statement says that a segment of the
-executed code does at most its site's cost in word operations.
+and of the controllers' remaining updates, and their callers. Each is an observation of one build,
+which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
+checked statement says that a segment of the executed code does at most its site's cost in word
+operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a
@@ -215,8 +219,8 @@ inductive Site where
   /-- A row credit's test of a pending restart. -/
   | creditRestart
   /-- The error or target a learner entry reads that its caller forms: a terminal credit's
-  error and trace decay, a stopped trajectory's error, a ranked row's discounted target or a
-  deviation learner's target. -/
+  error and trace decay, a stopped trajectory's error, a closed span's error, a tree-backup
+  error, a ranked row's discounted target or a deviation learner's target. -/
   | learnerError
   /-- A shared-error update's store of the rows, the taken row and the lags. -/
   | creditClose
@@ -244,7 +248,8 @@ inductive Site where
   | drawClose
   /-- A persistent draw's branch, duration and action draws and the store of its decision. -/
   | explorationBegin
-  /-- The two discount powers of a frozen-decision credit. -/
+  /-- A duration's powers: the two discount powers of a frozen-decision or duration credit and
+  the discount power of a closed span. -/
   | policyOpen
   /-- The store of a frozen policy snapshot. -/
   | snapshot
@@ -306,7 +311,7 @@ inductive Site where
   | terminateOption
   /-- A stopped trajectory's stopping error and the skill record. -/
   | stopFollowing
-  /-- A settled trajectory's shaped cumulant, its tree-backup error and the skill record. -/
+  /-- A settled trajectory's shaped cumulant and the skill record. -/
   | settleFollowing
   /-- A planning look-ahead's backed-up target and its result record. -/
   | lookAhead

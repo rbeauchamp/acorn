@@ -107,7 +107,7 @@ theorem close_step_idle (controller : Controller config dimension actions)
       ((controller.closeStep reward continuation duration).learners.get
         action).state.learnFirstLoop config delta vDelta decay =
         ((controller.closeStep reward continuation duration).learners.get action).state := by
-  unfold Controller.closeStep
+  rw [Controller.closeStep_def]
   refine ⟨stop_step_empty _ _ action, ?_⟩
   simp only [Controller.stopStep_eq, vector_get, Vector.getElem_map]
   exact release_idle _ delta vDelta decay

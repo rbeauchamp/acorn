@@ -437,11 +437,31 @@ theorem PolicyDecision.consistent_own (decision : PolicyDecision count) :
     decision.snapshot.consistent decision.probabilities = true :=
   (decision.snapshot.consistent_iff _).mpr rfl
 
+/-- One action's nominal mass with its work: every action's mass, then the action's, admitted
+as a probability. -/
+def PolicySnapshot.massCosted (snapshot : PolicySnapshot count)
+    (action : Action count.word.toNat) : Costed SwiftTd.ExploreRate := do
+  let masses ← snapshot.probabilitiesCosted
+  Costed.op .probability (SwiftTd.ExploreRate.project (masses.get action))
+
 /-- Nominal mass of one action under the frozen ε-greedy policy: the word
 `probabilities` reports, admitted as a probability. A NaN mass admits as zero. -/
 def PolicySnapshot.mass (snapshot : PolicySnapshot count) (action : Action count.word.toNat) :
     SwiftTd.ExploreRate :=
-  SwiftTd.ExploreRate.project (snapshot.probabilities.get action)
+  (snapshot.massCosted action).val
+
+/-- An action's nominal mass is its word of `probabilities`, admitted as a probability. -/
+theorem PolicySnapshot.mass_def (snapshot : PolicySnapshot count)
+    (action : Action count.word.toNat) :
+    snapshot.mass action = SwiftTd.ExploreRate.project (snapshot.probabilities.get action) := rfl
+
+/-- The tree-backup error with its work: the frozen policy's expected value, then the error. -/
+def Controller.backupErrorCosted {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat) (snapshot : PolicySnapshot count)
+    (reward : Binary32) : Costed Binary32 := do
+  let gamma := config.rule.gamma
+  let expected ← snapshot.expectedCosted
+  Costed.op .learnerError ((reward.add (gamma.mul expected)).sub controller.vOld)
 
 /-- Tree-backup error of the completed transition against the frozen policy's
 expected value: `r + γ Σ_a π(a|s′) q(s′, a) − q(s, a)`, in the exact add, multiply,
@@ -449,7 +469,28 @@ subtract order. -/
 def Controller.backupError {config : Acorn.Config} {dimension : Dimension}
     (controller : Controller config dimension count.word.toNat) (snapshot : PolicySnapshot count)
     (reward : Binary32) : Binary32 :=
-  (reward.add (config.rule.gamma.mul snapshot.expected)).sub controller.vOld
+  (controller.backupErrorCosted snapshot reward).val
+
+/-- The tree-backup error adds the reward and the discounted expected value and subtracts the
+lag. -/
+theorem Controller.backupError_def {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat) (snapshot : PolicySnapshot count)
+    (reward : Binary32) :
+    controller.backupError snapshot reward =
+      (reward.add (config.rule.gamma.mul snapshot.expected)).sub controller.vOld := rfl
+
+/-- Tree-backup credit with its work: the error, the taken action's mass, then the taken row's
+credit. -/
+def Controller.backupStepCosted {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
+    (action : Action count.word.toNat) (reward : Binary32) :
+    Costed (Controller config dimension count.word.toNat) := do
+  let lag := snapshot.values.get action
+  let delta ← controller.backupErrorCosted snapshot reward
+  let decay := controller.traceDecay
+  let mass ← snapshot.massCosted action
+  controller.creditStepCosted features action lag delta (decay.mul mass.value)
 
 /-- Tree-backup credit for an action the frozen policy did not draw. Precup, Sutton
 & Singh, ICML (2000), §4, Algorithm 2: the error bootstraps from the policy's
@@ -464,9 +505,18 @@ def Controller.backupStep {config : Acorn.Config} {dimension : Dimension}
     (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
     (action : Action count.word.toNat) (reward : Binary32) :
     Controller config dimension count.word.toNat :=
-  controller.creditStep features action (snapshot.values.get action)
-    (controller.backupError snapshot reward)
-    (controller.traceDecay.mul (snapshot.mass action).value)
+  (controller.backupStepCosted features snapshot action reward).val
+
+/-- Tree-backup credit credits the taken row with the tree-backup error, its earlier traces
+decayed by the taken action's mass. -/
+theorem Controller.backupStep_def {config : Acorn.Config} {dimension : Dimension}
+    (controller : Controller config dimension count.word.toNat)
+    (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
+    (action : Action count.word.toNat) (reward : Binary32) :
+    controller.backupStep features snapshot action reward =
+      controller.creditStep features action (snapshot.values.get action)
+        (controller.backupError snapshot reward)
+        (controller.traceDecay.mul (snapshot.mass action).value) := rfl
 
 /-- The tree-backup trace correction is a stored probability, in [0, 1], for every
 snapshot, including raw nonfinite value words. -/
@@ -480,6 +530,6 @@ theorem Controller.backupStep_lag {config : Acorn.Config} {dimension : Dimension
     (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
     (action : Action count.word.toNat) (reward : Binary32) :
     (controller.backupStep features snapshot action reward).vOld = snapshot.values.get action := by
-  rw [Controller.backupStep, Controller.creditStep_eq]
+  rw [Controller.backupStep_def, Controller.creditStep_eq]
 
 end Acorn.Features
