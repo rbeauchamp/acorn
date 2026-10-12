@@ -352,8 +352,9 @@ the bank's (`Costed.prepend`), so its bound
 (`AcornVerif.Resource.Twin.demonBankStepCosted_within`) grows with the square of the
 number of demons; with the capacity of the dimension in place of the active set's length
 it is a function of the configuration
-(`AcornVerif.Resource.Twin.demonBankStepCosted_within_capacity`). A controller's initial value and reset (`Controller.initial`,
-`Controller.resetAction`) are not costed yet and have twins
+(`AcornVerif.Resource.Twin.demonBankStepCosted_within_capacity`). A controller's initial
+value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
+have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
 The encoding of a frame is also the value of its costed
 definition (`Agent.frame`), and so are the words
