@@ -318,7 +318,8 @@ a count of the operations of the compiled definitions: each visit of a loop cost
 code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
 sites. The intended reading of what each charge counts is its **segment** of the
-operations the compiled code runs during one call of the first part, defined once in the
+operations the compiled code runs during one call of a part of the step, here the first part,
+defined once in the
 [cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment is
 bounded by a constant of the code in the operations counted. Allocation, reference
 counting, the copy of a shared array when it is written
@@ -340,7 +341,11 @@ release, snapshot and derived rate and its updates `Controller.creditStep`, `val
 `stopStep`, `terminal`, `retire`, `plan`, `policyStep`, `persistentStep`, `startStep`,
 `step`, `smdpStep`, `closeStep` and `backupStep` with the tree-backup error
 (`Controller.backupError`) and an action's mass (`PolicySnapshot.mass`), and a learner's
-normalized step-size sum. A controller's initial value and reset (`Controller.initial`,
+normalized step-size sum. So is the prediction demons' bank step of the second part
+(`DemonBank.step`): each demon's error and cumulant are put before a copy of the rest of
+the bank's (`Costed.prepend`), so its bound
+(`AcornVerif.Resource.Twin.demonBankStepCosted_within`) grows with the square of the
+number of demons. A controller's initial value and reset (`Controller.initial`,
 `Controller.resetAction`) are not costed yet and have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
 The encoding of a frame is also the value of its costed
@@ -382,17 +387,19 @@ of a filtering map and of a flattening map, whose results' elements are charged 
 well, the tests of a search (`Costed.findIdx?`) and a filter, the continuation of a
 sequence and the arms of a branch (`Costed.ite`) and of a dependent branch, whose arms
 read the condition's proof (`Costed.dite`); a scan of a list, a vector or an array (its
-listing, a drop, a length, the indices or numbers below a count, a numbering, a join, a
-reversal, an integer sum, a membership test) is charged its row with no function to
-count, and the membership test of a list (`Costed.mem`) one comparison for each visit
-as well; the costed type has only
+listing, a drop, a length, the indices or numbers below a count, a numbering, a join, an
+element put before a vector, a reversal, an integer sum, a membership test) is charged its
+row with no function to count, the membership test of a list (`Costed.mem`) one comparison
+for each visit as well, and an element put before a vector (`Costed.prepend`) one read of
+the element; the costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, the
-condition of `Costed.ite` and of `Costed.dite`, the element and the list of `Costed.mem`,
+condition of `Costed.ite` and of `Costed.dite`, the element and the vector of
+`Costed.prepend`, the element and the list of `Costed.mem`,
 and the terms a costed definition evaluates in its own body.
 Each must be computed without a costed definition and with no loop except those the cost semantics
 lists as left inside a segment, whose trip counts are bounded by constants of the code

@@ -3,32 +3,28 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Demon
 import Acorn.Exploration
 import Acorn.Planning
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.Resource.LearnerWork
 
 /-!
-# Work of the learners' admitted entries, the controllers and the policies
+# Work of the learners' admitted entries, the controllers, the policies and the prediction demons
 
-The bounds of the costed definitions of a learner record (its entry, retirement and credit), of the
-shared-error controller (its predictions, clear, release, snapshot and derived rate and its updates
-`Controller.creditStep`, `Controller.valuesStep`, `Controller.stopStep`, `Controller.terminal`,
-`Controller.retire`, `Controller.plan`, `Controller.policyStep`, `Controller.persistentStep`,
-`Controller.startStep`, `Controller.step`, `Controller.smdpStep`, `Controller.closeStep` and
-`Controller.backupStep` with the tree-backup error and an action's mass), of the normalized
-step-size sum and of the frozen policy's functions in `Acorn.Policy` and `Acorn.Exploration`. The
-controller's initial value and reset (`Controller.initial`, `Controller.resetAction`) are not yet
-costed and have twins in `AcornVerif.Resource.RefreshWork`. Each definition here is an adapter:
-the executed function with the bound proved of its costed definition as its work, whose `_costed`
-theorem checks that the costed definition is within it. The tree-backup error
-`Controller.backupError` has an adapter. The updates `Controller.startStep`, `Controller.step`,
-`Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep` and an action's mass
-`PolicySnapshot.mass` have bounds of their costed definitions and no adapter. A learner entry's
-bound reads the learner's eligible entries, and every admitted learner has at most the capacity of
-its dimension (`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted
-entry is a function of the capacity and the length of the feature list it reads. A controller's
-update visits each of its rows, and a policy's loops visit its actions.
+The bounds of the costed definitions of a learner record, of the shared-error controller, of the
+normalized step-size sum, of the frozen policy and its exploration, and of the prediction demons'
+bank step; `Acorn.Cost` names each costed definition. Each `def` here is an adapter: the executed
+function with the bound proved of its costed definition as its work, whose `_costed` theorem checks
+that the costed definition is within it. Each `_within` theorem bounds a costed definition directly.
+The controller's initial value and reset (`Controller.initial`, `Controller.resetAction`) are not
+yet costed and have twins in `AcornVerif.Resource.RefreshWork`. A learner entry's bound reads the
+learner's eligible entries, and every admitted learner has at most the capacity of its dimension
+(`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted entry is a
+function of the capacity and the length of the feature list it reads. A controller's update visits
+each of its rows, and a policy's loops visit its actions. A demon bank's step puts each demon's
+error and cumulant before a copy of the rest of the bank's (`Costed.prepend`), so its bound grows
+with the square of the number of demons.
 
 `Controller.creditStep` takes the taken row out of its table so that the runtime can reuse the
 row's storage, and its costed definition does the same (`detachedUpdateCosted`): the taken row's
@@ -994,5 +990,54 @@ theorem backupStepCosted_within (κ : Costs)
   Acorn.Costed.bind_within (backupErrorCosted_within κ controller snapshot reward)
     (Acorn.Costed.bind_within (massCosted_within κ snapshot action)
       (creditStepCosted_within κ controller features action _ _ _))
+
+/-! ## Prediction demons -/
+
+/-- Bound of one demon of a bank at a capacity, `width` features and at most `limit` demons: its
+learner step, its record, prediction and error, the two vectors its error and its cumulant are put
+before, and the record of the outputs. -/
+abbrev demonBound (κ : Costs) (capacity width limit : Nat) : Nat :=
+  stepBound κ capacity width + κ .demonOutput +
+    2 * (κ .read + Library.vectorAppend.control (κ .visit) limit) + κ .demonClose
+
+/-- A bank of at most `limit` demons steps within one pass over its demons. -/
+theorem demonBankStepCosted_within_at (κ : Costs) {discounts : List Discount} {limit : Nat}
+    (bank : DemonBank dimension discounts) (features : SwiftTd.ActiveSet dimension)
+    (rewards : Cumulants discounts) (fits : discounts.length ≤ limit) :
+    (bank.stepCosted features rewards).Within κ
+      (pass (κ .visit) discounts.length
+        (demonBound κ dimension.capacity features.indices.length limit)) := by
+  induction bank with
+  | nil =>
+    cases rewards
+    exact (Acorn.Costed.op_within _ _ κ).mono (by simp [pass])
+  | cons learner rest ih =>
+    cases rewards with
+    | cons origin reward rewards =>
+      have first := Nat.mul_le_mul_right (firstVisit κ)
+        (CurrentFeatureConsumers.managed_capacity learner)
+      have tail := Library.vectorAppend.control_mono (visit := κ .visit)
+        (Nat.le_of_succ_le fits)
+      refine (Acorn.Costed.charge_within
+        (Acorn.Costed.bind_within_all (stepCosted_within κ _ learner.state features reward)
+          fun _ => Acorn.Costed.bind_within_all (ih rewards (Nat.le_of_succ_le fits)) fun _ =>
+            Acorn.Costed.charge_within
+              (Acorn.Costed.bind_within (Acorn.Costed.prepend_within _ _ κ)
+                (Acorn.Costed.bind_within (Acorn.Costed.prepend_within _ _ κ)
+                  (Acorn.Costed.op_within _ _ κ))))).mono ?_
+      simp only [pass, demonBound, stepBound, firstLoopBound, List.length_cons, Nat.succ_mul,
+        NumericState.eligibleCount] at first ⊢
+      omega
+
+/-- A demon bank's step is within one pass over its demons, each demon's two vectors put after one
+element at most the bank's length long, so the bound grows with the square of the number of
+demons. -/
+theorem demonBankStepCosted_within (κ : Costs) {discounts : List Discount}
+    (bank : DemonBank dimension discounts) (features : SwiftTd.ActiveSet dimension)
+    (rewards : Cumulants discounts) :
+    (bank.stepCosted features rewards).Within κ
+      (pass (κ .visit) discounts.length
+        (demonBound κ dimension.capacity features.indices.length discounts.length)) :=
+  demonBankStepCosted_within_at κ bank features rewards (Nat.le_refl _)
 
 end AcornVerif.Resource.Twin

@@ -19,9 +19,10 @@ the operations its charge marks. The intended reading of what a charge counts is
 defined here once. No checked statement contains this reading:
 
 - the *trace* is the word operations the compiled code runs during one call of a bounded part, as
-  one flat sequence. The bounded part here is the first part, from the step's entry until the action
-  is released, including the `Chosen` record built after selection's last charge. An operation
-  inside a callee is itself an operation of the trace, at its own position;
+  one flat sequence. The bounded parts are the first part, from the step's entry until the action is
+  released, including the `Chosen` record built after selection's last charge, and the second part,
+  from the entry of `Chosen.learn` until it returns. An operation inside a callee is itself an
+  operation of the trace, at its own position;
 - the *charge points* are an `op` at the value it charges, a `charge` before the computation it
   wraps, a loop's visits at fixed points of each pass, whether a loop combinator, a scan or a charge
   of its row's work or control charges them (each element's visit before that element's step,
@@ -75,12 +76,13 @@ the operations of `map`, `mapVector`, `mapFinIdx`, `ofFn`, `filterMap` and `flat
 charges the elements of each result to its row `flatMapResult`. `attach` pairs a computation's
 result with its equation, for a proof that names the result, and its work is that computation's
 work. A *scan* (`toList`, `arrayToList`, `drop`, `finRange`, `length`, `range`, `zipIdx`, `append`,
-`reverse`, `sum`, `mem`) is a library loop that takes no function: its value is the library function
-of the collection it names, and its work is the control of its row over the elements it visits, the
-whole collection or, for `drop`, the elements it drops and, for `append`, its first list; `sum`
-charges each visit the addition of its term (`sumTerm`) and `mem` one comparison (`compare`) as
-well. A recursion of Acorn's own is a costed recursion whose every recursive call is under a charge
-and whose end is charged a visit.
+`prepend`, `reverse`, `sum`, `mem`) is a library loop that takes no function: its value is the
+library function of the collection it names, and its work is the control of its row over the
+elements it visits, the whole collection or, for `drop`, the elements it drops, for `append`, its
+first list and, for `prepend`, the vector it puts the element before; `sum` charges each visit the
+addition of its term (`sumTerm`) and `mem` one comparison (`compare`) as well, and `prepend` charges
+the read of its element into a new vector (`read`) once. A recursion of Acorn's own is a costed
+recursion whose every recursive call is under a charge and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
@@ -117,18 +119,19 @@ input, ranked features and prediction (`insertCosted` in `Acorn.Features`, `mode
 `lookaheadCosted` and `Model.predictCosted` in `Acorn.Models`) and updates
 (`Transition.outcomeCosted`, `updateRowsCosted`, `beginCosted`, `stepCosted`, `terminalCosted`
 and `stopCosted`, `Managed.stopTrajectoryCosted`, and `Model.beginCosted`, `stepCosted`,
-`terminalCosted` and `stopCosted` in `Acorn.Models`).
+`terminalCosted` and `stopCosted` in `Acorn.Models`), and the prediction demons' bank step
+(`DemonBank.stepCosted` in `Acorn.Demon`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
-- the value parameters of the combinators: the value of `pure`; the site and value of `op`;
-  the site of `charge`; the count and element of `replicate`; the initial accumulator and the
-  collection of `foldl` and `foldlArray`; the collection of `map`, `filter`, `filterMap`,
-  `flatMap`, `length`, `reverse` and `sum`; the collection and start of `zipIdx`; the two lists
-  of `append`; the element and the list of `mem`; the vector of `mapVector`, `mapFinIdx` and
-  `toList`; the array of `findIdx?` and `arrayToList`; the count and the list of `drop`; the count
-  of `range`, `finRange` and `ofFn`; the condition of `ite` and of `dite` (`bind` and `attach`
-  take none);
+- the value parameters of the combinators: the value of `pure`; the site and value of `op`; the site
+  of `charge`; the count and element of `replicate`; the initial accumulator and the collection of
+  `foldl` and `foldlArray`; the collection of `map`, `filter`, `filterMap`, `flatMap`, `length`,
+  `reverse` and `sum`; the collection and start of `zipIdx`; the two lists of `append`; the element
+  and the vector of `prepend`; the element and the list of `mem`; the vector of `mapVector`,
+  `mapFinIdx` and `toList`; the array of `findIdx?` and `arrayToList`; the count and the list of
+  `drop`; the count of `range`, `finRange` and `ofFn`; the condition of `ite` and of `dite` (`bind`
+  and `attach` take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -158,7 +161,8 @@ that order, and of the costed definitions of the encoding of a frame and their c
 `NumericState.resumable` and `Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does,
 call a specialization of that fold of their own with the body of the one they shared with `unique`,
 and of the costed definitions of an option model's input, ranked features, prediction and updates
-and of the controllers' remaining updates, and their callers. Each is an observation of one build,
+and of the controllers' remaining updates and the prediction demons' bank step, and their
+callers. Each is an observation of one build,
 which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
 checked statement says that a segment of the executed code does at most its site's cost in word
 operations.
@@ -297,6 +301,11 @@ inductive Site where
   | deviation
   /-- The record of an option model after its learners are updated. -/
   | modelClose
+  /-- A demon's learner record and its projected prediction, each put before the rest of its
+  bank's, and its absolute error. -/
+  | demonOutput
+  /-- The record of a demon bank's outputs: its learners, predictions, errors and cumulants. -/
+  | demonClose
   /-- An assignment's feature slot computed before its membership test. -/
   | assignmentPotential
   /-- A declared potential read from the frame's declared values. -/
@@ -418,6 +427,9 @@ inductive Library where
   /-- `++` on lists, replaced by `List.appendTR` (`List.append_eq_appendTR`): `List.reverse` of
   the first list, then `List.reverseAux` over it. -/
   | append
+  /-- `++` on vectors, `Array.append`: an `Array.foldl` over the second array that pushes each of
+  its elements, implemented by `Array.foldlMUnsafe`: one loop. -/
+  | vectorAppend
   /-- `List.drop` (`Init.Data.List.Basic`), which no `csimp` replaces: a structural recursion
   over the elements it drops, one loop. -/
   | drop
@@ -460,6 +472,7 @@ def Library.passes : Library → Nat
   | .reverse => 1
   | .vectorEq => 1
   | .append => 2
+  | .vectorAppend => 1
   | .drop => 1
   | .dropLast => 3
   | .zipIdx => 3
@@ -1174,6 +1187,22 @@ theorem append_val (first second : List α) : (append first second).val = first 
 
 theorem append_within (first second : List α) (κ : Costs) :
     (append first second).Within κ (Library.append.control (κ .visit) first.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- A vector with `head` put before `tail`, by `#v[head] ++ tail` (`Library.vectorAppend`): the
+read of `head` into a new vector (`read`), charged at that vector, then the control of its row over
+`tail`, the only one it walks. -/
+@[inline] def prepend {count : Nat} (head : α) (tail : Vector α count) :
+    Costed (Vector α (count + 1)) :=
+  ⟨(#v[head] ++ tail).cast (Nat.add_comm 1 count),
+    fun κ n => n = κ .read + Library.vectorAppend.control (κ .visit) count,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem prepend_val {count : Nat} (head : α) (tail : Vector α count) :
+    (prepend head tail).val = (#v[head] ++ tail).cast (Nat.add_comm 1 count) := rfl
+
+theorem prepend_within {count : Nat} (head : α) (tail : Vector α count) (κ : Costs) :
+    (prepend head tail).Within κ (κ .read + Library.vectorAppend.control (κ .visit) count) :=
   fun _ same => Nat.le_of_eq same
 
 /-- A list in reverse order, by `List.reverse` (`Library.reverse`): the control of its row. -/
