@@ -323,10 +323,10 @@ code whose work is a constant of the compiled code, costs its own constant
 ([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
 sites. The intended reading of what each charge counts is its **segment** of the
 operations the compiled code runs during one call of a part of the step, here the first part,
-defined once in the
+or of a costed definition, defined once in the
 [cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment of the first
-part and of each costed definition is bounded by a constant of the code in the operations
-counted. Allocation, reference
+part, and every segment of a costed definition's own call read over that call's operations,
+is bounded by a constant of the code in the operations counted. Allocation, reference
 counting, the copy of a shared array when it is written
 ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the copy of an array into a larger
 buffer when a push outgrows its capacity, whose length depends on the state, the one-time
@@ -475,11 +475,13 @@ the ranked slots, the changed positions, the occupied positions and an indicator
 
 The first part under `act-then-learn`, the second part in each order and the memory
 of the agent state are not bounded here. The second part runs stretches outside the
-costed definitions, so its bound is not yet stated; it remains an open obligation of R8.
-`DemonRecords.observe` is one such stretch: a loop over the channels of the demons'
-lifetime records, whose trip count depends on the configuration, with no charge point.
-That is why the claim that every segment is bounded by a constant of the code is limited
-to the first part and the costed definitions. The
+costed definitions. In the second part, the operations of those stretches belong to the
+segment of the next charge of a costed definition, or of the part's last charge, so the
+second part's segments are not yet bounded by constants of the code and its bound is an
+open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
+channels of the demons' lifetime records, whose trip count depends on the configuration,
+with no charge point. That is why the claim that every segment is bounded by a constant
+of the code is limited to the first part and to each costed definition's own call. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
 is owed by a later increment of R8.

@@ -23,8 +23,9 @@ defined here once. No checked statement contains this reading:
   `Agent.choose` returns, including the `Chosen` record built after selection's last charge, and the
   second part, from the entry of `Chosen.learn` until it returns. The world receives the action
   after the second part under `learn-then-act`, and between the two parts under `plan-after-act` and
-  `act-then-learn`. An operation inside a callee is itself an operation of the trace, at its own
-  position;
+  `act-then-learn`. For the bound of a costed definition the trace is the word operations of one
+  call of that definition, from its entry to its return. An operation inside a callee is itself an
+  operation of the trace, at its own position;
 - the *charge points* are an `op` at the value it charges, a `charge` before the computation it
   wraps, a loop's visits at fixed points of each pass, whether a loop combinator, a scan or a charge
   of its row's work or control charges them (each element's visit before that element's step,
@@ -33,7 +34,7 @@ defined here once. No checked statement contains this reading:
   the pass over the vector it puts the element before, and a costed recursion's charges where the
   recursion makes them;
 - each operation belongs to the segment of the first charge point at or after it, and the operations
-  after the part's last charge point belong to that last one, so the segments partition the trace.
+  after the trace's last charge point belong to that last one, so the segments partition the trace.
 
 The segment of an operation is decided by its position alone, so a site's segment can include
 operations its docstring does not name, and a site's named operations can lie in another charge's
@@ -49,30 +50,33 @@ later increment of requirement R8 (rbeauchamp/acorn#90) owes. A `visit` segment 
 a whole element and, in the first loop, a prune, and the first visits of the second and planning
 loops can include operations their opens name, so `κ visit` must cover the largest visit segment.
 
-Every segment of the first part and of each costed definition is bounded by a constant of the code
-in the operations counted. The copy of an array into a larger buffer when a push outgrows its
-capacity, whose length depends on the state, is, like allocation, outside the count (**What is not
-counted**). Every loop of these whose trip count depends on the configuration or the state runs in a
-loop combinator or a costed recursion, which has a charge point on each iteration, so no segment
-contains one. A costed recursion charges each level before its recursive call, and charges again on
-the return where the level works after the call returns, so neither its descent nor its return falls
-in one segment. A library loop whose recursion has a depth that depends on the configuration or the
-state and works on the return counts that return as a pass of its row (`Library.fillVacant`). The
-cost discipline below requires this of costed definitions; of the twins it is a property of their
-charge placement, checked by reading, which the one-time compiled-call inventory of one build did
-not compare. The loops left inside a segment have trip counts bounded by constants of the code: the
-three options and their slots, the four meta actions, the 32 samples of a projection, including the
-return of their sum's recursion (`Library.sum`, one pass), the at most 15 doublings of the ranked
-width's search (`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. A cost model
-(`Costs`) assigns each site a cost, and every work bound holds for every cost model. No theorem
-derives the cost of a site in word operations; the scalar operations that the native resource audit
-bounds are the operations with an extracted cost.
+Every segment of the first part, and every segment of each costed definition's own call read over
+that call's trace, is bounded by a constant of the code in the operations counted. The copy of an
+array into a larger buffer when a push outgrows its capacity, whose length depends on the state, is,
+like allocation, outside the count (**What is not counted**). Every loop of these whose trip count
+depends on the configuration or the state runs in a loop combinator or a costed recursion, which has
+a charge point on each iteration, so no segment contains one. A costed recursion charges each level
+before its recursive call, and charges again on the return where the level works after the call
+returns, so neither its descent nor its return falls in one segment. A library loop whose recursion
+has a depth that depends on the configuration or the state and works on the return counts that
+return as a pass of its row (`Library.fillVacant`). The cost discipline below requires this of
+costed definitions; of the twins it is a property of their charge placement, checked by reading,
+which the one-time compiled-call inventory of one build did not compare. The loops left inside a
+segment have trip counts bounded by constants of the code: the three options and their slots, the
+four meta actions, the 32 samples of a projection, including the return of their sum's recursion
+(`Library.sum`, one pass), the at most 15 doublings of the ranked width's search
+(`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. A cost model (`Costs`) assigns each
+site a cost, and every work bound holds for every cost model. No theorem derives the cost of a site
+in word operations; the scalar operations that the native resource audit bounds are the operations
+with an extracted cost.
 
-The second part runs stretches outside the costed definitions, so its bound is not yet stated; it
-remains an open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
+The second part runs stretches outside the costed definitions. In the second part's trace the
+operations of those stretches belong to the segment of the next costed charge point, or of the
+part's last one, so the second part's segments are not yet bounded by constants of the code and its
+bound is an open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
 channels of the demons' lifetime records, whose trip count depends on the configuration, with no
 charge point. That is why the claim above that every segment is bounded by a constant of the code
-is limited to the first part and the costed definitions.
+is limited to the first part and to each costed definition's own call.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
