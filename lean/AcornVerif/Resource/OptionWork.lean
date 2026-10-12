@@ -380,10 +380,10 @@ def settleFollowingRun (κ : Costs) (skill : Skill actions config criterion dime
       (decideOption κ skill following.activation features potential goal estimate rate)
     match skill.decideOption following.activation features potential goal estimate rate with
     | .continuing next => do
-      Costed.charge (κ .settleFollowing) (Costed.discard (expected κ next.policy))
-      Costed.discard (stopStep κ skill.policy (skill.policy.backupError (count := actions)
-        next.policy (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma
-          potential following.previous)))
+      let error ← Costed.charge (κ .settleFollowing) (backupError κ skill.policy next.policy
+        (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
+          following.previous))
+      Costed.discard (stopStep κ skill.policy error)
       Costed.ite (following.live = true)
         (Costed.discard (modelStep κ skill.model features following.age reward))
         (Costed.pure ())
@@ -392,7 +392,7 @@ def settleFollowingRun (κ : Costs) (skill : Skill actions config criterion dime
 
 /-- Bound of a settled off-policy trajectory over `width` features. -/
 abbrev settleBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
-  decideBound κ rows capacity width + ((κ .settleFollowing + expectedBound κ rows) +
+  decideBound κ rows capacity width + ((κ .settleFollowing + backupErrorBound κ rows) +
     (stopBound κ rows capacity + modelStepBound κ capacity positions width) +
     stopFollowingBound κ rows capacity positions width)
 
@@ -414,7 +414,7 @@ theorem settleFollowingRun_work (κ : Costs)
     split
     · rename_i next _
       refine Nat.le_trans (Costed.bind_work_le
-        (Costed.charge_work_le (Costed.discard_work_le (expected_work κ next.policy))) fun _ =>
+        (Costed.charge_work_le (backupError_work κ skill.policy next.policy _)) fun _ =>
           Costed.bind_work_le (Costed.discard_work_le (stopStep_work κ skill.policy _)) fun _ =>
             Costed.ite_work_bound _ (Costed.discard_work_le
               (modelStep_work κ skill.model features following.age reward)) (Nat.zero_le _)) ?_

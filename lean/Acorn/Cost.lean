@@ -311,7 +311,7 @@ inductive Site where
   | terminateOption
   /-- A stopped trajectory's stopping error and the skill record. -/
   | stopFollowing
-  /-- A settled trajectory's shaped cumulant, its tree-backup error and the skill record. -/
+  /-- A settled trajectory's shaped cumulant and the skill record. -/
   | settleFollowing
   /-- A planning look-ahead's backed-up target and its result record. -/
   | lookAhead

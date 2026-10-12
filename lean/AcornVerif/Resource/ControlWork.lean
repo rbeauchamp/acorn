@@ -19,16 +19,16 @@ shared-error controller (its predictions, clear, release, snapshot and derived r
 `Controller.backupStep` with the tree-backup error and an action's mass), of the normalized
 step-size sum and of the frozen policy's functions in `Acorn.Policy` and `Acorn.Exploration`. The
 controller's initial value and reset (`Controller.initial`, `Controller.resetAction`) are not yet
-costed and have twins in `AcornVerif.Resource.RefreshWork`. Each definition here is the executed
-function with the bound proved of its costed definition as its work, and its `_costed` theorem
-checks that the costed definition is within it. The updates `Controller.startStep`,
-`Controller.step`, `Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep`, the
-tree-backup error `Controller.backupError` and an action's mass `PolicySnapshot.mass` have bounds
-of their costed definitions and no adapter. A learner entry's bound reads the learner's eligible
-entries, and every admitted learner has at most the capacity of its dimension
-(`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted entry is a
-function of the capacity and the length of the feature list it reads. A controller's update
-visits each of its rows, and a policy's loops visit its actions.
+costed and have twins in `AcornVerif.Resource.RefreshWork`. Each definition here is an adapter:
+the executed function with the bound proved of its costed definition as its work, whose `_costed`
+theorem checks that the costed definition is within it. The tree-backup error
+`Controller.backupError` has an adapter. The updates `Controller.startStep`, `Controller.step`,
+`Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep` and an action's mass
+`PolicySnapshot.mass` have bounds of their costed definitions and no adapter. A learner entry's
+bound reads the learner's eligible entries, and every admitted learner has at most the capacity of
+its dimension (`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted
+entry is a function of the capacity and the length of the feature list it reads. A controller's
+update visits each of its rows, and a policy's loops visit its actions.
 
 `Controller.creditStep` takes the taken row out of its table so that the runtime can reuse the
 row's storage, and its costed definition does the same (`detachedUpdateCosted`): the taken row's
@@ -947,6 +947,28 @@ theorem backupErrorCosted_within (κ : Costs)
     (controller.backupErrorCosted snapshot reward).Within κ
       (backupErrorBound κ count.word.toNat) :=
   Acorn.Costed.bind_within (expectedCosted_within κ snapshot) (Acorn.Costed.op_within _ _ κ)
+
+/-- `Controller.backupError` with its bound. -/
+def backupError (κ : Costs) (controller : Controller config dimension count.word.toNat)
+    (snapshot : PolicySnapshot count) (reward : Binary32) : Costed Binary32 :=
+  ⟨controller.backupError snapshot reward, backupErrorBound κ count.word.toNat⟩
+
+theorem backupError_val (κ : Costs) (controller : Controller config dimension count.word.toNat)
+    (snapshot : PolicySnapshot count) (reward : Binary32) :
+    (backupError κ controller snapshot reward).val = controller.backupError snapshot reward :=
+  rfl
+
+theorem backupError_work (κ : Costs) (controller : Controller config dimension count.word.toNat)
+    (snapshot : PolicySnapshot count) (reward : Binary32) :
+    (backupError κ controller snapshot reward).work ≤ backupErrorBound κ count.word.toNat :=
+  Nat.le_refl _
+
+theorem backupError_costed (κ : Costs)
+    (controller : Controller config dimension count.word.toNat) (snapshot : PolicySnapshot count)
+    (reward : Binary32) :
+    (controller.backupErrorCosted snapshot reward).Within κ
+      (backupError κ controller snapshot reward).work :=
+  backupErrorCosted_within κ controller snapshot reward
 
 /-- Bound of one action's nominal mass over `size` values. -/
 abbrev massBound (κ : Costs) (size : Nat) : Nat :=
