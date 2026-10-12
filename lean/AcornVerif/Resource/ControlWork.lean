@@ -22,9 +22,10 @@ controller's initial value and reset (`Controller.initial`, `Controller.resetAct
 costed and have twins in `AcornVerif.Resource.RefreshWork`. Each definition here is the executed
 function with the bound proved of its costed definition as its work, and its `_costed` theorem
 checks that the costed definition is within it. The updates `Controller.startStep`,
-`Controller.step`, `Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep` have
-bounds of their costed definitions and no adapter. A learner entry's bound reads the learner's
-eligible entries, and every admitted learner has at most the capacity of its dimension
+`Controller.step`, `Controller.smdpStep`, `Controller.closeStep` and `Controller.backupStep`, the
+tree-backup error `Controller.backupError` and an action's mass `PolicySnapshot.mass` have bounds
+of their costed definitions and no adapter. A learner entry's bound reads the learner's eligible
+entries, and every admitted learner has at most the capacity of its dimension
 (`AcornVerif.CurrentFeatureConsumers.managed_capacity`), so the bound of an admitted entry is a
 function of the capacity and the length of the feature list it reads. A controller's update
 visits each of its rows, and a policy's loops visit its actions.
@@ -902,8 +903,7 @@ theorem startStepCosted_within (κ : Costs) (controller : Controller config dime
   Acorn.Costed.bind_within (releaseCosted_within κ controller)
     (creditStepCosted_within κ _ features action lag .zero .zero)
 
-/-- Bound of a primitive continuing update or a duration credit at `rows` rows, a capacity and
-`width` features. -/
+/-- Bound of a primitive continuing update at `rows` rows, a capacity and `width` features. -/
 abbrev controllerStepBound (κ : Costs) (rows capacity width : Nat) : Nat :=
   predictAllBound κ rows width + ((κ .valuesOpen + creditStepBound κ rows capacity width) + 0)
 
@@ -916,20 +916,26 @@ theorem controllerStepCosted_within (κ : Costs)
     (Acorn.Costed.bind_within (valuesStepCosted_within κ controller features _ action reward _ _)
       (Acorn.Costed.pure_within _ κ))
 
+/-- Bound of a duration credit at `rows` rows, a capacity and `width` features. -/
+abbrev smdpStepBound (κ : Costs) (rows capacity width : Nat) : Nat :=
+  predictAllBound κ rows width + (policyStepBound κ rows capacity width + 0)
+
 theorem smdpStepCosted_within (κ : Costs) (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions) (reward : Binary32)
     (duration : UInt32) :
     (controller.smdpStepCosted features action reward duration).Within κ
-      (controllerStepBound κ actions dimension.capacity features.indices.length) :=
+      (smdpStepBound κ actions dimension.capacity features.indices.length) :=
   Acorn.Costed.bind_within (predictAllCosted_within κ controller features)
-    (Acorn.Costed.bind_within (valuesStepCosted_within κ controller features _ action reward _ _)
+    (Acorn.Costed.bind_within (Acorn.Costed.charge_within
+        (valuesStepCosted_within κ controller features _ action reward _ _))
       (Acorn.Costed.pure_within _ κ))
 
 theorem closeStepCosted_within (κ : Costs) (controller : Controller config dimension actions)
     (reward continuation : Binary32) (duration : UInt32) :
     (controller.closeStepCosted reward continuation duration).Within κ
-      (κ .learnerError + stopBound κ actions dimension.capacity) :=
-  Acorn.Costed.charge_within (stopStepCosted_within κ controller _)
+      (κ .policyOpen + (κ .learnerError + stopBound κ actions dimension.capacity)) :=
+  Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ)
+    (Acorn.Costed.charge_within (stopStepCosted_within κ controller _))
 
 /-- Bound of a tree-backup error over `size` values. -/
 abbrev backupErrorBound (κ : Costs) (size : Nat) : Nat :=

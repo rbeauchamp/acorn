@@ -248,7 +248,8 @@ inductive Site where
   | drawClose
   /-- A persistent draw's branch, duration and action draws and the store of its decision. -/
   | explorationBegin
-  /-- The two discount powers of a frozen-decision credit. -/
+  /-- A duration's powers: the two discount powers of a frozen-decision or duration credit and
+  the discount power of a closed span. -/
   | policyOpen
   /-- The store of a frozen policy snapshot. -/
   | snapshot

@@ -330,8 +330,8 @@ def Controller.smdpStepCosted (controller : Controller config dimension actions)
     (reward : Binary32) (duration : UInt32) :
     Costed (Controller config dimension actions × Vector Binary32 actions) := do
   let values ← controller.predictAllCosted features
-  let next ← controller.valuesStepCosted features values action reward
-    (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
+  let next ← Costed.charge .policyOpen <| controller.valuesStepCosted features values action
+    reward (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
   Costed.pure (next, values)
 
 /-- Duration credit retains the exact portable power and multiplication order. -/
@@ -352,12 +352,13 @@ theorem Controller.smdpStep_def (controller : Controller config dimension action
         (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration),
         values) := rfl
 
-/-- A span's close with its work: its error, then the stopping credit. -/
+/-- A span's close with its work: the duration's discount, its error, then the stopping
+credit. -/
 def Controller.closeStepCosted (controller : Controller config dimension actions)
     (reward continuation : Binary32) (duration : UInt32) :
-    Costed (Controller config dimension actions) :=
-  let delta := (reward.add ((Portable.pow config.rule.gamma duration).mul continuation)).sub
-    controller.vOld
+    Costed (Controller config dimension actions) := do
+  let discount ← Costed.op .policyOpen (Portable.pow config.rule.gamma duration)
+  let delta := (reward.add (discount.mul continuation)).sub controller.vOld
   Costed.charge .learnerError (controller.stopStepCosted delta)
 
 /-- Close a span toward a supplied continuation value and release every trace. The
