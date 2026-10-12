@@ -157,10 +157,23 @@ def Skill.beginOption (skill : Skill actions config criterion dimension discount
     (rate.resolve fun _ => skill.policy.exploreRate (count := actions))
   (skill, ⟨activation, ⟨features, potential, policy, by change 0 < Acorn.FeatureConstants.optionMaxDuration; decide⟩⟩)
 
+/-- The comparison value with its work: the policy mean or the ordered maximum. -/
+def comparisonValueCosted (criterion : Criterion) {count : Word.Count}
+    (policy : PolicySnapshot count) : Costed Binary32 :=
+  match criterion with | .differential => policy.expectedCosted | .discounted => policy.bestCosted
+
 /-- Comparison uses the nominal policy mean for differential control and the
 ordered maximum for the discounted comparator; neither is an accuracy claim. -/
 def comparisonValue (criterion : Criterion) {count : Word.Count} (policy : PolicySnapshot count) : Binary32 :=
-  match criterion with | .differential => policy.expected | .discounted => policy.best
+  (comparisonValueCosted criterion policy).val
+
+/-- The comparison value is the policy mean under the differential criterion and the ordered
+maximum under the discounted one. -/
+theorem comparisonValue_def (criterion : Criterion) {count : Word.Count}
+    (policy : PolicySnapshot count) :
+    comparisonValue criterion policy =
+      match criterion with | .differential => policy.expected | .discounted => policy.best := by
+  cases criterion <;> rfl
 
 /-- Goal precedes duration, which precedes the strict estimate comparison. -/
 def Skill.decideOption (skill : Skill actions config criterion dimension discounts) (activation : OptionActivation mode)

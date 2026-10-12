@@ -333,7 +333,7 @@ theorem rankedValues_get (value : ValueFunction criterion dimension)
     (value.rankedValues ranked expected).get action =
       Binary32.sumFrom .zero ((ranked.occupied.map (rankedTerm value expected action)).map
         Prod.fst) := by
-  simp [ValueFunction.rankedValues, Binary32.sumMap_eq, vector_get, rankedTerm,
+  simp [ValueFunction.rankedValues_def, Binary32.sumMap_eq, vector_get, rankedTerm,
     Function.comp_def]
 
 /-- Every executed term is finite, bounded and within `2^(-17)` of its exact product. -/
@@ -574,7 +574,7 @@ theorem outcomeValues_get (transition : Transition dimension criterion)
       Conversion.narrow (wideOutcome
         ((value.rankedValues transition.ranked (transition.expected features)).get action)
         shared (deviationWord transition features action)) := by
-  simp [Transition.outcomeValues, Transition.expected, deviationWord, wideOutcome, vector_get]
+  simp [Transition.outcomeValues_def, Transition.expected, deviationWord, wideOutcome, vector_get]
 
 /-- The binary64 total of three finite words inside the prediction envelopes is finite,
 within `2^(-16)` of their exact sum, and no larger than their magnitudes allow.
@@ -2144,6 +2144,7 @@ action value reads it and no row at it is updated. -/
 theorem bias_unoccupied (ranked : RankedFeatures dimension)
     (entry : RankIdx dimension × FeatIdx dimension) (member : entry ∈ ranked.occupied) :
     entry.1 ≠ RankedFeatures.bias dimension := by
+  rw [RankedFeatures.occupied_def] at member
   obtain ⟨position, _, found⟩ := List.mem_filterMap.mp member
   cases held : ranked.slots[position.val] with
   | none => simp [held] at found
@@ -2207,8 +2208,7 @@ theorem indicator_exact (ranked : RankedFeatures dimension)
         active
       rw [← ranked.slot_unique found position feature modeled held]
       exact inside
-  unfold RankedFeatures.indicator
-  rw [fold]
+  rw [RankedFeatures.indicator_def, fold]
   by_cases active : feature ∈ features.indices
   · simp [active, member.mpr active]
   · have absent : position ∉ (ranked.active features).indices := fun inside =>

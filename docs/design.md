@@ -306,8 +306,8 @@ establishes, which a later increment of requirement R8 owes:
 - the compiler's erasure of a costed definition's work, described below;
 - the cost discipline of the costed definitions of the learner, of a learner's record,
   of the controllers' predictions, clear, release, snapshot, derived rate and updates
-  listed below, of the frozen policy and of its exploration, and of the encoding of a
-  frame, described below;
+  listed below, of the frozen policy and of its exploration, of the encoding of a frame,
+  and of an option model's input, ranked features and prediction, described below;
 - the correspondence of the twins of selection, among them the controllers' initial
   value and reset, with the executed definitions: the twins'
   charges were compared with the compiled call multisets of one build by a one-time
@@ -348,7 +348,13 @@ the coder reads (`Agent.words`, from the stored predictions' words and their fee
 words), each generated unit's projection and output (`Bank.activations`), the tiled and
 imprinted features and their concatenation, the first-occurrence filtering with its
 builder's empty value and finish (`unique`), and the frame of the current bank
-(`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). A costed
+(`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). So is an option model's
+prediction (`Model.predict`), and so are the definitions it runs: the model input with
+its age slot inserted (`modelInput`, `insert`), the ranked features its transition part
+reads (`RankedFeatures.active`, `RankedFeatures.input`, `RankedFeatures.indicator`,
+`RankedFeatures.occupied`), the rows' expected values, the ranked values, the predicted
+outcome's values, the look-ahead and the comparison value of a policy
+(`comparisonValue`). An option model's updates are not costed yet and have twins. A costed
 definition's work is a type former and a proof, which the compiler erases, so the
 definition compiles to the code of its value. That
 erasure is a trust assumption on the compiler: a comparison of the generated C of each
@@ -404,10 +410,11 @@ accounting; reading it as a bound of the executed code needs the correspondence 
 each twin's charges with the definition's compiled calls, which the one-time inventory
 observed in one build and no theorem states.
 The twins read the learner, a learner's record, the controllers' costed parts and updates,
-the policy and the encoding of a frame through twins of their own whose work is the bound
-proved of the costed definition, which a theorem of each checks
+the policy, the encoding of a frame and an option model's prediction through twins of their
+own whose work is the bound proved of the costed definition, which a theorem of each checks
 (`AcornVerif.Resource.Twin.step_costed`, `AcornVerif.Resource.Twin.managedApply_costed`,
-`AcornVerif.Resource.Twin.draw_costed`, `AcornVerif.Resource.Twin.frame_costed`).
+`AcornVerif.Resource.Twin.draw_costed`, `AcornVerif.Resource.Twin.frame_costed`,
+`AcornVerif.Resource.Twin.predict_costed`).
 
 **What bounds each loop.** The frame's active features are at most
 `tilings × (words + questions) + units` (`Agent.frame_length`). Every other loop is

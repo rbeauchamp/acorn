@@ -38,12 +38,28 @@ theorem ModelAge.advance_bounds (age : ModelAge) :
 def ModelAge.feature (dimension : Dimension) (age : ModelAge) : FeatIdx dimension :=
   FeatIdx.fromHash dimension (Rng.hash3 0x6f7074696d65 0 age.val.toUInt64)
 
+/-- A model input with its work: nothing, or the age slot hashed and inserted. -/
+def modelInputCosted {dimension : Dimension} (criterion : Criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) :
+    Costed (SwiftTd.ActiveSet dimension) :=
+  match criterion with
+  | .discounted => Costed.pure base
+  | .differential => do
+    let slot ← Costed.op .hashFeature (age.feature dimension)
+    insertCosted base slot
+
 /-- Discounted input is unchanged; differential input inserts at most one new slot. -/
 def modelInput {dimension : Dimension} (criterion : Criterion)
     (base : SwiftTd.ActiveSet dimension) (age : ModelAge) : SwiftTd.ActiveSet dimension :=
-  match criterion with
-  | .discounted => base
-  | .differential => insert base (age.feature dimension)
+  (modelInputCosted criterion base age).val
+
+/-- The discounted input is the frame's; the differential input inserts the age slot. -/
+theorem modelInput_def {dimension : Dimension} (criterion : Criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) :
+    modelInput criterion base age = match criterion with
+      | .discounted => base
+      | .differential => insert base (age.feature dimension) := by
+  cases criterion <;> rfl
 
 /-- Age aliases preserve the existing first-occurrence position of the slot. -/
 theorem modelInput_order {dimension : Dimension} (base : SwiftTd.ActiveSet dimension)

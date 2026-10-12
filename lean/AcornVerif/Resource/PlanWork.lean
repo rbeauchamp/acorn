@@ -58,7 +58,8 @@ theorem lookAhead_work (κ : Costs) (state : PlanningResult criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount) :
     (lookAhead κ state skills features gain rate slot).work ≤
       lookAheadBound κ (rankDimension dimension).capacity features.indices.length :=
-  Costed.bind_work_le (predict_work κ _ _ features _) fun _ =>
+  Costed.bind_work_le (predict_work κ (skills.get slot).model ⟨state.controller, rate⟩ features
+    ⟨0, by decide⟩) fun _ =>
     Costed.bind_work_le (plan_work κ state.controller _ features _) fun _ => Nat.le_refl _
 
 /-- Twin of `PlanningResult.backup`. -/

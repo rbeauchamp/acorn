@@ -9,8 +9,11 @@ import AcornVerif.Resource.ControlWork
 /-!
 # Work of the option models
 
-Twins of an option model's prediction and updates (`Acorn.Models`) and of the ranked
-features its transition part reads (`Acorn.RankedFeatures`). A transition part has one row
+The bounds of the costed definitions of an option model's input, of the ranked features its
+transition part reads (`Acorn.RankedFeatures`) and of its prediction (`Acorn.Models`), and twins of
+its updates, which are not yet costed. Each definition here for a costed definition is the
+executed function with the bound proved of its costed definition as its work, and its `_costed`
+theorem checks that the costed definition is within it. A transition part has one row
 for each ranked position, `(rankDimension dimension).capacity` rows, each an admitted learner
 over the ranked positions, and one deviation learner for each meta action. A row's input is
 the frame's active ranked positions and the bias position, so it has at most one position
@@ -26,56 +29,68 @@ variable {dimension : Dimension} {criterion : Criterion} {count : Word.Count}
 
 /-! ## Active sets of the models -/
 
-/-- Twin of `insert`: the membership test of the active set, then the append when the index
-is absent. -/
-def insert (κ : Costs) (active : SwiftTd.ActiveSet dimension) (index : FeatIdx dimension) :
-    Costed (SwiftTd.ActiveSet dimension) :=
-  Costed.via (Features.insert active index) (Costed.charge (κ .insert) (do
-    Costed.discard (Costed.scanList .contains (κ .visit + κ .compare) active.indices
-      (decide (index ∈ active.indices)))
-    Costed.ite (index ∈ active.indices) (Costed.pure ())
-      (Costed.scanList .append (κ .visit) active.indices ())))
-
-theorem insert_work (κ : Costs) (active : SwiftTd.ActiveSet dimension)
-    (index : FeatIdx dimension) :
-    (insert κ active index).work ≤ κ .insert +
-      (Library.contains.control (κ .visit + κ .compare) active.indices.length +
-        Library.append.control (κ .visit) active.indices.length) :=
-  Costed.charge_work_le (Costed.bind_work_le_at (Nat.le_refl _)
-    (Costed.ite_work_bound _ (Nat.zero_le _) (Nat.le_refl _)))
-
-/-- The costed composition of `modelInput`: nothing, or the age slot hashed and inserted. -/
-def modelInputRun (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) : Costed (SwiftTd.ActiveSet dimension) :=
-  match criterion with
-  | .discounted => Costed.pure base
-  | .differential => do
-    let slot ← Costed.op (κ .hashFeature) (age.feature dimension)
-    insert κ base slot
-
-theorem modelInputRun_val (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) :
-    (modelInputRun κ criterion base age).val = Features.modelInput criterion base age := by
-  cases criterion <;> rfl
-
-/-- Twin of `modelInput`. -/
-def modelInput (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) : Costed (SwiftTd.ActiveSet dimension) :=
-  Costed.via (Features.modelInput criterion base age) (modelInputRun κ criterion base age)
-
 /-- Bound of a model input over `width` features. -/
 abbrev inputBound (κ : Costs) (width : Nat) : Nat :=
   κ .insert + (Library.contains.control (κ .visit + κ .compare) width +
     Library.append.control (κ .visit) width)
 
+theorem insertCosted_within (κ : Costs) (active : SwiftTd.ActiveSet dimension)
+    (index : FeatIdx dimension) :
+    (insertCosted active index).Within κ (inputBound κ active.indices.length) := by
+  unfold insertCosted inputBound
+  refine Acorn.Costed.charge_within
+    (Acorn.Costed.bind_within (Acorn.Costed.attach_within (Acorn.Costed.mem_within _ _ κ)) ?_)
+  exact Acorn.Costed.dite_within (fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
+    fun _ => (Acorn.Costed.bind_within
+      (Acorn.Costed.attach_within (Acorn.Costed.append_within _ _ κ))
+      (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _))
+
+/-- An insertion, with the bound of its costed definition. -/
+def insert (κ : Costs) (active : SwiftTd.ActiveSet dimension) (index : FeatIdx dimension) :
+    Costed (SwiftTd.ActiveSet dimension) :=
+  ⟨Features.insert active index, inputBound κ active.indices.length⟩
+
+theorem insert_val (κ : Costs) (active : SwiftTd.ActiveSet dimension)
+    (index : FeatIdx dimension) : (insert κ active index).val = Features.insert active index :=
+  rfl
+
+theorem insert_work (κ : Costs) (active : SwiftTd.ActiveSet dimension)
+    (index : FeatIdx dimension) :
+    (insert κ active index).work ≤ inputBound κ active.indices.length :=
+  Nat.le_refl _
+
+theorem insert_costed (κ : Costs) (active : SwiftTd.ActiveSet dimension)
+    (index : FeatIdx dimension) :
+    (insertCosted active index).Within κ (insert κ active index).work :=
+  insertCosted_within κ active index
+
+theorem modelInputCosted_within (κ : Costs) (criterion : Criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) :
+    (modelInputCosted criterion base age).Within κ
+      (κ .hashFeature + inputBound κ base.indices.length) := by
+  cases criterion
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+  · exact Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ) (insertCosted_within κ base _)
+
+/-- A model input, with the bound of its costed definition. -/
+def modelInput (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) : Costed (SwiftTd.ActiveSet dimension) :=
+  ⟨Features.modelInput criterion base age, κ .hashFeature + inputBound κ base.indices.length⟩
+
+theorem modelInput_val (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) :
+    (modelInput κ criterion base age).val = Features.modelInput criterion base age := rfl
+
 theorem modelInput_work (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) :
     (modelInput κ criterion base age).work ≤
-      κ .hashFeature + inputBound κ base.indices.length := by
-  change (modelInputRun κ criterion base age).work ≤ _
-  cases criterion
-  · exact Nat.zero_le _
-  · exact Costed.bind_work_le_at (Nat.le_refl _) (insert_work κ base _)
+      κ .hashFeature + inputBound κ base.indices.length :=
+  Nat.le_refl _
+
+theorem modelInput_costed (κ : Costs) (criterion : Criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) :
+    (modelInputCosted criterion base age).Within κ (modelInput κ criterion base age).work :=
+  modelInputCosted_within κ criterion base age
 
 /-- A model input has at most one feature more than the frame. -/
 theorem modelInput_length (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
@@ -85,105 +100,100 @@ theorem modelInput_length (criterion : Criterion) (base : SwiftTd.ActiveSet dime
   · exact Nat.le_succ _
   · exact insert_length base _
 
-/-- Twin of `RankedFeatures.active`: one position lookup for each active feature. -/
+theorem activeCosted_within (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (ranked.activeCosted features).Within κ
+      (Library.filterMap.work (κ .visit) features.indices.length (κ .position)) :=
+  (Acorn.Costed.bind_within
+    (Acorn.Costed.attach_within
+      (Acorn.Costed.filterMap_within fun _ _ => Acorn.Costed.op_within _ _ κ))
+    (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _))
+
+/-- The active positions, with the bound of their costed definition. -/
 def rankedActive (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Costed (SwiftTd.ActiveSet (rankDimension dimension)) :=
-  Costed.via (ranked.active features)
-    (Costed.filterMap (κ .visit) (fun feature => Costed.op (κ .position) (ranked.position feature))
-      features.indices)
-
-/-- The lookups compute the executed active positions. -/
-theorem rankedActive_run (κ : Costs) (ranked : RankedFeatures dimension)
-    (features : SwiftTd.ActiveSet dimension) :
-    (Costed.filterMap (κ .visit) (fun feature => Costed.op (κ .position) (ranked.position feature))
-      features.indices).val = (ranked.active features).indices := rfl
+  ⟨ranked.active features,
+    Library.filterMap.work (κ .visit) features.indices.length (κ .position)⟩
 
 theorem rankedActive_work (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     (rankedActive κ ranked features).work ≤
       Library.filterMap.work (κ .visit) features.indices.length (κ .position) :=
-  Costed.filterMap_work_le _ _ _ _ fun _ _ => Nat.le_refl _
+  Nat.le_refl _
 
-/-- Twin of `RankedFeatures.input`: the active positions, the bias position, which evaluates the
-ranked width, and the bias appended at the ranked dimension, which evaluates it again. -/
-def rankedInput (κ : Costs) (ranked : RankedFeatures dimension)
+theorem rankedActive_costed (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
-    Costed (SwiftTd.ActiveSet (rankDimension dimension)) := do
-  let active ← rankedActive κ ranked features
-  let bias ← Costed.op (κ .rankWidth) (RankedFeatures.bias dimension)
-  Costed.charge (κ .rankWidth) (insert κ active bias)
-
-theorem rankedInput_val (κ : Costs) (ranked : RankedFeatures dimension)
-    (features : SwiftTd.ActiveSet dimension) :
-    (rankedInput κ ranked features).val = ranked.input features := rfl
+    (ranked.activeCosted features).Within κ (rankedActive κ ranked features).work :=
+  activeCosted_within κ ranked features
 
 /-- Bound of a row input over `width` features. -/
 abbrev rowInputBound (κ : Costs) (width : Nat) : Nat :=
   (Library.filterMap.work (κ .visit) width (κ .position)) +
     (κ .rankWidth + (κ .rankWidth + inputBound κ width))
 
-theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
+theorem inputCosted_within (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
-    (rankedInput κ ranked features).work ≤ rowInputBound κ features.indices.length := by
-  have tested : Library.contains.control (κ .visit + κ .compare)
-        (rankedActive κ ranked features).val.indices.length ≤
-      Library.contains.control (κ .visit + κ .compare) features.indices.length :=
-    Library.contains.control_mono (ranked.active_length features)
-  have appended : Library.append.control (κ .visit)
-        (rankedActive κ ranked features).val.indices.length ≤
-      Library.append.control (κ .visit) features.indices.length :=
-    Library.append.control_mono (ranked.active_length features)
-  unfold rankedInput
-  refine Nat.le_trans (Costed.bind_work_le_at (rankedActive_work κ ranked features)
-    (Costed.bind_work_le_at (Nat.le_refl _)
-      (Costed.charge_work_le (insert_work κ _ (RankedFeatures.bias dimension))))) ?_
+    (ranked.inputCosted features).Within κ (rowInputBound κ features.indices.length) := by
+  have tested := Library.contains.control_mono (visit := κ .visit + κ .compare)
+    (ranked.active_length features)
+  have appended := Library.append.control_mono (visit := κ .visit) (ranked.active_length features)
+  unfold RankedFeatures.inputCosted
+  refine Acorn.Costed.Within.mono (Acorn.Costed.charge_within
+    (Acorn.Costed.bind_within (activeCosted_within κ ranked features)
+      (Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ)
+        (insertCosted_within κ (ranked.active features) (RankedFeatures.bias dimension))))) ?_
   simp only [rowInputBound, inputBound]
   omega
 
-/-- Twin of `RankedFeatures.occupied`: the positions listed, then one read for each. -/
-def occupied (κ : Costs) (ranked : RankedFeatures dimension) :
-    Costed (List (RankIdx dimension × FeatIdx dimension)) := do
-  let positions ← Costed.charge (κ .rankWidth) (Costed.scanList .finRange (κ .visit)
-    (List.finRange (rankDimension dimension).capacity)
-    (List.finRange (rankDimension dimension).capacity))
-  Costed.filterMap (κ .visit)
-    (fun position => Costed.op (κ .read)
-      ((ranked.slots[position.val]).map fun feature => (position, feature)))
-    positions
+/-- A row input, with the bound of its costed definition. -/
+def rankedInput (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    Costed (SwiftTd.ActiveSet (rankDimension dimension)) :=
+  ⟨ranked.input features, rowInputBound κ features.indices.length⟩
 
-theorem occupied_val (κ : Costs) (ranked : RankedFeatures dimension) :
-    (occupied κ ranked).val = ranked.occupied := rfl
+theorem rankedInput_val (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (rankedInput κ ranked features).val = ranked.input features := rfl
+
+theorem rankedInput_work (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (rankedInput κ ranked features).work ≤ rowInputBound κ features.indices.length :=
+  Nat.le_refl _
+
+theorem rankedInput_costed (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (ranked.inputCosted features).Within κ (rankedInput κ ranked features).work :=
+  inputCosted_within κ ranked features
 
 /-- Bound of the occupied positions of a ranking of `width` positions. -/
 abbrev occupiedBound (κ : Costs) (width : Nat) : Nat :=
   κ .rankWidth + Library.finRange.control (κ .visit) width +
     (Library.filterMap.work (κ .visit) width (κ .read))
 
+theorem occupiedCosted_within (κ : Costs) (ranked : RankedFeatures dimension) :
+    ranked.occupiedCosted.Within κ (occupiedBound κ (rankDimension dimension).capacity) := by
+  unfold RankedFeatures.occupiedCosted occupiedBound
+  refine Acorn.Costed.bind_within
+    (Acorn.Costed.charge_within (Acorn.Costed.finRange_within _ κ)) ?_
+  refine (Acorn.Costed.filterMap_within fun _ _ => Acorn.Costed.op_within _ _ κ).mono ?_
+  simp [Acorn.Costed.charge_val, Acorn.Costed.finRange_val]
+
+/-- The occupied positions, with the bound of their costed definition. -/
+def occupied (κ : Costs) (ranked : RankedFeatures dimension) :
+    Costed (List (RankIdx dimension × FeatIdx dimension)) :=
+  ⟨ranked.occupied, occupiedBound κ (rankDimension dimension).capacity⟩
+
+theorem occupied_val (κ : Costs) (ranked : RankedFeatures dimension) :
+    (occupied κ ranked).val = ranked.occupied := rfl
+
 theorem occupied_work (κ : Costs) (ranked : RankedFeatures dimension) :
-    (occupied κ ranked).work ≤ occupiedBound κ (rankDimension dimension).capacity := by
-  unfold occupied
-  refine Nat.le_trans (Costed.bind_work_le_at (Nat.le_refl _)
-    (Costed.filterMap_work_le (κ .visit) (κ .read) _ _ fun _ _ => Nat.le_refl _)) ?_
-  simp only [List.length_finRange, occupiedBound]
-  omega
+    (occupied κ ranked).work ≤ occupiedBound κ (rankDimension dimension).capacity :=
+  Nat.le_refl _
 
-/-- Twin of `RankedFeatures.indicator`: the active positions, a vector of absent values,
-and one write for each active position. -/
-def indicator (κ : Costs) (ranked : RankedFeatures dimension)
-    (features : SwiftTd.ActiveSet dimension) :
-    Costed (Vector Expectation (rankDimension dimension).capacity) := do
-  let active ← rankedActive κ ranked features
-  let absent ← Costed.charge (κ .rankWidth)
-    (Costed.replicate (κ .visit) (rankDimension dimension).capacity Expectation.absent)
-  Costed.foldl (κ .visit)
-    (fun seen position => Costed.op (κ .write)
-      (seen.set position.val Expectation.present position.isLt))
-    absent active.indices
-
-theorem indicator_val (κ : Costs) (ranked : RankedFeatures dimension)
-    (features : SwiftTd.ActiveSet dimension) :
-    (indicator κ ranked features).val = ranked.indicator features := rfl
+theorem occupied_costed (κ : Costs) (ranked : RankedFeatures dimension) :
+    ranked.occupiedCosted.Within κ (occupied κ ranked).work :=
+  occupiedCosted_within κ ranked
 
 /-- Bound of an indicator over `width` features and `positions` ranked positions. -/
 abbrev indicatorBound (κ : Costs) (width positions : Nat) : Nat :=
@@ -191,38 +201,45 @@ abbrev indicatorBound (κ : Costs) (width positions : Nat) : Nat :=
     (κ .rankWidth + Library.replicate.control (κ .visit) positions) +
     Library.foldl.work (κ .visit) width (κ .write)
 
-theorem indicator_work (κ : Costs) (ranked : RankedFeatures dimension)
+theorem indicatorCosted_within (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
-    (indicator κ ranked features).work ≤
-      indicatorBound κ features.indices.length (rankDimension dimension).capacity := by
-  have scaled : Library.foldl.work (κ .visit) (rankedActive κ ranked features).val.indices.length
+    (ranked.indicatorCosted features).Within κ
+      (indicatorBound κ features.indices.length (rankDimension dimension).capacity) := by
+  have scaled : Library.foldl.work (κ .visit) (ranked.active features).indices.length
         (κ .write) ≤ Library.foldl.work (κ .visit) features.indices.length (κ .write) :=
     Library.foldl.work_mono (ranked.active_length features) (Nat.le_refl _)
-  unfold indicator
-  refine Nat.le_trans (Costed.bind_work_le_at (rankedActive_work κ ranked features)
-    (Costed.bind_work_le_at (Nat.le_refl _)
-      (Costed.foldl_work_le (κ .visit) (κ .write) _ _ _ fun _ _ _ => Nat.le_refl _))) ?_
+  unfold RankedFeatures.indicatorCosted
+  refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+    (Acorn.Costed.charge_within (Acorn.Costed.replicate_within _ _ κ))
+    (Acorn.Costed.bind_within (activeCosted_within κ ranked features)
+      (Acorn.Costed.foldl_within (items := (ranked.active features).indices) (bound := κ .write)
+        fun _ _ _ => Acorn.Costed.op_within _ _ κ))) ?_
   simp only [indicatorBound]
   omega
 
+/-- The indicator, with the bound of its costed definition. -/
+def indicator (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    Costed (Vector Expectation (rankDimension dimension).capacity) :=
+  ⟨ranked.indicator features,
+    indicatorBound κ features.indices.length (rankDimension dimension).capacity⟩
+
+theorem indicator_val (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (indicator κ ranked features).val = ranked.indicator features := rfl
+
+theorem indicator_work (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (indicator κ ranked features).work ≤
+      indicatorBound κ features.indices.length (rankDimension dimension).capacity :=
+  Nat.le_refl _
+
+theorem indicator_costed (κ : Costs) (ranked : RankedFeatures dimension)
+    (features : SwiftTd.ActiveSet dimension) :
+    (ranked.indicatorCosted features).Within κ (indicator κ ranked features).work :=
+  indicatorCosted_within κ ranked features
+
 /-! ## Predictions -/
-
-/-- Twin of `ValueFunction.rankedValues`: the occupied positions, then for each meta action
-one product for each occupied position. -/
-def rankedValues (κ : Costs) (value : ValueFunction criterion dimension)
-    (ranked : RankedFeatures dimension)
-    (expected : Vector Expectation (rankDimension dimension).capacity) :
-    Costed (Vector Binary32 metaCount.word.toNat) := do
-  let occupied ← occupied κ ranked
-  Costed.mapVector (κ .visit)
-    (fun learner => sumMap κ .productTerm .zero occupied fun entry =>
-      (learner.state.weights.get entry.2).value.mul (expected.get entry.1).value)
-    value.controller.learners
-
-theorem rankedValues_val (κ : Costs) (value : ValueFunction criterion dimension)
-    (ranked : RankedFeatures dimension)
-    (expected : Vector Expectation (rankDimension dimension).capacity) :
-    (rankedValues κ value ranked expected).val = value.rankedValues ranked expected := rfl
 
 /-- Bound of the ranked values at `positions` ranked positions. -/
 abbrev rankedValuesBound (κ : Costs) (positions : Nat) : Nat :=
@@ -230,92 +247,105 @@ abbrev rankedValuesBound (κ : Costs) (positions : Nat) : Nat :=
     Library.vectorMap.work (κ .visit) metaCount.word.toNat
       (Library.foldl.work (κ .visit) positions (κ .productTerm))
 
+theorem rankedValuesCosted_within (κ : Costs) (value : ValueFunction criterion dimension)
+    (ranked : RankedFeatures dimension)
+    (expected : Vector Expectation (rankDimension dimension).capacity) :
+    (value.rankedValuesCosted ranked expected).Within κ
+      (rankedValuesBound κ (rankDimension dimension).capacity) := by
+  unfold ValueFunction.rankedValuesCosted rankedValuesBound
+  refine Acorn.Costed.bind_within (occupiedCosted_within κ ranked) ?_
+  exact Acorn.Costed.mapVector_within fun _ _ =>
+    (sumMapCosted_pure_within κ .productTerm .zero _ _).mono
+      (Library.foldl.work_mono (RankedFeatures.occupied_length ranked) (Nat.le_refl _))
+
+/-- The ranked values, with the bound of their costed definition. -/
+def rankedValues (κ : Costs) (value : ValueFunction criterion dimension)
+    (ranked : RankedFeatures dimension)
+    (expected : Vector Expectation (rankDimension dimension).capacity) :
+    Costed (Vector Binary32 metaCount.word.toNat) :=
+  ⟨value.rankedValues ranked expected, rankedValuesBound κ (rankDimension dimension).capacity⟩
+
+theorem rankedValues_val (κ : Costs) (value : ValueFunction criterion dimension)
+    (ranked : RankedFeatures dimension)
+    (expected : Vector Expectation (rankDimension dimension).capacity) :
+    (rankedValues κ value ranked expected).val = value.rankedValues ranked expected := rfl
+
 theorem rankedValues_work (κ : Costs) (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity) :
     (rankedValues κ value ranked expected).work ≤
-      rankedValuesBound κ (rankDimension dimension).capacity := by
-  unfold rankedValues
-  refine Nat.le_trans (Costed.bind_work_le_at (occupied_work κ ranked)
-    (Costed.mapVector_work_le (κ .visit)
-      (Library.foldl.work (κ .visit) (rankDimension dimension).capacity (κ .productTerm)) _ _
-      fun _ _ =>
-        Nat.le_trans (sumMap_work κ .productTerm .zero _ _)
-          (Library.foldl.work_mono (RankedFeatures.occupied_length ranked) (Nat.le_refl _)))) ?_
-  exact Nat.le_refl _
+      rankedValuesBound κ (rankDimension dimension).capacity :=
+  Nat.le_refl _
 
-/-- The costed composition of `comparisonValue`: the policy mean or the maximum. -/
-def comparisonRun (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
-    Costed Binary32 :=
-  match criterion with
-  | .differential => expected κ policy
-  | .discounted => best κ policy
-
-theorem comparisonRun_val (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
-    (comparisonRun κ criterion policy).val = Features.comparisonValue criterion policy := by
-  cases criterion <;> rfl
-
-/-- Twin of `comparisonValue`. -/
-def comparisonValue (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
-    Costed Binary32 :=
-  Costed.via (Features.comparisonValue criterion policy) (comparisonRun κ criterion policy)
+theorem rankedValues_costed (κ : Costs) (value : ValueFunction criterion dimension)
+    (ranked : RankedFeatures dimension)
+    (expected : Vector Expectation (rankDimension dimension).capacity) :
+    (value.rankedValuesCosted ranked expected).Within κ
+      (rankedValues κ value ranked expected).work :=
+  rankedValuesCosted_within κ value ranked expected
 
 /-- Bound of a nominal value over `size` values under either criterion. -/
 abbrev comparisonBound (κ : Costs) (size : Nat) : Nat := expectedBound κ size + bestBound κ size
 
-theorem comparisonValue_work (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
-    (comparisonValue κ criterion policy).work ≤ comparisonBound κ count.word.toNat := by
-  change (comparisonRun κ criterion policy).work ≤ _
+theorem comparisonValueCosted_within (κ : Costs) (criterion : Criterion)
+    (policy : PolicySnapshot count) :
+    (comparisonValueCosted criterion policy).Within κ (comparisonBound κ count.word.toNat) := by
   cases criterion
-  · exact Nat.le_trans (best_work κ policy) (Nat.le_add_left _ _)
-  · exact Nat.le_trans (expected_work κ policy) (Nat.le_add_right _ _)
+  · exact (bestCosted_within κ policy).mono (Nat.le_add_left _ _)
+  · exact (expectedCosted_within κ policy).mono (Nat.le_add_right _ _)
 
-/-- Twin of `Transition.expectedAt`: one prediction for each row. -/
-def expectedAt (κ : Costs) (transition : Transition dimension criterion)
-    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
-    Costed (Vector Expectation (rankDimension dimension).capacity) :=
-  Costed.mapVector (κ .visit)
-    (fun row => do
-      let raw ← linearPrediction κ row.state input
-      Costed.op (κ .project) (Bounded32.project expectationRange raw))
-    transition.rows
+/-- A nominal value, with the bound of its costed definition. -/
+def comparisonValue (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
+    Costed Binary32 :=
+  ⟨Features.comparisonValue criterion policy, comparisonBound κ count.word.toNat⟩
 
-theorem expectedAt_val (κ : Costs) (transition : Transition dimension criterion)
-    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
-    (expectedAt κ transition input).val = transition.expectedAt input := rfl
+theorem comparisonValue_val (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
+    (comparisonValue κ criterion policy).val = Features.comparisonValue criterion policy := rfl
+
+theorem comparisonValue_work (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
+    (comparisonValue κ criterion policy).work ≤ comparisonBound κ count.word.toNat :=
+  Nat.le_refl _
+
+theorem comparisonValue_costed (κ : Costs) (criterion : Criterion)
+    (policy : PolicySnapshot count) :
+    (comparisonValueCosted criterion policy).Within κ
+      (comparisonValue κ criterion policy).work :=
+  comparisonValueCosted_within κ criterion policy
 
 /-- Bound of the rows' predictions at `positions` rows over `width` inputs. -/
 abbrev expectedAtBound (κ : Costs) (positions width : Nat) : Nat :=
   Library.vectorMap.work (κ .visit) positions
     (Library.foldl.work (κ .visit) width (κ .sumTerm) + κ .project)
 
+theorem expectedAtCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
+    (transition.expectedAtCosted input).Within κ
+      (expectedAtBound κ (rankDimension dimension).capacity input.indices.length) :=
+  Acorn.Costed.mapVector_within fun row _ =>
+    Acorn.Costed.bind_within (linearPredictionCosted_within κ row.state input)
+      (Acorn.Costed.op_within _ _ κ)
+
+/-- The rows' expected values, with the bound of their costed definition. -/
+def expectedAt (κ : Costs) (transition : Transition dimension criterion)
+    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
+    Costed (Vector Expectation (rankDimension dimension).capacity) :=
+  ⟨transition.expectedAt input,
+    expectedAtBound κ (rankDimension dimension).capacity input.indices.length⟩
+
+theorem expectedAt_val (κ : Costs) (transition : Transition dimension criterion)
+    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
+    (expectedAt κ transition input).val = transition.expectedAt input := rfl
+
 theorem expectedAt_work (κ : Costs) (transition : Transition dimension criterion)
     (input : SwiftTd.ActiveSet (rankDimension dimension)) :
     (expectedAt κ transition input).work ≤
       expectedAtBound κ (rankDimension dimension).capacity input.indices.length :=
-  Costed.mapVector_work_le _ _ _ _ fun row _ =>
-    Costed.bind_work_le (linearPrediction_work κ row.state input) fun _ => Nat.le_refl _
+  Nat.le_refl _
 
-/-- Twin of `Transition.outcomeValues`: the row input, the rows' predictions, the ranked
-values, then each meta action's deviation and value. -/
-def outcomeValues (κ : Costs) (transition : Transition dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (shared : Binary32) : Costed (Vector Binary32 metaCount.word.toNat) := do
-  let input ← rankedInput κ transition.ranked features
-  let expected ← expectedAt κ transition input
-  let ranked ← rankedValues κ value transition.ranked expected
-  let wide := Conversion.widen shared
-  Costed.ofFn (κ .visit) fun action => do
-    let deviation ← linearPrediction κ (transition.deviations.get action).state input
-    Costed.op (κ .outcomeValue)
-      (Conversion.narrow (((Conversion.widen (ranked.get action)).add wide).add
-        (Conversion.widen deviation)))
-
-theorem outcomeValues_val (κ : Costs) (transition : Transition dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (shared : Binary32) :
-    (outcomeValues κ transition value features shared).val =
-      transition.outcomeValues value features shared := rfl
+theorem expectedAt_costed (κ : Costs) (transition : Transition dimension criterion)
+    (input : SwiftTd.ActiveSet (rankDimension dimension)) :
+    (transition.expectedAtCosted input).Within κ (expectedAt κ transition input).work :=
+  expectedAtCosted_within κ transition input
 
 /-- Bound of a predicted outcome's values over `width` features at `positions` rows. -/
 abbrev outcomeValuesBound (κ : Costs) (positions width : Nat) : Nat :=
@@ -331,32 +361,79 @@ theorem expectedAtBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
   Library.vectorMap.work_mono (Nat.le_refl _)
     (Nat.add_le_add_right (Library.foldl.work_mono fits (Nat.le_refl _)) _)
 
+theorem outcomeValuesCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) :
+    (transition.outcomeValuesCosted value features shared).Within κ
+      (outcomeValuesBound κ (rankDimension dimension).capacity features.indices.length) := by
+  have width := transition.ranked.input_length features
+  have expected := expectedAtBound_mono κ (rankDimension dimension).capacity width
+  have deviations := Library.ofFn.work_mono (visit := κ .visit)
+    (Nat.le_refl metaCount.word.toNat)
+    (Nat.add_le_add_right (Library.foldl.work_mono (visit := κ .visit) width
+      (Nat.le_refl (κ .sumTerm))) (κ .outcomeValue))
+  unfold Transition.outcomeValuesCosted
+  refine Acorn.Costed.Within.mono
+    (Acorn.Costed.bind_within (inputCosted_within κ transition.ranked features)
+      (Acorn.Costed.bind_within
+        (expectedAtCosted_within κ transition (transition.ranked.input features))
+        (Acorn.Costed.bind_within
+          (rankedValuesCosted_within κ value transition.ranked
+            (transition.expectedAt (transition.ranked.input features)))
+          (Acorn.Costed.ofFn_within (bound := Library.foldl.work (κ .visit)
+              (transition.ranked.input features).indices.length (κ .sumTerm) + κ .outcomeValue)
+            fun action => Acorn.Costed.bind_within
+              (linearPredictionCosted_within κ (transition.deviations.get action).state
+                (transition.ranked.input features))
+              (Acorn.Costed.op_within _ _ κ))))) ?_
+  simp only [outcomeValuesBound] at expected deviations ⊢
+  omega
+
+/-- A predicted outcome's values, with the bound of their costed definition. -/
+def outcomeValues (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) : Costed (Vector Binary32 metaCount.word.toNat) :=
+  ⟨transition.outcomeValues value features shared,
+    outcomeValuesBound κ (rankDimension dimension).capacity features.indices.length⟩
+
+theorem outcomeValues_val (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) :
+    (outcomeValues κ transition value features shared).val =
+      transition.outcomeValues value features shared := rfl
+
 theorem outcomeValues_work (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) :
     (outcomeValues κ transition value features shared).work ≤
-      outcomeValuesBound κ (rankDimension dimension).capacity features.indices.length := by
-  have width := transition.ranked.input_length features
-  unfold outcomeValues
-  refine Nat.le_trans (Costed.bind_work_le_at (rankedInput_work κ transition.ranked features)
-    (Costed.bind_work_le_at (Nat.le_trans (expectedAt_work κ transition _)
-      (expectedAtBound_mono κ _ width))
-      (Costed.bind_work_le_at (rankedValues_work κ value transition.ranked _)
-        (Costed.ofFn_work_le (κ .visit)
-          (Library.foldl.work (κ .visit) (features.indices.length + 1) (κ .sumTerm) +
-            κ .outcomeValue) _
-          fun action =>
-          Costed.bind_work_le (Nat.le_trans
-            (linearPrediction_work κ (transition.deviations.get action).state _)
-            (Library.foldl.work_mono width (Nat.le_refl _))) fun _ => Nat.le_refl _)))) ?_
-  exact Nat.le_of_eq (by simp only [outcomeValuesBound]; omega)
+      outcomeValuesBound κ (rankDimension dimension).capacity features.indices.length :=
+  Nat.le_refl _
 
-/-- Twin of `Transition.lookahead`. -/
+theorem outcomeValues_costed (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) :
+    (transition.outcomeValuesCosted value features shared).Within κ
+      (outcomeValues κ transition value features shared).work :=
+  outcomeValuesCosted_within κ transition value features shared
+
+/-- Bound of a look-ahead over `width` features at `positions` rows. -/
+abbrev lookaheadBound (κ : Costs) (positions width : Nat) : Nat :=
+  outcomeValuesBound κ positions width + comparisonBound κ metaCount.word.toNat
+
+theorem lookaheadCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) :
+    (transition.lookaheadCosted value features shared).Within κ
+      (lookaheadBound κ (rankDimension dimension).capacity features.indices.length) :=
+  Acorn.Costed.bind_within (outcomeValuesCosted_within κ transition value features shared)
+    (comparisonValueCosted_within κ criterion _)
+
+/-- A look-ahead, with the bound of its costed definition. -/
 def lookahead (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (shared : Binary32) : Costed Binary32 := do
-  let values ← outcomeValues κ transition value features shared
-  comparisonValue κ criterion (⟨values, value.epsilon⟩ : PolicySnapshot metaCount)
+    (shared : Binary32) : Costed Binary32 :=
+  ⟨transition.lookahead value features shared,
+    lookaheadBound κ (rankDimension dimension).capacity features.indices.length⟩
 
 theorem lookahead_val (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -364,50 +441,19 @@ theorem lookahead_val (κ : Costs) (transition : Transition dimension criterion)
     (lookahead κ transition value features shared).val =
       transition.lookahead value features shared := rfl
 
-/-- Bound of a look-ahead over `width` features at `positions` rows. -/
-abbrev lookaheadBound (κ : Costs) (positions width : Nat) : Nat :=
-  outcomeValuesBound κ positions width + comparisonBound κ metaCount.word.toNat
-
 theorem lookahead_work (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) :
     (lookahead κ transition value features shared).work ≤
       lookaheadBound κ (rankDimension dimension).capacity features.indices.length :=
-  Costed.bind_work_le (outcomeValues_work κ transition value features shared) fun _ =>
-    comparisonValue_work κ criterion _
+  Nat.le_refl _
 
-/-- The costed composition of `Model.predict`: the model input, then each learner's
-prediction and the look-ahead of the transition part. -/
-def predictRun (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) : Costed (ModelPrediction criterion) :=
-  match model with
-  | .discounted reward continuation transition => do
-    let features ← modelInput κ .discounted base age
-    let r ← linearPrediction κ reward.state features
-    let c ← linearPrediction κ continuation.state features
-    let look ← lookahead κ transition value base c
-    Costed.op (κ .prediction)
-      ⟨Bounded32.project _ r, Criterion.discounted.modelContinuation look,
-        Bounded32.project _ .one⟩
-  | .differential reward continuation duration transition => do
-    let features ← modelInput κ .differential base age
-    let r ← linearPrediction κ reward.state features
-    let c ← linearPrediction κ continuation.state features
-    let look ← lookahead κ transition value base c
-    let d ← linearPrediction κ duration.state features
-    Costed.op (κ .prediction) ⟨Bounded32.project _ r, look, Bounded32.project _ d⟩
-
-theorem predictRun_val (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) : (predictRun κ model value base age).val = model.predict value base age := by
-  cases model <;> rfl
-
-/-- Twin of `Model.predict`. -/
-def predict (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
-    (age : ModelAge) : Costed (ModelPrediction criterion) :=
-  Costed.via (model.predict value base age) (predictRun κ model value base age)
+theorem lookahead_costed (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (shared : Binary32) :
+    (transition.lookaheadCosted value features shared).Within κ
+      (lookahead κ transition value features shared).work :=
+  lookaheadCosted_within κ transition value features shared
 
 /-- Bound of a model prediction over `width` features. -/
 abbrev predictBound (κ : Costs) (positions width : Nat) : Nat :=
@@ -415,33 +461,63 @@ abbrev predictBound (κ : Costs) (positions width : Nat) : Nat :=
     (3 * Library.foldl.work (κ .visit) (width + 1) (κ .sumTerm) +
       lookaheadBound κ positions width + κ .prediction)
 
+theorem predictCosted_within (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) :
+    (model.predictCosted value base age).Within κ
+      (predictBound κ (rankDimension dimension).capacity base.indices.length) := by
+  have width := modelInput_length criterion base age
+  have read := fun (learner : NumericState (criterion.config .demon) dimension) =>
+    (linearPredictionCosted_within κ learner (Features.modelInput criterion base age)).mono
+      (Library.foldl.work_mono width (Nat.le_refl (κ .sumTerm)))
+  cases model with
+  | discounted reward continuation transition =>
+    unfold Model.predictCosted
+    refine Acorn.Costed.Within.mono
+      (Acorn.Costed.bind_within (modelInputCosted_within κ _ base age)
+        (Acorn.Costed.bind_within (read reward.state)
+          (Acorn.Costed.bind_within (read continuation.state)
+            (Acorn.Costed.bind_within (lookaheadCosted_within κ transition value base
+                (continuation.state.linearPrediction (Features.modelInput .discounted base age)))
+              (Acorn.Costed.op_within _ _ κ))))) ?_
+    simp only [predictBound]
+    omega
+  | differential reward continuation duration transition =>
+    unfold Model.predictCosted
+    refine Acorn.Costed.Within.mono
+      (Acorn.Costed.bind_within (modelInputCosted_within κ _ base age)
+        (Acorn.Costed.bind_within (read reward.state)
+          (Acorn.Costed.bind_within (read continuation.state)
+            (Acorn.Costed.bind_within (lookaheadCosted_within κ transition value base
+                (continuation.state.linearPrediction (Features.modelInput .differential base age)))
+              (Acorn.Costed.bind_within (read duration.state)
+                (Acorn.Costed.op_within _ _ κ)))))) ?_
+    simp only [predictBound]
+    omega
+
+/-- A model prediction, with the bound of its costed definition. -/
+def predict (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) : Costed (ModelPrediction criterion) :=
+  ⟨model.predict value base age, predictBound κ (rankDimension dimension).capacity
+    base.indices.length⟩
+
+theorem predict_val (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) : (predict κ model value base age).val = model.predict value base age := rfl
+
 theorem predict_work (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) :
     (predict κ model value base age).work ≤
-      predictBound κ (rankDimension dimension).capacity base.indices.length := by
-  have width := modelInput_length criterion base age
-  have read := fun (learner : NumericState (criterion.config .demon) dimension) =>
-    Nat.le_trans (linearPrediction_work κ learner (Features.modelInput criterion base age))
-      (Library.foldl.work_mono width (Nat.le_refl (κ .sumTerm)))
-  change (predictRun κ model value base age).work ≤ _
-  cases model with
-  | discounted reward continuation transition =>
-    unfold predictRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ _ base age)
-      (Costed.bind_work_le_at (read reward.state) (Costed.bind_work_le_at (read continuation.state)
-        (Costed.bind_work_le (lookahead_work κ transition value base _) fun _ =>
-          Nat.le_refl _)))) ?_
-    simp only [predictBound]
-    omega
-  | differential reward continuation duration transition =>
-    unfold predictRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ _ base age)
-      (Costed.bind_work_le_at (read reward.state) (Costed.bind_work_le_at (read continuation.state)
-        (Costed.bind_work_le (lookahead_work κ transition value base _) fun _ =>
-          Costed.bind_work_le (read duration.state) fun _ => Nat.le_refl _)))) ?_
-    simp only [predictBound]
-    omega
+      predictBound κ (rankDimension dimension).capacity base.indices.length :=
+  Nat.le_refl _
+
+theorem predict_costed (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) :
+    (model.predictCosted value base age).Within κ (predict κ model value base age).work :=
+  predictCosted_within κ model value base age
 
 /-! ## Updates -/
 
@@ -607,11 +683,13 @@ theorem outcome_work (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
     (outcome κ transition value features).work ≤
       outcomeBound κ (rankDimension dimension).capacity features.indices.length :=
-  Costed.bind_work_le (indicator_work κ transition.ranked features) fun _ =>
-    Costed.bind_work_le (predictAll_work κ value.controller features) fun _ =>
-      Costed.bind_work_le (rankedValues_work κ value transition.ranked _) fun _ =>
-        Costed.bind_work_le (comparisonValue_work κ criterion _) fun _ =>
-          Costed.bind_work_le (comparisonValue_work κ criterion _) fun _ =>
+  Costed.bind_work_le (indicator_work κ transition.ranked features) fun seen =>
+    Costed.bind_work_le (predictAll_work κ value.controller features) fun complete =>
+      Costed.bind_work_le (rankedValues_work κ value transition.ranked seen) fun ranked =>
+        Costed.bind_work_le (comparisonValue_work κ criterion
+          (⟨complete, value.epsilon⟩ : PolicySnapshot metaCount)) fun _ =>
+          Costed.bind_work_le (comparisonValue_work κ criterion
+            (⟨ranked, value.epsilon⟩ : PolicySnapshot metaCount)) fun _ =>
             Costed.bind_work_le (Costed.ofFn_work_le _ _ _ fun _ => Nat.le_refl _) fun _ =>
               Nat.le_refl _
 
@@ -744,7 +822,8 @@ theorem modelBegin_work (κ : Costs) (model : Model dimension criterion)
   cases model with
   | discounted reward continuation transition =>
     unfold modelBeginRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ _ base _)
+    refine Nat.le_trans (Costed.bind_work_le_at
+      (modelInput_work κ .discounted base ⟨0, by decide⟩)
       (Costed.bind_work_le_at (learner reward _ (width _ _))
         (Costed.bind_work_le (learner continuation _ (width _ _)) fun _ =>
           Costed.bind_work_le (transitionBegin_work κ transition base) fun _ =>
@@ -753,7 +832,8 @@ theorem modelBegin_work (κ : Costs) (model : Model dimension criterion)
     omega
   | differential reward continuation duration transition =>
     unfold modelBeginRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ _ base _)
+    refine Nat.le_trans (Costed.bind_work_le_at
+      (modelInput_work κ .differential base ⟨0, by decide⟩)
       (Costed.bind_work_le_at (learner reward _ (width _ _))
         (Costed.bind_work_le (learner continuation _ (width _ _)) fun _ =>
           Costed.bind_work_le (learner duration _ (width _ _)) fun _ =>
@@ -813,7 +893,7 @@ theorem modelStep_work (κ : Costs) (model : Model dimension criterion)
   cases model with
   | discounted r c transition =>
     unfold modelStepRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ _ base _)
+    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ .discounted base age)
       (Costed.bind_work_le_at (learner r _ _ width)
         (Costed.bind_work_le (learner c _ _ width) fun _ =>
           Costed.bind_work_le (transitionStep_work κ transition base) fun _ =>
@@ -822,7 +902,7 @@ theorem modelStep_work (κ : Costs) (model : Model dimension criterion)
     omega
   | differential r c d transition =>
     unfold modelStepRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ _ base _)
+    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ .differential base age)
       (Costed.bind_work_le_at (learner r _ _ width)
         (Costed.bind_work_le (learner c _ _ width) fun _ =>
           Costed.bind_work_le (learner d _ _ width) fun _ =>

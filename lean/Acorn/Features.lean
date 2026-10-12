@@ -29,22 +29,54 @@ structure SensorWord where
   value : UInt64
   deriving DecidableEq
 
+/-- An insertion with its work: the membership test, then the append when the index is
+absent. -/
+def insertCosted {dimension : Dimension} (active : SwiftTd.ActiveSet dimension)
+    (index : FeatIdx dimension) : Costed (SwiftTd.ActiveSet dimension) :=
+  Costed.charge .insert do
+    let present ← Costed.attach (Costed.mem index active.indices)
+    Costed.dite (present.val = true) (fun _ => Costed.pure active) fun absent => do
+      have h : index ∉ active.indices := fun member => absent (by
+        rw [present.property, Costed.mem_val]
+        exact decide_eq_true member)
+      let joined ← Costed.attach (Costed.append active.indices [index])
+      Costed.pure ⟨joined.val, by
+        rw [joined.property, Costed.append_val]
+        simp only [List.nodup_append]
+        refine ⟨active.nodup, by simp, ?_⟩
+        intro a ha b hb he
+        have hb : b = index := by simpa using hb
+        exact h ((he.trans hb) ▸ ha)⟩
+
 /-- Append an absent index, preserving every existing position. -/
 def insert {dimension : Dimension} (active : SwiftTd.ActiveSet dimension)
     (index : FeatIdx dimension) : SwiftTd.ActiveSet dimension :=
-  if h : index ∈ active.indices then active else
-    ⟨active.indices ++ [index], by
-      simp only [List.nodup_append]
-      refine ⟨active.nodup, by simp, ?_⟩
-      intro a ha b hb he
-      have hb : b = index := by simpa using hb
-      exact h ((he.trans hb) ▸ ha)⟩
+  (insertCosted active index).val
+
+/-- An insertion keeps a present index's set and appends an absent index. -/
+theorem insert_def {dimension : Dimension} (active : SwiftTd.ActiveSet dimension)
+    (index : FeatIdx dimension) :
+    insert active index = if h : index ∈ active.indices then active else
+      ⟨active.indices ++ [index], by
+        simp only [List.nodup_append]
+        refine ⟨active.nodup, by simp, ?_⟩
+        intro a ha b hb he
+        have hb : b = index := by simpa using hb
+        exact h ((he.trans hb) ▸ ha)⟩ := by
+  show (if present : decide (index ∈ active.indices) = true then active else _) = _
+  split <;> split
+  · rfl
+  · rename_i present absent
+    exact absurd (of_decide_eq_true present) absent
+  · rename_i absent present
+    exact absurd (decide_eq_true present) absent
+  · rfl
 
 /-- Insertion adds exactly the supplied membership. -/
 theorem mem_insert {dimension : Dimension} (active : SwiftTd.ActiveSet dimension)
     (index query : FeatIdx dimension) :
     query ∈ (insert active index).indices ↔ query ∈ active.indices ∨ query = index := by
-  unfold insert
+  rw [insert_def]
   split <;> simp_all
 
 /-- Existing active order is an exact prefix after insertion. -/
@@ -52,7 +84,7 @@ theorem insert_order {dimension : Dimension} (active : SwiftTd.ActiveSet dimensi
     (index : FeatIdx dimension) :
     (insert active index).indices = active.indices ++
       (if index ∈ active.indices then [] else [index]) := by
-  unfold insert
+  rw [insert_def]
   split <;> simp_all
 
 /-- Filtering retains the union of prior and incoming membership. -/
@@ -151,7 +183,8 @@ theorem UniqueBuilder.finish_def {dimension : Dimension} (builder : UniqueBuilde
 theorem UniqueBuilder.add_finish {dimension : Dimension} (builder : UniqueBuilder dimension)
     (index : FeatIdx dimension) : (builder.add index).finish = insert builder.finish index := by
   simp only [UniqueBuilder.finish_def]
-  unfold UniqueBuilder.add insert
+  unfold UniqueBuilder.add
+  rw [insert_def]
   simp only [builder.exact, decide_eq_true_eq, List.mem_reverse]
   split <;> simp_all [List.reverse_cons]
 
