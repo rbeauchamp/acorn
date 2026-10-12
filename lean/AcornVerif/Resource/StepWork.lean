@@ -28,9 +28,9 @@ trust assumption and correspondences that no theorem checks, which a later incre
 requirement R8 (rbeauchamp/acorn#90) owes. The trust assumption is that the compiler erases a
 costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
 The learner's, the learner record's, the policy's, the controllers' costed parts (those
-`AcornVerif.Resource.Work` lists), the encoding's and the option models' input, ranked features and
-prediction are the work of their executed functions, whose definitions are the values of their
-costed definitions, under the cost discipline of `Acorn.Cost`: every value a costed definition
+`AcornVerif.Resource.Work` lists), the encoding's and the option models' input, ranked features,
+prediction and updates are the work of their executed functions, whose definitions are the values of
+their costed definitions, under the cost discipline of `Acorn.Cost`: every value a costed definition
 passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without a costed
 definition and with no loop except those `Acorn.Cost` lists as left inside a segment, whose trip
 counts are bounded by constants of the code (the at most 33 steps of `Portable.pow` among them),
@@ -161,8 +161,8 @@ and percept. It is not a bound of the executed first part's work: that reading r
 compiler's erasure of the work of the costed definitions of the learner, of a learner's record (its
 entry, retirement and credit), of the controllers (their predictions, clear, release, snapshot,
 derived rate and the updates `AcornVerif.Resource.Work` lists), of the frozen policy and of its
-exploration, of the encoding of a frame and of an option model's input, ranked features and
-prediction, a trust assumption, on the cost discipline of the same costed definitions, checked by
+exploration, of the encoding of a frame and of an option model's input, ranked features, prediction
+and updates, a trust assumption, on the cost discipline of the same costed definitions, checked by
 reading, and on the twins' correspondence with the executed selection, the controllers' initial
 value and reset among them, observed in one build by a one-time inventory of its compiled calls; a
 later increment of requirement R8 owes it. -/
@@ -183,10 +183,11 @@ that reading needs `words` to count the segments of the executed code, the inten
 of the costed definitions of the learner, of a learner's record (its entry, retirement and credit),
 of the controllers (their predictions, clear, release, snapshot, derived rate and the updates
 `AcornVerif.Resource.Work` lists), of the frozen policy and of its exploration and of the encoding
-of a frame and of an option model's input, ranked features and prediction, a trust assumption, the
-cost discipline of the same costed definitions, checked by reading, and the twins' correspondence
-with the executed selection, the controllers' initial value and reset among them, observed in one
-build by a one-time inventory of its compiled calls; a later increment of requirement R8 owes it. -/
+of a frame and of an option model's input, ranked features, prediction and updates, a trust
+assumption, the cost discipline of the same costed definitions, checked by reading, and the twins'
+correspondence with the executed selection, the controllers' initial value and reset among them,
+observed in one build by a one-time inventory of its compiled calls; a later increment of
+requirement R8 owes it. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

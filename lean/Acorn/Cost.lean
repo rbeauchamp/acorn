@@ -111,7 +111,10 @@ input, ranked features and prediction (`insertCosted` in `Acorn.Features`, `mode
 `Acorn.FeatureModelInput`, `RankedFeatures.activeCosted`, `inputCosted`, `indicatorCosted` and
 `occupiedCosted` in `Acorn.RankedFeatures`, `comparisonValueCosted` in `Acorn.Options`,
 `ValueFunction.rankedValuesCosted`, `Transition.expectedAtCosted`, `outcomeValuesCosted`,
-`lookaheadCosted` and `Model.predictCosted` in `Acorn.Models`).
+`lookaheadCosted` and `Model.predictCosted` in `Acorn.Models`) and updates
+(`Transition.outcomeCosted`, `updateRowsCosted`, `beginCosted`, `stepCosted`, `terminalCosted`
+and `stopCosted`, `Managed.stopTrajectoryCosted`, and `Model.beginCosted`, `stepCosted`,
+`terminalCosted` and `stopCosted` in `Acorn.Models`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -141,21 +144,20 @@ rule that rbeauchamp/regula#333 proposes checks it. That a library loop makes th
 `Library` cites. That the compiler erases the work, since `work` is a type former and `single` a
 proof, and leaves the code of the value as written is a trust assumption on the compiler's erasure.
 A comparison of the generated C of the costed learner with that of the same definitions written
-without work found them equal up to renaming. A comparison of the generated C of the costed
-policy and exploration definitions and their callers with that of the same definitions written
-without work found them equal up to the renaming of the definitions and their local variables
-and, in four callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`,
-`TemporalControl.serveDraw`, `Skill.followTemporal`), the order of the parallel moves into a
-join point. The same holds of the costed definitions of a learner's record, the controllers'
-parts and updates listed above and the normalized step-size sum and their callers, where
-`TemporalControl.serveDraw` again differs only in that order, and of the costed definitions of
-the encoding of a frame and their callers, where `NumericState.resumable` and
-`Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does, call a specialization of
-that fold of their own with the body of the one they shared with `unique`, and of the costed
-definitions of an option model's input, ranked features and prediction and their callers. Each
-is an observation of one build, which no gate repeats. A bound in word operations bounds the
-accounting under `SiteBounds`; no checked statement says that a segment of the executed code
-does at most its site's cost in word operations.
+without work found them equal up to renaming. A comparison of the generated C of the costed policy
+and exploration definitions and their callers with that of the same definitions written without work
+found them equal up to the renaming of the definitions and their local variables and, in four
+callers (`TemporalControl.choosePrimitive`, `TemporalControl.serve`, `TemporalControl.serveDraw`,
+`Skill.followTemporal`), the order of the parallel moves into a join point. The same holds of the
+costed definitions of a learner's record, the controllers' parts and updates listed above and the
+normalized step-size sum and their callers, where `TemporalControl.serveDraw` again differs only in
+that order, and of the costed definitions of the encoding of a frame and their callers, where
+`NumericState.resumable` and `Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does,
+call a specialization of that fold of their own with the body of the one they shared with `unique`,
+and of the costed definitions of an option model's input, ranked features, prediction and updates
+and their callers. Each is an observation of one build, which no gate repeats. A bound in word
+operations bounds the accounting under `SiteBounds`; no checked statement says that a segment of the
+executed code does at most its site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a

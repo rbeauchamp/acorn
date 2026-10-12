@@ -10,10 +10,10 @@ import AcornVerif.Resource.ControlWork
 # Work of the option models
 
 The bounds of the costed definitions of an option model's input, of its ranked features
-(`Acorn.RankedFeatures`) and of its prediction (`Acorn.Models`), and twins of its updates, which
-are not yet costed. Each definition here for a costed definition is the executed function with
-the bound proved of its costed definition as its work, and its `_costed` theorem checks that the
-costed definition is within it. A transition part has one row
+(`Acorn.RankedFeatures`), of its prediction and of its updates (`Acorn.Models`); its restart
+(`Model.restart`) is not costed yet. Each definition here is the executed function with the bound
+proved of its costed definition as its work, and its `_costed` theorem checks that the costed
+definition is within it. A transition part has one row
 for each ranked position, `(rankDimension dimension).capacity` rows, each an admitted learner
 over the ranked positions, and one deviation learner for each meta action. A row's input is
 the frame's active ranked positions and the bias position, so it has at most one position
@@ -544,22 +544,15 @@ theorem stepBound_mono (κ : Costs) (count : Nat) {width limit : Nat} (fits : wi
   simp only [stepBound]
   omega
 
-/-- Twin of `Transition.updateRows`: every row visited, the rows of occupied positions
-updated, and every deviation learner updated. -/
-def updateRows (κ : Costs) (transition : Transition dimension criterion)
-    (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
-      Costed (Managed (criterion.config .demon) (rankDimension dimension)))
-    (deviate : Action metaCount.word.toNat →
-      Managed (criterion.config .demon) (rankDimension dimension) →
-      Costed (Managed (criterion.config .demon) (rankDimension dimension))) :
-    Costed (Transition dimension criterion) := do
-  let rows ← Costed.mapFinIdx (κ .visit)
-    (fun index row bound => Costed.ite ((transition.ranked.slots[index]'bound).isSome = true)
-      (update ⟨index, bound⟩ row) (Costed.pure row))
-    transition.rows
-  let deviations ← Costed.mapFinIdx (κ .visit)
-    (fun index learner bound => deviate ⟨index, bound⟩ learner) transition.deviations
-  Costed.op (κ .modelClose) ⟨transition.ranked, rows, deviations⟩
+/-- A learner record's entry is within the bound of its entry at the capacity of its
+dimension. -/
+theorem applyCosted_capacity (κ : Costs) {learnerConfig : Acorn.Config} {space : Dimension}
+    (learner : Managed learnerConfig space) (entry : SwiftTd.Entry space)
+    (permitted : SwiftTd.Permitted entry learner.phase) :
+    (learner.applyCosted entry permitted).Within κ
+      (κ .managedEntry + entryBound κ space.capacity space.capacity entry) :=
+  (managedApply_costed κ learner entry permitted).mono
+    (managedApply_work κ learner entry permitted)
 
 /-- Bound of a model update at `positions` rows, by bounds of a row's and a deviation
 learner's update. -/
@@ -567,38 +560,24 @@ abbrev updateRowsBound (κ : Costs) (positions rowBound deviationBound : Nat) : 
   Library.mapFinIdx.work (κ .visit) positions rowBound +
     (Library.mapFinIdx.work (κ .visit) metaCount.word.toNat deviationBound + κ .modelClose)
 
-theorem updateRows_work (κ : Costs) (transition : Transition dimension criterion)
+theorem updateRowsCosted_within (κ : Costs) (transition : Transition dimension criterion)
     (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
-      Costed (Managed (criterion.config .demon) (rankDimension dimension)))
+      Acorn.Costed (Managed (criterion.config .demon) (rankDimension dimension)))
     (deviate : Action metaCount.word.toNat →
       Managed (criterion.config .demon) (rankDimension dimension) →
-      Costed (Managed (criterion.config .demon) (rankDimension dimension)))
+      Acorn.Costed (Managed (criterion.config .demon) (rankDimension dimension)))
     (rowBound deviationBound : Nat)
-    (rowFits : ∀ position row, (update position row).work ≤ rowBound)
-    (deviationFits : ∀ action learner, (deviate action learner).work ≤ deviationBound) :
-    (updateRows κ transition update deviate).work ≤
-      updateRowsBound κ (rankDimension dimension).capacity rowBound deviationBound :=
-  Costed.bind_work_le
-    (Costed.mapFinIdx_work_le (κ .visit) rowBound _ _ fun _ _ _ =>
-      Nat.le_trans (Costed.ite_work_le _ _ _) (Nat.max_le.mpr ⟨rowFits _ _, Nat.zero_le _⟩))
-    fun _ => Costed.bind_work_le
-      (Costed.mapFinIdx_work_le (κ .visit) deviationBound _ _ fun _ _ _ => deviationFits _ _)
-      fun _ => Nat.le_refl _
-
-/-- Twin of `Transition.begin`: the row input, the ranked dimension the updates read, which
-evaluates the ranked width, and the updates. -/
-def transitionBegin (κ : Costs) (transition : Transition dimension criterion)
-    (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) := do
-  let input ← rankedInput κ transition.ranked features
-  Costed.charge (κ .rankWidth)
-    (updateRows κ transition (fun _ row => managedApply κ row (.beginTrajectory input) trivial)
-      (fun _ learner => managedApply κ learner (.beginTrajectory input) trivial))
-
-theorem transitionBegin_val (κ : Costs) (transition : Transition dimension criterion)
-    (features : SwiftTd.ActiveSet dimension) :
-    (transitionBegin κ transition features).val = transition.begin features := by
+    (rowFits : ∀ position row, (update position row).Within κ rowBound)
+    (deviationFits : ∀ action learner, (deviate action learner).Within κ deviationBound) :
+    (transition.updateRowsCosted update deviate).Within κ
+      (updateRowsBound κ (rankDimension dimension).capacity rowBound deviationBound) := by
   cases transition
-  rfl
+  unfold Transition.updateRowsCosted updateRowsBound
+  refine Acorn.Costed.bind_within (Acorn.Costed.mapFinIdx_within fun _ => ?_)
+    (Acorn.Costed.bind_within (Acorn.Costed.mapFinIdx_within fun _ => deviationFits _ _)
+      (Acorn.Costed.op_within _ _ κ))
+  exact Acorn.Costed.ite_within (fun _ => rowFits _ _)
+    fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
 /-- Bound of a transition part's start over `width` features. -/
 abbrev transitionBeginBound (κ : Costs) (positions width : Nat) : Nat :=
@@ -606,33 +585,39 @@ abbrev transitionBeginBound (κ : Costs) (positions width : Nat) : Nat :=
     (κ .managedEntry + beginBound κ positions (width + 1))
     (κ .managedEntry + beginBound κ positions (width + 1)))
 
+theorem transitionBeginCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    (transition.beginCosted features).Within κ
+      (transitionBeginBound κ (rankDimension dimension).capacity features.indices.length) := by
+  have width := transition.ranked.input_length features
+  unfold Transition.beginCosted transitionBeginBound
+  refine Acorn.Costed.bind_within (inputCosted_within κ transition.ranked features) ?_
+  exact Acorn.Costed.charge_within (updateRowsCosted_within κ transition _ _ _ _
+    (fun _ row => (applyCosted_capacity κ row _ _).mono
+      (Nat.add_le_add_left (beginBound_mono κ _ width) _))
+    (fun _ learner => (applyCosted_capacity κ learner _ _).mono
+      (Nat.add_le_add_left (beginBound_mono κ _ width) _)))
+
+/-- A transition part's start, with the bound of its costed definition. -/
+def transitionBegin (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) :=
+  ⟨transition.begin features,
+    transitionBeginBound κ (rankDimension dimension).capacity features.indices.length⟩
+
+theorem transitionBegin_val (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    (transitionBegin κ transition features).val = transition.begin features := rfl
+
 theorem transitionBegin_work (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
     (transitionBegin κ transition features).work ≤
-      transitionBeginBound κ (rankDimension dimension).capacity features.indices.length := by
-  have width := transition.ranked.input_length features
-  unfold transitionBegin
-  exact Costed.bind_work_le_at (rankedInput_work κ transition.ranked features)
-    (Costed.charge_work_le (updateRows_work κ transition _ _ _ _
-      (fun _ row => Nat.le_trans (managedApply_work κ row (.beginTrajectory _) trivial)
-        (Nat.add_le_add_left (beginBound_mono κ _ width) _))
-      (fun _ learner => Nat.le_trans (managedApply_work κ learner (.beginTrajectory _) trivial)
-        (Nat.add_le_add_left (beginBound_mono κ _ width) _))))
+      transitionBeginBound κ (rankDimension dimension).capacity features.indices.length :=
+  Nat.le_refl _
 
-/-- Twin of `Transition.step`: the row input, the ranked dimension the updates read, which
-evaluates the ranked width, and the updates. -/
-def transitionStep (κ : Costs) (transition : Transition dimension criterion)
-    (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) := do
-  let input ← rankedInput κ transition.ranked features
-  Costed.charge (κ .rankWidth)
-    (updateRows κ transition (fun _ row => managedApply κ row (.step input .zero) trivial)
-      (fun _ learner => managedApply κ learner (.step input .zero) trivial))
-
-theorem transitionStep_val (κ : Costs) (transition : Transition dimension criterion)
+theorem transitionBegin_costed (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
-    (transitionStep κ transition features).val = transition.step features := by
-  cases transition
-  rfl
+    (transition.beginCosted features).Within κ (transitionBegin κ transition features).work :=
+  transitionBeginCosted_within κ transition features
 
 /-- Bound of a transition part's step over `width` features. -/
 abbrev transitionStepBound (κ : Costs) (positions width : Nat) : Nat :=
@@ -640,37 +625,39 @@ abbrev transitionStepBound (κ : Costs) (positions width : Nat) : Nat :=
     (κ .managedEntry + stepBound κ positions (width + 1))
     (κ .managedEntry + stepBound κ positions (width + 1)))
 
+theorem transitionStepCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    (transition.stepCosted features).Within κ
+      (transitionStepBound κ (rankDimension dimension).capacity features.indices.length) := by
+  have width := transition.ranked.input_length features
+  unfold Transition.stepCosted transitionStepBound
+  refine Acorn.Costed.bind_within (inputCosted_within κ transition.ranked features) ?_
+  exact Acorn.Costed.charge_within (updateRowsCosted_within κ transition _ _ _ _
+    (fun _ row => (applyCosted_capacity κ row _ _).mono
+      (Nat.add_le_add_left (stepBound_mono κ _ width) _))
+    (fun _ learner => (applyCosted_capacity κ learner _ _).mono
+      (Nat.add_le_add_left (stepBound_mono κ _ width) _)))
+
+/-- A transition part's step, with the bound of its costed definition. -/
+def transitionStep (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) :=
+  ⟨transition.step features,
+    transitionStepBound κ (rankDimension dimension).capacity features.indices.length⟩
+
+theorem transitionStep_val (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    (transitionStep κ transition features).val = transition.step features := rfl
+
 theorem transitionStep_work (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) :
     (transitionStep κ transition features).work ≤
-      transitionStepBound κ (rankDimension dimension).capacity features.indices.length := by
-  have width := transition.ranked.input_length features
-  unfold transitionStep
-  exact Costed.bind_work_le_at (rankedInput_work κ transition.ranked features)
-    (Costed.charge_work_le (updateRows_work κ transition _ _ _ _
-      (fun _ row => Nat.le_trans (managedApply_work κ row (.step _ _) trivial)
-        (Nat.add_le_add_left (stepBound_mono κ _ width) _))
-      (fun _ learner => Nat.le_trans (managedApply_work κ learner (.step _ _) trivial)
-        (Nat.add_le_add_left (stepBound_mono κ _ width) _))))
+      transitionStepBound κ (rankDimension dimension).capacity features.indices.length :=
+  Nat.le_refl _
 
-/-- Twin of `Transition.outcome`: the indicator, the value function's predictions, the
-ranked values, the two nominal values and each meta action's deviation. -/
-def outcome (κ : Costs) (transition : Transition dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
-    Costed (Outcome dimension) := do
-  let seen ← indicator κ transition.ranked features
-  let complete ← predictAll κ value.controller features
-  let ranked ← rankedValues κ value transition.ranked seen
-  let all ← comparisonValue κ criterion (⟨complete, value.epsilon⟩ : PolicySnapshot metaCount)
-  let part ← comparisonValue κ criterion (⟨ranked, value.epsilon⟩ : PolicySnapshot metaCount)
-  let residual := all.sub part
-  let deviations ← Costed.ofFn (κ .visit) fun action => Costed.op (κ .deviation)
-    (criterion.rule.gamma.mul (((complete.get action).sub (ranked.get action)).sub residual))
-  Costed.pure ⟨seen, criterion.rule.gamma.mul residual, deviations⟩
-
-theorem outcome_val (κ : Costs) (transition : Transition dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
-    (outcome κ transition value features).val = transition.outcome value features := rfl
+theorem transitionStep_costed (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    (transition.stepCosted features).Within κ (transitionStep κ transition features).work :=
+  transitionStepCosted_within κ transition features
 
 /-- Bound of an outcome over `width` features at `positions` ranked positions. -/
 abbrev outcomeBound (κ : Costs) (positions width : Nat) : Nat :=
@@ -679,127 +666,150 @@ abbrev outcomeBound (κ : Costs) (positions width : Nat) : Nat :=
       (comparisonBound κ metaCount.word.toNat + (comparisonBound κ metaCount.word.toNat +
         (Library.ofFn.work (κ .visit) metaCount.word.toNat (κ .deviation) + 0)))))
 
+theorem outcomeCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    (transition.outcomeCosted value features).Within κ
+      (outcomeBound κ (rankDimension dimension).capacity features.indices.length) :=
+  Acorn.Costed.bind_within (indicatorCosted_within κ transition.ranked features)
+    (Acorn.Costed.bind_within (predictAllCosted_within κ value.controller features)
+      (Acorn.Costed.bind_within (rankedValuesCosted_within κ value transition.ranked _)
+        (Acorn.Costed.bind_within (comparisonValueCosted_within κ criterion _)
+          (Acorn.Costed.bind_within (comparisonValueCosted_within κ criterion _)
+            (Acorn.Costed.bind_within
+              (Acorn.Costed.ofFn_within fun _ => Acorn.Costed.op_within _ _ κ)
+              (Acorn.Costed.pure_within _ κ))))))
+
+/-- An outcome, with the bound of its costed definition. -/
+def outcome (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    Costed (Outcome dimension) :=
+  ⟨transition.outcome value features,
+    outcomeBound κ (rankDimension dimension).capacity features.indices.length⟩
+
+theorem outcome_val (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    (outcome κ transition value features).val = transition.outcome value features := by
+  unfold outcome
+  rfl
+
 theorem outcome_work (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
     (outcome κ transition value features).work ≤
       outcomeBound κ (rankDimension dimension).capacity features.indices.length :=
-  Costed.bind_work_le (indicator_work κ transition.ranked features) fun seen =>
-    Costed.bind_work_le (predictAll_work κ value.controller features) fun complete =>
-      Costed.bind_work_le (rankedValues_work κ value transition.ranked seen) fun ranked =>
-        Costed.bind_work_le (comparisonValue_work κ criterion
-          (⟨complete, value.epsilon⟩ : PolicySnapshot metaCount)) fun _ =>
-          Costed.bind_work_le (comparisonValue_work κ criterion
-            (⟨ranked, value.epsilon⟩ : PolicySnapshot metaCount)) fun _ =>
-            Costed.bind_work_le (Costed.ofFn_work_le _ _ _ fun _ => Nat.le_refl _) fun _ =>
-              Nat.le_refl _
+  Nat.le_refl _
+
+theorem outcome_costed (κ : Costs) (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    (transition.outcomeCosted value features).Within κ
+      (outcome κ transition value features).work :=
+  outcomeCosted_within κ transition value features
 
 /-- A model learner's bound of a terminal entry. -/
 abbrev modelTerminalBound (κ : Costs) (capacity : Nat) : Nat :=
   κ .managedEntry + terminalBound κ capacity capacity
 
-/-- Twin of `Transition.terminal`: the ranked dimension the updates read, which evaluates the
-ranked width, and the updates, each with the target it reads. -/
+theorem transitionTerminalCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) :
+    (transition.terminalCosted outcome).Within κ
+      ((κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
+        (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)
+        (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity))) :=
+  Acorn.Costed.charge_within (updateRowsCosted_within κ transition _ _ _ _
+    (fun _ row => Acorn.Costed.charge_within (applyCosted_capacity κ row _ _))
+    (fun _ learner => Acorn.Costed.charge_within (applyCosted_capacity κ learner _ _)))
+
+/-- A transition part's terminal step, with the bound of its costed definition. -/
 def transitionTerminal (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
-  Costed.charge (κ .rankWidth) (updateRows κ transition
-    (fun position row => Costed.charge (κ .learnerError) (managedApply κ row
-      (.terminal (criterion.rule.gamma.mul (outcome.seen.get position).value)) trivial))
-    (fun action learner => Costed.charge (κ .learnerError)
-      (managedApply κ learner (.terminal (outcome.deviations.get action)) trivial)))
+  ⟨transition.terminal outcome,
+    κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
+    (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)
+    (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)⟩
 
 theorem transitionTerminal_val (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
-    (transitionTerminal κ transition outcome).val = transition.terminal outcome := by
-  cases transition
-  rfl
+    (transitionTerminal κ transition outcome).val = transition.terminal outcome := rfl
 
 theorem transitionTerminal_work (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
     (transitionTerminal κ transition outcome).work ≤
-      κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
+      (κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
         (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)
-        (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity) :=
-  Costed.charge_work_le (updateRows_work κ transition _ _ _ _
-    (fun _ row => Costed.charge_work_le (managedApply_work κ row (.terminal _) trivial))
-    (fun _ learner => Costed.charge_work_le (managedApply_work κ learner (.terminal _) trivial)))
+        (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)) :=
+  Nat.le_refl _
 
-/-- Twin of `Managed.stopTrajectory`: the error, a first loop, then a release. -/
-def stopTrajectory {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
-    (learner : Managed learnerConfig space) (target : Binary32) :
-    Costed (Managed learnerConfig space) := Costed.charge (κ .learnerError) (do
-  let first ← managedApply κ learner
-    (.first (target.sub learner.state.transient.vOld) learner.state.transient.vDelta .zero) trivial
-  managedApply κ first .release trivial)
-
-theorem stopTrajectory_val {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
-    (learner : Managed learnerConfig space) (target : Binary32) :
-    (stopTrajectory κ learner target).val = learner.stopTrajectory target := rfl
+theorem transitionTerminal_costed (κ : Costs) (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) :
+    (transition.terminalCosted outcome).Within κ (transitionTerminal κ transition outcome).work :=
+  transitionTerminalCosted_within κ transition outcome
 
 /-- Bound of a stopped trajectory at a capacity. -/
 abbrev stopTrajectoryBound (κ : Costs) (capacity : Nat) : Nat :=
   κ .learnerError + ((κ .managedEntry + firstLoopBound κ capacity) +
     (κ .managedEntry + releaseBound κ capacity))
 
+theorem stopTrajectoryCosted_within {learnerConfig : Acorn.Config} {space : Dimension}
+    (κ : Costs) (learner : Managed learnerConfig space) (target : Binary32) :
+    (learner.stopTrajectoryCosted target).Within κ (stopTrajectoryBound κ space.capacity) :=
+  Acorn.Costed.charge_within (Acorn.Costed.bind_within
+    (Acorn.Costed.attach_within (applyCosted_capacity κ learner _ _))
+    (applyCosted_capacity κ _ .release _))
+
+/-- A stopped trajectory, with the bound of its costed definition. -/
+def stopTrajectory {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
+    (learner : Managed learnerConfig space) (target : Binary32) :
+    Costed (Managed learnerConfig space) :=
+  ⟨learner.stopTrajectory target, stopTrajectoryBound κ space.capacity⟩
+
+theorem stopTrajectory_val {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
+    (learner : Managed learnerConfig space) (target : Binary32) :
+    (stopTrajectory κ learner target).val = learner.stopTrajectory target := rfl
+
 theorem stopTrajectory_work {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
     (learner : Managed learnerConfig space) (target : Binary32) :
     (stopTrajectory κ learner target).work ≤ stopTrajectoryBound κ space.capacity :=
-  Costed.charge_work_le (Costed.bind_work_le (managedApply_work κ learner (.first _ _ _) trivial)
-    fun first => managedApply_work κ first .release trivial)
+  Nat.le_refl _
 
-/-- Twin of `Transition.stop`: the ranked dimension the updates read, which evaluates the ranked
-width, and the updates, each with the target it reads. -/
+theorem stopTrajectory_costed {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
+    (learner : Managed learnerConfig space) (target : Binary32) :
+    (learner.stopTrajectoryCosted target).Within κ (stopTrajectory κ learner target).work :=
+  stopTrajectoryCosted_within κ learner target
+
+theorem transitionStopCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) :
+    (transition.stopCosted outcome).Within κ
+      ((κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
+        (κ .learnerError + stopTrajectoryBound κ (rankDimension dimension).capacity)
+        (κ .learnerError + stopTrajectoryBound κ (rankDimension dimension).capacity))) :=
+  Acorn.Costed.charge_within (updateRowsCosted_within κ transition _ _ _ _
+    (fun _ row => Acorn.Costed.charge_within (stopTrajectoryCosted_within κ row _))
+    (fun _ learner => Acorn.Costed.charge_within (stopTrajectoryCosted_within κ learner _)))
+
+/-- A transition part's stopped trajectory, with the bound of its costed definition. -/
 def transitionStop (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
-  Costed.charge (κ .rankWidth) (updateRows κ transition
-    (fun position row => Costed.charge (κ .learnerError) (stopTrajectory κ row
-      (criterion.rule.gamma.mul (outcome.seen.get position).value)))
-    (fun action learner => Costed.charge (κ .learnerError)
-      (stopTrajectory κ learner (outcome.deviations.get action))))
+  ⟨transition.stop outcome, κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
+    (κ .learnerError + stopTrajectoryBound κ (rankDimension dimension).capacity)
+    (κ .learnerError + stopTrajectoryBound κ (rankDimension dimension).capacity)⟩
 
 theorem transitionStop_val (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
-    (transitionStop κ transition outcome).val = transition.stop outcome := by
-  cases transition
-  rfl
+    (transitionStop κ transition outcome).val = transition.stop outcome := rfl
 
 theorem transitionStop_work (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) :
     (transitionStop κ transition outcome).work ≤
-      κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
+      (κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
         (κ .learnerError + stopTrajectoryBound κ (rankDimension dimension).capacity)
-        (κ .learnerError + stopTrajectoryBound κ (rankDimension dimension).capacity) :=
-  Costed.charge_work_le (updateRows_work κ transition _ _ _ _
-    (fun _ row => Costed.charge_work_le (stopTrajectory_work κ row _))
-    (fun _ learner => Costed.charge_work_le (stopTrajectory_work κ learner _)))
+        (κ .learnerError + stopTrajectoryBound κ (rankDimension dimension).capacity)) :=
+  Nat.le_refl _
+
+theorem transitionStop_costed (κ : Costs) (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) :
+    (transition.stopCosted outcome).Within κ (transitionStop κ transition outcome).work :=
+  transitionStopCosted_within κ transition outcome
 
 /-! ## A whole model -/
-
-/-- The costed composition of `Model.begin`: the model input, then each learner's start. -/
-def modelBeginRun (κ : Costs) (model : Model dimension criterion)
-    (base : SwiftTd.ActiveSet dimension) : Costed (Model dimension criterion) :=
-  match model with
-  | .discounted reward continuation transition => do
-    let features ← modelInput κ .discounted base ⟨0, by decide⟩
-    let reward ← managedApply κ reward (.beginTrajectory features) trivial
-    let continuation ← managedApply κ continuation (.beginTrajectory features) trivial
-    let transition ← transitionBegin κ transition base
-    Costed.op (κ .modelClose) (.discounted reward continuation transition)
-  | .differential reward continuation duration transition => do
-    let features ← modelInput κ .differential base ⟨0, by decide⟩
-    let reward ← managedApply κ reward (.beginTrajectory features) trivial
-    let continuation ← managedApply κ continuation (.beginTrajectory features) trivial
-    let duration ← managedApply κ duration (.beginTrajectory features) trivial
-    let transition ← transitionBegin κ transition base
-    Costed.op (κ .modelClose) (.differential reward continuation duration transition)
-
-theorem modelBeginRun_val (κ : Costs) (model : Model dimension criterion)
-    (base : SwiftTd.ActiveSet dimension) : (modelBeginRun κ model base).val = model.begin base := by
-  cases model <;> simp only [modelBeginRun, Costed.bind_val, transitionBegin_val] <;> rfl
-
-/-- Twin of `Model.begin`. -/
-def modelBegin (κ : Costs) (model : Model dimension criterion)
-    (base : SwiftTd.ActiveSet dimension) : Costed (Model dimension criterion) :=
-  Costed.via (model.begin base) (modelBeginRun κ model base)
 
 /-- Bound of a model start over `width` features. -/
 abbrev modelBeginBound (κ : Costs) (capacity positions width : Nat) : Nat :=
@@ -807,70 +817,57 @@ abbrev modelBeginBound (κ : Costs) (capacity positions width : Nat) : Nat :=
     (3 * (κ .managedEntry + beginBound κ capacity (width + 1)) +
       (transitionBeginBound κ positions width + κ .modelClose))
 
+theorem modelBeginCosted_within (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) :
+    (model.beginCosted base).Within κ
+      (modelBeginBound κ dimension.capacity (rankDimension dimension).capacity
+        base.indices.length) := by
+  have width := modelInput_length criterion base ⟨0, by decide⟩
+  have learner := fun {learnerConfig : Acorn.Config} (row : Managed learnerConfig dimension) =>
+    (applyCosted_capacity κ row (.beginTrajectory (Features.modelInput criterion base
+      ⟨0, by decide⟩)) trivial).mono
+      (Nat.add_le_add_left (beginBound_mono κ dimension.capacity width) _)
+  cases model with
+  | discounted r c t =>
+    unfold Model.beginCosted
+    refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+      (modelInputCosted_within κ _ base _)
+      (Acorn.Costed.bind_within (learner r) (Acorn.Costed.bind_within (learner c)
+        (Acorn.Costed.bind_within (transitionBeginCosted_within κ t base)
+          (Acorn.Costed.op_within _ _ κ))))) ?_
+    simp only [modelBeginBound]
+    omega
+  | differential r c d t =>
+    unfold Model.beginCosted
+    refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+      (modelInputCosted_within κ _ base _)
+      (Acorn.Costed.bind_within (learner r) (Acorn.Costed.bind_within (learner c)
+        (Acorn.Costed.bind_within (learner d)
+          (Acorn.Costed.bind_within (transitionBeginCosted_within κ t base)
+            (Acorn.Costed.op_within _ _ κ)))))) ?_
+    simp only [modelBeginBound]
+    omega
+
+/-- A model start, with the bound of its costed definition. -/
+def modelBegin (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) : Costed (Model dimension criterion) :=
+  ⟨model.begin base,
+    modelBeginBound κ dimension.capacity (rankDimension dimension).capacity base.indices.length⟩
+
+theorem modelBegin_val (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) : (modelBegin κ model base).val = model.begin base := rfl
+
 theorem modelBegin_work (κ : Costs) (model : Model dimension criterion)
     (base : SwiftTd.ActiveSet dimension) :
     (modelBegin κ model base).work ≤
       modelBeginBound κ dimension.capacity (rankDimension dimension).capacity
-        base.indices.length := by
-  have width := fun criterion age => modelInput_length (dimension := dimension) criterion base age
-  have learner := fun {config : Acorn.Config} (row : Managed config dimension)
-      (features : SwiftTd.ActiveSet dimension)
-      (fits : features.indices.length ≤ base.indices.length + 1) =>
-    Nat.le_trans (managedApply_work κ row (.beginTrajectory features) trivial)
-      (Nat.add_le_add_left (beginBound_mono κ dimension.capacity fits) _)
-  change (modelBeginRun κ model base).work ≤ _
-  cases model with
-  | discounted reward continuation transition =>
-    unfold modelBeginRun
-    refine Nat.le_trans (Costed.bind_work_le_at
-      (modelInput_work κ .discounted base ⟨0, by decide⟩)
-      (Costed.bind_work_le_at (learner reward _ (width _ _))
-        (Costed.bind_work_le (learner continuation _ (width _ _)) fun _ =>
-          Costed.bind_work_le (transitionBegin_work κ transition base) fun _ =>
-            Nat.le_refl _))) ?_
-    simp only [modelBeginBound]
-    omega
-  | differential reward continuation duration transition =>
-    unfold modelBeginRun
-    refine Nat.le_trans (Costed.bind_work_le_at
-      (modelInput_work κ .differential base ⟨0, by decide⟩)
-      (Costed.bind_work_le_at (learner reward _ (width _ _))
-        (Costed.bind_work_le (learner continuation _ (width _ _)) fun _ =>
-          Costed.bind_work_le (learner duration _ (width _ _)) fun _ =>
-            Costed.bind_work_le (transitionBegin_work κ transition base) fun _ =>
-              Nat.le_refl _))) ?_
-    simp only [modelBeginBound]
-    omega
+        base.indices.length :=
+  Nat.le_refl _
 
-/-- The costed composition of `Model.step`: the model input, then each learner's step. -/
-def modelStepRun (κ : Costs) (model : Model dimension criterion)
-    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
-    Costed (Model dimension criterion) :=
-  match model with
-  | .discounted r c transition => do
-    let features ← modelInput κ .discounted base age
-    let r ← managedApply κ r (.step features reward) trivial
-    let c ← managedApply κ c (.step features .zero) trivial
-    let transition ← transitionStep κ transition base
-    Costed.op (κ .modelClose) (.discounted r c transition)
-  | .differential r c d transition => do
-    let features ← modelInput κ .differential base age
-    let r ← managedApply κ r (.step features reward) trivial
-    let c ← managedApply κ c (.step features .zero) trivial
-    let d ← managedApply κ d (.step features .one) trivial
-    let transition ← transitionStep κ transition base
-    Costed.op (κ .modelClose) (.differential r c d transition)
-
-theorem modelStepRun_val (κ : Costs) (model : Model dimension criterion)
-    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
-    (modelStepRun κ model base age reward).val = model.step base age reward := by
-  cases model <;> simp only [modelStepRun, Costed.bind_val, transitionStep_val] <;> rfl
-
-/-- Twin of `Model.step`. -/
-def modelStep (κ : Costs) (model : Model dimension criterion)
-    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
-    Costed (Model dimension criterion) :=
-  Costed.via (model.step base age reward) (modelStepRun κ model base age reward)
+theorem modelBegin_costed (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) :
+    (model.beginCosted base).Within κ (modelBegin κ model base).work :=
+  modelBeginCosted_within κ model base
 
 /-- Bound of a model step over `width` features. -/
 abbrev modelStepBound (κ : Costs) (capacity positions width : Nat) : Nat :=
@@ -878,71 +875,59 @@ abbrev modelStepBound (κ : Costs) (capacity positions width : Nat) : Nat :=
     (3 * (κ .managedEntry + stepBound κ capacity (width + 1)) +
       (transitionStepBound κ positions width + κ .modelClose))
 
+theorem modelStepCosted_within (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
+    (model.stepCosted base age reward).Within κ
+      (modelStepBound κ dimension.capacity (rankDimension dimension).capacity
+        base.indices.length) := by
+  have width := modelInput_length criterion base age
+  have learner := fun {learnerConfig : Acorn.Config} (row : Managed learnerConfig dimension)
+      (target : Binary32) =>
+    (applyCosted_capacity κ row (.step (Features.modelInput criterion base age) target)
+      trivial).mono (Nat.add_le_add_left (stepBound_mono κ dimension.capacity width) _)
+  cases model with
+  | discounted r c t =>
+    unfold Model.stepCosted
+    refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+      (modelInputCosted_within κ _ base age)
+      (Acorn.Costed.bind_within (learner r reward) (Acorn.Costed.bind_within (learner c .zero)
+        (Acorn.Costed.bind_within (transitionStepCosted_within κ t base)
+          (Acorn.Costed.op_within _ _ κ))))) ?_
+    simp only [modelStepBound]
+    omega
+  | differential r c d t =>
+    unfold Model.stepCosted
+    refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+      (modelInputCosted_within κ _ base age)
+      (Acorn.Costed.bind_within (learner r reward) (Acorn.Costed.bind_within (learner c .zero)
+        (Acorn.Costed.bind_within (learner d .one)
+          (Acorn.Costed.bind_within (transitionStepCosted_within κ t base)
+            (Acorn.Costed.op_within _ _ κ)))))) ?_
+    simp only [modelStepBound]
+    omega
+
+/-- A model step, with the bound of its costed definition. -/
+def modelStep (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
+    Costed (Model dimension criterion) :=
+  ⟨model.step base age reward,
+    modelStepBound κ dimension.capacity (rankDimension dimension).capacity base.indices.length⟩
+
+theorem modelStep_val (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
+    (modelStep κ model base age reward).val = model.step base age reward := rfl
+
 theorem modelStep_work (κ : Costs) (model : Model dimension criterion)
     (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
     (modelStep κ model base age reward).work ≤
       modelStepBound κ dimension.capacity (rankDimension dimension).capacity
-        base.indices.length := by
-  have width := modelInput_length (dimension := dimension) criterion base age
-  have learner := fun {config : Acorn.Config} (row : Managed config dimension)
-      (features : SwiftTd.ActiveSet dimension) (target : Binary32)
-      (fits : features.indices.length ≤ base.indices.length + 1) =>
-    Nat.le_trans (managedApply_work κ row (.step features target) trivial)
-      (Nat.add_le_add_left (stepBound_mono κ dimension.capacity fits) _)
-  change (modelStepRun κ model base age reward).work ≤ _
-  cases model with
-  | discounted r c transition =>
-    unfold modelStepRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ .discounted base age)
-      (Costed.bind_work_le_at (learner r _ _ width)
-        (Costed.bind_work_le (learner c _ _ width) fun _ =>
-          Costed.bind_work_le (transitionStep_work κ transition base) fun _ =>
-            Nat.le_refl _))) ?_
-    simp only [modelStepBound]
-    omega
-  | differential r c d transition =>
-    unfold modelStepRun
-    refine Nat.le_trans (Costed.bind_work_le_at (modelInput_work κ .differential base age)
-      (Costed.bind_work_le_at (learner r _ _ width)
-        (Costed.bind_work_le (learner c _ _ width) fun _ =>
-          Costed.bind_work_le (learner d _ _ width) fun _ =>
-            Costed.bind_work_le (transitionStep_work κ transition base) fun _ =>
-              Nat.le_refl _))) ?_
-    simp only [modelStepBound]
-    omega
+        base.indices.length :=
+  Nat.le_refl _
 
-/-- The costed composition of `Model.terminal`: the outcome, then each learner's terminal
-step. -/
-def modelTerminalRun (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (reward : Binary32) : Costed (Model dimension criterion) :=
-  match model with
-  | .discounted r c transition => do
-    let result ← outcome κ transition value features
-    let r ← managedApply κ r (.terminal reward) trivial
-    let c ← managedApply κ c (.terminal result.shared) trivial
-    let transition ← transitionTerminal κ transition result
-    Costed.op (κ .modelClose) (.discounted r c transition)
-  | .differential r c d transition => do
-    let result ← outcome κ transition value features
-    let r ← managedApply κ r (.terminal reward) trivial
-    let c ← managedApply κ c (.terminal result.shared) trivial
-    let d ← managedApply κ d (.terminal .one) trivial
-    let transition ← transitionTerminal κ transition result
-    Costed.op (κ .modelClose) (.differential r c d transition)
-
-theorem modelTerminalRun_val (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (reward : Binary32) :
-    (modelTerminalRun κ model value features reward).val =
-      model.terminal value features reward := by
-  cases model <;> simp only [modelTerminalRun, Costed.bind_val, transitionTerminal_val] <;> rfl
-
-/-- Twin of `Model.terminal`. -/
-def modelTerminal (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (reward : Binary32) : Costed (Model dimension criterion) :=
-  Costed.via (model.terminal value features reward) (modelTerminalRun κ model value features reward)
+theorem modelStep_costed (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
+    (model.stepCosted base age reward).Within κ (modelStep κ model base age reward).work :=
+  modelStepCosted_within κ model base age reward
 
 /-- Bound of a model's terminal step over `width` features. -/
 abbrev modelTerminalWorkBound (κ : Costs) (capacity positions width : Nat) : Nat :=
@@ -951,80 +936,65 @@ abbrev modelTerminalWorkBound (κ : Costs) (capacity positions width : Nat) : Na
       (κ .learnerError + modelTerminalBound κ positions)
       (κ .learnerError + modelTerminalBound κ positions)) + κ .modelClose))
 
+theorem modelTerminalCosted_within (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    (model.terminalCosted value features reward).Within κ
+      (modelTerminalWorkBound κ dimension.capacity (rankDimension dimension).capacity
+        features.indices.length) := by
+  have learner := fun {learnerConfig : Acorn.Config} (row : Managed learnerConfig dimension)
+      (target : Binary32) =>
+    show (row.applyCosted (.terminal target) trivial).Within κ
+        (modelTerminalBound κ dimension.capacity) from
+      applyCosted_capacity κ row (.terminal target) trivial
+  cases model with
+  | discounted r c t =>
+    unfold Model.terminalCosted
+    refine Acorn.Costed.Within.mono
+      (Acorn.Costed.bind_within (outcomeCosted_within κ t value features)
+        (Acorn.Costed.bind_within (learner r _) (Acorn.Costed.bind_within (learner c _)
+          (Acorn.Costed.bind_within (transitionTerminalCosted_within κ t _)
+            (Acorn.Costed.op_within _ _ κ))))) ?_
+    simp only [modelTerminalWorkBound]
+    omega
+  | differential r c d t =>
+    unfold Model.terminalCosted
+    refine Acorn.Costed.Within.mono
+      (Acorn.Costed.bind_within (outcomeCosted_within κ t value features)
+        (Acorn.Costed.bind_within (learner r _) (Acorn.Costed.bind_within (learner c _)
+          (Acorn.Costed.bind_within (learner d _)
+            (Acorn.Costed.bind_within (transitionTerminalCosted_within κ t _)
+              (Acorn.Costed.op_within _ _ κ)))))) ?_
+    simp only [modelTerminalWorkBound]
+    omega
+
+/-- A model's terminal step, with the bound of its costed definition. -/
+def modelTerminal (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) : Costed (Model dimension criterion) :=
+  ⟨model.terminal value features reward, modelTerminalWorkBound κ dimension.capacity
+    (rankDimension dimension).capacity features.indices.length⟩
+
+theorem modelTerminal_val (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    (modelTerminal κ model value features reward).val = model.terminal value features reward :=
+  rfl
+
 theorem modelTerminal_work (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) :
     (modelTerminal κ model value features reward).work ≤
       modelTerminalWorkBound κ dimension.capacity (rankDimension dimension).capacity
-        features.indices.length := by
-  have learner := fun {config : Acorn.Config} (row : Managed config dimension)
-      (target : Binary32) =>
-    show (managedApply κ row (.terminal target) trivial).work ≤
-        modelTerminalBound κ dimension.capacity from
-      managedApply_work κ row (.terminal target) trivial
-  change (modelTerminalRun κ model value features reward).work ≤ _
-  cases model with
-  | discounted r c transition =>
-    unfold modelTerminalRun
-    refine Nat.le_trans (Costed.bind_work_le (outcome_work κ transition value features) fun _ =>
-      Costed.bind_work_le (learner r _) fun _ =>
-        Costed.bind_work_le (learner c _) fun _ =>
-          Costed.bind_work_le (transitionTerminal_work κ transition _) fun _ =>
-            Nat.le_refl _) ?_
-    change _ ≤ outcomeBound κ (rankDimension dimension).capacity features.indices.length +
-      (3 * modelTerminalBound κ dimension.capacity +
-        ((κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
-          (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)
-          (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)) +
-          κ .modelClose))
-    omega
-  | differential r c d transition =>
-    unfold modelTerminalRun
-    refine Nat.le_trans (Costed.bind_work_le (outcome_work κ transition value features) fun _ =>
-      Costed.bind_work_le (learner r _) fun _ =>
-        Costed.bind_work_le (learner c _) fun _ =>
-          Costed.bind_work_le (learner d _) fun _ =>
-            Costed.bind_work_le (transitionTerminal_work κ transition _) fun _ =>
-              Nat.le_refl _) ?_
-    change _ ≤ outcomeBound κ (rankDimension dimension).capacity features.indices.length +
-      (3 * modelTerminalBound κ dimension.capacity +
-        ((κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
-          (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)
-          (κ .learnerError + modelTerminalBound κ (rankDimension dimension).capacity)) +
-          κ .modelClose))
-    omega
+        features.indices.length :=
+  Nat.le_refl _
 
-/-- The costed composition of `Model.stop`: the outcome, then each learner's stopped
-trajectory. -/
-def modelStopRun (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (reward : Binary32) : Costed (Model dimension criterion) :=
-  match model with
-  | .discounted r c transition => do
-    let result ← outcome κ transition value features
-    let r ← stopTrajectory κ r reward
-    let c ← stopTrajectory κ c result.shared
-    let transition ← transitionStop κ transition result
-    Costed.op (κ .modelClose) (.discounted r c transition)
-  | .differential r c d transition => do
-    let result ← outcome κ transition value features
-    let r ← stopTrajectory κ r reward
-    let c ← stopTrajectory κ c result.shared
-    let d ← stopTrajectory κ d .one
-    let transition ← transitionStop κ transition result
-    Costed.op (κ .modelClose) (.differential r c d transition)
-
-theorem modelStopRun_val (κ : Costs) (model : Model dimension criterion)
+theorem modelTerminal_costed (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) :
-    (modelStopRun κ model value features reward).val = model.stop value features reward := by
-  cases model <;> simp only [modelStopRun, Costed.bind_val, transitionStop_val] <;> rfl
-
-/-- Twin of `Model.stop`. -/
-def modelStop (κ : Costs) (model : Model dimension criterion)
-    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (reward : Binary32) : Costed (Model dimension criterion) :=
-  Costed.via (model.stop value features reward) (modelStopRun κ model value features reward)
+    (model.terminalCosted value features reward).Within κ
+      (modelTerminal κ model value features reward).work :=
+  modelTerminalCosted_within κ model value features reward
 
 /-- Bound of a model's stopped trajectory over `width` features. -/
 abbrev modelStopBound (κ : Costs) (capacity positions width : Nat) : Nat :=
@@ -1033,32 +1003,61 @@ abbrev modelStopBound (κ : Costs) (capacity positions width : Nat) : Nat :=
       (κ .learnerError + stopTrajectoryBound κ positions)
       (κ .learnerError + stopTrajectoryBound κ positions)) + κ .modelClose))
 
+theorem modelStopCosted_within (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    (model.stopCosted value features reward).Within κ
+      (modelStopBound κ dimension.capacity (rankDimension dimension).capacity
+        features.indices.length) := by
+  cases model with
+  | discounted r c t =>
+    unfold Model.stopCosted
+    refine Acorn.Costed.Within.mono
+      (Acorn.Costed.bind_within (outcomeCosted_within κ t value features)
+        (Acorn.Costed.bind_within (stopTrajectoryCosted_within κ r _)
+          (Acorn.Costed.bind_within (stopTrajectoryCosted_within κ c _)
+            (Acorn.Costed.bind_within (transitionStopCosted_within κ t _)
+              (Acorn.Costed.op_within _ _ κ))))) ?_
+    simp only [modelStopBound]
+    omega
+  | differential r c d t =>
+    unfold Model.stopCosted
+    refine Acorn.Costed.Within.mono
+      (Acorn.Costed.bind_within (outcomeCosted_within κ t value features)
+        (Acorn.Costed.bind_within (stopTrajectoryCosted_within κ r _)
+          (Acorn.Costed.bind_within (stopTrajectoryCosted_within κ c _)
+            (Acorn.Costed.bind_within (stopTrajectoryCosted_within κ d _)
+              (Acorn.Costed.bind_within (transitionStopCosted_within κ t _)
+                (Acorn.Costed.op_within _ _ κ)))))) ?_
+    simp only [modelStopBound]
+    omega
+
+/-- A model's stopped trajectory, with the bound of its costed definition. -/
+def modelStop (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) : Costed (Model dimension criterion) :=
+  ⟨model.stop value features reward,
+    modelStopBound κ dimension.capacity (rankDimension dimension).capacity
+      features.indices.length⟩
+
+theorem modelStop_val (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    (modelStop κ model value features reward).val = model.stop value features reward := rfl
+
 theorem modelStop_work (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) :
     (modelStop κ model value features reward).work ≤
       modelStopBound κ dimension.capacity (rankDimension dimension).capacity
-        features.indices.length := by
-  change (modelStopRun κ model value features reward).work ≤ _
-  cases model with
-  | discounted r c transition =>
-    unfold modelStopRun
-    refine Nat.le_trans (Costed.bind_work_le (outcome_work κ transition value features) fun _ =>
-      Costed.bind_work_le (stopTrajectory_work κ r _) fun _ =>
-        Costed.bind_work_le (stopTrajectory_work κ c _) fun _ =>
-          Costed.bind_work_le (transitionStop_work κ transition _) fun _ =>
-            Nat.le_refl _) ?_
-    simp only [modelStopBound]
-    omega
-  | differential r c d transition =>
-    unfold modelStopRun
-    refine Nat.le_trans (Costed.bind_work_le (outcome_work κ transition value features) fun _ =>
-      Costed.bind_work_le (stopTrajectory_work κ r _) fun _ =>
-        Costed.bind_work_le (stopTrajectory_work κ c _) fun _ =>
-          Costed.bind_work_le (stopTrajectory_work κ d _) fun _ =>
-            Costed.bind_work_le (transitionStop_work κ transition _) fun _ =>
-              Nat.le_refl _) ?_
-    simp only [modelStopBound]
-    omega
+        features.indices.length :=
+  Nat.le_refl _
+
+theorem modelStop_costed (κ : Costs) (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    (model.stopCosted value features reward).Within κ
+      (modelStop κ model value features reward).work :=
+  modelStopCosted_within κ model value features reward
 
 end AcornVerif.Resource.Twin

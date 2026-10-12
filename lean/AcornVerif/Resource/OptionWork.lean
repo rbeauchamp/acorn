@@ -219,7 +219,8 @@ theorem beginTemporal_work (κ : Costs) (skill : Skill actions config criterion 
   change (beginTemporalRun κ skill features potential learning rate).work ≤ _
   unfold beginTemporalRun
   exact Costed.bind_work_le (beginOptionRun_work κ skill features learning rate) fun _ =>
-    Costed.ite_work_bound _ (Costed.discard_work_le (modelBegin_work κ _ features))
+    Costed.ite_work_bound _ (Costed.discard_work_le (modelBegin_work κ
+      (skill.beginOption features potential learning rate).1.model features))
       (Nat.zero_le _)
 
 /-! ## Steps and ends -/
@@ -284,7 +285,9 @@ theorem stepTemporal_work (κ : Costs) (skill : Skill actions config criterion d
   change (stepTemporalRun κ skill activation next reward gain rng).work ≤ _
   unfold stepTemporalRun
   exact Costed.bind_work_le (optionStepRun_work κ skill activation next reward gain rng) fun _ =>
-    Costed.ite_work_bound _ (Costed.discard_work_le (modelStep_work κ _ next.features _ reward))
+    Costed.ite_work_bound _ (Costed.discard_work_le (modelStep_work κ
+      (skill.optionStep activation next reward gain rng).1.model next.features activation.age
+      reward))
       (Nat.zero_le _)
 
 /-- The costed run of `Skill.endTemporal`: a learning option's terminal policy credit and
@@ -325,7 +328,9 @@ theorem endTemporal_work (κ : Costs) (skill : Skill actions config criterion di
   unfold endTemporalRun
   exact Costed.bind_work_le (Costed.charge_work_le (Costed.ite_work_bound _
       (Costed.discard_work_le (terminal_work κ skill.policy _)) (Nat.zero_le _))) fun _ =>
-    Costed.ite_work_bound _ (Costed.discard_work_le (modelTerminal_work κ _ value features reward))
+    Costed.ite_work_bound _ (Costed.discard_work_le (modelTerminal_work κ
+      (skill.terminateOption ending.activation ending.potential reward terminal gain).model value
+      features reward))
       (Nat.zero_le _)
 
 /-! ## Off-policy trajectories -/

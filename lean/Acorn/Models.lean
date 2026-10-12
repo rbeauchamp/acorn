@@ -270,19 +270,46 @@ structure Outcome (dimension : Dimension) where
   /-- Terminal target of each meta action's deviation learner. -/
   deviations : Vector Binary32 metaCount.word.toNat
 
+/-- The outcome of a terminal frame with its work: the indicator, the value function's
+predictions, the ranked values, the two comparison values, the shared target and each meta
+action's deviation. -/
+def Transition.outcomeCosted (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    Costed (Outcome dimension) := do
+  let seen ← transition.ranked.indicatorCosted features
+  let complete ← value.controller.predictAllCosted features
+  let ranked ← value.rankedValuesCosted transition.ranked seen
+  let all ← comparisonValueCosted criterion
+    (⟨complete, value.epsilon⟩ : PolicySnapshot metaCount)
+  let part ← comparisonValueCosted criterion
+    (⟨ranked, value.epsilon⟩ : PolicySnapshot metaCount)
+  let residual := all.sub part
+  let shared := criterion.rule.gamma.mul residual
+  let deviations ← Costed.ofFn fun action => Costed.op .deviation
+    (criterion.rule.gamma.mul (((complete.get action).sub (ranked.get action)).sub residual))
+  Costed.pure ⟨seen, shared, deviations⟩
+
 /-- Read a terminal frame once: the frame's action values, their part at the ranked
 slots, the shared residual and every deviation, all under the same current weights. -/
 def Transition.outcome (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
     Outcome dimension :=
-  let seen := transition.ranked.indicator features
-  let complete := value.controller.predictAll features
-  let ranked := value.rankedValues transition.ranked seen
-  let residual := (comparisonValue criterion
-      (⟨complete, value.epsilon⟩ : PolicySnapshot metaCount)).sub
-    (comparisonValue criterion (⟨ranked, value.epsilon⟩ : PolicySnapshot metaCount))
-  ⟨seen, criterion.rule.gamma.mul residual, Vector.ofFn fun action =>
-    criterion.rule.gamma.mul (((complete.get action).sub (ranked.get action)).sub residual)⟩
+  (transition.outcomeCosted value features).val
+
+/-- An outcome holds the indicator, the discounted shared residual and each meta action's
+discounted deviation, all read under the same current weights. -/
+theorem Transition.outcome_def (transition : Transition dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
+    transition.outcome value features =
+      let seen := transition.ranked.indicator features
+      let complete := value.controller.predictAll features
+      let ranked := value.rankedValues transition.ranked seen
+      let residual := (comparisonValue criterion
+          (⟨complete, value.epsilon⟩ : PolicySnapshot metaCount)).sub
+        (comparisonValue criterion (⟨ranked, value.epsilon⟩ : PolicySnapshot metaCount))
+      ⟨seen, criterion.rule.gamma.mul residual, Vector.ofFn fun action =>
+        criterion.rule.gamma.mul
+          (((complete.get action).sub (ranked.get action)).sub residual)⟩ := rfl
 
 /-- The shared target an outcome carries is the residual target. -/
 theorem Transition.outcome_shared (transition : Transition dimension criterion)
@@ -293,8 +320,8 @@ theorem Transition.outcome_shared (transition : Transition dimension criterion)
 bind the ranked dimension, the learner configuration and the discount once, outside the
 per-learner functions, so no update re-derives the ranked width. A vacant
 position models no slot: its row is fresh, predicts nothing that is read, and is left
-as it is, so the work of a model update is the number of occupied positions plus the
-meta action count, and not the ranked width. -/
+as it is. The traversal visits every row, so its control grows with the ranked width;
+only the rows of occupied positions and the deviation learners run learner updates. -/
 def Transition.updateRows (transition : Transition dimension criterion)
     (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
       Managed (criterion.config .demon) (rankDimension dimension))
@@ -307,45 +334,148 @@ def Transition.updateRows (transition : Transition dimension criterion)
     if (ranked.slots[index]'bound).isSome then update ⟨index, bound⟩ row else row,
     deviations.mapFinIdx fun index learner bound => deviate ⟨index, bound⟩ learner⟩
 
+/-- `Transition.updateRows` with costed updates: every row visited, the rows of occupied
+positions updated with their work, every deviation learner updated with its work, and the
+record closed. -/
+def Transition.updateRowsCosted (transition : Transition dimension criterion)
+    (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
+      Costed (Managed (criterion.config .demon) (rankDimension dimension)))
+    (deviate : Action metaCount.word.toNat →
+      Managed (criterion.config .demon) (rankDimension dimension) →
+      Costed (Managed (criterion.config .demon) (rankDimension dimension))) :
+    Costed (Transition dimension criterion) :=
+  let ⟨ranked, rows, deviations⟩ := transition
+  do
+    let updated ← Costed.mapFinIdx rows fun index row bound =>
+      Costed.ite ((ranked.slots[index]'bound).isSome = true)
+        (fun _ => update ⟨index, bound⟩ row) fun _ => Costed.pure row
+    let deviated ← Costed.mapFinIdx deviations fun index learner bound =>
+      deviate ⟨index, bound⟩ learner
+    Costed.op .modelClose ⟨ranked, updated, deviated⟩
+
+/-- `Transition.updateRows` is the value of `Transition.updateRowsCosted` at updates that do no
+work of their own. -/
+theorem Transition.updateRows_costed (transition : Transition dimension criterion)
+    (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
+      Managed (criterion.config .demon) (rankDimension dimension))
+    (deviate : Action metaCount.word.toNat →
+      Managed (criterion.config .demon) (rankDimension dimension) →
+      Managed (criterion.config .demon) (rankDimension dimension)) :
+    transition.updateRows update deviate =
+      (transition.updateRowsCosted (fun position row => Costed.pure (update position row))
+        (fun action learner => Costed.pure (deviate action learner))).val := by
+  cases transition
+  rfl
+
+/-- A transition part's start with its work: the row input, the ranked dimension the updates
+read, which evaluates the ranked width, and each learner's start. -/
+def Transition.beginCosted (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) := do
+  let input ← transition.ranked.inputCosted features
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  Costed.charge .rankWidth (transition.updateRowsCosted
+    (fun _ row => Managed.applyCosted (config := config) (dimension := rank) row
+      (.beginTrajectory input) trivial)
+    (fun _ learner => Managed.applyCosted (config := config) (dimension := rank) learner
+      (.beginTrajectory input) trivial))
+
 /-- Start every modeled row's and every deviation learner's trajectory at the frame's
 ranked features. -/
 def Transition.begin (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
-  let input := transition.ranked.input features
+  (transition.beginCosted features).val
+
+/-- A transition part's start starts every modeled row and every deviation learner at the row
+input. -/
+theorem Transition.begin_def (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    transition.begin features =
+      let input := transition.ranked.input features
+      let rank := rankDimension dimension
+      let config := criterion.config .demon
+      transition.updateRows
+        (fun _ row => Managed.apply (config := config) (dimension := rank) row
+          (.beginTrajectory input) trivial)
+        (fun _ learner => Managed.apply (config := config) (dimension := rank) learner
+          (.beginTrajectory input) trivial) := by
+  cases transition
+  rfl
+
+/-- A transition part's step with its work: the row input, the ranked dimension the updates
+read, which evaluates the ranked width, and each learner's step. -/
+def Transition.stepCosted (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) := do
+  let input ← transition.ranked.inputCosted features
   let rank := rankDimension dimension
   let config := criterion.config .demon
-  transition.updateRows
-    (fun _ row => Managed.apply (config := config) (dimension := rank) row
-      (.beginTrajectory input) trivial)
-    (fun _ learner => Managed.apply (config := config) (dimension := rank) learner
-      (.beginTrajectory input) trivial)
+  Costed.charge .rankWidth (transition.updateRowsCosted
+    (fun _ row => Managed.applyCosted (config := config) (dimension := rank) row
+      (.step input .zero) trivial)
+    (fun _ learner => Managed.applyCosted (config := config) (dimension := rank) learner
+      (.step input .zero) trivial))
 
 /-- Credit a completed transition to every modeled row and deviation learner with
 cumulant zero: equation (17) at `β = 0`. -/
 def Transition.step (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
-  let input := transition.ranked.input features
+  (transition.stepCosted features).val
+
+/-- A transition part's step credits every modeled row and every deviation learner at the row
+input with cumulant zero. -/
+theorem Transition.step_def (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    transition.step features =
+      let input := transition.ranked.input features
+      let rank := rankDimension dimension
+      let config := criterion.config .demon
+      transition.updateRows
+        (fun _ row => Managed.apply (config := config) (dimension := rank) row
+          (.step input .zero) trivial)
+        (fun _ learner => Managed.apply (config := config) (dimension := rank) learner
+          (.step input .zero) trivial) := by
+  cases transition
+  rfl
+
+/-- A transition part's terminal step with its work: the ranked dimension the updates read,
+which evaluates the ranked width, then each learner's target and terminal step. -/
+def Transition.terminalCosted (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
   let rank := rankDimension dimension
   let config := criterion.config .demon
-  transition.updateRows
-    (fun _ row => Managed.apply (config := config) (dimension := rank) row
-      (.step input .zero) trivial)
-    (fun _ learner => Managed.apply (config := config) (dimension := rank) learner
-      (.step input .zero) trivial)
+  let gamma := criterion.rule.gamma
+  Costed.charge .rankWidth (transition.updateRowsCosted
+    (fun position row =>
+      let target := gamma.mul (outcome.seen.get position).value
+      Costed.charge .learnerError (Managed.applyCosted (config := config) (dimension := rank) row
+        (.terminal target) trivial))
+    (fun action learner =>
+      let target := outcome.deviations.get action
+      Costed.charge .learnerError (Managed.applyCosted (config := config) (dimension := rank)
+        learner (.terminal target) trivial)))
 
 /-- Close every modeled row toward `γ` times its own slot's indicator at the terminal
 frame, equation (17) at `β = 1` with the discount equation (15) requires, and every
 deviation learner toward its action's discounted deviation. -/
 def Transition.terminal (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Transition dimension criterion :=
-  let rank := rankDimension dimension
-  let config := criterion.config .demon
-  let gamma := criterion.rule.gamma
-  transition.updateRows
-    (fun position row => Managed.apply (config := config) (dimension := rank) row
-      (.terminal (gamma.mul (outcome.seen.get position).value)) trivial)
-    (fun action learner => Managed.apply (config := config) (dimension := rank) learner
-      (.terminal (outcome.deviations.get action)) trivial)
+  (transition.terminalCosted outcome).val
+
+/-- A transition part's terminal step closes every modeled row toward `γ` times its slot's
+indicator and every deviation learner toward its action's deviation. -/
+theorem Transition.terminal_def (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) :
+    transition.terminal outcome =
+      let rank := rankDimension dimension
+      let config := criterion.config .demon
+      let gamma := criterion.rule.gamma
+      transition.updateRows
+        (fun position row => Managed.apply (config := config) (dimension := rank) row
+          (.terminal (gamma.mul (outcome.seen.get position).value)) trivial)
+        (fun action learner => Managed.apply (config := config) (dimension := rank) learner
+          (.terminal (outcome.deviations.get action)) trivial) := by
+  cases transition
+  rfl
 
 /-- A model prediction with its work: the model input, then each learner's prediction and the
 transition part's look-ahead. -/
@@ -398,31 +528,103 @@ theorem Model.predict_def (model : Model dimension criterion)
           Bounded32.project _ (duration.state.predict features)⟩ := by
   cases model <;> rfl
 
+/-- A model's start with its work: the model input at age zero, then each learner's start and
+the transition part's start. -/
+def Model.beginCosted (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension) :
+    Costed (Model dimension criterion) :=
+  Costed.bind (modelInputCosted criterion base ⟨0, by decide⟩) fun features =>
+  match model with
+  | .discounted r c t => do
+    let r ← r.applyCosted (.beginTrajectory features) trivial
+    let c ← c.applyCosted (.beginTrajectory features) trivial
+    let t ← t.beginCosted base
+    Costed.op .modelClose (.discounted r c t)
+  | .differential r c d t => do
+    let r ← r.applyCosted (.beginTrajectory features) trivial
+    let c ← c.applyCosted (.beginTrajectory features) trivial
+    let d ← d.applyCosted (.beginTrajectory features) trivial
+    let t ← t.beginCosted base
+    Costed.op .modelClose (.differential r c d t)
+
 /-- Prime all model learners on initiation features at age zero. -/
 def Model.begin (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension) :
     Model dimension criterion :=
-  let features := modelInput criterion base ⟨0, by decide⟩
+  (model.beginCosted base).val
+
+/-- A model's start starts each learner at the model input at age zero and the transition part
+at the frame. -/
+theorem Model.begin_def (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension) :
+    model.begin base =
+      let features := modelInput criterion base ⟨0, by decide⟩
+      match model with
+      | .discounted r c t =>
+        .discounted (r.apply (.beginTrajectory features) trivial)
+          (c.apply (.beginTrajectory features) trivial) (t.begin base)
+      | .differential r c d t =>
+        .differential (r.apply (.beginTrajectory features) trivial)
+          (c.apply (.beginTrajectory features) trivial)
+          (d.apply (.beginTrajectory features) trivial) (t.begin base) := by
+  cases model <;> rfl
+
+/-- A model's step with its work: the model input, then each learner's step and the transition
+part's step. -/
+def Model.stepCosted (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) (reward : Binary32) : Costed (Model dimension criterion) :=
+  Costed.bind (modelInputCosted criterion base age) fun features =>
   match model with
-  | .discounted r c t =>
-    .discounted (r.apply (.beginTrajectory features) trivial)
-      (c.apply (.beginTrajectory features) trivial) (t.begin base)
-  | .differential r c d t =>
-    .differential (r.apply (.beginTrajectory features) trivial)
-      (c.apply (.beginTrajectory features) trivial) (d.apply (.beginTrajectory features) trivial)
-      (t.begin base)
+  | .discounted r c t => do
+    let r ← r.applyCosted (.step features reward) trivial
+    let c ← c.applyCosted (.step features .zero) trivial
+    let t ← t.stepCosted base
+    Costed.op .modelClose (.discounted r c t)
+  | .differential r c d t => do
+    let r ← r.applyCosted (.step features reward) trivial
+    let c ← c.applyCosted (.step features .zero) trivial
+    let d ← d.applyCosted (.step features .one) trivial
+    let t ← t.stepCosted base
+    Costed.op .modelClose (.differential r c d t)
 
 /-- Raw reward, zero continuation and transition cumulants, unit duration; no gain
 enters learning. -/
 def Model.step (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) (reward : Binary32) : Model dimension criterion :=
-  let features := modelInput criterion base age
+  (model.stepCosted base age reward).val
+
+/-- A model's step credits the reward, zero continuation and transition cumulants and unit
+duration at the model input. -/
+theorem Model.step_def (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) (reward : Binary32) :
+    model.step base age reward =
+      let features := modelInput criterion base age
+      match model with
+      | .discounted r c t =>
+        .discounted (r.apply (.step features reward) trivial)
+          (c.apply (.step features .zero) trivial) (t.step base)
+      | .differential r c d t =>
+        .differential (r.apply (.step features reward) trivial)
+          (c.apply (.step features .zero) trivial) (d.apply (.step features .one) trivial)
+          (t.step base) := by
+  cases model <;> rfl
+
+/-- A model's terminal step with its work: the outcome, then each learner's terminal step and
+the transition part's. -/
+def Model.terminalCosted (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) : Costed (Model dimension criterion) :=
   match model with
-  | .discounted r c t =>
-    .discounted (r.apply (.step features reward) trivial) (c.apply (.step features .zero) trivial)
-      (t.step base)
-  | .differential r c d t =>
-    .differential (r.apply (.step features reward) trivial) (c.apply (.step features .zero) trivial)
-      (d.apply (.step features .one) trivial) (t.step base)
+  | .discounted r c t => do
+    let outcome ← t.outcomeCosted value features
+    let r ← r.applyCosted (.terminal reward) trivial
+    let c ← c.applyCosted (.terminal outcome.shared) trivial
+    let t ← t.terminalCosted outcome
+    Costed.op .modelClose (.discounted r c t)
+  | .differential r c d t => do
+    let outcome ← t.outcomeCosted value features
+    let r ← r.applyCosted (.terminal reward) trivial
+    let c ← c.applyCosted (.terminal outcome.shared) trivial
+    let d ← d.applyCosted (.terminal .one) trivial
+    let t ← t.terminalCosted outcome
+    Costed.op .modelClose (.differential r c d t)
 
 /-- Close every learner through the terminal entry that clears its transient state,
 at the terminal frame: raw reward, the discounted shared residual of the frame's
@@ -430,16 +632,25 @@ nominal value, unit duration, each ranked slot's discounted indicator and each m
 action's discounted deviation. -/
 def Model.terminal (model : Model dimension criterion) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (reward : Binary32) : Model dimension criterion :=
-  match model with
-  | .discounted r c t =>
-    let outcome := t.outcome value features
-    .discounted (r.apply (.terminal reward) trivial) (c.apply (.terminal outcome.shared) trivial)
-      (t.terminal outcome)
-  | .differential r c d t =>
-    let outcome := t.outcome value features
-    .differential (r.apply (.terminal reward) trivial)
-      (c.apply (.terminal outcome.shared) trivial) (d.apply (.terminal .one) trivial)
-      (t.terminal outcome)
+  (model.terminalCosted value features reward).val
+
+/-- A model's terminal step closes each learner toward the reward, the shared target and unit
+duration, and the transition part toward the outcome. -/
+theorem Model.terminal_def (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    model.terminal value features reward =
+      match model with
+      | .discounted r c t =>
+        let outcome := t.outcome value features
+        .discounted (r.apply (.terminal reward) trivial)
+          (c.apply (.terminal outcome.shared) trivial) (t.terminal outcome)
+      | .differential r c d t =>
+        let outcome := t.outcome value features
+        .differential (r.apply (.terminal reward) trivial)
+          (c.apply (.terminal outcome.shared) trivial) (d.apply (.terminal .one) trivial)
+          (t.terminal outcome) := by
+  cases model <;> rfl
 
 /-- Start one learner's trajectory on its existing storage. The remaining traces are
 released first, so the ordinary step visits no earlier trace and credits no earlier
@@ -449,13 +660,28 @@ def Managed.restartTrajectory {config : Acorn.Config} {dimension : Dimension}
     Managed config dimension :=
   (learner.apply .release trivial).apply (.step features .zero) trivial
 
+/-- A stopped trajectory with its work: the error, a first loop, then a release. -/
+def Managed.stopTrajectoryCosted {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (target : Binary32) : Costed (Managed config dimension) :=
+  let error := target.sub learner.state.transient.vOld
+  Costed.charge .learnerError do
+    let first ← Costed.attach
+      (learner.applyCosted (.first error learner.state.transient.vDelta .zero) trivial)
+    first.val.applyCosted .release (by rw [first.property]; trivial)
+
 /-- Stopping credit for one learner against its own lags, at zero trace decay:
 the factor γλ(1 − β) of Sutton, Machado et al. (2023), §3, at β = 1. Whatever the
 first loop retained is then released, so nothing stays eligible. -/
 def Managed.stopTrajectory {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (target : Binary32) : Managed config dimension :=
-  (learner.apply (.first (target.sub learner.state.transient.vOld)
-    learner.state.transient.vDelta .zero) trivial).apply .release trivial
+  (learner.stopTrajectoryCosted target).val
+
+/-- A stopped trajectory runs a first loop at the stopping error, then releases. -/
+theorem Managed.stopTrajectory_def {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (target : Binary32) :
+    learner.stopTrajectory target =
+      (learner.apply (.first (target.sub learner.state.transient.vOld)
+        learner.state.transient.vDelta .zero) trivial).apply .release trivial := rfl
 
 /-- Start every modeled row's and every deviation learner's trajectory on existing
 storage, without a transient clear. -/
@@ -469,18 +695,44 @@ def Transition.restart (transition : Transition dimension criterion)
     (fun _ learner =>
       Managed.restartTrajectory (config := config) (dimension := rank) learner input)
 
+/-- A transition part's stopped trajectory with its work: the ranked dimension the updates read,
+which evaluates the ranked width, then each learner's target and stopped trajectory. -/
+def Transition.stopCosted (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  let gamma := criterion.rule.gamma
+  Costed.charge .rankWidth (transition.updateRowsCosted
+    (fun position row =>
+      let target := gamma.mul (outcome.seen.get position).value
+      Costed.charge .learnerError
+        (Managed.stopTrajectoryCosted (config := config) (dimension := rank) row target))
+    (fun action learner =>
+      let target := outcome.deviations.get action
+      Costed.charge .learnerError
+        (Managed.stopTrajectoryCosted (config := config) (dimension := rank) learner target)))
+
 /-- Close every modeled row's and every deviation learner's stored trajectory toward
 the targets `Transition.terminal` reads. -/
 def Transition.stop (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Transition dimension criterion :=
-  let rank := rankDimension dimension
-  let config := criterion.config .demon
-  let gamma := criterion.rule.gamma
-  transition.updateRows
-    (fun position row => Managed.stopTrajectory (config := config) (dimension := rank) row
-      (gamma.mul (outcome.seen.get position).value))
-    (fun action learner => Managed.stopTrajectory (config := config) (dimension := rank)
-      learner (outcome.deviations.get action))
+  (transition.stopCosted outcome).val
+
+/-- A transition part's stopped trajectory closes every modeled row and every deviation
+learner toward the targets `Transition.terminal` reads. -/
+theorem Transition.stop_def (transition : Transition dimension criterion)
+    (outcome : Outcome dimension) :
+    transition.stop outcome =
+      let rank := rankDimension dimension
+      let config := criterion.config .demon
+      let gamma := criterion.rule.gamma
+      transition.updateRows
+        (fun position row => Managed.stopTrajectory (config := config) (dimension := rank) row
+          (gamma.mul (outcome.seen.get position).value))
+        (fun action learner => Managed.stopTrajectory (config := config) (dimension := rank)
+          learner (outcome.deviations.get action)) := by
+  cases transition
+  rfl
 
 /-- Start a model trajectory at the given age for an option that is not executing,
 without the full-width transient clear of `Model.begin`. -/
@@ -494,19 +746,47 @@ def Model.restart (model : Model dimension criterion) (base : SwiftTd.ActiveSet 
     .differential (r.restartTrajectory features) (c.restartTrajectory features)
       (d.restartTrajectory features) (t.restart base)
 
+/-- A model's stopped trajectory with its work: the outcome, then each learner's stopped
+trajectory and the transition part's. -/
+def Model.stopCosted (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) : Costed (Model dimension criterion) :=
+  match model with
+  | .discounted r c t => do
+    let outcome ← t.outcomeCosted value features
+    let r ← r.stopTrajectoryCosted reward
+    let c ← c.stopTrajectoryCosted outcome.shared
+    let t ← t.stopCosted outcome
+    Costed.op .modelClose (.discounted r c t)
+  | .differential r c d t => do
+    let outcome ← t.outcomeCosted value features
+    let r ← r.stopTrajectoryCosted reward
+    let c ← c.stopTrajectoryCosted outcome.shared
+    let d ← d.stopTrajectoryCosted .one
+    let t ← t.stopCosted outcome
+    Costed.op .modelClose (.differential r c d t)
+
 /-- Close a live trajectory toward the targets `Model.terminal` reads, at the stopping
 frame. Sutton, Machado et al. (2023), §4, equation (17), stops every option's model
 where its stopping function does. -/
 def Model.stop (model : Model dimension criterion) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (reward : Binary32) : Model dimension criterion :=
-  match model with
-  | .discounted r c t =>
-    let outcome := t.outcome value features
-    .discounted (r.stopTrajectory reward) (c.stopTrajectory outcome.shared) (t.stop outcome)
-  | .differential r c d t =>
-    let outcome := t.outcome value features
-    .differential (r.stopTrajectory reward) (c.stopTrajectory outcome.shared)
-      (d.stopTrajectory .one) (t.stop outcome)
+  (model.stopCosted value features reward).val
+
+/-- A model's stopped trajectory closes each learner toward the targets `Model.terminal` reads. -/
+theorem Model.stop_def (model : Model dimension criterion)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (reward : Binary32) :
+    model.stop value features reward =
+      match model with
+      | .discounted r c t =>
+        let outcome := t.outcome value features
+        .discounted (r.stopTrajectory reward) (c.stopTrajectory outcome.shared) (t.stop outcome)
+      | .differential r c d t =>
+        let outcome := t.outcome value features
+        .differential (r.stopTrajectory reward) (c.stopTrajectory outcome.shared)
+          (d.stopTrajectory .one) (t.stop outcome) := by
+  cases model <;> rfl
 
 /-- Concrete temporal operations use the current model definitions. -/
 def modelOperations (criterion : Criterion) (dimension : Dimension) : OptionModelOps criterion dimension :=
