@@ -293,9 +293,11 @@ is selection, `learn-then-act` and `plan-after-act`
 ([definitions](../lean/AcornVerif/Resource/StepWork.lean),
 `AcornVerif.Resource.Twin.chooseSelected_work`; `choose_work` for the default
 order). The theorems bound the accounting of the first part's twin; none of them is a
-bound of the executed first part's work. The deadline of a world on a wall clock needs
-a bound of the executed first part, which runs from the step's entry until the action
-is released. Reading the twin's bound as one rests on four things no theorem yet
+bound of the executed first part's work. The first part runs from the step's entry
+until `Agent.choose` returns, including the construction of its `Chosen` value; the
+world receives the action after the second part under `learn-then-act`, and between the
+two parts under `plan-after-act` and `act-then-learn`. The deadline of a world on a wall
+clock needs a bound of the executed work before the action is released. Reading the twin's bound as one rests on four things no theorem yet
 establishes, which a later increment of requirement R8 owes:
 
 - that a cost model in word operations counts the segments of the executed code:
@@ -320,8 +322,9 @@ code whose work is a constant of the compiled code, costs its own constant
 sites. The intended reading of what each charge counts is its **segment** of the
 operations the compiled code runs during one call of a part of the step, here the first part,
 defined once in the
-[cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment is
-bounded by a constant of the code in the operations counted. Allocation, reference
+[cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment of the first
+part and of each costed definition is bounded by a constant of the code in the operations
+counted. Allocation, reference
 counting, the copy of a shared array when it is written
 ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the copy of an array into a larger
 buffer when a push outgrows its capacity, whose length depends on the state, the one-time
@@ -345,7 +348,9 @@ normalized step-size sum. So is the prediction demons' bank step of the second p
 (`DemonBank.step`): each demon's error and cumulant are put before a copy of the rest of
 the bank's (`Costed.prepend`), so its bound
 (`AcornVerif.Resource.Twin.demonBankStepCosted_within`) grows with the square of the
-number of demons. A controller's initial value and reset (`Controller.initial`,
+number of demons; with the capacity of the dimension in place of the active set's length
+it is a function of the configuration
+(`AcornVerif.Resource.Twin.demonBankStepCosted_within_capacity`). A controller's initial value and reset (`Controller.initial`,
 `Controller.resetAction`) are not costed yet and have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
 The encoding of a frame is also the value of its costed
@@ -467,7 +472,18 @@ once each for a ranking's lookup table, an empty ranking, a fresh transition par
 the ranked slots, the changed positions, the occupied positions and an indicator.
 
 The first part under `act-then-learn`, the second part in each order and the memory
-of the agent state are not bounded here.
+of the agent state are not bounded here. Of the second part, only the costed definitions
+it calls are costed. Its other stretches are an open obligation of R8, and some of them
+run a loop whose trip count depends on the configuration or the state with no charge
+point (`DemonRecords.observe` walks every channel of the demons' lifetime records), so
+their segments are not yet bounded by constants of the code: the owed writes and
+deferred planning of an order (`TemporalControl.deferred`), the takeover value and the
+off-policy learning of the options (`TemporalControl.takeoverValue`,
+`TemporalControl.followOptions`), the closing of a meta span apart from the controller's
+closing update (`TemporalControl.closeSpan`), the completion of a primitive step apart
+from the controller's credit and the demons' bank step (`TemporalControl.finish`: the
+signal values, the lifetime records of the options and the demons, the gain, the
+options' questions and the record of the frame), and the tester (`Agent.retire`).
 
 ### The time a world declares
 

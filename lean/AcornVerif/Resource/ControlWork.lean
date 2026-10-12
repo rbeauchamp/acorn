@@ -24,7 +24,8 @@ learner's eligible entries, and every admitted learner has at most the capacity 
 function of the capacity and the length of the feature list it reads. A controller's update visits
 each of its rows, and a policy's loops visit its actions. A demon bank's step puts each demon's
 error and cumulant before a copy of the rest of the bank's (`Costed.prepend`), so its bound grows
-with the square of the number of demons.
+with the square of the number of demons; at the capacity of the dimension in place of the active
+set's length it is a function of the configuration (`demonBankStepCosted_within_capacity`).
 
 `Controller.creditStep` takes the taken row out of its table so that the runtime can reuse the
 row's storage, and its costed definition does the same (`detachedUpdateCosted`): the taken row's
@@ -1039,5 +1040,45 @@ theorem demonBankStepCosted_within (κ : Costs) {discounts : List Discount}
       (pass (κ .visit) discounts.length
         (demonBound κ dimension.capacity features.indices.length discounts.length)) :=
   demonBankStepCosted_within_at κ bank features rewards (Nat.le_refl _)
+
+/-- A demon's bound grows with the number of features. -/
+theorem demonBound_mono (κ : Costs) (capacity limit : Nat) {width most : Nat}
+    (fits : width ≤ most) :
+    demonBound κ capacity width limit ≤ demonBound κ capacity most limit := by
+  have read := Library.map.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
+  have sum := Library.foldl.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
+  have second := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .secondElement))
+  simp only [demonBound, stepBound, secondLoopBound]
+  omega
+
+/-- A demon bank's step is within a function of the configuration alone: the capacity of the
+dimension, the bank's length and the cost model. Every active set fits the dimension
+(`AcornVerif.CurrentLearner.active_cardinality`). -/
+theorem demonBankStepCosted_within_capacity (κ : Costs) {discounts : List Discount}
+    (bank : DemonBank dimension discounts) (features : SwiftTd.ActiveSet dimension)
+    (rewards : Cumulants discounts) :
+    (bank.stepCosted features rewards).Within κ
+      (pass (κ .visit) discounts.length
+        (demonBound κ dimension.capacity dimension.capacity discounts.length)) :=
+  (demonBankStepCosted_within κ bank features rewards).mono
+    (pass_mono (Nat.le_refl _)
+      (demonBound_mono κ _ _ (CurrentLearner.active_cardinality features)))
+
+/-- The capacity bound covers active sets of different lengths at one configuration: at every
+dimension the empty set is shorter than the set of the first slot, and the bank's step at each is
+within the one bound. -/
+theorem demonBankStepCosted_within_capacity_witness (κ : Costs) {discounts : List Discount}
+    (bank : DemonBank dimension discounts) (rewards : Cumulants discounts) :
+    (SwiftTd.ActiveSet.empty dimension).indices.length <
+        (⟨[⟨0, dimension.positive⟩], List.nodup_singleton _⟩ :
+          SwiftTd.ActiveSet dimension).indices.length ∧
+      (bank.stepCosted (SwiftTd.ActiveSet.empty dimension) rewards).Within κ
+        (pass (κ .visit) discounts.length
+          (demonBound κ dimension.capacity dimension.capacity discounts.length)) ∧
+      (bank.stepCosted ⟨[⟨0, dimension.positive⟩], List.nodup_singleton _⟩ rewards).Within κ
+        (pass (κ .visit) discounts.length
+          (demonBound κ dimension.capacity dimension.capacity discounts.length)) :=
+  ⟨by simp [SwiftTd.ActiveSet.empty], demonBankStepCosted_within_capacity κ bank _ rewards,
+    demonBankStepCosted_within_capacity κ bank _ rewards⟩
 
 end AcornVerif.Resource.Twin
