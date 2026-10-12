@@ -28,7 +28,7 @@ trust assumption and correspondences that no theorem checks, which a later incre
 requirement R8 (rbeauchamp/acorn#90) owes. The trust assumption is that the compiler erases a
 costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
 The learner's, the learner record's, the policy's, the controllers' costed parts (those
-`AcornVerif.Resource.Work` lists), the encoding's and the option models' input, ranked features,
+`Acorn.Cost` names), the encoding's and the option models' input, ranked features,
 prediction and updates are the work of their executed functions, whose definitions are the values of
 their costed definitions, under the cost discipline of `Acorn.Cost`: every value a costed definition
 passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without a costed
@@ -160,7 +160,7 @@ executed first part, and its accounting is at most `chooseBound`, for every cost
 and percept. It is not a bound of the executed first part's work: that reading rests on the
 compiler's erasure of the work of the costed definitions of the learner, of a learner's record (its
 entry, retirement and credit), of the controllers (their predictions, clear, release, snapshot,
-derived rate and the updates `AcornVerif.Resource.Work` lists), of the frozen policy and of its
+derived rate and the updates `Acorn.Cost` names), of the frozen policy and of its
 exploration, of the encoding of a frame and of an option model's input, ranked features, prediction
 and updates, a trust assumption, on the cost discipline of the same costed definitions, checked by
 reading, and on the twins' correspondence with the executed selection, the controllers' initial
@@ -182,7 +182,7 @@ that reading needs `words` to count the segments of the executed code, the inten
 `SiteBounds` that no checked statement contains, and in addition the compiler's erasure of the work
 of the costed definitions of the learner, of a learner's record (its entry, retirement and credit),
 of the controllers (their predictions, clear, release, snapshot, derived rate and the updates
-`AcornVerif.Resource.Work` lists), of the frozen policy and of its exploration and of the encoding
+`Acorn.Cost` names), of the frozen policy and of its exploration and of the encoding
 of a frame and of an option model's input, ranked features, prediction and updates, a trust
 assumption, the cost discipline of the same costed definitions, checked by reading, and the twins'
 correspondence with the executed selection, the controllers' initial value and reset among them,

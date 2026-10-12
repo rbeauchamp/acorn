@@ -474,18 +474,12 @@ once each for a ranking's lookup table, an empty ranking, a fresh transition par
 the ranked slots, the changed positions, the occupied positions and an indicator.
 
 The first part under `act-then-learn`, the second part in each order and the memory
-of the agent state are not bounded here. Of the second part, only the costed definitions
-it calls are costed. Its other stretches are an open obligation of R8, and some of them
-run a loop whose trip count depends on the configuration or the state with no charge
-point (`DemonRecords.observe` walks every channel of the demons' lifetime records), so
-their segments are not yet bounded by constants of the code: the owed writes and
-deferred planning of an order (`TemporalControl.deferred`), the takeover value and the
-off-policy learning of the options (`TemporalControl.takeoverValue`,
-`TemporalControl.followOptions`), the closing of a meta span apart from the controller's
-closing update (`TemporalControl.closeSpan`), the completion of a primitive step apart
-from the controller's credit and the demons' bank step (`TemporalControl.finish`: the
-signal values, the lifetime records of the options and the demons, the gain, the
-options' questions and the record of the frame), and the tester (`Agent.retire`). The
+of the agent state are not bounded here. The second part runs stretches outside the
+costed definitions, so its bound is not yet stated; it remains an open obligation of R8.
+`DemonRecords.observe` is one such stretch: a loop over the channels of the demons'
+lifetime records, whose trip count depends on the configuration, with no charge point.
+That is why the claim that every segment is bounded by a constant of the code is limited
+to the first part and the costed definitions. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
 is owed by a later increment of R8.

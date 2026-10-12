@@ -68,17 +68,11 @@ width's search (`rankExponentFrom`) and the at most 33 steps of `Portable.pow`. 
 derives the cost of a site in word operations; the scalar operations that the native resource audit
 bounds are the operations with an extracted cost.
 
-The rest of the second part is not costed yet, and some of it runs a loop whose trip count depends
-on the configuration or the state with no charge point (`DemonRecords.observe` walks every channel
-of the demons' lifetime records), so its segments are not yet bounded by constants of the code;
-costing it is an open obligation of R8. Its stretches outside the costed definitions are those of
-the owed writes and deferred planning of an order (`TemporalControl.deferred`), the takeover value
-and the off-policy learning of the options (`TemporalControl.takeoverValue`,
-`TemporalControl.followOptions`), the closing of a meta span apart from the controller's closing
-update (`TemporalControl.closeSpan`), the completion of a primitive step apart from the controller's
-credit and the demons' bank step (`TemporalControl.finish`: the signal values, the lifetime records
-of the options and the demons, the gain, the options' questions and the record of the frame), and
-the tester (`Agent.retire`).
+The second part runs stretches outside the costed definitions, so its bound is not yet stated; it
+remains an open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
+channels of the demons' lifetime records, whose trip count depends on the configuration, with no
+charge point. That is why the claim above that every segment is bounded by a constant of the code
+is limited to the first part and the costed definitions.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
