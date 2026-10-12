@@ -29,7 +29,8 @@ requirement R8 (rbeauchamp/acorn#90) owes. The trust assumption is that the comp
 costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
 The learner's, the learner record's, the policy's, the controllers' costed parts (those
 `Acorn.Cost` names), the encoding's and the option models' input, ranked features,
-prediction and updates are the work of their executed functions, whose definitions are the values of
+prediction and updates, apart from the exceptions `AcornVerif.Resource.Work` states, are the work of
+their executed functions, whose definitions are the values of
 their costed definitions, under the cost discipline of `Acorn.Cost`: every value a costed definition
 passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without a costed
 definition and with no loop except those `Acorn.Cost` lists as left inside a segment, whose trip
