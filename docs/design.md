@@ -337,12 +337,13 @@ nominal masses, draw and mean (`Acorn.Policy`), and its persistent draw and serv
 masses (`Acorn.Exploration`). So are a learner record's entry, retirement and credit
 (`Managed.apply`, `Managed.retire`, `Managed.credit`), a controller's predictions, clear,
 release, snapshot and derived rate and its updates `Controller.creditStep`, `valuesStep`,
-`stopStep`, `terminal`, `retire`, `plan`, `policyStep` and `persistentStep`, and a
-learner's normalized step-size sum. A controller's initial value and reset
-(`Controller.initial`, `Controller.resetAction`) are not costed yet and have twins
-(`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`);
-its updates `Controller.startStep`, `step`, `smdpStep`, `closeStep` and `backupStep` are
-not costed yet and have none. The encoding of a frame is also the value of its costed
+`stopStep`, `terminal`, `retire`, `plan`, `policyStep`, `persistentStep`, `startStep`,
+`step`, `smdpStep`, `closeStep` and `backupStep` with the tree-backup error
+(`Controller.backupError`) and an action's mass (`PolicySnapshot.mass`), and a learner's
+normalized step-size sum. A controller's initial value and reset (`Controller.initial`,
+`Controller.resetAction`) are not costed yet and have twins
+(`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
+The encoding of a frame is also the value of its costed
 definition (`Agent.frame`), and so are the words
 the coder reads (`Agent.words`, from the stored predictions' words and their feedback
 words), each generated unit's projection and output (`Bank.activations`), the tiled and
