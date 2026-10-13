@@ -683,7 +683,7 @@ theorem continuation_cap (skill : Skill actions config criterion dimension disco
       none := by
   cases goal with
   | true => rfl
-  | false => simp [Skill.decideOption, continuation, capped]
+  | false => simp [Skill.decideOption_def, continuation, capped]
 
 /-- Where the outcome of the stopping decision of a stored trajectory agrees under two
 achievement events, settling the trajectory gives one result. The hypothesis admits a

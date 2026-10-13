@@ -141,7 +141,7 @@ theorem _root_.Acorn.Features.Skill.stepTemporal_interest {mode : Bool} (skill :
     (rng : Rng.Xoshiro256) :
     (skill.stepTemporal models activation next reward gain rng).1.interest = skill.interest := by
   simp only [Skill.stepTemporal_eq]
-  split <;> simp only [Skill.optionStep] <;> split <;> rfl
+  split <;> simp only [Skill.optionStep_def] <;> split <;> rfl
 
 /-- Terminal policy/model credit retains its original objective. -/
 theorem _root_.Acorn.Features.Skill.endTemporal_interest {mode : Bool} (skill : Skill actions config criterion dimension discounts)
