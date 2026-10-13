@@ -76,7 +76,7 @@ theorem declared_refusal (origin : Departure) (tag : Fin Acorn.FeatureConstants.
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (different : origin ≠
       declared.origin) :
     (Interest.declared (config := config) origin tag).potential features declared = none := by
-  simp [Interest.potential, different]
+  simp [Interest.potential_def, different]
 
 /-- The actual continuation token admits exactly one age increment and retains
 its frozen mode/coordinate, independent of every reward or model-operation word. -/
@@ -697,7 +697,7 @@ theorem follow_executing (state : TemporalControl interface profile config crite
   dsimp only
   rw [TemporalControl.followOptions_eq]
   split
-  · simp [followSlot, executing]
+  · simp [followSlot_def, executing]
   · exact ⟨rfl, rfl⟩
 
 /-- Closing an interrupted option's meta span writes no option learner. -/
@@ -811,7 +811,7 @@ theorem follow_refused (models : OptionModelOps criterion dimension)
     (refused : skill.interest.potential features declared = none) :
     followSlot models value features declared goal estimate rate action behaviour reward gain
       false skill = { skill with following := none } := by
-  simp [followSlot, refused]
+  simp [followSlot_def, refused]
 
 /-- When a meta decision was drawn at the frame, the stopping estimate reads that
 decision's own frozen snapshot, values and rate: no rate read after the meta

@@ -787,6 +787,23 @@ def TemporalControl.stoppingEstimate (state : TemporalControl interface profile 
   | none => comparisonValue criterion
       (⟨decision.metaValues, state.metaRate⟩ : PolicySnapshot metaCount)
 
+/-- One slot's share of a followed frame with its work: the potential of its interest, then its
+off-policy following. -/
+def followSlotCosted (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (action : Action interface.actions.word.toNat)
+    (behaviour : Vector Binary32 interface.actions.word.toNat) (reward : Binary32) (gain : RewardRate)
+    (executing : Bool) (skill : Skill interface.actions config criterion dimension interface.layout) :
+    Costed (Skill interface.actions config criterion dimension interface.layout) :=
+  Costed.ite (executing = true) (fun _ => Costed.pure { skill with following := none }) fun _ => do
+    let potential? ← skill.interest.potentialCosted features declared
+    match potential? with
+    | some potential =>
+      skill.followTemporalCosted models value features potential goal estimate rate action
+        behaviour reward gain
+    | none => Costed.pure { skill with following := none }
+
 /-- One slot's share of a followed frame. The executing option keeps its own
 on-policy update and is linked to no off-policy trajectory. A slot whose declared
 potential source is not supplied learns nothing and is unlinked. -/
@@ -797,12 +814,40 @@ def followSlot (models : OptionModelOps criterion dimension)
     (behaviour : Vector Binary32 interface.actions.word.toNat) (reward : Binary32) (gain : RewardRate)
     (executing : Bool) (skill : Skill interface.actions config criterion dimension interface.layout) :
     Skill interface.actions config criterion dimension interface.layout :=
-  if executing then { skill with following := none } else
-    match skill.interest.potential features declared with
-    | some potential =>
-      skill.followTemporal models value features potential goal estimate rate action behaviour
-        reward gain
-    | none => { skill with following := none }
+  (followSlotCosted models value features declared goal estimate rate action behaviour reward gain
+    executing skill).val
+
+/-- The executing slot is unlinked; another slot follows the frame at its interest's potential,
+or is unlinked when its declared source is not supplied. -/
+theorem followSlot_def (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (action : Action interface.actions.word.toNat)
+    (behaviour : Vector Binary32 interface.actions.word.toNat) (reward : Binary32) (gain : RewardRate)
+    (executing : Bool) (skill : Skill interface.actions config criterion dimension interface.layout) :
+    followSlot models value features declared goal estimate rate action behaviour reward gain
+        executing skill =
+      if executing then { skill with following := none } else
+        match skill.interest.potential features declared with
+        | some potential =>
+          skill.followTemporal models value features potential goal estimate rate action behaviour
+            reward gain
+        | none => { skill with following := none } := by
+  cases executing
+  · show (skill.interest.potentialCosted features declared >>= fun potential? =>
+        match potential? with
+        | some potential =>
+          skill.followTemporalCosted models value features potential goal estimate rate action
+            behaviour reward gain
+        | none => Costed.pure { skill with following := none }).val =
+      match (skill.interest.potentialCosted features declared).val with
+      | some potential =>
+        skill.followTemporal models value features potential goal estimate rate action behaviour
+          reward gain
+      | none => { skill with following := none }
+    rw [Costed.bind_val]
+    cases (skill.interest.potentialCosted features declared).val <;> rfl
+  · rfl
 
 /-- Every option that is not executing learns from the frame's actual action and
 its reported behaviour masses, in table order, after selection and before the

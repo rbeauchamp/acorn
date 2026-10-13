@@ -157,7 +157,10 @@ option's start, step, credit of a drawn decision, end, the stop and settling of 
 trajectory, a start whose first action is drawn and its off-policy following, with its model
 (`Skill.beginTemporalCosted`, `stepTemporalCosted`, `creditTemporalCosted`, `endTemporalCosted`,
 `stopFollowingCosted`, `settleFollowingCosted`, `settleTemporalCosted`, `startTemporalCosted`,
-`startFollowingCosted` and `followTemporalCosted` in `Acorn.Temporal`).
+`startFollowingCosted` and `followTemporalCosted` in `Acorn.Temporal`), and an option's potential
+and one slot's share of a followed frame (`Assignment.potentialCosted` in `Acorn.FeatureRanking`,
+`Interest.potentialCosted` in `Acorn.Options` and `followSlotCosted` in
+`Acorn.Handcrafted.TemporalControl`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -200,12 +203,14 @@ call a specialization of that fold of their own with the body of the one they sh
 and of the costed definitions of an option model's input, ranked features, prediction and updates
 and of the controllers' remaining updates, the prediction demons' bank step, every option's
 off-policy questions, an option's operations without and with its model and its off-policy
-following, and their callers, where `Skill.followTemporal` reaches the model's restart, a costed
+following, an option's potential and one slot's share of a followed frame, and their callers, where `Skill.followTemporal` reaches the model's restart, a costed
 operation, through nested tests of consistency and liveness, and the code without work passed
 the restart's arguments to a join point that tested consistency again, with the same calls in
 the same order, and where `PolicySnapshot.consistentCosted`, which compares raw words through
 `vectorEq`, allocates the closure of the words' equality after it reads the nominal masses, where
-the code without work allocated it before.
+the code without work allocated it before, and where `Acorn.Handcrafted.TemporalProfile` no longer
+contains the compiled splitter of the match of `Interest.potential`, which a proof there generated
+by unfolding the definition without work and no code calls.
 Each is an observation of one build, which no gate repeats. A bound in word operations bounds the
 accounting under `SiteBounds`; no checked statement says that a segment of the executed code does
 at most its site's cost in word operations.

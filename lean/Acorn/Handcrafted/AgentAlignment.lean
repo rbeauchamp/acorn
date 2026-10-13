@@ -299,7 +299,7 @@ theorem followSlot_interest (models : OptionModelOps criterion dimension)
     (skill : Skill interface.actions config criterion dimension interface.layout) :
     (followSlot models value features declared goal estimate rate action behaviour reward gain
       executing skill).interest = skill.interest := by
-  unfold followSlot
+  rw [followSlot_def]
   split
   · rfl
   · split

@@ -7,17 +7,17 @@ import Mathlib.Tactic.GCongr
 import Mathlib.Algebra.Order.Monoid.Unbundled.Basic
 import Mathlib.Algebra.Order.GroupWithZero.Defs
 import Mathlib.Algebra.Order.Ring.Nat
-import Acorn.Models
+import Acorn.Handcrafted.TemporalControl
 import AcornVerif.Resource.ModelWork
 
 /-!
 # Work of the options
 
-The bounds of the costed definitions of an option's operations in `Acorn.Options` and of its
-operations with its model in `Acorn.Temporal`, at the model operations of `modelOperations`, the
-ones the agent runs, with the adapters the twins read, and the twin of `Interest.potential`. An
-option is a policy controller over the world's actions, an option model and an interest;
-`Acorn.Cost` names each costed definition.
+The bounds of the costed definitions of an option's operations in `Acorn.Options`, of its
+operations with its model in `Acorn.Temporal` and of one slot's share of a followed frame
+(`Handcrafted.followSlot`), at the model operations of `modelOperations`, the ones the agent runs,
+with the adapters the twins read. An option is a policy controller over the world's actions, an
+option model and an interest; `Acorn.Cost` names each costed definition.
 
 Each `_within` theorem bounds a costed definition directly. Where that bound grows with an active
 set's length, a `_within_capacity` theorem bounds the definition by a function of the configuration
@@ -25,8 +25,7 @@ alone, with the capacity of the dimension in place of the length: every active s
 dimension (`AcornVerif.CurrentLearner.active_cardinality`), and the set of every index fills it
 (`AcornVerif.CurrentLearner.active_cardinality_attained`). An adapter pairs the executed
 definition's value with that bound, and its `_costed` theorem checks the bound against the costed
-definition. The twin of `Interest.potential` is its executed value with the work of a costed run
-that follows its control flow, and `interestPotentialRun_val` checks the run's value.
+definition.
 -/
 
 namespace AcornVerif.Resource.Twin
@@ -77,54 +76,58 @@ theorem frozenPolicyCosted_within_capacity (κ : Costs)
   (frozenPolicyCosted_within κ skill features rate).mono
     (frozenBound_mono κ _ _ (CurrentLearner.active_cardinality features))
 
-/-- The costed run of `Interest.potential`: a learned assignment's feature slot and, when it
-has one, its membership test of the frame, or a declared value read. -/
-def interestPotentialRun (κ : Costs) (interest : Interest config)
-    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
-    Costed (Option Potential) :=
-  match interest with
-  | .learned assignment => Costed.via (some (assignment.potential features))
-      (Costed.charge (κ .assignmentPotential) (match assignment.feature dimension with
-        | none => Costed.pure ()
-        | some _ => Costed.scanList .contains (κ .visit + κ .compare) features.indices ()))
-  | .declared origin tag => Costed.op (κ .declaredPotential)
-      (if origin = declared.origin then some (declared.values.get tag) else none)
-
-theorem interestPotentialRun_val (κ : Costs) (interest : Interest config)
-    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
-    (interestPotentialRun κ interest features declared).val =
-      interest.potential features declared := by
-  cases interest <;> rfl
-
-/-- Twin of `Interest.potential`. -/
-def interestPotential (κ : Costs) (interest : Interest config)
-    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
-    Costed (Option Potential) :=
-  Costed.via (interest.potential features declared)
-    (interestPotentialRun κ interest features declared)
-
 /-- Bound of a potential over `width` features. -/
 abbrev potentialBound (κ : Costs) (width : Nat) : Nat :=
   κ .assignmentPotential + Library.contains.control (κ .visit + κ .compare) width +
     κ .declaredPotential
 
+/-- An assignment's potential: its feature slot, then, when it has one, its membership test of
+the frame. -/
+theorem assignmentPotentialCosted_within (κ : Costs) (assignment : Assignment config)
+    (active : SwiftTd.ActiveSet dimension) :
+    (assignment.potentialCosted active).Within κ
+      (κ .assignmentPotential + Library.contains.control (κ .visit + κ .compare)
+        active.indices.length) := by
+  unfold Assignment.potentialCosted
+  refine Acorn.Costed.charge_within ?_
+  split
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+  · exact Acorn.Costed.mem_within _ _ _ κ
+
+/-- An interest's potential: a learned assignment's potential, or a declared value read. -/
+theorem potentialCosted_within (κ : Costs) (interest : Interest config)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
+    (interest.potentialCosted features declared).Within κ
+      (potentialBound κ features.indices.length) := by
+  cases interest with
+  | learned assignment =>
+    exact (Acorn.Costed.bind_within (assignmentPotentialCosted_within κ assignment features)
+      (Acorn.Costed.pure_within _ κ)).mono (by simp only [potentialBound]; omega)
+  | declared origin tag =>
+    exact (Acorn.Costed.op_within _ _ κ).mono (by simp only [potentialBound]; omega)
+
+/-- `Interest.potential` with its bound. -/
+def interestPotential (κ : Costs) (interest : Interest config)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
+    Costed (Option Potential) :=
+  ⟨interest.potential features declared, potentialBound κ features.indices.length⟩
+
+theorem interestPotential_val (κ : Costs) (interest : Interest config)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
+    (interestPotential κ interest features declared).val =
+      interest.potential features declared := rfl
+
 theorem interestPotential_work (κ : Costs) (interest : Interest config)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
     (interestPotential κ interest features declared).work ≤
-      potentialBound κ features.indices.length := by
-  change (interestPotentialRun κ interest features declared).work ≤ _
-  cases interest with
-  | learned assignment =>
-    refine Nat.le_trans (Costed.charge_work_le (cost := κ .assignmentPotential)
-      (bound := Library.contains.control (κ .visit + κ .compare) features.indices.length) ?_) ?_
-    · split
-      · exact Nat.zero_le _
-      · exact Nat.le_refl _
-    · simp only [potentialBound]
-      omega
-  | declared origin tag =>
-    simp only [interestPotentialRun, Costed.op, potentialBound]
-    omega
+      potentialBound κ features.indices.length :=
+  Nat.le_refl _
+
+theorem interestPotential_costed (κ : Costs) (interest : Interest config)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
+    (interest.potentialCosted features declared).Within κ
+      (interestPotential κ interest features declared).work :=
+  potentialCosted_within κ interest features declared
 
 /-! ## Decisions and starts -/
 
@@ -905,6 +908,63 @@ theorem followTemporalCosted_within_capacity (κ : Costs)
   (followTemporalCosted_within κ skill value features potential goal estimate rate action
     behaviour reward gain).mono
     (followTemporalBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
+
+/-! ## One slot's share of a followed frame -/
+
+section Slot
+
+variable {interface : Interface}
+
+/-- Bound of one slot's share of a followed frame: its interest's potential, then its off-policy
+following. -/
+abbrev followSlotBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
+  potentialBound κ width + followTemporalBound κ rows capacity positions width
+
+/-- One slot's share of a followed frame: nothing for the executing slot, otherwise its interest's
+potential and, when the potential has a source, the slot's off-policy following. -/
+theorem followSlotCosted_within (κ : Costs) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (action : Action interface.actions.word.toNat)
+    (behaviour : Vector Binary32 interface.actions.word.toNat) (reward : Binary32)
+    (gain : RewardRate) (executing : Bool)
+    (skill : Skill interface.actions config criterion dimension interface.layout) :
+    (Handcrafted.followSlotCosted (modelOperations criterion dimension) value features declared
+      goal estimate rate action behaviour reward gain executing skill).Within κ
+      (followSlotBound κ interface.actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity features.indices.length) := by
+  unfold Handcrafted.followSlotCosted
+  refine Acorn.Costed.ite_within (fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
+    fun _ => Acorn.Costed.bind_within (potentialCosted_within κ skill.interest features declared) ?_
+  split
+  · exact followTemporalCosted_within κ skill value features _ goal estimate rate action behaviour
+      reward gain
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+
+theorem followSlotBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
+    (fits : width ≤ limit) :
+    followSlotBound κ rows capacity positions width ≤
+      followSlotBound κ rows capacity positions limit := by
+  have := followTemporalBound_mono κ rows capacity positions fits
+  have := Library.control_mono .contains (visit := κ .visit + κ .compare) fits
+  simp only [followSlotBound, potentialBound]
+  omega
+
+/-- One slot's share of a followed frame is within a function of the configuration alone. -/
+theorem followSlotCosted_within_capacity (κ : Costs) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (action : Action interface.actions.word.toNat)
+    (behaviour : Vector Binary32 interface.actions.word.toNat) (reward : Binary32)
+    (gain : RewardRate) (executing : Bool)
+    (skill : Skill interface.actions config criterion dimension interface.layout) :
+    (Handcrafted.followSlotCosted (modelOperations criterion dimension) value features declared
+      goal estimate rate action behaviour reward gain executing skill).Within κ
+      (followSlotBound κ interface.actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity dimension.capacity) :=
+  (followSlotCosted_within κ value features declared goal estimate rate action behaviour reward
+    gain executing skill).mono
+    (followSlotBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
+
+end Slot
 
 /-! ### Adapters -/
 

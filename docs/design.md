@@ -397,8 +397,14 @@ dimension in its place each is a function of the configuration
 `endTemporalCosted_within_capacity`, `stopFollowingCosted_within_capacity`,
 `settleFollowingCosted_within_capacity`, `settleTemporalCosted_within_capacity`,
 `startTemporalCosted_within_capacity`, `startFollowingCosted_within_capacity`,
-`followTemporalCosted_within_capacity`). An option's potential (`Interest.potential`) is not
-costed yet and has a twin (`AcornVerif.Resource.Twin.interestPotential`). A controller's initial
+`followTemporalCosted_within_capacity`). An option's potential (`Interest.potential`) is also
+the value of its costed definition, which for a learned option tests its feature slot's
+membership in the frame by a scan (`Assignment.potential`, `Costed.mem`), and so is one
+slot's share of a followed frame (`followSlot`), which reads the potential and follows the
+option's off-policy questions. Both bounds grow with the active set's length, and with the
+capacity of the dimension in its place the slot's is a function of the configuration
+(`AcornVerif.Resource.Twin.potentialCosted_within`,
+`AcornVerif.Resource.Twin.followSlotCosted_within_capacity`). A controller's initial
 value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
 have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
