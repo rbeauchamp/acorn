@@ -2119,7 +2119,8 @@ grammar, relations that name no function of the parser. The accepted input of th
 text `{}`.
 
 **Not claimed:** completeness, that the parser accepts every text of the grammar; `json_parse`
-states the texts of requests that it accepts. -/
+states the texts of requests that it accepts. Completeness is the subject of
+https://github.com/rbeauchamp/acorn/issues/163. -/
 theorem json_parse_text :
     Regula.ExecutableContract Json.parse
       (Regula.DecidesSoundly (fun result => result.isOk = true)
@@ -2723,8 +2724,9 @@ no test with the function. The accepted input of the proof is the body that the 
 for `start`.
 
 **Not claimed:** completeness about that specification. The parser's acceptance of every text
-of the grammar has no theorem, so a body with white space or an escape has no statement that it
-is accepted; `control_command_written` states the bodies that the viewer itself writes. -/
+of the grammar has no theorem (https://github.com/rbeauchamp/acorn/issues/163), so a body with
+white space or an escape has no statement that it is accepted; `control_command_written` states
+the bodies that the viewer itself writes. -/
 theorem control_command : Regula.ExecutableContract controlCommand
     (Regula.DecidesSoundly (·.isOk = true)
       (fun body : ControlBody => ∃ command, ControlSpelled body.val command)) :=
