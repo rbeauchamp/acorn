@@ -37,6 +37,10 @@ attempts shorten, between its first two visits and its last two, by at least
 the margin and by at least the margin more than a uniform-random policy's. The
 result concerns worlds of side 1024, the standard curriculum, four cycles with
 a cap of 3000 steps, the two reach goals and the source at the commit below.
+That source predates
+[#155](https://github.com/rbeauchamp/acorn/issues/155), which changed the
+feature, cue and terrain hashes, so the numbers here were measured before that
+change and describe the source at that commit only.
 
 **How it came about.** Almost no reach attempt reached its target, in either
 arm. Each arm made 160 visits to a reach goal: 20 seeds, two goals, four

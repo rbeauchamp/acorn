@@ -37,11 +37,9 @@ open AcornVerif.CurrentGoals
 word, hence a bijection of the 64-bit words. -/
 theorem hash2_injective (second salt left right : UInt64)
     (h : Rng.hash2 left second salt = Rng.hash2 right second salt) : left = right := by
-  have outer := Rng.mix64_injective _ _ h
-  have inner := Rng.mix64_injective _ _ outer
-  have first := Rng.mix64_injective _ _ (Word.xor_word_injective _ _ _ inner)
-  rw [UInt64.xor_comm (salt ^^^ Rng.increment) left,
-    UInt64.xor_comm (salt ^^^ Rng.increment) right] at first
+  have first := (Rng.hash2_eq_iff left second salt right salt).mp h
+  rw [UInt64.xor_comm (Rng.mix64 (salt ^^^ Rng.increment)) left,
+    UInt64.xor_comm (Rng.mix64 (salt ^^^ Rng.increment)) right] at first
   exact Word.xor_word_injective _ _ _ first
 
 /-- Each residue of the seed hash modulo `modulus` is taken on `2 ^ 64 / modulus` seeds,

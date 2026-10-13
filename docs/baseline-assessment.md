@@ -54,7 +54,10 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   seeds: of 160 reach visits the agent achieved one and the policy none
   ([U7](#conformance-sequence)). Neither observation shows that the agent
   cannot learn; whether it learns on goals it does achieve, or over a longer
-  horizon, has not been observed.
+  horizon, has not been observed. Both runs were measured before
+  [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature,
+  cue and terrain hashes; they describe the code before that change, and the
+  current code has not been run on their protocol.
 
 The defects survived for an instructive reason. Acorn's proofs state safety and
 admission properties, such as "the stored state stays legal" or "this identity
@@ -276,8 +279,10 @@ conformance with the source; the second was repaired:
   persistent runs served 10 steps from 4 starts. The traces are reruns of two
   recorded seeds (16265277883658242538 and 8789851314873071931) with per-step
   telemetry; they are diagnostics, observed on those two seeds before the
-  repair, and not study evidence. An executing option now makes the persistent
-  draw too, and a run it begins interrupts it
+  repair and before [#155](https://github.com/rbeauchamp/acorn/issues/155)
+  changed the feature, cue and terrain hashes, and not study evidence. An
+  executing option now makes the persistent draw too, and a run it begins
+  interrupts it
   ([D3](learned-only-binding.md#d3--exploration-duration--step-9),
   [PAR-8](prior-art-review.md#par-8--temporally-extended-exploration)).
   `CurrentTemporal.select_persistent` proves every decision is a served step
@@ -299,7 +304,16 @@ over tile kinds, or one of 99 prediction buckets (11 questions × 9 levels)
 slots (`FeatIdx.fromHash`), and `unique` merges raw features that share a slot.
 Tile words and imprints do not depend on the task, and task words do not depend
 on the tile layout. The eight tilings are eight hashed copies of the same word;
-they add robustness to collisions, not conjunctions.
+they add no conjunctions. Until
+[#155](https://github.com/rbeauchamp/acorn/issues/155) they also added no
+robustness to some collisions: the slot hash read a tiling's salt and a word's
+channel only through their XOR, so two words with one value on channels whose
+XOR is below 8, such as the wood and stone buckets or energy and the day phase,
+had the same eight slots for every seed. The slot hash now mixes the salt before
+the channel enters (`Rng.hash3_eq_iff`), so whether two words share a slot
+depends on the seed: in the standard configuration at seed 0, the slot of the
+wood word in tiling 0 is the slot of the stone word in no tiling
+(`CurrentHashes.wood_not_stone`). The U6 and U7 runs had the aliased pairs.
 
 **Lemma.** Suppose that in s and s′ no active slot is shared between a tile or
 imprint feature and a task, inventory, energy, day or prediction word. Then
@@ -536,8 +550,8 @@ derivation, not measurement.
 | U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
-| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
-| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Run: refuted at this horizon** ([result](studies/repeated-visits-vs-chance/results.md), [protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). Authorized and run on 2026-10-04 as revision 2 at commit 96e3f6b. Of 20 seeds: W 0, losses 1, ties 19, M 0; 95% interval for the fraction of wins 0.000 to 0.169 |
+| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
+| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Run: refuted at this horizon** ([result](studies/repeated-visits-vs-chance/results.md), [protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). Authorized and run on 2026-10-04 as revision 2 at commit 96e3f6b, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes. Of 20 seeds: W 0, losses 1, ties 19, M 0; 95% interval for the fraction of wins 0.000 to 0.169 |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction, which removes the
@@ -548,7 +562,9 @@ U6's [protocol](studies/first-pass-vs-chance/protocol.md) compares the two over
 one pass of the curriculum, the longest horizon on which the core's
 random-policy diagnostic was a matched comparator when it was written. The
 owner authorized revision 1 on 2026-10-03, and it was run that day at commit
-6ac4eec, the commit that registered it. The [result](studies/first-pass-vs-chance/results.md) is
+6ac4eec, the commit that registered it, before
+[#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue
+and terrain hashes. The [result](studies/first-pass-vs-chance/results.md) is
 **refuted at this horizon**: in most worlds the agent does not achieve more
 goals than chance in its first pass. Of 20 seeds, all with a valid outcome, the
 agent achieved at least one more goal than the comparator on 4 (W), fewer on 9
@@ -585,7 +601,8 @@ goals need continual learning.
 
 The owner authorized execution after issue 58 landed, as revision 2 at its
 registering commit, and it was run on 2026-10-04 at commit 96e3f6b, the commit
-that registered it. The [result](studies/repeated-visits-vs-chance/results.md)
+that registered it, before [#155](https://github.com/rbeauchamp/acorn/issues/155)
+changed the feature, cue and terrain hashes. The [result](studies/repeated-visits-vs-chance/results.md)
 is **refuted at this horizon**: in most worlds the agent's reach attempts do
 not shorten over repeated visits by at least 300 steps per attempt and by at
 least 300 more than chance's. Of 20 seeds, all with a valid outcome, none is a
@@ -672,7 +689,7 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
   skill has none, so nothing observed under one objective is credited to its
   replacement. Terminal credit assignment is unchanged; selection gains
   only the settling step.
-- **Checkpoint and pins.** U4 left the checkpoint format unchanged; format 19
+- **Checkpoint and pins.** U4 left the checkpoint format unchanged; format 20
   stores the trajectory ([design](design.md#checkpoints)). All three audit pins
   changed, because option policies and models now change on every step.
 
@@ -743,7 +760,7 @@ meta-controller's option values still learn by SMDP credit alone ([[9]](#r9) §6
   [PAR-13](prior-art-review.md#par-13--option-expectation-models) records the
   cadence this replaced.
 - **Selection name and pins.** `--planning expectation` replaces `scalar`. U5
-  left the checkpoint format unchanged; format 19 stores the transition part
+  left the checkpoint format unchanged; format 20 stores the transition part
   with the other model learners ([design](design.md#checkpoints)). All three
   audit pins changed, because the model targets and the planning backups
   changed.
