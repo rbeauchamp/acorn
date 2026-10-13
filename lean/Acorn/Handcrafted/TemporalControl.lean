@@ -787,8 +787,9 @@ def TemporalControl.stoppingEstimate (state : TemporalControl interface profile 
   | none => comparisonValue criterion
       (⟨decision.metaValues, state.metaRate⟩ : PolicySnapshot metaCount)
 
-/-- One slot's share of a followed frame with its work: the potential of its interest, then its
-off-policy following. -/
+/-- One slot's share of a followed frame with its work: the executing slot's unlinked record, or
+the potential of its interest, then its off-policy following or, without a source, its unlinked
+record. -/
 def followSlotCosted (models : OptionModelOps criterion dimension)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
@@ -796,13 +797,14 @@ def followSlotCosted (models : OptionModelOps criterion dimension)
     (behaviour : Vector Binary32 interface.actions.word.toNat) (reward : Binary32) (gain : RewardRate)
     (executing : Bool) (skill : Skill interface.actions config criterion dimension interface.layout) :
     Costed (Skill interface.actions config criterion dimension interface.layout) :=
-  Costed.ite (executing = true) (fun _ => Costed.pure { skill with following := none }) fun _ => do
-    let potential? ← skill.interest.potentialCosted features declared
-    match potential? with
-    | some potential =>
-      skill.followTemporalCosted models value features potential goal estimate rate action
-        behaviour reward gain
-    | none => Costed.pure { skill with following := none }
+  Costed.ite (executing = true) (fun _ => Costed.op .unlinkSlot { skill with following := none })
+    fun _ => do
+      let potential? ← skill.interest.potentialCosted features declared
+      match potential? with
+      | some potential =>
+        skill.followTemporalCosted models value features potential goal estimate rate action
+          behaviour reward gain
+      | none => Costed.op .unlinkSlot { skill with following := none }
 
 /-- One slot's share of a followed frame. The executing option keeps its own
 on-policy update and is linked to no off-policy trajectory. A slot whose declared
@@ -839,7 +841,7 @@ theorem followSlot_def (models : OptionModelOps criterion dimension)
         | some potential =>
           skill.followTemporalCosted models value features potential goal estimate rate action
             behaviour reward gain
-        | none => Costed.pure { skill with following := none }).val =
+        | none => Costed.op .unlinkSlot { skill with following := none }).val =
       match (skill.interest.potentialCosted features declared).val with
       | some potential =>
         skill.followTemporal models value features potential goal estimate rate action behaviour

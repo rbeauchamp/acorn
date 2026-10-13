@@ -400,8 +400,8 @@ dimension in its place each is a function of the configuration
 `followTemporalCosted_within_capacity`). An option's potential (`Interest.potential`) is also
 the value of its costed definition, which for a learned option tests its feature slot's
 membership in the frame by a scan (`Assignment.potential`, `Costed.mem`), and so is one
-slot's share of a followed frame (`followSlot`), which reads the potential and follows the
-option's off-policy questions. Both bounds grow with the active set's length, and with the
+slot's share of a followed frame (`followSlot`), which reads the potential and updates the
+option's policy and model off-policy; the option's questions learn in `askQuestions`. Both bounds grow with the active set's length, and with the
 capacity of the dimension in its place the slot's is a function of the configuration
 (`AcornVerif.Resource.Twin.potentialCosted_within`,
 `AcornVerif.Resource.Twin.followSlotCosted_within_capacity`). A controller's initial
@@ -547,7 +547,16 @@ with no charge point. That is why the claim that every segment is bounded by a c
 of the code is limited to the first part and to each costed definition's own call. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
-is owed by a later increment of R8.
+is owed by a later increment of R8. The following of the option table
+(`TemporalControl.followOptions`) is not yet the value of a costed definition either: before
+it maps each slot's share (`followSlot`), it computes the stopping estimate
+(`TemporalControl.stoppingEstimate`), the options' rate (`TemporalControl.skillRate`) and the
+value function (`TemporalControl.valueFunction`), which read the controllers' rates
+(`Controller.exploreRate`) and the stopping comparison (`comparisonValue`), values of costed
+definitions, with no charge point. The bound of a slot's share
+(`AcornVerif.Resource.Twin.followSlotCosted_within`) takes those three as computed and does not
+count their computation; costing the table's following with them is owed by the next increment
+of R8.
 
 ### The time a world declares
 

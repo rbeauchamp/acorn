@@ -76,8 +76,14 @@ operations of those stretches belong to the segment of the next costed charge po
 part's last one, so the second part's segments are not yet bounded by constants of the code and its
 bound is an open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
 channels of the demons' lifetime records, whose trip count depends on the configuration, with no
-charge point. That is why the claim above that every segment is bounded by a constant of the code
-is limited to the first part and to each costed definition's own call.
+charge point. The following of the option table (`TemporalControl.followOptions`) is another: before
+it maps each slot's costed share (`followSlotCosted`), it computes the stopping estimate, the options'
+rate and the value function, which read the controllers' rates (`Controller.exploreRate`) and the
+stopping comparison (`comparisonValue`), values of costed definitions, with no charge point. The
+bound of a slot's share takes those three as computed and does not count their computation; costing
+the table's following with them is owed by the next increment of R8. That is why the claim above
+that every segment is bounded by a constant of the code is limited to the first part and to each
+costed definition's own call.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
@@ -395,6 +401,9 @@ inductive Site where
   | startFollowing
   /-- A followed frame's restart test, age advance, link and the skill record. -/
   | followStep
+  /-- A slot's executing test and its unlinked skill record, or the unlinked record of a slot
+  whose potential has no source. -/
+  | unlinkSlot
   /-- A planning look-ahead's backed-up target and its result record. -/
   | lookAhead
   /-- A backup's store of its prediction cache and planning error. -/

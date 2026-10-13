@@ -916,12 +916,13 @@ section Slot
 variable {interface : Interface}
 
 /-- Bound of one slot's share of a followed frame: its interest's potential, then its off-policy
-following. -/
+following or its unlinked record. -/
 abbrev followSlotBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
-  potentialBound κ width + followTemporalBound κ rows capacity positions width
+  potentialBound κ width + (followTemporalBound κ rows capacity positions width + κ .unlinkSlot)
 
-/-- One slot's share of a followed frame: nothing for the executing slot, otherwise its interest's
-potential and, when the potential has a source, the slot's off-policy following. -/
+/-- One slot's share of a followed frame: the executing slot's unlinked record, otherwise its
+interest's potential and, when the potential has a source, the slot's off-policy following, or
+else its unlinked record. -/
 theorem followSlotCosted_within (κ : Costs) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (action : Action interface.actions.word.toNat)
@@ -933,12 +934,13 @@ theorem followSlotCosted_within (κ : Costs) (value : ValueFunction criterion di
       (followSlotBound κ interface.actions.word.toNat dimension.capacity
         (rankDimension dimension).capacity features.indices.length) := by
   unfold Handcrafted.followSlotCosted
-  refine Acorn.Costed.ite_within (fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
+  refine Acorn.Costed.ite_within
+    (fun _ => (Acorn.Costed.op_within _ _ κ).mono (by simp only [followSlotBound]; omega))
     fun _ => Acorn.Costed.bind_within (potentialCosted_within κ skill.interest features declared) ?_
   split
-  · exact followTemporalCosted_within κ skill value features _ goal estimate rate action behaviour
-      reward gain
-  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+  · exact (followTemporalCosted_within κ skill value features _ goal estimate rate action behaviour
+      reward gain).mono (Nat.le_add_right _ _)
+  · exact (Acorn.Costed.op_within _ _ κ).mono (Nat.le_add_left _ _)
 
 theorem followSlotBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
