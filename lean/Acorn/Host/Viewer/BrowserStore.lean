@@ -9,9 +9,9 @@ import Acorn.Host.Viewer.WorldMemory
 /-!
 # Page constants and frame store derived from the browser schema
 
-The page's named constants are emitted from Lean: each dimension from its Lean owner, and
-the capacities, windows and durations that only the page uses as literals declared here, so
-no page constant is written in the page's own source. The frame ring
+The page constants that `BrowserConstant` represents are emitted from Lean: each dimension
+from its Lean owner, and the capacities, windows and durations of the page that Appendix A of
+the viewer specification quotes as literals declared here. The frame ring
 is one table of columns, each reading one record field: allocation, the write
 of a record into a slot and the view that reads a slot back are all emitted
 from that table, and no two of its properties share a name
@@ -61,8 +61,9 @@ inductive BrowserConstant where
   | cycleBins
   /-- Curriculum cycles that own an exact bin. -/
   | exactCycles
-  /-- Milliseconds at least between two redraws of the text readouts while the cursor moves;
-  the readouts redraw at once when it lands. -/
+  /-- Milliseconds at least between two redraws of the text readouts while the cursor moves or
+  frames arrive. The readouts redraw at once when the cursor lands, and on every frame the cursor
+  reaches while replay runs at 10 frames per second or slower (UX-8). -/
   | readPace
   /-- Buffered frames, ending at the cursor, over which the readouts take their means and shares
   while the cursor moves faster than a reader can follow. -/

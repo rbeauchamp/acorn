@@ -89,12 +89,24 @@ def scripts (page : String) : IO String := do
     result := result ++ (← code source)
   return result
 
+/-- The header of the table of constants that Appendix A of the viewer specification quotes. -/
+private def constantsHeader : String := "| constant | value | declared in |\n|---|---|---|\n"
+
+/-- Whether a table cell is one name in backticks. -/
+private def quoted (cell : String) : Bool :=
+  cell.length > 2 && cell.startsWith "`" && cell.endsWith "`"
+
 /-- Check each documented constant against the Lean value the viewer uses: the page's own
-constants, which the generated kernel declares (`BrowserConstant`), and the server's. -/
-private def documentConstants : IO Unit := do
-  let text ← IO.FS.readFile "docs/viewer-ux.md"
+constants, which the generated kernel declares (`BrowserConstant`), and the server's. The
+constants table runs from its header to the first line that does not begin with `|`, and every
+row of it must be a name in backticks, a decimal value (`Acorn.Digits.read`) and a source in
+backticks, each name in one row only, the value that of the named constant of that source; every
+owned constant has a row. -/
+private def documentConstants (text : String) : Except String Unit := do
   let [_, appendix] := text.splitOn "## Appendix A"
-    | throw (IO.userError "missing/duplicate viewer constants appendix")
+    | throw "missing/duplicate viewer constants appendix"
+  let [_, table] := appendix.splitOn constantsHeader
+    | throw "missing/duplicate viewer constants table"
   let owned := [("replayCapacity", "Acorn.Host.Viewer.Buffer", replayCapacity),
     ("failureLimit", "Acorn.Host.Viewer.Retry", failureLimit),
     ("healthyRunMs", "Acorn.Host.Viewer.SupervisedProcess", healthyRunMs),
@@ -103,20 +115,24 @@ private def documentConstants : IO Unit := do
       List BrowserConstant).map fun constant =>
         (constant.name, "Acorn.Host.Viewer.BrowserStore", constant.value)
   let mut seen := []
-  for line in appendix.splitOn "\n" do
-    let cells := (line.splitOn "|").map (·.trimAscii.toString)
-    match cells with
-    | ["", name, value, source, ""] =>
-      if name.startsWith "`" && source.startsWith "`" then
-        let name := name.replace "`" ""
-        let source := source.replace "`" ""
-        require (!seen.contains name) s!"duplicate documented constant {name}"
-        seen := name :: seen
-        let actual := owned.find? (fun row => row.1 == name && row.2.1 == source) |>.map (·.2.2)
-        let documented := Acorn.Digits.read value
-        require (documented.isSome && documented == actual) s!"documented constant differs: {name}"
-    | _ => pure ()
-  require (seen.length ≥ 2 && owned.all (fun row => seen.contains row.1)) "missing owned constant rows"
+  for line in (table.splitOn "\n").takeWhile (·.startsWith "|") do
+    let ["", name, value, source, ""] := (line.splitOn "|").map (·.trimAscii.toString)
+      | throw s!"malformed constant row: {line}"
+    unless quoted name && quoted source do throw s!"malformed constant row: {line}"
+    let name := name.replace "`" ""
+    let source := source.replace "`" ""
+    if seen.contains name then throw s!"duplicate documented constant {name}"
+    seen := name :: seen
+    let actual := owned.find? (fun row => row.1 == name && row.2.1 == source) |>.map (·.2.2)
+    let documented := Acorn.Digits.read value
+    unless documented.isSome && documented == actual do
+      throw s!"documented constant differs: {name}"
+  unless seen.length ≥ 2 && owned.all (fun row => seen.contains row.1) do
+    throw "missing owned constant rows"
+
+/-- A second row for `WIN` with a wrong value and its source outside backticks, which the
+constants table refuses when it is added to the specification. -/
+private def refusedConstantRow : String := "| `WIN` | 999 | Acorn.Host.Viewer.BrowserStore |\n"
 
 /-- Check the generated-program call sites and the request/timer inventory. -/
 def check : IO Unit := do
@@ -157,7 +173,12 @@ def check : IO Unit := do
   let connect ← body script "connect()"
   require ((connect.splitOn "received++").length == 2) "capture counter must have one guarded increment"
   require (page.contains "$(\"t_world\").title = WORLD_TILE_NOTE;") "readout reset omits world-tile title"
-  documentConstants
+  let document ← IO.FS.readFile "docs/viewer-ux.md"
+  require (documentConstants (document.replace constantsHeader (constantsHeader ++
+      refusedConstantRow)) matches .error _) "constants table admits a refused control row"
+  match documentConstants document with
+  | .ok () => pure ()
+  | .error message => require false message
   IO.println "browser: generated program wiring and request/timer inventory admitted"
 
 end AcornBrowserAudit

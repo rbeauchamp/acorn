@@ -835,12 +835,12 @@ const pct = (x, d) => (x*100).toFixed(d == null ? 1 : d) + "%";
    once into preallocated typed arrays. Frames are addressed by a monotonic
    id; slot = id % CAP. Valid ids are [head-CAP, head-1], which makes the ring
    wrap-safe — scrubbing across the wrap point stays in time order.
-   The generated kernel declares `CAP`, as it declares every named page
-   constant, and its `observerRing` binds the store to `CAP`: `S` is the
-   columns, `slot` the ring index of an id, `store(id, f)` the write of a
-   validated record — never called with anything else — and `frame(id)` a
-   plain view of one stored frame for the renderers, the generated inverse of
-   `store` from the same column table.
+   The generated kernel declares `CAP`, as it declares every page constant
+   of `BrowserConstant`, and its `observerRing` binds the store to `CAP`:
+   `S` is the columns, `slot` the ring index of an id, `store(id, f)` the
+   write of a validated record — never called with anything else — and
+   `frame(id)` a plain view of one stored frame for the renderers, the
+   generated inverse of `store` from the same column table.
    ========================================================================== */
 const {S, slot, store, frame} = observerRing(CAP);
 let head = 0;                       // frames ever accepted; newest id = head-1
