@@ -2616,8 +2616,8 @@ verdict, the record, the statistics or the learner state, depends on the dimensi
 or the configuration. Regula reads a result whose type depends on the input only through
 `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`, so no kind
 here is about such a component, and each statement is a requirement with no kind. Each states
-the verdict for every input beside what the state keeps, and both verdicts occur at the inputs
-it names. -/
+the verdict for every input; `preceding_advance`, `slot_settles` and `first_loop_prune` also
+state what the state keeps; and both verdicts occur at the inputs each names. -/
 
 /-- An exploratory run begins exactly when the 53-bit fraction of the generator's next word is
 below the exploration rate, compared as rational numbers (`TemporalSupport.branch_exact`), for
