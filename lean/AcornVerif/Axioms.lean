@@ -3410,6 +3410,10 @@ info: 'AcornVerif.CurrentHashes.moisture_not_elevation' depends on axioms: [prop
 #guard_msgs in
 #print axioms AcornVerif.CurrentHashes.moisture_not_elevation
 
+/-- info: 'AcornVerif.CurrentHashes.tree_not_ore_draw' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentHashes.tree_not_ore_draw
+
 /-- info: 'AcornVerif.CurrentHashes.sample_not_xor' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentHashes.sample_not_xor

@@ -98,6 +98,17 @@ theorem moisture_not_elevation : ¬∀ (x x' y : Coordinate) (seed : UInt64),
     (same ⟨0, by decide⟩ ⟨3, by decide⟩ ⟨0, by decide⟩ 0 (by decide +kernel))
     (by decide +kernel)
 
+/-- The tree dither draw at a column is not, for every seed, the ore dither draw at the column
+whose word differs in the bits of `7 ^^^ 9`: at seed 0 and row 0, the tree draw at column 0
+and the ore draw at column 14 differ. -/
+theorem tree_not_ore_draw : ¬∀ (x x' y : Coordinate) (seed : UInt64),
+    coordinateWord x' = coordinateWord x ^^^ 14 →
+      Rng.hash2 (coordinateWord x) (coordinateWord y) (seed ^^^ 7) =
+        Rng.hash2 (coordinateWord x') (coordinateWord y) (seed ^^^ 9) :=
+  fun same => absurd
+    (same ⟨0, by decide⟩ ⟨14, by decide⟩ ⟨0, by decide⟩ 0 (by decide +kernel))
+    (by decide +kernel)
+
 /-- The shape with one input position. -/
 def single : PatchShape := ⟨1, by decide, by decide⟩
 
