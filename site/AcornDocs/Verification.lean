@@ -554,7 +554,13 @@ a test under a second name. It refuses nothing for a projection function, so
 `inventory_craft` is not refused for the fields `Host.Inventory.axe` and
 `Host.Inventory.boat`, which its specification and its function both read. It
 refuses nothing for a shared function with another result than those two, such
-as `Binary32.key` or `Host.terrain`. Those functions stay a matter of review.
+as `Binary32.key` or `Host.terrain`. Those functions stay a matter of review,
+which admits one where something other than the kind fixes it: a primitive
+operation of a number type that Lean's library defines, or a definition with a
+statement of its own against a reading that does not apply it, such as the slot
+map of the feature bank, stated as SplitMix64 on Lean core's bit vectors. The
+module documentation of `lean/Acorn/Decisions.lean` names those statements and
+the groups of shared definitions that have none yet.
 For a contract with a kind, the account of the audit names each such function
 where the specification reaches it first. It does not name a function that the
 specification reaches only through a named one, and it does not name a

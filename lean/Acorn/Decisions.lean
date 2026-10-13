@@ -79,9 +79,11 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Thirty-four functions of this module have a contract and no kind. The reasons are four. Two more,
-`Host.coordinateFloat` and `Agent.runPrefix`, refuse no input, so they are no decisions, and their
-statements `coordinate_float` and `agent_run_prefix` say what their results are.
+Thirty-three functions of this module have a contract and no kind. The reasons are four. Eleven
+more are no decisions, and their statements say what they are: `Host.coordinateFloat` and
+`Agent.runPrefix` refuse no input (`coordinate_float`, `agent_run_prefix`), and nine definitions
+that specifications share with their functions have the statements of the section "Definitions
+that specifications share".
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
   configuration, and a complete or a two-way kind carries a refused input. The statement of
@@ -131,9 +133,7 @@ statements `coordinate_float` and `agent_run_prefix` say what their results are.
   proposition, so a specification would name the test and RG1009 refuses it; the verdict of each
   is also the first component of a pair whose state has a type that depends on the identity, and
   Regula reads a result whose type depends on the input only through `Regula.Dependent.isSome`
-  and `Regula.Dependent.isOk`. Whether `Host.Microduck.Bridge.tick` sends depends on the end of
-  the hold `Host.Microduck.Bridge.ends`, which the function applies, and a kind whose
-  specification named it would compare the guard with itself.
+  and `Regula.Dependent.isOk`.
 * The result has a type that depends on the input and is neither an `Option` nor an `Except`, and
   Regula reads such a result only through `Regula.Dependent.isSome` and
   `Regula.Dependent.isOk`. `Costed.findIdx?` returns its index with the equation that names it,
@@ -234,8 +234,17 @@ than the kind fixes it: a primitive operation of a number type that Lean's libra
 as `Binary32.div`, which applies Lean core's `Float32.div` to the words, or a function with a
 statement of its own against a reading that does not apply it, such as `coordinate_float`. The
 specifications of the Microduck tests state the age of a depth frame by the stamps of the two
-frames, so they share no reader of the age with the tests. The other shared functions are
-remaining work of https://github.com/rbeauchamp/acorn/issues/67. For a contract with a kind, the
+frames, so they share no reader of the age with the tests. The definitions of the section
+"Definitions that specifications share" have statements of their own, and so do, in
+`AcornVerif.Decisions`, the squared discrepancy `Agreement.squaredUnits`, the cap of a total
+`Lifetime.maximumSum`, the readers of a Microduck number `Host.Microduck.spelled`,
+`Host.Microduck.Decimal.ofNumeral` and `Host.Microduck.Decimal.fixed`, and the facing position
+`Host.BoxPosition.facingPosition`. The specification of `exploration_begins` there states the
+output of the generator from its stored words and reads no definition of the generator. Declared
+parameters and tables, readers of stored data, and the world step and the terrain, which the
+replays and the kinds of the terrain are about, are shared with no statement of their own against
+another reading; whether each needs one is remaining work of
+https://github.com/rbeauchamp/acorn/issues/67. For a contract with a kind, the
 account of the Regula audit names each such function where the specification reaches it first. It
 does not name a function that the specification reaches only through a named one, and it does not
 name a projection function.
@@ -304,7 +313,8 @@ report of the definitions that have no contract is work of Regula
   caller does with the result of such a definition.
 * A theorem names the definition, and its verdict is the verdict of a definition with a contract.
   `Host.Microduck.Idle.tick` and `Host.Microduck.Awaiting.tick` send what
-  `Host.Microduck.Bridge.tick` sends for the last release, with the contract `bridge_tick`, and
+  `Host.Microduck.Bridge.tick` sends for the last release, with the contracts `bridge_tick` and
+  `bridge_tick_value`, and
   the ownership audit requires by name `Host.Microduck.Idle.tick_keeps` and
   `Host.Microduck.Awaiting.tick_keeps`, which state that.
   `Features.Preceding.advanceCosted` is the costed definition whose value is
@@ -2144,6 +2154,46 @@ theorem microduck_release :
               now.nanoseconds) :=
   ⟨Host.Microduck.Awaiting.release_admitted⟩
 
+/-- The arguments of `Host.Microduck.Bridge.tick`, in order. -/
+structure BridgeTick where
+  /-- The pace of the cycles. -/
+  pace : Pace
+  /-- How the bridge keeps the velocity of an action. -/
+  keep : Host.Microduck.Keep
+  /-- The origin of the cycles. -/
+  origin : Instant
+  /-- The state between two releases. -/
+  bridge : Host.Microduck.Bridge
+  /-- The reading of the clock. -/
+  now : Instant
+
+/-- A reading of the clock between two releases sends a command only for an action that walks
+forward or turns (`Host.Microduck.Bridge.tick_command`, which states that the velocity of the
+action is not zero; the other actions have the zero velocity). The specification names the
+three constructors of the action. The accepted input is a forward action released at the
+origin under the declared pace and keeping, read at the resend age, 100 ms. The kind is about
+the second component of the pair that the function returns.
+
+**Not claimed:** completeness. The reading also sends nothing before the resend age and from
+the end of the hold; `bridge_tick_value` states the whole transition. -/
+theorem bridge_tick : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
+    Regula.DecidesSoundly
+      (fun result : Host.Microduck.Bridge × Option Host.Microduck.Command =>
+        result.2.isSome = true)
+      (fun input : BridgeTick => input.bridge.action = .forward ∨
+        input.bridge.action = .turnLeft ∨ input.bridge.action = .turnRight)
+      (fun input : BridgeTick => tick input.pace input.keep input.origin input.bridge input.now)) :=
+  ⟨{ sound := fun input sent => by
+       obtain ⟨command, same⟩ := Option.isSome_iff_exists.mp sent
+       have moving := (Host.Microduck.Bridge.tick_command _ _ _ _ _ command same).2.1
+       revert moving
+       cases input.bridge.action <;>
+         simp [Host.Microduck.Action.velocity, Host.Microduck.Action.intent]
+     accepted := ⟨⟨Host.Microduck.Declared.pace, Host.Microduck.Declared.keep, ⟨0⟩,
+       ⟨.forward, false, 0, ⟨0⟩, ⟨0⟩⟩, ⟨100000000⟩⟩, by decide⟩ }⟩
+
+attribute [regula_decision] Host.Microduck.Bridge.tick
+
 /-- A reading of the clock between two releases sends a command only for an action with a
 velocity that is not zero, before the end of the hold, and the command is that velocity
 (`Host.Microduck.Bridge.tick_command`); from the end of the hold it sends nothing and
@@ -2157,18 +2207,18 @@ This holds for every pace, keeping, origin, bridge and instant. A send occurs: u
 declared pace and keeping, a forward action released at the origin is sent again at the
 resend age, 100 ms.
 
-The statement keeps no kind. The verdict is the guard of the function, and the guard reads
-the end of the hold `Host.Microduck.Bridge.ends`, which the function applies: a
-specification of the sends would name that definition, and its kind would compare the guard
-with itself. `Host.Microduck.Idle.tick` and `Host.Microduck.Awaiting.tick` send what this
-function sends for the last release, with a new identifier
-(`Host.Microduck.Idle.tick_keeps`, `Host.Microduck.Awaiting.tick_keeps`), and have no
-contract of their own: this statement is their evidence.
+A kind states which inputs a function accepts and not the state after them, and the exact
+condition of a send reads the end of the hold `Host.Microduck.Bridge.ends`, which the function
+applies, so this statement is a requirement with no kind beside the sound kind `bridge_tick`.
+`Host.Microduck.Idle.tick` and `Host.Microduck.Awaiting.tick` send what this function sends for
+the last release, with a new identifier (`Host.Microduck.Idle.tick_keeps`,
+`Host.Microduck.Awaiting.tick_keeps`), and have no contract of their own: this statement is
+their evidence.
 
 **Not claimed:** where the hold ends, which `Host.Microduck.Bridge.ends_held` states, and
 that a release meeting its deadline arrives before it (`Host.Microduck.Bridge.ends_covers`);
 and that an executing loop reads the clock often enough for a resend to be timely. -/
-theorem bridge_tick : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
+theorem bridge_tick_value : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
     (∀ (pace : Pace) (keep : Host.Microduck.Keep) (origin : Instant)
         (bridge : Host.Microduck.Bridge) (now : Instant),
       (∀ command, (tick pace keep origin bridge now).2 = some command →
@@ -3360,8 +3410,9 @@ structure AssignmentAdmit where
   raw : AssignmentWords
 
 /-- Assignment admission accepts exactly the words of a stored assignment of the receiving
-bank (`Assignment.words_roundtrip`, and `Assignment.admit_words` for the converse). The
-accepted input is the words of the neutral assignment; the refused input is a word image with
+bank (`Assignment.words_roundtrip`, and `Assignment.admit_words` for the converse). The writer
+`Assignment.words` and the admission both apply the slot map `unitFeature`, which
+`unit_feature` states apart from its definition. The accepted input is the words of the neutral assignment; the refused input is a word image with
 a tag that is neither zero nor one. `assignment_admit_value` states the assignment that it
 returns. -/
 theorem assignment_admit : Regula.ExecutableContract Assignment.admit (fun admit =>
@@ -3970,11 +4021,10 @@ structure CandidateWeight where
 `candidate_of_weight_value` states the key of an entering weight.
 
 `unitFeature` is the slot map, a hash of the seed and the unit, which the admission also reads.
-The map has no meaning apart from its formula: two units can share a slot, and the readers of a
-slot share it on purpose. So the specification names the map, as vocabulary that the two sides
-share, and does not state the formula a second time. The two witnesses are the two units of
-`pair` under the weights `split`. The map sends them to different slots of `double`, so a map
-that sends every unit to one slot fails one of them. -/
+`unit_feature` states it as SplitMix64 on Lean core's bit vectors, with no definition of the
+executing hash. The two witnesses are the two units of `pair` under the weights `split`. The
+map sends them to different slots of `double`, so a map that sends every unit to one slot fails
+one of them. -/
 theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun admit =>
     Regula.Decides (· = true)
       (fun input : CandidateWeight =>
@@ -4759,8 +4809,8 @@ structure AssignmentPotential where
 /-- The hashed-slot potential of an objective is set exactly for a selected objective whose
 unit feature is active.
 
-`unitFeature` is the slot map, which the potential also reads. It is vocabulary that the two
-sides share, for the reason that `candidate_of_weight` gives. The two witnesses are the
+`unitFeature` is the slot map, which the potential also reads, and `unit_feature` states it
+apart from its definition. The two witnesses are the
 selected objectives of the two units of `pair`, with the slot of the first unit active. The
 map sends the second unit to the other slot of `double`, so a map that sends every unit to one
 slot fails one of the witnesses. -/
@@ -5059,6 +5109,278 @@ theorem coordinate_float : Regula.ExecutableContract Host.coordinateFloat (fun c
       let magnitude := Binary32.ofUInt64 coordinate.val.natAbs.toUInt64
       if coordinate.val < 0 then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude) :=
   ⟨Host.coordinateFloat_eq⟩
+
+/-! ## Definitions that specifications share
+
+The specification of each contract named below applies a definition that its function also
+applies. Each such definition has a statement of its own here, against a reading that does not
+apply it: a library operation of Lean core, the natural numbers, or the published algorithm
+that the definition implements, written with Lean core's operations. None of them refuses an
+input, so each statement keeps no kind. -/
+
+/-- The rotation is Lean core's `BitVec.rotateLeft` of the word by the count modulo the width
+(`Rng.rotateLeft_toBitVec`), for every word and count. The specifications of the blocked and
+stance checks in `AcornVerif.Decisions` reach it through the generators of the world step, and
+the hashes of the terrain and the slot map apply it. The witnesses rotate the lowest and the
+highest bit one place. -/
+theorem rotate_left : Regula.ExecutableContract Rng.rotateLeft (fun rotate =>
+    (∀ word count : UInt64,
+      (rotate word count).toBitVec = word.toBitVec.rotateLeft (count.toNat % 64)) ∧
+      rotate 1 1 = 2 ∧ rotate 0x8000000000000000 1 = 1) :=
+  ⟨⟨Rng.rotateLeft_toBitVec, by decide, by decide⟩⟩
+
+/-- SplitMix64's output function on a 64-bit word: the increment `0x9e3779b97f4a7c15` added,
+two rounds of a xor with a right shift and a multiplication, and a last xor with a right shift
+(Sebastiano Vigna, SplitMix64 reference implementation, 2015, `next`:
+https://prng.di.unimi.it/splitmix64.c). It is written with Lean core's operations on bit
+vectors, and the executing library applies it to a word as `Rng.mix64`. -/
+def splitMix (word : BitVec 64) : BitVec 64 :=
+  let mixed := word + 0x9e3779b97f4a7c15#64
+  let mixed := (mixed ^^^ mixed >>> 30) * 0xbf58476d1ce4e5b9#64
+  let mixed := (mixed ^^^ mixed >>> 27) * 0x94d049bb133111eb#64
+  mixed ^^^ mixed >>> 31
+
+/-- The mixer of the executing library is SplitMix64's output function of the word. -/
+private theorem mix_splitMix (word : UInt64) :
+    (Rng.mix64 word).toBitVec = splitMix word.toBitVec := by
+  simp only [Rng.mix64, Rng.mixFinal, Rng.increment, splitMix, UInt64.toBitVec_xor,
+    UInt64.toBitVec_mul, UInt64.toBitVec_add, UInt64.toBitVec_shiftRight,
+    BitVec.ushiftRight_eq']
+  rfl
+
+/-- The slot of a unit is the residue, modulo the capacity of the feature space, of SplitMix64
+applied twice: to the seed, then to that output with the unit's number rotated 17 places,
+for every dimension, bank configuration and unit. The slot map passes the tag `0x1D` twice to
+`Rng.hash3`, once with the seed and once as the second word, and the two cancel, so the slot
+depends on the seed and the unit alone. The capacity is a power of two at most `2 ^ 32`, so the
+residue is the mask of the low 32 bits that the map takes. `candidate_of_weight`,
+`assignment_potential` and `assignment_admit` share the map with their functions. The witnesses
+are the two units of `pair`, which the map sends to different slots of `double`. -/
+theorem unit_feature : Regula.ExecutableContract unitFeature (fun slot =>
+    (∀ (dimension : Dimension) (config : Features.Config) (unit : Fin config.units.count),
+      (slot dimension config unit).val =
+        (splitMix (splitMix (config.seed.toBitVec ^^^ 0x9e3779b97f4a7c15#64) ^^^
+            (BitVec.ofNat 64 unit.val).rotateLeft 17)).toNat % dimension.capacity) ∧
+      (slot double pair ⟨0, by decide⟩).val = 1 ∧ (slot double pair ⟨1, by decide⟩).val = 0) :=
+  ⟨⟨fun dimension config unit => by
+      obtain ⟨exponent, power⟩ := dimension.powerOfTwo
+      have small : exponent ≤ 32 := by
+        have := dimension.wordBound
+        rw [power] at this
+        exact Nat.le_of_lt ((Nat.pow_lt_pow_iff_right (by decide)).mp this)
+      have hash : (Rng.hash3 (config.seed ^^^ 0x1D) 0x1D unit.val.toUInt64).toBitVec =
+          splitMix (splitMix (config.seed.toBitVec ^^^ 0x9e3779b97f4a7c15#64) ^^^
+            (BitVec.ofNat 64 unit.val).rotateLeft 17) := by
+        have tag : config.seed.toBitVec ^^^ 0x1D#64 ^^^ 0x9e3779b97f4a7c15#64 ^^^ 0x1D#64 =
+            config.seed.toBitVec ^^^ 0x9e3779b97f4a7c15#64 := by
+          rw [BitVec.xor_assoc, BitVec.xor_comm 0x9e3779b97f4a7c15#64, ← BitVec.xor_assoc,
+            BitVec.xor_assoc config.seed.toBitVec, BitVec.xor_self, BitVec.xor_zero]
+        simp only [Rng.hash3, mix_splitMix, UInt64.toBitVec_xor, Rng.rotateLeft_toBitVec]
+        rw [← tag]
+        rfl
+      rw [← hash]
+      show ((Rng.hash3 (config.seed ^^^ 0x1D) 0x1D unit.val.toUInt64).toUInt32 &&&
+        (dimension.capacity - 1).toUInt32).toNat = _
+      have below : dimension.capacity - 1 < 2 ^ 32 := by have := dimension.wordBound; omega
+      rw [UInt32.toNat_and, UInt64.toNat_toUInt32, Nat.toUInt32_eq, UInt32.toNat_ofNat',
+        Nat.mod_eq_of_lt below, UInt64.toNat_toBitVec, power,
+        Nat.and_two_pow_sub_one_eq_mod, Nat.mod_mod_of_dvd _ (Nat.pow_dvd_pow 2 small)],
+    by decide, by decide⟩⟩
+
+/-- The distance of a goal is at most a number of steps exactly when both components of the
+displacement are within the reach radius plus that number, for every displacement and number:
+it is the least number of steps by which the square of the reach radius around the target must
+grow to hold the body. The specification of `task_satisfied` in `AcornVerif.Decisions` applies
+it through the observation of a concealed target. The witnesses are the zero displacement, at
+distance zero, and the displacement five across and two up, at distance two beyond the radius
+three. -/
+theorem reach_distance : Regula.ExecutableContract Host.ReachRelation.distance (fun distance =>
+    (∀ (relation : Host.ReachRelation) (steps : Nat), distance relation ≤ steps ↔
+      relation.dx.val.natAbs ≤ FeatureConstants.reachRadius + steps ∧
+        relation.dy.val.natAbs ≤ FeatureConstants.reachRadius + steps) ∧
+      distance ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩ = 0 ∧
+      distance ⟨⟨5, by decide⟩, ⟨-2, by decide⟩⟩ = 2) :=
+  ⟨⟨fun relation steps => by
+      unfold Host.ReachRelation.distance
+      constructor
+      · intro within
+        constructor <;> omega
+      · intro ⟨across, down⟩
+        omega,
+    rfl, rfl⟩⟩
+
+/-- The spelling of a numeral is the form of a number in RFC 8259, section 6: an optional minus
+sign, the digits before the point, the point and the digits after it where the numeral has a
+fraction, and the exponent mark, its optional sign and its digits where it has an exponent,
+written with Lean core's operations on lists and options; and the scanner, which does not apply
+it, reads the spelling of every formed numeral back to that numeral with nothing left
+(`Json.Numeral.scan_chars`). The specification of `json_parse` applies it through the text of a
+request. The witness is the spelling of `-1.5E+2`. -/
+theorem numeral_chars : Regula.ExecutableContract Json.Numeral.chars (fun spell =>
+    (∀ numeral : Json.Numeral, spell numeral =
+      (if numeral.negative then ['-'] else []) ++ numeral.whole ++
+        (numeral.fraction.map ('.' :: ·)).getD [] ++
+        (numeral.exponent.map fun exponent => (if exponent.upper then 'E' else 'e') ::
+          ((exponent.sign.map fun negative => if negative then '-' else '+').toList ++
+            exponent.digits)).getD []) ∧
+      (∀ numeral : Json.Numeral, numeral.Formed →
+        Json.Numeral.scan (spell numeral) = some (numeral, [])) ∧
+      spell ⟨true, ['1'], some ['5'], some ⟨true, some false, ['2']⟩⟩ =
+        ['-', '1', '.', '5', 'E', '+', '2']) :=
+  ⟨⟨fun numeral => by
+      rcases numeral with ⟨negative, whole, _ | fraction, _ | ⟨upper, _ | _ | _, digits⟩⟩ <;> rfl,
+    Json.Numeral.scan_chars, rfl⟩⟩
+
+/-- The fold of the byte step from a state is the fold on natural numbers from its value. -/
+private theorem fnv_fold (bytes : List UInt8) (state : UInt64) :
+    (bytes.foldl Rng.fnvStep state).toNat =
+      bytes.foldl (fun state byte => (state ^^^ byte.toNat) * 1099511628211 % 2 ^ 64)
+        state.toNat := by
+  induction bytes generalizing state with
+  | nil => rfl
+  | cons byte rest hold =>
+    have step : (Rng.fnvStep state byte).toNat =
+        (state.toNat ^^^ byte.toNat) * 1099511628211 % 2 ^ 64 := by
+      rw [Rng.fnvStep, UInt64.toNat_mul, UInt64.toNat_xor, UInt8.toNat_toUInt64]
+      rfl
+    rw [List.foldl_cons, List.foldl_cons, hold, step]
+
+/-- The checksum of a byte list is FNV-1a with 64 bits on natural numbers: from the offset basis
+14695981039346656037, each byte is combined by a xor and the state multiplied by the prime
+1099511628211, modulo `2 ^ 64` (Landon Curt Noll, Kiem-Phong Vo, Donald Eastlake 3rd and Tony
+Hansen, The FNV Non-Cryptographic Hash Algorithm, RFC 9923, 2026, section 2 for the algorithm
+and section 5 for the constants: https://www.rfc-editor.org/rfc/rfc9923.html), for every byte
+list. The specification of `checkpoint_decode` applies it through the encoding of a payload.
+The witnesses are the empty list, whose checksum is the offset basis, and the byte of `a`. -/
+theorem fnv_hash : Regula.ExecutableContract Rng.fnv (fun hash =>
+    (∀ bytes : List UInt8, (hash bytes).toNat =
+      bytes.foldl (fun state byte => (state ^^^ byte.toNat) * 1099511628211 % 2 ^ 64)
+        14695981039346656037) ∧
+      hash [] = 0xcbf29ce484222325 ∧ hash [0x61] = 0xaf63dc4c8601ec8c) :=
+  ⟨⟨fun bytes => fnv_fold bytes Rng.fnvOffset, rfl, by decide⟩⟩
+
+/-- The bytes of a number in a width: its base-256 digits, least significant first. It is
+written with Lean core's operations on natural numbers and lists. -/
+def littleEndian (width value : Nat) : List UInt8 :=
+  (List.range width).map fun place => UInt8.ofNat (value / 256 ^ place)
+
+/-- The writer of the codecs gives the bytes of a number in a width. -/
+private theorem encodeNat_littleEndian (width value : Nat) :
+    Checkpoint.encodeNat width value = littleEndian width value := by
+  induction width generalizing value with
+  | zero => rfl
+  | succ width hold =>
+    rw [Checkpoint.encodeNat, hold, littleEndian, littleEndian, List.range_succ_eq_map,
+      List.map_cons, List.map_map, Nat.pow_zero, Nat.div_one]
+    congr 1
+    apply List.map_congr_left
+    intro place _
+    simp only [Function.comp_apply, Nat.pow_succ', Nat.div_div_eq_div_mul]
+
+/-- The codec of a 64-bit word writes its eight bytes, least significant first, and reads back
+only the bytes that it writes (`Checkpoint.u64Codec_canonical`); the type of a codec carries
+the law that it reads back what it writes, so it reads exactly the encodings of its words. The
+specification of `checkpoint_decode` applies it through the checksum of a payload. The witness
+is the encoding of `0x0102`. -/
+theorem u64_codec : Regula.ExecutableContract Checkpoint.u64Codec (fun codec =>
+    (∀ word : UInt64, codec.encode word = littleEndian 8 word.toNat) ∧ codec.Canonical ∧
+      codec.encode 0x0102 = [2, 1, 0, 0, 0, 0, 0, 0]) :=
+  ⟨⟨fun word => encodeNat_littleEndian 8 word.toNat, Checkpoint.u64Codec_canonical, rfl⟩⟩
+
+/-- The codec of a checkpoint header writes the bytes of its eleven fields in their order, each
+least significant first in the width of its type, a binary32 field by the bits of its word,
+and reads back only the bytes that it writes (`Checkpoint.headerCodec_canonical`). The
+specification of `checkpoint_decode` applies it through the encoding of a payload. -/
+theorem header_codec : Regula.ExecutableContract Checkpoint.headerCodec (fun codec =>
+    (∀ header : Checkpoint.Header, codec.encode header =
+      littleEndian 4 header.version.toNat ++ littleEndian 4 header.capacity.toNat ++
+        littleEndian 4 header.learners.toNat ++ littleEndian 8 header.seed.toNat ++
+        littleEndian 8 header.clock.toNat ++ littleEndian 4 header.criterion.toNat ++
+        littleEndian 4 header.gain.bits.toNat ++ littleEndian 8 header.tilings.toNat ++
+        littleEndian 4 header.units.toNat ++ littleEndian 4 header.supported.toNat ++
+        littleEndian 4 header.order.toNat) ∧ codec.Canonical) :=
+  ⟨⟨fun header => by
+      simp only [Checkpoint.headerCodec, Checkpoint.Codec.iso, Checkpoint.Codec.pair,
+        Checkpoint.u32Codec, Checkpoint.u64Codec, Checkpoint.binary32Codec, Checkpoint.wordCodec,
+        encodeNat_littleEndian, List.append_assoc],
+    Checkpoint.headerCodec_canonical⟩⟩
+
+/-- A world configuration whose day is eight steps long. -/
+def octave : Host.WorldConfig :=
+  ⟨⟨0, ⟨64, by decide⟩, 8, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+
+/-- The phase of the day is at least a bucket below eight exactly when the slot of the clock in
+the day reaches that bucket: in the first half of the day, when the slot is at least the bucket
+times an eighth of the day, and in the second half, for the first four buckets and otherwise
+when the slot past the half is at least the bucket less four times an eighth of the day. An
+eighth is at least one step. This holds for every configuration, world and bucket, and so fixes
+the phase. The specification of `pay_and_act_lattice` in `AcornVerif.Decisions` applies it
+through the cost of an action. In a day whose length is not a multiple of eight the first half
+can reach the buckets from four on: in a day of twenty steps the slots eight and nine are in
+the first half and have the phase four. The witnesses are the empty world of `octave` at the
+clock zero, in the phase zero, and at the clock four, in the phase four. -/
+theorem day_phase : Regula.ExecutableContract @Host.World.dayPhase (fun phase =>
+    (∀ {config : Host.WorldConfig} (world : Host.World config) (bucket : Nat), bucket < 8 →
+      (bucket ≤ (phase world).val ↔
+        if world.time.toNat % config.raw.dayLength.toNat < config.raw.dayLength.toNat / 2 then
+          bucket * max 1 (config.raw.dayLength.toNat / 8) ≤
+            world.time.toNat % config.raw.dayLength.toNat
+        else bucket ≤ 4 ∨ (bucket - 4) * max 1 (config.raw.dayLength.toNat / 8) ≤
+          world.time.toNat % config.raw.dayLength.toNat - config.raw.dayLength.toNat / 2)) ∧
+      (phase (Host.World.empty octave)).val = 0 ∧
+      (phase { Host.World.empty octave with time := 4 }).val = 4) :=
+  ⟨⟨fun {config} world bucket below => by
+      have positive : 0 < max 1 (config.raw.dayLength.toNat / 8) :=
+        Nat.lt_of_lt_of_le Nat.one_pos (Nat.le_max_left _ _)
+      have scaled := fun count slot =>
+        Nat.le_div_iff_mul_le (k := max 1 (config.raw.dayLength.toNat / 8)) (x := count)
+          (y := slot) positive
+      unfold Host.World.dayPhase
+      simp only [FeatureConstants.dayPhases]
+      split
+      · rw [← scaled]
+        constructor
+        · intro within
+          exact Nat.le_trans within (Nat.min_le_left _ _)
+        · intro within
+          exact Nat.le_min.mpr ⟨within, by omega⟩
+      · rw [← scaled]
+        generalize (world.time.toNat % config.raw.dayLength.toNat -
+          config.raw.dayLength.toNat / 2) / max 1 (config.raw.dayLength.toNat / 8) = quotient
+        omega,
+    by decide, by decide⟩⟩
+
+/-- The masses of a frozen policy are those of the ε-greedy rule with a tie window: each action
+has the exploration rate divided by the number of actions, plus, for an action whose value is
+within the window `1e-6` of the maximum, the rest of the mass divided by the number of such
+actions. The maximum is the fold of the strict order `Binary32.Less` over the values after the
+first, the window is the binary32 word `0x358637bd`, and the arithmetic is the library's binary32
+operations on the words, for every action count, snapshot and action. The specification of
+`snapshot_consistent` applies the masses. The witness is the policy that never explores over two
+actions of values one and zero, whose masses are one and zero. -/
+theorem snapshot_masses : Regula.ExecutableContract @PolicySnapshot.probabilities (fun masses =>
+    (∀ {count : Word.Count} (snapshot : PolicySnapshot count) (action : Fin count.word.toNat),
+      let top := (snapshot.values.toList.drop 1).foldl
+        (fun best value => if Binary32.Less best value then value else best)
+        (snapshot.values.get ⟨0, count.positive⟩)
+      let threshold := top.sub ⟨0x358637bd⟩
+      let tied := ((List.finRange count.word.toNat).filter fun other =>
+        decide (Binary32.LessOrEqual threshold (snapshot.values.get other))).length
+      (masses snapshot).get action =
+        (snapshot.epsilon.value.div (Binary32.ofUInt64 count.word)).add
+          (if Binary32.LessOrEqual threshold (snapshot.values.get action) then
+            ((⟨0x3f800000⟩ : Binary32).sub snapshot.epsilon.value).div
+              (Binary32.ofUInt64 tied.toUInt64)
+          else ⟨0⟩)) ∧
+      (masses (count := ⟨2, by decide⟩)
+        ⟨#v[⟨0x3f800000⟩, ⟨0⟩], SwiftTd.ExploreRate.never⟩).toList = [⟨0x3f800000⟩, ⟨0⟩]) :=
+  ⟨⟨fun snapshot action => by
+      simp only [PolicySnapshot.probabilities_def, PolicySnapshot.candidates_def,
+        PolicySnapshot.best_def]
+      show (Vector.map _ _).get action = _
+      simp only [Vector.get, Vector.toArray_map, Array.getElem_map]
+      rfl,
+    by decide +kernel⟩⟩
 
 /-! ## Classifiers and lookups
 

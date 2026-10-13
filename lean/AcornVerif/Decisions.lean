@@ -9,16 +9,20 @@ import AcornVerif.AgreementLifecycle
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentActions
 import AcornVerif.CurrentAgent
+import AcornVerif.CurrentAgreement
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentExponential
+import AcornVerif.CurrentLifetime
 import AcornVerif.CurrentOffPolicy
 import AcornVerif.CurrentRunner
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentTerrain
+import AcornVerif.Decimal
 import AcornVerif.Endurance
+import AcornVerif.FloatLibBridge
 import AcornVerif.TemporalSupport
 
 /-!
@@ -78,9 +82,11 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Fifteen functions of this module have a contract and no kind. The reasons are six. Three more,
-`Agent.input`, `AgentConstruction.execute` and `Checkpoint.managedWords`, refuse no input, so
-they are no decisions, and their statements say what their results are.
+Fifteen functions of this module have a contract and no kind. The reasons are six. Nine more
+are no decisions, and their statements say what they are: `Agent.input`,
+`AgentConstruction.execute` and `Checkpoint.managedWords` refuse no input, and six definitions
+that specifications share with their functions have the statements of the section "Definitions
+that specifications share".
 
 * The specification is a round trip of the written form: `Checkpoint.admitPayload` and
   `Checkpoint.loadCandidate` accept exactly the payloads, and their encodings, of the agent images
@@ -168,8 +174,9 @@ the saturating cast and the checked successor of the lattice coordinate are not 
 
 The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
 the side of the box `Host.WorldConfig.side`, and the kind of `Host.payAndAct` also shares the
-phase of the day `Host.World.dayPhase`, which the cost of an action reads; none of them is a
-test. `CurrentActions.ActionAdmits` states the tile that an action reads by equations on the
+phase of the day `Host.World.dayPhase`, which the cost of an action reads and
+`Acorn.Decisions.day_phase` states by bounds on the slot of the clock; none of them is a test.
+`CurrentActions.ActionAdmits` states the tile that an action reads by equations on the
 coordinates and the box indices and by the constructors of the action and the direction, and
 `CurrentActions.Cost` states the cost by the constructors of the action and the constants of
 `FeatureConstants`. They name no direction table, offset table, checked translation, box
@@ -2450,6 +2457,112 @@ theorem managed_words : Regula.ExecutableContract @managedWords (fun words =>
       managedState (words learner) = learner.state ∧ (words learner).2.2.2.2.2 = learner.phase) :=
   ⟨fun learner => ⟨CurrentImage.managedState_words learner, rfl⟩⟩
 
+/-! ## Definitions that specifications share
+
+The specification of each contract named below applies a definition that its function also
+applies. Each such definition has a statement of its own here, against a reading that does not
+apply it: the rational value of a word, the exact real result rounded once, the place value of
+digits, or offsets stated by the constructors of a direction. None of them refuses an input, so
+each statement keeps no kind. -/
+
+/-- The squared discrepancy of two finite words, in the units of the least binary32 subnormal
+`2 ^ -149` squared, is the square of the difference of their rational values
+(`CurrentAgreement.squaredUnits_numerical`), for every pair of finite words. The specification
+of `squared_admit` in `Acorn.Decisions` applies it. The witnesses are two zero words, at
+discrepancy zero, and the least subnormal against zero, at one unit. -/
+theorem squared_units : Regula.ExecutableContract Agreement.squaredUnits (fun squared =>
+    (∀ forecast outcome : Binary32, forecast.Finite → outcome.Finite →
+      (squared forecast outcome : ℚ) * ((2 : ℚ) ^ (-149 : Int)) ^ 2 =
+        (CurrentArithmetic.numerical32 forecast - CurrentArithmetic.numerical32 outcome) ^ 2) ∧
+      squared .zero .zero = 0 ∧ squared ⟨1⟩ .zero = 1) :=
+  ⟨⟨CurrentAgreement.squaredUnits_numerical, by decide, by decide⟩⟩
+
+/-- The cap of a total is finite, and it is the exact real product of the count's binary64
+value and the rational value of the quantity's bound rounded once to nearest-even in binary64
+(`AcornVerif.FloatLibBridge.binary64_mul_roundAt`, with `CurrentOrder.numerical_widen_exact`
+for the widened bound and `CurrentLifetime.cap_bounds` for finiteness), for every quantity and
+count. The count's value is Lean core's conversion `UInt64.toFloat`, which is the count itself
+below `2 ^ 53` (`CurrentOrder.numerical64_ofUInt64`). The specification of `sum_admit` applies it
+through the stored invariant of a total. The witnesses are the caps of the reward quantity, whose
+bound is one, at the counts zero and one. -/
+theorem maximum_sum : Regula.ExecutableContract maximumSum (fun cap =>
+    (∀ (quantity : Quantity) (count : UInt64),
+      (cap quantity count).Finite ∧
+        ((CurrentArithmetic.numerical64 (cap quantity count) : ℚ) : ℝ) =
+          FloatLib.Floats.Formats.BinaryInterchange.Model.roundAt
+            FloatLib.Floats.Formats.BinaryInterchange.FloatFormat.binary64
+            ((CurrentArithmetic.numerical64 (Binary64.ofUInt64 count) : ℝ) *
+              (CurrentArithmetic.numerical32 quantity.bound : ℝ))) ∧
+      cap .reward 0 = ⟨0⟩ ∧ cap .reward 1 = ⟨0x3ff0000000000000⟩) :=
+  ⟨⟨fun quantity count => by
+      have bound := CurrentLifetime.quantity_bound quantity
+      have finite := (CurrentLifetime.cap_bounds quantity count).1
+      refine ⟨finite, ?_⟩
+      rw [← CurrentOrder.numerical_widen_exact quantity.bound bound.1]
+      exact AcornVerif.FloatLibBridge.binary64_mul_roundAt _ _
+        (CurrentLifetimeArithmetic.count_model count).1 (Conversion.widen_finite _ bound.1) finite,
+    by decide, by decide⟩⟩
+
+/-- A run of decimal digits spells the number that it writes by the place of each digit,
+`Decimal.numberOf`, which reads each digit from a table of the ten digits
+(`Decimal.spelled_numberOf`), for every run of decimal digits. The specifications of
+`microduck_state`, `microduck_depth` and `microduck_line` in `Acorn.Decisions` apply it through
+the relations `Host.Microduck.Counted` and `Host.Microduck.Signed`. The witness is the run `42`. -/
+theorem digits_spelled : Regula.ExecutableContract Host.Microduck.spelled (fun spell =>
+    (∀ digits : List Char, (∀ c ∈ digits, Json.Numeral.Digit c) →
+      spell digits = Decimal.numberOf digits) ∧ spell ['4', '2'] = 42) :=
+  ⟨⟨Decimal.spelled_numberOf, rfl⟩⟩
+
+/-- The decimal of a formed numeral has the rational value that the numeral writes,
+`Decimal.written`: the digits before the point, plus the digits after it over ten to their
+count, times ten to the exponent, negated for a minus sign, each run read by the place of its
+digits (`Decimal.ofNumeral_value`), for every formed numeral. The specifications of the
+Microduck readers in `Acorn.Decisions` apply it through `Host.Microduck.Scale.Kept`. The witness
+is the decimal of `-1.5`: the digits fifteen, a minus sign and the exponent minus one. -/
+theorem decimal_of_numeral : Regula.ExecutableContract Host.Microduck.Decimal.ofNumeral
+    (fun read =>
+      (∀ numeral : Json.Numeral, numeral.Formed →
+        Decimal.value (read numeral) = Decimal.written numeral) ∧
+        read ⟨true, ['1'], some ['5'], none⟩ = ⟨true, 15, -1⟩) :=
+  ⟨⟨Decimal.ofNumeral_value, rfl⟩⟩
+
+/-- The scale of the whole numbers from minus ten to ten. -/
+def tens : Host.Microduck.Scale := ⟨0, -10, 10, by decide⟩
+
+/-- The conversion of a decimal to a scale is the integer nearest to its rational value times
+ten to the places of the scale, a tie away from zero, saturated to the bounds of the scale
+(`Decimal.fixed_nearest`), for every scale, decimal and nearest integer; at most one integer is
+nearest (`Decimal.Nearest.unique`). The specifications of the Microduck readers in
+`Acorn.Decisions` apply it through `Host.Microduck.Scale.Kept`. The witnesses are `-1.5`, which
+`tens` keeps as minus two, and zero, which it keeps as zero. -/
+theorem decimal_fixed : Regula.ExecutableContract @Host.Microduck.Decimal.fixed (fun fixed =>
+    (∀ (scale : Host.Microduck.Scale) (decimal : Host.Microduck.Decimal) (nearest : Int),
+      Decimal.Nearest (Decimal.value decimal * (10 : ℚ) ^ scale.places) nearest →
+        (fixed scale decimal).val = max scale.low (min scale.high nearest)) ∧
+      (fixed tens ⟨true, 15, -1⟩).val = -2 ∧ (fixed tens ⟨false, 0, 0⟩).val = 0) :=
+  ⟨⟨Decimal.fixed_nearest, by decide +kernel, by decide +kernel⟩⟩
+
+/-- The position that a body faces in a direction has the coordinates of the body moved by the
+offset of the direction that `Offset` states by its constructors, for every configuration, body
+and direction; every direction has an offset. The specifications of `stance_certified` and
+`stance_check` reach it through the harvest of the world step. -/
+theorem facing_position : Regula.ExecutableContract @Host.BoxPosition.facingPosition
+    (fun facing =>
+      (∀ (config : Host.WorldConfig) (body : Host.BoxPosition config)
+        (direction : Host.Direction) (dx dy : Int), Offset direction dx dy →
+          (facing body direction).x.val = body.x.val + dx ∧
+            (facing body direction).y.val = body.y.val + dy) ∧
+        ∀ direction, ∃ dx dy, Offset direction dx dy) :=
+  ⟨⟨fun _ _ _ _ _ offset => by
+      rcases offset with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ <;>
+        exact ⟨rfl, rfl⟩,
+    fun direction => by
+      cases direction
+      · exact ⟨0, -1, .inl ⟨rfl, rfl, rfl⟩⟩
+      · exact ⟨0, 1, .inr (.inl ⟨rfl, rfl, rfl⟩)⟩
+      · exact ⟨1, 0, .inr (.inr (.inl ⟨rfl, rfl, rfl⟩))⟩
+      · exact ⟨-1, 0, .inr (.inr (.inr ⟨rfl, rfl, rfl⟩))⟩⟩⟩
+
 /-! ## Verdicts beside a state
 
 Each function below returns its verdict as one component of a pair whose other component has a
@@ -2463,20 +2576,34 @@ it names. -/
 
 /-- An exploratory run begins exactly when the 53-bit fraction of the generator's next word is
 below the exploration rate, compared as rational numbers (`TemporalSupport.branch_exact`), for
-every action count, rate and generator state. The function compares two binary64 words. Both
-verdicts occur from the generator state zero: a run begins at the declared rate, and none at
-the rate `SwiftTd.ExploreRate.never`.
+every action count, rate and generator state. The next word is the output of xoshiro256**
+stated from the stored words with Lean core's operations on bit vectors: the second word times
+five, rotated seven places to the left, times nine (David Blackman and Sebastiano Vigna,
+xoshiro256** reference implementation, 2018, `next`:
+https://prng.di.unimi.it/xoshiro256starstar.c), and the fraction is its top 53 bits over
+`2 ^ 53`. The specification applies no definition of the generator; `Rng.rotateLeft_toBitVec`
+connects the rotation that the generator runs. The function compares two binary64 words. Both
+verdicts occur at the declared rate: a run begins from the generator state zero, whose
+fraction is zero, and none from the state whose second word is `2 ^ 55`, whose fraction is one
+quarter.
 
 **Not claimed:** the run that begins and the generator state after its draws. -/
 theorem exploration_begins : Regula.ExecutableContract beginExploration (fun begin =>
     (∀ (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rng.Xoshiro256),
       (begin count rate rng).1.isSome =
-        decide (((rng.next.1 >>> 11).toNat : ℚ) * (2 : ℚ) ^ (-53 : Int) <
-          CurrentArithmetic.numerical32 rate.value)) ∧
+        decide (((((rng.s1.toBitVec * 5#64).rotateLeft 7 * 9#64) >>> 11).toNat : ℚ) *
+          (2 : ℚ) ^ (-53 : Int) < CurrentArithmetic.numerical32 rate.value)) ∧
       (begin ⟨1, by decide⟩ Handcrafted.declaredRate ⟨0, 0, 0, 0⟩).1.isSome = true ∧
-      (begin ⟨1, by decide⟩ SwiftTd.ExploreRate.never ⟨0, 0, 0, 0⟩).1.isSome = false) :=
+      (begin ⟨1, by decide⟩ Handcrafted.declaredRate ⟨0, 0x80000000000000, 0, 0⟩).1.isSome =
+        false) :=
   ⟨⟨fun count rate rng => by
-      rw [← TemporalSupport.branch_exact]
+      have output : (rng.next.1 >>> 11).toNat =
+          (((rng.s1.toBitVec * 5#64).rotateLeft 7 * 9#64) >>> 11).toNat := by
+        change ((Rng.rotateLeft (rng.s1 * 5) 7 * 9) >>> 11).toBitVec.toNat = _
+        rw [UInt64.toBitVec_shiftRight, UInt64.toBitVec_mul, Rng.rotateLeft_toBitVec,
+          UInt64.toBitVec_mul, BitVec.ushiftRight_eq']
+        rfl
+      rw [← output, ← TemporalSupport.branch_exact]
       cases branch : rng.nextF64.1.less (Conversion.widen rate.value) <;>
         simp [beginExploration, branch],
     by decide, by decide⟩⟩
