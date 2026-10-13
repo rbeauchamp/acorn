@@ -5,17 +5,21 @@ Authors: acorn contributors
 -/
 import Regula.Contract
 import Acorn.Host.Attempt
+import AcornVerif.AgreementLifecycle
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentActions
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
+import AcornVerif.CurrentControl
 import AcornVerif.CurrentExponential
+import AcornVerif.CurrentOffPolicy
 import AcornVerif.CurrentRunner
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentTerrain
 import AcornVerif.Endurance
+import AcornVerif.TemporalSupport
 
 /-!
 # Decision contracts proved in the proof library
@@ -74,9 +78,9 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Eleven functions of this module have a contract and no kind. The reasons are five. Two more,
-`Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
-their statements say what their results are.
+Fifteen functions of this module have a contract and no kind. The reasons are six. Three more,
+`Agent.input`, `AgentConstruction.execute` and `Checkpoint.managedWords`, refuse no input, so
+they are no decisions, and their statements say what their results are.
 
 * The specification is a round trip of the written form: `Checkpoint.admitPayload` and
   `Checkpoint.loadCandidate` accept exactly the payloads, and their encodings, of the agent images
@@ -113,6 +117,13 @@ their statements say what their results are.
   state and the function runs in the interval test of a pruning reference
   (https://github.com/rbeauchamp/regula/issues/320). The kind is remaining work of
   https://github.com/rbeauchamp/acorn/issues/105.
+* The verdict is one component of a pair whose other component has a type that depends on an
+  earlier argument: whether `Features.beginExploration` begins a run, whether
+  `Features.Preceding.advance` records a passage, whether `Lifetime.DemonStats.advanceSlot`
+  settles a slot and whether `NumericState.firstLoopElement` prunes an index. Regula reads a
+  result whose type depends on the input only through `Regula.Dependent.isSome` and
+  `Regula.Dependent.isOk`, of an `Option` or an `Except`. Each statement states the verdict for
+  every input and names an input of each verdict.
 
 ## Tests that a specification does not share
 
@@ -242,6 +253,13 @@ def first : FeatIdx narrow := ⟨0, by decide⟩
 def traced : NumericState control narrow :=
   let fresh := NumericState.initial control narrow
   { fresh with transient := { fresh.transient with z := #v[⟨⟨0x3f800000⟩⟩] } }
+
+/-- The active set of `narrow` that holds its one index. -/
+def onlyFirst : SwiftTd.ActiveSet narrow := ⟨[first], List.nodup_singleton _⟩
+
+/-- A pending sample of the discount `Discount.g99` at the largest age. -/
+def oldestSample : PendingPrediction Discount.g99 :=
+  ⟨⟨FeatureConstants.maxSettlement, by decide⟩, Prediction.project _ .zero, .zero, .one, 0⟩
 
 /-- A tile of `wide` from which a tree to the west can be harvested. -/
 def stand : Host.BoxPosition wide := ⟨⟨0, by decide⟩, ⟨6, by decide⟩⟩
@@ -2419,5 +2437,203 @@ theorem precision_admit : Regula.ExecutableContract Agreement.precision (fun pre
        exact AgreementTelemetryPrecision.precision_available input.1.1 sample input.1.2
          returned power room tracked ideal
      refused := ⟨((.g99, 0), ⟨0x7fc00000⟩), by decide⟩ }⟩
+
+/-- The stored words of a learner are the learner's state and phase: reading the state back
+from them (`managedState`) gives the learner's state (`CurrentImage.managedState_words`), and
+their last word is the learner's phase, for every configuration, dimension and learner. The
+learner format writes these words (`managedFormat`), so the checkpoint admissions and
+`Checkpoint.saveBytes` reach the function.
+
+The statement keeps no kind: the function refuses no learner, so it is no decision. -/
+theorem managed_words : Regula.ExecutableContract @managedWords (fun words =>
+    ∀ {config : Acorn.Config} {dimension : Dimension} (learner : Managed config dimension),
+      managedState (words learner) = learner.state ∧ (words learner).2.2.2.2.2 = learner.phase) :=
+  ⟨fun learner => ⟨CurrentImage.managedState_words learner, rfl⟩⟩
+
+/-! ## Verdicts beside a state
+
+Each function below returns its verdict as one component of a pair whose other component has a
+type that depends on an earlier argument: the run that begins depends on the action count, and
+the record, the statistics and the learner state on the dimension, the discount and the
+configuration. Regula reads a result whose type depends on the input only through
+`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`, so no kind
+here is about such a component, and each statement is a requirement with no kind. Each states
+the verdict for every input beside what the state keeps, and both verdicts occur at the inputs
+it names. -/
+
+/-- An exploratory run begins exactly when the 53-bit fraction of the generator's next word is
+below the exploration rate, compared as rational numbers (`TemporalSupport.branch_exact`), for
+every action count, rate and generator state. The function compares two binary64 words. Both
+verdicts occur from the generator state zero: a run begins at the declared rate, and none at
+the rate `SwiftTd.ExploreRate.never`.
+
+**Not claimed:** the run that begins and the generator state after its draws. -/
+theorem exploration_begins : Regula.ExecutableContract beginExploration (fun begin =>
+    (∀ (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rng.Xoshiro256),
+      (begin count rate rng).1.isSome =
+        decide (((rng.next.1 >>> 11).toNat : ℚ) * (2 : ℚ) ^ (-53 : Int) <
+          CurrentArithmetic.numerical32 rate.value)) ∧
+      (begin ⟨1, by decide⟩ Handcrafted.declaredRate ⟨0, 0, 0, 0⟩).1.isSome = true ∧
+      (begin ⟨1, by decide⟩ SwiftTd.ExploreRate.never ⟨0, 0, 0, 0⟩).1.isSome = false) :=
+  ⟨⟨fun count rate rng => by
+      rw [← TemporalSupport.branch_exact]
+      cases branch : rng.nextF64.1.less (Conversion.widen rate.value) <;>
+        simp [beginExploration, branch],
+    by decide, by decide⟩⟩
+
+/-- An advance stores the current set when the frame is armed and the empty set otherwise, and
+it records a passage exactly when the stored set is not empty and both sets fit `passageLimit`
+(`CurrentOffPolicy.advance_stores`); a recorded passage runs from the stored set to the current
+one (`CurrentOffPolicy.advance_passage`). This holds for every dimension, record, current set
+and arming. Both verdicts occur over `narrow`: an armed advance from the record that holds
+`onlyFirst` to `onlyFirst` records a passage, and one from the empty record records none.
+`Features.Preceding.advanceCosted` is the costed definition whose value this function is, and
+has no contract of its own: this statement is its evidence.
+
+**Not claimed:** the classes of the passage's features and the flags that the record keeps,
+which `Features.Preceding.advance_def` states. -/
+theorem preceding_advance : Regula.ExecutableContract @Preceding.advance (fun advance =>
+    (∀ {dimension} (preceding : Preceding dimension) (current : SwiftTd.ActiveSet dimension)
+        (armed : Bool),
+      (advance preceding current armed).2.features =
+          (if armed then current else SwiftTd.ActiveSet.empty dimension) ∧
+        (advance preceding current armed).1.isSome =
+          (!preceding.features.indices.isEmpty &&
+            decide (preceding.features.indices.length ≤ passageLimit ∧
+              current.indices.length ≤ passageLimit)) ∧
+        ∀ passage, (advance preceding current armed).1 = some passage →
+          passage.source = preceding.features ∧ passage.target = current) ∧
+      (advance ((Preceding.empty narrow).advance onlyFirst true).2 onlyFirst true).1.isSome =
+        true ∧
+      (advance (Preceding.empty narrow) onlyFirst true).1.isSome = false) :=
+  ⟨⟨fun preceding current armed => ⟨(CurrentOffPolicy.advance_stores preceding current armed).1,
+      (CurrentOffPolicy.advance_stores preceding current armed).2,
+      CurrentOffPolicy.advance_passage preceding current armed⟩,
+    by decide, by decide⟩⟩
+
+/-- A slot settles exactly when it holds a sample whose advanced age, one observation older and
+capped at `FeatureConstants.maxSettlement`, reaches the settlement horizon. -/
+private theorem advanceSlot_capped {discount : Discount} (state : DemonStats discount)
+    (slot : Fin FeatureConstants.pendingSamples) (cumulant : Binary32) (clock : UInt64) :
+    (state.advanceSlot slot cumulant clock).2.isSome = true ↔
+      ∃ sample, state.pending.get slot = some sample ∧
+        state.settleAfter.val.val ≤ min (sample.age.val + 1) FeatureConstants.maxSettlement := by
+  unfold DemonStats.advanceSlot
+  cases state.pending.get slot with
+  | none => simp
+  | some sample =>
+    by_cases due :
+        state.settleAfter.val.val ≤ min (sample.age.val + 1) FeatureConstants.maxSettlement
+    · simp [PendingPrediction.advance, due]
+      omega
+    · simp [PendingPrediction.advance, due]
+      omega
+
+/-- A slot settles exactly when it holds a sample whose age, one observation older, reaches
+the settlement horizon: the horizon is at most `FeatureConstants.maxSettlement`, so the cap
+changes no verdict. -/
+private theorem advanceSlot_settles {discount : Discount} (state : DemonStats discount)
+    (slot : Fin FeatureConstants.pendingSamples) (cumulant : Binary32) (clock : UInt64) :
+    (state.advanceSlot slot cumulant clock).2.isSome = true ↔
+      ∃ sample, state.pending.get slot = some sample ∧
+        state.settleAfter.val.val ≤ sample.age.val + 1 := by
+  rw [advanceSlot_capped]
+  have bounded := Nat.lt_succ_iff.mp state.settleAfter.val.isLt
+  exact ⟨fun ⟨sample, held, due⟩ => ⟨sample, held, (Nat.le_min.mp due).1⟩,
+    fun ⟨sample, held, due⟩ => ⟨sample, held, Nat.le_min.mpr ⟨due, bounded⟩⟩⟩
+
+/-- The settlement of one pending slot is reported exactly when the slot holds a sample whose
+age, one observation older, reaches the settlement horizon of the statistics; the visit keeps
+the horizon (`AgreementLifecycle.advanceSlot_horizon`) and every other slot
+(`AgreementLifecycle.advanceSlot_other`). This holds for every discount, statistics, slot,
+cumulant and clock. The function advances the sample, capping its age at
+`FeatureConstants.maxSettlement`, and compares the advanced age with the horizon. Both verdicts
+occur for the discount `Discount.g99`: the first slot settles when every slot holds
+`oldestSample`, and the first slot of the initial statistics, which is empty, does not.
+
+**Not claimed:** the settlement reported and what the slot holds afterwards, which
+`AgreementLifecycle.advanceSlot_selected` states. -/
+theorem slot_settles : Regula.ExecutableContract @DemonStats.advanceSlot (fun advanceSlot =>
+    (∀ {discount} (state : DemonStats discount) (slot : Fin FeatureConstants.pendingSamples)
+        (cumulant : Binary32) (clock : UInt64),
+      ((advanceSlot state slot cumulant clock).2.isSome = true ↔
+          ∃ sample, state.pending.get slot = some sample ∧
+            state.settleAfter.val.val ≤ sample.age.val + 1) ∧
+        (advanceSlot state slot cumulant clock).1.settleAfter = state.settleAfter ∧
+        ∀ other, other ≠ slot →
+          (advanceSlot state slot cumulant clock).1.pending.get other = state.pending.get other) ∧
+      (advanceSlot { DemonStats.initial Discount.g99 with
+          pending := Vector.replicate _ (some oldestSample) } ⟨0, by decide⟩ .zero 0).2.isSome =
+        true ∧
+      (advanceSlot (DemonStats.initial Discount.g99) ⟨0, by decide⟩ .zero 0).2.isSome = false) :=
+  ⟨⟨fun state slot cumulant clock => ⟨advanceSlot_settles state slot cumulant clock,
+      AgreementLifecycle.advanceSlot_horizon state slot cumulant clock,
+      fun other distinct =>
+        AgreementLifecycle.advanceSlot_other state slot other distinct cumulant clock⟩,
+    (advanceSlot_settles _ _ _ _).mpr ⟨oldestSample, rfl,
+      Nat.le_succ_of_le
+        (Nat.lt_succ_iff.mp (DemonStats.initial Discount.g99).settleAfter.val.isLt)⟩,
+    rfl⟩⟩
+
+/-- The verdict of a first-loop element is its comparison of the decayed trace with the
+reference. -/
+private theorem first_element_verdict {config : Acorn.Config} {dimension : Dimension}
+    (state : NumericState config dimension) (idx : FeatIdx dimension)
+    (delta vDelta decay : Binary32) :
+    (state.firstLoopElement idx delta vDelta decay).2 =
+      ((state.transient.z.get idx).value.mul decay).lessOrEqual
+        ((state.transient.lastAlpha.get idx).value.mul config.epsilon) := rfl
+
+/-- A first-loop element prunes its index exactly when the trace it stores is at most the
+pruning reference it keeps, scaled by the configuration's epsilon
+(`CurrentLearner.first_element_prune`); the trace it stores is the trace decayed; it keeps the
+pruning references (`CurrentLearner.first_element_reference`) and the eligible list
+(`CurrentLearner.first_element_eligible`), and every other index's weight, log step size and
+registers (`CurrentLearner.first_element_frame`). This holds for every configuration,
+dimension, state, index and error words. At zero decay a managed learner prunes every index
+with a finite trace (`CurrentControl.stop_prunes`). Both verdicts occur at the index `first`
+of `control` over `narrow`: the fresh learner prunes it at zero decay, and `traced`, whose trace
+is one, keeps it at decay one.
+
+**Not claimed:** the values of the weight, the log step size and the registers that the
+element writes at its index, which `NumericState.firstLoopElement_eq` states. -/
+theorem first_loop_prune :
+    Regula.ExecutableContract @NumericState.firstLoopElement (fun element =>
+      (∀ {config dimension} (state : NumericState config dimension) (idx : FeatIdx dimension)
+          (delta vDelta decay : Binary32),
+        (element state idx delta vDelta decay).2 =
+            ((element state idx delta vDelta decay).1.transient.z.get idx).value.lessOrEqual
+              (((element state idx delta vDelta decay).1.transient.lastAlpha.get idx).value.mul
+                config.epsilon) ∧
+          ((element state idx delta vDelta decay).1.transient.z.get idx).value =
+            (state.transient.z.get idx).value.mul decay ∧
+          (element state idx delta vDelta decay).1.transient.lastAlpha =
+            state.transient.lastAlpha ∧
+          (element state idx delta vDelta decay).1.transient.eligible =
+            state.transient.eligible ∧
+          ∀ other, idx ≠ other →
+            (element state idx delta vDelta decay).1.weights.get other =
+                state.weights.get other ∧
+              ((element state idx delta vDelta decay).1.beta.get other).value =
+                (state.beta.get other).value ∧
+              CurrentLearner.registers (element state idx delta vDelta decay).1 other =
+                CurrentLearner.registers state other) ∧
+        (∀ {config dimension} (learner : Managed config dimension) (idx : FeatIdx dimension)
+            (delta vDelta : Binary32), (learner.state.transient.z.get idx).value.Finite →
+          (element learner.state idx delta vDelta .zero).2 = true) ∧
+        (element (NumericState.initial control narrow) first .zero .zero .zero).2 = true ∧
+        (element traced first .zero .zero .one).2 = false) :=
+  ⟨⟨fun state idx delta vDelta decay =>
+      ⟨CurrentLearner.first_element_prune state idx delta vDelta decay,
+        by simp only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+          Vector.getElem_set_self],
+        CurrentLearner.first_element_reference state idx delta vDelta decay,
+        CurrentLearner.first_element_eligible state idx delta vDelta decay,
+        fun other distinct =>
+          CurrentLearner.first_element_frame state idx other distinct delta vDelta decay⟩,
+    fun learner idx delta vDelta finite =>
+      CurrentControl.stop_prunes learner idx delta vDelta finite,
+    by rw [first_element_verdict]; decide,
+    by rw [first_element_verdict]; decide⟩⟩
 
 end AcornVerif.Decisions

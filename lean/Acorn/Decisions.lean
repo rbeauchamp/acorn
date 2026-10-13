@@ -7,6 +7,7 @@ import Regula.Contract
 import Regula.Decision
 import Acorn.Agreement
 import Acorn.FeatureRanking
+import Acorn.Host.AgentPrefix
 import Acorn.Host.Ansi
 import Acorn.Host.Baseline
 import Acorn.Host.Campaign
@@ -18,9 +19,11 @@ import Acorn.Handcrafted.Microduck
 import Acorn.Host.Microduck.Bridge
 import Acorn.Host.Microduck.Session
 import Acorn.Host.Microduck.Wire
+import Acorn.Host.Viewer.Admission
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.GoalProtocol
+import Acorn.Host.Viewer.Line
 import Acorn.Host.Viewer.Options
 import Acorn.Host.Viewer.WireNumber
 import Acorn.Host.Viewer.WorldMemory
@@ -76,9 +79,9 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Twenty-nine functions of this module have a contract and no kind. The reasons are two. One more,
-`Host.coordinateFloat`, refuses no input, so it is no decision, and its statement `coordinate_float`
-says what its result is.
+Thirty-four functions of this module have a contract and no kind. The reasons are four. Two more,
+`Host.coordinateFloat` and `Agent.runPrefix`, refuse no input, so they are no decisions, and their
+statements `coordinate_float` and `agent_run_prefix` say what their results are.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
   configuration, and a complete or a two-way kind carries a refused input. The statement of
@@ -121,6 +124,21 @@ says what its result is.
   served step reaches one of them, `Binary32.negative`, through the value predictions it reports,
   and has a statement of the step it serves beside its contract (`temporal_serve_frame`,
   `serve_draw_frame`).
+* The verdict is the guard of the function, and the guard applies a definition that no
+  proposition states apart from it. Whether `Host.Viewer.Admission.receive` stores a capture and
+  whether `Host.Viewer.HealthAdmission.receive` accepts one depend on the capture orders
+  `Host.Viewer.Capture.follows` and `Host.Viewer.Capture.after`, which carry one-way kinds and no
+  proposition, so a specification would name the test and RG1009 refuses it; the verdict of each
+  is also the first component of a pair whose state has a type that depends on the identity, and
+  Regula reads a result whose type depends on the input only through `Regula.Dependent.isSome`
+  and `Regula.Dependent.isOk`. Whether `Host.Microduck.Bridge.tick` sends depends on the end of
+  the hold `Host.Microduck.Bridge.ends`, which the function applies, and a kind whose
+  specification named it would compare the guard with itself.
+* The result has a type that depends on the input and is neither an `Option` nor an `Except`, and
+  Regula reads such a result only through `Regula.Dependent.isSome` and
+  `Regula.Dependent.isOk`. `Costed.findIdx?` returns its index with the equation that names it,
+  a type that depends on the array and the test, and `Checkpoint.loadKeeping` returns its error
+  beside a state whose type depends on the construction.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
@@ -243,8 +261,10 @@ report of the definitions that have no contract is work of Regula
   contract `json_parse`, which states texts it accepts and not every text; the scanner of a
   number `Json.Numeral.scan`, the reader `Json.Value.numeral` and the member lookup
   `Json.Value.member` have the contracts `json_scan`, `json_numeral` and `json_member`), the
-  viewer's envelope and map decoders,
-  and the transitions and lookups that no theorem mentions. Kinds for the parsers against
+  viewer's envelope and map decoders, the summaries of an endurance run, whose means are absent
+  for an empty sample (`Host.Endurance.Rates.summary`, `Host.Endurance.ErrorStats.summary`,
+  `Host.Endurance.Reduction.energySummary`), and the transitions and lookups that no theorem
+  mentions. Kinds for the parsers against
   written grammars are the subject of https://github.com/rbeauchamp/acorn/issues/81. Most are
   functions between fixed types, `Host.Viewer.MapBytes.admit` and `Host.Viewer.decodeMapRuns`
   return `Except String (MapBytes key)` for the receiving key, and `Json.decode` returns
@@ -273,12 +293,25 @@ report of the definitions that have no contract is work of Regula
   interrupted option closes (`Handcrafted.TemporalControl.takeoverValue`) refuses nothing
   either: it is absent on every frame that interrupts no option
   (`AcornVerif.CurrentTemporal.takeover_none`), and `AcornVerif.CurrentTemporal.takeover_value`
-  states its value where a span closes. This module makes no statement about what a caller does
-  with the result of such a definition.
-* The result wraps the verdict in a pair or a costed value, as the results of `Costed.mem`,
-  `Checkpoint.loadKeeping` and `Host.Viewer.HealthAdmission.receive` do, or the verdict is a type
-  of this library, as the intake `Host.Viewer.Intake` of `Host.Viewer.Admission.receive` is. Their
-  contracts are remaining work of https://github.com/rbeauchamp/acorn/issues/67.
+  states its value where a span closes. `Handcrafted.DefaultConstruction.runPrefix` reports
+  whether a stop ended its fold, which is the fold of `Agent.runPrefix`
+  (`Handcrafted.DefaultConstruction.runPrefix_agent`, with the contract `agent_run_prefix`). The
+  event of `Handcrafted.TemporalControl.interrupt` and the closing of
+  `Handcrafted.TemporalControl.refreshFree` hold a value exactly when their option argument does
+  (`Handcrafted.TemporalControl.interrupt_frame`,
+  `Handcrafted.TemporalControl.refresh_episode_slot`), and `Host.Viewer.goalTelemetry` encodes
+  a goal (`Host.Viewer.goalTelemetry_family`). This module makes no statement about what a
+  caller does with the result of such a definition.
+* A theorem names the definition, and its verdict is the verdict of a definition with a contract.
+  `Host.Microduck.Idle.tick` and `Host.Microduck.Awaiting.tick` send what
+  `Host.Microduck.Bridge.tick` sends for the last release, with the contract `bridge_tick`, and
+  the ownership audit requires by name `Host.Microduck.Idle.tick_keeps` and
+  `Host.Microduck.Awaiting.tick_keeps`, which state that.
+  `Features.Preceding.advanceCosted` is the costed definition whose value is
+  `Features.Preceding.advance`, with the contract `preceding_advance` in `AcornVerif.Decisions`.
+  `Host.Microduck.Stage.attend` returns the percept that `Host.Microduck.Idle.sense` gives, with
+  the contract `microduck_sense`, and only private lemmas of the proofs of
+  `Host.Microduck.Stage.step_learning` and `Host.Microduck.Ran.held` name it.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
@@ -286,8 +319,9 @@ the end of this module states those, and `AcornVerif.Decisions` states the contr
 of the spawn search that `Host.World.initial` applies (`Host.selectSpawn`, the
 rule `Host.considerSpawn` and the count `Host.countKindNear`), whose theorems are in the proof
 library, and also the kinds of the value noise `Host.valueNoise`, its fold over the octaves
-`Host.octaveLoop` and the field of the terrain `Host.fbm`, which `Host.terrain` applies. Two
-definitions are the exception.
+`Host.octaveLoop` and the field of the terrain `Host.fbm`, which `Host.terrain` applies, and the
+statement of the stored words of a learner `Checkpoint.managedWords`, which the learner format
+of the checkpoint writes (`managed_words`). Two definitions are the exception.
 `Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
@@ -954,6 +988,26 @@ theorem profile_resumable : Regula.ExecutableContract Host.ResearchProfile.resum
     ⟨.ranked, rfl⟩ ⟨.primitive, by decide⟩⟩
 
 attribute [regula_decision] Host.ResearchProfile.resumable
+
+/-- Loading that keeps its receiver returns the receiver unchanged with the error of a refused
+load (`Checkpoint.load_nonmutation`), and the loaded state with no error for an accepted one,
+for every construction, receiver and byte list. Its verdict is the verdict of
+`Checkpoint.load`, whose sound kind `checkpoint_load` and accepted bytes
+`checkpoint_load_accepts` are stated in `AcornVerif.Decisions`.
+
+The statement keeps no kind: the verdict is the second component of a pair whose state has a
+type that depends on the construction, an earlier argument, and Regula reads a result whose
+type depends on the input only through `Regula.Dependent.isSome` and
+`Regula.Dependent.isOk`, of an `Option` or an `Except`. -/
+theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun keeping =>
+    ∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8),
+      (∀ error, Checkpoint.load construction receiver bytes = .error error →
+        keeping construction receiver bytes = (receiver, some error)) ∧
+        ∀ restored, Checkpoint.load construction receiver bytes = .ok restored →
+          keeping construction receiver bytes = (restored, none)) :=
+  ⟨fun construction receiver bytes =>
+    ⟨fun error rejected => Checkpoint.load_nonmutation construction receiver bytes error rejected,
+      fun restored loaded => by simp [Checkpoint.loadKeeping, loaded]⟩⟩
 
 /-! ## Host admission and parsing -/
 
@@ -2090,6 +2144,62 @@ theorem microduck_release :
               now.nanoseconds) :=
   ⟨Host.Microduck.Awaiting.release_admitted⟩
 
+/-- A reading of the clock between two releases sends a command only for an action with a
+velocity that is not zero, before the end of the hold, and the command is that velocity
+(`Host.Microduck.Bridge.tick_command`); from the end of the hold it sends nothing and
+changes nothing (`Host.Microduck.Bridge.tick_ended`); a due resend, of an action with a
+velocity that is not zero, before the end of the hold and once the last send is the resend
+age old, is sent and recorded as the last send; after a reading before the end of the hold
+of such an action the last send is younger than the resend age
+(`Host.Microduck.Bridge.tick_fresh`); and a reading keeps the action, the stated posture,
+the cycle of the next percept and the end of the hold (`Host.Microduck.Bridge.tick_keeps`).
+This holds for every pace, keeping, origin, bridge and instant. A send occurs: under the
+declared pace and keeping, a forward action released at the origin is sent again at the
+resend age, 100 ms.
+
+The statement keeps no kind. The verdict is the guard of the function, and the guard reads
+the end of the hold `Host.Microduck.Bridge.ends`, which the function applies: a
+specification of the sends would name that definition, and its kind would compare the guard
+with itself. `Host.Microduck.Idle.tick` and `Host.Microduck.Awaiting.tick` send what this
+function sends for the last release, with a new identifier
+(`Host.Microduck.Idle.tick_keeps`, `Host.Microduck.Awaiting.tick_keeps`), and have no
+contract of their own: this statement is their evidence.
+
+**Not claimed:** where the hold ends, which `Host.Microduck.Bridge.ends_held` states, and
+that a release meeting its deadline arrives before it (`Host.Microduck.Bridge.ends_covers`);
+and that an executing loop reads the clock often enough for a resend to be timely. -/
+theorem bridge_tick : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
+    (∀ (pace : Pace) (keep : Host.Microduck.Keep) (origin : Instant)
+        (bridge : Host.Microduck.Bridge) (now : Instant),
+      (∀ command, (tick pace keep origin bridge now).2 = some command →
+        command = .move bridge.action.velocity ∧ bridge.action.velocity ≠ .zero ∧
+          now.nanoseconds < (bridge.ends pace keep origin).nanoseconds) ∧
+        ((bridge.ends pace keep origin).nanoseconds ≤ now.nanoseconds →
+          tick pace keep origin bridge now = (bridge, none)) ∧
+        (bridge.action.velocity ≠ .zero →
+          now.nanoseconds < (bridge.ends pace keep origin).nanoseconds →
+          bridge.sent.nanoseconds + keep.resend ≤ now.nanoseconds →
+          tick pace keep origin bridge now =
+            ({ bridge with sent := now }, some (.move bridge.action.velocity))) ∧
+        (bridge.action.velocity ≠ .zero →
+          now.nanoseconds < (bridge.ends pace keep origin).nanoseconds →
+          (tick pace keep origin bridge now).1.Fresh keep now) ∧
+        (tick pace keep origin bridge now).1.action = bridge.action ∧
+        (tick pace keep origin bridge now).1.sitting = bridge.sitting ∧
+        (tick pace keep origin bridge now).1.next pace keep origin =
+          bridge.next pace keep origin ∧
+        (tick pace keep origin bridge now).1.ends pace keep origin =
+          bridge.ends pace keep origin) ∧
+      (tick Host.Microduck.Declared.pace Host.Microduck.Declared.keep ⟨0⟩
+        ⟨.forward, false, 0, ⟨0⟩, ⟨0⟩⟩ ⟨100000000⟩).2.isSome = true) :=
+  ⟨⟨fun pace keep origin bridge now =>
+      ⟨Host.Microduck.Bridge.tick_command pace keep origin bridge now,
+        Host.Microduck.Bridge.tick_ended pace keep origin bridge now,
+        fun moving inside due => ite_eq_left ⟨moving, inside, due⟩,
+        Host.Microduck.Bridge.tick_fresh pace keep origin bridge now,
+        Host.Microduck.Bridge.tick_keeps pace keep origin bridge now⟩,
+    by decide⟩⟩
+
 /-- The option reader refuses exactly when the first occurrence of the option is the last
 argument, so that no value stands after it (`Host.Cli.value_missing`). The specification
 `Host.Cli.Ends` is stated on the argument list. `cli_value_found` states which value an
@@ -2248,6 +2358,44 @@ theorem line_append : Regula.ExecutableContract LineBytes.append (fun append =>
       by simp [ByteArray.size]⟩⟩
 
 attribute [regula_decision] LineBytes.append
+
+/-- A byte completes a record exactly when it is the delimiter, for every decoder: the
+result holds a record exactly for byte 10. The accepted input is the delimiter on an
+empty line, and the refused one a space. The kind is about the second component of the pair
+that the function returns. `line_step_value` states which record and which decoder follow. -/
+theorem line_step : Regula.ExecutableContract LineDecoder.step (fun step =>
+    Regula.Decides (fun result : LineDecoder × Option LineResult => result.2.isSome = true)
+      (fun input : LineDecoder × UInt8 => input.2 = 10)
+      (Function.uncurry step)) :=
+  ⟨decides
+    (fun ⟨decoder, byte⟩ => by
+      change (decoder.step byte).2.isSome = true ↔ byte = 10
+      by_cases delimiter : byte = 10
+      · subst delimiter
+        exact iff_of_true (by cases decoder <;> rfl) rfl
+      · cases decoder with
+        | discarding => simp [LineDecoder.step, delimiter]
+        | reading line =>
+          simp only [LineDecoder.step, beq_iff_eq, delimiter, ite_false]
+          cases line.append byte <;> simp)
+    ⟨(.reading .empty, 10), rfl⟩ ⟨(.reading .empty, 32), by decide⟩⟩
+
+attribute [regula_decision] LineDecoder.step
+
+/-- The delimiter returns every decoder to an empty line (`LineDecoder.delimiter_resets`);
+it reports the bytes of a line being read, and the refusal `LineResult.oversized` for a line
+being discarded; and every other byte keeps a discarding decoder discarding and reports
+nothing (`LineDecoder.discard_suffix`). A kind states which bytes complete a record and not
+the record, so this statement is a requirement with no kind beside the kind `line_step`.
+
+**Not claimed:** which bytes a line being read keeps before its delimiter, which
+`LineBytes.append_exact` and the kind `line_append` state of the extension it applies. -/
+theorem line_step_value : Regula.ExecutableContract LineDecoder.step (fun step =>
+    (∀ decoder, (step decoder 10).1 = .reading .empty) ∧
+      (∀ line, (step (.reading line) 10).2 = some (.line line)) ∧
+      (step .discarding 10).2 = some .oversized ∧
+      ∀ byte, byte ≠ 10 → step .discarding byte = (.discarding, none)) :=
+  ⟨⟨LineDecoder.delimiter_resets, fun _ => rfl, rfl, LineDecoder.discard_suffix⟩⟩
 
 /-- Output admission accepts exactly the running or stopping phase of the same generation
 (`Phase.archiving_rejects`). -/
@@ -2626,6 +2774,67 @@ theorem capture_follows : Regula.ExecutableContract Capture.follows (fun test =>
         (next.terminal && !previous.terminal &&
           next.world.toNat == previous.world.toNat + 1)) :=
   ⟨Capture.follows_equal_lifetime⟩
+
+/-- A capture zero in every field: run zero, agent epoch zero, clocks zero, not terminal. -/
+private def firstCapture : Capture := ⟨0, 0, 0, 0, 0, false⟩
+
+/-- Record admission skips a capture of another identity and keeps the state
+(`Admission.wrong_identity`); a stored capture becomes the last accepted one
+(`Admission.stored_capture`); and a capture that is not stored leaves the last accepted one
+in place (`Admission.rejected_preserves_history`). This holds for every identity, state and
+capture. A capture is stored: the first capture of an identity into the empty state.
+
+The statement keeps no kind, for two reasons. Whether a capture is stored depends on the
+capture order `Capture.follows`, which has the complete kind `capture_follows_complete` and
+no proposition that states it, so a specification of the verdict would name that test, and
+RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses a kind whose
+specification shares a test with its function. And the verdict, an `Intake`, is the first
+component of a pair whose state has a type that depends on the identity, an earlier
+argument; Regula reads a result whose type depends on the input only through
+`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`.
+
+**Not claimed:** which captures are stored, rewound or skipped beyond the identity test, and
+the newest timestamp the state keeps. -/
+theorem viewer_admission : Regula.ExecutableContract @Admission.receive (fun receive =>
+    (∀ {identity} (state : Admission identity) (capture : Capture),
+      (capture.matches identity = false → receive state capture = (.skipped, state)) ∧
+        ((receive state capture).1 = .stored →
+          (receive state capture).2.previous = some capture) ∧
+        ((receive state capture).1 ≠ .stored →
+          (receive state capture).2.previous = state.previous)) ∧
+      (receive (Admission.empty ⟨0, 0, 0⟩) firstCapture).1 = .stored) :=
+  ⟨⟨fun state capture => ⟨Admission.wrong_identity state capture,
+      Admission.stored_capture state capture, Admission.rejected_preserves_history state capture⟩,
+    rfl⟩⟩
+
+/-- Health admission refuses a capture of another identity; a refused capture keeps the
+state (`HealthAdmission.rejected_preserves`); and an accepted capture becomes the last
+accepted one. This holds for every identity, state and capture. A capture is accepted: the
+first capture of an identity into the empty state.
+
+The statement keeps no kind, for the reasons given at `viewer_admission`: whether a capture
+is accepted depends on the capture order `Capture.after`, which has the sound kind
+`capture_after` and no proposition that states it, and the verdict is the first component of
+a pair whose state has a type that depends on the identity.
+
+**Not claimed:** which captures of the identity are accepted, beyond the first one. -/
+theorem viewer_health : Regula.ExecutableContract @HealthAdmission.receive (fun receive =>
+    (∀ {identity} (state : HealthAdmission identity) (capture : Capture),
+      (capture.matches identity = false → (receive state capture).1 = false) ∧
+        ((receive state capture).1 = false → (receive state capture).2 = state) ∧
+        ((receive state capture).1 = true →
+          (receive state capture).2.previous = some capture)) ∧
+      (receive (HealthAdmission.empty ⟨0, 0, 0⟩) firstCapture).1 = true) :=
+  ⟨⟨fun {identity} state capture =>
+      ⟨fun wrong => by simp [HealthAdmission.receive, wrong],
+        HealthAdmission.rejected_preserves state capture,
+        fun accepted => by
+          by_cases same : capture.matches identity = true
+          · by_cases later : state.previous.all (capture.after ·) = true
+            · simp [HealthAdmission.receive, same, later]
+            · simp [HealthAdmission.receive, same, later] at accepted
+          · simp [HealthAdmission.receive, same] at accepted⟩,
+    rfl⟩⟩
 
 /-- The ownership test accepts exactly a tool whose own flag is set in the inventory. -/
 theorem inventory_owns : Regula.ExecutableContract Host.Inventory.owns (fun owns =>
@@ -4229,10 +4438,62 @@ theorem schema_covers_empty : Regula.ExecutableContract @schemaCovers (fun cover
       (schema : List (String × TelemetryShape)), @covers α fits [] schema = true) :=
   ⟨fun _ _ _ => rfl⟩
 
+/-- The arguments of `Costed.mem`, in order. -/
+structure MemberAt where
+  /-- The element type. -/
+  element : Type
+  /-- Equality of elements. -/
+  equality : DecidableEq element
+  /-- The element sought. -/
+  item : element
+  /-- The list searched. -/
+  items : List element
+
+/-- The costed membership test accepts exactly an element of the list, for every element type
+with decidable equality (`Costed.mem_val`). The function returns a costed value, and the kind
+is about that value. The accepted input is `0` in `[0]`, and the refused one `0` in `[1]`.
+
+**Not claimed:** the work of the test, one comparison for each element visited, which
+`Costed.mem_within` states. -/
+theorem costed_mem : Regula.ExecutableContract @Costed.mem (fun mem =>
+    Regula.Decides (fun result : Costed Bool => result.val = true)
+      (fun input : MemberAt => input.item ∈ input.items)
+      (fun input : MemberAt => @mem input.element input.equality input.item input.items)) :=
+  ⟨decides
+    (fun input => by letI := input.equality; rw [Costed.mem_val]; exact decide_eq_true_iff)
+    ⟨⟨Nat, inferInstance, 0, [0]⟩, List.mem_singleton_self 0⟩
+    ⟨⟨Nat, inferInstance, 0, [1]⟩, by simp⟩⟩
+
+attribute [regula_decision] Costed.mem
+
 /-! ## Definitions that a registered decision reads
 
 A registered decision reaches each definition below, and a theorem names it. The statement
 about each is exact on stored data, or it is the theorem about it. -/
+
+/-- The costed search finds no index exactly when no element passes its test, and it finds an
+index exactly when the element there passes and no earlier element does, for every element
+type, array and costed test (`Costed.findIdx?_val`, with Lean core's
+`Array.findIdx?_eq_none_iff` and `Array.findIdx?_eq_some_iff_getElem`). The retirement of an
+index from a learner's eligible list (`NumericState.retireIndexCosted`) applies it, and the
+registered steps `Features.Controller.stepRaw` and `Handcrafted.PredictionControl.advanceRaw`
+reach it through that retirement.
+
+The statement keeps no kind: the result, a costed index with the equation that names it, has
+a type that depends on the array and the test, and Regula reads a result whose type depends on
+the input only through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or
+an `Except`.
+
+**Not claimed:** the work of the search, which `Costed.findIdx?_within` bounds. -/
+theorem find_index : Regula.ExecutableContract @Costed.findIdx? (fun find =>
+    ∀ {α : Type} (items : Array α) (test : α → Costed Bool),
+      ((find items test).val.val = none ↔ ∀ item ∈ items, (test item).val = false) ∧
+        ∀ index, (find items test).val.val = some index ↔
+          ∃ within : index < items.size, (test items[index]).val = true ∧
+            ∀ earlier (before : earlier < index), (test items[earlier]).val = false) :=
+  ⟨fun items test => by
+    simp only [Costed.findIdx?_val, Array.findIdx?_eq_none_iff,
+      Array.findIdx?_eq_some_iff_getElem, Bool.not_eq_true, implies_true, and_self]⟩
 
 /-- An objective has an identity exactly when it is a selected objective.
 `assignment_identity_value` states the identity. -/
@@ -5486,6 +5747,44 @@ theorem state_restore : Regula.ExecutableContract @AgentConstruction.State.resto
     rw [Option.isSome_map] at same
     rw [same]
     exact agent_restore.1.iff ⟨_, _, _, _, _, _, state.agent, image.image⟩⟩
+
+/-- A fold of events reports a stop exactly when a stop is among the events. -/
+private theorem runPrefix_stops {profile : FeatureProfile} {config : Features.Config}
+    {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
+    (state : Agent Grid.interface profile config criterion dimension planning)
+    (events : List (AgentInput config criterion dimension)) :
+    (state.runPrefix events).2 = true ↔ AgentInput.stop ∈ events := by
+  induction events generalizing state with
+  | nil => simp [Agent.runPrefix]
+  | cons event rest folded =>
+    cases event <;> simp [Agent.runPrefix, Agent.input, folded]
+
+/-- The fold of a finite list of events follows the path of the event operation
+`Agent.input` from the state (`Agent.prefix_path`), and it reports a stop exactly when a
+stop is among the events. A stop first returns the state unchanged
+(`Agent.stop_suffix`), and a clear first continues from the initial agent
+(`Agent.clear_suffix`). This holds for every profile, configuration, criterion, dimension,
+planning selection, state and list of events. `DefaultConstruction.runPrefix` folds the
+same events and returns this fold's state and report (`DefaultConstruction.runPrefix_agent`),
+and has no contract of its own: this statement is its evidence.
+
+The statement keeps no kind: the fold refuses no event, and its second component reports
+whether a stop ended it.
+
+**Not claimed:** what each event does to the agent, which `agent_input_edges` in
+`AcornVerif.Decisions` states. -/
+theorem agent_run_prefix : Regula.ExecutableContract @Agent.runPrefix (fun runPrefix =>
+    ∀ {profile config criterion dimension planning}
+      (state : Agent Grid.interface profile config criterion dimension planning)
+      (events : List (AgentInput config criterion dimension)),
+      AgentPath state events (runPrefix state events).1 (runPrefix state events).2 ∧
+        ((runPrefix state events).2 = true ↔ AgentInput.stop ∈ events) ∧
+        runPrefix state (.stop :: events) = (state, true) ∧
+        runPrefix state (.clear :: events) =
+          runPrefix (Agent.initial Grid.interface profile config criterion dimension planning)
+            events) :=
+  ⟨fun state events => ⟨Agent.prefix_path state events, runPrefix_stops state events,
+    Agent.stop_suffix state events, Agent.clear_suffix state events⟩⟩
 
 /-! ## Temporal selection
 
