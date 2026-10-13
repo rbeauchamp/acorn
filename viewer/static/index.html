@@ -1724,7 +1724,7 @@ function drawStage(f) {
   }
 
   // night
-  const phase = Math.floor((f.worldStep % dayLength)/(dayLength/8));
+  const phase = observerDayPhase(f.worldStep, dayLength);
   if (phase >= 4) {
     const depth = phase===4||phase===7 ? 0.20 : 0.34;
     mapG.fillStyle = `rgba(12,24,70,${depth})`;
@@ -1796,7 +1796,7 @@ function drawHud(f) {
   }
   $("hud-gmeta").textContent = `tier ${f.tier} · attempt ${f.attempt+1} of ${f.attemptCap} · cycle ${f.cycle+1}`;
   $("hud-t").textContent = `${fmt(f.worldStep)} steps`;
-  const phase = Math.floor((f.worldStep % dayLength)/(dayLength/8));
+  const phase = observerDayPhase(f.worldStep, dayLength);
   $("hud-tod").textContent = phase >= 4 ? "🌙" : "☀";
   const bar = $("energybar");
   bar.style.width = Math.max(0, Math.min(100, f.energy/2000*100)) + "%";
