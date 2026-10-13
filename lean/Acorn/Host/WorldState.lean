@@ -289,8 +289,8 @@ theorem World.decide_goalSatisfied {config : WorldConfig} (world : World config)
 to seven. A slot of the clock in the first half has the number of eighths of the day that it has
 passed, and a slot in the second half four more than the eighths it has passed since the half.
 An eighth is at least one step, and the last phase of each half keeps the slots past its third
-eighth, so a day whose length is not a multiple of eight adds its remainder to the phases three
-and seven. Night, the phases from four on, is exactly the second half
+eighth, so a day of at least eight steps whose length is not a multiple of eight adds its
+remainder to the phases three and seven. Night, the phases from four on, is exactly the second half
 (`World.dayPhase_night_iff`). A day of at least eight steps reaches all four phases of each half
 (`World.dayPhase_reaches`); a shorter day has fewer than four slots in its first half. -/
 def World.dayPhase {config : WorldConfig} (world : World config) : Fin FeatureConstants.dayPhases :=
