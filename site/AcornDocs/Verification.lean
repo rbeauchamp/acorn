@@ -350,8 +350,11 @@ saturated to the bounds of the scale:
 
 {statement AcornVerif.Decimal.read_nearest}
 
-No theorem states that every number of a parsed text is read: that rests on the parser,
-which builds a number in one place, from the spelling of a scanned numeral.
+No theorem states that every number of a parsed text is read: it follows from
+{decl}`Acorn.Json.parse_sound`, whose grammar spells each number of an accepted text as an
+{decl}`Acorn.Json.Grammar.Number`, with {decl}`Acorn.Json.Grammar.number_iff` and
+{decl}`Acorn.Host.Microduck.Decimal.read_iff`, by an induction over the derivation that no theorem
+states.
 {decl}`Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
 that a reading is paired with. A parsed JSON value is read into these types by
 {decl}`Acorn.Host.Microduck.State.read` and {decl}`Acorn.Host.Microduck.Depth.read`, and a
@@ -371,9 +374,12 @@ this repository reads the text of every such value back as the value:
 {statement Acorn.Json.parse_request}
 
 So for every identifier and command the parser reads the line of a send as the request of
-that send ({decl}`Acorn.Host.Microduck.Command.line_asked`). This is the one theorem about
-the parser. No theorem states what it reads of a line of a daemon, and none is about what a
-daemon sends or accepts, so none states that the text of a frame is read correctly.
+that send ({decl}`Acorn.Host.Microduck.Command.line_asked`). A second theorem states what every
+text that the parser accepts is: a JSON text of the grammar of RFC 8259,
+{decl}`Acorn.Json.Grammar.Text`, with a derivation that gives the value that the parser returns
+({decl}`Acorn.Json.parse_sound`). So a line of a daemon that the parser accepts is read as a value
+that the grammar gives its text. No theorem states that the parser accepts every text of the
+grammar, and none is about what a daemon sends or accepts.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting

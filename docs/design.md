@@ -1110,7 +1110,7 @@ that an answer names one send and not a kind of command. Each magnitude of a vel
 is a numeral of a table, proved to write the thousandths of the action table over a
 thousand exactly (`spelling_twist`). A line is the text of a request value, and the
 parser of this repository reads the text of every such value back as the value
-(`parse_request`, the first theorem about that parser on a family of texts), so for
+(`parse_request`, a theorem about that parser on a family of texts), so for
 every identifier and command it reads the line as the request, with exactly its
 members and its parameters and no other (`Command.line_asked`); that a daemon reads
 them so is not stated. The release of an action sends velocities and skills
@@ -1319,8 +1319,10 @@ fraction, times ten to the exponent. The decimal of a formed numeral has that va
 (`ofNumeral_value`), and so the integer kept for a JSON value that is read is the
 nearest to the number as the daemon wrote it, in the units of the scale, at a tie the
 one farther from zero, saturated to the bounds of the scale (`read_nearest`). No
-theorem states that every number of a parsed text has a numeral: that rests on the
-parser building a number in one place, from the spelling of a scanned numeral.
+theorem states that every number of a parsed text has a numeral: it follows from
+`parse_sound`, whose grammar spells each number of an accepted text as a
+`Grammar.Number`, with `Grammar.number_iff` and `Value.numeral_iff`, by an induction
+over the derivation that no theorem states.
 
 **Reading a frame of the daemon.** `State.read` and `Depth.read` read the parameters
 object of a state notification and of a depth notification, as a parsed JSON value,

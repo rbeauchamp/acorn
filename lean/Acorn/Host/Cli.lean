@@ -261,6 +261,16 @@ def natural (text : String) : Option Nat :=
   if digits.isEmpty || !digits.toList.all (fun c => '0' ≤ c && c ≤ '9') then none
   else digits.toNat?
 
+/-- The text of an unsigned decimal number on the command line, stated with no executed
+function: an optional plus sign, then at least one digit from `0` to `9`, and `n` the value
+of the digits in positional notation, each digit times ten to the power of its place counted
+from the right. Leading zeros are allowed; white space, a minus sign and digit separators
+are not. -/
+def Natural (text : String) (n : Nat) : Prop :=
+  ∃ sign digits : List Char, (sign = [] ∨ sign = ['+']) ∧ digits ≠ [] ∧
+    (∀ c ∈ digits, 48 ≤ c.toNat ∧ c.toNat ≤ 57) ∧ text.toList = sign ++ digits ∧
+    n = (digits.reverse.zipIdx.map fun place => (place.1.toNat - 48) * 10 ^ place.2).sum
+
 /-- Integer width is checked before conversion; textual overflow never wraps. -/
 def unsigned (arguments : List String) (name : String) (width fallback : Nat) : Except Error Nat := do
   match ← value arguments name with
@@ -288,6 +298,29 @@ def profile (text : String) : Except Error ResearchProfile :=
   | "ranked" => .ok .ranked | "primitive" => .ok .primitive
   | "boundary-credit" => .ok .boundaryCredit | "annealed" => .ok .annealed
   | "spatial" => .ok .spatial | _ => .error (.invalid "--research-profile" text)
+
+/-- The specification of the spelling of a research profile, written with no executed
+function: a text spells a profile when it is that profile's one word. -/
+def ProfileSpelled (text : String) (selected : ResearchProfile) : Prop :=
+  (text = "ranked" ∧ selected = .ranked) ∨ (text = "primitive" ∧ selected = .primitive) ∨
+    (text = "boundary-credit" ∧ selected = .boundaryCredit) ∨
+    (text = "annealed" ∧ selected = .annealed) ∨ (text = "spatial" ∧ selected = .spatial)
+
+/-- **The profile admission accepts exactly the spelled profiles.** For every text and
+profile, the admission returns the profile exactly when the text spells it. -/
+theorem profile_spelled (text : String) (selected : ResearchProfile) :
+    profile text = .ok selected ↔ ProfileSpelled text selected := by
+  unfold profile ProfileSpelled
+  split <;> cases selected <;> simp_all
+
+/-- **The profile admission refuses exactly the texts that spell no profile,** with the one
+error that names the option and the text. -/
+theorem profile_refused (text : String) (error : Error) :
+    profile text = .error error ↔
+      (∀ selected, ¬ ProfileSpelled text selected) ∧
+        error = .invalid "--research-profile" text := by
+  unfold profile ProfileSpelled
+  split <;> simp_all [eq_comm]
 
 /-- Criterion absence is preserved for the authoritative full-agent default owner. -/
 def criterion (arguments : List String) : Except Error (Option Features.Criterion) := do

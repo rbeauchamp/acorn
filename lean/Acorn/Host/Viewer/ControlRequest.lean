@@ -34,6 +34,17 @@ def controlCommand (body : ControlBody) : Except String Command := do
     let some command := Command.parse word | throw "unknown lifecycle command"
     return command
 
+/-- A control body that spells a lifecycle command, stated with no executed function: the
+UTF-8 encoding of a JSON text of RFC 8259 (`Json.Grammar.Text`) that the grammar gives an object with
+one member, named `cmd`, whose value is a string that spells the command
+(`Command.Spelled`). The text can hold white space and escapes. `control_command` in
+`Acorn.Decisions` proves that `controlCommand` accepts only such bodies, and
+`control_command_value` that the command it returns is one that they spell. -/
+def ControlSpelled (bytes : ByteArray) (command : Command) : Prop :=
+  ∃ (text word : String), bytes = text.toUTF8 ∧
+    Json.Grammar.Text text.toList (.object [("cmd", .string word)]) ∧
+    Command.Spelled word command
+
 /-- Parsed header facts needed to authorize local control, before body decoding. -/
 structure ControlHeaders where
   /-- Exact parsed HTTP method. -/
