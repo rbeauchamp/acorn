@@ -526,8 +526,8 @@ none of those tests ([Regula issue
 guard of the function, where the guard applies a definition that no proposition
 states apart from it, such as an order of the viewer's captures; and a result
 whose type depends on the input and is neither an option nor an error, such as
-a verdict beside a state whose type depends on an earlier argument, which Regula
-reads only through whether it holds a value. A requirement with no
+an index that comes with the equation that names it, which Regula reads only
+through whether it holds a value. A requirement with no
 kind is a statement that the Regula audit does not examine: that audit checks
 only that its theorem is proved about the executing definition. Such a statement
 can fix one direction only, and it need not show that both outcomes occur for

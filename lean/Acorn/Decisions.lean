@@ -3405,9 +3405,9 @@ structure AssignmentAdmit where
 /-- Assignment admission accepts exactly the words of a stored assignment of the receiving
 bank (`Assignment.words_roundtrip`, and `Assignment.admit_words` for the converse). The writer
 `Assignment.words` and the admission both apply the slot map `unitFeature`, which
-`unit_feature` states apart from its definition. The accepted input is the words of the neutral assignment; the refused input is a word image with
-a tag that is neither zero nor one. `assignment_admit_value` states the assignment that it
-returns. -/
+`unit_feature` states apart from its definition. The accepted input is the words of the neutral
+assignment; the refused input is a word image with a tag that is neither zero nor one.
+`assignment_admit_value` states the assignment that it returns. -/
 theorem assignment_admit : Regula.ExecutableContract Assignment.admit (fun admit =>
     Regula.Decides (· = true)
       (fun input : AssignmentAdmit => ∃ assignment : Assignment input.config,
