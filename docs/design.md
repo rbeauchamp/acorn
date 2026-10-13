@@ -1319,8 +1319,10 @@ fraction, times ten to the exponent. The decimal of a formed numeral has that va
 (`ofNumeral_value`), and so the integer kept for a JSON value that is read is the
 nearest to the number as the daemon wrote it, in the units of the scale, at a tie the
 one farther from zero, saturated to the bounds of the scale (`read_nearest`). No
-theorem states that every number of a parsed text has a numeral: that rests on the
-parser building a number in one place, from the spelling of a scanned numeral.
+theorem states that every number of a parsed text has a numeral: it follows from
+`parse_sound`, whose grammar spells each number of an accepted text as a
+`Grammar.Number`, with `Grammar.number_iff` and `Value.numeral_iff`, by an induction
+over the derivation that no theorem states.
 
 **Reading a frame of the daemon.** `State.read` and `Depth.read` read the parameters
 object of a state notification and of a depth notification, as a parsed JSON value,

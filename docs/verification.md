@@ -407,8 +407,11 @@ theorem AcornVerif.Decimal.read_nearest (scale : Acorn.Host.Microduck.Scale) (js
               max scale.low (min scale.high nearest)
 ```
 
-No theorem states that every number of a parsed text is read: that rests on the parser,
-which builds a number in one place, from the spelling of a scanned numeral.
+No theorem states that every number of a parsed text is read: it follows from
+`Acorn.Json.parse_sound`, whose grammar spells each number of an accepted text as an
+`Acorn.Json.Grammar.Number`, with `Acorn.Json.Grammar.number_iff` and
+`Acorn.Host.Microduck.Decimal.read_iff`, by an induction over the derivation that no theorem
+states.
 `Acorn.Host.Microduck.Reading.age_exact` states the age of the depth frame
 that a reading is paired with. A parsed JSON value is read into these types by
 `Acorn.Host.Microduck.State.read` and `Acorn.Host.Microduck.Depth.read`, and a

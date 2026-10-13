@@ -22,8 +22,10 @@ one. Every scanned numeral is formed and its spelling is the head of the scanned
 (`Numeral.scan_formed`); the spelling of a formed numeral scans to that numeral with
 nothing left (`Numeral.scan_chars`); and a value has a numeral exactly when it is a number
 with the spelling of that numeral, which is formed (`Value.numeral_iff`). No theorem
-states that every number of a parsed text has a numeral: that rests on the parser building
-a number in one place, from the spelling of a scanned numeral.
+states that every number of a parsed text has a numeral: it follows from `parse_sound`, whose
+grammar spells each number of an accepted text as a `Grammar.Number`, with
+`Grammar.number_iff` and `Value.numeral_iff`, by an induction over the derivation that no
+theorem states.
 
 A formed numeral with no exponent part is also scanned back from the head of a longer
 text that goes on with no digit, point or exponent mark (`Numeral.scan_append`).

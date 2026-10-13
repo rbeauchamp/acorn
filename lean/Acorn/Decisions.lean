@@ -284,8 +284,9 @@ report of the definitions that have no contract is work of Regula
   carries both directions of its decision in its type, have no contract.
 * No theorem of the maintained libraries names the definition in its statement. This is the
   absence of a direct reference and nothing more. These are the other command-line parsers of
-  `Host.Cli` (the readers of an option, a research profile, a planning word, a step order and
-  an unsigned number have contracts), the native drivers and `NativeApp`, the readers and the
+  `Host.Cli` (`Host.Cli.value`, `Host.Cli.profile`, `Host.Cli.planningValue`,
+  `Host.Cli.planningSelection`, `Host.Cli.stepOrderValue`, `Host.Cli.stepOrder` and
+  `Host.Cli.natural` have contracts), the native drivers and `NativeApp`, the readers and the
   private helpers of the JSON parser (the parser `Json.parse` has the contracts `json_parse`,
   which states texts it accepts, and `json_parse_text`, which states that it accepts only
   JSON texts; the scanner of a number `Json.Numeral.scan`, the reader `Json.Value.numeral` and
