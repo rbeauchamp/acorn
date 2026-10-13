@@ -76,7 +76,9 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Twenty-nine functions of this module have a contract and no kind. The reasons are two.
+Twenty-nine functions of this module have a contract and no kind. The reasons are two. One more,
+`Host.coordinateFloat`, refuses no input, so it is no decision, and its statement `coordinate_float`
+says what its result is.
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
   configuration, and a complete or a two-way kind carries a refused input. The statement of
