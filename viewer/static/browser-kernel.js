@@ -1,4 +1,4 @@
-const SCHEMA=10,UNSEEN=255,MAX_MAP_SIDE=4096,N_KIND=8,N_DEM=11,N_CTL=9,N_META=4,N_TILE=121,N_SKILL=3,N_OPTION_END=3,N_GOAL_FAMILY=4,N_MODEL=3,HISTORY_BINS=64,CYCLE_BINS=16,EXACT_CYCLES=8;
+const SCHEMA=10,UNSEEN=255,MAX_MAP_SIDE=4096,N_KIND=8,N_DEM=11,N_CTL=9,N_META=4,N_TILE=121,N_SKILL=3,N_OPTION_END=3,N_GOAL_FAMILY=4,N_MODEL=3,HISTORY_BINS=64,CYCLE_BINS=16,EXACT_CYCLES=8,READ_MS=250,WIN=1000,CAP=30000,RIBBON_SPAN=3000,STALE_MS=8000,Z=4;
 const Reject=Object.freeze({schema:"schema",cardinality:"cardinality",missingField:"missingField",malformed:"malformed"});
 const RUN_LABEL={"starting":["Stop","starting…","busy",true],"running":["Stop","running","on",false],"stopping":["Stop","stopping…","busy",true],"clearing":["Stop","clearing…","busy",true],"stopped":["Start","stopped","off",false]};
 const UNASKED_STOPS=["failed","restart_scheduled"];

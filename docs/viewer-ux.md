@@ -1145,19 +1145,21 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 
 ## Appendix A · Constants this document quotes
 
-`AcornTools.Corpus.Browser` compares the numeric rows below against the actual browser
-constants or imported native values. Missing, duplicated or mismatched rows fail
-admission. Other prose quantities and table completeness remain review obligations.
+`AcornTools.Corpus.Browser` compares the numeric rows below against their Lean owners: the
+page's constants, which the generated kernel declares from `BrowserConstant` in
+`Acorn.Host.Viewer.BrowserStore`, and the viewer server's values. Missing, duplicated or
+mismatched rows fail admission. Other prose quantities and table completeness remain
+review obligations.
 Durations are milliseconds unless the name denotes another unit.
 
 | constant | value | declared in |
 |---|---|---|
-| `READ_MS` | 250 | `viewer/static/index.html` |
-| `WIN` | 1000 | `viewer/static/index.html` |
-| `CAP` | 30000 | `viewer/static/index.html` |
-| `RIBBON_SPAN` | 3000 | `viewer/static/index.html` |
-| `STALE_MS` | 8000 | `viewer/static/index.html` |
-| `Z` | 4 | `viewer/static/index.html` |
+| `READ_MS` | 250 | `Acorn.Host.Viewer.BrowserStore` |
+| `WIN` | 1000 | `Acorn.Host.Viewer.BrowserStore` |
+| `CAP` | 30000 | `Acorn.Host.Viewer.BrowserStore` |
+| `RIBBON_SPAN` | 3000 | `Acorn.Host.Viewer.BrowserStore` |
+| `STALE_MS` | 8000 | `Acorn.Host.Viewer.BrowserStore` |
+| `Z` | 4 | `Acorn.Host.Viewer.BrowserStore` |
 | `replayCapacity` | 500 | `Acorn.Host.Viewer.Buffer` |
 | `failureLimit` | 3 | `Acorn.Host.Viewer.Retry` |
 | `healthyRunMs` | 30000 | `Acorn.Host.Viewer.SupervisedProcess` |

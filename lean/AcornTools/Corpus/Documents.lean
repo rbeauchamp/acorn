@@ -305,6 +305,7 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
     for start in [:parts.length] do
       names := names.insert (String.intercalate "." (parts.drop start))
   for (key, _) in Acorn.Host.Viewer.browserSchema do names := names.insert key
+  for constant in Acorn.Host.Viewer.BrowserConstant.all do names := names.insert constant.name
   for (key, rule) in Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules do
     names := names.insert key
     if let .tags tags := rule then
