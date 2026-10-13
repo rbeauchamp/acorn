@@ -142,11 +142,13 @@ with `Host.ReplayCertificate.check` and the replay `Host.World.advanceActions`: 
 specifications are about runs of the executed world step, which decides propositions in the
 place of its tests. `Host.walkableTile` carries the two-way kind. The terrain generator
 `Host.terrain` and its readers `Host.World.tileKind` and `Host.World.enterable` carry the
-two-way kind there too, because the proof of their refusals needs the exact floor of
-`AcornVerif.CurrentFloor`. `Host.Released.environment` carries the
-two-way kind there, and `Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete`
-have an accepted input stated there, because the observation of the attempt `fresh` succeeds by
-the terrain admission of `AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the
+two-way kind there too, with the value noise `Host.valueNoise`, its fold over the octaves
+`Host.octaveLoop` and the field of the terrain `Host.fbm`, which the generator applies, because
+the proof of their refusals needs the exact floor of `AcornVerif.CurrentFloor`.
+`Host.Released.environment` carries the two-way kind there, and `Host.World.observe`,
+`Host.Attempt.finish` and `Host.Attempt.complete` have an accepted input stated there, because
+the observation of the attempt `fresh` succeeds by the terrain admission of
+`AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the
 rule `Host.considerSpawn` of the spawn search carry the two-way kind there (`spawn_count`,
 `spawn_consider`), because their proofs need the terrain admission of
 `AcornVerif.CurrentTerrain` (`CurrentTerrain.tileKind_isOk`) and the checked translation of
@@ -156,6 +158,10 @@ rule `Host.considerSpawn` of the spawn search carry the two-way kind there (`spa
 `Host.World.initial` has an accepted input stated there (`world_initial_accepts`), at a
 configuration of one tile whose spawn search succeeds by the terrain admission of
 `AcornVerif.CurrentTerrain`.
+The test of a cleared learner slot `NumericState.clearAt` carries the two-way kind there
+(`learner_clear`), because its theorem is in `AcornVerif.CurrentLearnerCheck`. The stored-word
+check `NumericState.resumable` has a requirement with no kind there (`learner_resumable`), for
+the second reason above: its kind was proved and Regula's collector refuses it.
 
 ## Tests that a specification does not share
 
@@ -250,36 +256,32 @@ report of the definitions that have no contract is work of Regula
   interaction kernel and the world classes (`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state
   worlds, agents, goals and bounds as structures and propositions, so they declare no
   definition with such a result.
-* A theorem names the definition and no contract states it. These are the readers of the lines
-  and the phases of a Microduck host (`Host.Microduck.Line.stateFrame`,
-  `Host.Microduck.Line.depthFrame`, `Host.Microduck.Phase.armed`, `Host.Microduck.Phase.last`
-  and `Host.Microduck.fitting`). This module makes no statement about what a caller does with
-  the result of such a definition. The age of the depth frame of a Microduck reading
-  (`Host.Microduck.Reading.age`) is in this group too: it refuses nothing, and it is absent
-  exactly when the reading has no depth frame (`Host.Microduck.Reading.age_present`). The value
-  toward which the span of an interrupted option closes
-  (`Handcrafted.TemporalControl.takeoverValue`) refuses nothing either: it is absent on every
-  frame that interrupts no option (`AcornVerif.CurrentTemporal.takeover_none`), and
-  `AcornVerif.CurrentTemporal.takeover_value` states its value where a span closes. The value
-  noise of the terrain, its fold over the octaves and a field of the terrain (`Host.valueNoise`,
-  `Host.octaveLoop` and `Host.fbm`) are in this group too: `AcornVerif.CurrentTerrain` states
-  the positions that each admits (`valueNoise_isOk`, `octaveLoop_isOk`, `fbm_isOk`). Two
-  definitions of the Microduck adapter are in this group as well: the event of the goal
-  `Handcrafted.Microduck.achieved` and its latch `Handcrafted.Microduck.arm`.
+* A theorem names the definition, and the definition decides nothing. The readers of the
+  phases of a Microduck host `Host.Microduck.Phase.armed` and `Host.Microduck.Phase.last`
+  return the field of that name which the state holds in either phase, which is stored data as
+  a structure field is. The age of the depth frame of a Microduck reading
+  (`Host.Microduck.Reading.age`) refuses nothing, and it is absent exactly when the reading has
+  no depth frame (`Host.Microduck.Reading.age_present`). The value toward which the span of an
+  interrupted option closes (`Handcrafted.TemporalControl.takeoverValue`) refuses nothing
+  either: it is absent on every frame that interrupts no option
+  (`AcornVerif.CurrentTemporal.takeover_none`), and `AcornVerif.CurrentTemporal.takeover_value`
+  states its value where a span closes. This module makes no statement about what a caller does
+  with the result of such a definition.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
 the end of this module states those, and `AcornVerif.Decisions` states the contracts and kinds
 of the spawn search that `Host.World.initial` applies (`Host.selectSpawn`, the
 rule `Host.considerSpawn` and the count `Host.countKindNear`), whose theorems are in the proof
-library. Five definitions are the exception.
+library, and also the kinds of the value noise `Host.valueNoise`, its fold over the octaves
+`Host.octaveLoop` and the field of the terrain `Host.fbm`, which `Host.terrain` applies. Two
+definitions are the exception.
 `Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
 requires it by name. `Handcrafted.TemporalControl.takeoverValue`, which
-`Handcrafted.TemporalControl.step` applies, `Host.valueNoise`, `Host.octaveLoop` and
-`Host.fbm`, which `Host.terrain` applies and the registered `Host.impassable` reaches through
-it, have no contract either; the group above names the theorems that state them. The tests
+`Handcrafted.TemporalControl.step` applies, has no contract either; the group above names the
+theorems that state it. The tests
 `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, which
 `Handcrafted.Microduck.near` and `Handcrafted.Microduck.clear` apply, are registered decisions
 with the contracts `microduck_upright` and `microduck_fresh`, beside the contracts
@@ -310,8 +312,8 @@ What the list does not hold:
   decides only in `IO`.
 * An effect is not in the list: its result type is `IO`. An effect with a pure core is covered
   through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.resume` on the
-  bytes it read, which is the verdict of `Checkpoint.load` through `Except.map`
-  (`CurrentCheckpoint.resume_saved`); `Checkpoint.Store.save` refuses with
+  bytes it read, which carries the sound kind `checkpoint_resume` in `AcornVerif.Decisions`
+  beside the sound kind `checkpoint_load`; `Checkpoint.Store.save` refuses with
   `Checkpoint.saveBytes`, and also refuses an image longer than `Checkpoint.maximumBytes`
   (`Checkpoint.Error.oversized`; `CurrentCheckpointSize.snapshot_size_bound` states when no such
   refusal occurs); and `Host.CertificateDriver.dispatch` admits its arguments with
@@ -333,9 +335,10 @@ the functions with a dependent type, and closed values that are inputs of the wi
 kinds: `wide` and `last` for the terrain, the values of the section "Closed inputs of the
 kinds with a dependent type", `sourced`, `spot`, `sixteen` and `single` of the section
 "Classifiers and lookups", `phased` of the section "The executing invocation and the named
-action", and `silent`, `quiet`, `foreignHeld` and `foreignFree` of the section "Temporal
-selection". It also declares the callbacks `waiting`, a closed part of the accepted input that
-`ansi_tick_accepts` states.
+action", `silent`, `quiet`, `foreignHeld` and `foreignFree` of the section "Temporal
+selection", and `standing`, `obstructed`, `unobstructed` and `unsighted` of the section "Host
+admission and parsing", the readings of the Microduck contracts. It also declares the callbacks
+`waiting`, a closed part of the accepted input that `ansi_tick_accepts` states.
 No executable and no other module imports it, so no entry point links those definitions, and
 the registration attribute's module, which imports Lean's elaborator, is linked into no
 native entry point.
@@ -1412,6 +1415,57 @@ theorem microduck_fresh :
 
 attribute [regula_decision] Handcrafted.Microduck.fresh
 
+/-- A Microduck reading near an obstacle, the specification of `microduck_near`: the upward
+component of gravity is below -967 thousandths, the depth frame is younger than the declared
+`Handcrafted.Microduck.Declared.fresh`, and one of the first sixteen symbols of the reading's
+frame is at most 3. -/
+def MicroduckNear (reading : Host.Microduck.Reading) : Prop :=
+  (reading.state.gravity.get 2).val < -967 ∧
+    (∃ age, reading.age = some age ∧ age < Handcrafted.Microduck.Declared.fresh) ∧
+      ∃ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 ∧
+        ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ≤ 3
+
+/-- A clear Microduck reading, the specification of `microduck_clear`: the upward component of
+gravity is below -967 thousandths, the depth frame is younger than the declared
+`Handcrafted.Microduck.Declared.fresh`, and each of the first sixteen symbols of the reading's
+frame is from 5 and below `0x1000`, or is `0x10FF`. -/
+def MicroduckClear (reading : Host.Microduck.Reading) : Prop :=
+  (reading.state.gravity.get 2).val < -967 ∧
+    (∃ age, reading.age = some age ∧ age < Handcrafted.Microduck.Declared.fresh) ∧
+      ∀ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 →
+        (5 ≤ ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ∧
+            ((Handcrafted.Microduck.symbols reading.depth).get position).toNat < 0x1000) ∨
+          ((Handcrafted.Microduck.symbols reading.depth).get position).toNat = 0x10FF
+
+/-- A Microduck state frame stamped at zero whose upward component of gravity is -1000
+thousandths. -/
+def standing : Host.Microduck.State :=
+  ⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
+    #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
+    Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
+    ⟨false, false, false, false⟩⟩
+
+/-- The reading of `standing` with a depth frame of the same instant whose every zone has a
+valid return at 100 mm. -/
+def obstructed : Host.Microduck.Reading :=
+  ⟨standing, some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨100, by decide⟩, 5⟩⟩⟩
+
+/-- The reading of `standing` with a depth frame of the same instant whose every zone has the
+status 255. -/
+def unobstructed : Host.Microduck.Reading :=
+  ⟨standing, some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨0, by decide⟩, 255⟩⟩⟩
+
+/-- The reading of `standing` with no depth frame. -/
+def unsighted : Host.Microduck.Reading := ⟨standing, none⟩
+
+/-- `obstructed` is near an obstacle. -/
+private theorem obstructed_near : MicroduckNear obstructed :=
+  (Handcrafted.Microduck.near_symbols _).mp (by decide)
+
+/-- `unobstructed` is clear. -/
+private theorem unobstructed_clear : MicroduckClear unobstructed :=
+  (Handcrafted.Microduck.clear_symbols _).mp (by decide)
+
 /-- The Microduck world's goal test accepts a reading exactly when the upward component of
 gravity is below -967 thousandths, which is the gravity word of the frame below its level
 of -0.95 (`Handcrafted.Microduck.upright_iff`), the depth frame is younger than the declared
@@ -1427,31 +1481,15 @@ and not the symbol of every zone: a change of the level that the gravity word mu
 below, of the declared distance, or of a symbol into or out of that class, contradicts the
 statement. A change of a symbol inside or outside the class does not, and a change of the
 age bound does not, because both sides read the declared constant.
-The two inputs of the proof are an upright reading whose every zone has a valid return at
-100 mm, which is accepted, and a reading with no depth frame, which is refused. That an
-accepted reading is near an obstacle in the world is not stated: `docs/design.md` argues it
-for a flat floor, under assumptions. -/
+The two inputs of the proof are `obstructed`, which is accepted, and `unsighted`, which has no
+depth frame and is refused. That an accepted reading is near an obstacle in the world is not
+stated: `docs/design.md` argues it for a flat floor, under assumptions. -/
 theorem microduck_near :
     Regula.ExecutableContract Handcrafted.Microduck.near (fun near =>
-      Regula.Decides (· = true)
-        (fun reading : Host.Microduck.Reading =>
-          (reading.state.gravity.get 2).val < -967 ∧
-            (∃ age, reading.age = some age ∧
-              age < Handcrafted.Microduck.Declared.fresh) ∧
-              ∃ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 ∧
-                ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ≤ 3)
-        near) :=
+      Regula.Decides (· = true) MicroduckNear near) :=
   ⟨decides Handcrafted.Microduck.near_symbols
-    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
-        #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
-        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
-        ⟨false, false, false, false⟩⟩,
-      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨100, by decide⟩, 5⟩⟩⟩,
-      (Handcrafted.Microduck.near_symbols _).mp (by decide)⟩
-    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
-        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
-        ⟨false, false, false, false⟩⟩, none⟩,
-      fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
+    ⟨obstructed, obstructed_near⟩
+    ⟨unsighted, fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
 
 attribute [regula_decision] Handcrafted.Microduck.near
 
@@ -1462,35 +1500,125 @@ of -0.95 (`Handcrafted.Microduck.upright_iff`), the depth frame is younger than 
 reading's frame is from 5 and below `0x1000`, or is `0x10FF`
 (`Handcrafted.Microduck.clear_symbols`): a valid return of at least 400 mm, or the status
 255. The specification reads the frame's symbols, as that of `microduck_near` does, and the
-function reads the zones of the depth frame. The two inputs of the proof are an upright
-reading whose every zone has the status 255, which is accepted, and a reading with no depth
-frame, which is refused. -/
+function reads the zones of the depth frame. The two inputs of the proof are `unobstructed`,
+which is accepted, and `unsighted`, which has no depth frame and is refused. -/
 theorem microduck_clear :
     Regula.ExecutableContract Handcrafted.Microduck.clear (fun clear =>
-      Regula.Decides (· = true)
-        (fun reading : Host.Microduck.Reading =>
-          (reading.state.gravity.get 2).val < -967 ∧
-            (∃ age, reading.age = some age ∧
-              age < Handcrafted.Microduck.Declared.fresh) ∧
-              ∀ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 →
-                (5 ≤ ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ∧
-                    ((Handcrafted.Microduck.symbols reading.depth).get position).toNat <
-                      0x1000) ∨
-                  ((Handcrafted.Microduck.symbols reading.depth).get position).toNat = 0x10FF)
-        clear) :=
+      Regula.Decides (· = true) MicroduckClear clear) :=
   ⟨decides Handcrafted.Microduck.clear_symbols
-    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none,
-        #v[⟨0, by decide⟩, ⟨0, by decide⟩, ⟨-1000, by decide⟩],
-        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
-        ⟨false, false, false, false⟩⟩,
-      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨0, by decide⟩, 255⟩⟩⟩,
-      (Handcrafted.Microduck.clear_symbols _).mp (by decide)⟩
-    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
-        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
-        ⟨false, false, false, false⟩⟩, none⟩,
-      fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
+    ⟨unobstructed, unobstructed_clear⟩
+    ⟨unsighted, fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
 
 attribute [regula_decision] Handcrafted.Microduck.clear
+
+/-- `unobstructed` is not near an obstacle, since a near reading is not clear
+(`Handcrafted.Microduck.near_clear`). -/
+private theorem unobstructed_far : ¬MicroduckNear unobstructed := fun close => by
+  have wide := (Handcrafted.Microduck.clear_symbols _).mpr unobstructed_clear
+  rw [Handcrafted.Microduck.near_clear _ ((Handcrafted.Microduck.near_symbols _).mpr close)]
+    at wide
+  exact Bool.false_ne_true wide
+
+/-- The event of the Microduck goal occurs on a reading exactly when the goal is armed and the
+reading is near an obstacle (`Handcrafted.Microduck.achieved_iff`), with nearness stated by
+`MicroduckNear`, the specification of `microduck_near`, in the place of the test that the
+function runs. The two inputs of the proof are `obstructed` with the goal armed, which is
+accepted, and the same reading with the goal not armed, which is refused. -/
+theorem microduck_achieved :
+    Regula.ExecutableContract Handcrafted.Microduck.achieved (fun achieved =>
+      Regula.Decides (· = true)
+        (fun input : Bool × Host.Microduck.Reading => input.1 = true ∧ MicroduckNear input.2)
+        (Function.uncurry achieved)) :=
+  ⟨decides
+    (fun input => (Handcrafted.Microduck.achieved_iff input.1 input.2).trans
+      (and_congr Iff.rfl (Handcrafted.Microduck.near_symbols input.2)))
+    ⟨(true, obstructed), rfl, obstructed_near⟩
+    ⟨(false, obstructed), fun ⟨armed, _⟩ => nomatch armed⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.achieved
+
+/-- The latch of the Microduck goal is armed after a reading exactly when the reading is not
+near an obstacle and either the latch was armed or the reading is clear
+(`Handcrafted.Microduck.arm_near`, `Handcrafted.Microduck.arm_clear` and
+`Handcrafted.Microduck.arm_keeps`), with nearness and clearness stated by `MicroduckNear` and
+`MicroduckClear` in the place of the tests that the function runs. The two inputs of the proof
+are `unobstructed` with the latch not armed, which arms it, and `obstructed` with the latch
+armed, which disarms it. `Handcrafted.Microduck.arm_held` states what the latch is for: after a
+near reading, no reading is the event of the goal until a clear one. -/
+theorem microduck_arm :
+    Regula.ExecutableContract Handcrafted.Microduck.arm (fun arm =>
+      Regula.Decides (· = true)
+        (fun input : Bool × Host.Microduck.Reading =>
+          ¬MicroduckNear input.2 ∧ (input.1 = true ∨ MicroduckClear input.2))
+        (Function.uncurry arm)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨armed, reading⟩
+      change Handcrafted.Microduck.arm armed reading = true ↔
+        ¬MicroduckNear reading ∧ (armed = true ∨ MicroduckClear reading)
+      rw [show MicroduckNear reading ↔ Handcrafted.Microduck.near reading = true from
+          (Handcrafted.Microduck.near_symbols reading).symm,
+        show MicroduckClear reading ↔ Handcrafted.Microduck.clear reading = true from
+          (Handcrafted.Microduck.clear_symbols reading).symm]
+      unfold Handcrafted.Microduck.arm
+      cases Handcrafted.Microduck.near reading <;>
+        cases Handcrafted.Microduck.clear reading <;> cases armed <;> simp)
+    ⟨(false, unobstructed), unobstructed_far, .inr unobstructed_clear⟩
+    ⟨(true, obstructed), fun ⟨far, _⟩ => far obstructed_near⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.arm
+
+/-- A candidate depth frame fits a state frame exactly when there is one and it is stamped at
+or before the state frame (`Host.Microduck.fitting_ordered` states the second part of an
+accepted result). The specification compares the two stamps in nanoseconds, as the function
+does with Lean's order on natural numbers, which is no test of this library. The two inputs of
+the proof are `standing` with the depth frame of `obstructed`, stamped at the same instant,
+which is accepted, and `standing` with no candidate, which is refused. -/
+theorem microduck_fitting :
+    Regula.ExecutableContract Host.Microduck.fitting (fun fitting =>
+      Regula.Decides (·.isSome = true)
+        (fun input : Host.Microduck.State × Option Host.Microduck.Depth => ∃ frame,
+          input.2 = some frame ∧ frame.taken.nanoseconds ≤ input.1.taken.nanoseconds)
+        (Function.uncurry fitting)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨state, candidate⟩
+      change (Host.Microduck.fitting state candidate).isSome = true ↔ _
+      unfold Host.Microduck.fitting
+      cases candidate with
+      | none => simp
+      | some frame =>
+        by_cases early : frame.taken.nanoseconds ≤ state.taken.nanoseconds <;>
+          simp [Option.filter, early])
+    ⟨(standing, obstructed.depth), _, rfl, Nat.le_refl 0⟩
+    ⟨(standing, none), fun ⟨_, absent, _⟩ => nomatch absent⟩⟩
+
+attribute [regula_decision] Host.Microduck.fitting
+
+/-- The state frame of a line is present exactly when the line is a state frame. The two inputs
+of the proof are the line of the state frame `standing`, which is accepted, and a notice of
+another method, which is refused. -/
+theorem microduck_state_frame :
+    Regula.ExecutableContract Host.Microduck.Line.stateFrame (fun stateFrame =>
+      Regula.Decides (·.isSome = true)
+        (fun line : Host.Microduck.Line => ∃ frame, line = .state frame) stateFrame) :=
+  ⟨decides (fun line => by cases line <;> simp [Host.Microduck.Line.stateFrame])
+    ⟨.state standing, _, rfl⟩ ⟨.notice, fun ⟨_, same⟩ => nomatch same⟩⟩
+
+attribute [regula_decision] Host.Microduck.Line.stateFrame
+
+/-- The depth frame of a line is present exactly when the line is a depth frame. The two inputs
+of the proof are the line of a depth frame whose every zone has a valid return at 100 mm, which
+is accepted, and a notice of another method, which is refused. -/
+theorem microduck_depth_frame :
+    Regula.ExecutableContract Host.Microduck.Line.depthFrame (fun depthFrame =>
+      Regula.Decides (·.isSome = true)
+        (fun line : Host.Microduck.Line => ∃ frame, line = .depth frame) depthFrame) :=
+  ⟨decides (fun line => by cases line <;> simp [Host.Microduck.Line.depthFrame])
+    ⟨.depth ⟨⟨0⟩, Vector.replicate 64 ⟨⟨100, by decide⟩, 5⟩⟩, _, rfl⟩
+    ⟨.notice, fun ⟨_, same⟩ => nomatch same⟩⟩
+
+attribute [regula_decision] Host.Microduck.Line.depthFrame
 
 /-- The scanner of a number accepts only a text that starts with the spelling of a formed
 numeral (`Json.Numeral.scan_formed`): an optional minus sign, digits with no leading zero or
@@ -3943,6 +4071,55 @@ theorem list_decode_into_value :
           some (reversed.reverse ++ values, suffix)) :=
   ⟨fun _ => Checkpoint.list_into_roundtrip⟩
 
+/-- The arguments of `Checkpoint.Format.decodeInto`, in order. -/
+structure FormatDecodeInto where
+  /-- The value type. -/
+  element : Type
+  /-- The format of one value. -/
+  format : Checkpoint.Format element
+  /-- The number of values to read. -/
+  count : Nat
+  /-- The bytes. -/
+  bytes : List UInt8
+  /-- The values read so far, last first. -/
+  reversed : List element
+
+/-- Reading values one by one with a format accepts, for every accumulator, the encodings of
+every list of the requested length under a lawful format, followed by any suffix
+(`Checkpoint.Format.decodeInto_lawful`), and it refuses the empty byte list for one natural.
+`format_decode_into_value` states the list that it returns.
+
+**Not claimed:** soundness, nor completeness for a format that is not lawful: such a format can
+refuse its own encodings. That an accepted read is the encoding of the values read under a
+canonical format is `Checkpoint.Format.decodeInto_written`. -/
+theorem format_decode_into : Regula.ExecutableContract @Checkpoint.Format.decodeInto
+    (fun decode =>
+      Regula.DecidesCompletely (· = true)
+        (fun input : FormatDecodeInto => input.format.Lawful ∧
+          ∃ written : List input.element × List UInt8, input.count = written.1.length ∧
+            input.bytes = written.1.flatMap input.format.encode ++ written.2)
+        (Regula.Dependent.isSome fun input : FormatDecodeInto =>
+          @decode input.element input.format input.count input.bytes input.reversed)) :=
+  ⟨{ complete := fun input ⟨lawful, written, same⟩ => by
+        change (Checkpoint.Format.decodeInto input.format input.count input.bytes
+          input.reversed).isSome = true
+        rw [same.1, same.2, Checkpoint.Format.decodeInto_lawful lawful]
+        rfl
+     refused := ⟨⟨Nat, Checkpoint.Format.natural, 1, [], []⟩, nofun⟩ }⟩
+
+attribute [regula_decision] Checkpoint.Format.decodeInto
+
+/-- Reading values one by one with a lawful format returns the list after the accumulator, with
+the suffix (`Checkpoint.Format.decodeInto_lawful`). A kind does not state the value of a result,
+so this statement is a requirement with no kind beside the kind `format_decode_into`. -/
+theorem format_decode_into_value :
+    Regula.ExecutableContract @Checkpoint.Format.decodeInto (fun decode =>
+      ∀ (α : Type) (format : Checkpoint.Format α), format.Lawful →
+        ∀ (values : List α) (suffix : List UInt8) (reversed : List α),
+          @decode α format values.length (values.flatMap format.encode ++ suffix) reversed =
+            some (reversed.reverse ++ values, suffix)) :=
+  ⟨fun _ _ lawful => Checkpoint.Format.decodeInto_lawful lawful⟩
+
 /-- The arguments of `Host.Viewer.Buffer.offer`, in order. -/
 structure BufferOffer where
   /-- The element type. -/
@@ -4408,6 +4585,153 @@ theorem next_ready : Regula.ExecutableContract @SwiftTd.nextReady (fun next =>
     ⟨⟨narrow, .retire ⟨0, by decide⟩, false⟩, by simp⟩⟩
 
 attribute [regula_decision] SwiftTd.nextReady
+
+/-- The natural reader reads the one byte zero as zero with no rest. -/
+private theorem zero_read : Checkpoint.Format.decodeNatural [0] = some (0, []) := rfl
+
+/-- The reader of a natural accepts exactly a byte list that starts with the base-128 encoding
+of a natural (`Checkpoint.Format.natural_lawful` and `Checkpoint.Format.natural_canonical`).
+The specification names the writer `Checkpoint.Format.encodeNatural`, which compares a natural
+with 128 by Lean's order, and the reader tests its bytes the same way: neither runs a test of
+this library. The two inputs of the proof are the byte `0`, which is accepted, and the empty
+list, which is refused. `natural_decode_value` states the natural and the rest that it
+returns. -/
+theorem natural_decode : Regula.ExecutableContract Checkpoint.Format.decodeNatural
+    (fun decode =>
+      Regula.Decides (·.isSome = true)
+        (fun bytes : List UInt8 =>
+          ∃ value rest, bytes = Checkpoint.Format.encodeNatural value ++ rest)
+        decode) :=
+  ⟨decides
+    (fun bytes => by
+      constructor
+      · intro accepted
+        obtain ⟨⟨value, rest⟩, read⟩ := Option.isSome_iff_exists.mp accepted
+        exact ⟨value, rest, Checkpoint.Format.natural_canonical bytes value rest read⟩
+      · rintro ⟨value, rest, rfl⟩
+        rw [Checkpoint.Format.natural_lawful]
+        rfl)
+    ⟨[0], 0, [], Checkpoint.Format.natural_canonical _ _ _ zero_read⟩
+    ⟨[], fun ⟨value, rest, same⟩ => by
+      have read := Checkpoint.Format.natural_lawful value rest
+      rw [← same] at read
+      exact absurd read nofun⟩⟩
+
+attribute [regula_decision] Checkpoint.Format.decodeNatural
+
+/-- The reader of a natural returns the natural whose encoding starts its input, with the bytes
+after it (`Checkpoint.Format.natural_lawful`). A kind does not state the value of a result, so
+this statement is a requirement with no kind beside the kind `natural_decode`. -/
+theorem natural_decode_value : Regula.ExecutableContract Checkpoint.Format.decodeNatural
+    (fun decode => ∀ (value : Nat) (suffix : List UInt8),
+      decode (Checkpoint.Format.encodeNatural value ++ suffix) = some (value, suffix)) :=
+  ⟨Checkpoint.Format.natural_lawful⟩
+
+/-- The reader of a natural after lower digits accepts exactly a byte list that starts with the
+encoding of a natural, where that natural is not zero when lower digits were read
+(`Checkpoint.Format.decodeNaturalInto_lower`, with the two laws of `natural_decode`): the
+writer never writes a highest digit of zero after a lower one. The two inputs of the proof
+are the byte `0` with no lower digit, which is accepted, and the same byte after the lower
+digit 1, which is refused. `natural_decode_into_value` states the result through
+`Checkpoint.Format.decodeNatural`. -/
+theorem natural_decode_into : Regula.ExecutableContract Checkpoint.Format.decodeNaturalInto
+    (fun decode =>
+      Regula.Decides (·.isSome = true)
+        (fun input : List UInt8 × List Nat => ∃ value rest,
+          input.1 = Checkpoint.Format.encodeNatural value ++ rest ∧ (input.2 = [] ∨ value ≠ 0))
+        (Function.uncurry decode)) :=
+  ⟨decides
+    (fun input => by
+      rcases input with ⟨bytes, lower⟩
+      change (Checkpoint.Format.decodeNaturalInto bytes lower).isSome = true ↔ _
+      have exact : ∀ value rest, Checkpoint.Format.decodeNatural bytes = some (value, rest) ↔
+          bytes = Checkpoint.Format.encodeNatural value ++ rest := fun value rest =>
+        ⟨Checkpoint.Format.natural_canonical bytes value rest,
+          fun same => same ▸ Checkpoint.Format.natural_lawful value rest⟩
+      cases lower with
+      | nil =>
+        change (Checkpoint.Format.decodeNatural bytes).isSome = true ↔ _
+        simp only [true_or, and_true]
+        constructor
+        · intro accepted
+          obtain ⟨⟨value, rest⟩, read⟩ := Option.isSome_iff_exists.mp accepted
+          exact ⟨value, rest, (exact value rest).mp read⟩
+        · rintro ⟨value, rest, same⟩
+          rw [(exact value rest).mpr same]
+          rfl
+      | cons digit digits =>
+        rw [Checkpoint.Format.decodeNaturalInto_lower,
+          show Checkpoint.Format.decodeNaturalInto bytes [] =
+            Checkpoint.Format.decodeNatural bytes from rfl]
+        simp only [reduceCtorEq, false_or]
+        cases read : Checkpoint.Format.decodeNatural bytes with
+        | none =>
+          simp only [Option.bind_none, Option.isSome_none, Bool.false_eq_true, false_iff]
+          rintro ⟨value, rest, same, -⟩
+          rw [(exact value rest).mpr same] at read
+          exact absurd read nofun
+        | some pair =>
+          rcases pair with ⟨high, tail⟩
+          simp only [Option.bind_some]
+          constructor
+          · intro accepted
+            by_cases zero : high = 0
+            · simp [zero] at accepted
+            · exact ⟨high, tail, (exact high tail).mp read, zero⟩
+          · rintro ⟨value, rest, same, nonzero⟩
+            have both := ((exact value rest).mpr same).symm.trans read
+            simp only [Option.some.injEq, Prod.mk.injEq] at both
+            rw [← both.1]
+            simp [nonzero])
+    ⟨([0], []), 0, [], Checkpoint.Format.natural_canonical _ _ _ zero_read, .inl rfl⟩
+    ⟨([0], [1]), fun ⟨value, rest, same, nonzero⟩ => by
+      have read := Checkpoint.Format.natural_lawful value rest
+      rw [← same] at read
+      have both := zero_read.symm.trans read
+      simp only [Option.some.injEq, Prod.mk.injEq] at both
+      rcases nonzero with empty | positive
+      · exact absurd empty nofun
+      · exact positive both.1.symm⟩⟩
+
+attribute [regula_decision] Checkpoint.Format.decodeNaturalInto
+
+/-- The reader of a natural after lower digits reads the natural that starts its input and folds
+the lower digits into it, refusing a highest digit of zero after a lower one
+(`Checkpoint.Format.decodeNaturalInto_lower`). A kind does not state the value of a result, so
+this statement is a requirement with no kind beside the kind `natural_decode_into`. -/
+theorem natural_decode_into_value :
+    Regula.ExecutableContract Checkpoint.Format.decodeNaturalInto (fun decode =>
+      ∀ (bytes : List UInt8) (lower : Nat) (digits : List Nat),
+        decode bytes (lower :: digits) =
+          (decode bytes []).bind fun (high, tail) =>
+            if high = 0 then none
+            else some ((lower :: digits).foldl (fun value next => value * 128 + next) high,
+              tail)) :=
+  ⟨Checkpoint.Format.decodeNaturalInto_lower⟩
+
+/-- The food schedule of the world accepts a time exactly when the interval divides it, as
+natural numbers (`Host.foodDue_iff`): at the interval zero only the time zero, since zero
+divides only zero. The specification is divisibility; the function tests the interval for
+zero and compares the remainder of the time with zero, and the two share no test. The two
+inputs of the proof are the time zero at the interval zero, which is accepted, and the time
+one at the interval zero, which is refused. -/
+theorem food_due : Regula.ExecutableContract Host.foodDue (fun due =>
+    Regula.Decides (· = true)
+      (fun input : UInt64 × UInt64 => input.2.toNat ∣ input.1.toNat)
+      (Function.uncurry due)) :=
+  ⟨decides
+    (fun input => by
+      change Host.foodDue input.1 input.2 = true ↔ _
+      rw [Host.foodDue_iff]
+      unfold Host.FoodDue
+      by_cases zero : input.2 = 0
+      · simp only [zero, UInt64.toNat_zero, Nat.zero_dvd, true_and, ne_eq, not_true_eq_false,
+          false_and, or_false]
+        exact ⟨fun same => by rw [same]; rfl, fun same => UInt64.toNat_inj.mp same⟩
+      · simp [zero, Nat.dvd_iff_mod_eq_zero])
+    ⟨(0, 0), Nat.dvd_refl 0⟩ ⟨(1, 0), by decide⟩⟩
+
+attribute [regula_decision] Host.foodDue
 
 /-! ## Classifiers and lookups
 
@@ -6044,6 +6368,7 @@ attribute [regula_decision] Checkpoint.load Checkpoint.admitSum Agreement.precis
   Host.World.advanceActions Host.World.tileKind Host.World.enterable Host.terrain Host.walkableTile
   Host.regionBlocked Host.replayCertified Host.stanceCertified Host.ReplayCertificate.check
   Host.StanceCertificate.check Host.BlockedCertificate.check Host.countKindNear Host.considerSpawn
-  Host.payAndAct Host.performAction Host.Released.environment
+  Host.payAndAct Host.performAction Host.Released.environment NumericState.clearAt
+  Checkpoint.resume Host.valueNoise Host.octaveLoop Host.fbm
 
 end Acorn.Decisions
