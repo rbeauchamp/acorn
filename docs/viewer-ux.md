@@ -15,9 +15,9 @@ how the page achieves it: mechanism lives in `viewer/static/index.html` and
 requirement here names the owning function only where a reader would otherwise
 have to search. Requirements are numbered; a page behaviour that contradicts
 one is a bug, and a contradiction found in this document is fixed here. The
-gate suite compares numeric rows in Appendix A with their browser or native
-owners. Prose quantities and completeness of
-that table remain review obligations.
+gate suite requires the table of Appendix A to be the one rendered from the Lean
+owners of its constants. Prose quantities and completeness of that table remain
+review obligations.
 
 Reviews judge the page against this document: `proof-review` and
 `pr-review-toolkit` for the code and its guarantees, `ux-review` for whether

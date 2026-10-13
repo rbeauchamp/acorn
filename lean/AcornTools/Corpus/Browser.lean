@@ -108,32 +108,47 @@ private def constantsTable : String :=
     String.join (ownedConstants.map fun (name, source, value) =>
       s!"| `{name}` | {value} | `{source}` |\n")
 
-/-- The heading line of Appendix A of the viewer specification. -/
-private def appendixHeading : String := "\n## Appendix A · Constants this document quotes\n"
+/-- The title of Appendix A of the viewer specification. -/
+private def appendixTitle : String := "Appendix A · Constants this document quotes"
 
-/-- Check the constants table of the viewer specification against the Lean owners. The heading
-of Appendix A occurs once, and the text after it, to the end of the file, holds `constantsTable`
-exactly once, starting at a line; no other line of that text contains `|`, so no second table,
-extra row or row in another spelling can stand beside it. The text runs to the end of the file
-rather than to the next heading of the same level, which Appendix A, the last such section, does
-not have, so finding that heading needs no reading of code blocks or HTML. -/
+/-- The number of places in `lines` where the lines of `block` occur one after another. -/
+private def occurrences (block : List String) (lines : List String) : Nat :=
+  match lines with
+  | [] => if block.isEmpty then 1 else 0
+  | _ :: rest => (if block.isPrefixOf lines then 1 else 0) + occurrences block rest
+
+/-- Check the constants table of the viewer specification against the Lean owners. The
+specification is read as lines, split at each line feed. Exactly one line holds the title of
+Appendix A, and it is the whole heading `## Appendix A · Constants this document quotes`. Among
+the lines after it, to the end of the file, the lines of `constantsTable` occur one after another
+exactly once, and no other line contains `|`, so no second table, extra row or row in another
+spelling can stand beside it. The lines run to the end of the file rather than to the next
+heading of the same level, which Appendix A, the last such section, does not have, so finding
+that heading needs no reading of code blocks or HTML. -/
 private def documentConstants (text : String) : Except String Unit := do
-  let [_, appendix] := text.splitOn appendixHeading
+  let lines := text.splitOn "\n"
+  let table := (constantsTable.splitOn "\n").dropLast
+  let [heading] := lines.filter fun line => (line.splitOn appendixTitle).length > 1
     | throw "missing/duplicate viewer constants appendix"
-  unless (("\n" ++ appendix).splitOn ("\n" ++ constantsTable)).length == 2 do
+  unless heading == "## " ++ appendixTitle do throw "malformed viewer constants appendix heading"
+  let appendix := (lines.dropWhile (· != heading)).drop 1
+  unless occurrences table appendix == 1 do
     throw "the constants table differs from its Lean owners or occurs twice"
-  unless (appendix.splitOn "\n").filter (·.contains '|') ==
-      (constantsTable.splitOn "\n").filter (·.contains '|') do
+  unless appendix.filter (·.contains '|') == table do
     throw "a table line in Appendix A outside the constants table"
 
 /-- Changes to the viewer specification that the constants check refuses: a second constants
-table after the first, with its own separator and a wrong value of `WIN`, and the name `WIN`
-split into two quoted parts. -/
+table after the first, with its own separator and a wrong value of `WIN`; the name `WIN` split
+into two quoted parts; a copy of the appendix heading and a constants table with a wrong value
+of `WIN` at the start of the file; and the appendix heading twice in a row. -/
 private def refusedConstantEdits : List (String → String) :=
-  [fun text => text.replace constantsTable (constantsTable ++
-      "\n| constant | value | declared in |\n| --- | --- | --- |\n" ++
-      "| `WIN` | 999 | `Acorn.Host.Viewer.BrowserStore` |\n"),
-    fun text => text.replace "| `WIN` |" "| `W``IN` |"]
+  let heading := "## " ++ appendixTitle ++ "\n"
+  let wrong := "| constant | value | declared in |\n| --- | --- | --- |\n" ++
+    "| `WIN` | 999 | `Acorn.Host.Viewer.BrowserStore` |\n"
+  [fun text => text.replace constantsTable (constantsTable ++ "\n" ++ wrong),
+    fun text => text.replace "| `WIN` |" "| `W``IN` |",
+    fun text => heading ++ wrong ++ "\n" ++ text,
+    fun text => text.replace heading (heading ++ heading)]
 
 /-- Check the generated-program call sites and the request/timer inventory. -/
 def check : IO Unit := do
