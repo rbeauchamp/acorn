@@ -36,6 +36,32 @@ def increment : UInt64 := 0x9e3779b97f4a7c15
 def rotateLeft (word count : UInt64) : UInt64 :=
   (word <<< (count &&& 63)) ||| (word >>> ((64 - count) &&& 63))
 
+/-- The rotation is Lean core's `BitVec.rotateLeft` of the word by the count modulo the width,
+for every word and count. The two masks are the count and its complement modulo 64; at a count
+that is a multiple of 64 both shifts are zero and the two halves are the word itself. -/
+theorem rotateLeft_toBitVec (word count : UInt64) :
+    (rotateLeft word count).toBitVec = word.toBitVec.rotateLeft (count.toNat % 64) := by
+  have mask : ∀ value : UInt64, (value &&& 63).toNat = value.toNat % 64 := fun value => by
+    rw [UInt64.toNat_and]
+    exact Nat.and_two_pow_sub_one_eq_mod value.toNat 6
+  have wrap : ((64 - count) &&& 63).toNat = (64 - count.toNat % 64) % 64 := by
+    rw [mask, UInt64.toNat_sub]
+    have := count.toNat_lt
+    change (2 ^ 64 - count.toNat + 64) % 2 ^ 64 % 64 = _
+    omega
+  unfold rotateLeft
+  rw [BitVec.rotateLeft_def]
+  simp only [UInt64.toBitVec_or, UInt64.toBitVec_shiftLeft, UInt64.toBitVec_shiftRight,
+    BitVec.shiftLeft_eq', BitVec.ushiftRight_eq', BitVec.toNat_umod, UInt64.toNat_toBitVec]
+  rw [mask, wrap]
+  change word.toBitVec <<< (count.toNat % 64 % 64) |||
+    word.toBitVec >>> ((64 - count.toNat % 64) % 64 % 64) = _
+  simp only [Nat.mod_mod]
+  by_cases zero : count.toNat % 64 = 0
+  · rw [zero, Nat.sub_zero, BitVec.ushiftRight_eq_zero (Nat.le_refl 64), BitVec.or_zero,
+      Nat.mod_self, BitVec.shiftLeft_zero, BitVec.ushiftRight_zero, BitVec.or_self]
+  · rw [Nat.mod_eq_of_lt (by omega : 64 - count.toNat % 64 < 64)]
+
 /-- SplitMix's two multiply/xor rounds and final xor, without a state advance. -/
 def mixFinal (word : UInt64) : UInt64 :=
   let first := (word ^^^ (word >>> 30)) * 0xbf58476d1ce4e5b9

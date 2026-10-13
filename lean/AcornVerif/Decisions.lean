@@ -5,17 +5,25 @@ Authors: acorn contributors
 -/
 import Regula.Contract
 import Acorn.Host.Attempt
+import AcornVerif.AgreementLifecycle
 import AcornVerif.AgreementTelemetryPrecision
 import AcornVerif.CurrentActions
 import AcornVerif.CurrentAgent
+import AcornVerif.CurrentAgreement
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentCheckpoint
+import AcornVerif.CurrentControl
 import AcornVerif.CurrentExponential
+import AcornVerif.CurrentLifetime
+import AcornVerif.CurrentOffPolicy
 import AcornVerif.CurrentRunner
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentTerrain
+import AcornVerif.Decimal
 import AcornVerif.Endurance
+import AcornVerif.FloatLibBridge
+import AcornVerif.TemporalSupport
 
 /-!
 # Decision contracts proved in the proof library
@@ -74,9 +82,11 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Eleven functions of this module have a contract and no kind. The reasons are five. Two more,
-`Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
-their statements say what their results are.
+Sixteen functions of this module have a contract and no kind. The reasons are six. Nine more
+are no decisions, and their statements say what they are: `Agent.input`,
+`AgentConstruction.execute` and `Checkpoint.managedWords` refuse no input, and six definitions
+that specifications share with their functions have the statements of the section "Definitions
+that specifications share".
 
 * The specification is a round trip of the written form: `Checkpoint.admitPayload` and
   `Checkpoint.loadCandidate` accept exactly the payloads, and their encodings, of the agent images
@@ -113,6 +123,16 @@ their statements say what their results are.
   state and the function runs in the interval test of a pruning reference
   (https://github.com/rbeauchamp/regula/issues/320). The kind is remaining work of
   https://github.com/rbeauchamp/acorn/issues/105.
+* The verdict is one component of a pair, and a component of that pair has a type that depends
+  on an earlier argument: whether `Features.beginExploration` begins a run, where the run that
+  begins, the verdict component, depends on the action count; whether
+  `Features.Preceding.advance` records a passage, whether `Lifetime.DemonStats.advanceSlot`
+  settles a slot and whether `NumericState.firstLoopElement` prunes an index, beside a state that
+  depends on the dimension, the discount or the configuration; and whether
+  `Checkpoint.loadKeeping`, loading that keeps its receiver, refuses the bytes, beside a state
+  that depends on the construction. Regula reads a result whose type depends on the input only
+  through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`.
+  Each statement states the verdict for every input and names an input of each verdict.
 
 ## Tests that a specification does not share
 
@@ -157,8 +177,9 @@ the saturating cast and the checked successor of the lattice coordinate are not 
 
 The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
 the side of the box `Host.WorldConfig.side`, and the kind of `Host.payAndAct` also shares the
-phase of the day `Host.World.dayPhase`, which the cost of an action reads; none of them is a
-test. `CurrentActions.ActionAdmits` states the tile that an action reads by equations on the
+phase of the day `Host.World.dayPhase`, which the cost of an action reads and
+`Acorn.Decisions.day_phase` states by bounds on the slot of the clock; none of them is a test.
+`CurrentActions.ActionAdmits` states the tile that an action reads by equations on the
 coordinates and the box indices and by the constructors of the action and the direction, and
 `CurrentActions.Cost` states the cost by the constructors of the action and the constants of
 `FeatureConstants`. They name no direction table, offset table, checked translation, box
@@ -242,6 +263,13 @@ def first : FeatIdx narrow := ⟨0, by decide⟩
 def traced : NumericState control narrow :=
   let fresh := NumericState.initial control narrow
   { fresh with transient := { fresh.transient with z := #v[⟨⟨0x3f800000⟩⟩] } }
+
+/-- The active set of `narrow` that holds its one index. -/
+def onlyFirst : SwiftTd.ActiveSet narrow := ⟨[first], List.nodup_singleton _⟩
+
+/-- A pending sample of the discount `Discount.g99` at the largest age. -/
+def oldestSample : PendingPrediction Discount.g99 :=
+  ⟨⟨FeatureConstants.maxSettlement, by decide⟩, Prediction.project _ .zero, .zero, .one, 0⟩
 
 /-- A tile of `wide` from which a tree to the west can be harvested. -/
 def stand : Host.BoxPosition wide := ⟨⟨0, by decide⟩, ⟨6, by decide⟩⟩
@@ -2260,6 +2288,47 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
     CurrentCheckpoint.save_load construction receiver source
       ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
 
+/-- Loading that keeps its receiver returns the receiver unchanged with the error of a refused
+load (`Checkpoint.load_nonmutation`), and the loaded state with no error for an accepted one,
+for every construction, receiver and byte list. Its verdict is the verdict of
+`Checkpoint.load`, whose sound kind `checkpoint_load` and accepted bytes
+`checkpoint_load_accepts` stand above. Both verdicts occur. The bytes that the initial state of
+the construction of `resumable` saves load with no error (`CurrentCheckpoint.save_load`). The
+bytes that the initial state of the construction whose profile declares spatial subtasks saves
+are refused with an error, since that profile is not resumable and loading accepts bytes only
+under a resumable profile (`load_resumable`).
+
+The statement keeps no kind: the verdict is the second component of a pair whose state has a
+type that depends on the construction, an earlier argument, and Regula reads a result whose
+type depends on the input only through `Regula.Dependent.isSome` and
+`Regula.Dependent.isOk`, of an `Option` or an `Except`. -/
+theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun keeping =>
+    (∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8),
+      (∀ error, Checkpoint.load construction receiver bytes = .error error →
+        keeping construction receiver bytes = (receiver, some error)) ∧
+        ∀ restored, Checkpoint.load construction receiver bytes = .ok restored →
+          keeping construction receiver bytes = (restored, none)) ∧
+      (keeping (construction resumable) (AgentConstruction.initial _)
+        (encode (snapshot (construction resumable) (AgentConstruction.initial _)))).2 = none ∧
+      (keeping (construction ⟨.final, .perStep, .declared, .spatial⟩)
+        (AgentConstruction.initial _)
+        (encode (snapshot (construction ⟨.final, .perStep, .declared, .spatial⟩)
+          (AgentConstruction.initial _)))).2.isSome = true) :=
+  ⟨⟨fun construction receiver bytes =>
+    ⟨fun error rejected => Checkpoint.load_nonmutation construction receiver bytes error rejected,
+      fun restored loaded => by simp [Checkpoint.loadKeeping, loaded]⟩,
+    by
+      simp [Checkpoint.loadKeeping, CurrentCheckpoint.save_load (construction resumable)
+        (AgentConstruction.initial _) (AgentConstruction.initial _) rfl],
+    by
+      cases loading : Checkpoint.load (construction ⟨.final, .perStep, .declared, .spatial⟩)
+          (AgentConstruction.initial _)
+          (encode (snapshot (construction ⟨.final, .perStep, .declared, .spatial⟩)
+            (AgentConstruction.initial _))) with
+      | error error => simp [Checkpoint.loadKeeping, loading]
+      | ok restored =>
+        exact absurd (load_resumable _ _ _ (congrArg Except.isOk loading)) (by decide)⟩⟩
+
 /-- Resuming the bytes that a supported construction saved returns the saved state with a new
 evaluator session (`CurrentCheckpoint.save_load`). -/
 private theorem resume_saved_state (construction : AgentConstruction)
@@ -2419,5 +2488,324 @@ theorem precision_admit : Regula.ExecutableContract Agreement.precision (fun pre
        exact AgreementTelemetryPrecision.precision_available input.1.1 sample input.1.2
          returned power room tracked ideal
      refused := ⟨((.g99, 0), ⟨0x7fc00000⟩), by decide⟩ }⟩
+
+/-- The stored words of a learner are the learner's state and phase: reading the state back
+from them (`managedState`) gives the learner's state (`CurrentImage.managedState_words`), and
+their last word is the learner's phase, for every configuration, dimension and learner. The
+learner format writes these words (`managedFormat`), so the checkpoint admissions and
+`Checkpoint.saveBytes` reach the function.
+
+The statement keeps no kind: the function refuses no learner, so it is no decision. -/
+theorem managed_words : Regula.ExecutableContract @managedWords (fun words =>
+    ∀ {config : Acorn.Config} {dimension : Dimension} (learner : Managed config dimension),
+      managedState (words learner) = learner.state ∧ (words learner).2.2.2.2.2 = learner.phase) :=
+  ⟨fun learner => ⟨CurrentImage.managedState_words learner, rfl⟩⟩
+
+/-! ## Definitions that specifications share
+
+The specification of each contract named below applies a definition that its function also
+applies. Each such definition has a statement of its own here, against a reading that does not
+apply it: the rational value of a word, the exact real result rounded once, the place value of
+digits, or offsets stated by the constructors of a direction. None of them refuses an input, so
+each statement keeps no kind. -/
+
+/-- The squared discrepancy of two finite words, in the units of the least binary32 subnormal
+`2 ^ -149` squared, is the square of the difference of their rational values
+(`CurrentAgreement.squaredUnits_numerical`), for every pair of finite words. The specification
+of `squared_admit` in `Acorn.Decisions` applies it. The witnesses are two zero words, at
+discrepancy zero, and the least subnormal against zero, at one unit. -/
+theorem squared_units : Regula.ExecutableContract Agreement.squaredUnits (fun squared =>
+    (∀ forecast outcome : Binary32, forecast.Finite → outcome.Finite →
+      (squared forecast outcome : ℚ) * ((2 : ℚ) ^ (-149 : Int)) ^ 2 =
+        (CurrentArithmetic.numerical32 forecast - CurrentArithmetic.numerical32 outcome) ^ 2) ∧
+      squared .zero .zero = 0 ∧ squared ⟨1⟩ .zero = 1) :=
+  ⟨⟨CurrentAgreement.squaredUnits_numerical, by decide, by decide⟩⟩
+
+/-- The cap of a total is finite, and it is the exact real product of the count's binary64
+value and the rational value of the quantity's bound rounded once to nearest-even in binary64
+(`AcornVerif.FloatLibBridge.binary64_mul_roundAt`, with `CurrentOrder.numerical_widen_exact`
+for the widened bound and `CurrentLifetime.cap_bounds` for finiteness), for every quantity and
+count. The count's value is Lean core's conversion `UInt64.toFloat`, which is the count itself
+below `2 ^ 53` (`CurrentOrder.numerical64_ofUInt64`). The specification of `sum_admit` applies it
+through the stored invariant of a total. The witnesses are the caps of the reward quantity, whose
+bound is one, at the counts zero and one. -/
+theorem maximum_sum : Regula.ExecutableContract maximumSum (fun cap =>
+    (∀ (quantity : Quantity) (count : UInt64),
+      (cap quantity count).Finite ∧
+        ((CurrentArithmetic.numerical64 (cap quantity count) : ℚ) : ℝ) =
+          FloatLib.Floats.Formats.BinaryInterchange.Model.roundAt
+            FloatLib.Floats.Formats.BinaryInterchange.FloatFormat.binary64
+            ((CurrentArithmetic.numerical64 (Binary64.ofUInt64 count) : ℝ) *
+              (CurrentArithmetic.numerical32 quantity.bound : ℝ))) ∧
+      cap .reward 0 = ⟨0⟩ ∧ cap .reward 1 = ⟨0x3ff0000000000000⟩) :=
+  ⟨⟨fun quantity count => by
+      have bound := CurrentLifetime.quantity_bound quantity
+      have finite := (CurrentLifetime.cap_bounds quantity count).1
+      refine ⟨finite, ?_⟩
+      rw [← CurrentOrder.numerical_widen_exact quantity.bound bound.1]
+      exact AcornVerif.FloatLibBridge.binary64_mul_roundAt _ _
+        (CurrentLifetimeArithmetic.count_model count).1 (Conversion.widen_finite _ bound.1) finite,
+    by decide, by decide⟩⟩
+
+/-- A run of decimal digits spells the number that it writes by the place of each digit,
+`Decimal.numberOf`, which reads each digit from a table of the ten digits
+(`Decimal.spelled_numberOf`), for every run of decimal digits. The specifications of
+`microduck_state`, `microduck_depth` and `microduck_line` in `Acorn.Decisions` apply it through
+the relations `Host.Microduck.Counted` and `Host.Microduck.Signed`. The witness is the run `42`. -/
+theorem digits_spelled : Regula.ExecutableContract Host.Microduck.spelled (fun spell =>
+    (∀ digits : List Char, (∀ c ∈ digits, Json.Numeral.Digit c) →
+      spell digits = Decimal.numberOf digits) ∧ spell ['4', '2'] = 42) :=
+  ⟨⟨Decimal.spelled_numberOf, rfl⟩⟩
+
+/-- The decimal of a formed numeral has the rational value that the numeral writes,
+`Decimal.written`: the digits before the point, plus the digits after it over ten to their
+count, times ten to the exponent, negated for a minus sign, each run read by the place of its
+digits (`Decimal.ofNumeral_value`), for every formed numeral. The specifications of the
+Microduck readers in `Acorn.Decisions` apply it through `Host.Microduck.Scale.Kept`. The witness
+is the decimal of `-1.5`: the digits fifteen, a minus sign and the exponent minus one. -/
+theorem decimal_of_numeral : Regula.ExecutableContract Host.Microduck.Decimal.ofNumeral
+    (fun read =>
+      (∀ numeral : Json.Numeral, numeral.Formed →
+        Decimal.value (read numeral) = Decimal.written numeral) ∧
+        read ⟨true, ['1'], some ['5'], none⟩ = ⟨true, 15, -1⟩) :=
+  ⟨⟨Decimal.ofNumeral_value, rfl⟩⟩
+
+/-- The scale of the whole numbers from minus ten to ten. -/
+def tens : Host.Microduck.Scale := ⟨0, -10, 10, by decide⟩
+
+/-- The conversion of a decimal to a scale is the integer nearest to its rational value times
+ten to the places of the scale, a tie away from zero, saturated to the bounds of the scale
+(`Decimal.fixed_nearest`), for every scale, decimal and nearest integer; at most one integer is
+nearest (`Decimal.Nearest.unique`). The specifications of the Microduck readers in
+`Acorn.Decisions` apply it through `Host.Microduck.Scale.Kept`. The witnesses are `-1.5`, which
+`tens` keeps as minus two, and zero, which it keeps as zero. -/
+theorem decimal_fixed : Regula.ExecutableContract @Host.Microduck.Decimal.fixed (fun fixed =>
+    (∀ (scale : Host.Microduck.Scale) (decimal : Host.Microduck.Decimal) (nearest : Int),
+      Decimal.Nearest (Decimal.value decimal * (10 : ℚ) ^ scale.places) nearest →
+        (fixed scale decimal).val = max scale.low (min scale.high nearest)) ∧
+      (fixed tens ⟨true, 15, -1⟩).val = -2 ∧ (fixed tens ⟨false, 0, 0⟩).val = 0) :=
+  ⟨⟨Decimal.fixed_nearest, by decide +kernel, by decide +kernel⟩⟩
+
+/-- The position that a body faces in a direction has the coordinates of the body moved by the
+offset of the direction that `Offset` states by its constructors, for every configuration, body
+and direction; every direction has an offset. The specifications of `stance_certified` and
+`stance_check` reach it through the harvest of the world step. -/
+theorem facing_position : Regula.ExecutableContract @Host.BoxPosition.facingPosition
+    (fun facing =>
+      (∀ (config : Host.WorldConfig) (body : Host.BoxPosition config)
+        (direction : Host.Direction) (dx dy : Int), Offset direction dx dy →
+          (facing body direction).x.val = body.x.val + dx ∧
+            (facing body direction).y.val = body.y.val + dy) ∧
+        ∀ direction, ∃ dx dy, Offset direction dx dy) :=
+  ⟨⟨fun _ _ _ _ _ offset => by
+      rcases offset with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ <;>
+        exact ⟨rfl, rfl⟩,
+    fun direction => by
+      cases direction
+      · exact ⟨0, -1, .inl ⟨rfl, rfl, rfl⟩⟩
+      · exact ⟨0, 1, .inr (.inl ⟨rfl, rfl, rfl⟩)⟩
+      · exact ⟨1, 0, .inr (.inr (.inl ⟨rfl, rfl, rfl⟩))⟩
+      · exact ⟨-1, 0, .inr (.inr (.inr ⟨rfl, rfl, rfl⟩))⟩⟩⟩
+
+/-! ## Verdicts beside a state
+
+Each function below returns its verdict as one component of a pair, and a component of that pair
+has a type that depends on an earlier argument: the run that `Features.beginExploration` begins,
+which is its verdict component, depends on the action count, and the state beside each other
+verdict, the record, the statistics or the learner state, depends on the dimension, the discount
+or the configuration. Regula reads a result whose type depends on the input only through
+`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`, so no kind
+here is about such a component, and each statement is a requirement with no kind. Each states
+the verdict for every input; `preceding_advance`, `slot_settles` and `first_loop_prune` also
+state what the state keeps; and both verdicts occur at the inputs each names. -/
+
+/-- An exploratory run begins exactly when the 53-bit fraction of the generator's next word is
+below the exploration rate, compared as rational numbers (`TemporalSupport.branch_exact`), for
+every action count, rate and generator state. The next word is the output of xoshiro256**
+stated from the stored words with Lean core's operations on bit vectors: the second word times
+five, rotated seven places to the left, times nine (David Blackman and Sebastiano Vigna,
+xoshiro256** reference implementation, 2018, `next`:
+https://prng.di.unimi.it/xoshiro256starstar.c), and the fraction is its top 53 bits over
+`2 ^ 53`. The specification applies no definition of the generator; `Rng.rotateLeft_toBitVec`
+connects the rotation that the generator runs. The function compares two binary64 words. Both
+verdicts occur at the declared rate: a run begins from the generator state zero, whose
+fraction is zero, and none from the state whose second word is `2 ^ 55`, whose fraction is one
+quarter.
+
+**Not claimed:** the run that begins and the generator state after its draws. -/
+theorem exploration_begins : Regula.ExecutableContract beginExploration (fun begin =>
+    (∀ (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rng.Xoshiro256),
+      (begin count rate rng).1.isSome =
+        decide (((((rng.s1.toBitVec * 5#64).rotateLeft 7 * 9#64) >>> 11).toNat : ℚ) *
+          (2 : ℚ) ^ (-53 : Int) < CurrentArithmetic.numerical32 rate.value)) ∧
+      (begin ⟨1, by decide⟩ Handcrafted.declaredRate ⟨0, 0, 0, 0⟩).1.isSome = true ∧
+      (begin ⟨1, by decide⟩ Handcrafted.declaredRate ⟨0, 0x80000000000000, 0, 0⟩).1.isSome =
+        false) :=
+  ⟨⟨fun count rate rng => by
+      have output : (rng.next.1 >>> 11).toNat =
+          (((rng.s1.toBitVec * 5#64).rotateLeft 7 * 9#64) >>> 11).toNat := by
+        change ((Rng.rotateLeft (rng.s1 * 5) 7 * 9) >>> 11).toBitVec.toNat = _
+        rw [UInt64.toBitVec_shiftRight, UInt64.toBitVec_mul, Rng.rotateLeft_toBitVec,
+          UInt64.toBitVec_mul, BitVec.ushiftRight_eq']
+        rfl
+      rw [← output, ← TemporalSupport.branch_exact]
+      cases branch : rng.nextF64.1.less (Conversion.widen rate.value) <;>
+        simp [beginExploration, branch],
+    by decide, by decide⟩⟩
+
+/-- An advance stores the current set when the frame is armed and the empty set otherwise, and
+it records a passage exactly when the stored set is not empty and both sets fit `passageLimit`
+(`CurrentOffPolicy.advance_stores`); a recorded passage runs from the stored set to the current
+one (`CurrentOffPolicy.advance_passage`). This holds for every dimension, record, current set
+and arming. Both verdicts occur over `narrow`: an armed advance from the record that holds
+`onlyFirst` to `onlyFirst` records a passage, and one from the empty record records none.
+`Features.Preceding.advanceCosted` is the costed definition whose value this function is, and
+has no contract of its own: this statement is its evidence.
+
+**Not claimed:** the classes of the passage's features and the flags that the record keeps,
+which `Features.Preceding.advance_def` states. -/
+theorem preceding_advance : Regula.ExecutableContract @Preceding.advance (fun advance =>
+    (∀ {dimension} (preceding : Preceding dimension) (current : SwiftTd.ActiveSet dimension)
+        (armed : Bool),
+      (advance preceding current armed).2.features =
+          (if armed then current else SwiftTd.ActiveSet.empty dimension) ∧
+        (advance preceding current armed).1.isSome =
+          (!preceding.features.indices.isEmpty &&
+            decide (preceding.features.indices.length ≤ passageLimit ∧
+              current.indices.length ≤ passageLimit)) ∧
+        ∀ passage, (advance preceding current armed).1 = some passage →
+          passage.source = preceding.features ∧ passage.target = current) ∧
+      (advance ((Preceding.empty narrow).advance onlyFirst true).2 onlyFirst true).1.isSome =
+        true ∧
+      (advance (Preceding.empty narrow) onlyFirst true).1.isSome = false) :=
+  ⟨⟨fun preceding current armed => ⟨(CurrentOffPolicy.advance_stores preceding current armed).1,
+      (CurrentOffPolicy.advance_stores preceding current armed).2,
+      CurrentOffPolicy.advance_passage preceding current armed⟩,
+    by decide, by decide⟩⟩
+
+/-- A slot settles exactly when it holds a sample whose advanced age, one observation older and
+capped at `FeatureConstants.maxSettlement`, reaches the settlement horizon. -/
+private theorem advanceSlot_capped {discount : Discount} (state : DemonStats discount)
+    (slot : Fin FeatureConstants.pendingSamples) (cumulant : Binary32) (clock : UInt64) :
+    (state.advanceSlot slot cumulant clock).2.isSome = true ↔
+      ∃ sample, state.pending.get slot = some sample ∧
+        state.settleAfter.val.val ≤ min (sample.age.val + 1) FeatureConstants.maxSettlement := by
+  unfold DemonStats.advanceSlot
+  cases state.pending.get slot with
+  | none => simp
+  | some sample =>
+    by_cases due :
+        state.settleAfter.val.val ≤ min (sample.age.val + 1) FeatureConstants.maxSettlement
+    · simp [PendingPrediction.advance, due]
+      omega
+    · simp [PendingPrediction.advance, due]
+      omega
+
+/-- A slot settles exactly when it holds a sample whose age, one observation older, reaches
+the settlement horizon: the horizon is at most `FeatureConstants.maxSettlement`, so the cap
+changes no verdict. -/
+private theorem advanceSlot_settles {discount : Discount} (state : DemonStats discount)
+    (slot : Fin FeatureConstants.pendingSamples) (cumulant : Binary32) (clock : UInt64) :
+    (state.advanceSlot slot cumulant clock).2.isSome = true ↔
+      ∃ sample, state.pending.get slot = some sample ∧
+        state.settleAfter.val.val ≤ sample.age.val + 1 := by
+  rw [advanceSlot_capped]
+  have bounded := Nat.lt_succ_iff.mp state.settleAfter.val.isLt
+  exact ⟨fun ⟨sample, held, due⟩ => ⟨sample, held, (Nat.le_min.mp due).1⟩,
+    fun ⟨sample, held, due⟩ => ⟨sample, held, Nat.le_min.mpr ⟨due, bounded⟩⟩⟩
+
+/-- The settlement of one pending slot is reported exactly when the slot holds a sample whose
+age, one observation older, reaches the settlement horizon of the statistics; the visit keeps
+the horizon (`AgreementLifecycle.advanceSlot_horizon`) and every other slot
+(`AgreementLifecycle.advanceSlot_other`). This holds for every discount, statistics, slot,
+cumulant and clock. The function advances the sample, capping its age at
+`FeatureConstants.maxSettlement`, and compares the advanced age with the horizon. Both verdicts
+occur for the discount `Discount.g99`: the first slot settles when every slot holds
+`oldestSample`, and the first slot of the initial statistics, which is empty, does not.
+
+**Not claimed:** the settlement reported and what the slot holds afterwards, which
+`AgreementLifecycle.advanceSlot_selected` states. -/
+theorem slot_settles : Regula.ExecutableContract @DemonStats.advanceSlot (fun advanceSlot =>
+    (∀ {discount} (state : DemonStats discount) (slot : Fin FeatureConstants.pendingSamples)
+        (cumulant : Binary32) (clock : UInt64),
+      ((advanceSlot state slot cumulant clock).2.isSome = true ↔
+          ∃ sample, state.pending.get slot = some sample ∧
+            state.settleAfter.val.val ≤ sample.age.val + 1) ∧
+        (advanceSlot state slot cumulant clock).1.settleAfter = state.settleAfter ∧
+        ∀ other, other ≠ slot →
+          (advanceSlot state slot cumulant clock).1.pending.get other = state.pending.get other) ∧
+      (advanceSlot { DemonStats.initial Discount.g99 with
+          pending := Vector.replicate _ (some oldestSample) } ⟨0, by decide⟩ .zero 0).2.isSome =
+        true ∧
+      (advanceSlot (DemonStats.initial Discount.g99) ⟨0, by decide⟩ .zero 0).2.isSome = false) :=
+  ⟨⟨fun state slot cumulant clock => ⟨advanceSlot_settles state slot cumulant clock,
+      AgreementLifecycle.advanceSlot_horizon state slot cumulant clock,
+      fun other distinct =>
+        AgreementLifecycle.advanceSlot_other state slot other distinct cumulant clock⟩,
+    (advanceSlot_settles _ _ _ _).mpr ⟨oldestSample, rfl,
+      Nat.le_succ_of_le
+        (Nat.lt_succ_iff.mp (DemonStats.initial Discount.g99).settleAfter.val.isLt)⟩,
+    rfl⟩⟩
+
+/-- The verdict of a first-loop element is its comparison of the decayed trace with the
+reference. -/
+private theorem first_element_verdict {config : Acorn.Config} {dimension : Dimension}
+    (state : NumericState config dimension) (idx : FeatIdx dimension)
+    (delta vDelta decay : Binary32) :
+    (state.firstLoopElement idx delta vDelta decay).2 =
+      ((state.transient.z.get idx).value.mul decay).lessOrEqual
+        ((state.transient.lastAlpha.get idx).value.mul config.epsilon) := rfl
+
+/-- A first-loop element prunes its index exactly when the trace it stores is at most the
+pruning reference it keeps, scaled by the configuration's epsilon
+(`CurrentLearner.first_element_prune`); the trace it stores is the trace decayed; it keeps the
+pruning references (`CurrentLearner.first_element_reference`) and the eligible list
+(`CurrentLearner.first_element_eligible`), and every other index's weight, log step size and
+registers (`CurrentLearner.first_element_frame`). This holds for every configuration,
+dimension, state, index and error words. At zero decay a managed learner prunes every index
+with a finite trace (`CurrentControl.stop_prunes`). Both verdicts occur at the index `first`
+of `control` over `narrow`: the fresh learner prunes it at zero decay, and `traced`, whose trace
+is one, keeps it at decay one.
+
+**Not claimed:** the values of the weight, the log step size and the registers that the
+element writes at its index, which `NumericState.firstLoopElement_eq` states. -/
+theorem first_loop_prune :
+    Regula.ExecutableContract @NumericState.firstLoopElement (fun element =>
+      (∀ {config dimension} (state : NumericState config dimension) (idx : FeatIdx dimension)
+          (delta vDelta decay : Binary32),
+        (element state idx delta vDelta decay).2 =
+            ((element state idx delta vDelta decay).1.transient.z.get idx).value.lessOrEqual
+              (((element state idx delta vDelta decay).1.transient.lastAlpha.get idx).value.mul
+                config.epsilon) ∧
+          ((element state idx delta vDelta decay).1.transient.z.get idx).value =
+            (state.transient.z.get idx).value.mul decay ∧
+          (element state idx delta vDelta decay).1.transient.lastAlpha =
+            state.transient.lastAlpha ∧
+          (element state idx delta vDelta decay).1.transient.eligible =
+            state.transient.eligible ∧
+          ∀ other, idx ≠ other →
+            (element state idx delta vDelta decay).1.weights.get other =
+                state.weights.get other ∧
+              ((element state idx delta vDelta decay).1.beta.get other).value =
+                (state.beta.get other).value ∧
+              CurrentLearner.registers (element state idx delta vDelta decay).1 other =
+                CurrentLearner.registers state other) ∧
+        (∀ {config dimension} (learner : Managed config dimension) (idx : FeatIdx dimension)
+            (delta vDelta : Binary32), (learner.state.transient.z.get idx).value.Finite →
+          (element learner.state idx delta vDelta .zero).2 = true) ∧
+        (element (NumericState.initial control narrow) first .zero .zero .zero).2 = true ∧
+        (element traced first .zero .zero .one).2 = false) :=
+  ⟨⟨fun state idx delta vDelta decay =>
+      ⟨CurrentLearner.first_element_prune state idx delta vDelta decay,
+        by simp only [NumericState.firstLoopElement, CurrentLearner.vector_get,
+          Vector.getElem_set_self],
+        CurrentLearner.first_element_reference state idx delta vDelta decay,
+        CurrentLearner.first_element_eligible state idx delta vDelta decay,
+        fun other distinct =>
+          CurrentLearner.first_element_frame state idx other distinct delta vDelta decay⟩,
+    fun learner idx delta vDelta finite =>
+      CurrentControl.stop_prunes learner idx delta vDelta finite,
+    by rw [first_element_verdict]; decide,
+    by rw [first_element_verdict]; decide⟩⟩
 
 end AcornVerif.Decisions

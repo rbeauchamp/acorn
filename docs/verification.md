@@ -574,13 +574,18 @@ a value, with the value forgotten. A statement of the value of an accepted
 result stands beside such a kind as a requirement with no kind. A function keeps
 a requirement with no kind where no kind is true of it or where Regula refuses
 the kind, and the ownership audit requires the contract by name. The module
-documentation of `lean/Acorn/Decisions.lean` gives the two reasons: a function
-that accepts every input or whose accepted inputs no theorem states; and a
+documentation of `lean/Acorn/Decisions.lean` gives the four reasons: a function
+that accepts every input or whose accepted inputs no theorem states; a
 specification that reads a part of the input, such as the state of a learner,
-whose type declares an invariant that names tests that the function runs. The
-audit reads the declaration of such a part although the specification names none
-of those tests ([Regula issue
-320](https://github.com/rbeauchamp/regula/issues/320)). A requirement with no
+whose type declares an invariant that names tests that the function runs, where
+the audit reads the declaration of that part although the specification names
+none of those tests ([Regula issue
+320](https://github.com/rbeauchamp/regula/issues/320)); a verdict that is the
+guard of the function, where the guard applies a definition that no proposition
+states apart from it, such as an order of the viewer's captures; and a result
+whose type depends on the input and is neither an option nor an error, such as
+an index that comes with the equation that names it, which Regula reads only
+through whether it holds a value. A requirement with no
 kind is a statement that the Regula audit does not examine: that audit checks
 only that its theorem is proved about the executing definition. Such a statement
 can fix one direction only, and it need not show that both outcomes occur for
@@ -607,7 +612,13 @@ a test under a second name. It refuses nothing for a projection function, so
 `inventory_craft` is not refused for the fields `Host.Inventory.axe` and
 `Host.Inventory.boat`, which its specification and its function both read. It
 refuses nothing for a shared function with another result than those two, such
-as `Binary32.key` or `Host.terrain`. Those functions stay a matter of review.
+as `Binary32.key` or `Host.terrain`. Those functions stay a matter of review,
+which admits one where something other than the kind fixes it: a primitive
+operation of a number type that Lean's library defines, or a definition with a
+statement of its own against a reading that does not apply it, such as the slot
+map of the feature bank, stated as SplitMix64 on Lean core's bit vectors. The
+module documentation of `lean/Acorn/Decisions.lean` names those statements and
+the groups of shared definitions that have none yet.
 For a contract with a kind, the account of the audit names each such function
 where the specification reaches it first. It does not name a function that the
 specification reaches only through a named one, and it does not name a
