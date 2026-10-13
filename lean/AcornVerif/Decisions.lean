@@ -144,10 +144,16 @@ admission does not call.
 
 The kinds of the terrain name the binary32 quotient of a coordinate by an octave scale, which the
 generator computes: `Host.coordinateFloat`, `Binary32.div` and `Binary32.mul` are shared with it,
-and none of them is a test. The kinds of its two readers also share `Host.WorldConfig.side`, which
-the type of their world argument reads. The floor, the saturating cast and the checked successor
-of the lattice coordinate are not shared: `CurrentTerrain.PastLast` bounds the exact value of the
-quotient in their place.
+and none of them is a test. Each is fixed apart from these kinds. `Binary32.div` and
+`Binary32.mul` are Lean core's `Float32` division and multiplication on the words, and
+`AcornVerif.FloatLibBridge.binary32_div_roundAt` and
+`AcornVerif.FloatLibBridge.binary32_mul_roundAt` state them, on finite operands with a finite
+result, as the exact real quotient and product rounded once to nearest-even. `Host.coordinateFloat`
+has the statement `Acorn.Decisions.coordinate_float`, which reads the coordinate as a
+mathematical integer and converts its magnitude with the library's conversion. The kinds of its two
+readers also share `Host.WorldConfig.side`, which the type of their world argument reads. The floor,
+the saturating cast and the checked successor of the lattice coordinate are not shared:
+`CurrentTerrain.PastLast` bounds the exact value of the quotient in their place.
 
 The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
 the side of the box `Host.WorldConfig.side`, and the kind of `Host.payAndAct` also shares the

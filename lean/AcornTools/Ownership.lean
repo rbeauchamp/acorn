@@ -469,6 +469,7 @@ def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Decisions, `Acorn.Decisions.format_decode_into_value,
     `Acorn.Checkpoint.Format.decodeInto),
   (`Acorn.Decisions, `Acorn.Decisions.natural_decode_value, `Acorn.Checkpoint.Format.decodeNatural),
+  (`Acorn.Decisions, `Acorn.Decisions.coordinate_float, `Acorn.Host.coordinateFloat),
   (`Acorn.Decisions, `Acorn.Decisions.natural_decode_into_value,
     `Acorn.Checkpoint.Format.decodeNaturalInto),
   (`Acorn.Decisions, `Acorn.Decisions.skill_of_meta_value, `Acorn.Handcrafted.skillOfMeta),

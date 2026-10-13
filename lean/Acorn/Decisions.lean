@@ -209,10 +209,16 @@ specification that would name a test names the proposition: `inventory_craft` an
 The rule compares names. It refuses nothing for a shared function with a result that is
 neither `Bool` nor `BEq`, such as `Binary32.key`, `Binary32.magnitude` or `Host.terrain`: no
 type tells a function that a specification is about from one that prepares its input. Those
-functions stay a matter of review. For a contract with a kind, the account of the Regula audit
-names each such function where the specification reaches it first. It does not name a function
-that the specification reaches only through a named one, and it does not name a projection
-function.
+functions stay a matter of review. Review admits such a shared function where something other
+than the kind fixes it: a primitive operation of a number type that Lean's library defines, such
+as `Binary32.div`, which applies Lean core's `Float32.div` to the words, or a function with a
+statement of its own against a reading that does not apply it, such as `coordinate_float`. The
+specifications of the Microduck tests state the age of a depth frame by the stamps of the two
+frames, so they share no reader of the age with the tests. The other shared functions are
+remaining work of https://github.com/rbeauchamp/acorn/issues/67. For a contract with a kind, the
+account of the Regula audit names each such function where the specification reaches it first. It
+does not name a function that the specification reaches only through a named one, and it does not
+name a projection function.
 
 The vocabulary of the world, `Host.Direction`, `Host.Action`, `Host.TileKind`, `Host.Position`
 and `Host.BoxPosition`, derives decidable equality and no `BEq` instance of its own: `==` on it
@@ -267,6 +273,10 @@ report of the definitions that have no contract is work of Regula
   (`AcornVerif.CurrentTemporal.takeover_none`), and `AcornVerif.CurrentTemporal.takeover_value`
   states its value where a span closes. This module makes no statement about what a caller does
   with the result of such a definition.
+* The result wraps the verdict in a pair or a costed value, as the results of `Costed.mem`,
+  `Checkpoint.loadKeeping` and `Host.Viewer.HealthAdmission.receive` do, or the verdict is a type
+  of this library, as the intake `Host.Viewer.Intake` of `Host.Viewer.Admission.receive` is. Their
+  contracts are remaining work of https://github.com/rbeauchamp/acorn/issues/67.
 
 The body of a registered decision applies some of these definitions, directly or through
 other definitions. Where a theorem names such a definition, it has a contract; a section near
@@ -279,7 +289,8 @@ definitions are the exception.
 `Host.Microduck.Reading.age`, which
 `Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
 states the age of a depth frame that is not after its state frame, and the ownership audit
-requires it by name. `Handcrafted.TemporalControl.takeoverValue`, which
+requires it by name. No specification reads it: the specifications of the Microduck tests state
+the age by the stamps of the two frames. `Handcrafted.TemporalControl.takeoverValue`, which
 `Handcrafted.TemporalControl.step` applies, has no contract either; the group above names the
 theorems that state it. The tests
 `Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, which
@@ -1385,58 +1396,6 @@ theorem microduck_upright :
 
 attribute [regula_decision] Handcrafted.Microduck.upright
 
-/-- The Microduck world's freshness test accepts a reading exactly when it has a depth frame
-whose age word, the level of its age in steps of `Handcrafted.Microduck.Declared.stale` capped
-at `Handcrafted.Microduck.Declared.oldest`, is below that cap
-(`Handcrafted.Microduck.fresh_level`). The specification reads the age word that the frame
-gives the agent; the function compares the age with the declared bound in nanoseconds, so the
-two share no test. The two inputs of the proof are a reading whose depth frame and state frame
-are stamped at the same instant, whose age is 0, which is accepted, and a reading with no depth
-frame, which is refused. -/
-theorem microduck_fresh :
-    Regula.ExecutableContract Handcrafted.Microduck.fresh (fun fresh =>
-      Regula.Decides (· = true)
-        (fun reading : Host.Microduck.Reading =>
-          ∃ age, reading.age = some age ∧
-            min (age / Handcrafted.Microduck.Declared.stale)
-                Handcrafted.Microduck.Declared.oldest <
-              Handcrafted.Microduck.Declared.oldest)
-        fresh) :=
-  ⟨decides Handcrafted.Microduck.fresh_level
-    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
-        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
-        ⟨false, false, false, false⟩⟩,
-      some ⟨⟨0⟩, Vector.replicate 64 ⟨⟨0, by decide⟩, 255⟩⟩⟩,
-      ⟨0, rfl, by decide⟩⟩
-    ⟨⟨⟨⟨0⟩, Vector.replicate 15 ⟨0, by decide⟩, none, Vector.replicate 3 ⟨0, by decide⟩,
-        Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
-        ⟨false, false, false, false⟩⟩, none⟩,
-      fun ⟨_, absent, _⟩ => nomatch absent⟩⟩
-
-attribute [regula_decision] Handcrafted.Microduck.fresh
-
-/-- A Microduck reading near an obstacle, the specification of `microduck_near`: the upward
-component of gravity is below -967 thousandths, the depth frame is younger than the declared
-`Handcrafted.Microduck.Declared.fresh`, and one of the first sixteen symbols of the reading's
-frame is at most 3. -/
-def MicroduckNear (reading : Host.Microduck.Reading) : Prop :=
-  (reading.state.gravity.get 2).val < -967 ∧
-    (∃ age, reading.age = some age ∧ age < Handcrafted.Microduck.Declared.fresh) ∧
-      ∃ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 ∧
-        ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ≤ 3
-
-/-- A clear Microduck reading, the specification of `microduck_clear`: the upward component of
-gravity is below -967 thousandths, the depth frame is younger than the declared
-`Handcrafted.Microduck.Declared.fresh`, and each of the first sixteen symbols of the reading's
-frame is from 5 and below `0x1000`, or is `0x10FF`. -/
-def MicroduckClear (reading : Host.Microduck.Reading) : Prop :=
-  (reading.state.gravity.get 2).val < -967 ∧
-    (∃ age, reading.age = some age ∧ age < Handcrafted.Microduck.Declared.fresh) ∧
-      ∀ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 →
-        (5 ≤ ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ∧
-            ((Handcrafted.Microduck.symbols reading.depth).get position).toNat < 0x1000) ∨
-          ((Handcrafted.Microduck.symbols reading.depth).get position).toNat = 0x10FF
-
 /-- A Microduck state frame stamped at zero whose upward component of gravity is -1000
 thousandths. -/
 def standing : Host.Microduck.State :=
@@ -1458,13 +1417,100 @@ def unobstructed : Host.Microduck.Reading :=
 /-- The reading of `standing` with no depth frame. -/
 def unsighted : Host.Microduck.Reading := ⟨standing, none⟩
 
+/-- A condition on the age of the depth frame of a Microduck reading
+(`Host.Microduck.Reading.age`) holds exactly when the reading has a depth frame and the
+condition holds of the time from the stamp of that frame to the stamp of the state frame,
+truncated at zero. The specifications below state the age by the stamps, so they share no
+function with the tests that read `Host.Microduck.Reading.age`. -/
+private theorem age_stamps (reading : Host.Microduck.Reading) (holds : Nat → Prop) :
+    (∃ age, reading.age = some age ∧ holds age) ↔
+      ∃ depth, reading.depth = some depth ∧
+        holds (reading.state.taken.nanoseconds - depth.taken.nanoseconds) := by
+  unfold Host.Microduck.Reading.age
+  cases reading.depth with
+  | none =>
+    exact ⟨fun ⟨_, absent, _⟩ => (nomatch absent), fun ⟨_, absent, _⟩ => (nomatch absent)⟩
+  | some depth => simp
+
+/-- The Microduck world's freshness test accepts a reading exactly when it has a depth frame
+whose age word, the level of its age in steps of `Handcrafted.Microduck.Declared.stale` capped
+at `Handcrafted.Microduck.Declared.oldest`, is below that cap
+(`Handcrafted.Microduck.fresh_level`). The specification states the age word that the frame
+gives the agent from the two stamps, the time from the depth frame to the state frame truncated
+at zero (`age_stamps`); the function reads `Host.Microduck.Reading.age` and compares it with the
+declared bound in nanoseconds, so the two share no test and no reader of the age. The two inputs
+of the proof are `unobstructed`, whose depth frame and state frame are stamped at the same
+instant, which is accepted, and `unsighted`, which has no depth frame and is refused. -/
+theorem microduck_fresh :
+    Regula.ExecutableContract Handcrafted.Microduck.fresh (fun fresh =>
+      Regula.Decides (· = true)
+        (fun reading : Host.Microduck.Reading =>
+          ∃ depth, reading.depth = some depth ∧
+            min ((reading.state.taken.nanoseconds - depth.taken.nanoseconds) /
+                  Handcrafted.Microduck.Declared.stale)
+                Handcrafted.Microduck.Declared.oldest <
+              Handcrafted.Microduck.Declared.oldest)
+        fresh) :=
+  ⟨decides (fun reading => (Handcrafted.Microduck.fresh_level reading).trans
+      (age_stamps reading fun age =>
+        min (age / Handcrafted.Microduck.Declared.stale) Handcrafted.Microduck.Declared.oldest <
+          Handcrafted.Microduck.Declared.oldest))
+    ⟨unobstructed, _, rfl, by decide⟩
+    ⟨unsighted, fun ⟨_, absent, _⟩ => nomatch absent⟩⟩
+
+attribute [regula_decision] Handcrafted.Microduck.fresh
+
+/-- A Microduck reading near an obstacle, the specification of `microduck_near`: the upward
+component of gravity is below -967 thousandths, the reading has a depth frame and the time from
+its stamp to the stamp of the state frame, truncated at zero, is under the declared
+`Handcrafted.Microduck.Declared.fresh`, and one of the first sixteen symbols of the reading's
+frame is at most 3. -/
+def MicroduckNear (reading : Host.Microduck.Reading) : Prop :=
+  (reading.state.gravity.get 2).val < -967 ∧
+    (∃ depth, reading.depth = some depth ∧
+      reading.state.taken.nanoseconds - depth.taken.nanoseconds <
+        Handcrafted.Microduck.Declared.fresh) ∧
+      ∃ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 ∧
+        ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ≤ 3
+
+/-- A clear Microduck reading, the specification of `microduck_clear`: the upward component of
+gravity is below -967 thousandths, the reading has a depth frame and the time from its stamp to
+the stamp of the state frame, truncated at zero, is under the declared
+`Handcrafted.Microduck.Declared.fresh`, and each of the first sixteen symbols of the reading's
+frame is from 5 and below `0x1000`, or is `0x10FF`. -/
+def MicroduckClear (reading : Host.Microduck.Reading) : Prop :=
+  (reading.state.gravity.get 2).val < -967 ∧
+    (∃ depth, reading.depth = some depth ∧
+      reading.state.taken.nanoseconds - depth.taken.nanoseconds <
+        Handcrafted.Microduck.Declared.fresh) ∧
+      ∀ position : Fin Handcrafted.Microduck.shape.inputs, position.val < 16 →
+        (5 ≤ ((Handcrafted.Microduck.symbols reading.depth).get position).toNat ∧
+            ((Handcrafted.Microduck.symbols reading.depth).get position).toNat < 0x1000) ∨
+          ((Handcrafted.Microduck.symbols reading.depth).get position).toNat = 0x10FF
+
+/-- The goal test decides `MicroduckNear` (`Handcrafted.Microduck.near_symbols`, with the age of
+the depth frame stated by the stamps, `age_stamps`). -/
+private theorem near_spec (reading : Host.Microduck.Reading) :
+    Handcrafted.Microduck.near reading = true ↔ MicroduckNear reading :=
+  (Handcrafted.Microduck.near_symbols reading).trans
+    (and_congr Iff.rfl (and_congr (age_stamps reading (· < Handcrafted.Microduck.Declared.fresh))
+      Iff.rfl))
+
+/-- The clearance test decides `MicroduckClear` (`Handcrafted.Microduck.clear_symbols`, with the
+age of the depth frame stated by the stamps, `age_stamps`). -/
+private theorem clear_spec (reading : Host.Microduck.Reading) :
+    Handcrafted.Microduck.clear reading = true ↔ MicroduckClear reading :=
+  (Handcrafted.Microduck.clear_symbols reading).trans
+    (and_congr Iff.rfl (and_congr (age_stamps reading (· < Handcrafted.Microduck.Declared.fresh))
+      Iff.rfl))
+
 /-- `obstructed` is near an obstacle. -/
 private theorem obstructed_near : MicroduckNear obstructed :=
-  (Handcrafted.Microduck.near_symbols _).mp (by decide)
+  (near_spec _).mp (by decide)
 
 /-- `unobstructed` is clear. -/
 private theorem unobstructed_clear : MicroduckClear unobstructed :=
-  (Handcrafted.Microduck.clear_symbols _).mp (by decide)
+  (clear_spec _).mp (by decide)
 
 /-- The Microduck world's goal test accepts a reading exactly when the upward component of
 gravity is below -967 thousandths, which is the gravity word of the frame below its level
@@ -1475,19 +1521,20 @@ specification reads the symbols that the frame gives the agent, through
 `Handcrafted.Microduck.symbols`, and states the gravity bound and the symbol bound as
 literals and the age bound as the declared constant, a number that both sides read; the
 function reads the zones of the depth frame, with the level of the gravity word, the
-declared numbers and Boolean tests on rows, statuses and distances. The two share no test.
-The specification fixes which readings are accepted, through the class of symbols it names,
-and not the symbol of every zone: a change of the level that the gravity word must stay
-below, of the declared distance, or of a symbol into or out of that class, contradicts the
-statement. A change of a symbol inside or outside the class does not, and a change of the
-age bound does not, because both sides read the declared constant.
-The two inputs of the proof are `obstructed`, which is accepted, and `unsighted`, which has no
-depth frame and is refused. That an accepted reading is near an obstacle in the world is not
+declared numbers and Boolean tests on rows, statuses and distances. The two share no test, and
+the specification states the age of the depth frame by the two stamps (`age_stamps`), so it does
+not read `Host.Microduck.Reading.age`, which the function applies. The specification fixes which
+readings are accepted, through the class of symbols it names, and not the symbol of every zone: a
+change of the level that the gravity word must stay below, of the declared distance, or of a symbol
+into or out of that class, contradicts the statement. A change of a symbol inside or outside the
+class does not, and a change of the age bound does not, because both sides read the declared
+constant. The two inputs of the proof are `obstructed`, which is accepted, and `unsighted`, which
+has no depth frame and is refused. That an accepted reading is near an obstacle in the world is not
 stated: `docs/design.md` argues it for a flat floor, under assumptions. -/
 theorem microduck_near :
     Regula.ExecutableContract Handcrafted.Microduck.near (fun near =>
       Regula.Decides (· = true) MicroduckNear near) :=
-  ⟨decides Handcrafted.Microduck.near_symbols
+  ⟨decides near_spec
     ⟨obstructed, obstructed_near⟩
     ⟨unsighted, fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
 
@@ -1499,13 +1546,14 @@ of -0.95 (`Handcrafted.Microduck.upright_iff`), the depth frame is younger than 
 `Handcrafted.Microduck.Declared.fresh`, and each of the first sixteen symbols of the
 reading's frame is from 5 and below `0x1000`, or is `0x10FF`
 (`Handcrafted.Microduck.clear_symbols`): a valid return of at least 400 mm, or the status
-255. The specification reads the frame's symbols, as that of `microduck_near` does, and the
-function reads the zones of the depth frame. The two inputs of the proof are `unobstructed`,
-which is accepted, and `unsighted`, which has no depth frame and is refused. -/
+255. The specification reads the frame's symbols and states the age by the stamps, as that of
+`microduck_near` does, and the function reads the zones of the depth frame. The two inputs of the
+proof are `unobstructed`, which is accepted, and `unsighted`, which has no depth frame and is
+refused. -/
 theorem microduck_clear :
     Regula.ExecutableContract Handcrafted.Microduck.clear (fun clear =>
       Regula.Decides (· = true) MicroduckClear clear) :=
-  ⟨decides Handcrafted.Microduck.clear_symbols
+  ⟨decides clear_spec
     ⟨unobstructed, unobstructed_clear⟩
     ⟨unsighted, fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
 
@@ -1514,8 +1562,8 @@ attribute [regula_decision] Handcrafted.Microduck.clear
 /-- `unobstructed` is not near an obstacle, since a near reading is not clear
 (`Handcrafted.Microduck.near_clear`). -/
 private theorem unobstructed_far : ¬MicroduckNear unobstructed := fun close => by
-  have wide := (Handcrafted.Microduck.clear_symbols _).mpr unobstructed_clear
-  rw [Handcrafted.Microduck.near_clear _ ((Handcrafted.Microduck.near_symbols _).mpr close)]
+  have wide := (clear_spec _).mpr unobstructed_clear
+  rw [Handcrafted.Microduck.near_clear _ ((near_spec _).mpr close)]
     at wide
   exact Bool.false_ne_true wide
 
@@ -1531,7 +1579,7 @@ theorem microduck_achieved :
         (Function.uncurry achieved)) :=
   ⟨decides
     (fun input => (Handcrafted.Microduck.achieved_iff input.1 input.2).trans
-      (and_congr Iff.rfl (Handcrafted.Microduck.near_symbols input.2)))
+      (and_congr Iff.rfl (near_spec input.2)))
     ⟨(true, obstructed), rfl, obstructed_near⟩
     ⟨(false, obstructed), fun ⟨armed, _⟩ => nomatch armed⟩⟩
 
@@ -1557,9 +1605,9 @@ theorem microduck_arm :
       change Handcrafted.Microduck.arm armed reading = true ↔
         ¬MicroduckNear reading ∧ (armed = true ∨ MicroduckClear reading)
       rw [show MicroduckNear reading ↔ Handcrafted.Microduck.near reading = true from
-          (Handcrafted.Microduck.near_symbols reading).symm,
+          (near_spec reading).symm,
         show MicroduckClear reading ↔ Handcrafted.Microduck.clear reading = true from
-          (Handcrafted.Microduck.clear_symbols reading).symm]
+          (clear_spec reading).symm]
       unfold Handcrafted.Microduck.arm
       cases Handcrafted.Microduck.near reading <;>
         cases Handcrafted.Microduck.clear reading <;> cases armed <;> simp)
@@ -4732,6 +4780,22 @@ theorem food_due : Regula.ExecutableContract Host.foodDue (fun due =>
     ⟨(0, 0), Nat.dvd_refl 0⟩ ⟨(1, 0), by decide⟩⟩
 
 attribute [regula_decision] Host.foodDue
+
+/-- The binary32 value of a coordinate is the library's unsigned conversion of its magnitude,
+Lean core's `UInt64.toFloat32` through `Binary32.ofUInt64`, with the sign bit set for a
+negative coordinate (`Host.coordinateFloat_eq`). Setting the sign bit negates a binary32 value
+exactly, as IEEE 754 defines negation. The statement reads the coordinate as a mathematical
+integer; the function converts its signed 64-bit word, negating it in two's complement and
+testing the sign bit of the word. The kinds of the terrain in `AcornVerif.Decisions` share this
+function with the functions they state, and this statement fixes it by a reading that does not
+apply it.
+
+The statement keeps no kind: the conversion refuses no coordinate. -/
+theorem coordinate_float : Regula.ExecutableContract Host.coordinateFloat (fun convert =>
+    ∀ coordinate : Host.Coordinate, convert coordinate =
+      let magnitude := Binary32.ofUInt64 coordinate.val.natAbs.toUInt64
+      if coordinate.val < 0 then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude) :=
+  ⟨Host.coordinateFloat_eq⟩
 
 /-! ## Classifiers and lookups
 
