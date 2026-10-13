@@ -2824,7 +2824,6 @@ private theorem admit_isSome (arguments : List String) :
         Option.bind_some] <;>
       split <;> simp_all
 
-
 /-- Unsigned decimal parsing on the command line accepts exactly an optional plus sign followed
 by at least one digit (`Host.Cli.Natural`). The specification is the grammar, which states each
 character by its code, and shares no test with the function. The two inputs of the proof are
