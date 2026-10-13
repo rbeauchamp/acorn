@@ -373,8 +373,8 @@ this repository reads the text of every such value back as the value:
 So for every identifier and command the parser reads the line of a send as the request of
 that send ({decl}`Acorn.Host.Microduck.Command.line_asked`). A second theorem states what every
 text that the parser accepts is: a JSON text of the grammar of RFC 8259,
-{decl}`Acorn.Json.Grammar.Text`, whose derivation gives the value that the parser returns
-({decl}`Acorn.Json.parse_sound`). So a line of a daemon that the parser accepts is read as the value
+{decl}`Acorn.Json.Grammar.Text`, with a derivation that gives the value that the parser returns
+({decl}`Acorn.Json.parse_sound`). So a line of a daemon that the parser accepts is read as a value
 that the grammar gives its text. No theorem states that the parser accepts every text of the
 grammar, and none is about what a daemon sends or accepts.
 

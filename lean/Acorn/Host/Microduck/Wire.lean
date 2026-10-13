@@ -184,8 +184,11 @@ The transport is `Acorn.Host.Microduck.Transport`, and the driver of the host's 
 pure core is `Acorn.Host.Microduck.Loop`, is `Acorn.Host.Microduck.Driver`. What a host makes
 of the answers to the requests of one release is in `Acorn.Host.Microduck.Session`.
 `Acorn.Json.parse` reads a line. The theorems here about that parser are
-`Command.line_asked` and `Stream.line_asked`, on the texts that a host writes; no theorem
-states what it reads of a line of a daemon.
+`Command.line_asked` and `Stream.line_asked`, on the texts that a host writes.
+`Acorn.Json.parse_sound` states what it reads of a line of a daemon that it accepts: a JSON
+text of the grammar of RFC 8259, `Acorn.Json.Grammar.Text`, with a derivation that gives the
+value that the parser returns. No theorem states that the parser accepts every text of the
+grammar, and none is about what a daemon sends or accepts.
 
 The lookup of a member searches the members of the object in order, and the reader of a
 state frame searches `safety` four times. The cost of reading a frame is not otherwise

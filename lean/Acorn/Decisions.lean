@@ -2152,8 +2152,8 @@ theorem json_parse_text :
        | error refusal => rw [parsed] at accepted; exact absurd accepted Bool.false_ne_true
      accepted := ⟨"{}", by decide +kernel⟩ }⟩
 
-/-- The value that the JSON parser gives an accepted text: for every text and value, the value
-of the text's derivation in the grammar of RFC 8259 (`Json.Grammar.Text`, `Json.parse_sound`).
+/-- The value that the JSON parser gives an accepted text: for every text and value, a value
+that the grammar of RFC 8259 gives the text (`Json.Grammar.Text`, `Json.parse_sound`).
 A kind states accepted inputs and not the value of an accepted result, so this statement is a
 requirement with no kind beside the kind `json_parse_text`. -/
 theorem json_parse_text_value :
@@ -2622,13 +2622,6 @@ private theorem fromUTF8?_some {bytes : ByteArray} {text : String}
 private theorem fromUTF8?_toUTF8 (text : String) : String.fromUTF8? text.toUTF8 = some text := by
   simp [String.fromUTF8?, String.fromUTF8, String.toUTF8_eq_toByteArray, text.isValidUTF8]
 
-/-- A result of the bind of `Except` comes from a result of its first part. -/
-private theorem except_bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {y : β}
-    (read : (x >>= f) = .ok y) : ∃ a, x = .ok a ∧ f a = .ok y := by
-  cases x with
-  | error e => cases read
-  | ok a => exact ⟨a, rfl, read⟩
-
 /-- The names of an object of a JSON text of the grammar differ (`Json.Grammar.Value.object`). -/
 private theorem text_object_distinct {cs : List Char} {fields : List (String × Json.Value)}
     (spelled : Json.Grammar.Text cs (.object fields)) : (fields.map Prod.fst).Nodup := by
@@ -2646,17 +2639,17 @@ private theorem controlCommand_spelled (body : ControlBody) (command : Command)
   unfold controlCommand at accepted
   split at accepted
   · rename_i text decoded
-    obtain ⟨value, parsed, decodedValue⟩ := except_bind_ok accepted
+    obtain ⟨value, parsed, decodedValue⟩ := Json.except_bind_ok accepted
     clear accepted
     have spelled := Json.parse_sound text value parsed
     unfold Json.decode at decodedValue
-    obtain ⟨fields, fielded, decodedFields⟩ := except_bind_ok decodedValue
+    obtain ⟨fields, fielded, decodedFields⟩ := Json.except_bind_ok decodedValue
     clear decodedValue
     have object : value = .object fields := by
       cases value <;> simp only [Json.Value.fields, reduceCtorEq, Except.ok.injEq] at fielded
       rw [fielded]
     rw [object] at spelled
-    obtain ⟨⟨result, rest⟩, ran, finished⟩ := except_bind_ok decodedFields
+    obtain ⟨⟨result, rest⟩, ran, finished⟩ := Json.except_bind_ok decodedFields
     cases found : fields.find? (fun p => p.1 == "cmd") with
     | none =>
       simp [Json.text, Json.take, found, StateT.run, bind, StateT.bind, Except.bind, pure,
@@ -2738,7 +2731,7 @@ private theorem controlCommand_written (body : ControlBody) (word : String) (com
     (simp only [bind, Except.bind]; rw [commandText_parse _ (by decide)]; rfl)
 
 /-- Control-body decoding accepts only bodies that spell a lifecycle command: the UTF-8
-encoding of a JSON text of RFC 8259 whose value is an object with the one member `cmd`, a
+encoding of a JSON text of RFC 8259 that the grammar gives an object with the one member `cmd`, a
 string that spells the command (`Host.Viewer.ControlSpelled`). The proof rests on
 `Json.parse_sound` and on the decoder's refusal of every other member. The specification
 names the grammar of `Json.Grammar` and the relation `Host.Viewer.Command.Spelled`, and shares
@@ -2785,8 +2778,8 @@ theorem control_command_written : Regula.ExecutableContract controlCommand
 
 attribute [regula_decision] controlCommand
 
-/-- The command that control-body decoding returns: for every body and command, an accepted
-body spells that command (`Host.Viewer.ControlSpelled`). A kind states accepted inputs and not
+/-- The command that control-body decoding returns: for every body and command, a command
+that the accepted body spells (`Host.Viewer.ControlSpelled`). A kind states accepted inputs and not
 the value of an accepted result, so this statement is a requirement with no kind beside the
 kinds `control_command` and `control_command_written`. -/
 theorem control_command_value : Regula.ExecutableContract controlCommand (fun decode =>

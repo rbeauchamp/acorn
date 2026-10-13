@@ -33,7 +33,7 @@ formed (`Numeral.natural_formed`).
 `parse` has two theorems. `Grammar.Text` is the grammar of a JSON text of RFC 8259,
 written as relations that name no function of the parser, and `parse_sound` states that
 every text that `parse` accepts is a text of that grammar, with the value that `parse` gives
-as the value of its derivation. A `Request` is a JSON object of two levels, whose members are
+as a value that the grammar gives the text. A `Request` is a JSON object of two levels, whose members are
 scalars or one object of scalars, and `Request.chars` is its text with no space.
 `parse_request` states that `parse` reads that text back as the value of the request,
 for every request whose names and strings are of plain characters (no quotation mark, no
@@ -1537,11 +1537,13 @@ and `Grammar.number_iff` proves that its lists are the spellings (`Numeral.chars
 formed numerals (`Numeral.Formed`), the numerals that the parser's scanner returns.
 
 `parse_sound` states that every text that `parse` accepts is a JSON text of this grammar
-(`Grammar.Text`), with the value that `parse` gives as the value the grammar gives the text.
+(`Grammar.Text`), with the value that `parse` gives as a value that the grammar gives the text.
 The proof follows the parser through its readers: the white space, the escapes, the body of
 a string, the scanner of a number, the value reader and the loops over the members of an
 object and the elements of an array, by induction on the fuel. It does not state that
-`parse` accepts every text of the grammar. -/
+`parse` accepts every text of the grammar. That the grammar gives each text at most one value
+is not proved here; it follows from the completeness theorem tracked in
+https://github.com/rbeauchamp/acorn/issues/163. -/
 
 namespace Grammar
 
@@ -1911,7 +1913,7 @@ private theorem quad_digit (c : Char)
       · exact absurd below (Nat.lt_irrefl 16)
 
 /-- A bind of `Except` that returns a value runs its first part to a value. -/
-private theorem bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {y : β}
+theorem except_bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {y : β}
     (read : (x >>= f) = .ok y) : ∃ a, x = .ok a ∧ f a = .ok y := by
   cases x with
   | error e => exact nomatch read
@@ -1929,14 +1931,14 @@ private theorem quad_steps
       pure (s.2, s.1) : Except String (Nat × List Char)) = .ok (m, rest)) :
     ∃ digits, Grammar.Quad digits m ∧ cs = digits ++ rest := by
   simp only [List.range', List.forIn_cons, List.forIn_nil] at read
-  obtain ⟨s, looped, returned⟩ := bind_ok read
-  obtain ⟨r0, h0, k0⟩ := bind_ok looped
+  obtain ⟨s, looped, returned⟩ := except_bind_ok read
+  obtain ⟨r0, h0, k0⟩ := except_bind_ok looped
   obtain ⟨c0, t0, d0, rfl, x0, rfl⟩ := step _ _ _ _ h0
-  obtain ⟨r1, h1, k1⟩ := bind_ok k0
+  obtain ⟨r1, h1, k1⟩ := except_bind_ok k0
   obtain ⟨c1, t1, d1, rfl, x1, rfl⟩ := step _ _ _ _ h1
-  obtain ⟨r2, h2, k2⟩ := bind_ok k1
+  obtain ⟨r2, h2, k2⟩ := except_bind_ok k1
   obtain ⟨c2, t2, d2, rfl, x2, rfl⟩ := step _ _ _ _ h2
-  obtain ⟨r3, h3, k3⟩ := bind_ok k2
+  obtain ⟨r3, h3, k3⟩ := except_bind_ok k2
   obtain ⟨c3, t3, d3, rfl, x3, rfl⟩ := step _ _ _ _ h3
   have last : (t3, (((0 * 16 + d0) * 16 + d1) * 16 + d2) * 16 + d3) = s := Except.ok.inj k3
   subst last
@@ -1980,19 +1982,19 @@ returns is the character the escape denotes. -/
 private theorem unicode_ok {cs rest : List Char} {c : Char} (read : unicode cs = .ok (c, rest)) :
     ∃ escape, Grammar.Character ('\\' :: 'u' :: escape) c ∧ cs = escape ++ rest := by
   unfold unicode at read
-  obtain ⟨⟨first, after⟩, quaded, continued⟩ := bind_ok read
+  obtain ⟨⟨first, after⟩, quaded, continued⟩ := except_bind_ok read
   obtain ⟨high, spelled, rfl⟩ := quad_ok quaded
   have small := spelled.small
   simp only at continued
   split at continued
   · rename_i leading
     simp only [Bool.and_eq_true, decide_eq_true_eq] at leading
-    obtain ⟨marked, more, afterMark⟩ := bind_ok continued
-    obtain ⟨slashed, backslash, letter⟩ := bind_ok more
+    obtain ⟨marked, more, afterMark⟩ := except_bind_ok continued
+    obtain ⟨slashed, backslash, letter⟩ := except_bind_ok more
     have slash := require_ok backslash
     have u := require_ok letter
     subst slash u
-    obtain ⟨⟨second, tail⟩, lowQuad, closing⟩ := bind_ok afterMark
+    obtain ⟨⟨second, tail⟩, lowQuad, closing⟩ := except_bind_ok afterMark
     obtain ⟨low, lowSpelled, rfl⟩ := quad_ok lowQuad
     have lowSmall := lowSpelled.small
     simp only at closing
@@ -2064,7 +2066,7 @@ private theorem stringBody_ok (fuel : Nat) {cs rest : List Char} {out s : String
         exact body_cons .carriageReturn chars same value
       · obtain ⟨body, decoded, chars, same, value⟩ := hold read
         exact body_cons .tab chars same value
-      · obtain ⟨⟨d, after⟩, escaped, next⟩ := bind_ok read
+      · obtain ⟨⟨d, after⟩, escaped, next⟩ := except_bind_ok read
         obtain ⟨tail, spelled, rfl⟩ := unicode_ok escaped
         obtain ⟨body, decoded, chars, same, value⟩ := hold next
         exact body_cons spelled chars same value
@@ -2088,7 +2090,7 @@ private theorem stringValue_ok {cs rest : List Char} {s : String}
     (read : stringValue cs = .ok (s, rest)) :
     ∃ spelled, Grammar.Quoted spelled s ∧ cs = spelled ++ rest := by
   unfold stringValue at read
-  obtain ⟨after, opened, body⟩ := bind_ok read
+  obtain ⟨after, opened, body⟩ := except_bind_ok read
   have quoted := require_ok opened
   subst quoted
   obtain ⟨chars, decoded, spelled, rfl, rfl⟩ := stringBody_ok _ body
@@ -2138,7 +2140,7 @@ private theorem Grammar.Elements.blank {depth : Nat} {space body : List Char}
 
 /-- **What the value reader, the member loop and the element loop accept is text of the
 grammar.** For every fuel: an accepted value is white space and a value of the grammar at the
-depth, with the value the grammar gives it; an accepted run of members or elements is the
+depth, with the value read as a value that the grammar gives it; an accepted run of members or elements is the
 members or elements of the grammar before the closing brace or bracket, with the names of the
 members of an object distinct. -/
 private theorem read_sound (fuel : Nat) :
@@ -2170,7 +2172,7 @@ private theorem read_sound (fuel : Nat) :
         generalize ws input = cs at read shape
         subst shape
         split at read
-        · obtain ⟨⟨s, after⟩, quoting, returned⟩ := bind_ok read
+        · obtain ⟨⟨s, after⟩, quoting, returned⟩ := except_bind_ok read
           obtain ⟨same, rfl⟩ := Prod.mk.inj (Except.ok.inj returned)
           subst same
           obtain ⟨spelled, quoted, written⟩ := stringValue_ok quoting
@@ -2215,7 +2217,7 @@ private theorem read_sound (fuel : Nat) :
       obtain ⟨before, blank, shape⟩ := ws_blank cs
       generalize ws cs = opened at read shape
       subst shape
-      obtain ⟨⟨key, named⟩, naming, continued⟩ := bind_ok read
+      obtain ⟨⟨key, named⟩, naming, continued⟩ := except_bind_ok read
       obtain ⟨name, quoted, rfl⟩ := stringValue_ok naming
       simp only at continued
       split at continued
@@ -2226,13 +2228,13 @@ private theorem read_sound (fuel : Nat) :
           obtain ⟨field, held, same⟩ := List.mem_map.mp inside
           exact repeated (List.any_eq_true.mpr
             ⟨field, held, by rw [same]; exact beq_self_eq_true key⟩)
-        obtain ⟨afterColon, colon, valuing⟩ := bind_ok continued
+        obtain ⟨afterColon, colon, valuing⟩ := except_bind_ok continued
         obtain ⟨between, betweenBlank, betweenShape⟩ := ws_blank named
         generalize ws named = marked at colon betweenShape
         subst betweenShape
         have colonShape := require_ok colon
         subst colonShape
-        obtain ⟨⟨item, afterItem⟩, itemRead, closing⟩ := bind_ok valuing
+        obtain ⟨⟨item, afterItem⟩, itemRead, closing⟩ := except_bind_ok valuing
         obtain ⟨colonBlank, itemText, colonBlankIs, itemIs, rfl⟩ :=
           valued _ _ _ _ itemRead
         have extended : ((out ++ [(key, item)]).map Prod.fst).Nodup := by
@@ -2256,7 +2258,7 @@ private theorem read_sound (fuel : Nat) :
             by simpa using nodup, by simp, by simp⟩
         · exact nomatch closing
     · unfold elements at read
-      obtain ⟨⟨item, afterItem⟩, itemRead, closing⟩ := bind_ok read
+      obtain ⟨⟨item, afterItem⟩, itemRead, closing⟩ := except_bind_ok read
       obtain ⟨before, itemText, blank, itemIs, rfl⟩ := valued _ _ _ _ itemRead
       simp only at closing
       obtain ⟨after, afterBlank, afterShape⟩ := ws_blank afterItem
@@ -2272,13 +2274,13 @@ private theorem read_sound (fuel : Nat) :
       · exact nomatch closing
 
 /-- **Every text that the parser accepts is a JSON text of the grammar, and the value the
-parser gives is the value the grammar gives the text.** For every text and value: white
-space, a value at depth zero, and white space (`Grammar.Text`), with the value of the
-grammar's derivation. -/
+parser gives is a value that the grammar gives the text.** For every text and value: white
+space, a value at depth zero, and white space (`Grammar.Text`), with a derivation of the
+grammar that gives the value. -/
 theorem parse_sound (text : String) (v : Value) (parsed : parse text = .ok v) :
     Grammar.Text text.toList v := by
   unfold parse at parsed
-  obtain ⟨⟨found, rest⟩, read, finished⟩ := bind_ok parsed
+  obtain ⟨⟨found, rest⟩, read, finished⟩ := except_bind_ok parsed
   obtain ⟨before, body, blank, item, shape⟩ := (read_sound _).1 _ _ _ _ read
   obtain ⟨after, afterBlank, afterShape⟩ := ws_blank rest
   simp only at finished
