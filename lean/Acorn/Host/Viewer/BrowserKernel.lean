@@ -69,8 +69,8 @@ def browserLifecycleJavascript : String :=
   "const UNASKED_STOPS=[" ++ String.intercalate "," (unaskedStops.map fun transition =>
     telemetryString transition.tag) ++ "];\n"
 
-/-- One generated resource owns the page's constants, storage, admission, conversion
-and observer calculations together. -/
+/-- One generated resource owns the page constants that `BrowserConstant` represents, storage,
+admission, conversion and observer calculations together. -/
 def browserKernelJavascript : String :=
   browserConstantsJavascript ++ browserRefusalJavascript ++ browserLifecycleJavascript ++
     browserStoreJavascript ++ BrowserMath.javascript ++ browserGoalLabelsJavascript ++

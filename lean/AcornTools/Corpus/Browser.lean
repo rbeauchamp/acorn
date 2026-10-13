@@ -3,7 +3,6 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Digits
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.Buffer
 import Acorn.Host.Viewer.Retry
@@ -12,9 +11,10 @@ import Acorn.Host.Viewer.WorldMemory
 
 /-! # Browser execution wiring admission
 
-The generated kernel owns the page's constants, frame store and its ring binding,
-whole-frame admission, record conversion, validation and numeric programs; their
-agreement with the schema is proved beside their definitions. This lexical gate
+The generated kernel owns the page constants that `BrowserConstant` represents, the
+frame store and its ring binding, whole-frame admission, record conversion, validation
+and numeric programs; their agreement with the schema is proved beside their
+definitions. This lexical gate
 holds only what stays handwritten: the call sites that route the observer through
 those owners, and its request/timer inventory. Rendered browser behavior is
 inspected separately.
@@ -89,50 +89,51 @@ def scripts (page : String) : IO String := do
     result := result ++ (← code source)
   return result
 
-/-- The header of the table of constants that Appendix A of the viewer specification quotes. -/
-private def constantsHeader : String := "| constant | value | declared in |\n|---|---|---|\n"
-
-/-- Whether a table cell is one name in backticks. -/
-private def quoted (cell : String) : Bool :=
-  cell.length > 2 && cell.startsWith "`" && cell.endsWith "`"
-
-/-- Check each documented constant against the Lean value the viewer uses: the page's own
-constants, which the generated kernel declares (`BrowserConstant`), and the server's. The
-constants table runs from its header to the first line that does not begin with `|`, and every
-row of it must be a name in backticks, a decimal value (`Acorn.Digits.read`) and a source in
-backticks, each name in one row only, the value that of the named constant of that source; every
-owned constant has a row. -/
-private def documentConstants (text : String) : Except String Unit := do
-  let [_, appendix] := text.splitOn "## Appendix A"
-    | throw "missing/duplicate viewer constants appendix"
-  let [_, table] := appendix.splitOn constantsHeader
-    | throw "missing/duplicate viewer constants table"
-  let owned := [("replayCapacity", "Acorn.Host.Viewer.Buffer", replayCapacity),
+/-- The constants that Appendix A of the viewer specification quotes, in the order of its table,
+each with the module that declares it and the value the viewer uses: the page's own constants,
+which the generated kernel declares (`BrowserConstant`), then the server's. -/
+private def ownedConstants : List (String × String × Nat) :=
+  (([.readPace, .statsWindow, .frameCapacity, .ribbonSpan, .staleAfter, .tilePixels] :
+      List BrowserConstant).map fun constant =>
+    (constant.name, "Acorn.Host.Viewer.BrowserStore", constant.value)) ++
+  [("replayCapacity", "Acorn.Host.Viewer.Buffer", replayCapacity),
     ("failureLimit", "Acorn.Host.Viewer.Retry", failureLimit),
     ("healthyRunMs", "Acorn.Host.Viewer.SupervisedProcess", healthyRunMs),
-    ("mapSideCapacity", "Acorn.Host.Viewer.WorldMemory", mapSideCapacity)] ++
-    ([.readPace, .statsWindow, .frameCapacity, .ribbonSpan, .staleAfter, .tilePixels] :
-      List BrowserConstant).map fun constant =>
-        (constant.name, "Acorn.Host.Viewer.BrowserStore", constant.value)
-  let mut seen := []
-  for line in (table.splitOn "\n").takeWhile (·.startsWith "|") do
-    let ["", name, value, source, ""] := (line.splitOn "|").map (·.trimAscii.toString)
-      | throw s!"malformed constant row: {line}"
-    unless quoted name && quoted source do throw s!"malformed constant row: {line}"
-    let name := name.replace "`" ""
-    let source := source.replace "`" ""
-    if seen.contains name then throw s!"duplicate documented constant {name}"
-    seen := name :: seen
-    let actual := owned.find? (fun row => row.1 == name && row.2.1 == source) |>.map (·.2.2)
-    let documented := Acorn.Digits.read value
-    unless documented.isSome && documented == actual do
-      throw s!"documented constant differs: {name}"
-  unless seen.length ≥ 2 && owned.all (fun row => seen.contains row.1) do
-    throw "missing owned constant rows"
+    ("mapSideCapacity", "Acorn.Host.Viewer.WorldMemory", mapSideCapacity)]
 
-/-- A second row for `WIN` with a wrong value and its source outside backticks, which the
-constants table refuses when it is added to the specification. -/
-private def refusedConstantRow : String := "| `WIN` | 999 | Acorn.Host.Viewer.BrowserStore |\n"
+/-- The constants table of Appendix A rendered from the Lean owners: its header, its separator
+and one row per constant of `ownedConstants`, each line ending in a line feed. -/
+private def constantsTable : String :=
+  "| constant | value | declared in |\n|---|---|---|\n" ++
+    String.join (ownedConstants.map fun (name, source, value) =>
+      s!"| `{name}` | {value} | `{source}` |\n")
+
+/-- The heading line of Appendix A of the viewer specification. -/
+private def appendixHeading : String := "\n## Appendix A · Constants this document quotes\n"
+
+/-- Check the constants table of the viewer specification against the Lean owners. The heading
+of Appendix A occurs once, and the text after it, to the end of the file, holds `constantsTable`
+exactly once, starting at a line; no other line of that text contains `|`, so no second table,
+extra row or row in another spelling can stand beside it. The text runs to the end of the file
+rather than to the next heading of the same level, which Appendix A, the last such section, does
+not have, so finding that heading needs no reading of code blocks or HTML. -/
+private def documentConstants (text : String) : Except String Unit := do
+  let [_, appendix] := text.splitOn appendixHeading
+    | throw "missing/duplicate viewer constants appendix"
+  unless (("\n" ++ appendix).splitOn ("\n" ++ constantsTable)).length == 2 do
+    throw "the constants table differs from its Lean owners or occurs twice"
+  unless (appendix.splitOn "\n").filter (·.contains '|') ==
+      (constantsTable.splitOn "\n").filter (·.contains '|') do
+    throw "a table line in Appendix A outside the constants table"
+
+/-- Changes to the viewer specification that the constants check refuses: a second constants
+table after the first, with its own separator and a wrong value of `WIN`, and the name `WIN`
+split into two quoted parts. -/
+private def refusedConstantEdits : List (String → String) :=
+  [fun text => text.replace constantsTable (constantsTable ++
+      "\n| constant | value | declared in |\n| --- | --- | --- |\n" ++
+      "| `WIN` | 999 | `Acorn.Host.Viewer.BrowserStore` |\n"),
+    fun text => text.replace "| `WIN` |" "| `W``IN` |"]
 
 /-- Check the generated-program call sites and the request/timer inventory. -/
 def check : IO Unit := do
@@ -174,8 +175,9 @@ def check : IO Unit := do
   require ((connect.splitOn "received++").length == 2) "capture counter must have one guarded increment"
   require (page.contains "$(\"t_world\").title = WORLD_TILE_NOTE;") "readout reset omits world-tile title"
   let document ← IO.FS.readFile "docs/viewer-ux.md"
-  require (documentConstants (document.replace constantsHeader (constantsHeader ++
-      refusedConstantRow)) matches .error _) "constants table admits a refused control row"
+  for edit in refusedConstantEdits do
+    require (documentConstants (edit document) matches .error _)
+      "constants table admits a refused control edit"
   match documentConstants document with
   | .ok () => pure ()
   | .error message => require false message

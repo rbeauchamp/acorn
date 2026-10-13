@@ -2782,7 +2782,8 @@ function drawStreamHealth() {
 /* Text readouts are redrawn at a reading pace, not a frame pace. The canvases
    that show motion — stage, sensor, ribbon, lanes — redraw every frame; the
    numbers a reader has to *read* redraw at most every `READ_MS` while the
-   cursor moves, and at once when it lands (a pause, a scrub). No timer is
+   cursor moves, at once when it lands (a pause, a scrub), and on every frame
+   the cursor reaches while replay runs at 10 frames/s or slower. No timer is
    involved: the gate rides on the animation frame's own clock. */
 let readAt = -Infinity, readId = -1, readFast = null, readHead = -1, readState = "";
 

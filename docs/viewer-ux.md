@@ -1145,11 +1145,12 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 
 ## Appendix A · Constants this document quotes
 
-`AcornTools.Corpus.Browser` compares the numeric rows below against their Lean owners: the
-page's constants, which the generated kernel declares from `BrowserConstant` in
-`Acorn.Host.Viewer.BrowserStore`, and the viewer server's values. Missing, duplicated or
-mismatched rows fail admission. Other prose quantities and table completeness remain
-review obligations.
+`AcornTools.Corpus.Browser` renders the table below from its Lean owners, the page's
+constants, which the generated kernel declares from `BrowserConstant` in
+`Acorn.Host.Viewer.BrowserStore`, and the viewer server's values, and admits this appendix
+only when the table is exactly that text and no other line of the appendix holds a table
+cell. Other prose quantities, and whether the table lists every constant this document
+quotes, remain review obligations.
 Durations are milliseconds unless the name denotes another unit.
 
 | constant | value | declared in |
