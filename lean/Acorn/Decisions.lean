@@ -2175,7 +2175,7 @@ origin under the declared pace and keeping, read at the resend age, 100 ms. The 
 the second component of the pair that the function returns.
 
 **Not claimed:** completeness. The reading also sends nothing before the resend age and from
-the end of the hold; `bridge_tick_value` states the whole transition. -/
+the end of the hold; `bridge_tick_value` states additional transition guarantees. -/
 theorem bridge_tick : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
     Regula.DecidesSoundly
       (fun result : Host.Microduck.Bridge × Option Host.Microduck.Command =>
@@ -2215,9 +2215,10 @@ the last release, with a new identifier (`Host.Microduck.Idle.tick_keeps`,
 `Host.Microduck.Awaiting.tick_keeps`), and have no contract of their own: this statement is
 their evidence.
 
-**Not claimed:** where the hold ends, which `Host.Microduck.Bridge.ends_held` states, and
-that a release meeting its deadline arrives before it (`Host.Microduck.Bridge.ends_covers`);
-and that an executing loop reads the clock often enough for a resend to be timely. -/
+**Not claimed:** that a reading sends nothing before the last send is the resend age old;
+where the hold ends, which `Host.Microduck.Bridge.ends_held` states, and that a release meeting
+its deadline arrives before it (`Host.Microduck.Bridge.ends_covers`); and that an executing loop
+reads the clock often enough for a resend to be timely. -/
 theorem bridge_tick_value : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
     (∀ (pace : Pace) (keep : Host.Microduck.Keep) (origin : Instant)
         (bridge : Host.Microduck.Bridge) (now : Instant),
@@ -5149,13 +5150,14 @@ private theorem mix_splitMix (word : UInt64) :
   rfl
 
 /-- The slot of a unit is the residue, modulo the capacity of the feature space, of SplitMix64
-applied twice: to the seed, then to that output with the unit's number rotated 17 places,
-for every dimension, bank configuration and unit. The slot map passes the tag `0x1D` twice to
-`Rng.hash3`, once with the seed and once as the second word, and the two cancel, so the slot
-depends on the seed and the unit alone. The capacity is a power of two at most `2 ^ 32`, so the
-residue is the mask of the low 32 bits that the map takes. `candidate_of_weight`,
-`assignment_potential` and `assignment_admit` share the map with their functions. The witnesses
-are the two units of `pair`, which the map sends to different slots of `double`. -/
+applied twice: to the seed XOR `0x9e3779b97f4a7c15`, then to that output with the unit's number
+rotated 17 places, for every dimension, bank configuration and unit. The slot map passes the
+tag `0x1D` twice to `Rng.hash3`, once with the seed and once as the second word, and the two
+cancel, so the slot depends on the seed and the unit alone. The capacity is a power of two at
+most `2 ^ 32`, so the residue is the mask of the low 32 bits that the map takes.
+`candidate_of_weight`, `assignment_potential` and `assignment_admit` share the map with their
+functions. The witnesses are the two units of `pair`, which the map sends to different slots of
+`double`. -/
 theorem unit_feature : Regula.ExecutableContract unitFeature (fun slot =>
     (∀ (dimension : Dimension) (config : Features.Config) (unit : Fin config.units.count),
       (slot dimension config unit).val =
