@@ -84,7 +84,8 @@ def runViewer (arguments : List String) : IO UInt32 := do
   let options ← match ViewerOptions.decode arguments with
     | .ok options => pure options
     | .error error => throw (IO.userError (error.message ++
-        "\nusage: acorn-viewer (--research-profile ranked | --cmd COMMAND) [--port N] [--run-dir DIR] [--no-checkpoint] [--start] [--open-browser] [--control-stdin]"))
+        "\nusage: acorn-viewer (--research-profile ranked | --cmd COMMAND) [--port N] [--run-dir DIR] [--no-checkpoint] [--start] [--open-browser] [--control-stdin]" ++
+        s!"\nN is below 65536. {Acorn.Digits.usage}"))
   let directory ← RunDirectory.open options.directory
   let supervisor ← Supervisor.new (← supervisorConfig options) directory (← initialState directory)
   let stop ← StopFlag.new

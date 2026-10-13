@@ -264,16 +264,14 @@ def unsigned (arguments : List String) (name : String) (width fallback : Nat) : 
     let some number := Digits.natural text | .error (.invalid name text)
     if number < 2 ^ width then return number else .error (.invalid name text)
 
-/-- Signed standard-side text is admitted over the entire i64 parse domain first. -/
+/-- The standard side is an unsigned number of the command line (`Digits.natural`), 1024 when
+it is absent, admitted as a coordinate (`Coordinate.checked`), so a number of `2 ^ 63` or more
+is refused. Standard world admission then decides the side's own bounds. -/
 def side (arguments : List String) : Except Error Coordinate := do
   match ← value arguments "--side" with
   | none => return ⟨1024, by decide⟩
   | some text =>
-    let negative := text.startsWith "-"
-    let digits := if negative then String.ofList text.toList.tail else text
-    let some magnitude := Digits.natural digits | .error (.invalid "--side" text)
-    if negative && digits.startsWith "+" then .error (.invalid "--side" text)
-    let number : Int := if negative then -(magnitude : Int) else magnitude
+    let some number := Digits.natural text | .error (.invalid "--side" text)
     let some coordinate := Coordinate.checked number | .error (.invalid "--side" text)
     return coordinate
 

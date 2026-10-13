@@ -159,10 +159,7 @@ pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
 Lake runs with `--wfail`, so any warning, including a header-time warning such
 as a deprecated import, fails the build. Source/compiled admission checks
-imports, capability owners, artifact origins and native routes. Compiled admission
-also refuses a reference from executing code to one of Lean core's readers of
-numbers in text, such as `String.toNat?`, which accept `_` between two digits;
-executing code reads decimal digits with `Acorn.Digits`. The Regula audit, not
+imports, capability owners, artifact origins and native routes. The Regula audit, not
 ordinary verification, checks the axioms that each declaration of the claimed
 libraries depends on. The theorem inventory counts the theorem declarations and
 refuses a native replacement. Every proof passes through the kernel.
@@ -789,9 +786,12 @@ tag := "mutation-diagnostics"
 *Pinned digest: {spliceCode}`digest .declared`*
 
 ```spliced sh
-s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {digest .declared}"
+s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect 0x{digest .declared}"
 ```
 
+The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal digits:
+it is a hash identifier, not a number, so it is not read as a command-line number and
+digit-only text such as `10` is refused.
 Paired checksum {spliceCode}`checksum .declared`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all {splice}`numberWord auditArms.length` fixed arms under the same deadline. All {splice}`numberWord auditArms.length` pins record

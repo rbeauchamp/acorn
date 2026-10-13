@@ -7,13 +7,18 @@ Authors: acorn contributors
 /-!
 # Decimal digits in text
 
-Acorn reads every number that text writes in decimal digits here. Each number on a command
-line, a flag of the core or an argument of a native driver alike, is read by `natural`: an
-optional plus sign, then at least one digit from `0` to `9`. The length of a viewer control
-request, the unsigned integers of JSON values and the numbers that the corpus audit reads from
-the documents are read by `read`, which takes the digits alone. Neither reader accepts white
-space, a minus sign or a digit separator, and each returns the value of the digits in
-positional notation, so leading zeros are allowed.
+Each number on an Acorn command line, a flag of the core or an argument of a native driver
+alike, is read by `natural`: an optional plus sign, then at least one digit from `0` to `9`.
+`read` takes the digits alone, with the same digit rule; it reads the length of a viewer control
+request, the resident memory that `ps` reports, the unsigned integers of `Json.Value.natural`,
+and the line numbers and documented constants that the corpus audit reads. Neither reader
+accepts white space, a minus sign or a digit separator, and each returns the value of the digits
+in positional notation, so leading zeros are allowed.
+
+The numbers of the Microduck's JSON frames (`Host.Microduck.Counted`,
+`Host.Microduck.Decimal.read`) are not read here: they are read through the number scanner of
+`Acorn.Json`, which follows the number grammar of RFC 8259, section 6, where a leading zero is
+refused.
 
 `Spelled` and `Natural` state the two languages and their values with no executed function.
 The contracts `digits_read` and `digits_natural` in `Acorn.Decisions` prove that each reader
@@ -23,8 +28,9 @@ that it returns their values.
 Lean core's readers of numbers in text, such as `String.toNat?`, accept `_` between two
 digits: at the pinned toolchain v4.34.1, `String.isNat_iff` in `Std/Data/String/ToNat.lean`
 admits a separator between two digits, and `String.toNat?_eq_some_ofDigitChars` drops it from
-the value, so `"4_2".toNat? = some 42`. The boundary audit refuses a reference to one of those
-readers from every executing module (`AcornBoundaryAudit.coreNumberReader`).
+the value, so `"4_2".toNat? = some 42`. The readers above therefore do not use them. A Regula
+rule that refuses a reference to them is proposed in
+https://github.com/rbeauchamp/regula/issues/445.
 -/
 namespace Acorn.Digits
 

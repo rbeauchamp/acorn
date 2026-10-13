@@ -2379,9 +2379,10 @@ attribute [regula_decision] Host.CheckpointStatus.parse
 
 /-! ## Decimal digits and the arguments of the native drivers
 
-`Digits.read` and `Digits.natural` read every number that Acorn reads from decimal digits in
-text, and `Host.AgentArguments.admit` reads the numbers of the native agent and checkpoint
-drivers with `Digits.natural`. The specifications are the grammars `Digits.Spelled`,
+`Digits.natural` reads every number of an Acorn command line, and `Digits.read` the decimal
+digits of the other readers that `Acorn.Digits` lists; the numbers of the Microduck's JSON
+frames follow the grammar of RFC 8259 through `Json.Value.numeral` instead. `Host.AgentArguments.admit` reads the
+numbers of the native agent and checkpoint drivers with `Digits.natural`. The specifications are the grammars `Digits.Spelled`,
 `Digits.Natural` and `Host.AgentArguments.Admitted`, and the relation
 `Host.AgentArguments.Constructs` between an argument list and what admission returns, written
 beside the readers with no executed function: each number has its value in positional

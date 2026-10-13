@@ -15,6 +15,8 @@ current attempt and close the viewer. Saved learner state stays in acorn-run/.
   --prepare-only  Install prerequisites and build, without starting a run.
   --run-dir DIR   Use another run directory (relative paths use the repo root).
   --port N        Use a specific port; the default selects an available port.
+                  N is the digits 0 to 9 with an optional leading +, below 65536;
+                  the viewer admits it, as it admits every Acorn command-line number.
 HELP
 }
 
@@ -36,8 +38,6 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown option $1. Run ./scripts/start.sh --help." ;;
   esac
 done
-if [[ ! "$port" =~ ^[0-9]{1,5}$ ]]; then fail 'Port must be between 0 and 65535.'; fi
-if ((10#$port > 65535)); then fail 'Port must be between 0 and 65535.'; fi
 [[ $EUID -ne 0 ]] || fail 'Run this script as your normal user, without sudo.'
 cd "$root"
 

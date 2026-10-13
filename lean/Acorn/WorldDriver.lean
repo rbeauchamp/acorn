@@ -43,7 +43,9 @@ def word (text : String) (width : Nat) : Except String Nat :=
   | none => .error s!"invalid unsigned integer: {text}"
   | some value => if value < 2 ^ width then .ok value else .error s!"integer overflow: {text}"
 
-/-- Signed text uses the same complete public-side parser, independent of world bounds. -/
+/-- A terrain coordinate is read as the standard side is (`Cli.side`), independent of world
+bounds: an unsigned number of the command line below `2 ^ 63`, so the diagnostic reads no
+negative coordinate. -/
 def coordinate (text : String) : Except String Coordinate :=
   (Cli.side ["--side", text]).mapError cliError
 

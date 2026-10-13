@@ -77,9 +77,14 @@ private def body (script function : String) : IO String := do
     out := c :: out
   throw (IO.userError s!"browser function is unclosed: {function}")
 
+/-- The value of a constant that the compacted page declares exactly once, as
+`const NAME = digits;`. The whole initializer between `=` and the next `;` must be decimal digits
+(`Acorn.Digits.read`), so a digit separator, an exponent, a suffix or an expression refuses
+it, and so does a second declaration of the name. -/
 private def number (script name : String) : Option Nat := do
-  let rest ← (script.splitOn (name ++ "=")).tail?.bind List.head?
-  Acorn.Digits.read (rest.takeWhile Char.isDigit).toString
+  let [_, rest] := script.splitOn ("const" ++ name ++ "=") | none
+  let initializer :: _ :: _ := rest.splitOn ";" | none
+  Acorn.Digits.read initializer
 
 /-- All inline browser source after lexical comment/literal removal. -/
 def scripts (page : String) : IO String := do
