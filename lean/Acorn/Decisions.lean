@@ -79,11 +79,11 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Thirty-two functions of this module have a contract and no kind. The reasons are four. Eleven
-more are no decisions, and their statements say what they are: `Host.coordinateFloat` and
-`Agent.runPrefix` refuse no input (`coordinate_float`, `agent_run_prefix`), and nine definitions
-that specifications share with their functions have the statements of the section "Definitions
-that specifications share".
+Thirty-two functions of this module have a contract and no kind. The reasons are four.
+Nineteen more are no decisions, and their statements say what they are: `Host.coordinateFloat`
+and `Agent.runPrefix` refuse no input (`coordinate_float`, `agent_run_prefix`), and seventeen
+definitions that specifications share with their functions have the statements of the section
+"Definitions that specifications share".
 
 * No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
   configuration, and a complete or a two-way kind carries a refused input. The statement of
@@ -237,16 +237,24 @@ frames, so they share no reader of the age with the tests. The definitions of th
 "Definitions that specifications share" have statements of their own, and so do, in
 `AcornVerif.Decisions`, the squared discrepancy `Agreement.squaredUnits`, the cap of a total
 `Lifetime.maximumSum`, the readers of a Microduck number `Host.Microduck.spelled`,
-`Host.Microduck.Decimal.ofNumeral` and `Host.Microduck.Decimal.fixed`, and the facing position
-`Host.BoxPosition.facingPosition`. The specification of `exploration_begins` there states the
-output of the generator from its stored words and reads no definition of the generator. Declared
-parameters and tables, readers of stored data, and the world step and the terrain, which the
-replays and the kinds of the terrain are about, are shared with no statement of their own against
-another reading; whether each needs one is remaining work of
-https://github.com/rbeauchamp/acorn/issues/67. For a contract with a kind, the
-account of the Regula audit names each such function where the specification reaches it first. It
-does not name a function that the specification reaches only through a named one, and it does not
-name a projection function.
+`Host.Microduck.Decimal.ofNumeral` and `Host.Microduck.Decimal.fixed`, the facing position
+`Host.BoxPosition.facingPosition`, the offset table `Host.Direction.delta`, the discount and
+horizon words `Discount.gamma` and `Discount.horizon`, the domains of the weights and the
+predictions `ValueRule.domain` and `Discount.predictionRange`, the bound of a total
+`Lifetime.Quantity.bound` and the envelope `Agreement.envelopeUnits`. The specification of
+`exploration_begins` there states the output of the generator from its stored words and reads no
+definition of the generator. Three readers of stored data have no statement of their own: the
+weight word `Weight.value`, the generator and tester state `Features.Lifecycle.progress` and the
+viewer's phase `Host.Viewer.Lifecycle.phaseValue` each return a field that their argument holds,
+which is stored data as a structure field is. The readers of a number word that Acorn defines,
+`Binary32.key`, `Binary32.magnitude`, `Binary32.negate`, `Binary64.key`, `Binary64.magnitude`
+and `Conversion.widen`, and the world step `Host.World.step`, the installation of a goal
+`Host.World.setGoal` and the terrain `Host.terrain`, which the replays and the kinds of the terrain
+are about, are shared with no statement of their own against another reading; statements of
+their own for them are remaining work of https://github.com/rbeauchamp/acorn/issues/67. For a
+contract with a kind, the account of the Regula audit names each such function where the
+specification reaches it first. It does not name a function that the specification reaches only
+through a named one, and it does not name a projection function.
 
 The vocabulary of the world, `Host.Direction`, `Host.Action`, `Host.TileKind`, `Host.Position`
 and `Host.BoxPosition`, derives decidable equality and no `BEq` instance of its own: `==` on it
@@ -5139,9 +5147,10 @@ theorem coordinate_float : Regula.ExecutableContract Host.coordinateFloat (fun c
 
 The specification of each contract named below applies a definition that its function also
 applies. Each such definition has a statement of its own here, against a reading that does not
-apply it: a library operation of Lean core, the natural numbers, or the published algorithm
-that the definition implements, written with Lean core's operations. None of them refuses an
-input, so each statement keeps no kind. -/
+apply it: a library operation of Lean core, the natural numbers, the published algorithm that
+the definition implements, written with Lean core's operations, the numerals of declared amounts
+and codes, the positions of a list, the largest width that fits a capacity, or the stored fields
+of a structure. None of them refuses an input, so each statement keeps no kind. -/
 
 /-- The rotation is Lean core's `BitVec.rotateLeft` of the word by the count modulo the width
 (`Rng.rotateLeft_toBitVec`), for every word and count. The specifications of the blocked and
@@ -5414,6 +5423,136 @@ theorem snapshot_masses : Regula.ExecutableContract @PolicySnapshot.probabilitie
       simp only [Vector.get, Vector.toArray_map, Array.getElem_map]
       rfl,
     by decide +kernel⟩⟩
+
+/-- A recipe asks for the declared amounts: an axe three wood and two stone, a boat four wood
+and no stone. The specification of `inventory_craft` applies it. -/
+theorem craft_recipe : Regula.ExecutableContract Host.Craftable.recipe (fun recipe =>
+    recipe .axe = (3, 2) ∧ recipe .boat = (4, 0)) :=
+  ⟨⟨rfl, rfl⟩⟩
+
+/-- The code of a goal family is one of the five numbers below five, every such number is the
+code of a family, and no two families share a code. The specification of `goal_kind_decode`
+applies it. The statement has no hypothesis; the family with no goal has the code zero. -/
+theorem goal_kind_code : Regula.ExecutableContract Host.Viewer.GoalKind.code (fun code =>
+    (∀ number : Nat, (∃ kind, code kind = number) ↔ number < 5) ∧
+      ∀ first second, code first = code second → first = second) :=
+  ⟨⟨fun number => by
+      constructor
+      · rintro ⟨kind, rfl⟩
+        rcases kind with _ | kind
+        · decide
+        · cases kind <;> decide
+      · intro below
+        match number, below with
+        | 0, _ => exact ⟨none, rfl⟩
+        | 1, _ => exact ⟨some .reach, rfl⟩
+        | 2, _ => exact ⟨some .collect, rfl⟩
+        | 3, _ => exact ⟨some .craft, rfl⟩
+        | 4, _ => exact ⟨some .survive, rfl⟩,
+    fun first second same => by
+      rcases first with _ | first <;> rcases second with _ | second <;>
+        (try cases first) <;> (try cases second) <;> first | rfl | exact absurd same (by decide)⟩⟩
+
+/-- The code of a goal item is one of the seven numbers zero to four, eleven and twelve, every
+such number is the code of an item, and no two items share a code. The specification of
+`goal_item_decode` applies it. The statement has no hypothesis; the item of no goal has the code
+zero. -/
+theorem goal_item_code : Regula.ExecutableContract Host.Viewer.GoalItem.code (fun code =>
+    (∀ number : Nat, (∃ item, code item = number) ↔ number ∈ [0, 1, 2, 3, 4, 11, 12]) ∧
+      ∀ first second, code first = code second → first = second) :=
+  ⟨⟨fun number => by
+      constructor
+      · rintro ⟨item, rfl⟩
+        rcases item with _ | item | tool
+        · decide
+        · cases item <;> decide
+        · cases tool <;> decide
+      · intro listed
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at listed
+        rcases listed with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+        · exact ⟨none, rfl⟩
+        · exact ⟨some (.inl .wood), rfl⟩
+        · exact ⟨some (.inl .stone), rfl⟩
+        · exact ⟨some (.inl .food), rfl⟩
+        · exact ⟨some (.inl .gold), rfl⟩
+        · exact ⟨some (.inr .axe), rfl⟩
+        · exact ⟨some (.inr .boat), rfl⟩,
+    fun first second same => by
+      rcases first with _ | first | first <;> rcases second with _ | second | second <;>
+        (try cases first) <;> (try cases second) <;> first | rfl | exact absurd same (by decide)⟩⟩
+
+/-- The layout of an interface is one longer than its signals: its first discount is `g99`, and
+each later position holds the signal one place before it, for every interface. The
+specifications of `interface_reserved` and `active_slot` apply it. The statement has no
+hypothesis. -/
+theorem interface_layout : Regula.ExecutableContract Interface.layout (fun layout =>
+    ∀ interface : Interface, (layout interface).length = interface.signals.length + 1 ∧
+      (layout interface)[0]? = some .g99 ∧
+        ∀ position : Nat, (layout interface)[position + 1]? = interface.signals[position]?) :=
+  ⟨fun interface => ⟨by simp [Interface.layout], by simp [Interface.layout],
+    fun position => by simp [Interface.layout]⟩⟩
+
+/-- The ranked width is two to an exponent that is zero or whose width, squared once for each of
+the three skills, fits the capacity, while the doubled width does not fit
+(`rankWidth_budget`, `rankWidth_maximal`). -/
+private theorem rankWidth_fits (dimension : Dimension) :
+    ∃ exponent, rankWidth dimension = 2 ^ exponent ∧
+      (exponent = 0 ∨ 3 * (2 ^ exponent) ^ 2 ≤ dimension.capacity) ∧
+        dimension.capacity < 3 * (2 ^ (exponent + 1)) ^ 2 := by
+  have count : FeatureConstants.skillCount = 3 := rfl
+  refine ⟨rankExponent dimension, rankWidth_eq dimension, ?_, ?_⟩
+  · by_cases room : FeatureConstants.skillCount ≤ dimension.capacity
+    · have budget := rankWidth_budget dimension room
+      rw [rankWidth_eq, count, ← Nat.pow_two] at budget
+      exact .inr budget
+    · refine .inl ?_
+      have first : ¬FeatureConstants.skillCount * ((1 <<< (0 + 1)) * (1 <<< (0 + 1))) ≤
+          dimension.capacity := fun fits => room (by rw [count] at fits ⊢; omega)
+      show rankExponentFrom dimension.capacity (14 + 1) 0 = 0
+      rw [rankExponentFrom]
+      simp only [first, ↓reduceIte]
+  · have maximal := rankWidth_maximal dimension
+    rwa [count, ← Nat.pow_two] at maximal
+
+/-- The ranked width is the largest power of two whose square, once for each of the three
+skills, fits the capacity of the dimension, or one when none fits: two to an exponent that is
+zero or whose width fits, while the doubled width does not fit, for every dimension. One
+exponent meets that condition, since the fit only gets harder as the exponent grows. The
+specification of `ranked_position` applies it. The statement has no hypothesis. -/
+theorem rank_width : Regula.ExecutableContract rankWidth (fun width =>
+    ∀ dimension : Dimension, ∃ exponent, width dimension = 2 ^ exponent ∧
+      (exponent = 0 ∨ 3 * (2 ^ exponent) ^ 2 ≤ dimension.capacity) ∧
+        dimension.capacity < 3 * (2 ^ (exponent + 1)) ^ 2) :=
+  ⟨rankWidth_fits⟩
+
+/-- The ranked dimension has the capacity that `rank_width` states for the ranked width, for
+every dimension. The specification of `ranked_position` applies it. The statement has no
+hypothesis. -/
+theorem rank_dimension : Regula.ExecutableContract rankDimension (fun ranked =>
+    ∀ dimension : Dimension, ∃ exponent, (ranked dimension).capacity = 2 ^ exponent ∧
+      (exponent = 0 ∨ 3 * (2 ^ exponent) ^ 2 ≤ dimension.capacity) ∧
+        dimension.capacity < 3 * (2 ^ (exponent + 1)) ^ 2) :=
+  ⟨rankWidth_fits⟩
+
+/-- The side of a configuration is positive, and as an integer it is the stored side coordinate,
+so the conversion to a natural number loses nothing, for every configuration. The
+specifications of the box, region, certificate, replay and paid-action contracts apply it, most
+through the type of a box position. The statement has no hypothesis. -/
+theorem world_side : Regula.ExecutableContract Host.WorldConfig.side (fun side =>
+    ∀ config : Host.WorldConfig, ((side config : Nat) : Int) = config.raw.side.val ∧
+      0 < side config) :=
+  ⟨fun config => by
+    have positive := config.positiveSide
+    unfold Host.WorldConfig.side
+    omega⟩
+
+/-- The coordinates of a box position are its two indices as integers, for every configuration
+and box position. The specifications of `stance_certified` and `stance_check` in
+`AcornVerif.Decisions` apply it. The statement has no hypothesis. -/
+theorem box_position : Regula.ExecutableContract @Host.BoxPosition.position (fun position =>
+    ∀ (config : Host.WorldConfig) (body : Host.BoxPosition config),
+      (position body).x.val = body.x.val ∧ (position body).y.val = body.y.val) :=
+  ⟨fun _ _ => ⟨rfl, rfl⟩⟩
 
 /-! ## Classifiers and lookups
 
