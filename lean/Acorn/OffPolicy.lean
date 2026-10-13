@@ -53,10 +53,22 @@ weights, by a field of its type, and takes no step at a zero signal word.
 -/
 namespace Acorn.Features
 
+/-- `setFlags` with its work: one write for each listed index, and the fold's control. -/
+def setFlagsCosted {size : Nat} (indices : List (Fin size)) (value : Bool)
+    (flags : Vector Bool size) : Costed (Vector Bool size) :=
+  Costed.foldl (fun current index => Costed.op .write (current.set index.val value index.isLt))
+    flags indices
+
 /-- Set one flag at every listed index. -/
 def setFlags {size : Nat} (indices : List (Fin size)) (value : Bool) (flags : Vector Bool size) :
     Vector Bool size :=
-  indices.foldl (fun current index => current.set index.val value index.isLt) flags
+  (setFlagsCosted indices value flags).val
+
+/-- A flag set writes the flag at each listed index, in list order. -/
+theorem setFlags_def {size : Nat} (indices : List (Fin size)) (value : Bool)
+    (flags : Vector Bool size) :
+    setFlags indices value flags =
+      indices.foldl (fun current index => current.set index.val value index.isLt) flags := rfl
 
 /-- A flag set over a list holds the new value at every listed index and its old value
 elsewhere, for every list and every vector. -/
@@ -65,7 +77,7 @@ theorem setFlags_get {size : Nat} (indices : List (Fin size)) (value : Bool)
     (setFlags indices value flags)[query.val] =
       if query ∈ indices then value else flags[query.val] := by
   induction indices generalizing flags with
-  | nil => simp [setFlags]
+  | nil => simp [setFlags_def]
   | cons head tail ih =>
     have step : setFlags (head :: tail) value flags =
         setFlags tail value (flags.set head.val value head.isLt) := rfl
@@ -168,6 +180,111 @@ structure Passage (dimension : Dimension) where
   /-- Definition of `onlyTargetCount`. -/
   onlyTargetCount_eq : onlyTargetCount = wideCount onlyTarget.length
 
+/-- `Preceding.advance` with its work. From a stored set: the current set's two filters by the
+flags (`flagTest` for each slot), the flags cleared over the stored set and set over the current one
+(`write` for each), the two sets' lengths and, for a transition the bounds cover, the stored set's
+filter by the new flags and the three classes' lengths; then, when the frame is not armed, the flags
+cleared over the current set, and the advance's record (`preceding`). From the empty set: the flags
+set over the current set when armed, and the record. -/
+def Preceding.advanceCosted {dimension : Dimension} (preceding : Preceding dimension)
+    (current : SwiftTd.ActiveSet dimension) (armed : Bool) :
+    Costed (Option (Passage dimension) × Preceding dimension) :=
+  let ⟨source, flags, agrees⟩ := preceding
+  match sourceIndices : source.indices with
+  | [] =>
+    have clear : ∀ index : FeatIdx dimension, flags[index.val] = false := by
+      intro index
+      rw [agrees, sourceIndices]
+      simp
+    Costed.ite (armed = true)
+      (fun _ =>
+        let passage : Option (Passage dimension) := none
+        Costed.bind (Costed.attach (setFlagsCosted current.indices true flags))
+        fun marked => Costed.op .preceding (passage, ⟨current, marked.val, by
+          intro index
+          have marks : marked.val = setFlags current.indices true flags := marked.property
+          rw [marks, setFlags_get, clear]
+          by_cases inside : index ∈ current.indices <;> simp [inside]⟩))
+      fun _ => Costed.op .preceding (none, ⟨SwiftTd.ActiveSet.empty dimension, flags, by
+        intro index
+        rw [clear]
+        simp [SwiftTd.ActiveSet.empty]⟩)
+  | _ :: _ => do
+    let both ← Costed.attach (Costed.filter (fun index => Costed.op .flagTest flags[index.val])
+      current.indices)
+    let onlyTarget ← Costed.attach (Costed.filter
+      (fun index => Costed.op .flagTest (!flags[index.val])) current.indices)
+    let cleared ← Costed.attach (setFlagsCosted source.indices false flags)
+    let marked ← Costed.attach (setFlagsCosted current.indices true cleared.val)
+    have markedAgrees : ∀ index : FeatIdx dimension,
+        marked.val[index.val] = decide (index ∈ current.indices) := by
+      intro index
+      have marks : marked.val =
+          setFlags current.indices true (setFlags source.indices false flags) :=
+        marked.property.trans (congrArg (setFlags current.indices true) cleared.property)
+      simp only [marks, setFlags_get, agrees]
+      by_cases inCurrent : index ∈ current.indices <;>
+        by_cases inSource : index ∈ source.indices <;> simp [inCurrent, inSource]
+    let sourceLength ← Costed.attach (Costed.length source.indices)
+    let currentLength ← Costed.attach (Costed.length current.indices)
+    let passage ← Costed.dite (sourceLength.val ≤ passageLimit ∧ currentLength.val ≤ passageLimit)
+      (fun fits => do
+        let onlySource ← Costed.attach (Costed.filter
+          (fun index => Costed.op .flagTest (!marked.val[index.val])) source.indices)
+        let step := gradientStep (sourceLength.val + currentLength.val)
+        let tau := step.mul (wideCount sourceLength.val)
+        let onlySourceLength ← Costed.attach (Costed.length onlySource.val)
+        let onlySourceCount := wideCount onlySourceLength.val
+        let bothLength ← Costed.attach (Costed.length both.val)
+        let bothCount := wideCount bothLength.val
+        let onlyTargetLength ← Costed.attach (Costed.length onlyTarget.val)
+        let onlyTargetCount := wideCount onlyTargetLength.val
+        Costed.pure <| some
+          { source, target := current, onlySource := onlySource.val, both := both.val,
+            onlyTarget := onlyTarget.val, step, tau, onlySourceCount, bothCount, onlyTargetCount
+            nonempty := by rw [sourceIndices]; exact List.cons_ne_nil _ _
+            fits := by
+              have lengths := fits
+              rw [sourceLength.property, currentLength.property] at lengths
+              exact lengths
+            onlySource_eq := by
+              rw [onlySource.property]
+              exact List.filter_congr fun index _ => by simp [Costed.op_val, markedAgrees]
+            both_eq := by
+              rw [both.property]
+              exact List.filter_congr fun index _ => by simp [Costed.op_val, agrees]
+            onlyTarget_eq := by
+              rw [onlyTarget.property]
+              exact List.filter_congr fun index _ => by simp [Costed.op_val, agrees]
+            step_eq := by
+              show gradientStep (sourceLength.val + currentLength.val) = _
+              rw [sourceLength.property, currentLength.property, Costed.length_val,
+                Costed.length_val]
+            tau_eq := by
+              show step.mul (wideCount sourceLength.val) = _
+              rw [sourceLength.property, Costed.length_val]
+            onlySourceCount_eq := by
+              show wideCount onlySourceLength.val = _
+              rw [onlySourceLength.property, Costed.length_val]
+            bothCount_eq := by
+              show wideCount bothLength.val = _
+              rw [bothLength.property, Costed.length_val]
+            onlyTargetCount_eq := by
+              show wideCount onlyTargetLength.val = _
+              rw [onlyTargetLength.property, Costed.length_val] })
+      fun _ => Costed.pure none
+    Costed.ite (armed = true)
+      (fun _ => Costed.op .preceding (passage, ⟨current, marked.val, markedAgrees⟩))
+      fun _ => Costed.bind (Costed.attach (setFlagsCosted current.indices false marked.val))
+        fun unmarked => Costed.op .preceding (passage,
+          ⟨SwiftTd.ActiveSet.empty dimension, unmarked.val, by
+            intro index
+            have unmarks : unmarked.val = setFlags current.indices false marked.val :=
+              unmarked.property
+            rw [unmarks, setFlags_get, markedAgrees]
+            by_cases inside : index ∈ current.indices <;>
+              simp [inside, SwiftTd.ActiveSet.empty]⟩)
+
 /-- Classify the transition from the stored set to the current one and store the
 current set when its action was selected with the option's distribution. A transition
 from the empty set, or between sets of which one exceeds `passageLimit`, is not
@@ -177,62 +294,74 @@ the two sets. -/
 def Preceding.advance {dimension : Dimension} (preceding : Preceding dimension)
     (current : SwiftTd.ActiveSet dimension) (armed : Bool) :
     Option (Passage dimension) × Preceding dimension :=
-  let ⟨source, flags, agrees⟩ := preceding
-  match sourceIndices : source.indices with
-  | [] =>
-    have clear : ∀ index : FeatIdx dimension, flags[index.val] = false := by
-      intro index
-      rw [agrees, sourceIndices]
-      simp
-    if armed then
-      (none, ⟨current, setFlags current.indices true flags, by
-        intro index
-        rw [setFlags_get, clear]
-        by_cases inside : index ∈ current.indices <;> simp [inside]⟩)
-    else
-      (none, ⟨SwiftTd.ActiveSet.empty dimension, flags, by
-        intro index
-        rw [clear]
-        simp [SwiftTd.ActiveSet.empty]⟩)
-  | _ :: _ =>
-    let both := current.indices.filter fun index => flags[index.val]
-    let onlyTarget := current.indices.filter fun index => !flags[index.val]
-    let cleared := setFlags source.indices false flags
-    let marked := setFlags current.indices true cleared
-    have markedAgrees : ∀ index : FeatIdx dimension,
-        marked[index.val] = decide (index ∈ current.indices) := by
-      intro index
-      simp only [marked, cleared, setFlags_get, agrees]
-      by_cases inCurrent : index ∈ current.indices <;>
-        by_cases inSource : index ∈ source.indices <;> simp [inCurrent, inSource]
-    let onlySource := source.indices.filter fun index => !marked[index.val]
-    let step := gradientStep (source.indices.length + current.indices.length)
-    let passage : Option (Passage dimension) :=
-      if fits : source.indices.length ≤ passageLimit ∧
-          current.indices.length ≤ passageLimit then
-        some { source, target := current, onlySource, both, onlyTarget, step
-               tau := step.mul (wideCount source.indices.length)
-               onlySourceCount := wideCount onlySource.length
-               bothCount := wideCount both.length
-               onlyTargetCount := wideCount onlyTarget.length
-               nonempty := by rw [sourceIndices]; exact List.cons_ne_nil _ _
-               fits
-               onlySource_eq := List.filter_congr fun index _ => by simp [markedAgrees]
-               both_eq := List.filter_congr fun index _ => by simp [agrees]
-               onlyTarget_eq := List.filter_congr fun index _ => by simp [agrees]
-               step_eq := rfl
-               tau_eq := rfl
-               onlySourceCount_eq := rfl
-               bothCount_eq := rfl
-               onlyTargetCount_eq := rfl }
-      else none
-    if armed then
-      (passage, ⟨current, marked, markedAgrees⟩)
-    else
-      (passage, ⟨SwiftTd.ActiveSet.empty dimension, setFlags current.indices false marked, by
-        intro index
-        rw [setFlags_get, markedAgrees]
-        by_cases inside : index ∈ current.indices <;> simp [inside, SwiftTd.ActiveSet.empty]⟩)
+  (preceding.advanceCosted current armed).val
+
+/-- An advance from a stored set filters the current set by the flags, clears the flags over the
+stored set, sets them over the current one, classifies a transition whose sets fit
+`passageLimit`, and stores the current set when armed; from the empty set it stores the current set
+when armed. -/
+theorem Preceding.advance_def {dimension : Dimension} (preceding : Preceding dimension)
+    (current : SwiftTd.ActiveSet dimension) (armed : Bool) :
+    preceding.advance current armed =
+      let ⟨source, flags, agrees⟩ := preceding
+      match sourceIndices : source.indices with
+      | [] =>
+        have clear : ∀ index : FeatIdx dimension, flags[index.val] = false := by
+          intro index
+          rw [agrees, sourceIndices]
+          simp
+        if armed then
+          (none, ⟨current, setFlags current.indices true flags, by
+            intro index
+            rw [setFlags_get, clear]
+            by_cases inside : index ∈ current.indices <;> simp [inside]⟩)
+        else
+          (none, ⟨SwiftTd.ActiveSet.empty dimension, flags, by
+            intro index
+            rw [clear]
+            simp [SwiftTd.ActiveSet.empty]⟩)
+      | _ :: _ =>
+        let both := current.indices.filter fun index => flags[index.val]
+        let onlyTarget := current.indices.filter fun index => !flags[index.val]
+        let cleared := setFlags source.indices false flags
+        let marked := setFlags current.indices true cleared
+        have markedAgrees : ∀ index : FeatIdx dimension,
+            marked[index.val] = decide (index ∈ current.indices) := by
+          intro index
+          simp only [marked, cleared, setFlags_get, agrees]
+          by_cases inCurrent : index ∈ current.indices <;>
+            by_cases inSource : index ∈ source.indices <;> simp [inCurrent, inSource]
+        let onlySource := source.indices.filter fun index => !marked[index.val]
+        let step := gradientStep (source.indices.length + current.indices.length)
+        let passage : Option (Passage dimension) :=
+          if fits : source.indices.length ≤ passageLimit ∧
+              current.indices.length ≤ passageLimit then
+            some { source, target := current, onlySource, both, onlyTarget, step
+                   tau := step.mul (wideCount source.indices.length)
+                   onlySourceCount := wideCount onlySource.length
+                   bothCount := wideCount both.length
+                   onlyTargetCount := wideCount onlyTarget.length
+                   nonempty := by rw [sourceIndices]; exact List.cons_ne_nil _ _
+                   fits
+                   onlySource_eq := List.filter_congr fun index _ => by simp [markedAgrees]
+                   both_eq := List.filter_congr fun index _ => by simp [agrees]
+                   onlyTarget_eq := List.filter_congr fun index _ => by simp [agrees]
+                   step_eq := rfl
+                   tau_eq := rfl
+                   onlySourceCount_eq := rfl
+                   bothCount_eq := rfl
+                   onlyTargetCount_eq := rfl }
+          else none
+        if armed then
+          (passage, ⟨current, marked, markedAgrees⟩)
+        else
+          (passage, ⟨SwiftTd.ActiveSet.empty dimension, setFlags current.indices false marked, by
+            intro index
+            rw [setFlags_get, markedAgrees]
+            by_cases inside : index ∈ current.indices <;>
+              simp [inside, SwiftTd.ActiveSet.empty]⟩) := by
+  rcases preceding with ⟨⟨indices, nodup⟩, flags, agrees⟩
+  cases indices <;> cases armed <;> rfl
 
 /-- Remove a retired slot from the stored set and clear its flag. -/
 def Preceding.retire {dimension : Dimension} (preceding : Preceding dimension)
@@ -266,25 +395,87 @@ def GradientLearner.initial (discount : Discount) (dimension : Dimension) :
     GradientLearner discount dimension :=
   ⟨Vector.replicate _ (Weight.project _ .zero), Vector.ofFn fun _ => Weight.project _ .zero⟩
 
+/-- `wideSum` with its work: one addition (`sumTerm`) for each listed slot, and the fold's
+control. -/
+def wideSumCosted {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
+    (indices : List (FeatIdx dimension)) (total : Binary64 := ⟨0⟩) : Costed Binary64 :=
+  Costed.foldl (fun total index =>
+    Costed.op .sumTerm (total.add (Conversion.widen (weights.get index).value))) total indices
+
 /-- The binary64 sum of the widened stored words at the listed slots, in list order,
 continued from `total`. -/
 def wideSum {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
     (indices : List (FeatIdx dimension)) (total : Binary64 := ⟨0⟩) : Binary64 :=
-  indices.foldl (fun total index => total.add (Conversion.widen (weights.get index).value)) total
+  (wideSumCosted weights indices total).val
+
+/-- A wide sum adds each listed slot's widened word to the total, in list order. -/
+theorem wideSum_def {rule : ValueRule} {dimension : Dimension}
+    (weights : WeightArray rule dimension) (indices : List (FeatIdx dimension)) (total : Binary64) :
+    wideSum weights indices total =
+      indices.foldl (fun total index => total.add (Conversion.widen (weights.get index).value))
+        total := rfl
+
+/-- `addAll` with its work: one weight write (`gradientWrite`) for each listed slot, and the
+fold's control. -/
+def addAllCosted {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
+    (indices : List (FeatIdx dimension)) (delta : Binary32) : Costed (WeightArray rule dimension) :=
+  Costed.foldl (fun current index => Costed.op .gradientWrite
+    (current.set index.val (Weight.project rule ((current.get index).value.add delta)) index.isLt))
+    weights indices
 
 /-- Add one increment at every listed slot, through the weight projection. -/
 def addAll {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
     (indices : List (FeatIdx dimension)) (delta : Binary32) : WeightArray rule dimension :=
-  indices.foldl (fun current index =>
-    current.set index.val (Weight.project rule ((current.get index).value.add delta)) index.isLt)
-    weights
+  (addAllCosted weights indices delta).val
+
+/-- An add fold writes each listed slot from the word it holds, in list order. -/
+theorem addAll_def {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
+    (indices : List (FeatIdx dimension)) (delta : Binary32) :
+    addAll weights indices delta =
+      indices.foldl (fun current index =>
+        current.set index.val (Weight.project rule ((current.get index).value.add delta))
+          index.isLt) weights := rfl
+
+/-- `subAll` with its work: one weight write (`gradientWrite`) for each listed slot, and the
+fold's control. -/
+def subAllCosted {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
+    (indices : List (FeatIdx dimension)) (delta : Binary32) : Costed (WeightArray rule dimension) :=
+  Costed.foldl (fun current index => Costed.op .gradientWrite
+    (current.set index.val (Weight.project rule ((current.get index).value.sub delta)) index.isLt))
+    weights indices
 
 /-- Subtract one decrement at every listed slot, through the weight projection. -/
 def subAll {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
     (indices : List (FeatIdx dimension)) (delta : Binary32) : WeightArray rule dimension :=
-  indices.foldl (fun current index =>
-    current.set index.val (Weight.project rule ((current.get index).value.sub delta)) index.isLt)
-    weights
+  (subAllCosted weights indices delta).val
+
+/-- A subtract fold writes each listed slot from the word it holds, in list order. -/
+theorem subAll_def {rule : ValueRule} {dimension : Dimension} (weights : WeightArray rule dimension)
+    (indices : List (FeatIdx dimension)) (delta : Binary32) :
+    subAll weights indices delta =
+      indices.foldl (fun current index =>
+        current.set index.val (Weight.project rule ((current.get index).value.sub delta))
+          index.isLt) weights := rfl
+
+/-- `GradientLearner.scalars` with its work: the four sums, then the two inner products from
+them (`innerProducts`). -/
+def GradientLearner.scalarsCosted {discount : Discount} {dimension : Dimension}
+    (learner : GradientLearner discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) : Costed (Binary64 × Binary64) := do
+  let one := Binary64.ofUInt64 1
+  let gamma := Conversion.widen discount.gamma
+  let complement := one.sub gamma
+  let shared ← wideSumCosted learner.main passage.both
+  let earlier ← wideSumCosted learner.main passage.onlySource shared
+  let later ← wideSumCosted learner.main passage.onlyTarget shared
+  let expected ← wideSumCosted learner.second passage.source.indices
+  let error := ((Conversion.widen cumulant).add (gamma.mul later)).sub earlier
+  let gap := error.sub expected
+  let curvature := passage.step.mul
+    ((passage.onlySourceCount.add ((gamma.mul gamma).mul passage.onlyTargetCount)).add
+      ((complement.mul complement).mul passage.bothCount))
+  Costed.op .innerProducts (expected.add (passage.tau.mul gap),
+    ((one.sub passage.tau).mul gap).sub (curvature.mul expected))
 
 /-- The two inner products of the extragradient midpoint, from the stored words: the
 midpoint's `p_m = p + τ(δ − p)` and its correction `δ_m − p_m = (1 − τ)(δ − p) − κp`. The
@@ -293,20 +484,40 @@ continued over `x \ x'` for `Σ_x w` and over `x' \ x` for `Σ_x' w`. -/
 def GradientLearner.scalars {discount : Discount} {dimension : Dimension}
     (learner : GradientLearner discount dimension) (passage : Passage dimension)
     (cumulant : Binary32) : Binary64 × Binary64 :=
-  let one := Binary64.ofUInt64 1
+  (learner.scalarsCosted passage cumulant).val
+
+/-- The inner products are formed from the sum over `x ∩ x'` continued over each class, and the
+sum of the second weights over `x`. -/
+theorem GradientLearner.scalars_def {discount : Discount} {dimension : Dimension}
+    (learner : GradientLearner discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) :
+    learner.scalars passage cumulant =
+      let one := Binary64.ofUInt64 1
+      let gamma := Conversion.widen discount.gamma
+      let complement := one.sub gamma
+      let shared := wideSum learner.main passage.both
+      let earlier := wideSum learner.main passage.onlySource shared
+      let later := wideSum learner.main passage.onlyTarget shared
+      let expected := wideSum learner.second passage.source.indices
+      let error := ((Conversion.widen cumulant).add (gamma.mul later)).sub earlier
+      let gap := error.sub expected
+      let curvature := passage.step.mul
+        ((passage.onlySourceCount.add ((gamma.mul gamma).mul passage.onlyTargetCount)).add
+          ((complement.mul complement).mul passage.bothCount))
+      (expected.add (passage.tau.mul gap),
+        ((one.sub passage.tau).mul gap).sub (curvature.mul expected)) := rfl
+
+/-- `GradientLearner.increments` with its work: the inner products, then the four increments
+from them (`increments`). -/
+def GradientLearner.incrementsCosted {discount : Discount} {dimension : Dimension}
+    (learner : GradientLearner discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) : Costed (Binary32 × Binary32 × Binary32 × Binary32) := do
+  let scalars ← learner.scalarsCosted passage cumulant
   let gamma := Conversion.widen discount.gamma
-  let complement := one.sub gamma
-  let shared := wideSum learner.main passage.both
-  let earlier := wideSum learner.main passage.onlySource shared
-  let later := wideSum learner.main passage.onlyTarget shared
-  let expected := wideSum learner.second passage.source.indices
-  let error := ((Conversion.widen cumulant).add (gamma.mul later)).sub earlier
-  let gap := error.sub expected
-  let curvature := passage.step.mul
-    ((passage.onlySourceCount.add ((gamma.mul gamma).mul passage.onlyTargetCount)).add
-      ((complement.mul complement).mul passage.bothCount))
-  (expected.add (passage.tau.mul gap),
-    ((one.sub passage.tau).mul gap).sub (curvature.mul expected))
+  let mainStep := passage.step.mul scalars.1
+  Costed.op .increments (Conversion.narrow (passage.step.mul scalars.2), Conversion.narrow mainStep,
+    Conversion.narrow (((Binary64.ofUInt64 1).sub gamma).mul mainStep),
+    Conversion.narrow (gamma.mul mainStep))
 
 /-- The four increments of one step, each narrowed once: `h(δ_m − p_m)` for `u` on `x`,
 and `h·p_m`, `(1 − γ)·h·p_m` and `γ·h·p_m` for `w` on `x \ x'`, `x ∩ x'` and `x' \ x`,
@@ -314,23 +525,51 @@ where the last is subtracted. -/
 def GradientLearner.increments {discount : Discount} {dimension : Dimension}
     (learner : GradientLearner discount dimension) (passage : Passage dimension)
     (cumulant : Binary32) : Binary32 × Binary32 × Binary32 × Binary32 :=
-  let scalars := learner.scalars passage cumulant
-  let gamma := Conversion.widen discount.gamma
-  let mainStep := passage.step.mul scalars.1
-  (Conversion.narrow (passage.step.mul scalars.2), Conversion.narrow mainStep,
-    Conversion.narrow (((Binary64.ofUInt64 1).sub gamma).mul mainStep),
-    Conversion.narrow (gamma.mul mainStep))
+  (learner.incrementsCosted passage cumulant).val
+
+/-- The increments are the step size times each inner product, narrowed. -/
+theorem GradientLearner.increments_def {discount : Discount} {dimension : Dimension}
+    (learner : GradientLearner discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) :
+    learner.increments passage cumulant =
+      let scalars := learner.scalars passage cumulant
+      let gamma := Conversion.widen discount.gamma
+      let mainStep := passage.step.mul scalars.1
+      (Conversion.narrow (passage.step.mul scalars.2), Conversion.narrow mainStep,
+        Conversion.narrow (((Binary64.ofUInt64 1).sub gamma).mul mainStep),
+        Conversion.narrow (gamma.mul mainStep)) := rfl
+
+/-- `GradientLearner.step` with its work: the increments, then the four write folds, three over
+the classes of the main weights and one over `x` of the second weights. -/
+def GradientLearner.stepCosted {discount : Discount} {dimension : Dimension}
+    (learner : GradientLearner discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) : Costed (GradientLearner discount dimension) := do
+  let deltas ← learner.incrementsCosted passage cumulant
+  let ⟨main, second⟩ := learner
+  let main ← addAllCosted main passage.onlySource deltas.2.1
+  let main ← addAllCosted main passage.both deltas.2.2.1
+  let main ← subAllCosted main passage.onlyTarget deltas.2.2.2
+  let second ← addAllCosted second passage.source.indices deltas.1
+  Costed.pure ⟨main, second⟩
 
 /-- One GTD2-MP step at importance ratio one (Liu et al., Algorithm 2): the increments are
 computed from the weights before any write, and each slot of `x ∪ x'` is written once. -/
 def GradientLearner.step {discount : Discount} {dimension : Dimension}
     (learner : GradientLearner discount dimension) (passage : Passage dimension)
     (cumulant : Binary32) : GradientLearner discount dimension :=
-  let deltas := learner.increments passage cumulant
-  let ⟨main, second⟩ := learner
-  ⟨subAll (addAll (addAll main passage.onlySource deltas.2.1) passage.both deltas.2.2.1)
-      passage.onlyTarget deltas.2.2.2,
-    addAll second passage.source.indices deltas.1⟩
+  (learner.stepCosted passage cumulant).val
+
+/-- A step adds the increments over `x \ x'` and `x ∩ x'` and subtracts the last over `x' \ x` in
+the main weights, and adds the first over `x` in the second weights. -/
+theorem GradientLearner.step_def {discount : Discount} {dimension : Dimension}
+    (learner : GradientLearner discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) :
+    learner.step passage cumulant =
+      let deltas := learner.increments passage cumulant
+      let ⟨main, second⟩ := learner
+      ⟨subAll (addAll (addAll main passage.onlySource deltas.2.1) passage.both deltas.2.2.1)
+          passage.onlyTarget deltas.2.2.2,
+        addAll second passage.source.indices deltas.1⟩ := rfl
 
 /-- Reset one retired slot's main and second weights to zero. -/
 def GradientLearner.retire {discount : Discount} {dimension : Dimension}
@@ -357,6 +596,17 @@ def Question.initial (discount : Discount) (dimension : Dimension) :
   ⟨GradientLearner.initial discount dimension, true, fun _ index => by
     simp [GradientLearner.initial, Weight.project_zero]⟩
 
+/-- `Question.step` with its work: the learner's step unless the question is silent at a zero
+signal word, and the question's record (`question`). -/
+def Question.stepCosted {discount : Discount} {dimension : Dimension}
+    (question : Question discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) : Costed (Question discount dimension) :=
+  let ⟨learner, silent, blank⟩ := question
+  Costed.ite ((silent && cumulant.bits == 0) = true)
+    (fun _ => Costed.op .question ⟨learner, silent, blank⟩)
+    fun _ => Costed.bind (learner.stepCosted passage cumulant) fun stepped =>
+      Costed.op .question ⟨stepped, false, nofun⟩
+
 /-- One step of a question. Zero weights and a zero signal word are a fixed point of
 Algorithm 2: every sum and so every increment is zero. A silent question at a zero
 signal word therefore takes no step and reads no weight. Any other step is the
@@ -364,9 +614,19 @@ learner's, and ends the silence. -/
 def Question.step {discount : Discount} {dimension : Dimension}
     (question : Question discount dimension) (passage : Passage dimension)
     (cumulant : Binary32) : Question discount dimension :=
-  let ⟨learner, silent, blank⟩ := question
-  if silent && cumulant.bits == 0 then ⟨learner, silent, blank⟩
-  else ⟨learner.step passage cumulant, false, nofun⟩
+  (question.stepCosted passage cumulant).val
+
+/-- A silent question at a zero signal word is kept; any other takes its learner's step and is no
+longer silent. -/
+theorem Question.step_def {discount : Discount} {dimension : Dimension}
+    (question : Question discount dimension) (passage : Passage dimension)
+    (cumulant : Binary32) :
+    question.step passage cumulant =
+      let ⟨learner, silent, blank⟩ := question
+      if silent && cumulant.bits == 0 then ⟨learner, silent, blank⟩
+      else ⟨learner.step passage cumulant, false, nofun⟩ := by
+  rcases question with ⟨learner, silent, blank⟩
+  cases silent <;> rfl
 
 /-- Reset one retired slot. A silent question already holds zero there and is kept as it
 is; any other question's learner resets the slot. -/
@@ -393,14 +653,34 @@ def GradientBank.initial (dimension : Dimension) :
   | discount :: rest => .cons (Question.initial discount dimension)
       (GradientBank.initial dimension rest)
 
+/-- `GradientBank.step` with its work: each question's step, the rest of the bank's step, then the
+question put before the rest's (`questionBank`); the end of the bank is charged a visit. -/
+def GradientBank.stepCosted {dimension : Dimension} {discounts : List Discount}
+    (bank : GradientBank dimension discounts) (passage : Passage dimension)
+    (cumulants : Cumulants discounts) : Costed (GradientBank dimension discounts) :=
+  match bank, cumulants with
+  | .nil, .nil => Costed.op .visit .nil
+  | .cons question rest, .cons _origin value values => Costed.charge .visit do
+    let stepped ← question.stepCosted passage value
+    let next ← rest.stepCosted passage values
+    Costed.op .questionBank (.cons stepped next)
+
 /-- Each question takes one step from the same transition with its own signal value. -/
 def GradientBank.step {dimension : Dimension} {discounts : List Discount}
     (bank : GradientBank dimension discounts) (passage : Passage dimension)
     (cumulants : Cumulants discounts) : GradientBank dimension discounts :=
-  match bank, cumulants with
-  | .nil, .nil => .nil
-  | .cons question rest, .cons _origin value values =>
-    .cons (question.step passage value) (rest.step passage values)
+  (bank.stepCosted passage cumulants).val
+
+/-- A bank step steps each question with its own signal value and then the rest of the bank. -/
+theorem GradientBank.step_def {dimension : Dimension} {discounts : List Discount}
+    (bank : GradientBank dimension discounts) (passage : Passage dimension)
+    (cumulants : Cumulants discounts) :
+    bank.step passage cumulants =
+      match bank, cumulants with
+      | .nil, .nil => .nil
+      | .cons question rest, .cons _origin value values =>
+        .cons (question.step passage value) (rest.step passage values) := by
+  cases bank <;> cases cumulants <;> rfl
 
 /-- Every question resets the retired slot. -/
 def GradientBank.retire {dimension : Dimension} {discounts : List Discount}
@@ -424,16 +704,39 @@ def OptionQuestions.initial (dimension : Dimension) (discounts : List Discount) 
     OptionQuestions dimension discounts :=
   ⟨GradientBank.initial dimension discounts, Preceding.empty dimension⟩
 
+/-- `OptionQuestions.follow` with its work: the preceding set's advance, the bank's step when
+the advance classifies a transition, and the questions' record (`follow`). -/
+def OptionQuestions.followCosted {dimension : Dimension} {discounts : List Discount}
+    (questions : OptionQuestions dimension discounts) (features : SwiftTd.ActiveSet dimension)
+    (cumulants : Cumulants discounts) (armed : Bool) :
+    Costed (OptionQuestions dimension discounts) :=
+  let ⟨learners, preceding⟩ := questions
+  Costed.bind (preceding.advanceCosted features armed) fun
+    | (none, next) => Costed.op .follow ⟨learners, next⟩
+    | (some passage, next) => Costed.bind (learners.stepCosted passage cumulants) fun stepped =>
+      Costed.op .follow ⟨stepped, next⟩
+
 /-- One frame: learn from the transition into it when the preceding frame's action was
 selected with the option's distribution, then store this frame's active set when its
 own action was. -/
 def OptionQuestions.follow {dimension : Dimension} {discounts : List Discount}
     (questions : OptionQuestions dimension discounts) (features : SwiftTd.ActiveSet dimension)
     (cumulants : Cumulants discounts) (armed : Bool) : OptionQuestions dimension discounts :=
-  let ⟨learners, preceding⟩ := questions
-  match preceding.advance features armed with
-  | (none, next) => ⟨learners, next⟩
-  | (some passage, next) => ⟨learners.step passage cumulants, next⟩
+  (questions.followCosted features cumulants armed).val
+
+/-- Following a frame steps the bank when the advance classifies a transition, and keeps the
+advanced preceding set. -/
+theorem OptionQuestions.follow_def {dimension : Dimension} {discounts : List Discount}
+    (questions : OptionQuestions dimension discounts) (features : SwiftTd.ActiveSet dimension)
+    (cumulants : Cumulants discounts) (armed : Bool) :
+    questions.follow features cumulants armed =
+      let ⟨learners, preceding⟩ := questions
+      match preceding.advance features armed with
+      | (none, next) => ⟨learners, next⟩
+      | (some passage, next) => ⟨learners.step passage cumulants, next⟩ := by
+  rcases questions with ⟨learners, preceding⟩
+  dsimp only [OptionQuestions.follow, OptionQuestions.followCosted, Preceding.advance, Costed.bind]
+  rcases (preceding.advanceCosted features armed).val with ⟨_ | passage, next⟩ <;> rfl
 
 /-- Reset the retired slot in every learner and drop it from the stored set. -/
 def OptionQuestions.retire {dimension : Dimension} {discounts : List Discount}

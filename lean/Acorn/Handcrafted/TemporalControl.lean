@@ -118,6 +118,21 @@ def askedBy (decision : TemporalDecision actions) (index : Fin Acorn.FeatureCons
     (following : Option Following) : Bool :=
   decision.source == .option index || following.any (·.live)
 
+/-- `askQuestions` with its work: one indexed map over the options, each option's questions
+following the frame and the option's record (`ask`). -/
+def askQuestionsCosted
+    (skills : Vector (Skill interface.actions config criterion dimension interface.layout)
+      Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants interface.layout)
+    (decision : TemporalDecision interface.actions) :
+    Costed (Vector (Skill interface.actions config criterion dimension interface.layout)
+      Acorn.FeatureConstants.skillCount) :=
+  Costed.mapFinIdx skills fun index skill bound =>
+    let ⟨interest, policy, model, following, questions⟩ := skill
+    Costed.bind
+      (questions.followCosted features cumulants (askedBy decision ⟨index, bound⟩ following))
+      fun asked => Costed.op .ask ⟨interest, policy, model, following, asked⟩
+
 /-- Every option's questions about its own policy take the frame (Horde, AAMAS 2011,
 §4; PAR-18): each learns from the transition into this frame when the preceding frame's
 action was selected with the option's own distribution, and stores this frame when its
@@ -129,10 +144,19 @@ def askQuestions (skills : Vector (Skill interface.actions config criterion dime
     (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants interface.layout)
     (decision : TemporalDecision interface.actions) :
     Vector (Skill interface.actions config criterion dimension interface.layout) Acorn.FeatureConstants.skillCount :=
-  skills.mapFinIdx fun index skill bound =>
-    let ⟨interest, policy, model, following, questions⟩ := skill
-    ⟨interest, policy, model, following,
-      questions.follow features cumulants (askedBy decision ⟨index, bound⟩ following)⟩
+  (askQuestionsCosted skills features cumulants decision).val
+
+/-- Asking questions runs each option's questions through the frame, armed by the decision. -/
+theorem askQuestions_def
+    (skills : Vector (Skill interface.actions config criterion dimension interface.layout)
+      Acorn.FeatureConstants.skillCount)
+    (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants interface.layout)
+    (decision : TemporalDecision interface.actions) :
+    askQuestions skills features cumulants decision =
+      skills.mapFinIdx fun index skill bound =>
+        let ⟨interest, policy, model, following, questions⟩ := skill
+        ⟨interest, policy, model, following,
+          questions.follow features cumulants (askedBy decision ⟨index, bound⟩ following)⟩ := rfl
 
 /-- Complete one selected primitive step: primitive credit, demons, every option's
 questions in a learning hierarchy, then gain, and record the frame for later search
@@ -207,7 +231,7 @@ theorem askQuestions_get (skills : Vector (Skill interface.actions config criter
     (askQuestions skills features cumulants decision)[index.val] =
       { skills[index.val] with questions := (skills[index.val].questions.follow features cumulants
           (askedBy decision index skills[index.val].following)) } := by
-  simp only [askQuestions, Vector.getElem_mapFinIdx, Fin.eta]
+  simp only [askQuestions_def, Vector.getElem_mapFinIdx, Fin.eta]
 
 /-- The completion boundary writes each slot's questions in a learning hierarchy and no
 other field of any slot, in every profile. -/
