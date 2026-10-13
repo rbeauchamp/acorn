@@ -7,6 +7,7 @@ import Regula.Contract
 import Regula.Decision
 import Acorn.Agreement
 import Acorn.FeatureRanking
+import Acorn.Host.AgentArguments
 import Acorn.Host.AgentPrefix
 import Acorn.Host.Ansi
 import Acorn.Host.Baseline
@@ -174,6 +175,10 @@ rule `Host.considerSpawn` of the spawn search carry the two-way kind there (`spa
 `AcornVerif.CurrentCertificates`. The values of their accepted results (`spawn_count_value`,
 `spawn_consider_value`) and the requirement with no kind of the search `Host.selectSpawn`
 (`spawn_select`) are stated there because their theorems are in `AcornVerif.CurrentSpawn`.
+The two parsers that read decimal numerals with Lean's `String.toNat?`, `Host.Cli.natural` and
+`Host.AgentArguments.admit`, carry the two-way kind there (`cli_natural`,
+`agent_arguments_admit`), because the statements of what that reader accepts are in Lean's
+`Std.Data.String.ToNat`, which this module does not import.
 `Host.World.initial` has an accepted input stated there (`world_initial_accepts`), at a
 configuration of one tile whose spawn search succeeds by the terrain admission of
 `AcornVerif.CurrentTerrain`.
@@ -278,17 +283,17 @@ report of the definitions that have no contract is work of Regula
 * A structure field, which is stored data, and a function with a `Decidable _` result, which
   carries both directions of its decision in its type, have no contract.
 * No theorem of the maintained libraries names the definition in its statement. This is the
-  absence of a direct reference and nothing more. These are the command-line parsers of
-  `Host.Cli`, `Host.AgentArguments`, the native drivers and `NativeApp`, the readers and the
-  private helpers of the JSON parser (the parser `Json.parse` has the
-  contract `json_parse`, which states texts it accepts and not every text; the scanner of a
-  number `Json.Numeral.scan`, the reader `Json.Value.numeral` and the member lookup
-  `Json.Value.member` have the contracts `json_scan`, `json_numeral` and `json_member`), the
-  viewer's envelope and map decoders, the summaries of an endurance run, whose means are absent
-  for an empty sample (`Host.Endurance.Rates.summary`, `Host.Endurance.ErrorStats.summary`,
-  `Host.Endurance.Reduction.energySummary`), and the transitions and lookups that no theorem
-  mentions. Kinds for the parsers against
-  written grammars are the subject of https://github.com/rbeauchamp/acorn/issues/81. Most are
+  absence of a direct reference and nothing more. These are the other command-line parsers of
+  `Host.Cli` (the readers of an option, a research profile, a planning word, a step order and
+  an unsigned number have contracts), the native drivers and `NativeApp`, the readers and the
+  private helpers of the JSON parser (the parser `Json.parse` has the contracts `json_parse`,
+  which states texts it accepts, and `json_parse_text`, which states that it accepts only
+  JSON texts; the scanner of a number `Json.Numeral.scan`, the reader `Json.Value.numeral` and
+  the member lookup `Json.Value.member` have the contracts `json_scan`, `json_numeral` and
+  `json_member`), the viewer's envelope and map decoders, the summaries of an endurance run,
+  whose means are absent for an empty sample (`Host.Endurance.Rates.summary`,
+  `Host.Endurance.ErrorStats.summary`, `Host.Endurance.Reduction.energySummary`), and the
+  transitions and lookups that no theorem mentions. Most are
   functions between fixed types, `Host.Viewer.MapBytes.admit` and `Host.Viewer.decodeMapRuns`
   return `Except String (MapBytes key)` for the receiving key, and `Json.decode` returns
   `Except String α` for the result type `α` it is given.
@@ -362,6 +367,11 @@ decision that applies it is the evidence.
 The seven private scanners of the parts of a number, which `Json.Numeral.scan` applies, are
 in that case: only private lemmas of the proofs of `Json.Numeral.scan_formed` and
 `Json.Numeral.scan_chars` name them, and the contract `json_scan` is their evidence. The
+readers of a profile and of an unsigned word of the native drivers,
+`Host.AgentArguments.profile` and `Host.AgentArguments.word`, which
+`Host.AgentArguments.admit` applies, are in that case too: only private lemmas of the proof of
+`agent_arguments_admit` in `AcornVerif.Decisions` name them, and that contract and
+`agent_arguments_admit_value` are their evidence. The
 private readers of the parts of a frame in `Host.Microduck.Wire`, which
 `Host.Microduck.State.read` and `Host.Microduck.Depth.read` apply, are in that case too:
 only private lemmas of the proofs of `Host.Microduck.State.read_iff` and
@@ -1225,6 +1235,30 @@ theorem planning_value : Regula.ExecutableContract Host.Cli.planningValue
 
 attribute [regula_decision] Host.Cli.planningValue
 
+/-- Research-profile admission returns a profile exactly for a text that spells one
+(`Host.Cli.profile_spelled`). -/
+private theorem cliProfile_isOk (text : String) :
+    (Host.Cli.profile text).isOk = true ↔ ∃ selected, Host.Cli.ProfileSpelled text selected := by
+  cases parsed : Host.Cli.profile text with
+  | ok selected =>
+    exact ⟨fun _ => ⟨selected, (Host.Cli.profile_spelled text selected).mp parsed⟩, fun _ => rfl⟩
+  | error refusal =>
+    refine ⟨fun accepted => absurd accepted Bool.false_ne_true, fun ⟨selected, spelled⟩ => ?_⟩
+    rw [(Host.Cli.profile_spelled text selected).mpr spelled] at parsed
+    cases parsed
+
+/-- Research-profile admission accepts exactly the five profile words
+(`Host.Cli.profile_spelled`). The specification is the relation `Host.Cli.ProfileSpelled`, with
+one case for each word, and shares no test with the function. The two inputs of the proof are
+`ranked`, which is accepted, and the empty text, which is refused. -/
+theorem cli_profile : Regula.ExecutableContract Host.Cli.profile
+    (Regula.Decides (·.isOk = true)
+      (fun text => ∃ selected, Host.Cli.ProfileSpelled text selected)) :=
+  ⟨decides cliProfile_isOk ⟨"ranked", .ranked, .inl ⟨rfl, rfl⟩⟩
+    ⟨"", fun ⟨_, spelled⟩ => by simp [Host.Cli.ProfileSpelled] at spelled⟩⟩
+
+attribute [regula_decision] Host.Cli.profile
+
 /-- The option reader accepts exactly when the first occurrence of the option is not the last
 argument (`Host.Cli.value_missing`). -/
 private theorem value_accepts (arguments : List String) (wanted : String) :
@@ -2053,9 +2087,8 @@ the request and its text, and names no function of the parser. The refused input
 proof is the empty text. `json_parse_value` states the value of an accepted text of a
 request.
 
-**Not claimed:** soundness. The parser accepts every JSON text within its limits, and no
-theorem states which texts those are; kinds for the parser against the grammar of JSON are
-the subject of https://github.com/rbeauchamp/acorn/issues/81. -/
+**Not claimed:** soundness, which `json_parse_text` states, and that the parser accepts every
+text of the grammar of JSON. -/
 theorem json_parse :
     Regula.ExecutableContract Json.parse
       (Regula.DecidesCompletely (fun result => result.isOk = true)
@@ -2077,6 +2110,34 @@ theorem json_parse_value :
       ∀ request : Json.Request, request.Simple →
         parse (String.ofList request.chars) = .ok request.value) :=
   ⟨Json.parse_request⟩
+
+/-- The JSON parser accepts only JSON texts: every text that it accepts is, as a list of
+characters, a text of the grammar of RFC 8259, sections 2 to 7 (`Json.Grammar.Text`), with the
+three restrictions that the grammar states: a depth of nesting of at most 128, names that differ
+within an object and surrogate escapes in pairs (`Json.parse_sound`). The specification is the
+grammar, relations that name no function of the parser. The accepted input of the proof is the
+text `{}`.
+
+**Not claimed:** completeness, that the parser accepts every text of the grammar; `json_parse`
+states the texts of requests that it accepts. -/
+theorem json_parse_text :
+    Regula.ExecutableContract Json.parse
+      (Regula.DecidesSoundly (fun result => result.isOk = true)
+        (fun text : String => ∃ v, Json.Grammar.Text text.toList v)) :=
+  ⟨{ sound := fun text accepted => by
+       cases parsed : Json.parse text with
+       | ok v => exact ⟨v, Json.parse_sound text v parsed⟩
+       | error refusal => rw [parsed] at accepted; exact absurd accepted Bool.false_ne_true
+     accepted := ⟨"{}", by decide +kernel⟩ }⟩
+
+/-- The value that the JSON parser gives an accepted text: for every text and value, the value
+of the text's derivation in the grammar of RFC 8259 (`Json.Grammar.Text`, `Json.parse_sound`).
+A kind states accepted inputs and not the value of an accepted result, so this statement is a
+requirement with no kind beside the kind `json_parse_text`. -/
+theorem json_parse_text_value :
+    Regula.ExecutableContract Json.parse (fun parse =>
+      ∀ text v, parse text = .ok v → Json.Grammar.Text text.toList v) :=
+  ⟨Json.parse_sound⟩
 
 /-- The test of what shows a Microduck action accepts exactly an action and a policy that
 the table `Host.Microduck.Action.Shown` pairs (`Host.Microduck.Action.shows_iff`). The
@@ -2505,6 +2566,208 @@ theorem control_body : Regula.ExecutableContract controlBody
     ⟨⟨Array.replicate 1025 0⟩, by simp [ByteArray.size, controlBodyCapacity]⟩⟩
 
 attribute [regula_decision] controlBody
+
+/-- Lifecycle-command parsing returns a command exactly for a text that spells one
+(`Host.Viewer.Command.parse_spelled`). -/
+private theorem commandParse_isSome (text : String) :
+    (Command.parse text).isSome = true ↔ ∃ command, Command.Spelled text command := by
+  rw [Option.isSome_iff_exists]
+  exact exists_congr fun command => Command.parse_spelled text command
+
+/-- Lifecycle-command parsing accepts exactly the three command words
+(`Host.Viewer.Command.parse_spelled`). The specification is the relation
+`Host.Viewer.Command.Spelled`, with one case for each word, and shares no test with the
+function. The two inputs of the proof are `start`, which is accepted, and the empty text,
+which is refused. -/
+theorem command_parse : Regula.ExecutableContract Command.parse
+    (Regula.Decides (·.isSome = true) (fun text => ∃ command, Command.Spelled text command)) :=
+  ⟨decides commandParse_isSome ⟨"start", .start, .inl ⟨rfl, rfl⟩⟩
+    ⟨"", fun ⟨_, spelled⟩ => by simp [Command.Spelled] at spelled⟩⟩
+
+attribute [regula_decision] Command.parse
+
+/-- A byte array that Lean's UTF-8 decoding reads as a text is the encoding of that text. -/
+private theorem fromUTF8?_some {bytes : ByteArray} {text : String}
+    (read : String.fromUTF8? bytes = some text) : bytes = text.toUTF8 := by
+  unfold String.fromUTF8? at read
+  split at read
+  · cases read
+    rfl
+  · cases read
+
+/-- Lean's UTF-8 decoding reads the encoding of a text as that text. -/
+private theorem fromUTF8?_toUTF8 (text : String) : String.fromUTF8? text.toUTF8 = some text := by
+  simp [String.fromUTF8?, String.fromUTF8, String.toUTF8_eq_toByteArray, text.isValidUTF8]
+
+/-- A result of the bind of `Except` comes from a result of its first part. -/
+private theorem except_bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {y : β}
+    (read : (x >>= f) = .ok y) : ∃ a, x = .ok a ∧ f a = .ok y := by
+  cases x with
+  | error e => cases read
+  | ok a => exact ⟨a, rfl, read⟩
+
+/-- The names of an object of a JSON text of the grammar differ (`Json.Grammar.Value.object`). -/
+private theorem text_object_distinct {cs : List Char} {fields : List (String × Json.Value)}
+    (spelled : Json.Grammar.Text cs (.object fields)) : (fields.map Prod.fst).Nodup := by
+  obtain ⟨before, body, after, -, value, -, -⟩ := spelled
+  cases value with
+  | emptyObject => simp
+  | object _ _ distinct => exact distinct
+
+/-- The control decoder accepts only a body that spells a command, and returns that command:
+the decoded text is a JSON text of the grammar (`Json.parse_sound`), its object has one member,
+because the decoder refuses every member but `cmd` and the grammar's names differ, and the
+member's value is a string that spells the command. -/
+private theorem controlCommand_spelled (body : ControlBody) (command : Command)
+    (accepted : controlCommand body = .ok command) : ControlSpelled body.val command := by
+  unfold controlCommand at accepted
+  split at accepted
+  · rename_i text decoded
+    obtain ⟨value, parsed, decodedValue⟩ := except_bind_ok accepted
+    clear accepted
+    have spelled := Json.parse_sound text value parsed
+    unfold Json.decode at decodedValue
+    obtain ⟨fields, fielded, decodedFields⟩ := except_bind_ok decodedValue
+    clear decodedValue
+    have object : value = .object fields := by
+      cases value <;> simp only [Json.Value.fields, reduceCtorEq, Except.ok.injEq] at fielded
+      rw [fielded]
+    rw [object] at spelled
+    obtain ⟨⟨result, rest⟩, ran, finished⟩ := except_bind_ok decodedFields
+    cases found : fields.find? (fun p => p.1 == "cmd") with
+    | none =>
+      simp [Json.text, Json.take, found, StateT.run, bind, StateT.bind, Except.bind, pure,
+        Except.pure, get, getThe, MonadStateOf.get, StateT.get, StateT.lift, throw, throwThe,
+        MonadExceptOf.throw] at ran
+    | some pair =>
+      simp [Json.text, Json.take, found, StateT.run, bind, StateT.bind, Except.bind, pure,
+        Except.pure, StateT.pure, get, getThe, MonadStateOf.get, StateT.get, set, StateT.set,
+        MonadStateOf.set, StateT.lift, liftM, monadLift, MonadLift.monadLift] at ran
+      cases worded : pair.2.text with
+      | error e => simp [worded] at ran
+      | ok word =>
+        cases named : Command.parse word with
+        | none =>
+          simp [worded, named, throw, throwThe, MonadExceptOf.throw, StateT.lift, Functor.map,
+            Except.map] at ran
+        | some parsedCommand =>
+          simp [worded, named, StateT.pure, pure, Except.pure] at ran
+          obtain ⟨rfl, rfl⟩ := ran
+          have empty : (fields.filter fun p => p.1 != "cmd") = [] := by
+            by_cases none : (fields.filter fun p => p.1 != "cmd").isEmpty = true
+            · simpa using none
+            · simp only [none, Bool.false_eq_true, ↓reduceIte] at finished
+              cases finished
+          simp only [empty, List.isEmpty_nil, ↓reduceIte] at finished
+          cases finished
+          have member : pair ∈ fields := List.mem_of_find?_eq_some found
+          have key : pair.1 = "cmd" := by simpa using List.find?_some found
+          have only : ∀ other ∈ fields, other.1 = "cmd" := fun other mem => by
+            have := List.filter_eq_nil_iff.mp empty other mem
+            simpa using this
+          have single : fields = [pair] := by
+            have distinct := text_object_distinct spelled
+            match fields, member, distinct, only with
+            | [first], member, _, _ => simp_all
+            | first :: second :: more, _, distinct, only =>
+              have same : first.1 = second.1 := by
+                rw [only first (by simp), only second (by simp)]
+              simp [List.nodup_cons, same] at distinct
+          have string : pair.2 = .string word := by
+            unfold Json.Value.text at worded
+            split at worded
+            · rename_i same
+              split at worded
+              · cases worded
+              · cases worded
+                exact same
+            · cases worded
+          refine ⟨text, word, fromUTF8?_some decoded, ?_,
+            (Command.parse_spelled word _).mp named⟩
+          rw [single] at spelled
+          obtain ⟨name, item⟩ := pair
+          simp only at key string
+          rw [key, string] at spelled
+          exact spelled
+  · cases accepted
+
+/-- The JSON parser reads the text that writes a command word as `JSON.stringify` writes it,
+with no space, as the object of that word (`Json.parse_request`). -/
+private theorem commandText_parse (word : String) (plain : ∀ c ∈ word.toList, Json.Plain c) :
+    Json.parse ("{\"cmd\":\"" ++ word ++ "\"}") = .ok (.object [("cmd", .string word)]) := by
+  have text : String.ofList (Json.Request.chars [("cmd", .scalar (.text word))]) =
+      "{\"cmd\":\"" ++ word ++ "\"}" := by
+    apply String.toList_inj.mp
+    simp [Json.Request.chars, Json.member, Json.joined, Json.Part.chars, Json.Scalar.chars]
+  rw [← text, Json.parse_request _
+    ⟨by simpa [Json.Part.Simple, Json.Scalar.Simple, Json.Plain] using plain, by simp⟩]
+  rfl
+
+/-- The control decoder accepts the UTF-8 encoding of the text that writes a command word with
+no space, and returns that command. -/
+private theorem controlCommand_written (body : ControlBody) (word : String) (command : Command)
+    (spelled : Command.Spelled word command)
+    (same : body.val = ("{\"cmd\":\"" ++ word ++ "\"}").toUTF8) :
+    controlCommand body = .ok command := by
+  unfold controlCommand
+  rw [same, fromUTF8?_toUTF8]
+  rcases spelled with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
+    (simp only [bind, Except.bind]; rw [commandText_parse _ (by decide)]; rfl)
+
+/-- Control-body decoding accepts only bodies that spell a lifecycle command: the UTF-8
+encoding of a JSON text of RFC 8259 whose value is an object with the one member `cmd`, a
+string that spells the command (`Host.Viewer.ControlSpelled`). The proof rests on
+`Json.parse_sound` and on the decoder's refusal of every other member. The specification
+names the grammar of `Json.Grammar` and the relation `Host.Viewer.Command.Spelled`, and shares
+no test with the function. The accepted input of the proof is the body that the viewer sends
+for `start`.
+
+**Not claimed:** completeness about that specification. The parser's acceptance of every text
+of the grammar has no theorem, so a body with white space or an escape has no statement that it
+is accepted; `control_command_written` states the bodies that the viewer itself writes. -/
+theorem control_command : Regula.ExecutableContract controlCommand
+    (Regula.DecidesSoundly (·.isOk = true)
+      (fun body : ControlBody => ∃ command, ControlSpelled body.val command)) :=
+  ⟨{ sound := fun body accepted => by
+       cases decoded : controlCommand body with
+       | ok command => exact ⟨command, controlCommand_spelled body command decoded⟩
+       | error refusal => rw [decoded] at accepted; exact absurd accepted Bool.false_ne_true
+     accepted := ⟨⟨("{\"cmd\":\"" ++ "start" ++ "\"}").toUTF8, by decide⟩, by
+       rw [controlCommand_written _ "start" .start (.inl ⟨rfl, rfl⟩) rfl]
+       rfl⟩ }⟩
+
+/-- Control-body decoding accepts the UTF-8 encoding of the object with the one member `cmd`
+and no space, whose value is a command word, and so the body that the viewer's script sends for
+each lifecycle command. The specification states the text with the command word written in it
+and names no function of the parser. The refused input of the proof is the empty body, which is
+no JSON text.
+
+**Assumes:** the viewer's `sendCmd` in `viewer/static/index.html` sends `JSON.stringify({ cmd })`
+as the body of `fetch`. With no space argument, `JSON.stringify` writes the member as its quoted
+name, a colon and its value, with no white space (ECMA-262, 15th edition, 2024, section 25.5.2),
+and a string of plain characters needs no escape; `fetch` sends a string body as its UTF-8
+encoding (WHATWG Fetch Standard, section 5.2, "extract a body").
+
+**Not claimed:** soundness, which `control_command` states, and that the viewer's script sends
+nothing else. -/
+theorem control_command_written : Regula.ExecutableContract controlCommand
+    (Regula.DecidesCompletely (·.isOk = true)
+      (fun body : ControlBody => ∃ word command, Command.Spelled word command ∧
+        body.val = ("{\"cmd\":\"" ++ word ++ "\"}").toUTF8)) :=
+  ⟨{ complete := fun body ⟨word, command, spelled, same⟩ => by
+       rw [controlCommand_written body word command spelled same]
+       rfl
+     refused := ⟨⟨ByteArray.empty, by decide⟩, by decide +kernel⟩ }⟩
+
+attribute [regula_decision] controlCommand
+
+/-- The command that control-body decoding returns: for every body and command, an accepted
+body spells that command (`Host.Viewer.ControlSpelled`). A kind states accepted inputs and not
+the value of an accepted result, so this statement is a requirement with no kind beside the
+kinds `control_command` and `control_command_written`. -/
+theorem control_command_value : Regula.ExecutableContract controlCommand (fun decode =>
+    ∀ body command, decode body = .ok command → ControlSpelled body.val command) :=
+  ⟨controlCommand_spelled⟩
 
 /-- The specification of wire-line admission: the text fits the line capacity in bytes and
 holds neither newline character. -/
@@ -7251,6 +7514,7 @@ attribute [regula_decision] Checkpoint.load Checkpoint.admitSum Agreement.precis
   Host.regionBlocked Host.replayCertified Host.stanceCertified Host.ReplayCertificate.check
   Host.StanceCertificate.check Host.BlockedCertificate.check Host.countKindNear Host.considerSpawn
   Host.payAndAct Host.performAction Host.Released.environment NumericState.clearAt
-  Checkpoint.resume Host.valueNoise Host.octaveLoop Host.fbm
+  Checkpoint.resume Host.valueNoise Host.octaveLoop Host.fbm Host.Cli.natural
+  Host.AgentArguments.admit
 
 end Acorn.Decisions

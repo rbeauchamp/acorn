@@ -35,6 +35,19 @@ def Command.parse : String → Option Command
   | "clear" => some .clear
   | _ => none
 
+/-- The specification of the spelling of a lifecycle command, written with no executed
+function: a text spells a command when it is that command's one word. -/
+def Command.Spelled (text : String) (command : Command) : Prop :=
+  (text = "start" ∧ command = .start) ∨ (text = "stop" ∧ command = .stop) ∨
+    (text = "clear" ∧ command = .clear)
+
+/-- **The control-word parser accepts exactly the spelled commands.** For every text and
+command, the parser returns the command exactly when the text spells it. -/
+theorem Command.parse_spelled (text : String) (command : Command) :
+    Command.parse text = some command ↔ Command.Spelled text command := by
+  unfold Command.parse Command.Spelled
+  split <;> cases command <;> simp_all
+
 /-- Durable world and logical agent identity; process restarts have separate generations. -/
 structure Identity where
   /-- Opaque durable run identifier. -/

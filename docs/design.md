@@ -1110,7 +1110,7 @@ that an answer names one send and not a kind of command. Each magnitude of a vel
 is a numeral of a table, proved to write the thousandths of the action table over a
 thousand exactly (`spelling_twist`). A line is the text of a request value, and the
 parser of this repository reads the text of every such value back as the value
-(`parse_request`, the first theorem about that parser on a family of texts), so for
+(`parse_request`, a theorem about that parser on a family of texts), so for
 every identifier and command it reads the line as the request, with exactly its
 members and its parameters and no other (`Command.line_asked`); that a daemon reads
 them so is not stated. The release of an action sends velocities and skills

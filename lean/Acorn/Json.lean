@@ -30,7 +30,10 @@ text that goes on with no digit, point or exponent mark (`Numeral.scan_append`).
 `Numeral.natural` is the numeral of a natural number, its decimal digits, and it is
 formed (`Numeral.natural_formed`).
 
-`parse` has one theorem. A `Request` is a JSON object of two levels, whose members are
+`parse` has two theorems. `Grammar.Text` is the grammar of a JSON text of RFC 8259,
+written as relations that name no function of the parser, and `parse_sound` states that
+every text that `parse` accepts is a text of that grammar, with the value that `parse` gives
+as the value of its derivation. A `Request` is a JSON object of two levels, whose members are
 scalars or one object of scalars, and `Request.chars` is its text with no space.
 `parse_request` states that `parse` reads that text back as the value of the request,
 for every request whose names and strings are of plain characters (no quotation mark, no
@@ -39,8 +42,8 @@ are formed numerals with no exponent part. Its proof follows the parser through 
 the white space, the body of a string, the scanner of a number, the value reader and the
 loop over the members of an object, each with a lemma for texts of this family, and the
 fuel that `parse` derives from the length of the text is shown to be enough. No theorem
-states what `parse` does with any other text: with an array, an escape, a nested object
-of more levels, white space, or a text that is no JSON.
+states that `parse` accepts a text of the grammar outside that family: with an array, an
+escape, a nested object of more levels or white space.
 -/
 namespace Acorn.Json
 
@@ -850,8 +853,8 @@ A request that a host writes is a JSON object of two levels: its members are sca
 is the text of such an object, with no space. `parse_request` states that `parse`
 reads that text back as the value of the request, for every request whose strings need no
 escape, whose numbers are formed numerals with no exponent part, and whose member names
-differ at each level. It is a statement about `parse` on a family of texts, and the first
-one; the parser has no other theorem. -/
+differ at each level. It is a statement about `parse` on a family of texts; `parse_sound`
+in the next section states what every text that `parse` accepts is. -/
 
 /-- A character that a string of a request can hold as it is: no quotation mark, no
 reverse solidus and no control character. -/
@@ -1509,6 +1512,643 @@ theorem parse_request (request : Request) (simple : request.Simple) :
       return v) = _
     rw [whole]
     rfl
+
+/-! ## The grammar of a JSON text, and the texts the parser accepts
+
+The grammar of T. Bray (ed.), *The JavaScript Object Notation (JSON) Data Interchange
+Format*, RFC 8259, 2017, sections 2 to 7, written as relations between a list of characters
+and the value it denotes. The relations name no function of the parser. They keep three
+restrictions of the parser, each of which the RFC permits:
+
+* every value is at a depth of nesting of at most 128, the top-level value at depth zero and
+  the values of an array or an object one deeper than it (section 9: "An implementation may
+  set limits on the maximum depth of nesting");
+* the names of an object differ (section 4: "The names within an object SHOULD be unique");
+* a `\u` escape of a code point from `D800` to `DFFF` is half of a surrogate pair, a high
+  surrogate followed by an escaped low surrogate, and the pair denotes one character beyond
+  the Basic Multilingual Plane (section 7). The grammar of section 7 also admits a lone
+  surrogate, whose meaning section 8.2 leaves unpredictable; the parser refuses it, because
+  the characters of a Lean string are Unicode scalar values.
+
+The text is a list of Unicode scalar values: the host decodes UTF-8 (section 8.1) before
+`parse` reads it. A number denotes its spelling (`Value.number`), which section 6 leaves to
+the implementation to interpret.
+
+`parse_sound` states that every text that `parse` accepts is a JSON text of this grammar
+(`Grammar.Text`), with the value that `parse` gives as the value the grammar gives the text.
+The proof follows the parser through its readers: the white space, the escapes, the body of
+a string, the scanner of a number, the value reader and the loops over the members of an
+object and the elements of an array, by induction on the fuel. It does not state that
+`parse` accepts every text of the grammar. -/
+
+namespace Grammar
+
+/-- White space, `ws` in section 2 of RFC 8259: a space, a horizontal tab, a line feed or a
+carriage return. -/
+def Space (c : Char) : Prop :=
+  c = ' ' ∨ c = '\t' ∨ c = '\n' ∨ c = '\r'
+
+/-- A run of white space, possibly empty. -/
+def Blank (cs : List Char) : Prop :=
+  ∀ c ∈ cs, Space c
+
+/-- A hexadecimal digit and its value, `HEXDIG` of D. Crocker and P. Overell (eds.), RFC 5234,
+2008, appendix B.1, which section 7 of RFC 8259 uses in an escape. The letters are of either
+case (RFC 5234, section 2.3): `0` to `9` for the values below ten, and `a` to `f` or `A` to
+`F` for ten to fifteen. -/
+def HexDigit (c : Char) (d : Nat) : Prop :=
+  (d < 10 ∧ c.toNat = 48 + d) ∨ (10 ≤ d ∧ d < 16 ∧ (c.toNat = 87 + d ∨ c.toNat = 55 + d))
+
+/-- Four hexadecimal digits, `4HEXDIG` in section 7, and the number they spell, the most
+significant digit first. -/
+def Quad (cs : List Char) (n : Nat) : Prop :=
+  ∃ c₀ c₁ c₂ c₃ d₀ d₁ d₂ d₃, cs = [c₀, c₁, c₂, c₃] ∧ HexDigit c₀ d₀ ∧ HexDigit c₁ d₁ ∧
+    HexDigit c₂ d₂ ∧ HexDigit c₃ d₃ ∧ n = 4096 * d₀ + 256 * d₁ + 16 * d₂ + d₃
+
+/-- One character of a string, `char` in section 7, and the character it denotes. -/
+inductive Character : List Char → Char → Prop
+  /-- An unescaped character, `unescaped = %x20-21 / %x23-5B / %x5D-10FFFF`: every
+  character from the space on, except the quotation mark and the reverse solidus. -/
+  | plain (c : Char) (visible : 32 ≤ c.toNat) (unquoted : c ≠ '"') (unescaped : c ≠ '\\') :
+      Character [c] c
+  /-- The escaped quotation mark. -/
+  | quote : Character ['\\', '"'] '"'
+  /-- The escaped reverse solidus. -/
+  | reverseSolidus : Character ['\\', '\\'] '\\'
+  /-- The escaped solidus. -/
+  | solidus : Character ['\\', '/'] '/'
+  /-- The escaped backspace, `U+0008`. -/
+  | backspace : Character ['\\', 'b'] '\x08'
+  /-- The escaped form feed, `U+000C`. -/
+  | formFeed : Character ['\\', 'f'] '\x0c'
+  /-- The escaped line feed, `U+000A`. -/
+  | lineFeed : Character ['\\', 'n'] '\n'
+  /-- The escaped carriage return, `U+000D`. -/
+  | carriageReturn : Character ['\\', 'r'] '\r'
+  /-- The escaped horizontal tab, `U+0009`. -/
+  | tab : Character ['\\', 't'] '\t'
+  /-- A `\u` escape of a code point of the Basic Multilingual Plane that is no surrogate, and
+  the character with that code point. -/
+  | unit (digits : List Char) (n : Nat) (c : Char) (spelled : Quad digits n)
+      (scalar : n < 0xd800 ∨ 0xdfff < n) (code : c.toNat = n) :
+      Character ('\\' :: 'u' :: digits) c
+  /-- Two `\u` escapes of a surrogate pair, a high surrogate and a low surrogate, and the
+  character beyond the Basic Multilingual Plane that the pair encodes in UTF-16. -/
+  | pair (high low : List Char) (h l : Nat) (c : Char) (first : Quad high h)
+      (second : Quad low l) (leading : 0xd800 ≤ h ∧ h ≤ 0xdbff)
+      (trailing : 0xdc00 ≤ l ∧ l ≤ 0xdfff)
+      (code : c.toNat = 0x10000 + (h - 0xd800) * 0x400 + (l - 0xdc00)) :
+      Character ('\\' :: 'u' :: (high ++ '\\' :: 'u' :: low)) c
+
+/-- The characters of a string between its quotation marks, `*char` in section 7, and the
+characters they denote. -/
+inductive Characters : List Char → List Char → Prop
+  /-- No character. -/
+  | nil : Characters [] []
+  /-- One character, then the others. -/
+  | cons {cs rest : List Char} {c : Char} {decoded : List Char} (spelled : Character cs c)
+      (more : Characters rest decoded) : Characters (cs ++ rest) (c :: decoded)
+
+/-- A string, `string = quotation-mark *char quotation-mark` in section 7, and the string
+it denotes. -/
+def Quoted (cs : List Char) (s : String) : Prop :=
+  ∃ body decoded, Characters body decoded ∧ cs = '"' :: (body ++ ['"']) ∧
+    s = String.ofList decoded
+
+mutual
+
+/-- A value of section 3 at a depth of nesting, and the value it denotes. It has no white
+space around it. -/
+inductive Value : Nat → List Char → Json.Value → Prop
+  /-- The literal `null`. -/
+  | null {depth : Nat} (within : depth ≤ 128) : Value depth ['n', 'u', 'l', 'l'] .null
+  /-- The literal `true`. -/
+  | truth {depth : Nat} (within : depth ≤ 128) : Value depth ['t', 'r', 'u', 'e'] (.bool true)
+  /-- The literal `false`. -/
+  | falsity {depth : Nat} (within : depth ≤ 128) :
+      Value depth ['f', 'a', 'l', 's', 'e'] (.bool false)
+  /-- A number of section 6, which denotes its spelling. -/
+  | number {depth : Nat} {numeral : Numeral} (within : depth ≤ 128) (formed : numeral.Formed) :
+      Value depth numeral.chars (.number (String.ofList numeral.chars))
+  /-- A string of section 7. -/
+  | string {depth : Nat} {cs : List Char} {s : String} (within : depth ≤ 128)
+      (quoted : Quoted cs s) : Value depth cs (.string s)
+  /-- An array of section 5 with no element: brackets with white space between them. -/
+  | emptyArray {depth : Nat} {inside : List Char} (within : depth ≤ 128) (blank : Blank inside) :
+      Value depth ('[' :: (inside ++ [']'])) (.array [])
+  /-- An array of section 5 with elements, one level deeper. -/
+  | array {depth : Nat} {inside : List Char} {values : List Json.Value} (within : depth ≤ 128)
+      (items : Elements (depth + 1) inside values) :
+      Value depth ('[' :: (inside ++ [']'])) (.array values)
+  /-- An object of section 4 with no member: braces with white space between them. -/
+  | emptyObject {depth : Nat} {inside : List Char} (within : depth ≤ 128) (blank : Blank inside) :
+      Value depth ('{' :: (inside ++ ['}'])) (.object [])
+  /-- An object of section 4 with members, one level deeper, whose names differ. -/
+  | object {depth : Nat} {inside : List Char} {fields : List (String × Json.Value)}
+      (within : depth ≤ 128) (members : Members (depth + 1) inside fields)
+      (distinct : (fields.map Prod.fst).Nodup) :
+      Value depth ('{' :: (inside ++ ['}'])) (.object fields)
+
+/-- The elements of an array between its brackets, `value *( value-separator value )` in
+section 5, each with the white space around it, and the values they denote in order. -/
+inductive Elements : Nat → List Char → List Json.Value → Prop
+  /-- The last element. -/
+  | last {depth : Nat} {before cs after : List Char} {v : Json.Value} (leading : Blank before)
+      (item : Value depth cs v) (trailing : Blank after) :
+      Elements depth (before ++ cs ++ after) [v]
+  /-- An element, a comma, and the elements after it. -/
+  | cons {depth : Nat} {before cs after more : List Char} {v : Json.Value}
+      {values : List Json.Value} (leading : Blank before) (item : Value depth cs v)
+      (trailing : Blank after) (rest : Elements depth more values) :
+      Elements depth (before ++ cs ++ after ++ ',' :: more) (v :: values)
+
+/-- The members of an object between its braces, `member *( value-separator member )` in
+section 4, with `member = string name-separator value` and the white space around each
+part, and the names and values they denote in order. -/
+inductive Members : Nat → List Char → List (String × Json.Value) → Prop
+  /-- The last member. -/
+  | last {depth : Nat} {before name between colon cs after : List Char} {key : String}
+      {v : Json.Value} (leading : Blank before) (named : Quoted name key) (spaced : Blank between)
+      (separated : Blank colon) (item : Value depth cs v) (trailing : Blank after) :
+      Members depth (before ++ name ++ between ++ ':' :: (colon ++ cs ++ after)) [(key, v)]
+  /-- A member, a comma, and the members after it. -/
+  | cons {depth : Nat} {before name between colon cs after more : List Char} {key : String}
+      {v : Json.Value} {fields : List (String × Json.Value)} (leading : Blank before)
+      (named : Quoted name key) (spaced : Blank between) (separated : Blank colon)
+      (item : Value depth cs v) (trailing : Blank after) (rest : Members depth more fields) :
+      Members depth
+        (before ++ name ++ between ++ ':' :: (colon ++ cs ++ after) ++ ',' :: more)
+        ((key, v) :: fields)
+
+end
+
+/-- A JSON text, `JSON-text = ws value ws` in section 2, and the value it denotes: a value
+at depth zero with white space before and after it. -/
+def Text (cs : List Char) (v : Json.Value) : Prop :=
+  ∃ before body after, Blank before ∧ Value 0 body v ∧ Blank after ∧
+    cs = before ++ body ++ after
+
+end Grammar
+
+/-- The white space that `ws` drops is white space of the grammar, and it is the head of the
+list. -/
+private theorem ws_blank (cs : List Char) :
+    ∃ before, Grammar.Blank before ∧ cs = before ++ ws cs := by
+  refine ⟨cs.takeWhile fun c => c == ' ' || c == '\r' || c == '\n' || c == '\t', ?_,
+    (List.takeWhile_append_dropWhile ..).symm⟩
+  intro c inside
+  have spaced := List.all_eq_true.mp List.all_takeWhile c inside
+  simp only [Bool.or_eq_true, beq_iff_eq] at spaced
+  rcases spaced with ((same | same) | same) | same <;> subst same <;> unfold Grammar.Space <;>
+    simp
+
+/-- A run of white space before another is one run. -/
+private theorem Grammar.Blank.append {first second : List Char} (one : Grammar.Blank first)
+    (other : Grammar.Blank second) : Grammar.Blank (first ++ second) := by
+  intro c inside
+  rcases List.mem_append.mp inside with early | late
+  · exact one c early
+  · exact other c late
+
+/-- `require` accepts exactly a list that starts with the character, and returns the rest. -/
+private theorem require_ok {c : Char} {cs rest : List Char} (read : require c cs = .ok rest) :
+    cs = c :: rest := by
+  cases cs with
+  | nil => exact nomatch read
+  | cons head tail =>
+    by_cases same : head = c
+    · subst same
+      simp only [require, beq_self_eq_true, ↓reduceIte, Except.ok.injEq] at read
+      rw [read]
+    · simp only [require, beq_iff_eq, same, ↓reduceIte] at read
+      exact nomatch read
+
+/-- A code point that is no surrogate and below `0x110000` is the code point of the character
+that `Char.ofNat` gives. -/
+private theorem toNat_ofNat_scalar {n : Nat} (scalar : n < 0xd800 ∨ (0xdfff < n ∧ n < 0x110000)) :
+    (Char.ofNat n).toNat = n := by
+  unfold Char.ofNat
+  rw [dite_eq_left scalar]
+  rfl
+
+/-- The value that `quad` gives a character is below 16 only for a hexadecimal digit, and then
+it is the value of that digit. -/
+private theorem quad_digit (c : Char)
+    (below : (if c.isDigit = true then c.toNat - 48
+      else if (decide ('a' ≤ c) && decide (c ≤ 'f')) = true then c.toNat - 87
+      else if (decide ('A' ≤ c) && decide (c ≤ 'F')) = true then c.toNat - 55 else 16) < 16) :
+    Grammar.HexDigit c (if c.isDigit = true then c.toNat - 48
+      else if (decide ('a' ≤ c) && decide (c ≤ 'f')) = true then c.toNat - 87
+      else if (decide ('A' ≤ c) && decide (c ≤ 'F')) = true then c.toNat - 55 else 16) := by
+  unfold Grammar.HexDigit
+  split at below
+  · rename_i digit
+    rw [ite_eq_left digit]
+    have range := (Numeral.digit_iff c).mp digit
+    unfold Numeral.Digit at range
+    left
+    omega
+  · rename_i digit
+    rw [ite_eq_right digit]
+    split at below
+    · rename_i lower
+      rw [ite_eq_left lower]
+      simp only [Bool.and_eq_true, decide_eq_true_eq, Char.le_def] at lower
+      have low : 97 ≤ c.toNat := lower.1
+      have high : c.toNat ≤ 102 := lower.2
+      right
+      omega
+    · rename_i lower
+      rw [ite_eq_right lower]
+      split at below
+      · rename_i upper
+        rw [ite_eq_left upper]
+        simp only [Bool.and_eq_true, decide_eq_true_eq, Char.le_def] at upper
+        have low : 65 ≤ c.toNat := upper.1
+        have high : c.toNat ≤ 70 := upper.2
+        right
+        omega
+      · exact absurd below (Nat.lt_irrefl 16)
+
+/-- A bind of `Except` that returns a value runs its first part to a value. -/
+private theorem bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {y : β}
+    (read : (x >>= f) = .ok y) : ∃ a, x = .ok a ∧ f a = .ok y := by
+  cases x with
+  | error e => exact nomatch read
+  | ok a => exact ⟨a, rfl, read⟩
+
+/-- Four steps of a loop, each of which takes one hexadecimal digit from the head of the list,
+read four hexadecimal digits from its head. -/
+private theorem quad_steps
+    (body : Nat → List Char × Nat → Except String (ForInStep (List Char × Nat)))
+    (step : ∀ i cs n r, body i (cs, n) = .ok r →
+      ∃ c tail d, cs = c :: tail ∧ Grammar.HexDigit c d ∧ r = .yield (tail, n * 16 + d))
+    {cs rest : List Char} {m : Nat}
+    (read : (do
+      let s ← forIn (List.range' 0 4 1) (cs, 0) body
+      pure (s.2, s.1) : Except String (Nat × List Char)) = .ok (m, rest)) :
+    ∃ digits, Grammar.Quad digits m ∧ cs = digits ++ rest := by
+  simp only [List.range', List.forIn_cons, List.forIn_nil] at read
+  obtain ⟨s, looped, returned⟩ := bind_ok read
+  obtain ⟨r0, h0, k0⟩ := bind_ok looped
+  obtain ⟨c0, t0, d0, rfl, x0, rfl⟩ := step _ _ _ _ h0
+  obtain ⟨r1, h1, k1⟩ := bind_ok k0
+  obtain ⟨c1, t1, d1, rfl, x1, rfl⟩ := step _ _ _ _ h1
+  obtain ⟨r2, h2, k2⟩ := bind_ok k1
+  obtain ⟨c2, t2, d2, rfl, x2, rfl⟩ := step _ _ _ _ h2
+  obtain ⟨r3, h3, k3⟩ := bind_ok k2
+  obtain ⟨c3, t3, d3, rfl, x3, rfl⟩ := step _ _ _ _ h3
+  have last : (t3, (((0 * 16 + d0) * 16 + d1) * 16 + d2) * 16 + d3) = s := Except.ok.inj k3
+  subst last
+  have both : ((((0 * 16 + d0) * 16 + d1) * 16 + d2) * 16 + d3, t3) = (m, rest) :=
+    Except.ok.inj returned
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj both
+  exact ⟨[c0, c1, c2, c3], ⟨c0, c1, c2, c3, d0, d1, d2, d3, rfl, x0, x1, x2, x3, by omega⟩, rfl⟩
+
+private theorem quad_ok {cs rest : List Char} {n : Nat} (read : quad cs = .ok (n, rest)) :
+    ∃ digits, Grammar.Quad digits n ∧ cs = digits ++ rest := by
+  simp only [quad, Std.Legacy.Range.forIn_eq_forIn_range', Std.Legacy.Range.size,
+    Nat.reduceSub, Nat.reduceAdd, Nat.reduceDiv] at read
+  refine quad_steps _ ?_ read
+  intro i cs n r stepped
+  cases cs with
+  | nil => exact nomatch stepped
+  | cons c tail =>
+    simp only at stepped
+    have digit := quad_digit c
+    generalize (if c.isDigit = true then c.toNat - 48
+      else if (decide ('a' ≤ c) && decide (c ≤ 'f')) = true then c.toNat - 87
+      else if (decide ('A' ≤ c) && decide (c ≤ 'F')) = true then c.toNat - 55 else 16) = d
+      at stepped digit
+    split at stepped
+    · rename_i below
+      exact ⟨c, tail, d, rfl, digit below, (Except.ok.inj stepped).symm⟩
+    · exact nomatch stepped
+
+/-- Four hexadecimal digits spell a number below `0x10000`. -/
+private theorem Grammar.Quad.small {cs : List Char} {n : Nat} (spelled : Grammar.Quad cs n) :
+    n < 0x10000 := by
+  obtain ⟨_, _, _, _, d₀, d₁, d₂, d₃, -, x₀, x₁, x₂, x₃, rfl⟩ := spelled
+  have b₀ : d₀ < 16 := by unfold Grammar.HexDigit at x₀; omega
+  have b₁ : d₁ < 16 := by unfold Grammar.HexDigit at x₁; omega
+  have b₂ : d₂ < 16 := by unfold Grammar.HexDigit at x₂; omega
+  have b₃ : d₃ < 16 := by unfold Grammar.HexDigit at x₃; omega
+  omega
+
+/-- What `unicode` reads after `\u` is a `\u` escape of the grammar, and the character it
+returns is the character the escape denotes. -/
+private theorem unicode_ok {cs rest : List Char} {c : Char} (read : unicode cs = .ok (c, rest)) :
+    ∃ escape, Grammar.Character ('\\' :: 'u' :: escape) c ∧ cs = escape ++ rest := by
+  unfold unicode at read
+  obtain ⟨⟨first, after⟩, quaded, continued⟩ := bind_ok read
+  obtain ⟨high, spelled, rfl⟩ := quad_ok quaded
+  have small := spelled.small
+  simp only at continued
+  split at continued
+  · rename_i leading
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at leading
+    obtain ⟨marked, more, afterMark⟩ := bind_ok continued
+    obtain ⟨slashed, backslash, letter⟩ := bind_ok more
+    have slash := require_ok backslash
+    have u := require_ok letter
+    subst slash u
+    obtain ⟨⟨second, tail⟩, lowQuad, closing⟩ := bind_ok afterMark
+    obtain ⟨low, lowSpelled, rfl⟩ := quad_ok lowQuad
+    have lowSmall := lowSpelled.small
+    simp only at closing
+    split at closing
+    · rename_i trailing
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at trailing
+      obtain ⟨same, rfl⟩ := Prod.mk.inj (Except.ok.inj closing)
+      subst same
+      refine ⟨high ++ '\\' :: 'u' :: low,
+        .pair high low first second _ spelled lowSpelled leading trailing ?_, by simp⟩
+      rw [toNat_ofNat_scalar (by omega)]
+      omega
+    · exact nomatch closing
+  · rename_i leading
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at leading
+    split at continued
+    · exact nomatch continued
+    · rename_i lone
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at lone
+      obtain ⟨same, rfl⟩ := Prod.mk.inj (Except.ok.inj continued)
+      subst same
+      refine ⟨high, .unit high first _ spelled (by omega) ?_, rfl⟩
+      exact toNat_ofNat_scalar (by omega)
+
+/-- Pushing one character and then appending a string appends the string of both. -/
+private theorem push_ofList (out : String) (c : Char) (rest : List Char) :
+    out.push c ++ String.ofList rest = out ++ String.ofList (c :: rest) := by
+  rw [String.push_eq_append, String.ofList_cons, String.append_assoc]
+
+/-- One character of the grammar before characters of the grammar and a closing quotation
+mark are characters of the grammar before that mark. -/
+private theorem body_cons {escape r rest body decoded : List Char} {d : Char} {out s : String}
+    (spelled : Grammar.Character escape d) (chars : Grammar.Characters body decoded)
+    (same : r = body ++ '"' :: rest) (value : s = out.push d ++ String.ofList decoded) :
+    ∃ body decoded, Grammar.Characters body decoded ∧ escape ++ r = body ++ '"' :: rest ∧
+      s = out ++ String.ofList decoded :=
+  ⟨escape ++ body, d :: decoded, .cons spelled chars, by rw [same, List.append_assoc],
+    by rw [value, push_ofList]⟩
+
+/-- What `stringBody` reads up to a closing quotation mark is the characters of a string of
+the grammar, and the string it returns appends the characters they denote. -/
+private theorem stringBody_ok (fuel : Nat) {cs rest : List Char} {out s : String}
+    (read : stringBody fuel cs out = .ok (s, rest)) :
+    ∃ body decoded, Grammar.Characters body decoded ∧ cs = body ++ '"' :: rest ∧
+      s = out ++ String.ofList decoded := by
+  induction fuel generalizing cs out with
+  | zero => exact nomatch read
+  | succ fuel hold =>
+    unfold stringBody at read
+    split at read
+    · exact nomatch read
+    · obtain ⟨same, rfl⟩ := Prod.mk.inj (Except.ok.inj read)
+      exact ⟨[], [], .nil, rfl, by rw [same, String.ofList_nil, String.append_empty]⟩
+    · simp only at read
+      split at read
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons .quote chars same value
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons .reverseSolidus chars same value
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons .solidus chars same value
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons (d := Char.ofNat 8) .backspace chars same value
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons (d := Char.ofNat 12) .formFeed chars same value
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons .lineFeed chars same value
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons .carriageReturn chars same value
+      · obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        exact body_cons .tab chars same value
+      · obtain ⟨⟨d, after⟩, escaped, next⟩ := bind_ok read
+        obtain ⟨tail, spelled, rfl⟩ := unicode_ok escaped
+        obtain ⟨body, decoded, chars, same, value⟩ := hold next
+        exact body_cons spelled chars same value
+      · exact nomatch read
+    · exact nomatch read
+    · rename_i c tail unquoted escapes ends
+      split at read
+      · exact nomatch read
+      · rename_i visible
+        obtain ⟨body, decoded, chars, same, value⟩ := hold read
+        have unescaped : c ≠ '\\' := by
+          intro solidus
+          cases tail with
+          | nil => exact ends solidus rfl
+          | cons next more => exact escapes next more solidus rfl
+        exact body_cons (escape := [c]) (.plain c (by omega) unquoted unescaped) chars same value
+
+/-- What `stringValue` reads is a string of the grammar, and it returns the string that the
+string of the grammar denotes. -/
+private theorem stringValue_ok {cs rest : List Char} {s : String}
+    (read : stringValue cs = .ok (s, rest)) :
+    ∃ spelled, Grammar.Quoted spelled s ∧ cs = spelled ++ rest := by
+  unfold stringValue at read
+  obtain ⟨after, opened, body⟩ := bind_ok read
+  have quoted := require_ok opened
+  subst quoted
+  obtain ⟨chars, decoded, spelled, rfl, rfl⟩ := stringBody_ok _ body
+  exact ⟨'"' :: (chars ++ ['"']), ⟨chars, decoded, spelled, rfl, by rw [String.empty_append]⟩,
+    by simp⟩
+
+/-- What `number` reads is the spelling of a formed numeral, and it returns the number with
+that spelling. -/
+private theorem number_ok {cs rest : List Char} {v : Value} (read : number cs = .ok (v, rest)) :
+    ∃ numeral : Numeral, numeral.Formed ∧ v = .number (String.ofList numeral.chars) ∧
+      cs = numeral.chars ++ rest := by
+  unfold number at read
+  split at read
+  · rename_i numeral after scanned
+    obtain ⟨same, rfl⟩ := Prod.mk.inj (Except.ok.inj read)
+    obtain ⟨formed, parts⟩ := Numeral.scan_formed scanned
+    exact ⟨numeral, formed, same.symm, parts⟩
+  · exact nomatch read
+
+/-- White space before the members of an object is white space of their first member. -/
+private theorem Grammar.Members.blank {depth : Nat} {space body : List Char}
+    {fields : List (String × Json.Value)} (blank : Grammar.Blank space)
+    (members : Grammar.Members depth body fields) :
+    Grammar.Members depth (space ++ body) fields := by
+  cases members with
+  | last leading named spaced separated item trailing =>
+    have joined := Grammar.Members.last (blank.append leading) named spaced separated item
+      trailing
+    simpa only [List.append_assoc, List.cons_append] using joined
+  | cons leading named spaced separated item trailing rest =>
+    have joined := Grammar.Members.cons (blank.append leading) named spaced separated item
+      trailing rest
+    simpa only [List.append_assoc, List.cons_append] using joined
+
+/-- White space before the elements of an array is white space of their first element. -/
+private theorem Grammar.Elements.blank {depth : Nat} {space body : List Char}
+    {values : List Json.Value} (blank : Grammar.Blank space)
+    (elements : Grammar.Elements depth body values) :
+    Grammar.Elements depth (space ++ body) values := by
+  cases elements with
+  | last leading item trailing =>
+    have joined := Grammar.Elements.last (blank.append leading) item trailing
+    simpa only [List.append_assoc] using joined
+  | cons leading item trailing rest =>
+    have joined := Grammar.Elements.cons (blank.append leading) item trailing rest
+    simpa only [List.append_assoc, List.cons_append] using joined
+
+/-- **What the value reader, the member loop and the element loop accept is text of the
+grammar.** For every fuel: an accepted value is white space and a value of the grammar at the
+depth, with the value the grammar gives it; an accepted run of members or elements is the
+members or elements of the grammar before the closing brace or bracket, with the names of the
+members of an object distinct. -/
+private theorem read_sound (fuel : Nat) :
+    (∀ depth input v rest, value fuel depth input = .ok (v, rest) →
+      ∃ before cs, Grammar.Blank before ∧ Grammar.Value depth cs v ∧
+        input = before ++ cs ++ rest) ∧
+    (∀ depth cs out v rest, fields fuel depth cs out = .ok (v, rest) →
+      (out.map Prod.fst).Nodup →
+      ∃ body more, Grammar.Members depth body more ∧ ((out ++ more).map Prod.fst).Nodup ∧
+        v = .object (out ++ more) ∧ cs = body ++ '}' :: rest) ∧
+    (∀ depth cs out v rest, elements fuel depth cs out = .ok (v, rest) →
+      ∃ body more, Grammar.Elements depth body more ∧ v = .array (out ++ more) ∧
+        cs = body ++ ']' :: rest) := by
+  induction fuel with
+  | zero =>
+    refine ⟨fun _ _ _ _ read => ?_, fun _ _ _ _ _ read => ?_, fun _ _ _ _ _ read => ?_⟩ <;>
+      exact nomatch read
+  | succ fuel hold =>
+    obtain ⟨valued, fielded, listed⟩ := hold
+    refine ⟨fun depth input v rest read => ?_, fun depth cs out v rest read distinct => ?_,
+      fun depth cs out v rest read => ?_⟩
+    · unfold value at read
+      simp only at read
+      split at read
+      · exact nomatch read
+      · rename_i shallow
+        have within : depth ≤ 128 := Nat.not_lt.mp shallow
+        obtain ⟨before, blank, shape⟩ := ws_blank input
+        generalize ws input = cs at read shape
+        subst shape
+        split at read
+        · obtain ⟨⟨s, after⟩, quoting, returned⟩ := bind_ok read
+          obtain ⟨same, rfl⟩ := Prod.mk.inj (Except.ok.inj returned)
+          subst same
+          obtain ⟨spelled, quoted, written⟩ := stringValue_ok quoting
+          exact ⟨before, spelled, blank, .string within quoted, by rw [written, List.append_assoc]⟩
+        · rename_i opened
+          obtain ⟨inside, insideBlank, insideShape⟩ := ws_blank opened
+          generalize ws opened = cs at read insideShape
+          subst insideShape
+          split at read
+          · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Except.ok.inj read)
+            exact ⟨before, '{' :: (inside ++ ['}']), blank, .emptyObject within insideBlank,
+              by simp⟩
+          · obtain ⟨body, more, members, distinct, rfl, rfl⟩ :=
+              fielded _ _ _ _ _ read List.nodup_nil
+            exact ⟨before, '{' :: ((inside ++ body) ++ ['}']), blank,
+              .object within (members.blank insideBlank) (by simpa using distinct), by simp⟩
+        · rename_i opened
+          obtain ⟨inside, insideBlank, insideShape⟩ := ws_blank opened
+          generalize ws opened = cs at read insideShape
+          subst insideShape
+          split at read
+          · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Except.ok.inj read)
+            exact ⟨before, '[' :: (inside ++ [']']), blank, .emptyArray within insideBlank,
+              by simp⟩
+          · obtain ⟨body, more, items, rfl, rfl⟩ := listed _ _ _ _ _ read
+            exact ⟨before, '[' :: ((inside ++ body) ++ [']']), blank,
+              .array within (items.blank insideBlank), by simp⟩
+        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Except.ok.inj read)
+          exact ⟨before, _, blank, .null within, by simp⟩
+        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Except.ok.inj read)
+          exact ⟨before, _, blank, .truth within, by simp⟩
+        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Except.ok.inj read)
+          exact ⟨before, _, blank, .falsity within, by simp⟩
+        · split at read
+          · obtain ⟨numeral, formed, rfl, written⟩ := number_ok read
+            exact ⟨before, numeral.chars, blank, .number within formed,
+              by rw [written, List.append_assoc]⟩
+          · exact nomatch read
+        · exact nomatch read
+    · unfold fields at read
+      obtain ⟨before, blank, shape⟩ := ws_blank cs
+      generalize ws cs = opened at read shape
+      subst shape
+      obtain ⟨⟨key, named⟩, naming, continued⟩ := bind_ok read
+      obtain ⟨name, quoted, rfl⟩ := stringValue_ok naming
+      simp only at continued
+      split at continued
+      · exact nomatch continued
+      · rename_i repeated
+        have fresh : key ∉ out.map Prod.fst := by
+          intro inside
+          obtain ⟨field, held, same⟩ := List.mem_map.mp inside
+          exact repeated (List.any_eq_true.mpr
+            ⟨field, held, by rw [same]; exact beq_self_eq_true key⟩)
+        obtain ⟨afterColon, colon, valuing⟩ := bind_ok continued
+        obtain ⟨between, betweenBlank, betweenShape⟩ := ws_blank named
+        generalize ws named = marked at colon betweenShape
+        subst betweenShape
+        have colonShape := require_ok colon
+        subst colonShape
+        obtain ⟨⟨item, afterItem⟩, itemRead, closing⟩ := bind_ok valuing
+        obtain ⟨colonBlank, itemText, colonBlankIs, itemIs, rfl⟩ :=
+          valued _ _ _ _ itemRead
+        have extended : ((out ++ [(key, item)]).map Prod.fst).Nodup := by
+          rw [List.map_append, List.nodup_append]
+          refine ⟨distinct, by simp, fun earlier inside later single same => ?_⟩
+          have named : later = key := by simpa using single
+          exact fresh (named ▸ same ▸ inside)
+        simp only at closing
+        obtain ⟨after, afterBlank, afterShape⟩ := ws_blank afterItem
+        generalize ws afterItem = ending at closing afterShape
+        subst afterShape
+        split at closing
+        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Except.ok.inj closing)
+          exact ⟨before ++ name ++ between ++ ':' :: (colonBlank ++ itemText ++ after),
+            [(key, item)], .last blank quoted betweenBlank colonBlankIs itemIs afterBlank,
+            extended, rfl, by simp⟩
+        · obtain ⟨body, more, members, nodup, rfl, rfl⟩ := fielded _ _ _ _ _ closing extended
+          exact ⟨before ++ name ++ between ++ ':' :: (colonBlank ++ itemText ++ after) ++
+              ',' :: body, (key, item) :: more,
+            .cons blank quoted betweenBlank colonBlankIs itemIs afterBlank members,
+            by simpa using nodup, by simp, by simp⟩
+        · exact nomatch closing
+    · unfold elements at read
+      obtain ⟨⟨item, afterItem⟩, itemRead, closing⟩ := bind_ok read
+      obtain ⟨before, itemText, blank, itemIs, rfl⟩ := valued _ _ _ _ itemRead
+      simp only at closing
+      obtain ⟨after, afterBlank, afterShape⟩ := ws_blank afterItem
+      generalize ws afterItem = ending at closing afterShape
+      subst afterShape
+      split at closing
+      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Except.ok.inj closing)
+        exact ⟨before ++ itemText ++ after, [item], .last blank itemIs afterBlank, rfl,
+          by simp⟩
+      · obtain ⟨body, more, items, rfl, rfl⟩ := listed _ _ _ _ _ closing
+        exact ⟨before ++ itemText ++ after ++ ',' :: body, item :: more,
+          .cons blank itemIs afterBlank items, by simp, by simp⟩
+      · exact nomatch closing
+
+/-- **Every text that the parser accepts is a JSON text of the grammar, and the value the
+parser gives is the value the grammar gives the text.** For every text and value: white
+space, a value at depth zero, and white space (`Grammar.Text`), with the value of the
+grammar's derivation. -/
+theorem parse_sound (text : String) (v : Value) (parsed : parse text = .ok v) :
+    Grammar.Text text.toList v := by
+  unfold parse at parsed
+  obtain ⟨⟨found, rest⟩, read, finished⟩ := bind_ok parsed
+  obtain ⟨before, body, blank, item, shape⟩ := (read_sound _).1 _ _ _ _ read
+  obtain ⟨after, afterBlank, afterShape⟩ := ws_blank rest
+  simp only at finished
+  split at finished
+  · rename_i ended
+    have same : found = v := Except.ok.inj finished
+    subst same
+    rw [List.isEmpty_iff] at ended
+    rw [ended, List.append_nil] at afterShape
+    exact ⟨before, body, after, blank, item, afterBlank, by rw [shape, afterShape]⟩
+  · exact nomatch finished
 
 /-! ## The numeral of a natural number -/
 

@@ -431,9 +431,12 @@ theorem Acorn.Json.parse_request (request : Acorn.Json.Request) (simple : reques
 ```
 
 So for every identifier and command the parser reads the line of a send as the request of
-that send (`Acorn.Host.Microduck.Command.line_asked`). This is the one theorem about
-the parser. No theorem states what it reads of a line of a daemon, and none is about what a
-daemon sends or accepts, so none states that the text of a frame is read correctly.
+that send (`Acorn.Host.Microduck.Command.line_asked`). A second theorem states what every
+text that the parser accepts is: a JSON text of the grammar of RFC 8259,
+`Acorn.Json.Grammar.Text`, whose derivation gives the value that the parser returns
+(`Acorn.Json.parse_sound`). So a line of a daemon that the parser accepts is read as the value
+that the grammar gives its text. No theorem states that the parser accepts every text of the
+grammar, and none is about what a daemon sends or accepts.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
