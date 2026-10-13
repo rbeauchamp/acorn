@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Encoding
 
 /-!
 # The work of an executed computation
@@ -91,13 +92,17 @@ the operations of `map`, `mapVector`, `mapFinIdx`, `ofFn`, `filterMap` and `flat
 charges the elements of each result to its row `flatMapResult`. `attach` pairs a computation's
 result with its equation, for a proof that names the result, and its work is that computation's
 work. A *scan* (`toList`, `arrayToList`, `drop`, `finRange`, `length`, `range`, `zipIdx`, `append`,
-`prepend`, `reverse`, `sum`, `mem`) is a library loop that takes no function: its value is the
-library function of the collection it names, and its work is the control of its row over the
+`prepend`, `reverse`, `sum`, `mem`, `vectorEq`) is a library loop that takes no function: its value
+is the library function of the collection it names, and its work is the control of its row over the
 elements it visits, the whole collection or, for `drop`, the elements it drops, for `append`, its
 first list and, for `prepend`, the vector it puts the element before; `sum` charges each visit the
-addition of its term (`sumTerm`) and `mem` one comparison (`compare`) as well, and `prepend` charges
-the read of its element into a new vector (`read`) once. A recursion of Acorn's own is a costed
-recursion whose every recursive call is under a charge and whose end is charged a visit.
+addition of its term (`sumTerm`) and `mem` and `vectorEq` one comparison (`compare`) as well, and
+`prepend` charges the read of its element into a new vector (`read`) once. A comparison costs one
+`compare` only if its elements have a fixed width, so neither scan takes an equality instance:
+`mem` compares numbers below `2 ^ 32` and `vectorEq` raw binary32 words. The only other instance a
+combinator takes is the decision of the condition of `ite` and `dite`, an entry point below with
+its condition. A recursion of Acorn's own is a costed recursion whose every recursive call is under
+a charge and whose end is charged a visit.
 
 **Bounds.** `x.Within κ bound` states that under the cost model `κ` the work of `x` is at most
 `bound`. Every `Costed` value is built here, and its work is one number under each cost model
@@ -122,35 +127,37 @@ in `Acorn.FeatureConsumers`, `Controller.planCosted` in `Acorn.Planning`,
 `Acorn.Exploration`, `Controller.startStepCosted`, `stepCosted`, `smdpStepCosted` and
 `closeStepCosted` in `Acorn.Sarsa`, and `Controller.backupStepCosted`, `backupErrorCosted` and
 `PolicySnapshot.massCosted` in `Acorn.Policy`), the frozen policy's (`PolicySnapshot.bestCosted`,
-`candidatesCosted`, `reservoirCosted`, `greedyCosted`, `probabilitiesCosted`, `drawCosted` and
-`expectedCosted` in `Acorn.Policy`), its exploration's (`PolicySnapshot.drawPersistentCosted` and
-`servedProbabilitiesCosted` in `Acorn.Exploration`) and the encoding of a frame's
-(`projectionValueCosted`, `Bank.activationsCosted`, `tiledFeaturesCosted`, `imprintFeaturesCosted`,
-`rawEncodeWithCosted`, `UniqueBuilder.emptyCosted`, `UniqueBuilder.finishCosted`, `uniqueCosted` and
-`encodeWithCosted` in `Acorn.Features`, `EncodingFrame.computeCosted` in `Acorn.FeatureHistory`,
-`PredictionCache.wordsCosted` and `FeatureRuntime.encodeCurrentCosted` in `Acorn.FeatureReferences`,
-`feedbackWordsCosted` in `Acorn.Handcrafted.Signals`, `Agent.wordsCosted` and `Agent.frameCosted` in
+`candidatesCosted`, `reservoirCosted`, `greedyCosted`, `probabilitiesCosted`, `drawCosted`,
+`expectedCosted` and `consistentCosted` in `Acorn.Policy`), its exploration's
+(`PolicySnapshot.drawPersistentCosted` and `servedProbabilitiesCosted` in `Acorn.Exploration`) and
+the encoding of a frame's (`projectionValueCosted`, `Bank.activationsCosted`, `tiledFeaturesCosted`,
+`imprintFeaturesCosted`, `rawEncodeWithCosted`, `UniqueBuilder.emptyCosted`,
+`UniqueBuilder.finishCosted`, `uniqueCosted` and `encodeWithCosted` in `Acorn.Features`,
+`EncodingFrame.computeCosted` in `Acorn.FeatureHistory`, `PredictionCache.wordsCosted` and
+`FeatureRuntime.encodeCurrentCosted` in `Acorn.FeatureReferences`, `feedbackWordsCosted` in
+`Acorn.Handcrafted.Signals`, `Agent.wordsCosted` and `Agent.frameCosted` in
 `Acorn.Handcrafted.Agent`) and the option models' input, ranked features and prediction
 (`insertCosted` in `Acorn.Features`, `modelInputCosted` in `Acorn.FeatureModelInput`,
 `RankedFeatures.activeCosted`, `inputCosted`, `indicatorCosted` and `occupiedCosted` in
 `Acorn.RankedFeatures`, `comparisonValueCosted` in `Acorn.Options`,
 `ValueFunction.rankedValuesCosted`, `Transition.expectedAtCosted`, `outcomeValuesCosted`,
 `lookaheadCosted` and `Model.predictCosted` in `Acorn.Models`) and updates
-(`Transition.outcomeCosted`, `updateRowsCosted`, `beginCosted`, `stepCosted`, `terminalCosted` and
-`stopCosted`, `Managed.stopTrajectoryCosted`, and `Model.beginCosted`, `stepCosted`,
-`terminalCosted` and `stopCosted` in `Acorn.Models`), the prediction demons' bank step
-(`DemonBank.stepCosted` in `Acorn.Demon`), and every option's off-policy questions
-(`setFlagsCosted`, `wideSumCosted`, `addAllCosted`, `subAllCosted`, `Preceding.advanceCosted`,
-`GradientLearner.scalarsCosted`, `incrementsCosted` and `stepCosted`, `Question.stepCosted`,
-`GradientBank.stepCosted` and `OptionQuestions.followCosted` in `Acorn.OffPolicy`, and
-`askQuestionsCosted` in `Acorn.Handcrafted.TemporalControl`), and an option's rate, start,
-termination decision, step, credit, frozen policy and termination (`ConsumerRate.resolveCosted`,
-`Skill.beginOptionCosted`, `decideOptionCosted`, `optionStepCosted`, `optionCreditCosted`,
-`frozenPolicyCosted` and `terminateOptionCosted` in `Acorn.Options`), and an option's start, step,
-credit of a drawn decision, end, the stop and settling of its stored trajectory and a start whose
-first action is drawn, with its model (`Skill.beginTemporalCosted`, `stepTemporalCosted`,
-`creditTemporalCosted`, `endTemporalCosted`, `stopFollowingCosted`, `settleFollowingCosted`,
-`settleTemporalCosted` and `startTemporalCosted` in `Acorn.Temporal`).
+(`Transition.outcomeCosted`, `updateRowsCosted`, `beginCosted`, `stepCosted`, `terminalCosted`,
+`stopCosted` and `restartCosted`, `Managed.stopTrajectoryCosted` and `restartTrajectoryCosted`, and
+`Model.beginCosted`, `stepCosted`, `terminalCosted`, `stopCosted` and `restartCosted` in
+`Acorn.Models`), the prediction demons' bank step (`DemonBank.stepCosted` in `Acorn.Demon`), and
+every option's off-policy questions (`setFlagsCosted`, `wideSumCosted`, `addAllCosted`,
+`subAllCosted`, `Preceding.advanceCosted`, `GradientLearner.scalarsCosted`, `incrementsCosted` and
+`stepCosted`, `Question.stepCosted`, `GradientBank.stepCosted` and `OptionQuestions.followCosted` in
+`Acorn.OffPolicy`, and `askQuestionsCosted` in `Acorn.Handcrafted.TemporalControl`), and an option's
+rate, start, termination decision, step, credit, frozen policy and termination
+(`ConsumerRate.resolveCosted`, `Skill.beginOptionCosted`, `decideOptionCosted`, `optionStepCosted`,
+`optionCreditCosted`, `frozenPolicyCosted` and `terminateOptionCosted` in `Acorn.Options`), and an
+option's start, step, credit of a drawn decision, end, the stop and settling of its stored
+trajectory, a start whose first action is drawn and its off-policy following, with its model
+(`Skill.beginTemporalCosted`, `stepTemporalCosted`, `creditTemporalCosted`, `endTemporalCosted`,
+`stopFollowingCosted`, `settleFollowingCosted`, `settleTemporalCosted`, `startTemporalCosted`,
+`startFollowingCosted` and `followTemporalCosted` in `Acorn.Temporal`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -158,10 +165,10 @@ takes. The values a costed definition passes in, which are all its uncosted entr
   of `charge`; the count and element of `replicate`; the initial accumulator and the collection of
   `foldl` and `foldlArray`; the collection of `map`, `filter`, `filterMap`, `flatMap`, `length`,
   `reverse` and `sum`; the collection and start of `zipIdx`; the two lists of `append`; the element
-  and the vector of `prepend`; the element and the list of `mem`; the vector of `mapVector`,
-  `mapFinIdx` and `toList`; the array of `findIdx?` and `arrayToList`; the count and the list of
-  `drop`; the count of `range`, `finRange` and `ofFn`; the condition of `ite` and of `dite` (`bind`
-  and `attach` take none);
+  and the vector of `prepend`; the element and the list of `mem`; the two vectors of `vectorEq`;
+  the vector of `mapVector`, `mapFinIdx` and `toList`; the array of `findIdx?` and `arrayToList`;
+  the count and the list of `drop`; the count of `range`, `finRange` and `ofFn`; the condition of
+  `ite` and of `dite` and its decision (`bind` and `attach` take none);
 - the terms a costed definition evaluates in its own body between combinators: its `let`
   values, its branch conditions and the scrutinees of its matches.
 
@@ -192,7 +199,13 @@ that order, and of the costed definitions of the encoding of a frame and their c
 call a specialization of that fold of their own with the body of the one they shared with `unique`,
 and of the costed definitions of an option model's input, ranked features, prediction and updates
 and of the controllers' remaining updates, the prediction demons' bank step, every option's
-off-policy questions and an option's operations without and with its model, and their callers.
+off-policy questions, an option's operations without and with its model and its off-policy
+following, and their callers, where `Skill.followTemporal` reaches the model's restart, a costed
+operation, through nested tests of consistency and liveness, and the code without work passed
+the restart's arguments to a join point that tested consistency again, with the same calls in
+the same order, and where `PolicySnapshot.consistentCosted`, which compares raw words through
+`vectorEq`, allocates the closure of the words' equality after it reads the nominal masses, where
+the code without work allocated it before.
 Each is an observation of one build, which no gate repeats. A bound in word operations bounds the
 accounting under `SiteBounds`; no checked statement says that a segment of the executed code does
 at most its site's cost in word operations.
@@ -373,6 +386,10 @@ inductive Site where
   | stopFollowing
   /-- A settled trajectory's shaped cumulant and the skill record. -/
   | settleFollowing
+  /-- A followed trajectory's start: its restart test, link and the skill record. -/
+  | startFollowing
+  /-- A followed frame's restart test, age advance, link and the skill record. -/
+  | followStep
   /-- A planning look-ahead's backed-up target and its result record. -/
   | lookAhead
   /-- A backup's store of its prediction cache and planning error. -/
@@ -1191,16 +1208,35 @@ theorem length_within (items : List α) (κ : Costs) :
 
 /-- Whether `item` is an element of `items`, by the membership test of a list
 (`Library.contains`): the control of its row, each visit charged one comparison (`compare`) as
-well. -/
-@[inline] def mem [DecidableEq α] (item : α) (items : List α) : Costed Bool :=
+well. The elements are numbers below `bound`, which `_fits` puts below `2 ^ 32`, so each
+comparison is the equality test of two numbers of one word. -/
+@[inline] def mem {bound : Nat} (item : Fin bound) (items : List (Fin bound))
+    (_fits : bound < 2 ^ 32) : Costed Bool :=
   ⟨decide (item ∈ items), fun κ n => n = Library.contains.control (κ .visit + κ .compare)
     items.length, fun _ => ⟨_, rfl, fun _ same => same⟩⟩
 
-theorem mem_val [DecidableEq α] (item : α) (items : List α) :
-    (mem item items).val = decide (item ∈ items) := rfl
+theorem mem_val {bound : Nat} (item : Fin bound) (items : List (Fin bound))
+    (fits : bound < 2 ^ 32) : (mem item items fits).val = decide (item ∈ items) := rfl
 
-theorem mem_within [DecidableEq α] (item : α) (items : List α) (κ : Costs) :
-    (mem item items).Within κ (Library.contains.control (κ .visit + κ .compare) items.length) :=
+theorem mem_within {bound : Nat} (item : Fin bound) (items : List (Fin bound))
+    (fits : bound < 2 ^ 32) (κ : Costs) :
+    (mem item items fits).Within κ
+      (Library.contains.control (κ .visit + κ .compare) items.length) :=
+  fun _ same => Nat.le_of_eq same
+
+/-- Whether two vectors of raw binary32 words are equal, by the equality of their arrays
+(`Library.vectorEq`): the control of its row, each visit charged one comparison (`compare`) as
+well. Each comparison is the derived equality of `Binary32`, the equality of its one stored
+`UInt32`. -/
+@[inline] def vectorEq {count : Nat} (first second : Vector Binary32 count) : Costed Bool :=
+  ⟨decide (first = second), fun κ n => n = Library.vectorEq.control (κ .visit + κ .compare) count,
+    fun _ => ⟨_, rfl, fun _ same => same⟩⟩
+
+theorem vectorEq_val {count : Nat} (first second : Vector Binary32 count) :
+    (vectorEq first second).val = decide (first = second) := rfl
+
+theorem vectorEq_within {count : Nat} (first second : Vector Binary32 count) (κ : Costs) :
+    (vectorEq first second).Within κ (Library.vectorEq.control (κ .visit + κ .compare) count) :=
   fun _ same => Nat.le_of_eq same
 
 /-- The numbers below `count` in order, by `List.range` (`Library.range`): the control of its

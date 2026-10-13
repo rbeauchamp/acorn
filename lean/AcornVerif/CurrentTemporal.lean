@@ -843,7 +843,7 @@ theorem follow_age (skill : Skill actions config criterion dimension discounts)
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp only [Skill.followTemporal, continuing]
+    simp only [Skill.followTemporal_def, continuing]
     simp [ModelAge.advance]
     omega
 
@@ -878,7 +878,7 @@ theorem follow_idle_model (skill : Skill actions config criterion dimension disc
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp [Skill.followTemporal, continuing, idle, inconsistent]
+    simp [Skill.followTemporal_def, continuing, idle, inconsistent]
 
 /-- Along a live run the model takes exactly the executing option's continuing
 credit, at the trajectory's age and the raw reward, whatever the action taken:
@@ -901,7 +901,7 @@ theorem follow_live_model (skill : Skill actions config criterion dimension disc
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp [Skill.followTemporal, continuing, live, modelOperations, Model.step]
+    simp [Skill.followTemporal_def, continuing, live, modelOperations, Model.step]
 
 /-- The model trajectory is live after a continuing frame exactly when that
 frame's behaviour masses equal the option's own. -/
@@ -921,7 +921,7 @@ theorem follow_live (skill : Skill actions config criterion dimension discounts)
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp only [Skill.followTemporal, continuing]
+    simp only [Skill.followTemporal_def, continuing]
     rfl
 
 /-- On every continuing frame the policy takes tree-backup credit for the action
@@ -945,7 +945,7 @@ theorem follow_policy (skill : Skill actions config criterion dimension discount
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp only [Skill.followTemporal, continuing]
+    simp only [Skill.followTemporal_def, continuing]
 
 /-- An option that starts executing first credits the transition it was following,
 with the tree-backup error a followed frame would have used and the model's step
@@ -1048,7 +1048,7 @@ theorem start_armed_ratio (skill : Skill actions config criterion dimension disc
   have consistent : (skill.policy.snapshot (count := actions) features
       (rate.resolve fun _ => skill.policy.exploreRate (count := actions))).consistent
         behaviour = true := by
-    simpa [Skill.startFollowing] using armed
+    simpa [Skill.startFollowing_def] using armed
   exact PolicySnapshot.consistent_mass _ _ other consistent
 
 /-- A served frame reports a point mass on its committed action, so it never arms the
@@ -1759,7 +1759,7 @@ theorem handoff_stop (skill : Skill actions config criterion dimension discounts
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some activation.following := held
-    simp only [Skill.followTemporal, stop]
+    simp only [Skill.followTemporal_def, stop]
 
 /-- Handoff, clock: the interrupted option's trajectory keeps its age and advances by
 one at the first served frame, so its duration cap counts the served steps too. -/

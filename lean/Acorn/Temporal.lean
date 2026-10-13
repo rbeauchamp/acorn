@@ -182,8 +182,10 @@ structure OptionModelOps (criterion : Criterion) (dimension : Dimension) where
   /-- Pre-dispatch observation at age zero, under the current value function. -/
   predict : Model dimension criterion → ValueFunction criterion dimension →
     SwiftTd.ActiveSet dimension → ModelCache
-  /-- Start a trajectory at an age for an option that is not executing, on existing storage. -/
-  restart : Model dimension criterion → SwiftTd.ActiveSet dimension → ModelAge → Model dimension criterion
+  /-- Start a trajectory at an age for an option that is not executing, on existing storage, with
+  its work. -/
+  restart : Model dimension criterion → SwiftTd.ActiveSet dimension → ModelAge →
+    Costed (Model dimension criterion)
   /-- Close such a trajectory toward the terminal entry's targets at the stopping frame, with its
   work. -/
   stop : Model dimension criterion → ValueFunction criterion dimension →
@@ -419,6 +421,28 @@ theorem Skill.endTemporal_def {config : Config} {criterion : Criterion} {dimensi
         { result with model := (models.terminal result.model value features reward).val }
         else result := rfl
 
+/-- The start of a followed trajectory with its work: the rate its source resolves to, the
+snapshot, the consistency test, the policy's start, a consistent frame's model restart, and the
+start's records. -/
+def Skill.startFollowingCosted {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (rate : ConsumerRate)
+    (action : Action actions.word.toNat)
+    (behaviour : Vector Binary32 actions.word.toNat) :
+    Costed (Skill actions config criterion dimension discounts) := do
+  let freeze := skill.policy.snapshotCosted (count := actions) features
+  let epsilon ← rate.resolveCosted fun _ => skill.policy.exploreRateCosted (count := actions)
+  let frozen ← freeze epsilon
+  let consistent ← frozen.consistentCosted behaviour
+  let ⟨interest, policy, model, _, questions⟩ := skill
+  let policy ← policy.startStepCosted (actions := actions.word.toNat) features action
+    (frozen.values.get action)
+  let model ← Costed.ite (consistent = true)
+    (fun _ => models.restart model features ⟨0, by decide⟩) fun _ => Costed.pure model
+  Costed.op .startFollowing
+    ⟨interest, policy, model, some ⟨⟨1, by decide⟩, consistent, potential⟩, questions⟩
+
 /-- Link an option that is not executing to the current frame. Every earlier trace
 is released before the taken action's traces are laid, so no earlier transition is
 credited. The model starts a trajectory at age zero only when the frame's action
@@ -429,15 +453,27 @@ def Skill.startFollowing {config : Config} {criterion : Criterion} {dimension : 
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (rate : ConsumerRate)
     (action : Action actions.word.toNat)
     (behaviour : Vector Binary32 actions.word.toNat) : Skill actions config criterion dimension discounts :=
-  let frozen := skill.policy.snapshot (count := actions) features
-    (rate.resolve fun _ => skill.policy.exploreRate (count := actions))
-  let consistent := frozen.consistent behaviour
-  let ⟨interest, policy, model, _, questions⟩ := skill
-  ⟨interest,
-    policy.startStep (actions := actions.word.toNat) features action
-      (frozen.values.get action),
-    if consistent then models.restart model features ⟨0, by decide⟩ else model,
-    some ⟨⟨1, by decide⟩, consistent, potential⟩, questions⟩
+  (skill.startFollowingCosted models features potential rate action behaviour).val
+
+/-- A followed start freezes the policy at the rate its source resolves to, starts the policy's
+trajectory at the taken action and restarts the model at age zero on a consistent frame. -/
+theorem Skill.startFollowing_def {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (rate : ConsumerRate)
+    (action : Action actions.word.toNat)
+    (behaviour : Vector Binary32 actions.word.toNat) :
+    skill.startFollowing models features potential rate action behaviour =
+      let frozen := skill.policy.snapshot (count := actions) features
+        (rate.resolve fun _ => skill.policy.exploreRate (count := actions))
+      let consistent := frozen.consistent behaviour
+      let ⟨interest, policy, model, _, questions⟩ := skill
+      ⟨interest,
+        policy.startStep (actions := actions.word.toNat) features action
+          (frozen.values.get action),
+        if consistent then (models.restart model features ⟨0, by decide⟩).val else model,
+        some ⟨⟨1, by decide⟩, consistent, potential⟩, questions⟩ := by
+  cases rate <;> rfl
 
 /-- The stop with its work: the policy's stopping credit and, under the stop's records, a live
 model trajectory's close. -/
@@ -485,6 +521,41 @@ theorem Skill.stopFollowing_def {config : Config} {criterion : Criterion} {dimen
   unfold Skill.stopFollowing Skill.stopFollowingCosted
   cases following.live <;> rfl
 
+/-- One followed frame with its work: the start of a trajectory where none is stored, otherwise
+the stored trajectory's stopping decision, then the consistency test, a live model's step, the
+policy's tree-backup credit, a restart and the step's records, or the stop and a new start. -/
+def Skill.followTemporalCosted {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (action : Action actions.word.toNat)
+    (behaviour : Vector Binary32 actions.word.toNat)
+    (reward : Binary32) (gain : RewardRate) :
+    Costed (Skill actions config criterion dimension discounts) :=
+  match skill.following with
+  | none => skill.startFollowingCosted models features potential rate action behaviour
+  | some following => do
+    let decision ← skill.decideOptionCosted following.activation features potential goal estimate rate
+    match decision with
+    | .continuing next =>
+      let consistent ← next.policy.consistentCosted behaviour
+      let ⟨interest, policy, model, _, questions⟩ := skill
+      let credited ← Costed.ite (following.live = true)
+        (fun _ => models.step model features following.age reward) fun _ => Costed.pure model
+      let policy ← policy.backupStepCosted (count := actions) features next.policy action
+        (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
+          following.previous)
+      let model ← Costed.ite ((consistent && !following.live) = true)
+        (fun _ => models.restart credited features following.age) fun _ => Costed.pure credited
+      Costed.op .followStep
+        ⟨interest, policy, model, some ⟨ModelAge.advance following.age, consistent, potential⟩,
+          questions⟩
+    | .ending _ => do
+      let stopped ← skill.stopFollowingCosted models value features following potential estimate
+        reward gain
+      stopped.startFollowingCosted models features potential rate action behaviour
+
 /-- One frame of an option that is not executing, learned from the action actually
 taken. Sutton, Machado et al., *Reward-respecting subtasks for model-based
 reinforcement learning*, Artificial Intelligence 324 (2023), 104001,
@@ -514,25 +585,50 @@ def Skill.followTemporal {config : Config} {criterion : Criterion} {dimension : 
     (estimate : Binary32) (rate : ConsumerRate) (action : Action actions.word.toNat)
     (behaviour : Vector Binary32 actions.word.toNat)
     (reward : Binary32) (gain : RewardRate) : Skill actions config criterion dimension discounts :=
-  match skill.following with
-  | none => skill.startFollowing models features potential rate action behaviour
+  (skill.followTemporalCosted models value features potential goal estimate rate action behaviour
+    reward gain).val
+
+/-- A followed frame starts a trajectory where none is stored; otherwise a continuing decision
+steps a live model, credits the policy by tree backup and restarts the model on a consistent frame
+of a run that is not live, and an ending decision stops the trajectory and starts a new one. -/
+theorem Skill.followTemporal_def {config : Config} {criterion : Criterion} {dimension : Dimension}
+    {discounts : List Discount}
+    (skill : Skill actions config criterion dimension discounts) (models : OptionModelOps criterion dimension)
+    (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (goal : Bool)
+    (estimate : Binary32) (rate : ConsumerRate) (action : Action actions.word.toNat)
+    (behaviour : Vector Binary32 actions.word.toNat)
+    (reward : Binary32) (gain : RewardRate) :
+    skill.followTemporal models value features potential goal estimate rate action behaviour reward
+        gain =
+      match skill.following with
+      | none => skill.startFollowing models features potential rate action behaviour
+      | some following =>
+        match skill.decideOption following.activation features potential goal estimate rate with
+        | .continuing next =>
+          let consistent := next.policy.consistent behaviour
+          let ⟨interest, policy, model, _, questions⟩ := skill
+          let credited := if following.live then
+            (models.step model features following.age reward).val else model
+          ⟨interest,
+            policy.backupStep (count := actions) features next.policy action
+              (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
+                following.previous),
+            if consistent && !following.live then
+              (models.restart credited features following.age).val else credited,
+            some ⟨ModelAge.advance following.age, consistent, potential⟩, questions⟩
+        | .ending _ =>
+          (skill.stopFollowing models value features following potential estimate reward
+            gain).startFollowing models features potential rate action behaviour := by
+  unfold Skill.followTemporal Skill.followTemporalCosted
+  cases skill.following with
+  | none => rfl
   | some following =>
-    match skill.decideOption following.activation features potential goal estimate rate with
-    | .continuing next =>
-      let consistent := next.policy.consistent behaviour
-      let ⟨interest, policy, model, _, questions⟩ := skill
-      let credited := if following.live then
-        (models.step model features following.age reward).val else model
-      ⟨interest,
-        policy.backupStep (count := actions) features next.policy action
-          (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
-            following.previous),
-        if consistent && !following.live then models.restart credited features following.age
-          else credited,
-        some ⟨ModelAge.advance following.age, consistent, potential⟩, questions⟩
-    | .ending _ =>
-      (skill.stopFollowing models value features following potential estimate reward
-        gain).startFollowing models features potential rate action behaviour
+    dsimp only
+    rw [Costed.bind_val, Skill.decideOption]
+    split
+    · cases following.live <;> rfl
+    · rfl
 
 /-- The settling with its work: a linked skill's stopping decision, then, under the settling's
 records, its tree-backup error with the stopping credit and a live model's step, or its stop. -/
@@ -800,7 +896,7 @@ theorem Skill.followTemporal_interest {config : Config} {criterion : Criterion}
     (gain : RewardRate) :
     (skill.followTemporal models value features potential goal estimate rate action behaviour
       reward gain).interest = skill.interest := by
-  unfold Skill.followTemporal
+  rw [Skill.followTemporal_def]
   cases skill.following with
   | none => rfl
   | some following =>
@@ -819,7 +915,7 @@ theorem Skill.followTemporal_linked {config : Config} {criterion : Criterion}
     (gain : RewardRate) :
     ((skill.followTemporal models value features potential goal estimate rate action behaviour
       reward gain).following.map (·.previous)) = some potential := by
-  unfold Skill.followTemporal
+  rw [Skill.followTemporal_def]
   cases skill.following with
   | none => rfl
   | some following =>

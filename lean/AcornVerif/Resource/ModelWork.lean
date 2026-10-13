@@ -10,10 +10,10 @@ import AcornVerif.Resource.ControlWork
 # Work of the option models
 
 The bounds of the costed definitions of an option model's input, of its ranked features
-(`Acorn.RankedFeatures`), of its prediction and of its updates (`Acorn.Models`); its restart
-(`Model.restart`) is not costed yet. Each definition here is the executed function with the bound
-proved of its costed definition as its work, and its `_costed` theorem checks that the costed
-definition is within it. A transition part has one row
+(`Acorn.RankedFeatures`), of its prediction, of its updates and of its restart (`Acorn.Models`).
+Each definition here is the executed function with the bound proved of its costed definition as
+its work, and its `_costed` theorem checks that the costed definition is within it. A transition
+part has one row
 for each ranked position, `(rankDimension dimension).capacity` rows, each an admitted learner
 over the ranked positions, and one deviation learner for each meta action. A row's input is
 the frame's active ranked positions and the bias position, so it has at most one position
@@ -39,7 +39,7 @@ theorem insertCosted_within (κ : Costs) (active : SwiftTd.ActiveSet dimension)
     (insertCosted active index).Within κ (inputBound κ active.indices.length) := by
   unfold insertCosted inputBound
   refine Acorn.Costed.charge_within
-    (Acorn.Costed.bind_within (Acorn.Costed.attach_within (Acorn.Costed.mem_within _ _ κ)) ?_)
+    (Acorn.Costed.bind_within (Acorn.Costed.attach_within (Acorn.Costed.mem_within _ _ _ κ)) ?_)
   exact Acorn.Costed.dite_within (fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
     fun _ => (Acorn.Costed.bind_within
       (Acorn.Costed.attach_within (Acorn.Costed.append_within _ _ κ))
@@ -809,6 +809,36 @@ theorem transitionStop_costed (κ : Costs) (transition : Transition dimension cr
     (transition.stopCosted outcome).Within κ (transitionStop κ transition outcome).work :=
   transitionStopCosted_within κ transition outcome
 
+/-- Bound of a restarted trajectory over `width` features at a capacity. -/
+abbrev restartTrajectoryBound (κ : Costs) (capacity width : Nat) : Nat :=
+  (κ .managedEntry + releaseBound κ capacity) + (κ .managedEntry + stepBound κ capacity width)
+
+theorem restartTrajectoryCosted_within {learnerConfig : Acorn.Config} {space : Dimension}
+    (κ : Costs) (learner : Managed learnerConfig space) (features : SwiftTd.ActiveSet space) :
+    (learner.restartTrajectoryCosted features).Within κ
+      (restartTrajectoryBound κ space.capacity features.indices.length) :=
+  Acorn.Costed.bind_within (applyCosted_capacity κ learner .release trivial)
+    (applyCosted_capacity κ _ (.step features .zero) trivial)
+
+/-- Bound of a transition part's restart over `width` features. -/
+abbrev transitionRestartBound (κ : Costs) (positions width : Nat) : Nat :=
+  rowInputBound κ width + (κ .rankWidth + updateRowsBound κ positions
+    (restartTrajectoryBound κ positions (width + 1))
+    (restartTrajectoryBound κ positions (width + 1)))
+
+theorem transitionRestartCosted_within (κ : Costs) (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    (transition.restartCosted features).Within κ
+      (transitionRestartBound κ (rankDimension dimension).capacity features.indices.length) := by
+  have width := transition.ranked.input_length features
+  unfold Transition.restartCosted transitionRestartBound
+  refine Acorn.Costed.bind_within (inputCosted_within κ transition.ranked features) ?_
+  exact Acorn.Costed.charge_within (updateRowsCosted_within κ transition _ _ _ _
+    (fun _ row => (restartTrajectoryCosted_within κ row _).mono
+      (Nat.add_le_add_left (Nat.add_le_add_left (stepBound_mono κ _ width) _) _))
+    (fun _ learner => (restartTrajectoryCosted_within κ learner _).mono
+      (Nat.add_le_add_left (Nat.add_le_add_left (stepBound_mono κ _ width) _) _)))
+
 /-! ## A whole model -/
 
 /-- Bound of a model start over `width` features. -/
@@ -1059,5 +1089,41 @@ theorem modelStop_costed (κ : Costs) (model : Model dimension criterion)
     (model.stopCosted value features reward).Within κ
       (modelStop κ model value features reward).work :=
   modelStopCosted_within κ model value features reward
+
+/-- Bound of a model restart over `width` features. -/
+abbrev modelRestartBound (κ : Costs) (capacity positions width : Nat) : Nat :=
+  κ .hashFeature + inputBound κ width +
+    (3 * restartTrajectoryBound κ capacity (width + 1) +
+      (transitionRestartBound κ positions width + κ .modelClose))
+
+theorem modelRestartCosted_within (κ : Costs) (model : Model dimension criterion)
+    (base : SwiftTd.ActiveSet dimension) (age : ModelAge) :
+    (model.restartCosted base age).Within κ
+      (modelRestartBound κ dimension.capacity (rankDimension dimension).capacity
+        base.indices.length) := by
+  have width := modelInput_length criterion base age
+  have learner := fun {learnerConfig : Acorn.Config} (row : Managed learnerConfig dimension) =>
+    (restartTrajectoryCosted_within κ row (Features.modelInput criterion base age)).mono
+      (Nat.add_le_add_left (Nat.add_le_add_left (stepBound_mono κ dimension.capacity width) _) _)
+  cases model with
+  | discounted r c t =>
+    unfold Model.restartCosted
+    refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+      (modelInputCosted_within κ _ base age)
+      (Acorn.Costed.bind_within (learner r) (Acorn.Costed.bind_within (learner c)
+        (Acorn.Costed.bind_within (transitionRestartCosted_within κ t base)
+          (Acorn.Costed.op_within _ _ κ))))) ?_
+    simp only [modelRestartBound, restartTrajectoryBound]
+    omega
+  | differential r c d t =>
+    unfold Model.restartCosted
+    refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+      (modelInputCosted_within κ _ base age)
+      (Acorn.Costed.bind_within (learner r) (Acorn.Costed.bind_within (learner c)
+        (Acorn.Costed.bind_within (learner d)
+          (Acorn.Costed.bind_within (transitionRestartCosted_within κ t base)
+            (Acorn.Costed.op_within _ _ κ)))))) ?_
+    simp only [modelRestartBound, restartTrajectoryBound]
+    omega
 
 end AcornVerif.Resource.Twin

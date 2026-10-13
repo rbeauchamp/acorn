@@ -652,13 +652,26 @@ theorem Model.terminal_def (model : Model dimension criterion)
           (t.terminal outcome) := by
   cases model <;> rfl
 
+/-- A restarted trajectory with its work: the release, then the step. -/
+def Managed.restartTrajectoryCosted {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (features : SwiftTd.ActiveSet dimension) :
+    Costed (Managed config dimension) := do
+  let released ← learner.applyCosted .release trivial
+  released.applyCosted (.step features .zero) trivial
+
 /-- Start one learner's trajectory on its existing storage. The remaining traces are
 released first, so the ordinary step visits no earlier trace and credits no earlier
 transition; it lays the initial traces and both lags. -/
 def Managed.restartTrajectory {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (features : SwiftTd.ActiveSet dimension) :
     Managed config dimension :=
-  (learner.apply .release trivial).apply (.step features .zero) trivial
+  (learner.restartTrajectoryCosted features).val
+
+/-- A restarted trajectory releases, then steps at cumulant zero. -/
+theorem Managed.restartTrajectory_def {config : Acorn.Config} {dimension : Dimension}
+    (learner : Managed config dimension) (features : SwiftTd.ActiveSet dimension) :
+    learner.restartTrajectory features =
+      (learner.apply .release trivial).apply (.step features .zero) trivial := rfl
 
 /-- A stopped trajectory with its work: the error, a first loop, then a release. -/
 def Managed.stopTrajectoryCosted {config : Acorn.Config} {dimension : Dimension}
@@ -683,17 +696,38 @@ theorem Managed.stopTrajectory_def {config : Acorn.Config} {dimension : Dimensio
       (learner.apply (.first (target.sub learner.state.transient.vOld)
         learner.state.transient.vDelta .zero) trivial).apply .release trivial := rfl
 
+/-- A transition part's restart with its work: the row input, the ranked dimension the updates
+read, which evaluates the ranked width, and each learner's restarted trajectory. -/
+def Transition.restartCosted (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) := do
+  let input ← transition.ranked.inputCosted features
+  let rank := rankDimension dimension
+  let config := criterion.config .demon
+  Costed.charge .rankWidth (transition.updateRowsCosted
+    (fun _ row => Managed.restartTrajectoryCosted (config := config) (dimension := rank) row input)
+    (fun _ learner =>
+      Managed.restartTrajectoryCosted (config := config) (dimension := rank) learner input))
+
 /-- Start every modeled row's and every deviation learner's trajectory on existing
 storage, without a transient clear. -/
 def Transition.restart (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Transition dimension criterion :=
-  let input := transition.ranked.input features
-  let rank := rankDimension dimension
-  let config := criterion.config .demon
-  transition.updateRows
-    (fun _ row => Managed.restartTrajectory (config := config) (dimension := rank) row input)
-    (fun _ learner =>
-      Managed.restartTrajectory (config := config) (dimension := rank) learner input)
+  (transition.restartCosted features).val
+
+/-- A transition part's restart restarts every modeled row and every deviation learner at the
+row input. -/
+theorem Transition.restart_def (transition : Transition dimension criterion)
+    (features : SwiftTd.ActiveSet dimension) :
+    transition.restart features =
+      let input := transition.ranked.input features
+      let rank := rankDimension dimension
+      let config := criterion.config .demon
+      transition.updateRows
+        (fun _ row => Managed.restartTrajectory (config := config) (dimension := rank) row input)
+        (fun _ learner =>
+          Managed.restartTrajectory (config := config) (dimension := rank) learner input) := by
+  cases transition
+  rfl
 
 /-- A transition part's stopped trajectory with its work: the ranked dimension the updates read,
 which evaluates the ranked width, then each learner's target and stopped trajectory. -/
@@ -734,17 +768,43 @@ theorem Transition.stop_def (transition : Transition dimension criterion)
   cases transition
   rfl
 
+/-- A model's restart with its work: the model input, then each learner's restarted trajectory
+and the transition part's restart. -/
+def Model.restartCosted (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) : Costed (Model dimension criterion) :=
+  Costed.bind (modelInputCosted criterion base age) fun features =>
+  match model with
+  | .discounted r c t => do
+    let r ← r.restartTrajectoryCosted features
+    let c ← c.restartTrajectoryCosted features
+    let t ← t.restartCosted base
+    Costed.op .modelClose (.discounted r c t)
+  | .differential r c d t => do
+    let r ← r.restartTrajectoryCosted features
+    let c ← c.restartTrajectoryCosted features
+    let d ← d.restartTrajectoryCosted features
+    let t ← t.restartCosted base
+    Costed.op .modelClose (.differential r c d t)
+
 /-- Start a model trajectory at the given age for an option that is not executing,
 without the full-width transient clear of `Model.begin`. -/
 def Model.restart (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) : Model dimension criterion :=
-  let features := modelInput criterion base age
-  match model with
-  | .discounted r c t =>
-    .discounted (r.restartTrajectory features) (c.restartTrajectory features) (t.restart base)
-  | .differential r c d t =>
-    .differential (r.restartTrajectory features) (c.restartTrajectory features)
-      (d.restartTrajectory features) (t.restart base)
+  (model.restartCosted base age).val
+
+/-- A model's restart restarts each learner at the model input and the transition part at the
+frame. -/
+theorem Model.restart_def (model : Model dimension criterion) (base : SwiftTd.ActiveSet dimension)
+    (age : ModelAge) :
+    model.restart base age =
+      let features := modelInput criterion base age
+      match model with
+      | .discounted r c t =>
+        .discounted (r.restartTrajectory features) (c.restartTrajectory features) (t.restart base)
+      | .differential r c d t =>
+        .differential (r.restartTrajectory features) (c.restartTrajectory features)
+          (d.restartTrajectory features) (t.restart base) := by
+  cases model <;> rfl
 
 /-- A model's stopped trajectory with its work: the outcome, then each learner's stopped
 trajectory and the transition part's. -/
@@ -791,7 +851,7 @@ theorem Model.stop_def (model : Model dimension criterion)
 /-- Concrete temporal operations use the current model definitions. -/
 def modelOperations (criterion : Criterion) (dimension : Dimension) : OptionModelOps criterion dimension :=
   ⟨Model.beginCosted, Model.stepCosted, Model.terminalCosted, fun model value features =>
-    (model.predict value features ⟨0, by decide⟩).cache, Model.restart, Model.stopCosted⟩
+    (model.predict value features ⟨0, by decide⟩).cache, Model.restartCosted, Model.stopCosted⟩
 
 /-- The backed-up value of a frame under one option: reward part plus the value of the
 predicted outcome (Sutton, Machado et al. (2023), §5, p. 17). The differential form
