@@ -82,7 +82,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Fifteen functions of this module have a contract and no kind. The reasons are six. Nine more
+Sixteen functions of this module have a contract and no kind. The reasons are six. Nine more
 are no decisions, and their statements say what they are: `Agent.input`,
 `AgentConstruction.execute` and `Checkpoint.managedWords` refuse no input, and six definitions
 that specifications share with their functions have the statements of the section "Definitions
@@ -123,13 +123,16 @@ that specifications share".
   state and the function runs in the interval test of a pruning reference
   (https://github.com/rbeauchamp/regula/issues/320). The kind is remaining work of
   https://github.com/rbeauchamp/acorn/issues/105.
-* The verdict is one component of a pair whose other component has a type that depends on an
-  earlier argument: whether `Features.beginExploration` begins a run, whether
+* The verdict is one component of a pair, and a component of that pair has a type that depends
+  on an earlier argument: whether `Features.beginExploration` begins a run, where the run that
+  begins, the verdict component, depends on the action count; whether
   `Features.Preceding.advance` records a passage, whether `Lifetime.DemonStats.advanceSlot`
-  settles a slot and whether `NumericState.firstLoopElement` prunes an index. Regula reads a
-  result whose type depends on the input only through `Regula.Dependent.isSome` and
-  `Regula.Dependent.isOk`, of an `Option` or an `Except`. Each statement states the verdict for
-  every input and names an input of each verdict.
+  settles a slot and whether `NumericState.firstLoopElement` prunes an index, beside a state that
+  depends on the dimension, the discount or the configuration; and whether
+  `Checkpoint.loadKeeping`, loading that keeps its receiver, refuses the bytes, beside a state
+  that depends on the construction. Regula reads a result whose type depends on the input only
+  through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`.
+  Each statement states the verdict for every input and names an input of each verdict.
 
 ## Tests that a specification does not share
 
@@ -2285,6 +2288,47 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
     CurrentCheckpoint.save_load construction receiver source
       ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
 
+/-- Loading that keeps its receiver returns the receiver unchanged with the error of a refused
+load (`Checkpoint.load_nonmutation`), and the loaded state with no error for an accepted one,
+for every construction, receiver and byte list. Its verdict is the verdict of
+`Checkpoint.load`, whose sound kind `checkpoint_load` and accepted bytes
+`checkpoint_load_accepts` stand above. Both verdicts occur. The bytes that the initial state of
+the construction of `resumable` saves load with no error (`CurrentCheckpoint.save_load`). The
+bytes that the initial state of the construction whose profile declares spatial subtasks saves
+are refused with an error, since that profile is not resumable and loading accepts bytes only
+under a resumable profile (`load_resumable`).
+
+The statement keeps no kind: the verdict is the second component of a pair whose state has a
+type that depends on the construction, an earlier argument, and Regula reads a result whose
+type depends on the input only through `Regula.Dependent.isSome` and
+`Regula.Dependent.isOk`, of an `Option` or an `Except`. -/
+theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun keeping =>
+    (∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8),
+      (∀ error, Checkpoint.load construction receiver bytes = .error error →
+        keeping construction receiver bytes = (receiver, some error)) ∧
+        ∀ restored, Checkpoint.load construction receiver bytes = .ok restored →
+          keeping construction receiver bytes = (restored, none)) ∧
+      (keeping (construction resumable) (AgentConstruction.initial _)
+        (encode (snapshot (construction resumable) (AgentConstruction.initial _)))).2 = none ∧
+      (keeping (construction ⟨.final, .perStep, .declared, .spatial⟩)
+        (AgentConstruction.initial _)
+        (encode (snapshot (construction ⟨.final, .perStep, .declared, .spatial⟩)
+          (AgentConstruction.initial _)))).2.isSome = true) :=
+  ⟨⟨fun construction receiver bytes =>
+    ⟨fun error rejected => Checkpoint.load_nonmutation construction receiver bytes error rejected,
+      fun restored loaded => by simp [Checkpoint.loadKeeping, loaded]⟩,
+    by
+      simp [Checkpoint.loadKeeping, CurrentCheckpoint.save_load (construction resumable)
+        (AgentConstruction.initial _) (AgentConstruction.initial _) rfl],
+    by
+      cases loading : Checkpoint.load (construction ⟨.final, .perStep, .declared, .spatial⟩)
+          (AgentConstruction.initial _)
+          (encode (snapshot (construction ⟨.final, .perStep, .declared, .spatial⟩)
+            (AgentConstruction.initial _))) with
+      | error error => simp [Checkpoint.loadKeeping, loading]
+      | ok restored =>
+        exact absurd (load_resumable _ _ _ (congrArg Except.isOk loading)) (by decide)⟩⟩
+
 /-- Resuming the bytes that a supported construction saved returns the saved state with a new
 evaluator session (`CurrentCheckpoint.save_load`). -/
 private theorem resume_saved_state (construction : AgentConstruction)
@@ -2565,10 +2609,11 @@ theorem facing_position : Regula.ExecutableContract @Host.BoxPosition.facingPosi
 
 /-! ## Verdicts beside a state
 
-Each function below returns its verdict as one component of a pair whose other component has a
-type that depends on an earlier argument: the run that begins depends on the action count, and
-the record, the statistics and the learner state on the dimension, the discount and the
-configuration. Regula reads a result whose type depends on the input only through
+Each function below returns its verdict as one component of a pair, and a component of that pair
+has a type that depends on an earlier argument: the run that `Features.beginExploration` begins,
+which is its verdict component, depends on the action count, and the state beside each other
+verdict, the record, the statistics or the learner state, depends on the dimension, the discount
+or the configuration. Regula reads a result whose type depends on the input only through
 `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`, so no kind
 here is about such a component, and each statement is a requirement with no kind. Each states
 the verdict for every input beside what the state keeps, and both verdicts occur at the inputs

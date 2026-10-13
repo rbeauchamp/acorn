@@ -79,7 +79,7 @@ with one proved direction carries that direction alone. Five groups are register
 
 ## Statements that keep no kind
 
-Thirty-three functions of this module have a contract and no kind. The reasons are four. Eleven
+Thirty-two functions of this module have a contract and no kind. The reasons are four. Eleven
 more are no decisions, and their statements say what they are: `Host.coordinateFloat` and
 `Agent.runPrefix` refuse no input (`coordinate_float`, `agent_run_prefix`), and nine definitions
 that specifications share with their functions have the statements of the section "Definitions
@@ -137,8 +137,7 @@ that specifications share".
 * The result has a type that depends on the input and is neither an `Option` nor an `Except`, and
   Regula reads such a result only through `Regula.Dependent.isSome` and
   `Regula.Dependent.isOk`. `Costed.findIdx?` returns its index with the equation that names it,
-  a type that depends on the array and the test, and `Checkpoint.loadKeeping` returns its error
-  beside a state whose type depends on the construction.
+  a type that depends on the array and the test.
 
 A requirement with no kind is a statement that the Regula audit does not examine: that audit
 checks only that its theorem is proved about the executing definition. Such a statement can
@@ -998,26 +997,6 @@ theorem profile_resumable : Regula.ExecutableContract Host.ResearchProfile.resum
     ⟨.ranked, rfl⟩ ⟨.primitive, by decide⟩⟩
 
 attribute [regula_decision] Host.ResearchProfile.resumable
-
-/-- Loading that keeps its receiver returns the receiver unchanged with the error of a refused
-load (`Checkpoint.load_nonmutation`), and the loaded state with no error for an accepted one,
-for every construction, receiver and byte list. Its verdict is the verdict of
-`Checkpoint.load`, whose sound kind `checkpoint_load` and accepted bytes
-`checkpoint_load_accepts` are stated in `AcornVerif.Decisions`.
-
-The statement keeps no kind: the verdict is the second component of a pair whose state has a
-type that depends on the construction, an earlier argument, and Regula reads a result whose
-type depends on the input only through `Regula.Dependent.isSome` and
-`Regula.Dependent.isOk`, of an `Option` or an `Except`. -/
-theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun keeping =>
-    ∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8),
-      (∀ error, Checkpoint.load construction receiver bytes = .error error →
-        keeping construction receiver bytes = (receiver, some error)) ∧
-        ∀ restored, Checkpoint.load construction receiver bytes = .ok restored →
-          keeping construction receiver bytes = (restored, none)) :=
-  ⟨fun construction receiver bytes =>
-    ⟨fun error rejected => Checkpoint.load_nonmutation construction receiver bytes error rejected,
-      fun restored loaded => by simp [Checkpoint.loadKeeping, loaded]⟩⟩
 
 /-! ## Host admission and parsing -/
 
@@ -2175,7 +2154,8 @@ origin under the declared pace and keeping, read at the resend age, 100 ms. The 
 the second component of the pair that the function returns.
 
 **Not claimed:** completeness. The reading also sends nothing before the resend age and from
-the end of the hold; `bridge_tick_value` states additional transition guarantees. -/
+the end of the hold; `bridge_tick_value` states the exact condition of a send and further
+guarantees of the transition. -/
 theorem bridge_tick : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
     Regula.DecidesSoundly
       (fun result : Host.Microduck.Bridge × Option Host.Microduck.Command =>
@@ -2195,17 +2175,17 @@ theorem bridge_tick : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun 
 attribute [regula_decision] Host.Microduck.Bridge.tick
 
 /-- A reading of the clock between two releases sends a command only for an action with a
-velocity that is not zero, before the end of the hold, and the command is that velocity
-(`Host.Microduck.Bridge.tick_command`); from the end of the hold it sends nothing and
-changes nothing (`Host.Microduck.Bridge.tick_ended`); a due resend, of an action with a
-velocity that is not zero, before the end of the hold and once the last send is the resend
-age old, is sent and recorded as the last send; after a reading before the end of the hold
-of such an action the last send is younger than the resend age
-(`Host.Microduck.Bridge.tick_fresh`); and a reading keeps the action, the stated posture,
-the cycle of the next percept and the end of the hold (`Host.Microduck.Bridge.tick_keeps`).
-This holds for every pace, keeping, origin, bridge and instant. A send occurs: under the
-declared pace and keeping, a forward action released at the origin is sent again at the
-resend age, 100 ms.
+velocity that is not zero, before the end of the hold and once the last send is the resend age
+old, and the command is that velocity (`Host.Microduck.Bridge.tick_command`, and the guard of
+the function for the resend age); from the end of the hold it sends nothing and changes nothing
+(`Host.Microduck.Bridge.tick_ended`); a due resend, of an action with a velocity that is not
+zero, before the end of the hold and once the last send is the resend age old, is sent and
+recorded as the last send; after a reading before the end of the hold of such an action the
+last send is younger than the resend age (`Host.Microduck.Bridge.tick_fresh`); and a reading
+keeps the action, the stated posture, the cycle of the next percept and the end of the hold
+(`Host.Microduck.Bridge.tick_keeps`). This holds for every pace, keeping, origin, bridge and
+instant. A send occurs: under the declared pace and keeping, a forward action released at the
+origin is sent again at the resend age, 100 ms.
 
 A kind states which inputs a function accepts and not the state after them, and the exact
 condition of a send reads the end of the hold `Host.Microduck.Bridge.ends`, which the function
@@ -2215,16 +2195,16 @@ the last release, with a new identifier (`Host.Microduck.Idle.tick_keeps`,
 `Host.Microduck.Awaiting.tick_keeps`), and have no contract of their own: this statement is
 their evidence.
 
-**Not claimed:** that a reading sends nothing before the last send is the resend age old;
-where the hold ends, which `Host.Microduck.Bridge.ends_held` states, and that a release meeting
-its deadline arrives before it (`Host.Microduck.Bridge.ends_covers`); and that an executing loop
-reads the clock often enough for a resend to be timely. -/
+**Not claimed:** where the hold ends, which `Host.Microduck.Bridge.ends_held` states, and that a
+release meeting its deadline arrives before it (`Host.Microduck.Bridge.ends_covers`); and that
+an executing loop reads the clock often enough for a resend to be timely. -/
 theorem bridge_tick_value : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun tick =>
     (∀ (pace : Pace) (keep : Host.Microduck.Keep) (origin : Instant)
         (bridge : Host.Microduck.Bridge) (now : Instant),
       (∀ command, (tick pace keep origin bridge now).2 = some command →
         command = .move bridge.action.velocity ∧ bridge.action.velocity ≠ .zero ∧
-          now.nanoseconds < (bridge.ends pace keep origin).nanoseconds) ∧
+          now.nanoseconds < (bridge.ends pace keep origin).nanoseconds ∧
+          bridge.sent.nanoseconds + keep.resend ≤ now.nanoseconds) ∧
         ((bridge.ends pace keep origin).nanoseconds ≤ now.nanoseconds →
           tick pace keep origin bridge now = (bridge, none)) ∧
         (bridge.action.velocity ≠ .zero →
@@ -2244,7 +2224,14 @@ theorem bridge_tick_value : Regula.ExecutableContract Host.Microduck.Bridge.tick
       (tick Host.Microduck.Declared.pace Host.Microduck.Declared.keep ⟨0⟩
         ⟨.forward, false, 0, ⟨0⟩, ⟨0⟩⟩ ⟨100000000⟩).2.isSome = true) :=
   ⟨⟨fun pace keep origin bridge now =>
-      ⟨Host.Microduck.Bridge.tick_command pace keep origin bridge now,
+      ⟨fun command sent =>
+          have stated := Host.Microduck.Bridge.tick_command pace keep origin bridge now command sent
+          ⟨stated.1, stated.2.1, stated.2.2, by
+            unfold Host.Microduck.Bridge.tick at sent
+            split at sent
+            · rename_i due
+              exact due.2.2
+            · cases sent⟩,
         Host.Microduck.Bridge.tick_ended pace keep origin bridge now,
         fun moving inside due => ite_eq_left ⟨moving, inside, due⟩,
         Host.Microduck.Bridge.tick_fresh pace keep origin bridge now,
@@ -2833,7 +2820,9 @@ private def firstCapture : Capture := ⟨0, 0, 0, 0, 0, false⟩
 (`Admission.wrong_identity`); a stored capture becomes the last accepted one
 (`Admission.stored_capture`); and a capture that is not stored leaves the last accepted one
 in place (`Admission.rejected_preserves_history`). This holds for every identity, state and
-capture. A capture is stored: the first capture of an identity into the empty state.
+capture. A capture is stored: the first capture of an identity into the empty state. A
+capture is skipped: the same capture into the empty state of the identity of run one, which it
+does not match.
 
 The statement keeps no kind, for two reasons. Whether a capture is stored depends on the
 capture order `Capture.follows`, which has the complete kind `capture_follows_complete` and
@@ -2853,15 +2842,17 @@ theorem viewer_admission : Regula.ExecutableContract @Admission.receive (fun rec
           (receive state capture).2.previous = some capture) ∧
         ((receive state capture).1 ≠ .stored →
           (receive state capture).2.previous = state.previous)) ∧
-      (receive (Admission.empty ⟨0, 0, 0⟩) firstCapture).1 = .stored) :=
+      (receive (Admission.empty ⟨0, 0, 0⟩) firstCapture).1 = .stored ∧
+      (receive (Admission.empty ⟨1, 0, 0⟩) firstCapture).1 = .skipped) :=
   ⟨⟨fun state capture => ⟨Admission.wrong_identity state capture,
       Admission.stored_capture state capture, Admission.rejected_preserves_history state capture⟩,
-    rfl⟩⟩
+    rfl, rfl⟩⟩
 
 /-- Health admission refuses a capture of another identity; a refused capture keeps the
 state (`HealthAdmission.rejected_preserves`); and an accepted capture becomes the last
 accepted one. This holds for every identity, state and capture. A capture is accepted: the
-first capture of an identity into the empty state.
+first capture of an identity into the empty state. A capture is refused: the same capture into
+the empty state of the identity of run one, which it does not match.
 
 The statement keeps no kind, for the reasons given at `viewer_admission`: whether a capture
 is accepted depends on the capture order `Capture.after`, which has the sound kind
@@ -2875,7 +2866,8 @@ theorem viewer_health : Regula.ExecutableContract @HealthAdmission.receive (fun 
         ((receive state capture).1 = false → (receive state capture).2 = state) ∧
         ((receive state capture).1 = true →
           (receive state capture).2.previous = some capture)) ∧
-      (receive (HealthAdmission.empty ⟨0, 0, 0⟩) firstCapture).1 = true) :=
+      (receive (HealthAdmission.empty ⟨0, 0, 0⟩) firstCapture).1 = true ∧
+      (receive (HealthAdmission.empty ⟨1, 0, 0⟩) firstCapture).1 = false) :=
   ⟨⟨fun {identity} state capture =>
       ⟨fun wrong => by simp [HealthAdmission.receive, wrong],
         HealthAdmission.rejected_preserves state capture,
@@ -2885,7 +2877,7 @@ theorem viewer_health : Regula.ExecutableContract @HealthAdmission.receive (fun 
             · simp [HealthAdmission.receive, same, later]
             · simp [HealthAdmission.receive, same, later] at accepted
           · simp [HealthAdmission.receive, same] at accepted⟩,
-    rfl⟩⟩
+    rfl, rfl⟩⟩
 
 /-- The ownership test accepts exactly a tool whose own flag is set in the inventory. -/
 theorem inventory_owns : Regula.ExecutableContract Host.Inventory.owns (fun owns =>
@@ -4528,7 +4520,8 @@ type, array and costed test (`Costed.findIdx?_val`, with Lean core's
 `Array.findIdx?_eq_none_iff` and `Array.findIdx?_eq_some_iff_getElem`). The retirement of an
 index from a learner's eligible list (`NumericState.retireIndexCosted`) applies it, and the
 registered steps `Features.Controller.stepRaw` and `Handcrafted.PredictionControl.advanceRaw`
-reach it through that retirement.
+reach it through that retirement. Both verdicts occur: the search of `#[false, true]` under the
+test that reads the element finds the index one, and the search of the empty array finds none.
 
 The statement keeps no kind: the result, a costed index with the equation that names it, has
 a type that depends on the array and the test, and Regula reads a result whose type depends on
@@ -4537,14 +4530,18 @@ an `Except`.
 
 **Not claimed:** the work of the search, which `Costed.findIdx?_within` bounds. -/
 theorem find_index : Regula.ExecutableContract @Costed.findIdx? (fun find =>
-    ∀ {α : Type} (items : Array α) (test : α → Costed Bool),
+    (∀ {α : Type} (items : Array α) (test : α → Costed Bool),
       ((find items test).val.val = none ↔ ∀ item ∈ items, (test item).val = false) ∧
         ∀ index, (find items test).val.val = some index ↔
           ∃ within : index < items.size, (test items[index]).val = true ∧
-            ∀ earlier (before : earlier < index), (test items[earlier]).val = false) :=
-  ⟨fun items test => by
+            ∀ earlier (before : earlier < index), (test items[earlier]).val = false) ∧
+      (find #[false, true] (fun b => pure b)).val.val = some 1 ∧
+      (find (#[] : Array Bool) (fun b => pure b)).val.val = none) :=
+  ⟨⟨fun items test => by
     simp only [Costed.findIdx?_val, Array.findIdx?_eq_none_iff,
-      Array.findIdx?_eq_some_iff_getElem, Bool.not_eq_true, implies_true, and_self]⟩
+      Array.findIdx?_eq_some_iff_getElem, Bool.not_eq_true, implies_true, and_self],
+    by simp [Costed.findIdx?_val, List.findIdx?_cons]; rfl,
+    by simp only [Costed.findIdx?_val, Array.findIdx?_empty]⟩⟩
 
 /-- An objective has an identity exactly when it is a selected objective.
 `assignment_identity_value` states the identity. -/

@@ -587,7 +587,7 @@ def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Decisions, `Acorn.Decisions.viewer_health,
     `Acorn.Host.Viewer.HealthAdmission.receive),
   (`Acorn.Decisions, `Acorn.Decisions.agent_run_prefix, `Acorn.Handcrafted.Agent.runPrefix),
-  (`Acorn.Decisions, `Acorn.Decisions.load_keeping, `Acorn.Checkpoint.loadKeeping),
+  (`AcornVerif.Decisions, `AcornVerif.Decisions.load_keeping, `Acorn.Checkpoint.loadKeeping),
   (`Acorn.Decisions, `Acorn.Decisions.find_index, `Acorn.Costed.findIdx?),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.managed_words, `Acorn.Checkpoint.managedWords),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.exploration_begins,
