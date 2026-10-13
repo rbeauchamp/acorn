@@ -21,16 +21,16 @@ assigned at every free decision boundary and the declared D6 exploration rate.
 namespace Acorn.Host.AuditPins
 
 /-- Deployed ranked, declared-rate, discounted action digest. -/
-def declaredDigest : UInt64 := 0x29dde0eb2b6f1ba7
+def declaredDigest : UInt64 := 0x28c98382d02dbf12
 /-- Knowledge checksum paired with the deployed digest. -/
-def declaredChecksum : UInt64 := 0x53f0f2909b71c8ce
+def declaredChecksum : UInt64 := 0x47d37dab0adedf72
 /-- Annealed incumbent action digest. -/
-def annealedDigest : UInt64 := 0xf23c0b2aa4587db9
+def annealedDigest : UInt64 := 0x98b81750c38dc805
 /-- Knowledge checksum paired with the incumbent digest. -/
-def annealedChecksum : UInt64 := 0x465a35a5b2dc1242
+def annealedChecksum : UInt64 := 0x94576181c78ce69f
 /-- Differential research action digest. -/
-def differentialDigest : UInt64 := 0x9531659924f87c9c
+def differentialDigest : UInt64 := 0xa17312e3b2319ade
 /-- Knowledge checksum paired with the differential digest. -/
-def differentialChecksum : UInt64 := 0x51e81d1df4cb1fb4
+def differentialChecksum : UInt64 := 0x4419c551f7a03b79
 
 end Acorn.Host.AuditPins
