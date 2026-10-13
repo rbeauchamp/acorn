@@ -312,8 +312,9 @@ theorem yet establishes, which a later increment of requirement R8 owes:
   of the controllers' predictions, clear, release, snapshot, derived rate and updates
   listed below, of the frozen policy and of its exploration, of the encoding of a frame,
   of an option model's input, ranked features, prediction and updates, of the prediction
-  demons' bank step, of every option's off-policy questions and of an option's rate,
-  start, termination decision, step, credit, frozen policy and termination, described below;
+  demons' bank step, of every option's off-policy questions, of an option's rate,
+  start, termination decision, step, credit, frozen policy and termination, and of its
+  operations with its model, described below;
 - the correspondence of the twins of selection, among them the controllers' initial
   value and reset, with the executed definitions: the twins'
   charges were compared with the compiled call multisets of one build by a one-time
