@@ -620,7 +620,14 @@ What each panel must show. How it draws it is the code's.
   (displacement and distance) and neither absolute target coordinates nor its
   own position (the [`Observation` interface](../lean/Acorn/Host/Observation.lean)). Night dims the view
   with a translucent blue tint, deeper at midnight, and the clock's icon flips
-  ☀/🌙.
+  ☀/🌙. Night is the world's: the page takes the phase from the generated
+  kernel's day-phase function, the emission of the integer program
+  `BrowserNat.dayPhase`. The program's integer semantics is the phase that the
+  world observes and charges, for every clock and day length
+  ([`BrowserNat.dayPhase_execution`](../lean/Acorn/Host/Viewer/BrowserNat.lean)).
+  The emitted JavaScript agrees with it on the admitted safe-integer `world_step`
+  and `day_length` fields, under the emitter and runtime assumptions that module
+  states.
 - **UX-29 · The HUD.** A header above the map places `current goal N/<goal_count>`
   on the left, with plain-language goal text — `Go to the gold target (x, y)` /
   `Hold at least n <item>` / `Own Axe|Boat` / `Continue for n world steps in this attempt`
