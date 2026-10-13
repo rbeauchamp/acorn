@@ -241,7 +241,9 @@ frames, so they share no reader of the age with the tests. The definitions of th
 `Host.BoxPosition.facingPosition`, the offset table `Host.Direction.delta`, the discount and
 horizon words `Discount.gamma` and `Discount.horizon`, the domains of the weights and the
 predictions `ValueRule.domain` and `Discount.predictionRange`, the bound of a total
-`Lifetime.Quantity.bound` and the envelope `Agreement.envelopeUnits`. The specification of
+`Lifetime.Quantity.bound` and the envelope `Agreement.envelopeUnits`. For `snapshot_consistent`
+the account names the costed `PolicySnapshot.probabilitiesCosted`, whose value is
+`PolicySnapshot.probabilities`, which `snapshot_masses` states. The specification of
 `exploration_begins` there states the output of the generator from its stored words and reads no
 definition of the generator. Three readers of stored data have no statement of their own: the
 weight word `Weight.value`, the generator and tester state `Features.Lifecycle.progress` and the
@@ -255,11 +257,11 @@ their own for them are remaining work of https://github.com/rbeauchamp/acorn/iss
 contract with a kind, the account of the Regula audit names each such function where the
 specification reaches it first. It does not name a function that the specification reaches only
 through a named one, and it does not name a projection function. The audit gives no such account
-for a statement with no kind, and the definitions above are those of the contracts with a kind.
-The statements with no kind also apply definitions that their functions apply: declared
-constants, readers and arithmetic of the executing library, and the executing constructors that
-build a witness; which of them need statements of their own is remaining work of the same
-issue.
+for a statement with no kind. The inventory above covers the contracts with a kind; `box_center`
+stands beside it for `spawn_select` in `AcornVerif.Decisions`, which keeps no kind. The statements
+with no kind also apply definitions that their functions apply: declared constants, readers and
+arithmetic of the executing library, and the executing constructors that build a witness; which
+of them need statements of their own is remaining work of the same issue.
 
 The vocabulary of the world, `Host.Direction`, `Host.Action`, `Host.TileKind`, `Host.Position`
 and `Host.BoxPosition`, derives decidable equality and no `BEq` instance of its own: `==` on it

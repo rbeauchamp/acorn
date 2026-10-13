@@ -2698,18 +2698,6 @@ private theorem contains_numerical (range : Interval32) (word : Binary32) :
     exact ⟨finite, (CurrentOrder.numerical32_order _ _ range.lowerFinite finite).mp low,
       (CurrentOrder.numerical32_order _ _ finite range.upperFinite).mp high⟩
 
-/-- The negated horizon word has the negated rational value. -/
-private theorem horizon_negate (discount : Discount) :
-    CurrentArithmetic.numerical32 discount.horizon.negate =
-      -CurrentArithmetic.numerical32 discount.horizon := by
-  cases discount
-  · change (-1 : ℚ) * 10485758 * 2 ^ (-20 : Int) = -((1 : ℚ) * 10485758 * 2 ^ (-20 : Int))
-    ring
-  · change (-1 : ℚ) * 10485758 * 2 ^ (-19 : Int) = -((1 : ℚ) * 10485758 * 2 ^ (-19 : Int))
-    ring
-  · change (-1 : ℚ) * 13107213 * 2 ^ (-17 : Int) = -((1 : ℚ) * 13107213 * 2 ^ (-17 : Int))
-    ring
-
 /-- The weight domain of a discount contains exactly the finite words whose rational value is at
 most the horizon in magnitude. -/
 private theorem discount_domain (discount : Discount) (word : Binary32) :
@@ -2720,7 +2708,7 @@ private theorem discount_domain (discount : Discount) (word : Binary32) :
   change word.Finite ∧ CurrentArithmetic.numerical32 discount.horizon.negate ≤
     CurrentArithmetic.numerical32 word ∧
       CurrentArithmetic.numerical32 word ≤ CurrentArithmetic.numerical32 discount.horizon ↔ _
-  rw [horizon_negate, abs_le]
+  rw [(CurrentOffPolicy.horizon_facts discount).2.2.2.1, abs_le]
 
 /-- The weight domain of a rule contains exactly the finite words whose rational value is at most
 the horizon of its discount in magnitude, the horizon of `g99` for the differential rule, for
