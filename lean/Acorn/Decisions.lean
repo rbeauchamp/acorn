@@ -80,8 +80,8 @@ with one proved direction carries that direction alone. Five groups are register
 ## Statements that keep no kind
 
 Thirty-two functions of this module have a contract and no kind. The reasons are four.
-Nineteen more are no decisions, and their statements say what they are: `Host.coordinateFloat`
-and `Agent.runPrefix` refuse no input (`coordinate_float`, `agent_run_prefix`), and seventeen
+Twenty more are no decisions, and their statements say what they are: `Host.coordinateFloat`
+and `Agent.runPrefix` refuse no input (`coordinate_float`, `agent_run_prefix`), and eighteen
 definitions that specifications share with their functions have the statements of the section
 "Definitions that specifications share".
 
@@ -254,7 +254,12 @@ are about, are shared with no statement of their own against another reading; st
 their own for them are remaining work of https://github.com/rbeauchamp/acorn/issues/67. For a
 contract with a kind, the account of the Regula audit names each such function where the
 specification reaches it first. It does not name a function that the specification reaches only
-through a named one, and it does not name a projection function.
+through a named one, and it does not name a projection function. The audit gives no such account
+for a statement with no kind, and the definitions above are those of the contracts with a kind.
+The statements with no kind also apply definitions that their functions apply: declared
+constants, readers and arithmetic of the executing library, and the executing constructors that
+build a witness; which of them need statements of their own is remaining work of the same
+issue.
 
 The vocabulary of the world, `Host.Direction`, `Host.Action`, `Host.TileKind`, `Host.Position`
 and `Host.BoxPosition`, derives decidable equality and no `BEq` instance of its own: `==` on it
@@ -5430,13 +5435,16 @@ theorem craft_recipe : Regula.ExecutableContract Host.Craftable.recipe (fun reci
     recipe .axe = (3, 2) ∧ recipe .boat = (4, 0)) :=
   ⟨⟨rfl, rfl⟩⟩
 
-/-- The code of a goal family is one of the five numbers below five, every such number is the
-code of a family, and no two families share a code. The specification of `goal_kind_decode`
-applies it. The statement has no hypothesis; the family with no goal has the code zero. -/
+/-- The code of each goal family is the number of the published table: zero for no goal, one
+for reach, two for collect, three for craft and four for survive. The codes are therefore the
+five numbers below five, and no two families share one. The specification of `goal_kind_decode`
+applies it. The statement has no hypothesis. -/
 theorem goal_kind_code : Regula.ExecutableContract Host.Viewer.GoalKind.code (fun code =>
-    (∀ number : Nat, (∃ kind, code kind = number) ↔ number < 5) ∧
+    (code none = 0 ∧ code (some .reach) = 1 ∧ code (some .collect) = 2 ∧
+      code (some .craft) = 3 ∧ code (some .survive) = 4) ∧
+      (∀ number : Nat, (∃ kind, code kind = number) ↔ number < 5) ∧
       ∀ first second, code first = code second → first = second) :=
-  ⟨⟨fun number => by
+  ⟨⟨⟨rfl, rfl, rfl, rfl, rfl⟩, fun number => by
       constructor
       · rintro ⟨kind, rfl⟩
         rcases kind with _ | kind
@@ -5453,14 +5461,17 @@ theorem goal_kind_code : Regula.ExecutableContract Host.Viewer.GoalKind.code (fu
       rcases first with _ | first <;> rcases second with _ | second <;>
         (try cases first) <;> (try cases second) <;> first | rfl | exact absurd same (by decide)⟩⟩
 
-/-- The code of a goal item is one of the seven numbers zero to four, eleven and twelve, every
-such number is the code of an item, and no two items share a code. The specification of
-`goal_item_decode` applies it. The statement has no hypothesis; the item of no goal has the code
-zero. -/
+/-- The code of each goal item is the number of the published table: zero for no item, one to
+four for wood, stone, food and gold, eleven for an axe and twelve for a boat. The codes are
+therefore the seven numbers zero to four, eleven and twelve, and no two items share one. The
+specification of `goal_item_decode` applies it. The statement has no hypothesis. -/
 theorem goal_item_code : Regula.ExecutableContract Host.Viewer.GoalItem.code (fun code =>
-    (∀ number : Nat, (∃ item, code item = number) ↔ number ∈ [0, 1, 2, 3, 4, 11, 12]) ∧
+    (code none = 0 ∧ code (some (.inl .wood)) = 1 ∧ code (some (.inl .stone)) = 2 ∧
+      code (some (.inl .food)) = 3 ∧ code (some (.inl .gold)) = 4 ∧
+      code (some (.inr .axe)) = 11 ∧ code (some (.inr .boat)) = 12) ∧
+      (∀ number : Nat, (∃ item, code item = number) ↔ number ∈ [0, 1, 2, 3, 4, 11, 12]) ∧
       ∀ first second, code first = code second → first = second) :=
-  ⟨⟨fun number => by
+  ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, fun number => by
       constructor
       · rintro ⟨item, rfl⟩
         rcases item with _ | item | tool
@@ -5553,6 +5564,14 @@ theorem box_position : Regula.ExecutableContract @Host.BoxPosition.position (fun
     ∀ (config : Host.WorldConfig) (body : Host.BoxPosition config),
       (position body).x.val = body.x.val ∧ (position body).y.val = body.y.val) :=
   ⟨fun _ _ => ⟨rfl, rfl⟩⟩
+
+/-- Both coordinates of the center of the box are half the side, rounded down, for every
+configuration. The specification of `spawn_select` in `AcornVerif.Decisions` applies it as the
+spawn of a box with no walkable tile. The statement has no hypothesis. -/
+theorem box_center : Regula.ExecutableContract Host.BoxPosition.center (fun center =>
+    ∀ config : Host.WorldConfig, (center config).x.val = config.side / 2 ∧
+      (center config).y.val = config.side / 2) :=
+  ⟨fun _ => ⟨rfl, rfl⟩⟩
 
 /-! ## Classifiers and lookups
 

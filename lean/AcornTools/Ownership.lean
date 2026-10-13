@@ -625,6 +625,7 @@ def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Decisions, `Acorn.Decisions.rank_dimension, `Acorn.Features.rankDimension),
   (`Acorn.Decisions, `Acorn.Decisions.world_side, `Acorn.Host.WorldConfig.side),
   (`Acorn.Decisions, `Acorn.Decisions.box_position, `Acorn.Host.BoxPosition.position),
+  (`Acorn.Decisions, `Acorn.Decisions.box_center, `Acorn.Host.BoxPosition.center),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.direction_delta, `Acorn.Host.Direction.delta),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.discount_gamma, `Acorn.Discount.gamma),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.discount_horizon, `Acorn.Discount.horizon),
