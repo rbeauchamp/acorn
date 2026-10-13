@@ -34,7 +34,7 @@ absent. -/
 def insertCosted {dimension : Dimension} (active : SwiftTd.ActiveSet dimension)
     (index : FeatIdx dimension) : Costed (SwiftTd.ActiveSet dimension) :=
   Costed.charge .insert do
-    let present ← Costed.attach (Costed.mem index active.indices)
+    let present ← Costed.attach (Costed.mem index active.indices dimension.wordBound)
     Costed.dite (present.val = true) (fun _ => Costed.pure active) fun absent => do
       have h : index ∉ active.indices := fun member => absent (by
         rw [present.property, Costed.mem_val]

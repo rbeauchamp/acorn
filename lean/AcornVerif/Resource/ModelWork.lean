@@ -39,7 +39,7 @@ theorem insertCosted_within (κ : Costs) (active : SwiftTd.ActiveSet dimension)
     (insertCosted active index).Within κ (inputBound κ active.indices.length) := by
   unfold insertCosted inputBound
   refine Acorn.Costed.charge_within
-    (Acorn.Costed.bind_within (Acorn.Costed.attach_within (Acorn.Costed.mem_within _ _ κ)) ?_)
+    (Acorn.Costed.bind_within (Acorn.Costed.attach_within (Acorn.Costed.mem_within _ _ _ κ)) ?_)
   exact Acorn.Costed.dite_within (fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
     fun _ => (Acorn.Costed.bind_within
       (Acorn.Costed.attach_within (Acorn.Costed.append_within _ _ κ))

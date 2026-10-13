@@ -437,7 +437,10 @@ the specialization of their fold, and in the off-policy following of an option
 (`Skill.followTemporal`), which reaches the model's restart, now a costed operation,
 through nested tests of consistency and liveness where the code without work passed the
 restart's arguments to a join point that tested consistency again, with the same calls in
-the same order, an observation of one build each that no gate repeats. The loops the costed definitions' bounds count are therefore the
+the same order, and in the consistency test of the frozen policy
+(`PolicySnapshot.consistent`), whose costed form allocates the closure of the equality of
+raw words after it reads the nominal masses where the code without work allocated it
+before, an observation of one build each that no gate repeats. The loops the costed definitions' bounds count are therefore the
 loops that run, under that assumption and one discipline that no theorem states,
 because Lean gives a pure term no operational meaning. Every function a combinator
 takes is costed, so its work is counted: the steps of a fold, the operation of a map,
@@ -450,14 +453,16 @@ element put before a vector, a reversal, an integer sum, a membership test, the 
 two vectors) is charged its row with no function to count, the membership test of a list
 (`Costed.mem`) and the equality of two vectors (`Costed.vectorEq`) one comparison for each
 visit as well, and an element put before a vector (`Costed.prepend`) one read of the
-element; the costed type has only
+element. The two comparing scans take no equality instance: the membership test compares
+numbers below 2^32 and the equality of vectors raw binary32 words, so each comparison is
+of one word. The costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
 values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, the
-condition of `Costed.ite` and of `Costed.dite`, the element and the vector of
+condition of `Costed.ite` and of `Costed.dite` and its decision, the element and the vector of
 `Costed.prepend`, the element and the list of `Costed.mem`, the two vectors of
 `Costed.vectorEq`, and the terms a costed definition evaluates in its own body.
 Each must be computed without a costed definition and with no loop except those the cost semantics
