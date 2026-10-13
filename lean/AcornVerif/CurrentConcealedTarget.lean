@@ -43,7 +43,7 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   more than `49 + 7 cap` targets, on that visit it solves all of them while every
   experience-free agent solves fewer on every visit (`find_replay_separates`). Whether an
   exploration meets a target depends on the terrain, so the theorem takes it as a hypothesis;
-  `witness_separation` discharges it in one admitted world (seed 55, side 64, noise scale
+  `witness_separation` discharges it in one admitted world (seed 5, side 64, noise scale
   one): three visits of seven steps east, west and south from the box's center meet 147
   members, more than the bound 98, so there the replaying agent solves 147 on visit 2 and
   every experience-free agent fewer on every visit. The kernel evaluates the executed step
@@ -515,10 +515,10 @@ theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
 
 /-! ## A world in which the separation holds -/
 
-/-- The configuration of the separation witness: seed 55, a box of side 64, a noise scale of
+/-- The configuration of the separation witness: seed 5, a box of side 64, a noise scale of
 one, a day of one step, and no food or deer. -/
 def witnessConfig : Host.WorldConfig :=
-  ⟨⟨55, ⟨64, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+  ⟨⟨5, ⟨64, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
 
 /-- The host world of the witness: the configuration's empty world, with the body at the box's
 center and its energy full, and an empty carried result. -/

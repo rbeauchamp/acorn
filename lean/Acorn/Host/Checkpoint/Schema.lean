@@ -7,7 +7,7 @@ import Acorn.Host.Checkpoint.Codec
 import Acorn.FeatureConstants
 
 /-!
-# Checkpoint format 19
+# Checkpoint format 20
 
 A file holds a header and a body. The header holds the identity and configuration words of
 the image, read before the body so that an image of another construction is refused before

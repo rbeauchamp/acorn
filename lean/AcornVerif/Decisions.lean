@@ -273,7 +273,7 @@ def oldestSample : PendingPrediction Discount.g99 :=
   ⟨⟨FeatureConstants.maxSettlement, by decide⟩, Prediction.project _ .zero, .zero, .one, 0⟩
 
 /-- A tile of `wide` from which a tree to the west can be harvested. -/
-def stand : Host.BoxPosition wide := ⟨⟨0, by decide⟩, ⟨6, by decide⟩⟩
+def stand : Host.BoxPosition wide := ⟨⟨3, by decide⟩, ⟨1, by decide⟩⟩
 
 /-- The stance checker accepts the wood stance on `stand`, facing west. The kernel evaluates
 the terrain of its three tiles. -/
@@ -715,8 +715,8 @@ private theorem enterable_walkable {config : Host.WorldConfig} {tile : Host.Posi
 /-- The walkable test accepts exactly a tile that the body may enter in every world of the
 configuration, with or without a boat (`CurrentCertificates.walkable_enterable`, and
 `enterable_walkable` for the converse). Enterability is the executed test of the world, which
-is the subject of the claim. The accepted input is a tile of the wide world, and the refused
-input is the last coordinate, whose terrain the generator refuses. -/
+is the subject of the claim. The accepted input is the grass tile (2, 0) of the wide world, and
+the refused input is the last coordinate, whose terrain the generator refuses. -/
 theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test =>
     Regula.Decides (· = true)
       (fun input : Host.WorldConfig × Host.Position =>
@@ -726,7 +726,7 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
     (fun input =>
       ⟨fun accepted world => CurrentCertificates.walkable_enterable world input.2 accepted,
         enterable_walkable⟩)
-    ⟨(wide, ⟨⟨0, by decide⟩, ⟨1, by decide⟩⟩), by decide +kernel⟩
+    ⟨(wide, ⟨⟨2, by decide⟩, ⟨0, by decide⟩⟩), by decide +kernel⟩
     ⟨(wide, last), by decide +kernel⟩⟩
 
 /-! ## Checkpoint admissions

@@ -9,7 +9,7 @@ import AcornVerif.CurrentImage
 /-!
 # The exact save and restore
 
-These statements concern the executed format-19 writer, frame, admission and loader and the
+These statements concern the executed format-20 writer, frame, admission and loader and the
 agent's restore. Loading the bytes that a save of a state writes returns that state, every
 field of its agent included (`load_saved`), for every state of every construction of a
 resumable profile. The proof composes three exact layers: the image format reads exactly the
@@ -276,6 +276,23 @@ theorem unresumable_unloaded (construction : AgentConstruction) (bytes : List UI
   have supported := (FeatureProfile.checkpoint_iff _).mpr admitted.supported
   rw [unsupported] at supported
   cases supported
+
+/-- **The loader refuses an image of generation 19.** For every construction, every byte list
+whose header decodes with the generation word 19, and every image, the loader does not return
+the image: header admission requires generation 20 (`HeaderAdmitted.version`). Generation 19
+has the layout of generation 20, but its weights were placed by the hashes that read their
+first two words only through their XOR, so a saved weight can sit at the slot of another
+feature (`Checkpoint.formatVersion`). -/
+theorem previous_generation_unloaded (construction : AgentConstruction) (bytes : List UInt8)
+    (header : Header) (rest : List UInt8)
+    (decoded : headerCodec.decode (bytes.drop magic.length) = some (header, rest))
+    (previous : header.version = 19) (image : construction.Image) :
+    loadCandidate construction bytes ≠ .ok image := by
+  intro loaded
+  obtain ⟨found, _, _, again, admitted⟩ := loadCandidate_header construction bytes image loaded
+  rw [decoded, Option.some.injEq, Prod.mk.injEq] at again
+  obtain ⟨rfl, -⟩ := again
+  exact absurd (previous.symm.trans admitted.version) (by decide)
 
 /-- A stored word below 256 is its low byte and three zero bytes. -/
 theorem u32_small (word : UInt32) (small : word.toNat < 256) :

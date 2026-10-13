@@ -222,14 +222,20 @@ theorem prefix_zero_state (count : Nat) :
   | zero => rfl
   | succ count ih => simp [runPrefix, hstep, ih, List.replicate_succ]
 
-/-- A coordinate hash accepts the exact two's-complement coordinate words. -/
+/-- A coordinate hash accepts the exact two's-complement coordinate words. The seed is mixed
+before the first coordinate word enters, so two seeds and two first words give one hash only
+when the words differ by the XOR of the mixed seeds (`hash2_eq_iff`), not whenever the XOR of
+seed and word agrees (`hash2_not_xor`). -/
 def hash2 (x y seed : UInt64) : UInt64 :=
-  let first := mix64 ((seed ^^^ increment) ^^^ x)
+  let first := mix64 (mix64 (seed ^^^ increment) ^^^ x)
   mix64 (mix64 (first ^^^ rotateLeft y 32))
 
-/-- Stable mixing of three raw words. -/
+/-- Stable mixing of three raw words. The first word is mixed before the second enters, so two
+pairs of first words give one hash only when their second words differ by the XOR of the mixed
+first words (`hash3_eq_iff`), not whenever the XOR of the first two words agrees
+(`hash3_not_xor`). -/
 def hash3 (a b c : UInt64) : UInt64 :=
-  mix64 (mix64 ((a ^^^ increment) ^^^ b) ^^^ rotateLeft c 17)
+  mix64 (mix64 (mix64 (a ^^^ increment) ^^^ b) ^^^ rotateLeft c 17)
 
 /-- Ordered hashing of any finite word list, preserving the per-word offset. -/
 def hashMany (words : List UInt64) : UInt64 :=
@@ -349,6 +355,45 @@ theorem mix64_injective (left right : UInt64) (h : mix64 left = mix64 right) : l
   have hx := mixFinal_injective _ _ h
   have hc := congrArg (fun word => word - increment) hx
   simpa using hc
+
+/-- **Two calls of `hash3` with one third word agree exactly when their first two words agree
+after the first is mixed**, for every five words: the mixer and the XOR with a fixed word are
+bijections of the words. The first word enters only through `mix64 (a ^^^ increment)`, so two
+pairs alias exactly when the XOR of their second words is the XOR of the mixed first words. -/
+theorem hash3_eq_iff (a b a' b' c : UInt64) :
+    hash3 a b c = hash3 a' b' c ↔
+      mix64 (a ^^^ increment) ^^^ b = mix64 (a' ^^^ increment) ^^^ b' := by
+  constructor
+  · intro same
+    exact mix64_injective _ _
+      (Word.xor_word_injective _ _ _ (mix64_injective _ _ same))
+  · intro same
+    simp only [hash3, same]
+
+/-- **Two calls of `hash2` with one second word agree exactly when their seeds and first words
+agree after the seed is mixed**, for every five words: the mixers and the XOR with a fixed word
+are bijections of the words. -/
+theorem hash2_eq_iff (x y seed x' seed' : UInt64) :
+    hash2 x y seed = hash2 x' y seed' ↔
+      mix64 (seed ^^^ increment) ^^^ x = mix64 (seed' ^^^ increment) ^^^ x' := by
+  constructor
+  · intro same
+    exact mix64_injective _ _ (Word.xor_word_injective _ _ _
+      (mix64_injective _ _ (mix64_injective _ _ same)))
+  · intro same
+    simp only [hash2, same]
+
+/-- `hash3` is not a function of the XOR of its first two words: the pairs `(0, 1)` and
+`(1, 0)` have one XOR and, with the third word zero, two hashes. -/
+theorem hash3_not_xor :
+    ¬∀ a b a' b' c : UInt64, a ^^^ b = a' ^^^ b' → hash3 a b c = hash3 a' b' c :=
+  fun xor => absurd (xor 0 1 1 0 0 (by decide)) (by decide)
+
+/-- `hash2` is not a function of the XOR of its seed and first word: the seed and word pairs
+`(0, 1)` and `(1, 0)` have one XOR and, with the second word zero, two hashes. -/
+theorem hash2_not_xor :
+    ¬∀ x y seed x' seed' : UInt64, seed ^^^ x = seed' ^^^ x' → hash2 x y seed = hash2 x' y seed' :=
+  fun xor => absurd (xor 1 0 0 0 1 (by decide)) (by decide)
 
 /-- Any fixed finite state advance is injective, including raw zero admission. -/
 theorem advance_injective (count : Nat) (left right : Xoshiro256)

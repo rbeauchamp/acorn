@@ -950,7 +950,9 @@ private theorem admitHeader_isOk (construction : AgentConstruction) (header : Ch
 
 /-- Header admission accepts exactly the headers that name the receiving construction's
 generation, criterion, shape, seed, resumable profile, representation and step order, with a
-reward rate in its interval (`Checkpoint.admitHeader_iff`). -/
+reward rate in its interval (`Checkpoint.admitHeader_iff`). The accepted input is the header of
+the standard construction at seed 0; the refused input is that header with the generation 19,
+whose images hold their weights at the slots of other hashes (`Checkpoint.formatVersion`). -/
 theorem header_admit : Regula.ExecutableContract Checkpoint.admitHeader (fun admit =>
     Regula.Decides (·.isOk = true) HeaderMatches (Function.uncurry admit)) :=
   ⟨decides (fun input => admitHeader_isOk input.1 input.2)
@@ -961,7 +963,10 @@ theorem header_admit : Regula.ExecutableContract Checkpoint.admitHeader (fun adm
           Acorn.FeatureConstants.defaultImprintUnits.toUInt32, 1, 0⟩),
       (admitHeader_isOk _ _).mp (by decide)⟩
     ⟨(AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .expectation .learnThenAct,
-        ⟨Checkpoint.formatVersion + 1, 0, 0, 0, 0, 0, .zero, 0, 0, 0, 0⟩),
+        ⟨19, Acorn.FeatureConstants.defaultWeightSpace.toUInt32,
+          Checkpoint.primaryCount.toUInt32, 0, 0, 0, .zero,
+          Acorn.FeatureConstants.defaultTilings.toUInt64,
+          Acorn.FeatureConstants.defaultImprintUnits.toUInt32, 1, 0⟩),
       fun ⟨_, specified⟩ => absurd specified.version (by decide)⟩⟩
 
 attribute [regula_decision] Checkpoint.admitHeader
@@ -2355,8 +2360,8 @@ attribute [regula_decision] Host.covered
 /-- The impassable test accepts exactly a tile whose static terrain is a mountain, or water
 when the certificate is for a body without a boat. It refuses a terrain refusal. The terrain
 generator is the subject of the claim: the specification names `Host.terrain`, which the test
-reads. The accepted input is a tile of the wide world for a body without a boat, and the
-refused input is the last coordinate, whose terrain the generator refuses. -/
+reads. The accepted input is a water tile of the wide world, (15, 0), for a body without a
+boat, and the refused input is the last coordinate, whose terrain the generator refuses. -/
 theorem tile_impassable : Regula.ExecutableContract Host.impassable (fun test =>
     Regula.Decides (· = true)
       (fun input : (Host.WorldConfig × Bool) × Host.Position =>
@@ -2371,7 +2376,7 @@ theorem tile_impassable : Regula.ExecutableContract Host.impassable (fun test =>
       cases Host.terrain tile config.raw.seed config.raw.baseScale with
       | error refusal => simp
       | ok kind => cases kind <;> simp)
-    ⟨((wide, false), ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩), by decide +kernel⟩
+    ⟨((wide, false), ⟨⟨15, by decide⟩, ⟨0, by decide⟩⟩), by decide +kernel⟩
     ⟨((wide, true), last), by decide +kernel⟩⟩
 
 attribute [regula_decision] Host.impassable
@@ -5190,18 +5195,20 @@ private theorem mix_splitMix (word : UInt64) :
   rfl
 
 /-- The slot of a unit is the residue, modulo the capacity of the feature space, of SplitMix64
-applied twice: to the seed XOR `0x9e3779b97f4a7c15`, then to that output with the unit's number
-rotated 17 places, for every dimension, bank configuration and unit. The slot map passes the
-tag `0x1D` twice to `Rng.hash3`, once with the seed and once as the second word, and the two
-cancel, so the slot depends on the seed and the unit alone. The capacity is a power of two at
-most `2 ^ 32`, so the residue is the mask of the low 32 bits that the map takes.
+applied three times: to the seed XOR the tag `0x1D` XOR `0x9e3779b97f4a7c15`, then to that output
+XOR the tag, then to that output XOR the unit's number rotated 17 places, for every dimension,
+bank configuration and unit. The slot map passes the tag to `Rng.hash3` twice, once with the seed
+and once as the second word; the first word is mixed before the second enters, so the two do not
+cancel. The capacity is a power of two at most `2 ^ 32`, so the residue is the mask of the low 32
+bits that the map takes.
 `candidate_of_weight`, `assignment_potential` and `assignment_admit` share the map with their
 functions. The witnesses are the two units of `pair`, which the map sends to different slots of
 `double`. -/
 theorem unit_feature : Regula.ExecutableContract unitFeature (fun slot =>
     (∀ (dimension : Dimension) (config : Features.Config) (unit : Fin config.units.count),
       (slot dimension config unit).val =
-        (splitMix (splitMix (config.seed.toBitVec ^^^ 0x9e3779b97f4a7c15#64) ^^^
+        (splitMix (splitMix (splitMix (config.seed.toBitVec ^^^ 0x1D#64 ^^^
+            0x9e3779b97f4a7c15#64) ^^^ 0x1D#64) ^^^
             (BitVec.ofNat 64 unit.val).rotateLeft 17)).toNat % dimension.capacity) ∧
       (slot double pair ⟨0, by decide⟩).val = 1 ∧ (slot double pair ⟨1, by decide⟩).val = 0) :=
   ⟨⟨fun dimension config unit => by
@@ -5211,14 +5218,9 @@ theorem unit_feature : Regula.ExecutableContract unitFeature (fun slot =>
         rw [power] at this
         exact Nat.le_of_lt ((Nat.pow_lt_pow_iff_right (by decide)).mp this)
       have hash : (Rng.hash3 (config.seed ^^^ 0x1D) 0x1D unit.val.toUInt64).toBitVec =
-          splitMix (splitMix (config.seed.toBitVec ^^^ 0x9e3779b97f4a7c15#64) ^^^
-            (BitVec.ofNat 64 unit.val).rotateLeft 17) := by
-        have tag : config.seed.toBitVec ^^^ 0x1D#64 ^^^ 0x9e3779b97f4a7c15#64 ^^^ 0x1D#64 =
-            config.seed.toBitVec ^^^ 0x9e3779b97f4a7c15#64 := by
-          rw [BitVec.xor_assoc, BitVec.xor_comm 0x9e3779b97f4a7c15#64, ← BitVec.xor_assoc,
-            BitVec.xor_assoc config.seed.toBitVec, BitVec.xor_self, BitVec.xor_zero]
+          splitMix (splitMix (splitMix (config.seed.toBitVec ^^^ 0x1D#64 ^^^
+            0x9e3779b97f4a7c15#64) ^^^ 0x1D#64) ^^^ (BitVec.ofNat 64 unit.val).rotateLeft 17) := by
         simp only [Rng.hash3, mix_splitMix, UInt64.toBitVec_xor, Rng.rotateLeft_toBitVec]
-        rw [← tag]
         rfl
       rw [← hash]
       show ((Rng.hash3 (config.seed ^^^ 0x1D) 0x1D unit.val.toUInt64).toUInt32 &&&

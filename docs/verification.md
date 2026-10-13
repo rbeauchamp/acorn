@@ -826,13 +826,13 @@ still decides whether the prose describes that owner faithfully.
 
 ## Mutation diagnostics
 
-**Pinned digest: `29dde0eb2b6f1ba7`**
+**Pinned digest: `28c98382d02dbf12`**
 
 ```sh
-lean/.lake/build/bin/acorn-core audit --expect 29dde0eb2b6f1ba7
+lean/.lake/build/bin/acorn-core audit --expect 28c98382d02dbf12
 ```
 
-Paired checksum `53f0f2909b71c8ce`. The deployed arm runs the ranked profile
+Paired checksum `47d37dab0adedf72`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
@@ -849,10 +849,14 @@ when investigating a dynamics change.
 
 ## Checkpoint admission
 
-Format 19 holds the exact image of the agent:
+Format 20 holds the exact image of the agent:
 every field of its temporal state, the option models, each option's off-policy questions
 (PAR-18), primitive credit, the rate schedule and every process-local reference included.
-Earlier formats are refused. Load checks dimensions, identifiers, criterion and step order
+Earlier formats are refused. Format 19 has this layout, but its weights were placed by the
+hashes that read their first two words only through their XOR, so a saved weight can sit at
+the slot of another feature; the loader refuses it
+(`AcornVerif.CurrentCheckpoint.previous_generation_unloaded`). Load checks dimensions,
+identifiers, criterion and step order
 in the header, then reads the image with every stored word in its own domain, every
 learner through the check of its invariant and the agent's two invariants. An incompatible
 image is refused and writes to that file are disabled. Loading the bytes that a save of a

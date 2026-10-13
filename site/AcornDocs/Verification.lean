@@ -806,7 +806,11 @@ tag := "checkpoint-admission"
 Format {splice}`toString Acorn.Checkpoint.formatVersion` holds the exact image of the agent:
 every field of its temporal state, the option models, each option's off-policy questions
 (PAR-18), primitive credit, the rate schedule and every process-local reference included.
-Earlier formats are refused. Load checks dimensions, identifiers, criterion and step order
+Earlier formats are refused. Format 19 has this layout, but its weights were placed by the
+hashes that read their first two words only through their XOR, so a saved weight can sit at
+the slot of another feature; the loader refuses it
+({decl}`AcornVerif.CurrentCheckpoint.previous_generation_unloaded`). Load checks dimensions,
+identifiers, criterion and step order
 in the header, then reads the image with every stored word in its own domain, every
 learner through the check of its invariant and the agent's two invariants. An incompatible
 image is refused and writes to that file are disabled. Loading the bytes that a save of a
