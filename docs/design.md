@@ -433,8 +433,11 @@ and, in four callers of the policy's functions (`TemporalControl.choosePrimitive
 `TemporalControl.serve`, `TemporalControl.serveDraw`, `Skill.followTemporal`), the
 order of the parallel moves into a join point, and in two callers of the encoding's
 first-occurrence builder (`NumericState.resumable`, `Checkpoint.presence`), the name of
-the specialization of their fold, an observation of one build each that
-no gate repeats. The loops the costed definitions' bounds count are therefore the
+the specialization of their fold, and in the off-policy following of an option
+(`Skill.followTemporal`), which reaches the model's restart, now a costed operation,
+through nested tests of consistency and liveness where the code without work passed the
+restart's arguments to a join point that tested consistency again, with the same calls in
+the same order, an observation of one build each that no gate repeats. The loops the costed definitions' bounds count are therefore the
 loops that run, under that assumption and one discipline that no theorem states,
 because Lean gives a pure term no operational meaning. Every function a combinator
 takes is costed, so its work is counted: the steps of a fold, the operation of a map,
@@ -443,10 +446,11 @@ well, the tests of a search (`Costed.findIdx?`) and a filter, the continuation o
 sequence and the arms of a branch (`Costed.ite`) and of a dependent branch, whose arms
 read the condition's proof (`Costed.dite`); a scan of a list, a vector or an array (its
 listing, a drop, a length, the indices or numbers below a count, a numbering, a join, an
-element put before a vector, a reversal, an integer sum, a membership test) is charged its
-row with no function to count, the membership test of a list (`Costed.mem`) one comparison
-for each visit as well, and an element put before a vector (`Costed.prepend`) one read of
-the element; the costed type has only
+element put before a vector, a reversal, an integer sum, a membership test, the equality of
+two vectors) is charged its row with no function to count, the membership test of a list
+(`Costed.mem`) and the equality of two vectors (`Costed.vectorEq`) one comparison for each
+visit as well, and an element put before a vector (`Costed.prepend`) one read of the
+element; the costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
 The uncosted entry points are
@@ -454,8 +458,8 @@ values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the val
 `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
 element of `Costed.replicate`, the collections and initial accumulators of the loops, the
 condition of `Costed.ite` and of `Costed.dite`, the element and the vector of
-`Costed.prepend`, the element and the list of `Costed.mem`,
-and the terms a costed definition evaluates in its own body.
+`Costed.prepend`, the element and the list of `Costed.mem`, the two vectors of
+`Costed.vectorEq`, and the terms a costed definition evaluates in its own body.
 Each must be computed without a costed definition and with no loop except those the cost semantics
 lists as left inside a segment, whose trip counts are bounded by constants of the code
 (the at most 33 steps of `Portable.pow` among them); every other loop must run in a

@@ -407,9 +407,11 @@ theorem PolicySnapshot.expected_def (snapshot : PolicySnapshot count) :
 /-- The consistency test with its work: the nominal masses, then their comparison with the
 behaviour's, one action at a time. -/
 def PolicySnapshot.consistentCosted (snapshot : PolicySnapshot count)
-    (behaviour : Vector Binary32 count.word.toNat) : Costed Bool := do
-  let masses ← snapshot.probabilitiesCosted
-  Costed.vectorEq masses behaviour
+    (behaviour : Vector Binary32 count.word.toNat) : Costed Bool :=
+  let equal := Costed.vectorEq (α := Binary32) (count := count.word.toNat)
+  do
+    let masses ← snapshot.probabilitiesCosted
+    equal masses behaviour
 
 /-- Whether the frame's action was selected with this policy's own distribution:
 the behaviour's reported masses equal the frozen policy's nominal masses, word for

@@ -660,7 +660,7 @@ theorem followTemporalCosted_within (κ : Costs)
   cases linked with
   | none =>
     exact (startFollowingCosted_within κ _ features potential rate action behaviour).mono
-      (Nat.le_add_left _ _)
+      (by simp only [followTemporalBound]; omega)
   | some following =>
     refine Acorn.Costed.bind_within
       (decideOptionCosted_within κ _ following.activation features potential goal estimate rate) ?_

@@ -196,7 +196,10 @@ call a specialization of that fold of their own with the body of the one they sh
 and of the costed definitions of an option model's input, ranked features, prediction and updates
 and of the controllers' remaining updates, the prediction demons' bank step, every option's
 off-policy questions, an option's operations without and with its model and its off-policy
-following, and their callers.
+following, and their callers, where `Skill.followTemporal` reaches the model's restart, a costed
+operation, through nested tests of consistency and liveness, and the code without work passed
+the restart's arguments to a join point that tested consistency again, with the same calls in
+the same order.
 Each is an observation of one build, which no gate repeats. A bound in word operations bounds the
 accounting under `SiteBounds`; no checked statement says that a segment of the executed code does
 at most its site's cost in word operations.

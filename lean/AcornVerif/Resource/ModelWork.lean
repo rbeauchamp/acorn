@@ -1113,7 +1113,7 @@ theorem modelRestartCosted_within (κ : Costs) (model : Model dimension criterio
       (Acorn.Costed.bind_within (learner r) (Acorn.Costed.bind_within (learner c)
         (Acorn.Costed.bind_within (transitionRestartCosted_within κ t base)
           (Acorn.Costed.op_within _ _ κ))))) ?_
-    simp only [modelRestartBound]
+    simp only [modelRestartBound, restartTrajectoryBound]
     omega
   | differential r c d t =>
     unfold Model.restartCosted
@@ -1123,7 +1123,7 @@ theorem modelRestartCosted_within (κ : Costs) (model : Model dimension criterio
         (Acorn.Costed.bind_within (learner d)
           (Acorn.Costed.bind_within (transitionRestartCosted_within κ t base)
             (Acorn.Costed.op_within _ _ κ)))))) ?_
-    simp only [modelRestartBound]
+    simp only [modelRestartBound, restartTrajectoryBound]
     omega
 
 end AcornVerif.Resource.Twin
