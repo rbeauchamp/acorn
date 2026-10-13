@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.Host.Runner
 import Acorn.Planning
 
@@ -255,28 +256,12 @@ def required (arguments : List String) (name : String) : Except Error String := 
   if (trimControlLine text).isEmpty || text.startsWith "--" then .error (.invalid name text)
   else return text
 
-/-- Decimal unsigned syntax includes an optional leading plus but no whitespace. -/
-def natural (text : String) : Option Nat :=
-  let digits := if text.startsWith "+" then String.ofList text.toList.tail else text
-  if digits.isEmpty || !digits.toList.all (fun c => '0' ≤ c && c ≤ '9') then none
-  else digits.toNat?
-
-/-- The text of an unsigned decimal number on the command line, stated with no executed
-function: an optional plus sign, then at least one digit from `0` to `9`, and `n` the value
-of the digits in positional notation, each digit times ten to the power of its place counted
-from the right. Leading zeros are allowed; white space, a minus sign and digit separators
-are not. -/
-def Natural (text : String) (n : Nat) : Prop :=
-  ∃ sign digits : List Char, (sign = [] ∨ sign = ['+']) ∧ digits ≠ [] ∧
-    (∀ c ∈ digits, 48 ≤ c.toNat ∧ c.toNat ≤ 57) ∧ text.toList = sign ++ digits ∧
-    n = (digits.reverse.zipIdx.map fun place => (place.1.toNat - 48) * 10 ^ place.2).sum
-
 /-- Integer width is checked before conversion; textual overflow never wraps. -/
 def unsigned (arguments : List String) (name : String) (width fallback : Nat) : Except Error Nat := do
   match ← value arguments name with
   | none => return fallback
   | some text =>
-    let some number := natural text | .error (.invalid name text)
+    let some number := Digits.natural text | .error (.invalid name text)
     if number < 2 ^ width then return number else .error (.invalid name text)
 
 /-- Signed standard-side text is admitted over the entire i64 parse domain first. -/
@@ -286,7 +271,7 @@ def side (arguments : List String) : Except Error Coordinate := do
   | some text =>
     let negative := text.startsWith "-"
     let digits := if negative then String.ofList text.toList.tail else text
-    let some magnitude := natural digits | .error (.invalid "--side" text)
+    let some magnitude := Digits.natural digits | .error (.invalid "--side" text)
     if negative && digits.startsWith "+" then .error (.invalid "--side" text)
     let number : Int := if negative then -(magnitude : Int) else magnitude
     let some coordinate := Coordinate.checked number | .error (.invalid "--side" text)

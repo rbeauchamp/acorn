@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.FeatureReferences
 import Acorn.Handcrafted.GridWorld
 
@@ -46,18 +47,20 @@ The generic call prevents the initial consumer arrays becoming shared globals. -
 
 end Acorn.FeatureDriver
 
-/-- Run one direct native feature operation with optional raw seed and sensory word. -/
+/-- Run one direct native feature operation with an optional seed and sensory word, each an
+unsigned number of the command line (`Acorn.Digits.natural`) below `2 ^ 64`; a larger number
+is refused instead of wrapped. -/
 def main (arguments : List String) : IO UInt32 := do
   let parsed := match arguments with
     | [] => some (0, 0)
     | [seed, word] => do
-      let seed ← seed.toNat?
-      let word ← word.toNat?
-      pure (seed, word)
+      let seed ← Acorn.Digits.natural seed
+      let word ← Acorn.Digits.natural word
+      if seed < 2^64 && word < 2^64 then some (seed, word) else none
     | _ => none
   match parsed with
   | none =>
-    IO.eprintln "usage: feature-native [seed sensory-word]"
+    IO.eprintln s!"usage: feature-native [SEED SENSORY_WORD]\n{Acorn.Digits.usage}"
     return 2
   | some (seed, word) =>
     let result := Acorn.FeatureDriver.execute seed.toUInt64 word.toUInt64 .differential

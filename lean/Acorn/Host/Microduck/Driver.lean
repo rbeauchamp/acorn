@@ -105,7 +105,7 @@ def Options.decode (arguments : List String) : Except Cli.Error Options := do
   let control ← Cli.required arguments "--control"
   let depth ← Cli.required arguments "--depth"
   let duration ← Cli.required arguments "--seconds"
-  let some seconds := Cli.natural duration | throw (.invalid "--seconds" duration)
+  let some seconds := Digits.natural duration | throw (.invalid "--seconds" duration)
   if seconds == 0 then throw (.invalid "--seconds" duration)
   let profile ← Cli.profile (← Cli.required arguments "--research-profile")
   let criterion := (← Cli.criterion arguments).getD .discounted

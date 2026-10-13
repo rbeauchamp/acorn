@@ -2061,6 +2061,10 @@ these boundaries do not restart its learned weights.
 
 These are core flags, not viewer flags. See
 [the CLI definition](../lean/Acorn/Host/Cli.lean) for the full accepted domain.
+A number on any Acorn command line, a core flag or an argument of a native driver
+alike, is the digits `0` to `9` with an optional leading `+`; a minus sign, a digit
+separator such as `_` and white space are refused
+([the digit reader](../lean/Acorn/Digits.lean)).
 
 After building with the launcher, a short terminal example is:
 

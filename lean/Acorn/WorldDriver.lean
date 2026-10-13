@@ -36,9 +36,10 @@ def cliError : Cli.Error → String
   | .invalid name value => s!"invalid {name}: {value}"
   | .world error => s!"invalid world config: {configError error}"
 
-/-- Raw text admission checks the full unsigned width before narrowing. -/
+/-- An unsigned number of the command line (`Digits.natural`), checked against the full
+unsigned width before narrowing. -/
 def word (text : String) (width : Nat) : Except String Nat :=
-  match Cli.natural text with
+  match Digits.natural text with
   | none => .error s!"invalid unsigned integer: {text}"
   | some value => if value < 2 ^ width then .ok value else .error s!"integer overflow: {text}"
 
@@ -83,7 +84,8 @@ def dispatch (arguments : List String) : Except String (IO String) := do
       match executeTerrain x y seed scale with
       | .error error => throw (IO.userError error)
       | .ok kind => pure s!"kind={kind}"
-  | _ => .error "usage: world-native actions SEED SIDE [ACTION_INDEX ...] | terrain X Y SEED SCALE_BITS | admit [COMMAND FLAGS ...]"
+  | _ => .error ("usage: world-native actions SEED SIDE [ACTION_INDEX ...] | " ++
+    s!"terrain X Y SEED SCALE_BITS | admit [COMMAND FLAGS ...]\n{Digits.usage}")
 
 end Acorn.WorldDriver
 

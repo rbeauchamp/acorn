@@ -175,10 +175,6 @@ rule `Host.considerSpawn` of the spawn search carry the two-way kind there (`spa
 `AcornVerif.CurrentCertificates`. The values of their accepted results (`spawn_count_value`,
 `spawn_consider_value`) and the requirement with no kind of the search `Host.selectSpawn`
 (`spawn_select`) are stated there because their theorems are in `AcornVerif.CurrentSpawn`.
-The two parsers that read decimal numerals with Lean's `String.toNat?`, `Host.Cli.natural` and
-`Host.AgentArguments.admit`, carry the two-way kind there (`cli_natural`,
-`agent_arguments_admit`), because the statements of what that reader accepts are in Lean's
-`Std.Data.String.ToNat`, which this module does not import.
 `Host.World.initial` has an accepted input stated there (`world_initial_accepts`), at a
 configuration of one tile whose spawn search succeeds by the terrain admission of
 `AcornVerif.CurrentTerrain`.
@@ -285,8 +281,8 @@ report of the definitions that have no contract is work of Regula
 * No theorem of the maintained libraries names the definition in its statement. This is the
   absence of a direct reference and nothing more. These are the other command-line parsers of
   `Host.Cli` (`Host.Cli.value`, `Host.Cli.profile`, `Host.Cli.planningValue`,
-  `Host.Cli.planningSelection`, `Host.Cli.stepOrderValue`, `Host.Cli.stepOrder` and
-  `Host.Cli.natural` have contracts), the native drivers and `NativeApp`, the readers and the
+  `Host.Cli.planningSelection`, `Host.Cli.stepOrderValue` and `Host.Cli.stepOrder` have
+  contracts), the native drivers and `NativeApp`, the readers and the
   private helpers of the JSON parser (the parser `Json.parse` has the contracts `json_parse`,
   which states texts it accepts, and `json_parse_text`, which states that it accepts only
   JSON texts; the scanner of a number `Json.Numeral.scan`, the reader `Json.Value.numeral` and
@@ -371,8 +367,8 @@ in that case: only private lemmas of the proofs of `Json.Numeral.scan_formed` an
 readers of a profile and of an unsigned word of the native drivers,
 `Host.AgentArguments.profile` and `Host.AgentArguments.word`, which
 `Host.AgentArguments.admit` applies, are in that case too: only private lemmas of the proof of
-`agent_arguments_admit` in `AcornVerif.Decisions` name them, and that contract and
-`agent_arguments_admit_value` are their evidence. The
+`agent_arguments_admit` name them, and that contract and `agent_arguments_admit_value` are
+their evidence. The
 private readers of the parts of a frame in `Host.Microduck.Wire`, which
 `Host.Microduck.State.read` and `Host.Microduck.Depth.read` apply, are in that case too:
 only private lemmas of the proofs of `Host.Microduck.State.read_iff` and
@@ -399,7 +395,7 @@ What the list does not hold:
   `Checkpoint.saveBytes`, and also refuses an image longer than `Checkpoint.maximumBytes`
   (`Checkpoint.Error.oversized`; `CurrentCheckpointSize.snapshot_size_bound` states when no such
   refusal occurs); and `Host.CertificateDriver.dispatch` admits its arguments with
-  `Host.CertificateDriver.natural` and `Host.Coordinate.checked` and prints what `execute`
+  `Digits.natural` and `Host.Coordinate.checked` and prints what `execute`
   returns. An effect with no pure core decides from state outside the Lean definitions, so no
   theorem states its verdict: `Host.StopFlag.requested` and the `Host.Viewer.Broadcast`
   operations read shared state under a lock, `Host.Viewer.RunDirectory.adoptStrayCheckpoint`
@@ -2380,6 +2376,468 @@ theorem checkpoint_status_parse : Regula.ExecutableContract Host.CheckpointStatu
     .saved (unwritten := "") rfl⟩
 
 attribute [regula_decision] Host.CheckpointStatus.parse
+
+/-! ## Decimal digits and the arguments of the native drivers
+
+`Digits.read` and `Digits.natural` read every number that Acorn reads from decimal digits in
+text, and `Host.AgentArguments.admit` reads the numbers of the native agent and checkpoint
+drivers with `Digits.natural`. The specifications are the grammars `Digits.Spelled`,
+`Digits.Natural` and `Host.AgentArguments.Admitted`, and the relation
+`Host.AgentArguments.Constructs` between an argument list and what admission returns, written
+beside the readers with no executed function: each number has its value in positional
+notation, which the private lemma `digits_fold` connects with the left fold of the readers. -/
+
+/-- The positional value of digits with one more digit in front: that digit times ten to the
+power of the number of digits after it, plus the value of the rest. -/
+private theorem positional_cons (c : Char) (digits : List Char) :
+    ((c :: digits).reverse.zipIdx.map fun place => (place.1.toNat - 48) * 10 ^ place.2).sum =
+      (c.toNat - 48) * 10 ^ digits.length +
+        (digits.reverse.zipIdx.map fun place => (place.1.toNat - 48) * 10 ^ place.2).sum := by
+  simp [List.zipIdx_append, Nat.add_comm]
+
+/-- The digit test of the readers, on a character, is the digit range. -/
+private theorem digit_test (c : Char) :
+    ('0' ≤ c && c ≤ '9') = true ↔ 48 ≤ c.toNat ∧ c.toNat ≤ 57 := by
+  simp [Char.le_def, UInt32.le_iff_toNat_le]
+
+/-- The left fold of the readers from a total returns a value exactly when every character is a
+digit, and the value is the total moved up one place for each digit, plus the positional value
+of the digits. -/
+private theorem digits_fold (total : Nat) (digits : List Char) (n : Nat) :
+    digits.foldlM (fun total c =>
+        if '0' ≤ c && c ≤ '9' then some (10 * total + (c.toNat - 48)) else none) total =
+        some n ↔
+      (∀ c ∈ digits, 48 ≤ c.toNat ∧ c.toNat ≤ 57) ∧
+        n = total * 10 ^ digits.length +
+          (digits.reverse.zipIdx.map fun place => (place.1.toNat - 48) * 10 ^ place.2).sum := by
+  induction digits generalizing total with
+  | nil =>
+    simp only [List.foldlM_nil, List.length_nil, Nat.pow_zero, Nat.mul_one, List.reverse_nil,
+      List.zipIdx_nil, List.map_nil, List.sum_nil, Nat.add_zero, List.not_mem_nil,
+      false_implies, implies_true, true_and, Option.pure_def, Option.some.injEq]
+    exact ⟨Eq.symm, Eq.symm⟩
+  | cons c more hold =>
+    rw [List.foldlM_cons, positional_cons, List.forall_mem_cons]
+    by_cases digit : ('0' ≤ c && c ≤ '9') = true
+    · simp only [digit, ↓reduceIte, Option.bind_eq_bind, Option.bind_some]
+      rw [hold, ← digit_test]
+      have arith : (10 * total + (c.toNat - 48)) * 10 ^ more.length +
+          (more.reverse.zipIdx.map fun place => (place.1.toNat - 48) * 10 ^ place.2).sum =
+          total * 10 ^ (more.length + 1) + ((c.toNat - 48) * 10 ^ more.length +
+            (more.reverse.zipIdx.map fun place => (place.1.toNat - 48) * 10 ^ place.2).sum) := by
+        rw [Nat.add_mul, Nat.add_assoc, Nat.pow_succ, Nat.mul_comm 10 total, Nat.mul_assoc,
+          Nat.mul_comm 10]
+      simp [digit, arith, List.length_cons]
+    · have refused : ('0' ≤ c && c ≤ '9') = false := by simpa using digit
+      rw [← digit_test]
+      simp [refused]
+
+/-- `Digits.read` accepts exactly the texts of `Digits.Spelled`, with their value. -/
+private theorem read_iff (text : String) (n : Nat) :
+    Digits.read text = some n ↔ Digits.Spelled text n := by
+  unfold Digits.read Digits.Spelled
+  split
+  · rename_i empty
+    simp [empty]
+  · rename_i head tail split
+    rw [digits_fold, split]
+    simp
+
+/-- `Digits.natural` accepts exactly the texts of `Digits.Natural`, with their value. -/
+private theorem natural_iff (text : String) (n : Nat) :
+    Digits.natural text = some n ↔ Digits.Natural text n := by
+  have notDigit : ¬ (48 ≤ ('+' : Char).toNat ∧ ('+' : Char).toNat ≤ 57) := by decide
+  unfold Digits.natural
+  split
+  · rename_i digits plus
+    rw [read_iff]
+    unfold Digits.Spelled Digits.Natural
+    rw [String.toList_ofList, plus]
+    constructor
+    · rintro ⟨nonempty, each, value⟩
+      exact ⟨['+'], digits, .inr rfl, nonempty, each, rfl, value⟩
+    · rintro ⟨sign, others, unsigned | signed, nonempty, each, spelled, value⟩
+      · subst unsigned
+        cases others with
+        | nil => exact absurd rfl nonempty
+        | cons c more =>
+          simp only [List.nil_append, List.cons.injEq] at spelled
+          exact absurd (spelled.1 ▸ each c (by simp)) notDigit
+      · subst signed
+        simp only [List.cons_append, List.nil_append, List.cons.injEq, true_and] at spelled
+        exact ⟨spelled ▸ nonempty, spelled ▸ each, spelled ▸ value⟩
+  · rename_i unsigned
+    rw [read_iff]
+    unfold Digits.Spelled Digits.Natural
+    constructor
+    · rintro ⟨nonempty, each, value⟩
+      exact ⟨[], text.toList, .inl rfl, nonempty, each, rfl, value⟩
+    · rintro ⟨sign, digits, unsigned' | signed, nonempty, each, spelled, value⟩
+      · subst unsigned'
+        simp only [List.nil_append] at spelled
+        exact ⟨spelled ▸ nonempty, spelled ▸ each, spelled ▸ value⟩
+      · subst signed
+        exact absurd spelled (unsigned digits)
+
+/-- Reading decimal digits accepts exactly at least one character, each a digit from `0` to `9`
+(`Digits.Spelled`). The specification is the grammar, which states each character by its code,
+and shares no test with the function. The two inputs of the proof are `0`, which is accepted,
+and the empty text, which is refused. -/
+theorem digits_read : Regula.ExecutableContract Digits.read
+    (Regula.Decides (·.isSome = true) (fun text => ∃ n, Digits.Spelled text n)) :=
+  ⟨decides
+    (fun text => Option.isSome_iff_exists.trans (exists_congr fun n => read_iff text n))
+    ⟨"0", 0, by simp, by simp, by simp⟩
+    ⟨"", fun ⟨_, nonempty, _⟩ => nonempty (by simp)⟩⟩
+
+attribute [regula_decision] Digits.read
+
+/-- The number that reading decimal digits returns: for every text and number, the reader
+returns the number exactly when the text is digits whose value in positional notation is that
+number (`Digits.Spelled`). A kind states accepted inputs and not the value of an accepted
+result, so this statement is a requirement with no kind beside the kind `digits_read`. -/
+theorem digits_read_value : Regula.ExecutableContract Digits.read (fun read =>
+    ∀ text n, read text = some n ↔ Digits.Spelled text n) :=
+  ⟨read_iff⟩
+
+/-- An unsigned number on the command line accepts exactly an optional plus sign followed by at
+least one digit (`Digits.Natural`). The specification is the grammar, which states each
+character by its code, and shares no test with the function. The two inputs of the proof are
+`0`, which is accepted, and the empty text, which is refused. -/
+theorem digits_natural : Regula.ExecutableContract Digits.natural
+    (Regula.Decides (·.isSome = true) (fun text => ∃ n, Digits.Natural text n)) :=
+  ⟨decides
+    (fun text => Option.isSome_iff_exists.trans (exists_congr fun n => natural_iff text n))
+    ⟨"0", 0, [], ['0'], .inl rfl, by simp, by simp, by simp, by simp⟩
+    ⟨"", fun ⟨_, sign, digits, _, nonempty, _, spelled, _⟩ => nonempty (by simp_all)⟩⟩
+
+attribute [regula_decision] Digits.natural
+
+/-- The number that an unsigned number on the command line reads as: for every text and number,
+the reader returns the number exactly when the text is an optional plus sign and digits whose
+value in positional notation is that number (`Digits.Natural`). A kind states accepted inputs
+and not the value of an accepted result, so this statement is a requirement with no kind beside
+the kind `digits_natural`. -/
+theorem digits_natural_value : Regula.ExecutableContract Digits.natural (fun natural =>
+    ∀ text n, natural text = some n ↔ Digits.Natural text n) :=
+  ⟨natural_iff⟩
+
+/-- The native word reader returns a machine word exactly for the text of an unsigned number of
+the command line with that word's value (`natural_iff`); a number of `2 ^ 64` or more is
+refused. -/
+private theorem word_iff (text : String) (w : UInt64) :
+    Host.AgentArguments.word text = some w ↔ Digits.Natural text w.toNat := by
+  rw [← natural_iff]
+  unfold Host.AgentArguments.word
+  constructor
+  · intro read
+    obtain ⟨value, parsed, bounded⟩ := Option.bind_eq_some_iff.mp read
+    by_cases below : value < 2 ^ 64
+    · rw [ite_eq_left_iff.mpr (fun h => absurd below h), Option.some.injEq] at bounded
+      rw [← bounded, parsed]
+      simp [Nat.toUInt64, UInt64.toNat_ofNat_of_lt' below]
+    · rw [ite_eq_right_iff.mpr (fun h => absurd h below)] at bounded
+      cases bounded
+  · intro parsed
+    simp [parsed, w.toNat_lt]
+
+/-- The native word reader accepts a text exactly when it is the text of an unsigned number of
+the command line below `2 ^ 64`. -/
+private theorem word_isSome (text : String) :
+    (Host.AgentArguments.word text).isSome = true ↔
+      ∃ n, Digits.Natural text n ∧ n < 2 ^ 64 := by
+  rw [Option.isSome_iff_exists]
+  constructor
+  · rintro ⟨w, read⟩
+    exact ⟨w.toNat, (word_iff text w).mp read, w.toNat_lt⟩
+  · rintro ⟨n, spelled, below⟩
+    refine ⟨n.toUInt64, (word_iff text _).mpr ?_⟩
+    simpa [Nat.toUInt64, UInt64.toNat_ofNat_of_lt' below] using spelled
+
+/-- Reading every word of a list returns the words read one by one, in order: one word for
+each text, each the value of its text. -/
+private theorem words_iff (texts : List String) (words : List UInt64) :
+    texts.mapM Host.AgentArguments.word = some words ↔
+      words.length = texts.length ∧
+        ∀ pair ∈ texts.zip words, Digits.Natural pair.1 pair.2.toNat := by
+  induction texts generalizing words with
+  | nil =>
+    cases words <;> simp
+  | cons text more hold =>
+    cases words with
+    | nil =>
+      simp only [List.mapM_cons, List.length_nil, List.length_cons, Nat.right_eq_add,
+        Nat.add_eq_zero_iff, Nat.one_ne_zero, and_false, false_and, iff_false]
+      intro read
+      obtain ⟨w, -, rest⟩ := Option.bind_eq_some_iff.mp read
+      obtain ⟨ws, -, done⟩ := Option.bind_eq_some_iff.mp rest
+      cases done
+    | cons w ws =>
+      simp only [List.mapM_cons, List.length_cons, Nat.add_right_cancel_iff, List.zip_cons_cons,
+        List.forall_mem_cons]
+      constructor
+      · intro read
+        obtain ⟨w', first, rest⟩ := Option.bind_eq_some_iff.mp read
+        obtain ⟨ws', others, done⟩ := Option.bind_eq_some_iff.mp rest
+        cases done
+        obtain ⟨length, each⟩ := (hold ws).mp others
+        exact ⟨length, (word_iff text w).mp first, each⟩
+      · rintro ⟨length, first, each⟩
+        simp [(word_iff text w).mpr first, (hold ws).mpr ⟨length, each⟩]
+
+/-- The native profile reader returns a profile exactly for its four words. -/
+private theorem profile_iff (mode credit rate subtasks : String) (profile : FeatureProfile) :
+    Host.AgentArguments.profile mode credit rate subtasks = some profile ↔
+      Host.AgentArguments.ProfileSpelled mode credit rate subtasks profile := by
+  unfold Host.AgentArguments.profile Host.AgentArguments.ProfileSpelled
+    Host.AgentArguments.ModeSpelled Host.AgentArguments.CreditSpelled
+    Host.AgentArguments.RateSpelled Host.AgentArguments.SubtasksSpelled
+  simp only [Option.bind_eq_bind, Option.bind_some, Option.bind_none, Option.pure_def]
+  obtain ⟨m, c, r, t⟩ := profile
+  split <;> (try split) <;> (try split) <;> (try split) <;> simp_all [eq_comm]
+
+open Host.AgentArguments in
+/-- An argument list that the native drivers admit spells the construction they return and its
+raw input words: ten words, with the four words of the construction's profile, the word of a
+criterion and of a planning selection, and the numbers of the seed, tiling word, bank size and
+capacity exponent from which `AgentConstruction.admit` builds the construction under the
+default step order, then one number for each returned input word, with that word's value. -/
+private theorem admit_spelled (arguments : List String) (admitted : DefaultConstruction)
+    (words : List UInt64) (accepted : admit arguments = some (admitted, words)) :
+    ∃ (seed exponent tilings units mode credit rate subtasks criterion planning : String)
+      (texts : List String) (profile : FeatureProfile) (selected : Criterion)
+      (selection : PlanningSelection) (s t : UInt64) (u e : Nat),
+      arguments = [seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion,
+        planning] ++ texts ∧
+      ProfileSpelled mode credit rate subtasks profile ∧ CriterionSpelled criterion selected ∧
+      planning = PlanningSelection.name selection ∧ Digits.Natural seed s.toNat ∧
+      Digits.Natural tilings t.toNat ∧ Digits.Natural units u ∧ Digits.Natural exponent e ∧
+      AgentConstruction.admit profile selected selection .learnThenAct s t u e =
+        some admitted.construction ∧
+      words.length = texts.length ∧
+        ∀ pair ∈ texts.zip words, Digits.Natural pair.1 pair.2.toNat := by
+  unfold admit at accepted
+  split at accepted
+  · rename_i seed exponent tilings units mode credit rate subtasks criterion planning texts
+    obtain ⟨profile, profiled, accepted⟩ := Option.bind_eq_some_iff.mp accepted
+    split at accepted <;>
+      simp only [Option.bind_eq_bind, Option.bind_some, Option.bind_none, reduceCtorEq] at accepted
+    all_goals
+      obtain ⟨selection, planned, accepted⟩ := Option.bind_eq_some_iff.mp accepted
+      obtain ⟨s, seeded, accepted⟩ := Option.bind_eq_some_iff.mp accepted
+      obtain ⟨t, tiled, accepted⟩ := Option.bind_eq_some_iff.mp accepted
+      obtain ⟨u, banked, accepted⟩ := Option.bind_eq_some_iff.mp accepted
+      obtain ⟨e, sized, accepted⟩ := Option.bind_eq_some_iff.mp accepted
+      split at accepted
+      · cases accepted
+      · rename_i construction made
+        obtain ⟨ws, read, done⟩ := Option.bind_eq_some_iff.mp accepted
+        simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at done
+        obtain ⟨rfl, rfl⟩ := done
+        exact ⟨_, _, _, _, _, _, _, _, _, _, texts, profile, _, selection, s, t, u, e, rfl,
+          (profile_iff _ _ _ _ _).mp profiled, by simp [CriterionSpelled],
+          (PlanningSelection.parse_accepted _ _).mp planned, (word_iff _ _).mp seeded,
+          (word_iff _ _).mp tiled, (natural_iff _ _).mp banked,
+          (natural_iff _ _).mp sized, made, (words_iff _ _).mp read⟩
+  · cases accepted
+
+/-- Reading a list of words succeeds exactly when every word is the text of an unsigned number
+of the command line below `2 ^ 64`. -/
+private theorem words_isSome (texts : List String) :
+    (texts.mapM Host.AgentArguments.word).isSome = true ↔
+      ∀ text ∈ texts, ∃ n, Digits.Natural text n ∧ n < 2 ^ 64 := by
+  have each : ∀ texts : List String, (texts.mapM Host.AgentArguments.word).isSome = true ↔
+      ∀ text ∈ texts, (Host.AgentArguments.word text).isSome = true := fun texts => by
+    induction texts with
+    | nil => simp
+    | cons text more hold =>
+      rw [List.forall_mem_cons, ← hold, List.mapM_cons]
+      cases Host.AgentArguments.word text <;> cases List.mapM Host.AgentArguments.word more <;>
+        simp
+  rw [each]
+  exact forall₂_congr fun text _ => word_isSome text
+
+open Host.AgentArguments in
+/-- The native drivers admit exactly the argument lists of `Admitted`. -/
+private theorem admit_isSome (arguments : List String) :
+    (admit arguments).isSome = true ↔ Admitted arguments := by
+  constructor
+  · intro accepted
+    obtain ⟨⟨admitted, words⟩, read⟩ := Option.isSome_iff_exists.mp accepted
+    obtain ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+      texts, profile, selected, selection, s, t, u, e, rfl, profiled, criterioned, planned,
+      seeded, tiled, banked, sized, made, length, each⟩ :=
+      admit_spelled arguments admitted words read
+    obtain ⟨positive, occupied, bounded, small⟩ :=
+      (AgentConstruction.admit_iff profile selected selection .learnThenAct s t u e).mp
+        (by rw [made]; rfl)
+    refine ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+      texts, rfl, ⟨profile, profiled⟩, ⟨selected, criterioned⟩, ⟨selection, planned⟩,
+      ⟨_, seeded, s.toNat_lt⟩, ⟨_, tiled, positive, t.toNat_lt⟩, ⟨u, banked, occupied, bounded⟩,
+      ⟨e, sized, small⟩, fun text mem => ?_⟩
+    obtain ⟨i, within, rfl⟩ := List.getElem_of_mem mem
+    have paired := List.getElem_mem (h := (by simp [length, within] : i < (texts.zip words).length))
+    exact ⟨_, by simpa using each _ paired, (words[i]'(length ▸ within)).toNat_lt⟩
+  · rintro ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+      texts, rfl, ⟨profile, profiled⟩, ⟨selected, criterioned⟩, ⟨selection, planned⟩,
+      ⟨s, seeded, sb⟩, ⟨t, tiled, tp, tb⟩, ⟨u, banked, up, ub⟩, ⟨e, sized, eb⟩, each⟩
+    have seedRead : word seed = some s.toUInt64 :=
+      (word_iff _ _).mpr (by simpa [Nat.toUInt64, UInt64.toNat_ofNat_of_lt' sb] using seeded)
+    have tilingsRead : word tilings = some t.toUInt64 :=
+      (word_iff _ _).mpr (by simpa [Nat.toUInt64, UInt64.toNat_ofNat_of_lt' tb] using tiled)
+    obtain ⟨construction, made⟩ := Option.isSome_iff_exists.mp
+      ((AgentConstruction.admit_iff profile selected selection .learnThenAct s.toUInt64
+        t.toUInt64 u e).mpr
+        ⟨by simpa [Nat.toUInt64, UInt64.toNat_ofNat_of_lt' tb] using tp, up, ub, eb⟩)
+    obtain ⟨ws, read⟩ := Option.isSome_iff_exists.mp ((words_isSome texts).mpr each)
+    unfold admit
+    rcases criterioned with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
+      simp only [List.cons_append, (profile_iff _ _ _ _ _).mpr profiled,
+        (PlanningSelection.parse_accepted _ _).mpr planned, seedRead, tilingsRead,
+        (natural_iff _ _).mpr banked, (natural_iff _ _).mpr sized, Option.bind_eq_bind,
+        Option.bind_some] <;>
+      split <;> simp_all
+
+/-- A text of one digit is the text of an unsigned number of that digit's value. -/
+private theorem natural_digit (text : String) (n : Nat) (c : Char) (spelled : text.toList = [c])
+    (code : c.toNat = 48 + n) (small : n < 10) : Digits.Natural text n :=
+  ⟨[], [c], .inl rfl, by simp,
+    fun d mem => by simp only [List.mem_singleton] at mem; subst mem; omega, by simp [spelled],
+    by simp [code]⟩
+
+/-- Native agent-argument admission accepts exactly the argument lists of the grammar
+`Host.AgentArguments.Admitted`: ten words, which are a seed, a capacity exponent, a tiling word
+and a bank size as numbers within the bounds of `AgentConstruction.admit`, the four words of a
+profile, the word of a criterion and the word of a planning selection, then numbers below
+`2 ^ 64` for the raw input words. Each number is the text of an unsigned number of the command
+line (`Digits.Natural`): an optional plus sign, then the digits `0` to `9`, with no separator.
+The specification names the word relations, the planning names `PlanningSelection.name` and no
+function of the parser. The two inputs of the proof are the ten words
+`0 0 1 1 final per-step declared learned discounted expectation`, a construction of the default
+step order with a seed of zero, a capacity exponent of zero, one tiling and a bank of one unit,
+which are accepted, and the empty list, which is refused. -/
+theorem agent_arguments_admit : Regula.ExecutableContract Host.AgentArguments.admit
+    (Regula.Decides (·.isSome = true) Host.AgentArguments.Admitted) :=
+  ⟨decides admit_isSome
+    ⟨["0", "0", "1", "1", "final", "per-step", "declared", "learned", "discounted",
+        "expectation"],
+      ⟨"0", "0", "1", "1", "final", "per-step", "declared", "learned", "discounted",
+        "expectation", [], rfl, ⟨⟨.final, .perStep, .declared, .learned⟩, .inl ⟨rfl, rfl⟩,
+          .inl ⟨rfl, rfl⟩, .inl ⟨rfl, rfl⟩, .inl ⟨rfl, rfl⟩⟩, ⟨.discounted, .inl ⟨rfl, rfl⟩⟩,
+        ⟨.expectation, rfl⟩, ⟨0, natural_digit "0" 0 '0' (by simp) rfl (by decide), by decide⟩,
+        ⟨1, natural_digit "1" 1 '1' (by simp) rfl (by decide), by decide, by decide⟩,
+        ⟨1, natural_digit "1" 1 '1' (by simp) rfl (by decide), by decide, by decide⟩,
+        ⟨0, natural_digit "0" 0 '0' (by simp) rfl (by decide), by decide⟩, by simp⟩⟩
+    ⟨[], fun ⟨_, _, _, _, _, _, _, _, _, _, _, spelled, _⟩ => by simp at spelled⟩⟩
+
+attribute [regula_decision] Host.AgentArguments.admit
+
+/-- `AgentConstruction.admit` returns a construction exactly when each field of that construction
+is the one stated: the profile, criterion, planning selection and step order given, the seed
+and tiling word given, a bank of the units given, the declared tester, and a capacity of two to
+the power of the exponent given. The conditions that the admission tests hold of every
+construction, so they follow from the fields. -/
+private theorem admit_fields (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (order : StepOrder) (seed tilings : UInt64)
+    (units exponent : Nat) (construction : AgentConstruction) :
+    AgentConstruction.admit profile criterion planning order seed tilings units exponent =
+        some construction ↔
+      construction.profile = profile ∧ construction.criterion = criterion ∧
+        construction.planning = planning ∧ construction.order = order ∧
+        construction.config.seed = seed ∧ construction.config.tilings = tilings ∧
+        construction.config.units.count = units ∧ construction.config.tester = declaredTester ∧
+        construction.dimension.capacity = 2 ^ exponent := by
+  constructor
+  · intro admitted
+    unfold AgentConstruction.admit at admitted
+    split at admitted
+    · split at admitted
+      · split at admitted
+        · cases admitted
+          exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+        · cases admitted
+      · cases admitted
+    · cases admitted
+  · rintro ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, tested, sized⟩
+    obtain ⟨profile, criterion, planning, order, ⟨seed, tilings, positive,
+      ⟨units, occupied, bounded⟩, tester⟩, ⟨capacity, nonzero, power, below⟩⟩ := construction
+    dsimp only at tested sized ⊢
+    subst tested sized
+    have small : exponent < 32 := (Nat.pow_lt_pow_iff_right (by decide)).mp below
+    unfold AgentConstruction.admit
+    rw [dite_eq_left positive, dite_eq_left ⟨occupied, bounded⟩, dite_eq_left small]
+
+open Host.AgentArguments in
+/-- An argument list that the native drivers admit spells, field by field, the construction
+and the raw input words that they return. -/
+private theorem admit_constructs (arguments : List String) (admitted : DefaultConstruction)
+    (words : List UInt64) (accepted : admit arguments = some (admitted, words)) :
+    Constructs arguments admitted.construction words := by
+  obtain ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+    texts, profile, selected, selection, s, t, u, e, rfl, profiled, criterioned, planned,
+    seeded, tiled, banked, sized, made, length, each⟩ :=
+    admit_spelled arguments admitted words accepted
+  obtain ⟨rfl, rfl, rfl, ordered, rfl, rfl, rfl, tested, capacity⟩ :=
+    (admit_fields profile selected selection .learnThenAct s t u e admitted.construction).mp made
+  exact ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+    texts, e, rfl, profiled, criterioned, planned, ordered, seeded, tiled, banked, sized,
+    capacity, tested, length, each⟩
+
+open Host.AgentArguments in
+/-- The native drivers admit an argument list that spells a construction of the default step
+order and raw input words, field by field, and return that construction and those words. -/
+private theorem constructs_admit (arguments : List String) (construction : AgentConstruction)
+    (default : construction.order = .learnThenAct) (words : List UInt64)
+    (spelled : Constructs arguments construction words) :
+    admit arguments = some (⟨construction, default⟩, words) := by
+  obtain ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+    texts, e, rfl, profiled, criterioned, planned, -, seeded, tiled, banked, sized, capacity,
+    tested, length, each⟩ := spelled
+  have made := (admit_fields construction.profile construction.criterion construction.planning
+    .learnThenAct construction.config.seed construction.config.tilings
+    construction.config.units.count e construction).mpr
+      ⟨rfl, rfl, rfl, default, rfl, rfl, rfl, tested, capacity⟩
+  have read := (words_iff texts words).mpr ⟨length, each⟩
+  unfold admit
+  rcases criterioned with ⟨rfl, chosen⟩ | ⟨rfl, chosen⟩ <;> rw [chosen] at made <;>
+    simp only [List.cons_append, (profile_iff _ _ _ _ _).mpr profiled,
+      (PlanningSelection.parse_accepted _ _).mpr planned, (word_iff _ _).mpr seeded,
+      (word_iff _ _).mpr tiled, (natural_iff _ _).mpr banked, (natural_iff _ _).mpr sized,
+      Option.bind_eq_bind, Option.bind_some] <;>
+    split <;> simp_all
+
+/-- The construction and the raw input words that native agent-argument admission returns: for
+every argument list, construction of the default step order and list of words, admission
+returns them exactly when the list spells them field by field (`Host.AgentArguments.Constructs`):
+the four words of a profile spell the construction's profile, the next two its criterion and
+planning selection, the numerals of the seed, the tiling word and the bank size have the values
+of its seed, its tiling word and its number of units, the exponent numeral has the value whose
+power of two is its capacity, its tester is the declared one, and each input word is the value
+of its numeral. The relation names the word relations, `PlanningSelection.name` and
+`Handcrafted.declaredTester`, and no function of the parser. Since admission is a function, an
+accepted list spells no other construction and no other list of words
+(`agent_arguments_constructs_unique`), so a construction that differs from the returned one in
+any field does not satisfy the relation; `agent_arguments_admit` names an accepted list. A kind
+states accepted inputs and not the value of an accepted result, so this statement is a
+requirement with no kind beside the kind `agent_arguments_admit`. -/
+theorem agent_arguments_admit_value : Regula.ExecutableContract Host.AgentArguments.admit
+    (fun admit => ∀ arguments admitted words, admit arguments = some (admitted, words) ↔
+      Host.AgentArguments.Constructs arguments admitted.construction words) :=
+  ⟨fun arguments admitted words => ⟨admit_constructs arguments admitted words,
+    constructs_admit arguments admitted.construction admitted.default words⟩⟩
+
+/-- An argument list spells at most one construction of the default step order and one list of
+raw input words (`Host.AgentArguments.Constructs`): two that it spells are equal, so changing
+any field of a spelled construction, or any input word, breaks the relation. -/
+theorem agent_arguments_constructs_unique (arguments : List String)
+    (first second : DefaultConstruction) (words others : List UInt64)
+    (spelled : Host.AgentArguments.Constructs arguments first.construction words)
+    (respelled : Host.AgentArguments.Constructs arguments second.construction others) :
+    first = second ∧ words = others := by
+  have one := constructs_admit arguments first.construction first.default words spelled
+  have two := constructs_admit arguments second.construction second.default others respelled
+  rw [one, Option.some.injEq, Prod.mk.injEq] at two
+  exact two
 
 /-! ## Certificate tests
 
@@ -7532,7 +7990,6 @@ attribute [regula_decision] Checkpoint.load Checkpoint.admitSum Agreement.precis
   Host.regionBlocked Host.replayCertified Host.stanceCertified Host.ReplayCertificate.check
   Host.StanceCertificate.check Host.BlockedCertificate.check Host.countKindNear Host.considerSpawn
   Host.payAndAct Host.performAction Host.Released.environment NumericState.clearAt
-  Checkpoint.resume Host.valueNoise Host.octaveLoop Host.fbm Host.Cli.natural
-  Host.AgentArguments.admit
+  Checkpoint.resume Host.valueNoise Host.octaveLoop Host.fbm
 
 end Acorn.Decisions

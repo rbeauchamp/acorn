@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Init
+import Acorn.Digits
 
 /-! # Strict, total JSON admission
 
@@ -789,9 +789,10 @@ def Value.text : Value → Except String String
   | .string s => if s.toList.all unicodeWhitespace then .error "expected nonempty string" else .ok s
   | _ => .error "expected nonempty string"
 
-/-- Unsigned machine-width integer admission uses spelling, never numeric rounding. -/
+/-- Unsigned machine-width integer admission uses spelling, never numeric rounding: a number
+spelled by decimal digits alone (`Digits.read`), below `2 ^ 64`. -/
 def Value.natural : Value → Except String Nat
-  | .number s => match s.toNat? with
+  | .number s => match Digits.read s with
     | some n => if n < 2^64 then .ok n else .error "unsigned integer overflow"
     | none => .error "expected unsigned integer"
   | _ => .error "expected unsigned integer"

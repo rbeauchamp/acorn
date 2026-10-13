@@ -159,7 +159,10 @@ pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
 Lake runs with `--wfail`, so any warning, including a header-time warning such
 as a deprecated import, fails the build. Source/compiled admission checks
-imports, capability owners, artifact origins and native routes. The Regula audit, not
+imports, capability owners, artifact origins and native routes. Compiled admission
+also refuses a reference from executing code to one of Lean core's readers of
+numbers in text, such as `String.toNat?`, which accept `_` between two digits;
+executing code reads decimal digits with `Acorn.Digits`. The Regula audit, not
 ordinary verification, checks the axioms that each declaration of the claimed
 libraries depends on. The theorem inventory counts the theorem declarations and
 refuses a native replacement. Every proof passes through the kernel.

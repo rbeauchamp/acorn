@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Lean
+import Acorn.Digits
 import AcornTools.Ownership
 import Acorn.Host.Viewer.BrowserSchema
 import AcornTools.Corpus.Browser
@@ -232,8 +233,8 @@ private def pathClaim (span : String) : IO Unit := do
           | [single] => pure (single, single)
           | [first, last] => pure (first, last)
           | _ => throw (IO.userError "invalid line range")
-        let some first := first.toNat? | throw (IO.userError "invalid first line")
-        let some last := last.toNat? | throw (IO.userError "invalid last line")
+        let some first := Acorn.Digits.read first | throw (IO.userError "invalid first line")
+        let some last := Acorn.Digits.read last | throw (IO.userError "invalid last line")
         unless 0 < first && first ≤ last do throw (IO.userError "invalid line interval")
         pure (path, none, some last)
       | _ => throw (IO.userError "invalid path anchor")

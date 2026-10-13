@@ -13,7 +13,9 @@ import AcornTools.Boundary.Departures
 Source is parsed with the pinned compiler's trusted parser environment before
 project extensions are loaded. Current sources cannot define parser/elaborator
 extensions or spell a native replacement. Compiled metadata then checks actual module
-ownership, including private/generated declarations and transitive imports.
+ownership, including private/generated declarations and transitive imports, and refuses a
+reference from executing code to one of Lean core's readers of numbers in text
+(`coreNumberReader`).
 The Regula audit of the claimed libraries, not this tool, checks compiled declarations
 for project axioms, proof holes, compiler-trusting proofs and `unsafe` or `partial`
 definitions; the theorem inventory refuses a compiled native replacement.
@@ -155,6 +157,20 @@ def capabilityAllowed (owner dependency : Name) : Bool :=
   else if learned owner then
     !(#[`IO, `BaseIO, `EIO].any (·.isPrefixOf dependency))
   else true
+
+/-- Lean core's readers of numbers in text: `toNat?`, `toNat!`, `toInt?`, `toInt!`, `isNat`
+and `isInt` of `String`, `String.Slice` and `Substring.Raw`, and a reader of one of those names
+that a later toolchain adds under `String` or `Substring`. At the pinned toolchain v4.34.1
+they accept `_` between two digits (`String.isNat_iff` and
+`String.toNat?_eq_some_ofDigitChars` in `Std/Data/String/ToNat.lean`), which no Acorn grammar
+admits, so `"4_2".toNat? = some 42`. Executing code reads decimal digits with `Acorn.Digits`,
+and the check below refuses every declaration of an executing module that refers to one of
+these readers, whatever text it reads. -/
+def coreNumberReader (name : Name) : Bool :=
+  ((`String).isPrefixOf name || (`Substring).isPrefixOf name) &&
+    match name with
+    | .str _ last => #["toNat?", "toNat!", "toInt?", "toInt!", "isNat", "isInt"].contains last
+    | _ => false
 
 /-- Reserved syntax capabilities are rejected even when nested in proof terms. -/
 def forbiddenWords : Array String := #["unsafe", "partial", "meta", "axiom", "sorry", "admit",
@@ -336,7 +352,8 @@ def checkImports (imports : NameMap (Array Name)) (owner : Name) : IO Unit := do
 
 /-- Dispatch each declaration to its compiler-recorded owner in one environment
 traversal. Every selected owner receives the same declaration predicates: the capability
-owner and the import layer of each constant a declaration references. -/
+owner, the import layer and the reader of numbers (`coreNumberReader`) of each constant a
+declaration references. -/
 def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := do
   let selected := owners.foldl (fun selected owner => selected.insert owner) ({} : NameSet)
   for (name, info) in env.constants do
@@ -345,6 +362,9 @@ def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := d
     for dependency in info.getUsedConstantsAsSet do
       unless capabilityAllowed owner dependency do
         reject owner s!"{name} uses unowned native capability {dependency}"
+      if coreNumberReader dependency then
+        reject owner (s!"{name} reads a number with Lean core's {dependency}, which accepts " ++
+          "digit separators; read decimal digits with Acorn.Digits")
       let dependencyOwner ← declarationOwner env dependency
       unless dependencyOwner == owner || importAllowed owner dependencyOwner do
         reject owner s!"{name} references {dependency} owned by {dependencyOwner}"

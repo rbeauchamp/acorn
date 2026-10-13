@@ -37,7 +37,8 @@ def main (arguments : List String) : IO UInt32 := do
     match Acorn.AgentDriver.dispatch arguments with
     | some output => IO.println output; return 0
     | none =>
-      IO.eprintln "usage: agent-native SEED EXPONENT TILINGS UNITS MODE CREDIT RATE SUBTASKS CRITERION PLANNING [RAW_WORD ...]"
+      IO.eprintln ("usage: agent-native SEED EXPONENT TILINGS UNITS MODE CREDIT RATE " ++
+        s!"SUBTASKS CRITERION PLANNING [RAW_WORD ...]\n{Acorn.Digits.usage}")
       return 2
   catch error =>
     try IO.eprintln s!"agent-native: {error}" catch _ => pure ()

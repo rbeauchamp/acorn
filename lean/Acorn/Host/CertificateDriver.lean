@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.Host.CertificateSearch
 import Acorn.Host.Curriculum
 
@@ -182,10 +183,6 @@ composition and the comparator, and only this definition excludes an attempt. -/
       wood.1 ++ stone.1 ++ gold.1
     labels := [nearLine.2, farLine.2] ++ wood.2 ++ stone.2 ++ gold.2 }
 
-/-- Decimal digits only; no sign, separator or other notation. -/
-def natural (text : String) : Option Nat :=
-  if text.isEmpty || !text.toList.all (fun c => '0' ≤ c && c ≤ '9') then none else text.toNat?
-
 /-- Add one to a label's count, keeping first-seen order. -/
 def count (tally : List (String × Nat)) (label : String) : List (String × Nat) :=
   if tally.any (·.1 == label) then
@@ -195,14 +192,14 @@ def count (tally : List (String × Nat)) (label : String) : List (String × Nat)
 /-- Admit every argument before generating any world, then print each seed's lines as
 they are produced and the counts over the list. -/
 def dispatch (arguments : List String) : IO UInt32 := do
-  let usage := "usage: world-certificates SIDE CAP SEED [SEED ...]"
+  let usage := s!"usage: world-certificates SIDE CAP SEED [SEED ...]\n{Digits.usage}"
   let sideText :: capText :: seedTexts := arguments | throw (IO.userError usage)
-  let some side := (natural sideText).bind fun value => Coordinate.checked (value : Int)
+  let some side := (Digits.natural sideText).bind fun value => Coordinate.checked (value : Int)
     | throw (IO.userError s!"invalid side: {sideText}")
-  let some cap := natural capText | throw (IO.userError s!"invalid cap: {capText}")
+  let some cap := Digits.natural capText | throw (IO.userError s!"invalid cap: {capText}")
   if seedTexts.isEmpty then throw (IO.userError usage)
   let seeds ← seedTexts.mapM fun text =>
-    match natural text with
+    match Digits.natural text with
     | some value =>
       if value < 2 ^ 64 then pure value.toUInt64
       else throw (IO.userError s!"seed overflow: {text}")

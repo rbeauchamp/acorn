@@ -16,7 +16,7 @@ namespace Acorn.Host.Viewer
 
 /-- Checked KiB conversion cannot wrap at the wire's word boundary. -/
 def residentBytes (text : String) : Option UInt64 := do
-  let kib ← Cli.natural (trimControlLine text)
+  let kib ← Digits.read (trimControlLine text)
   if kib * 1024 < 2 ^ 64 then some (kib * 1024).toUInt64 else none
 
 /-- Process-local optional sample; an absent measurement stays absent. -/

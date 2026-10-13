@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.Host.Viewer.Buffer
 import Acorn.Host.Viewer.Retry
 import Acorn.Host.Viewer.SupervisedProcess
@@ -78,7 +79,7 @@ private def body (script function : String) : IO String := do
 
 private def number (script name : String) : Option Nat := do
   let rest ← (script.splitOn (name ++ "=")).tail?.bind List.head?
-  ((rest.takeWhile Char.isDigit).toString).toNat?
+  Acorn.Digits.read (rest.takeWhile Char.isDigit).toString
 
 /-- All inline browser source after lexical comment/literal removal. -/
 def scripts (page : String) : IO String := do
@@ -111,7 +112,8 @@ private def documentConstants (script : String) : IO Unit := do
         seen := name :: seen
         let actual := if source == "viewer/static/index.html" then number script name else
           native.find? (fun row => row.1 == name && row.2.1 == source) |>.map (·.2.2)
-        require (value.toNat?.isSome && value.toNat? == actual) s!"documented constant differs: {name}"
+        let documented := Acorn.Digits.read value
+        require (documented.isSome && documented == actual) s!"documented constant differs: {name}"
     | _ => pure ()
   require (seen.length ≥ 2 && native.all (fun row => seen.contains row.1)) "missing native constant rows"
 
