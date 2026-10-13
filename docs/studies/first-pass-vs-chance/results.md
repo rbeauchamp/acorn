@@ -37,8 +37,7 @@ standard curriculum from a fresh agent. The result concerns worlds of side
 1024, a cap of 3000 steps and the source at the commit below.
 That source predates
 [#155](https://github.com/rbeauchamp/acorn/issues/155), which changed the
-feature, cue and terrain hashes: the current code builds other features, goal
-cues and worlds at these seeds, so the numbers here were measured before that
+feature, cue and terrain hashes, so the numbers here were measured before that
 change and describe the source at that commit only.
 
 **What is not shown.**

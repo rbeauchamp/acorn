@@ -56,8 +56,8 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   cannot learn; whether it learns on goals it does achieve, or over a longer
   horizon, has not been observed. Both runs were measured before
   [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature,
-  cue and terrain hashes, so the current code gives other features, goal cues
-  and worlds at their seeds and reproduces neither.
+  cue and terrain hashes; they describe the code before that change, and the
+  current code has not been run on their protocol.
 
 The defects survived for an instructive reason. Acorn's proofs state safety and
 admission properties, such as "the stored state stays legal" or "this identity

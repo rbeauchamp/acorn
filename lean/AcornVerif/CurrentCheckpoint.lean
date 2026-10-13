@@ -280,9 +280,9 @@ theorem unresumable_unloaded (construction : AgentConstruction) (bytes : List UI
 /-- **The loader refuses an image of generation 19.** For every construction, every byte list
 whose header decodes with the generation word 19, and every image, the loader does not return
 the image: header admission requires generation 20 (`HeaderAdmitted.version`). Generation 19
-has the layout of generation 20, but it holds its weights at the feature slots of the hashes
-that read their first two words only through their XOR, so a load of it would read each
-saved weight as the weight of another feature (`Checkpoint.formatVersion`). -/
+has the layout of generation 20, but its weights were placed by the hashes that read their
+first two words only through their XOR, so a saved weight can sit at the slot of another
+feature (`Checkpoint.formatVersion`). -/
 theorem previous_generation_unloaded (construction : AgentConstruction) (bytes : List UInt8)
     (header : Header) (rest : List UInt8)
     (decoded : headerCodec.decode (bytes.drop magic.length) = some (header, rest))

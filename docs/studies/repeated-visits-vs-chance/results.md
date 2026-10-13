@@ -39,8 +39,7 @@ result concerns worlds of side 1024, the standard curriculum, four cycles with
 a cap of 3000 steps, the two reach goals and the source at the commit below.
 That source predates
 [#155](https://github.com/rbeauchamp/acorn/issues/155), which changed the
-feature, cue and terrain hashes: the current code builds other features, goal
-cues and worlds at these seeds, so the numbers here were measured before that
+feature, cue and terrain hashes, so the numbers here were measured before that
 change and describe the source at that commit only.
 
 **How it came about.** Almost no reach attempt reached its target, in either

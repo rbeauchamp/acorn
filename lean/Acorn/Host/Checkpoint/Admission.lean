@@ -47,9 +47,10 @@ inductive Error where
 an image of generation 18 or earlier holds no option model, off-policy question, primitive
 credit, rate schedule or process-local reference, so no load of it could return the agent
 that was saved. An image of generation 19 has the layout of this generation, but its weights
-are held at the feature slots of the hashes that read their first two words only through
-their XOR; this generation's features are at other slots (`Rng.hash3_eq_iff`), so the saved
-weights would be read as the weights of other features. -/
+were placed by the hashes that read their first two words only through their XOR. This
+generation's hashes differ from those (`Rng.hash3_not_xor`, `Rng.hash2_not_xor`), so a
+feature can have another slot than generation 19 gave it, and a load could read a saved
+weight as the weight of another feature. -/
 def formatVersion : UInt32 := Acorn.FeatureConstants.checkpointFormatVersion.toUInt32
 
 /-- Header validation precedes large shape-dependent decoding. -/
