@@ -434,7 +434,7 @@ and, in four callers of the policy's functions (`TemporalControl.choosePrimitive
 order of the parallel moves into a join point, and in two callers of the encoding's
 first-occurrence builder (`NumericState.resumable`, `Checkpoint.presence`), the name of
 the specialization of their fold, and in the off-policy following of an option
-(`Skill.followTemporal`), which reaches the model's restart, now a costed operation,
+(`Skill.followTemporal`), which reaches the model's restart, a costed operation,
 through nested tests of consistency and liveness where the code without work passed the
 restart's arguments to a join point that tested consistency again, with the same calls in
 the same order, and in the consistency test of the frozen policy

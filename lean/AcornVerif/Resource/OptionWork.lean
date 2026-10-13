@@ -406,7 +406,7 @@ theorem terminateOption_costed (κ : Costs)
 /-! ## With the option's model
 
 The operations of `Acorn.Temporal` at the model operations of `modelOperations`, the ones the
-agent's selection and the following of its options run. -/
+agent runs. -/
 
 /-- A started option's continuation holds the start frame. -/
 theorem beginTemporal_frame (skill : Skill actions config criterion dimension discounts)
@@ -908,7 +908,7 @@ theorem followTemporalCosted_within_capacity (κ : Costs)
 
 /-! ### Adapters -/
 
-/-- `Skill.beginTemporal` at the model operations selection runs, with its bound. -/
+/-- `Skill.beginTemporal` at the model operations the agent runs, with its bound. -/
 def beginTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
     (rate : ConsumerRate) :
@@ -941,7 +941,7 @@ theorem beginTemporal_costed (κ : Costs)
       rate).Within κ (beginTemporal κ skill features potential learning rate).work :=
   beginTemporalCosted_within κ skill features potential learning rate
 
-/-- `Skill.stepTemporal` at the model operations selection runs, with its bound. -/
+/-- `Skill.stepTemporal` at the model operations the agent runs, with its bound. -/
 def stepTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
@@ -973,7 +973,7 @@ theorem stepTemporal_costed (κ : Costs) (skill : Skill actions config criterion
       rng).Within κ (stepTemporal κ skill activation next reward gain rng).work :=
   stepTemporalCosted_within κ skill activation next reward gain rng
 
-/-- `Skill.endTemporal` at the model operations selection runs, with its bound. -/
+/-- `Skill.endTemporal` at the model operations the agent runs, with its bound. -/
 def endTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (ending : EndingPayload mode) (reward terminal : Binary32) (gain : RewardRate) :
@@ -1007,7 +1007,7 @@ theorem endTemporal_costed (κ : Costs) (skill : Skill actions config criterion 
       (endTemporal κ skill value features ending reward terminal gain).work :=
   endTemporalCosted_within κ skill value features ending reward terminal gain
 
-/-- `Skill.settleTemporal` at the model operations selection runs, with its bound. -/
+/-- `Skill.settleTemporal` at the model operations the agent runs, with its bound. -/
 def settleTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
