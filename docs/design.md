@@ -376,17 +376,20 @@ configuration; the others grow with the active set's length, and with the capaci
 dimension in its place they are functions of the configuration too
 (`AcornVerif.Resource.Twin.beginOptionCosted_within_capacity`,
 `decideOptionCosted_within_capacity`, `optionStepCosted_within_capacity`,
-`optionCreditCosted_within_capacity`, `frozenPolicyCosted_within_capacity`). So are an
-option's operations with its model (`Acorn.Temporal`), whose model operations record
-(`OptionModelOps`) takes the model's start, step, terminal step and stop as costed
-operations, at the record selection runs (`modelOperations`): its start
+`optionCreditCosted_within_capacity`, `frozenPolicyCosted_within_capacity`). An option's
+operations with its model (`Acorn.Temporal`) are also values of their costed definitions,
+at the model operations record selection runs (`modelOperations`), which takes the model's
+start, step, terminal step and stop as costed operations (`OptionModelOps`): its start
 (`Skill.beginTemporal`), step (`Skill.stepTemporal`), the credit of a drawn decision
 (`Skill.creditTemporal`), end (`Skill.endTemporal`), the stop and the settling of its stored
 trajectory (`Skill.stopFollowing`, `Skill.settleFollowing`, `Skill.settleTemporal`) and a
 start whose first action is drawn (`Skill.startTemporal`). Each bound grows with the active
 set's length, and with the capacity of the dimension in its place each is a function of the
-configuration (`AcornVerif.Resource.Twin.beginTemporalCosted_within_capacity` and the other
-`_within_capacity` theorems of `AcornVerif.Resource.OptionWork`). An option's potential
+configuration (`AcornVerif.Resource.Twin.beginTemporalCosted_within_capacity`,
+`stepTemporalCosted_within_capacity`, `creditTemporalCosted_within_capacity`,
+`endTemporalCosted_within_capacity`, `stopFollowingCosted_within_capacity`,
+`settleFollowingCosted_within_capacity`, `settleTemporalCosted_within_capacity`,
+`startTemporalCosted_within_capacity`). An option's potential
 (`Interest.potential`) and its off-policy following (`Skill.startFollowing`,
 `Skill.followTemporal`) are not costed yet; the potential has a twin
 (`AcornVerif.Resource.Twin.interestPotential`). A controller's initial
