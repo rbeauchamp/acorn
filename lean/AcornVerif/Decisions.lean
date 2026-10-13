@@ -44,8 +44,10 @@ kind does not state stands beside it as a requirement with no kind: the value of
 result, under the name of the kind with `_value`, or a set of refused inputs beside a one-way
 kind, under the name of the kind with `_refused`. `payload_admit_value` and
 `candidate_load_value` stand in the same way beside the requirements `payload_admit` and
-`candidate_load`, which also keep no kind, and `checkpoint_load_accepts` beside the sound kind
-`checkpoint_load` states the saved bytes that loading accepts and the state that it returns.
+`candidate_load`, which also keep no kind, `checkpoint_load_accepts` beside the sound kind
+`checkpoint_load` states the saved bytes that loading accepts and the state that it returns, and
+`checkpoint_resume_accepts` beside the sound kind `checkpoint_resume` states the state that
+resuming them returns.
 `interest_potential_declared` states pointwise a class of refused inputs that the two-way kind
 `interest_potential` also gives.
 `world_enterable`, `tile_kind` and `terrain_read` keep their names beside the kinds of the
@@ -59,10 +61,11 @@ The round trips of the composed checkpoint admissions, the goal completion predi
 translation and precision derivation are stated here because their theorems are in this
 library, and so are the kinds of the count and of the rule of the spawn search, the result of
 the search, an accepted input of world generation, the correspondence of the comparator with
-the agent's attempt and the bounds of the comparator's campaigns. The accepted inputs of the
-observation, of finishing and of the fold, and the two-way kind of `Host.Released.environment`,
-are stated here because the observation of their inputs succeeds by the terrain admission of
-`CurrentTerrain`. Each contract states only what its theorem proves.
+the agent's attempt, the bounds of the comparator's campaigns and the stored-word checks of a
+learner. The accepted inputs of the observation, of finishing and of the fold, and the two-way
+kind of `Host.Released.environment`, are stated here because the observation of their inputs
+succeeds by the terrain admission of `CurrentTerrain`. Each contract states only what its
+theorem proves.
 
 ## Statements that keep no kind
 
@@ -71,7 +74,7 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Ten functions of this module have a contract and no kind. The reasons are four. Two more,
+Eleven functions of this module have a contract and no kind. The reasons are five. Two more,
 `Agent.input` and `AgentConstruction.execute`, refuse no input, so they are no decisions, and
 their statements say what their results are.
 
@@ -103,6 +106,13 @@ their statements say what their results are.
   and carries an accepted input. The search stops at the first rich candidate of its spiral, so
   which tiles it reads depends on the kinds and walkability of the tiles before, and no theorem
   states which worlds it accepts.
+* The specification reads a part of the input whose type declares an invariant that names tests
+  that the function runs: the stored-word check of a learner, `NumericState.resumable`. Its kind
+  was proved, and Regula's collector refuses it under RG1009 for `Binary32.isNaN` and
+  `Binary32.less`, which the specification reaches only through the declaration of the learner
+  state and the function runs in the interval test of a pruning reference
+  (https://github.com/rbeauchamp/regula/issues/320). The kind is remaining work of
+  https://github.com/rbeauchamp/acorn/issues/105.
 
 ## Tests that a specification does not share
 
@@ -134,10 +144,16 @@ admission does not call.
 
 The kinds of the terrain name the binary32 quotient of a coordinate by an octave scale, which the
 generator computes: `Host.coordinateFloat`, `Binary32.div` and `Binary32.mul` are shared with it,
-and none of them is a test. The kinds of its two readers also share `Host.WorldConfig.side`, which
-the type of their world argument reads. The floor, the saturating cast and the checked successor
-of the lattice coordinate are not shared: `CurrentTerrain.PastLast` bounds the exact value of the
-quotient in their place.
+and none of them is a test. Each is fixed apart from these kinds. `Binary32.div` and
+`Binary32.mul` are Lean core's `Float32` division and multiplication on the words, and
+`AcornVerif.FloatLibBridge.binary32_div_roundAt` and
+`AcornVerif.FloatLibBridge.binary32_mul_roundAt` state them, on finite operands with a finite
+result, as the exact real quotient and product rounded once to nearest-even. `Host.coordinateFloat`
+has the statement `Acorn.Decisions.coordinate_float`, which reads the coordinate as a
+mathematical integer and converts its magnitude with the library's conversion. The kinds of its two
+readers also share `Host.WorldConfig.side`, which the type of their world argument reads. The floor,
+the saturating cast and the checked successor of the lattice coordinate are not shared:
+`CurrentTerrain.PastLast` bounds the exact value of the quotient in their place.
 
 The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
 the side of the box `Host.WorldConfig.side`, and the kind of `Host.payAndAct` also shares the
@@ -215,6 +231,17 @@ def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
 /-- A construction of the given profile over `bank` and `narrow`. -/
 def construction (profile : FeatureProfile) : AgentConstruction :=
   ⟨profile, .discounted, .none, .learnThenAct, bank, narrow⟩
+
+/-- The control configuration of a learner, with the differential value rule. -/
+def control : Acorn.Config := ⟨.control, .differential⟩
+
+/-- The one index of `narrow`. -/
+def first : FeatIdx narrow := ⟨0, by decide⟩
+
+/-- The fresh learner of `control` over `narrow` with the trace of `first` set to one. -/
+def traced : NumericState control narrow :=
+  let fresh := NumericState.initial control narrow
+  { fresh with transient := { fresh.transient with z := #v[⟨⟨0x3f800000⟩⟩] } }
 
 /-- A tile of `wide` from which a tree to the west can be harvested. -/
 def stand : Host.BoxPosition wide := ⟨⟨0, by decide⟩, ⟨6, by decide⟩⟩
@@ -958,12 +985,77 @@ theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun ind
 
 /-! ## Refusals of the terrain
 
-The terrain generator and its two readers in the world refuse a position exactly when the value
-noise reaches a lattice coordinate with no successor, `CurrentTerrain.LatticeAdmits`, which states
-the condition on the exact value of the quotient of each coordinate by each octave scale. The
-witnesses of the three kinds are the last coordinate at the noise scales of two and of one half.
-A generator that read every scale as one would fail each kind: at the scale one it refuses the
-last coordinate. -/
+The value noise refuses a position exactly when the quotient of a coordinate by its scale
+reaches a lattice coordinate with no successor, `CurrentTerrain.PastLast`, which states the
+condition on the exact value of the quotient. The fold of the value noise over the octaves
+refuses exactly when one of its octaves does, and a field of the terrain, the terrain generator
+and its two readers in the world refuse exactly when one of the four octaves of the base scale
+does, `CurrentTerrain.LatticeAdmits`. The witnesses of the six kinds are the last coordinate at
+the noise scales of two and of one half. A generator that read every scale as one would fail
+each kind: at the scale one it refuses the last coordinate. -/
+
+/-- The value noise admits exactly a position and a scale at which the quotient of neither
+coordinate by the scale is past the last lattice coordinate (`CurrentTerrain.valueNoise_isOk`):
+positive infinity or a finite value of at least `2 ^ 63 - 1`. The seed enters no refusal. The
+accepted input is the last coordinate at the scale two, whose horizontal quotient is `2 ^ 62`.
+The refused input is the last coordinate at the scale one half, whose horizontal quotient is
+`2 ^ 64`. -/
+theorem value_noise_lattice : Regula.ExecutableContract Host.valueNoise (fun valueNoise =>
+    Regula.Decides (·.isOk = true)
+      (fun input : (Host.Position × Binary32) × UInt64 =>
+        ¬CurrentTerrain.PastLast ((Host.coordinateFloat input.1.1.x).div input.1.2) ∧
+          ¬CurrentTerrain.PastLast ((Host.coordinateFloat input.1.1.y).div input.1.2))
+      (Function.uncurry (Function.uncurry valueNoise))) :=
+  ⟨decides (fun input => CurrentTerrain.valueNoise_isOk input.1.1 input.1.2 input.2)
+    ⟨((last, ⟨0x40000000⟩), 0), by decide +kernel⟩
+    ⟨((last, ⟨0x3f000000⟩), 0), by decide +kernel⟩⟩
+
+/-- The arguments of `Host.octaveLoop`, in order. -/
+structure OctaveLoop where
+  /-- The number of octaves still to add. -/
+  count : Nat
+  /-- The position. -/
+  position : Host.Position
+  /-- The seed. -/
+  seed : UInt64
+  /-- The scale of the next octave. -/
+  scale : Binary32
+  /-- The amplitude of the next octave. -/
+  amplitude : Binary32
+  /-- The sum of the octaves added. -/
+  sum : Binary32
+
+/-- The fold of the value noise over the octaves admits exactly a position that the value noise
+admits at each octave scale that it adds, the scale doubled once per octave
+(`CurrentTerrain.octaveLoop_isOk`). The seed, the amplitude and the sum enter no refusal. The
+witnesses are the four octaves of a field of the terrain at the inputs of
+`value_noise_lattice`. -/
+theorem octave_loop_lattice : Regula.ExecutableContract Host.octaveLoop (fun octaveLoop =>
+    Regula.Decides (·.isOk = true)
+      (fun input : OctaveLoop =>
+        ∀ octave < input.count,
+          ¬CurrentTerrain.PastLast ((Host.coordinateFloat input.position.x).div
+              (CurrentTerrain.octaveScale input.scale octave)) ∧
+            ¬CurrentTerrain.PastLast ((Host.coordinateFloat input.position.y).div
+              (CurrentTerrain.octaveScale input.scale octave)))
+      (fun input : OctaveLoop => octaveLoop input.count input.position input.seed input.scale
+        input.amplitude input.sum)) :=
+  ⟨decides (fun input => CurrentTerrain.octaveLoop_isOk input.count input.position input.seed
+      input.scale input.amplitude input.sum)
+    ⟨⟨4, last, 0, ⟨0x40000000⟩, ⟨0x3f000000⟩, ⟨0⟩⟩, by decide +kernel⟩
+    ⟨⟨4, last, 0, ⟨0x3f000000⟩, ⟨0x3f000000⟩, ⟨0⟩⟩, by decide +kernel⟩⟩
+
+/-- A field of the terrain admits exactly a position whose value noise has a lattice successor at
+each of the four octave scales of the base scale (`CurrentTerrain.fbm_isOk`). The seed enters no
+refusal. The witnesses are those of `terrain_lattice`. -/
+theorem fbm_lattice : Regula.ExecutableContract Host.fbm (fun fbm =>
+    Regula.Decides (·.isOk = true)
+      (fun input : (Host.Position × UInt64) × Binary32 =>
+        CurrentTerrain.LatticeAdmits input.1.1 input.2)
+      (Function.uncurry (Function.uncurry fbm))) :=
+  ⟨decides (fun input => CurrentTerrain.fbm_isOk input.1.1 input.1.2 input.2)
+    ⟨((last, 0), ⟨0x40000000⟩), by decide +kernel⟩
+    ⟨((last, 0), ⟨0x3f000000⟩), by decide +kernel⟩⟩
 
 /-- The arguments of `Host.World.tileKind` and `Host.World.enterable`, in order. -/
 structure WorldTile where
@@ -1997,6 +2089,55 @@ theorem world_initial_accepts : Regula.ExecutableContract Host.World.initial (fu
 
 /-! ## Learner admissions -/
 
+/-- The arguments of `NumericState.clearAt`, in order. -/
+structure ClearAt where
+  /-- The learner configuration. -/
+  config : Acorn.Config
+  /-- The feature space. -/
+  dimension : Dimension
+  /-- The learner state. -/
+  state : NumericState config dimension
+  /-- The slot. -/
+  index : FeatIdx dimension
+
+/-- The test of a cleared slot accepts exactly a slot whose nine transient words are positive
+zero (`CurrentLearnerCheck.clearAt_iff`). The specification is the vector of the nine words
+that `CurrentLearner.registers` reads from the stored fields, equal to nine zeros; the function
+compares each word with zero. The two inputs of the proof are the slot `first` of the fresh
+learner of `control` over `narrow`, which is accepted, and the same slot of `traced`, whose trace
+is one, which is refused. -/
+theorem learner_clear : Regula.ExecutableContract @NumericState.clearAt (fun clearAt =>
+    Regula.Decides (· = true)
+      (fun input : ClearAt =>
+        CurrentLearner.registers input.state input.index = Vector.replicate 9 .zero)
+      (fun input : ClearAt => @clearAt input.config input.dimension input.state input.index)) :=
+  ⟨decides (fun input => CurrentLearnerCheck.clearAt_iff input.state input.index)
+    ⟨⟨control, narrow, NumericState.initial _ _, first⟩, by decide⟩
+    ⟨⟨control, narrow, traced, first⟩, by decide⟩⟩
+
+/-- The stored-word check of a learner read from an image accepts exactly a learner state that
+satisfies the schedule invariant of the learner's capacity theorem at its phase
+(`CurrentLearnerCheck.resumable_iff`): every slot that is not eligible holds nine positive-zero
+transient words, every pruning reference is a finite word whose value lies in `[0, 5]`, no
+eligible index repeats, and, when a standalone second loop is permitted, no eligible trace is
+zero.
+
+The statement keeps no kind. A two-way kind whose specification states the invariant with the
+readiness of an eligible trace as a nonzero signed key, in the place of the zero test, was
+proved, with the fresh learner of `control` over `narrow` as the accepted input and that learner
+with `first` eligible as the refused one; Regula's collector refuses it under RG1009
+(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) for `Binary32.isNaN` and
+`Binary32.less`. The specification reaches them only through the declaration of the learner
+state, whose step-size rails declare an invariant that names `Portable.ln`; the function runs them
+in the interval test of a pruning reference. This is the reading of
+https://github.com/rbeauchamp/regula/issues/320, and the kind is remaining work of
+https://github.com/rbeauchamp/acorn/issues/105. -/
+theorem learner_resumable : Regula.ExecutableContract @NumericState.resumable (fun resumable =>
+    ∀ {config : Acorn.Config} {dimension : Dimension} (state : NumericState config dimension)
+      (phase : Bool),
+      resumable state phase = true ↔ CurrentLearner.ScheduleInv state phase) :=
+  ⟨CurrentLearnerCheck.resumable_iff⟩
+
 /-- The arguments of `Features.Interest.potential`, in order. -/
 structure InterestPotential where
   /-- The bank configuration. -/
@@ -2117,6 +2258,53 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
       load construction receiver (encode (snapshot construction source)) = .ok source) :=
   ⟨fun construction source receiver resumable =>
     CurrentCheckpoint.save_load construction receiver source
+      ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
+
+/-- Resuming the bytes that a supported construction saved returns the saved state with a new
+evaluator session (`CurrentCheckpoint.save_load`). -/
+private theorem resume_saved_state (construction : AgentConstruction)
+    (receiver source : construction.State)
+    (supported : construction.profile.checkpointSupported = true) :
+    resume construction receiver (encode (snapshot construction source)) =
+      .ok source.beginSession := by
+  unfold resume
+  rw [CurrentCheckpoint.save_load construction receiver source supported]
+  rfl
+
+/-- Resuming accepts bytes only under a resumable profile: it is loading followed by a new
+evaluator session, which refuses nothing, so it accepts exactly what loading accepts
+(`load_resumable`). The accepted input is that of `checkpoint_load`. `checkpoint_resume_accepts`
+states the state that resuming returns for saved bytes.
+
+**Not claimed:** which other byte lists a resumable construction refuses. -/
+theorem checkpoint_resume : Regula.ExecutableContract Checkpoint.resume (fun resume =>
+    Regula.DecidesSoundly (· = true)
+      (fun input : Load => Resumable input.construction.profile)
+      (Regula.Dependent.isOk fun input : Load =>
+        resume input.construction input.receiver input.bytes)) :=
+  ⟨⟨fun input accepted => load_resumable input.construction input.receiver input.bytes (by
+      obtain ⟨state, resumed⟩ := (Regula.Dependent.isOk_eq_true_iff _ _).mp accepted
+      change (Checkpoint.load input.construction input.receiver input.bytes).map _ = _ at resumed
+      cases loading : Checkpoint.load input.construction input.receiver input.bytes with
+      | error error => rw [loading] at resumed; cases resumed
+      | ok restored => rfl),
+    ⟨⟨construction resumable, AgentConstruction.initial _,
+        encode (snapshot (construction resumable) (AgentConstruction.initial _))⟩,
+      (Regula.Dependent.isOk_eq_true_iff _ _).mpr ⟨_, resume_saved_state _ _ _ rfl⟩⟩⟩⟩
+
+/-- Resuming returns the state that a resumable construction saved with a new evaluator
+session, every learned field the saved agent's, for every receiver of that construction
+(`CurrentCheckpoint.save_load`). The sound kind `checkpoint_resume` states that resuming accepts
+bytes only under a resumable profile. The statement keeps no kind for the reason that
+`checkpoint_load_accepts` gives. -/
+theorem checkpoint_resume_accepts : Regula.ExecutableContract Checkpoint.resume (fun resume =>
+    ∀ (construction : AgentConstruction) (source receiver : construction.State),
+      construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
+        construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned →
+      resume construction receiver (encode (snapshot construction source)) =
+        .ok source.beginSession) :=
+  ⟨fun construction source receiver resumable =>
+    resume_saved_state construction receiver source
       ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
 
 /-- Each event satisfies the contract of its edge: an act runs the agent's step and returns its
