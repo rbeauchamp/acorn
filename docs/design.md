@@ -361,7 +361,7 @@ step over the passage's features: the questions learn only from a transition the
 classifies, and a silent question skips its step at a zero signal word. One option's
 questions do work that grows with the number of questions times the stored and current
 features (`AcornVerif.Resource.Twin.followCosted_within`). The bound of every option's
-(`AcornVerif.Resource.Twin.askQuestionsCosted_within`) takes each stored set at the
+questions (`AcornVerif.Resource.Twin.askQuestionsCosted_within`) takes each stored set at the
 capacity of the dimension, so it grows with the number of options times the number of
 questions times that capacity and the frame's features; with the capacity in place of the
 frame's length too it is a function of the configuration
@@ -369,8 +369,8 @@ frame's length too it is a function of the configuration
 operations (`Acorn.Options`): its start (`Skill.beginOption`), termination decision
 (`Skill.decideOption`), step (`Skill.optionStep`), the credit of a drawn decision
 (`Skill.optionCredit`), frozen policy (`Skill.frozenPolicy`) and termination
-(`Skill.terminateOption`). Their costed definitions resolve an option's rate through
-`ConsumerRate.resolveCosted`, whose value is the plain resolution at the values of its
+(`Skill.terminateOption`). An option's rate has a costed resolution
+(`ConsumerRate.resolveCosted`), whose value is the plain resolution at the values of its
 callback (`ConsumerRate.resolveCosted_val`). The termination's bound is a function of the
 configuration; the others grow with the active set's length, and with the capacity of the
 dimension in its place they are functions of the configuration too
