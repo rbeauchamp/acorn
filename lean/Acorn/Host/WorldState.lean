@@ -285,13 +285,117 @@ theorem World.decide_goalSatisfied {config : WorldConfig} (world : World config)
     decide world.GoalSatisfied = world.goalSatisfied := by
   rw [Bool.eq_iff_iff, decide_eq_true_iff, world.goalSatisfied_iff]
 
-/-- The eight phase buckets preserve custom odd or short day periods. -/
+/-- The first half of the day has the phases zero to three and the second half the phases four
+to seven. A slot of the clock in the first half has the number of eighths of the day that it has
+passed, and a slot in the second half four more than the eighths it has passed since the half.
+An eighth is at least one step, and the last phase of each half keeps the slots past its third
+eighth, so a day whose length is not a multiple of eight adds its remainder to the phases three
+and seven. Night, the phases from four on, is exactly the second half
+(`World.dayPhase_night_iff`). A day of at least eight steps reaches all four phases of each half
+(`World.dayPhase_reaches`); a shorter day has fewer than four slots in its first half. -/
 def World.dayPhase {config : WorldConfig} (world : World config) : Fin FeatureConstants.dayPhases :=
   let slot := world.time.toNat % config.raw.dayLength.toNat
   let half := config.raw.dayLength.toNat / 2
   let eighth := max 1 (config.raw.dayLength.toNat / FeatureConstants.dayPhases)
-  let phase := if slot < half then slot / eighth else FeatureConstants.dayPhases / 2 + (slot - half) / eighth
-  ⟨min phase (FeatureConstants.dayPhases - 1), by change min phase 7 < 8; omega⟩
+  let last := FeatureConstants.dayPhases / 2 - 1
+  if slot < half then
+    ⟨min (slot / eighth) last, Nat.lt_of_le_of_lt (Nat.min_le_right _ _) (by decide)⟩
+  else ⟨FeatureConstants.dayPhases / 2 + min ((slot - half) / eighth) last,
+    Nat.lt_of_le_of_lt (Nat.add_le_add_left (Nat.min_le_right _ _) _) (by decide)⟩
+
+/-- The phase is night, from four on, exactly in the second half of the day, for every admitted
+day length: the first half has only the phases zero to three and the second half only the phases
+four to seven. -/
+theorem World.dayPhase_night_iff {config : WorldConfig} (world : World config) :
+    4 ≤ world.dayPhase.val ↔
+      config.raw.dayLength.toNat / 2 ≤ world.time.toNat % config.raw.dayLength.toNat := by
+  unfold World.dayPhase
+  dsimp only
+  split
+  next first =>
+    exact ⟨fun night => absurd night
+        (Nat.not_le_of_lt (Nat.lt_of_le_of_lt (Nat.min_le_right _ _) (by decide))),
+      fun second => absurd first (Nat.not_lt_of_le second)⟩
+  next second => exact ⟨fun _ => Nat.le_of_not_lt second, fun _ => Nat.le_add_right _ _⟩
+
+/-- A day of at least eight steps reaches every phase, so with `World.dayPhase_night_iff` each half
+has exactly its four phases. A shorter day has fewer than four slots in its first half. -/
+theorem World.dayPhase_reaches {config : WorldConfig} (world : World config)
+    (long : 8 ≤ config.raw.dayLength.toNat) (phase : Fin FeatureConstants.dayPhases) :
+    ∃ time : UInt64, ({ world with time } : World config).dayPhase = phase := by
+  have positive : 0 < config.raw.dayLength.toNat / 8 := by omega
+  have below : phase.val < 8 := phase.isLt
+  have scaled : ∀ count, count < 4 →
+      count * (config.raw.dayLength.toNat / 8) ≤ 3 * (config.raw.dayLength.toNat / 8) :=
+    fun count fewer => Nat.mul_le_mul_right _ (by omega)
+  have atSlot : ∀ slot, slot < config.raw.dayLength.toNat →
+      ({ world with time := slot.toUInt64 } : World config).dayPhase.val =
+        if slot < config.raw.dayLength.toNat / 2 then
+          min (slot / (config.raw.dayLength.toNat / 8)) 3
+        else
+          4 + min ((slot - config.raw.dayLength.toNat / 2) /
+            (config.raw.dayLength.toNat / 8)) 3 := by
+    intro slot inside
+    have clock : slot.toUInt64.toNat % config.raw.dayLength.toNat = slot := by
+      rw [Nat.toUInt64_eq, UInt64.toNat_ofNat_of_lt'
+        (Nat.lt_trans inside config.raw.dayLength.toNat_lt)]
+      exact Nat.mod_eq_of_lt inside
+    unfold World.dayPhase
+    simp only [FeatureConstants.dayPhases, clock,
+      show max 1 (config.raw.dayLength.toNat / 8) = config.raw.dayLength.toNat / 8 by omega]
+    split <;> rfl
+  by_cases day : phase.val < 4
+  · have := scaled phase.val day
+    refine ⟨(phase.val * (config.raw.dayLength.toNat / 8)).toUInt64, Fin.ext ?_⟩
+    rw [atSlot _ (by omega), ite_eq_left (by omega), Nat.mul_div_cancel _ positive]
+    omega
+  · have := scaled (phase.val - 4) (by omega)
+    refine ⟨(config.raw.dayLength.toNat / 2 +
+      (phase.val - 4) * (config.raw.dayLength.toNat / 8)).toUInt64, Fin.ext ?_⟩
+    rw [atSlot _ (by omega), ite_eq_right (by omega), Nat.add_sub_cancel_left,
+      Nat.mul_div_cancel _ positive]
+    omega
+
+/-- A day whose length is a multiple of eight has eight equal phases: the phase is the number of
+eighths of the day that the slot of the clock has passed. -/
+theorem World.dayPhase_of_dvd {config : WorldConfig} (world : World config)
+    (eighths : 8 ∣ config.raw.dayLength.toNat) :
+    world.dayPhase.val =
+      world.time.toNat % config.raw.dayLength.toNat / (config.raw.dayLength.toNat / 8) := by
+  obtain ⟨length, split⟩ := eighths
+  have positive : 0 < length := by have := config.positiveDay; omega
+  have inside : world.time.toNat % config.raw.dayLength.toNat < 8 * length :=
+    split ▸ Nat.mod_lt _ config.positiveDay
+  unfold World.dayPhase
+  dsimp only
+  simp only [FeatureConstants.dayPhases, split, show 8 * length / 8 = length by omega,
+    show 8 * length / 2 = 4 * length by omega, show max 1 length = length by omega]
+  rw [split] at inside
+  have top := (Nat.div_lt_iff_lt_mul positive).mpr inside
+  split
+  next first =>
+    have := (Nat.div_lt_iff_lt_mul positive).mpr first
+    dsimp only
+    omega
+  next second =>
+    have := (Nat.le_div_iff_mul_le positive).mpr (Nat.le_of_not_lt second)
+    dsimp only
+    rw [show 4 * length = length * 4 by omega, Nat.sub_mul_div]
+    omega
+
+/-- The standard day of 2048 steps has eight phases of 256 steps. -/
+theorem World.dayPhase_standard {seed : UInt64} {side : Coordinate} {config : WorldConfig}
+    (built : WorldConfig.standard seed side = .ok config) (world : World config) :
+    world.dayPhase.val = world.time.toNat % 2048 / 256 := by
+  have length : config.raw.dayLength.toNat = 2048 := by
+    unfold WorldConfig.standard at built
+    split at built
+    · cases built
+    · split at built
+      · cases built
+      · cases built
+        rfl
+  rw [world.dayPhase_of_dvd (length ▸ by decide), length]
 
 /-- Effective terrain reads the sparse timestamp of exactly the requested site. -/
 def World.tileKind {config : WorldConfig} (world : World config) (position : Position) :

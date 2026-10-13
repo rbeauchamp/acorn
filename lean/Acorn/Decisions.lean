@@ -5304,30 +5304,33 @@ theorem header_codec : Regula.ExecutableContract Checkpoint.headerCodec (fun cod
         encodeNat_littleEndian, List.append_assoc],
     Checkpoint.headerCodec_canonical⟩⟩
 
-/-- A world configuration whose day is eight steps long. -/
-def octave : Host.WorldConfig :=
-  ⟨⟨0, ⟨64, by decide⟩, 8, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+/-- A world configuration whose day is twenty steps long, which is not a multiple of eight. -/
+def twentyStepDay : Host.WorldConfig :=
+  ⟨⟨0, ⟨64, by decide⟩, 20, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
 
 /-- The phase of the day is at least a bucket below eight exactly when the slot of the clock in
-the day reaches that bucket: in the first half of the day, when the slot is at least the bucket
-times an eighth of the day, and in the second half, for the first four buckets and otherwise
-when the slot past the half is at least the bucket less four times an eighth of the day. An
-eighth is at least one step. This holds for every configuration, world and bucket, and so fixes
-the phase. The specification of `pay_and_act_lattice` in `AcornVerif.Decisions` applies it
-through the cost of an action. In a day whose length is not a multiple of eight the first half
-can reach the buckets from four on: in a day of twenty steps the slots eight and nine are in
-the first half and have the phase four. The witnesses are the empty world of `octave` at the
-clock zero, in the phase zero, and at the clock four, in the phase four. -/
+the day reaches that bucket: in the first half of the day, when the bucket is below four and the
+slot is at least the bucket times an eighth of the day, and in the second half, for the first
+four buckets and otherwise when the slot past the half is at least the bucket less four times an
+eighth of the day. An eighth is at least one step. This holds for every configuration, world and
+bucket, and so fixes the phase: the first half has the phases below four and the second half
+the phases from four on, and the last phase of each half keeps the slots past its third eighth.
+The specification of `pay_and_act_lattice` in `AcornVerif.Decisions` applies it through the cost
+of an action. In a day of twenty steps the eighth is two steps, the first half is the slots zero
+to nine with the phases 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, and the second half is the slots ten to
+nineteen with the phases 4, 4, 5, 5, 6, 6, 7, 7, 7, 7. The witnesses are the empty world of
+`twentyStepDay` at the clock nine, the last slot of the first half, in the phase three, and at the
+clock ten, the first slot of the second half, in the phase four. -/
 theorem day_phase : Regula.ExecutableContract @Host.World.dayPhase (fun phase =>
     (∀ {config : Host.WorldConfig} (world : Host.World config) (bucket : Nat), bucket < 8 →
       (bucket ≤ (phase world).val ↔
         if world.time.toNat % config.raw.dayLength.toNat < config.raw.dayLength.toNat / 2 then
-          bucket * max 1 (config.raw.dayLength.toNat / 8) ≤
+          bucket < 4 ∧ bucket * max 1 (config.raw.dayLength.toNat / 8) ≤
             world.time.toNat % config.raw.dayLength.toNat
         else bucket ≤ 4 ∨ (bucket - 4) * max 1 (config.raw.dayLength.toNat / 8) ≤
           world.time.toNat % config.raw.dayLength.toNat - config.raw.dayLength.toNat / 2)) ∧
-      (phase (Host.World.empty octave)).val = 0 ∧
-      (phase { Host.World.empty octave with time := 4 }).val = 4) :=
+      (phase { Host.World.empty twentyStepDay with time := 9 }).val = 3 ∧
+      (phase { Host.World.empty twentyStepDay with time := 10 }).val = 4) :=
   ⟨⟨fun {config} world bucket below => by
       have positive : 0 < max 1 (config.raw.dayLength.toNat / 8) :=
         Nat.lt_of_lt_of_le Nat.one_pos (Nat.le_max_left _ _)
@@ -5338,12 +5341,16 @@ theorem day_phase : Regula.ExecutableContract @Host.World.dayPhase (fun phase =>
       simp only [FeatureConstants.dayPhases]
       split
       · rw [← scaled]
+        dsimp only
+        generalize world.time.toNat % config.raw.dayLength.toNat /
+          max 1 (config.raw.dayLength.toNat / 8) = quotient
         constructor
         · intro within
-          exact Nat.le_trans within (Nat.min_le_left _ _)
-        · intro within
-          exact Nat.le_min.mpr ⟨within, by omega⟩
+          exact ⟨by omega, by omega⟩
+        · intro ⟨_, within⟩
+          omega
       · rw [← scaled]
+        dsimp only
         generalize (world.time.toNat % config.raw.dayLength.toNat -
           config.raw.dayLength.toNat / 2) / max 1 (config.raw.dayLength.toNat / 8) = quotient
         omega,
