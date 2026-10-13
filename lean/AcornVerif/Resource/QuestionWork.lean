@@ -16,14 +16,15 @@ definition. Each `_within` theorem bounds a costed definition directly. No twin 
 definitions, so no adapter is defined here.
 
 An option's questions advance their stored set `x` to the frame's active set `x'`. The advance
-filters both sets by one membership flag per slot and writes the flags over both, so its work is
-linear in `|x| + |x'|` (`advanceCosted_within`). When the advance classifies a transition, each of
-the option's questions takes one GTD2-MP step from it: four sums, over the three classes of
-`x ∪ x'` for the main weights and over `x` for the second weights, and four write passes over the
-same lists. The four lists of a step have at most `2·|x| + |x'|` slots in all
-(`questionStepCosted_within`). A bank of `k` questions is one pass over its questions
-(`bankStepCosted_within`), so an option's questions do work linear in `|x| + |x'|` and in
-`k·(2·|x| + |x'|)` (`followCosted_within`). Every set fits the dimension
+filters the sets by one membership flag per slot and writes the flags over them, so its work is at
+most linear in `|x| + |x'|` (`advanceCosted_within`). The questions learn only from a transition
+the advance classifies, and each of them takes at most one GTD2-MP step from it: a silent question
+skips its step at a zero signal word. A step does four sums, over the three classes of `x ∪ x'` for
+the main weights and over `x` for the second weights, and four write passes over the same lists.
+The four lists of a step have at most `2·|x| + |x'|` slots in all (`questionStepCosted_within`). A
+bank of `k` questions is one pass over its questions (`bankStepCosted_within`), so an option's
+questions do work at most linear in `|x| + |x'|` and in `k·(2·|x| + |x'|)`
+(`followCosted_within`). Every set fits the dimension
 (`AcornVerif.CurrentLearner.active_cardinality`), so with the capacity of the dimension in place of
 each set's length the bound of every option's questions is a function of the configuration
 (`askQuestionsCosted_within_capacity`).

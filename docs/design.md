@@ -355,8 +355,9 @@ number of demons; with the capacity of the dimension in place of the active set'
 it is a function of the configuration
 (`AcornVerif.Resource.Twin.demonBankStepCosted_within_capacity`). So are every option's
 off-policy questions of the second part (`askQuestions`): each option's preceding set
-advances over the frame's features, and each of its questions takes one GTD2-MP step over
-the passage's features, so their bound
+advances over the frame's features, and each of its questions takes at most one GTD2-MP
+step over the passage's features: the questions learn only from a transition the advance
+classifies, and a silent question skips its step at a zero signal word. Their bound
 (`AcornVerif.Resource.Twin.askQuestionsCosted_within`) grows with the number of options
 times the number of questions times the stored and current features; with the capacity of
 the dimension in place of the active set's length it is a function of the configuration

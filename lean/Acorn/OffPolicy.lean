@@ -289,8 +289,8 @@ def Preceding.advanceCosted {dimension : Dimension} (preceding : Preceding dimen
 current set when its action was selected with the option's distribution. A transition
 from the empty set, or between sets of which one exceeds `passageLimit`, is not
 classified: no question learns from it. The flags are read before any is written, then
-cleared over the stored set and set over the current one, so the work is proportional to
-the two sets. -/
+cleared over the stored set and set over the current one, so the work is at most
+proportional to the two sets. -/
 def Preceding.advance {dimension : Dimension} (preceding : Preceding dimension)
     (current : SwiftTd.ActiveSet dimension) (armed : Bool) :
     Option (Passage dimension) × Preceding dimension :=
