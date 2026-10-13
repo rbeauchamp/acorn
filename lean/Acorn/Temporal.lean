@@ -484,7 +484,7 @@ theorem Skill.creditTemporal_interest {config : Config} {criterion : Criterion}
     (drawn : PersistentDecision actions) (reward : Binary32) (gain : RewardRate) :
     (skill.creditTemporal models activation next drawn reward gain).interest = skill.interest := by
   simp only [Skill.creditTemporal]
-  split <;> simp only [Skill.optionCredit] <;> split <;> rfl
+  split <;> simp only [Skill.optionCredit_def] <;> split <;> rfl
 
 /-- Model callbacks cannot rewrite the policy update or alter the returned action. -/
 theorem Skill.stepTemporal_policy {config : Config} {criterion : Criterion} {dimension : Dimension}

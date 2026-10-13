@@ -101,7 +101,7 @@ theorem terminal_clears (skill : Skill actions config criterion dimension discou
     (((skill.endTemporal models value features ending reward terminal gain).policy.learners.get
       action).state.transient) =
       TransientState.zero dimension := by
-  simp only [Skill.endTemporal, Skill.terminateOption, learning, ↓reduceIte]
+  simp only [Skill.endTemporal, Skill.terminateOption_def, learning, ↓reduceIte]
   exact CurrentControl.terminal_clears _ _ action
 
 /-- Frozen begin retains every policy and model register, not just its observations. -/
@@ -118,7 +118,7 @@ theorem frozen_terminal (skill : Skill actions config criterion dimension discou
     (reward terminal : Binary32) (gain : RewardRate)
     (frozen : ending.activation.learning = false) :
     skill.endTemporal models value features ending reward terminal gain = skill := by
-  simp [Skill.endTemporal, Skill.terminateOption, frozen]
+  simp [Skill.endTemporal, Skill.terminateOption_def, frozen]
 
 /-- All returned option policies retain the same managed admission and legal
 knowledge, including arbitrary raw reward and transient words. -/
@@ -1708,7 +1708,7 @@ theorem handoff_model (skill : Skill actions config criterion dimension discount
   have learning : activation.learning = true := rfl
   rw [follow_live_model skill value features potential goal estimate rate action behaviour reward
     gain activation.following held next continuing (decide_eq_true aged)]
-  simp [Skill.stepTemporal_eq, Skill.optionStep, learning, aged, modelOperations, frame,
+  simp [Skill.stepTemporal_eq, Skill.optionStep_def, learning, aged, modelOperations, frame,
     OptionActivation.following]
 
 /-- Handoff, policy: at the first served frame the interrupted option's policy takes

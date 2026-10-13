@@ -9,11 +9,15 @@ import Acorn.Cost
 # Work of the definitions not yet costed
 
 An executed definition whose costed definition `Acorn.Cost` names is that costed definition's value
-(`Acorn.Costed`), with two exceptions, so the loops its bound counts are the loops that run, under
+(`Acorn.Costed`), with three exceptions, so the loops its bound counts are the loops that run, under
 the trust assumption that the compiler erases the work (`Acorn.Cost`). `Transition.updateRows` keeps
 its plain form beside its costed form (`Transition.updateRows_costed`), and `detachedUpdate` keeps
-its plain form beside its costed form `detachedUpdateCosted`, with no theorem relating them. The
-other definitions of the agent's step are not yet costed. Of the controllers' definitions,
+its plain form beside its costed form `detachedUpdateCosted`, with no theorem relating them.
+`ConsumerRate.resolve` keeps its own match beside `ConsumerRate.resolveCosted`, whose value is the
+plain resolution at the values of its callback (`ConsumerRate.resolveCosted_val`): as the costed
+resolution's value at a pure callback, its compiled forwarder allocated a closure around the
+callback, an observation of one build's generated C that no gate repeats. The other definitions of
+the agent's step are not yet costed. Of the controllers' definitions,
 `Controller.initial` and
 `Controller.resetAction` have twins (`AcornVerif.Resource.Twin.controllerInitial` and
 `AcornVerif.Resource.Twin.resetAction` in `AcornVerif.Resource.RefreshWork`). A **twin** here is a
@@ -30,8 +34,8 @@ proved here bounds the twin's accounting. It is not a bound of the executed code
 that correspondence as a checked statement, owed by a later increment of requirement R8
 (rbeauchamp/acorn#90). A definition that is the value of its costed definition is bounded through
 that definition instead, in `AcornVerif.Resource.LearnerWork`, `AcornVerif.Resource.ControlWork`,
-`AcornVerif.Resource.EncodeWork`, `AcornVerif.Resource.ModelWork` or
-`AcornVerif.Resource.QuestionWork`.
+`AcornVerif.Resource.EncodeWork`, `AcornVerif.Resource.ModelWork`,
+`AcornVerif.Resource.QuestionWork` or `AcornVerif.Resource.OptionWork`.
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of

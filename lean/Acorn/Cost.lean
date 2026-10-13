@@ -143,7 +143,10 @@ in `Acorn.FeatureConsumers`, `Controller.planCosted` in `Acorn.Planning`,
 (`setFlagsCosted`, `wideSumCosted`, `addAllCosted`, `subAllCosted`, `Preceding.advanceCosted`,
 `GradientLearner.scalarsCosted`, `incrementsCosted` and `stepCosted`, `Question.stepCosted`,
 `GradientBank.stepCosted` and `OptionQuestions.followCosted` in `Acorn.OffPolicy`, and
-`askQuestionsCosted` in `Acorn.Handcrafted.TemporalControl`).
+`askQuestionsCosted` in `Acorn.Handcrafted.TemporalControl`), and an option's rate, start,
+termination decision, step, credit, frozen policy and termination (`ConsumerRate.resolveCosted`,
+`Skill.beginOptionCosted`, `decideOptionCosted`, `optionStepCosted`, `optionCreditCosted`,
+`frozenPolicyCosted` and `terminateOptionCosted` in `Acorn.Options`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -184,10 +187,10 @@ that order, and of the costed definitions of the encoding of a frame and their c
 `NumericState.resumable` and `Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does,
 call a specialization of that fold of their own with the body of the one they shared with `unique`,
 and of the costed definitions of an option model's input, ranked features, prediction and updates
-and of the controllers' remaining updates, the prediction demons' bank step and every option's
-off-policy questions, and their callers. Each is an observation of one build,
-which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
-checked statement says that a segment of the executed code does at most its site's cost in word
+and of the controllers' remaining updates, the prediction demons' bank step, every option's
+off-policy questions and an option's operations, and their callers. Each is an observation of one
+build, which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`;
+no checked statement says that a segment of the executed code does at most its site's cost in word
 operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
@@ -357,7 +360,8 @@ inductive Site where
   | decide
   /-- A started invocation's activation and continuation records. -/
   | beginOption
-  /-- An option step's shaped cumulant, its activation advance and its records. -/
+  /-- An option step's or a drawn decision's credit's learning test, shaped cumulant and skill
+  record, and a step's activation advance and records. -/
   | optionStep
   /-- An option's terminal cumulant and stopping value. -/
   | terminateOption

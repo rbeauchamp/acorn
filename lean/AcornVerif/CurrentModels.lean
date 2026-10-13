@@ -319,7 +319,7 @@ theorem first_model_omitted {mode : Bool}
     (skill.stepTemporal (modelOperations criterion dimension) activation next reward gain
       rng).1.model =
       skill.model := by
-  simp [Skill.stepTemporal_eq, first, Skill.optionStep]
+  simp [Skill.stepTemporal_eq, first, Skill.optionStep_def]
   split <;> rfl
 
 /-- Continuing model credit consumes raw reward and the pre-increment age,
@@ -332,7 +332,7 @@ theorem continuing_model_owner {mode : Bool}
     (skill.stepTemporal (modelOperations criterion dimension) activation next reward gain
       rng).1.model =
       skill.model.step next.features activation.age reward := by
-  simp [Skill.stepTemporal_eq, Skill.optionStep, learning, continuing, modelOperations]
+  simp [Skill.stepTemporal_eq, Skill.optionStep_def, learning, continuing, modelOperations]
 
 /-- Every model transition retains its option objective. -/
 theorem model_assignment {mode : Bool} (skill : Skill actions config criterion dimension discounts)
@@ -342,7 +342,7 @@ theorem model_assignment {mode : Bool} (skill : Skill actions config criterion d
       rng).1.interest =
       skill.interest := by
   rw [Skill.stepTemporal_eq]
-  split <;> dsimp only [Skill.optionStep] <;> split <;> rfl
+  split <;> dsimp only [Skill.optionStep_def] <;> split <;> rfl
 
 /-- A changed unit identity resets the very model storage used by prediction and planning. -/
 theorem changed_assignment_model {shape : PatchShape} {discounts : List Discount} {payload : Type}
