@@ -703,7 +703,7 @@ theorem settleFollowing_event (skill : Skill actions config criterion dimension 
     skill.settleFollowing models value features potential first estimate rate reward gain =
       skill.settleFollowing models value features potential second estimate rate reward
         gain := by
-  unfold Skill.settleFollowing
+  rw [Skill.settleFollowing_def, Skill.settleFollowing_def]
   cases held : skill.following with
   | none => rfl
   | some following =>
@@ -731,7 +731,7 @@ theorem settleTemporal_event (skill : Skill actions config criterion dimension d
         learning =
       skill.settleTemporal models value features potential second estimate rate reward gain
         learning := by
-  unfold Skill.settleTemporal
+  rw [Skill.settleTemporal_def, Skill.settleTemporal_def]
   split
   · exact settleFollowing_event skill models value features potential first second estimate
       rate reward gain same
@@ -947,7 +947,8 @@ theorem startTemporal_event (skill : Skill actions config criterion dimension di
         drawn =
       skill.startTemporal models value features potential second estimate rate reward gain
         learning drawn := by
-  unfold Skill.startTemporal
+  rw [Skill.startTemporal_def, Skill.startTemporal_def]
+  dsimp only
   rw [settleTemporal_event skill models value features potential first second estimate rate
     reward gain learning same]
 

@@ -150,7 +150,7 @@ theorem _root_.Acorn.Features.Skill.endTemporal_interest {mode : Bool} (skill : 
     (reward terminal : Binary32) (gain : RewardRate) :
     (skill.endTemporal models value features ending reward terminal gain).interest =
       skill.interest := by
-  unfold Skill.endTemporal
+  rw [Skill.endTemporal_def]
   split <;> exact (skill.terminal_owners ending.activation ending.potential reward terminal gain).1
 
 /-- Replacing one skill by learners for the same objective keeps the table aligned. -/

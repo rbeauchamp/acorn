@@ -146,7 +146,11 @@ in `Acorn.FeatureConsumers`, `Controller.planCosted` in `Acorn.Planning`,
 `askQuestionsCosted` in `Acorn.Handcrafted.TemporalControl`), and an option's rate, start,
 termination decision, step, credit, frozen policy and termination (`ConsumerRate.resolveCosted`,
 `Skill.beginOptionCosted`, `decideOptionCosted`, `optionStepCosted`, `optionCreditCosted`,
-`frozenPolicyCosted` and `terminateOptionCosted` in `Acorn.Options`).
+`frozenPolicyCosted` and `terminateOptionCosted` in `Acorn.Options`), and an option's start, step,
+credit of a drawn decision, end, the stop and settling of its stored trajectory and a start whose
+first action is drawn, with its model (`Skill.beginTemporalCosted`, `stepTemporalCosted`,
+`creditTemporalCosted`, `endTemporalCosted`, `stopFollowingCosted`, `settleFollowingCosted`,
+`settleTemporalCosted` and `startTemporalCosted` in `Acorn.Temporal`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -188,10 +192,10 @@ that order, and of the costed definitions of the encoding of a frame and their c
 call a specialization of that fold of their own with the body of the one they shared with `unique`,
 and of the costed definitions of an option model's input, ranked features, prediction and updates
 and of the controllers' remaining updates, the prediction demons' bank step, every option's
-off-policy questions and an option's operations, and their callers. Each is an observation of one
-build, which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`;
-no checked statement says that a segment of the executed code does at most its site's cost in word
-operations.
+off-policy questions and an option's operations without and with its model, and their callers.
+Each is an observation of one build, which no gate repeats. A bound in word operations bounds the
+accounting under `SiteBounds`; no checked statement says that a segment of the executed code does
+at most its site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a

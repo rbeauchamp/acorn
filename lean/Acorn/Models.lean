@@ -790,8 +790,8 @@ theorem Model.stop_def (model : Model dimension criterion)
 
 /-- Concrete temporal operations use the current model definitions. -/
 def modelOperations (criterion : Criterion) (dimension : Dimension) : OptionModelOps criterion dimension :=
-  ⟨Model.begin, Model.step, Model.terminal, fun model value features =>
-    (model.predict value features ⟨0, by decide⟩).cache, Model.restart, Model.stop⟩
+  ⟨Model.beginCosted, Model.stepCosted, Model.terminalCosted, fun model value features =>
+    (model.predict value features ⟨0, by decide⟩).cache, Model.restart, Model.stopCosted⟩
 
 /-- The backed-up value of a frame under one option: reward part plus the value of the
 predicted outcome (Sutton, Machado et al. (2023), §5, p. 17). The differential form
