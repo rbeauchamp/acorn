@@ -37,6 +37,7 @@ import AcornVerif.CurrentRunner
 import AcornVerif.CurrentStep
 import AcornVerif.CurrentGoals
 import AcornVerif.CurrentCurriculum
+import AcornVerif.CurrentHashes
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentCertificates
 import AcornVerif.Kernel

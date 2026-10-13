@@ -62,6 +62,7 @@ import AcornVerif.CurrentRunner
 import AcornVerif.CurrentStep
 import AcornVerif.CurrentGoals
 import AcornVerif.CurrentCurriculum
+import AcornVerif.CurrentHashes
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentCertificates
 import AcornVerif.CurrentGridWorld
@@ -790,6 +791,22 @@ Classical.choice, Quot.sound] -/
 /-- info: 'Acorn.Rng.mix64_injective' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Rng.mix64_injective
+
+/-- info: 'Acorn.Rng.hash3_eq_iff' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Rng.hash3_eq_iff
+
+/-- info: 'Acorn.Rng.hash2_eq_iff' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Rng.hash2_eq_iff
+
+/-- info: 'Acorn.Rng.hash3_not_xor' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Rng.hash3_not_xor
+
+/-- info: 'Acorn.Rng.hash2_not_xor' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Acorn.Rng.hash2_not_xor
 
 /-- info: 'Acorn.Rng.advance_injective' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
@@ -2965,6 +2982,12 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentCheckpoint.unresumable_unloaded
 
+/--
+info: 'AcornVerif.CurrentCheckpoint.previous_generation_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentCheckpoint.previous_generation_unloaded
+
 /-- info: 'AcornVerif.CurrentImage.imageFormat_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentImage.imageFormat_exact
@@ -3364,6 +3387,32 @@ info: 'AcornVerif.CurrentCurriculum.coordinate_seed_count' depends on axioms: [p
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentCurriculum.coordinate_seed_count
+
+/-- info: 'AcornVerif.CurrentHashes.unit_not_tiled' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentHashes.unit_not_tiled
+
+/-- info: 'AcornVerif.CurrentHashes.unit_tag_tiling' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentHashes.unit_tag_tiling
+
+/-- info: 'AcornVerif.CurrentHashes.wood_not_stone' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentHashes.wood_not_stone
+
+/-- info: 'AcornVerif.CurrentHashes.reach_not_find_cue' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentHashes.reach_not_find_cue
+
+/--
+info: 'AcornVerif.CurrentHashes.moisture_not_elevation' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms AcornVerif.CurrentHashes.moisture_not_elevation
+
+/-- info: 'AcornVerif.CurrentHashes.sample_not_xor' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms AcornVerif.CurrentHashes.sample_not_xor
 
 /--
 info: 'AcornVerif.CurrentSpawn.selectSpawn_post' depends on axioms: [propext, Classical.choice, Quot.sound]

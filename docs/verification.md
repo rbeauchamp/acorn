@@ -849,17 +849,19 @@ when investigating a dynamics change.
 
 ## Checkpoint admission
 
-Format 19 holds the exact image of the agent:
-every field of its temporal state, the option models, each option's off-policy questions
-(PAR-18), primitive credit, the rate schedule and every process-local reference included.
-Earlier formats are refused. Load checks dimensions, identifiers, criterion and step order
-in the header, then reads the image with every stored word in its own domain, every
-learner through the check of its invariant and the agent's two invariants. An incompatible
-image is refused and writes to that file are disabled. Loading the bytes that a save of a
-state writes returns that state, for every state of the resumable construction
-(`AcornVerif.CurrentCheckpoint.load_saved`). The world restarts, and the host begins a
-new session of the predictive-agreement evaluator. Filesystem persistence relies on the
-narrow C fsync helper, native IO and the operating system.
+Format 20 holds the exact image of the agent: every field of its temporal state, the
+option models, each option's off-policy questions (PAR-18), primitive credit, the rate
+schedule and every process-local reference included. Earlier formats are refused. Format
+19 has the layout of format 20, but its weights are at the feature slots of the hashes
+that read their first two words only through their XOR, so it is refused too
+(`CurrentCheckpoint.previous_generation_unloaded`). Load checks dimensions, identifiers,
+criterion and step order in the header, then reads the image with every stored word in its
+own domain, every learner through the check of its invariant and the agent's two
+invariants. An incompatible image is refused and writes to that file are disabled. Loading
+the bytes that a save of a state writes returns that state, for every state of the
+resumable construction (`AcornVerif.CurrentCheckpoint.load_saved`). The world restarts,
+and the host begins a new session of the predictive-agreement evaluator. Filesystem
+persistence relies on the narrow C fsync helper, native IO and the operating system.
 
 ## Viewer ownership boundaries
 
