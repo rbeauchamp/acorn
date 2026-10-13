@@ -101,7 +101,7 @@ theorem terminal_clears (skill : Skill actions config criterion dimension discou
     (((skill.endTemporal models value features ending reward terminal gain).policy.learners.get
       action).state.transient) =
       TransientState.zero dimension := by
-  simp only [Skill.endTemporal, Skill.terminateOption_def, learning, ↓reduceIte]
+  simp only [Skill.endTemporal_def, Skill.terminateOption_def, learning, ↓reduceIte]
   exact CurrentControl.terminal_clears _ _ action
 
 /-- Frozen begin retains every policy and model register, not just its observations. -/
@@ -118,7 +118,7 @@ theorem frozen_terminal (skill : Skill actions config criterion dimension discou
     (reward terminal : Binary32) (gain : RewardRate)
     (frozen : ending.activation.learning = false) :
     skill.endTemporal models value features ending reward terminal gain = skill := by
-  simp [Skill.endTemporal, Skill.terminateOption_def, frozen]
+  simp [Skill.endTemporal_def, Skill.terminateOption_def, frozen]
 
 /-- All returned option policies retain the same managed admission and legal
 knowledge, including arbitrary raw reward and transient words. -/
@@ -901,7 +901,7 @@ theorem follow_live_model (skill : Skill actions config criterion dimension disc
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp [Skill.followTemporal, continuing, live, modelOperations]
+    simp [Skill.followTemporal, continuing, live, modelOperations, Model.step]
 
 /-- The model trajectory is live after a continuing frame exactly when that
 frame's behaviour masses equal the option's own. -/
@@ -966,12 +966,12 @@ theorem settle_continuing (skill : Skill actions config criterion dimension disc
           (Features.shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
             following.previous)) ∧
       settled.model =
-        (if following.live then models.step skill.model features following.age reward
+        (if following.live then (models.step skill.model features following.age reward).val
           else skill.model) := by
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp only [Skill.settleFollowing, continuing, and_self]
+    simp only [Skill.settleFollowing_def, continuing, and_self]
 
 /-- Where the stopping decision fires at an invocation start, the settled skill is
 exactly the stopped one a followed frame would have produced. -/
@@ -988,7 +988,7 @@ theorem settle_ending (skill : Skill actions config criterion dimension discount
   cases skill with
   | mk interest policy model stored questions =>
     obtain rfl : stored = some following := linked
-    simp only [Skill.settleFollowing, ending]
+    simp only [Skill.settleFollowing_def, ending]
 
 /-! ## Off-policy questions
 
@@ -1709,7 +1709,7 @@ theorem handoff_model (skill : Skill actions config criterion dimension discount
   rw [follow_live_model skill value features potential goal estimate rate action behaviour reward
     gain activation.following held next continuing (decide_eq_true aged)]
   simp [Skill.stepTemporal_eq, Skill.optionStep_def, learning, aged, modelOperations, frame,
-    OptionActivation.following]
+    OptionActivation.following, Model.step]
 
 /-- Handoff, policy: at the first served frame the interrupted option's policy takes
 tree-backup credit for the served action, with the shaped cumulant the executing option

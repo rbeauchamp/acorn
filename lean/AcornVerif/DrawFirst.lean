@@ -318,8 +318,8 @@ theorem stepOption_credit (state : TemporalControl interface profile config crit
         ⟨.option slot, drawn.1.action, next.policy.values, drawn.1.probabilities,
           drawn.1.explored, metaValues, metaDecision, if started then some slot else none,
           ended⟩) := by
-  simp only [TemporalControl.stepOption_eq, TemporalControl.creditOption_eq]
-  rfl
+  simp only [TemporalControl.stepOption_eq, TemporalControl.creditOption_eq,
+    Skill.stepTemporal_credit]
 
 /-! ## The whole dispatch -/
 

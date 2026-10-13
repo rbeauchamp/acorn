@@ -358,15 +358,15 @@ it is a function of the configuration
 off-policy questions of the second part (`askQuestions`): each option's preceding set
 advances over the frame's features, and each of its questions takes at most one GTD2-MP
 step over the passage's features: the questions learn only from a transition the advance
-classifies, and a silent question skips its step at a zero signal word. One option's
-questions do work that grows with the number of questions times the stored and current
+classifies, and a silent question skips its step at a zero signal word. The bound of one
+option's questions grows with the number of questions times the stored and current
 features (`AcornVerif.Resource.Twin.followCosted_within`). The bound of every option's
 questions (`AcornVerif.Resource.Twin.askQuestionsCosted_within`) takes each stored set at the
 capacity of the dimension, so it grows with the number of options times the number of
 questions times that capacity and the frame's features; with the capacity in place of the
 frame's length too it is a function of the configuration
-(`AcornVerif.Resource.Twin.askQuestionsCosted_within_capacity`). So are an option's
-operations (`Acorn.Options`): its start (`Skill.beginOption`), termination decision
+(`AcornVerif.Resource.Twin.askQuestionsCosted_within_capacity`). An option's operations
+(`Acorn.Options`) are also values of their costed definitions: its start (`Skill.beginOption`), termination decision
 (`Skill.decideOption`), step (`Skill.optionStep`), the credit of a drawn decision
 (`Skill.optionCredit`), frozen policy (`Skill.frozenPolicy`) and termination
 (`Skill.terminateOption`). An option's rate has a costed resolution
@@ -376,10 +376,20 @@ configuration; the others grow with the active set's length, and with the capaci
 dimension in its place they are functions of the configuration too
 (`AcornVerif.Resource.Twin.beginOptionCosted_within_capacity`,
 `decideOptionCosted_within_capacity`, `optionStepCosted_within_capacity`,
-`optionCreditCosted_within_capacity`, `frozenPolicyCosted_within_capacity`). An option's potential
-(`Interest.potential`) and its operations with its model (`Acorn.Temporal`) are not costed
-yet and have twins (`AcornVerif.Resource.Twin.interestPotential` and the twins of
-`AcornVerif.Resource.OptionWork`). A controller's initial
+`optionCreditCosted_within_capacity`, `frozenPolicyCosted_within_capacity`). So are an
+option's operations with its model (`Acorn.Temporal`), whose model operations record
+(`OptionModelOps`) takes the model's start, step, terminal step and stop as costed
+operations, at the record selection runs (`modelOperations`): its start
+(`Skill.beginTemporal`), step (`Skill.stepTemporal`), the credit of a drawn decision
+(`Skill.creditTemporal`), end (`Skill.endTemporal`), the stop and the settling of its stored
+trajectory (`Skill.stopFollowing`, `Skill.settleFollowing`, `Skill.settleTemporal`) and a
+start whose first action is drawn (`Skill.startTemporal`). Each bound grows with the active
+set's length, and with the capacity of the dimension in its place each is a function of the
+configuration (`AcornVerif.Resource.Twin.beginTemporalCosted_within_capacity` and the other
+`_within_capacity` theorems of `AcornVerif.Resource.OptionWork`). An option's potential
+(`Interest.potential`) and its off-policy following (`Skill.startFollowing`,
+`Skill.followTemporal`) are not costed yet; the potential has a twin
+(`AcornVerif.Resource.Twin.interestPotential`). A controller's initial
 value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
 have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).

@@ -332,7 +332,8 @@ theorem continuing_model_owner {mode : Bool}
     (skill.stepTemporal (modelOperations criterion dimension) activation next reward gain
       rng).1.model =
       skill.model.step next.features activation.age reward := by
-  simp [Skill.stepTemporal_eq, Skill.optionStep_def, learning, continuing, modelOperations]
+  simp [Skill.stepTemporal_eq, Skill.optionStep_def, learning, continuing, modelOperations,
+    Model.step]
 
 /-- Every model transition retains its option objective. -/
 theorem model_assignment {mode : Bool} (skill : Skill actions config criterion dimension discounts)

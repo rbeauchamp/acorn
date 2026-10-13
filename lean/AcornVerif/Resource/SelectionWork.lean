@@ -318,14 +318,6 @@ theorem drawMetaRun_work (κ : Costs)
       Costed.bind_work_le (draw_work κ snapshot state.runtime.references.rng) fun _ =>
         Nat.le_refl _
 
-/-- A started option's continuation holds the start frame. -/
-theorem beginTemporal_frame {actions : Word.Count} {discounts : List Discount}
-    (skill : Skill actions config criterion dimension discounts)
-    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
-    (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
-    (skill.beginTemporal models features potential learning rate).2.2.features = features := by
-  cases learning <;> rfl
-
 /-- The start twin's continuation holds the start frame. -/
 theorem beginTemporal_twin_frame {actions : Word.Count} {discounts : List Discount} (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
