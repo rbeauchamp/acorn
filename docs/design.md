@@ -367,7 +367,8 @@ capacity of the dimension, so it grows with the number of options times the numb
 questions times that capacity and the frame's features; with the capacity in place of the
 frame's length too it is a function of the configuration
 (`AcornVerif.Resource.Twin.askQuestionsCosted_within_capacity`). An option's operations
-(`Acorn.Options`) are also values of their costed definitions: its start (`Skill.beginOption`), termination decision
+(`Acorn.Options`) are also values of their costed definitions: its start
+(`Skill.beginOption`), termination decision
 (`Skill.decideOption`), step (`Skill.optionStep`), the credit of a drawn decision
 (`Skill.optionCredit`), frozen policy (`Skill.frozenPolicy`) and termination
 (`Skill.terminateOption`). An option's rate has a costed resolution
@@ -379,14 +380,16 @@ dimension in its place they are functions of the configuration too
 `decideOptionCosted_within_capacity`, `optionStepCosted_within_capacity`,
 `optionCreditCosted_within_capacity`, `frozenPolicyCosted_within_capacity`). An option's
 operations with its model (`Acorn.Temporal`) are also values of their costed definitions,
-at the model operations record selection runs (`modelOperations`), which takes the model's
-start, step, terminal step and stop as costed operations (`OptionModelOps`): its start
-(`Skill.beginTemporal`), step (`Skill.stepTemporal`), the credit of a drawn decision
-(`Skill.creditTemporal`), end (`Skill.endTemporal`), the stop and the settling of its stored
-trajectory (`Skill.stopFollowing`, `Skill.settleFollowing`, `Skill.settleTemporal`) and a
-start whose first action is drawn (`Skill.startTemporal`). Each bound grows with the active
-set's length, and with the capacity of the dimension in its place each is a function of the
-configuration (`AcornVerif.Resource.Twin.beginTemporalCosted_within_capacity`,
+for every model operations record, whose type takes the model's start, step, terminal step
+and stop as costed operations (`OptionModelOps`): its start (`Skill.beginTemporal`), step
+(`Skill.stepTemporal`), the credit of a drawn decision (`Skill.creditTemporal`), end
+(`Skill.endTemporal`), the stop and the settling of its stored trajectory
+(`Skill.stopFollowing`, `Skill.settleFollowing`, `Skill.settleTemporal`) and a start whose
+first action is drawn (`Skill.startTemporal`). Their bounds are proved at the record
+selection runs (`modelOperations`), which supplies the model's costed start, step, terminal
+step and stop. Each bound grows with the active set's length, and with the capacity of the
+dimension in its place each is a function of the configuration
+(`AcornVerif.Resource.Twin.beginTemporalCosted_within_capacity`,
 `stepTemporalCosted_within_capacity`, `creditTemporalCosted_within_capacity`,
 `endTemporalCosted_within_capacity`, `stopFollowingCosted_within_capacity`,
 `settleFollowingCosted_within_capacity`, `settleTemporalCosted_within_capacity`,
