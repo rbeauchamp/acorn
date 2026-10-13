@@ -757,7 +757,7 @@ theorem followTemporal_event (skill : Skill actions config criterion dimension d
         reward gain =
       skill.followTemporal models value features potential second estimate rate action
         behaviour reward gain := by
-  unfold Skill.followTemporal
+  simp only [Skill.followTemporal_def]
   cases held : skill.following with
   | none => rfl
   | some following =>

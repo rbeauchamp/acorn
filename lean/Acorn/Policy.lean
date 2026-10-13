@@ -404,6 +404,13 @@ theorem PolicySnapshot.expected_def (snapshot : PolicySnapshot count) :
       let value := value.add (eps.mul (totals.1.div (Binary64.ofUInt64 count.word)))
       (Conversion.narrow value).saturate lower upper := rfl
 
+/-- The consistency test with its work: the nominal masses, then their comparison with the
+behaviour's, one action at a time. -/
+def PolicySnapshot.consistentCosted (snapshot : PolicySnapshot count)
+    (behaviour : Vector Binary32 count.word.toNat) : Costed Bool := do
+  let masses ← snapshot.probabilitiesCosted
+  Costed.vectorEq masses behaviour
+
 /-- Whether the frame's action was selected with this policy's own distribution:
 the behaviour's reported masses equal the frozen policy's nominal masses, word for
 word. Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial
@@ -414,13 +421,18 @@ A served exploratory step reports a point mass and so matches no policy that
 gives two actions positive mass. -/
 def PolicySnapshot.consistent (snapshot : PolicySnapshot count)
     (behaviour : Vector Binary32 count.word.toNat) : Bool :=
-  decide (snapshot.probabilities = behaviour)
+  (snapshot.consistentCosted behaviour).val
+
+/-- Consistency is the decided equality of the nominal masses and the behaviour's. -/
+theorem PolicySnapshot.consistent_def (snapshot : PolicySnapshot count)
+    (behaviour : Vector Binary32 count.word.toNat) :
+    snapshot.consistent behaviour = decide (snapshot.probabilities = behaviour) := rfl
 
 /-- Consistency is equality of the two mass vectors. -/
 theorem PolicySnapshot.consistent_iff (snapshot : PolicySnapshot count)
     (behaviour : Vector Binary32 count.word.toNat) :
     snapshot.consistent behaviour = true ↔ snapshot.probabilities = behaviour := by
-  simp [PolicySnapshot.consistent]
+  simp [PolicySnapshot.consistent_def]
 
 /-- On a consistent frame every action has the same reported mass under the
 behaviour as under the frozen policy, so an importance ratio of the two is one
