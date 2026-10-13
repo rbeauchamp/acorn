@@ -82,11 +82,11 @@ checks only that its theorem is proved about the executing definition. Such a st
 fix one direction only, and it need not show that both outcomes occur for its function.
 Each docstring says what its statement gives and what it does not claim.
 
-Sixteen functions of this module have a contract and no kind. The reasons are six. Nine more
-are no decisions, and their statements say what they are: `Agent.input`,
-`AgentConstruction.execute` and `Checkpoint.managedWords` refuse no input, and six definitions
-that specifications share with their functions have the statements of the section "Definitions
-that specifications share".
+Sixteen functions of this module have a contract and no kind. The reasons are six. Sixteen
+more are no decisions, and their statements say what they are: `Agent.input`,
+`AgentConstruction.execute` and `Checkpoint.managedWords` refuse no input, and thirteen
+definitions that specifications share with their functions have the statements of the section
+"Definitions that specifications share".
 
 * The specification is a round trip of the written form: `Checkpoint.admitPayload` and
   `Checkpoint.loadCandidate` accept exactly the payloads, and their encodings, of the agent images
@@ -171,8 +171,9 @@ and none of them is a test. Each is fixed apart from these kinds. `Binary32.div`
 result, as the exact real quotient and product rounded once to nearest-even. `Host.coordinateFloat`
 has the statement `Acorn.Decisions.coordinate_float`, which reads the coordinate as a
 mathematical integer and converts its magnitude with the library's conversion. The kinds of its two
-readers also share `Host.WorldConfig.side`, which the type of their world argument reads. The floor,
-the saturating cast and the checked successor of the lattice coordinate are not shared:
+readers also share `Host.WorldConfig.side`, which the type of their world argument reads and
+`Acorn.Decisions.world_side` states as the stored side coordinate. The floor, the saturating cast
+and the checked successor of the lattice coordinate are not shared:
 `CurrentTerrain.PastLast` bounds the exact value of the quotient in their place.
 
 The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
@@ -2506,7 +2507,8 @@ theorem managed_words : Regula.ExecutableContract @managedWords (fun words =>
 The specification of each contract named below applies a definition that its function also
 applies. Each such definition has a statement of its own here, against a reading that does not
 apply it: the rational value of a word, the exact real result rounded once, the place value of
-digits, or offsets stated by the constructors of a direction. None of them refuses an input, so
+digits, offsets stated by the constructors of a direction, the decimal that the name of a
+discount declares, or the discounted return of a unit reward. None of them refuses an input, so
 each statement keeps no kind. -/
 
 /-- The squared discrepancy of two finite words, in the units of the least binary32 subnormal
@@ -2606,6 +2608,183 @@ theorem facing_position : Regula.ExecutableContract @Host.BoxPosition.facingPosi
       · exact ⟨0, 1, .inr (.inl ⟨rfl, rfl, rfl⟩)⟩
       · exact ⟨1, 0, .inr (.inr (.inl ⟨rfl, rfl, rfl⟩))⟩
       · exact ⟨-1, 0, .inr (.inr (.inr ⟨rfl, rfl, rfl⟩))⟩⟩⟩
+
+/-- The offset table gives exactly the offset that `Offset` states by the constructors of a
+direction, for every direction and pair of integers. The specifications of the blocked and
+stance checks reach it through the world step. The statement has no hypothesis. -/
+theorem direction_delta : Regula.ExecutableContract Host.Direction.delta (fun delta =>
+    ∀ (direction : Host.Direction) (dx dy : Int), delta direction = (dx, dy) ↔
+      Offset direction dx dy) :=
+  ⟨fun direction dx dy => by
+    cases direction <;> simp [Offset, Host.Direction.delta, Prod.ext_iff, eq_comm]⟩
+
+/-- The decimal discount that the name of each discount declares. -/
+def discountDecimal : Discount → ℚ
+  | .g90 => 9 / 10
+  | .g95 => 19 / 20
+  | .g99 => 99 / 100
+
+/-- The rational value of each discount word (`CurrentConstants.discount_values`). -/
+private theorem gamma_word (discount : Discount) : CurrentArithmetic.numerical32 discount.gamma =
+    match discount with
+    | .g90 => ModelConstants.gammaG90
+    | .g95 => ModelConstants.gammaG95
+    | .g99 => ModelConstants.gammaG99 := by
+  have values := congrArg Prod.fst (CurrentConstants.discount_values discount)
+  cases discount <;> exact values
+
+/-- The rational value of each horizon word (`CurrentConstants.discount_values`). -/
+private theorem horizon_word (discount : Discount) :
+    CurrentArithmetic.numerical32 discount.horizon =
+      match discount with
+      | .g90 => ModelConstants.horizonG90
+      | .g95 => ModelConstants.horizonG95
+      | .g99 => ModelConstants.horizonG99 := by
+  have values := congrArg Prod.snd (CurrentConstants.discount_values discount)
+  cases discount <;> exact values
+
+/-- Each discount word is finite, lies in `[1/2, 1)`, and is within `2 ^ -25` of the decimal
+that its name declares, for every discount. Neighbouring binary32 values in `[1/2, 1)` are
+`2 ^ -24` apart, so the word is the binary32 value nearest to that decimal. The specification of
+`precision_admit` applies it. The witness is the word of `g99`, `16609444 / 2 ^ 24`. -/
+theorem discount_gamma : Regula.ExecutableContract Discount.gamma (fun gamma =>
+    (∀ discount : Discount, (gamma discount).Finite ∧
+      1 / 2 ≤ CurrentArithmetic.numerical32 (gamma discount) ∧
+        CurrentArithmetic.numerical32 (gamma discount) < 1 ∧
+          |CurrentArithmetic.numerical32 (gamma discount) - discountDecimal discount| ≤
+            (2 : ℚ) ^ (-25 : Int)) ∧
+      CurrentArithmetic.numerical32 (gamma .g99) = 16609444 / 16777216) :=
+  ⟨⟨fun discount => by
+      have value := gamma_word discount
+      cases discount <;>
+        refine ⟨by decide, ?_⟩ <;> rw [value] <;>
+        norm_num [discountDecimal, ModelConstants.gammaG90, ModelConstants.gammaG95,
+          ModelConstants.gammaG99, abs_le],
+    by rw [gamma_word .g99]; rfl⟩⟩
+
+/-- Each horizon word is finite and bounds the discounted return of a unit reward,
+`1 / (1 - γ)` for the rational value `γ` of the discount word, from above by less than one
+relative step of binary32: the word times `1 - 2 ^ -23` is at most that return, for every
+discount. The specification of `precision_admit` applies it, and the domains of the weights and
+the predictions apply it (`value_rule_domain`, `prediction_range`). The witness is the word of
+`g99`, `13107213 / 2 ^ 17`. -/
+theorem discount_horizon : Regula.ExecutableContract Discount.horizon (fun horizon =>
+    (∀ discount : Discount, (horizon discount).Finite ∧
+      1 / (1 - CurrentArithmetic.numerical32 discount.gamma) ≤
+        CurrentArithmetic.numerical32 (horizon discount) ∧
+      CurrentArithmetic.numerical32 (horizon discount) * (1 - (2 : ℚ) ^ (-23 : Int)) ≤
+        1 / (1 - CurrentArithmetic.numerical32 discount.gamma)) ∧
+      CurrentArithmetic.numerical32 (horizon .g99) = 13107213 / 131072) :=
+  ⟨⟨fun discount => by
+      have gamma := gamma_word discount
+      have value := horizon_word discount
+      cases discount <;>
+        refine ⟨by decide, ?_⟩ <;> rw [gamma, value] <;>
+        norm_num [ModelConstants.gammaG90, ModelConstants.gammaG95, ModelConstants.gammaG99,
+          ModelConstants.horizonG90, ModelConstants.horizonG95, ModelConstants.horizonG99],
+    by rw [horizon_word .g99]; rfl⟩⟩
+
+/-- An interval with finite endpoints contains exactly the finite words whose rational value
+lies between the rational values of its endpoints (`CurrentOrder.numerical32_order`). -/
+private theorem contains_numerical (range : Interval32) (word : Binary32) :
+    range.Contains word ↔ word.Finite ∧
+      CurrentArithmetic.numerical32 range.lower ≤ CurrentArithmetic.numerical32 word ∧
+        CurrentArithmetic.numerical32 word ≤ CurrentArithmetic.numerical32 range.upper := by
+  constructor
+  · rintro ⟨finite, low, high⟩
+    exact ⟨finite, (CurrentOrder.numerical32_order _ _ range.lowerFinite finite).mpr low,
+      (CurrentOrder.numerical32_order _ _ finite range.upperFinite).mpr high⟩
+  · rintro ⟨finite, low, high⟩
+    exact ⟨finite, (CurrentOrder.numerical32_order _ _ range.lowerFinite finite).mp low,
+      (CurrentOrder.numerical32_order _ _ finite range.upperFinite).mp high⟩
+
+/-- The weight domain of a discount contains exactly the finite words whose rational value is at
+most the horizon in magnitude. -/
+private theorem discount_domain (discount : Discount) (word : Binary32) :
+    discount.domain.range.Contains word ↔
+      word.Finite ∧ |CurrentArithmetic.numerical32 word| ≤
+        CurrentArithmetic.numerical32 discount.horizon := by
+  rw [contains_numerical]
+  change word.Finite ∧ CurrentArithmetic.numerical32 discount.horizon.negate ≤
+    CurrentArithmetic.numerical32 word ∧
+      CurrentArithmetic.numerical32 word ≤ CurrentArithmetic.numerical32 discount.horizon ↔ _
+  rw [(CurrentOffPolicy.horizon_facts discount).2.2.2.1, abs_le]
+
+/-- The weight domain of a rule contains exactly the finite words whose rational value is at most
+the horizon of its discount in magnitude, the horizon of `g99` for the differential rule, for
+every rule and word. The specifications of `weight_admit` and `candidate_of_weight` in
+`Acorn.Decisions` apply it. The witnesses are one, which the domain of `g90` contains, and
+sixteen, which it does not. -/
+theorem value_rule_domain : Regula.ExecutableContract ValueRule.domain (fun domain =>
+    (∀ (discount : Discount) (word : Binary32),
+      (domain (.discounted discount)).range.Contains word ↔
+        word.Finite ∧ |CurrentArithmetic.numerical32 word| ≤
+          CurrentArithmetic.numerical32 discount.horizon) ∧
+      (∀ word : Binary32, (domain .differential).range.Contains word ↔
+        word.Finite ∧ |CurrentArithmetic.numerical32 word| ≤
+          CurrentArithmetic.numerical32 Discount.g99.horizon) ∧
+      (domain (.discounted .g90)).range.Contains .one ∧
+      ¬(domain (.discounted .g90)).range.Contains ⟨0x41800000⟩) :=
+  ⟨⟨discount_domain, discount_domain .g99, by decide, by decide⟩⟩
+
+/-- The prediction range of a discount contains exactly the finite words whose rational value
+lies between zero and the horizon, for every discount and word. The specifications of the
+assignment, retention, bonus and kept-slot contracts in `Acorn.Decisions` apply it. The
+witnesses are one, which the range of `g90` contains, and minus one, which it does not. -/
+theorem prediction_range : Regula.ExecutableContract Discount.predictionRange (fun range =>
+    (∀ (discount : Discount) (word : Binary32), (range discount).Contains word ↔
+      word.Finite ∧ 0 ≤ CurrentArithmetic.numerical32 word ∧
+        CurrentArithmetic.numerical32 word ≤ CurrentArithmetic.numerical32 discount.horizon) ∧
+      (range .g90).Contains .one ∧ ¬(range .g90).Contains ⟨0xbf800000⟩) :=
+  ⟨⟨fun discount word => by
+      rw [contains_numerical]
+      change word.Finite ∧ CurrentArithmetic.numerical32 Binary32.zero ≤
+        CurrentArithmetic.numerical32 word ∧
+          CurrentArithmetic.numerical32 word ≤ CurrentArithmetic.numerical32 discount.horizon ↔ _
+      have zero : CurrentArithmetic.numerical32 Binary32.zero = 0 := by decide
+      rw [zero],
+    by decide, by decide⟩⟩
+
+/-- The bound of a reward is one, and the bound of a squared error under a discount is finite and
+is the exact real square of twice the rational value of the horizon rounded once to nearest-even
+in binary32 (`AcornVerif.FloatLibBridge.binary32_mul_roundAt`, with
+`AgreementReturn.envelope_twice` for the envelope), for every discount. The specification of
+`sum_admit` applies it through the stored invariant of a total, and the statement `maximum_sum`
+names it. The statement has no hypothesis. -/
+theorem quantity_limit : Regula.ExecutableContract Quantity.bound (fun bound =>
+    CurrentArithmetic.numerical32 (bound .reward) = 1 ∧
+      ∀ discount : Discount, (bound (.squaredError discount)).Finite ∧
+        ((CurrentArithmetic.numerical32 (bound (.squaredError discount)) : ℚ) : ℝ) =
+          FloatLib.Floats.Formats.BinaryInterchange.Model.roundAt
+            FloatLib.Floats.Formats.BinaryInterchange.FloatFormat.binary32
+            (((2 * CurrentArithmetic.numerical32 discount.horizon : ℚ) : ℝ) *
+              ((2 * CurrentArithmetic.numerical32 discount.horizon : ℚ) : ℝ))) :=
+  ⟨⟨by
+      change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (-23 : Int) = 1
+      norm_num, fun discount => by
+      have twice := AgreementReturn.envelope_twice discount
+      have finite : (Quantity.squaredError discount).bound.Finite := by
+        cases discount <;> decide
+      refine ⟨finite, ?_⟩
+      have exact := FloatLibBridge.binary32_mul_roundAt _ _ twice.1 twice.1 finite
+      rw [twice.2] at exact
+      exact exact⟩⟩
+
+/-- The envelope of a discount, in units of the least binary32 subnormal `2 ^ -149`, is twice
+the rational value of its horizon (`AgreementTelemetryPrecision.envelope_value` with
+`AgreementReturn.envelope_twice`), for every discount. The specification of `channel_ratio` in
+`Acorn.Decisions` applies it. The witness is the envelope of `g99`, `13107213 * 2 ^ 133`
+units. -/
+theorem envelope_units : Regula.ExecutableContract Agreement.envelopeUnits (fun units =>
+    (∀ discount : Discount, (units discount : ℚ) * (2 : ℚ) ^ (-149 : Int) =
+      2 * CurrentArithmetic.numerical32 discount.horizon) ∧
+      units .g99 = 13107213 * 2 ^ 133) :=
+  ⟨⟨fun discount => by
+      have value := AgreementTelemetryPrecision.envelope_value discount
+      have twice := (AgreementReturn.envelope_twice discount).2
+      rw [← twice, ← value, Agreement.unitExponent, div_eq_mul_inv]
+      norm_num,
+    by decide⟩⟩
 
 /-! ## Verdicts beside a state
 
