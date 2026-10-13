@@ -1863,7 +1863,10 @@ and every receiver (`CurrentCheckpoint.load_saved`, from `CurrentImage.imageForm
 and `Checkpoint.roundtrip`); the byte layer is part of the proof, and native file IO, the
 runtime and the OS are trusted. A file of format 18 or earlier is refused with its
 generation word: it holds no option model, question, primitive credit, rate schedule or
-process-local reference, so no load of it could return the agent that was saved.
+process-local reference, so no load of it could return the agent that was saved. A file of
+format 19 has this layout, but its weights were placed by the hashes that read their first
+two words only through their XOR, so a saved weight can sit at the slot of another feature;
+the loader refuses it (`CurrentCheckpoint.previous_generation_unloaded`).
 
 A host begins a new session of the predictive-agreement evaluator after it loads a file:
 `Checkpoint.loadFile`, the one host path from a file to a running agent, returns the verdict of

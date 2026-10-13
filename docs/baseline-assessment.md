@@ -689,7 +689,7 @@ leave the ranking, or that a hashed-slot weight is a good attainment target.
   skill has none, so nothing observed under one objective is credited to its
   replacement. Terminal credit assignment is unchanged; selection gains
   only the settling step.
-- **Checkpoint and pins.** U4 left the checkpoint format unchanged; format 19
+- **Checkpoint and pins.** U4 left the checkpoint format unchanged; format 20
   stores the trajectory ([design](design.md#checkpoints)). All three audit pins
   changed, because option policies and models now change on every step.
 
@@ -760,7 +760,7 @@ meta-controller's option values still learn by SMDP credit alone ([[9]](#r9) §6
   [PAR-13](prior-art-review.md#par-13--option-expectation-models) records the
   cadence this replaced.
 - **Selection name and pins.** `--planning expectation` replaces `scalar`. U5
-  left the checkpoint format unchanged; format 19 stores the transition part
+  left the checkpoint format unchanged; format 20 stores the transition part
   with the other model learners ([design](design.md#checkpoints)). All three
   audit pins changed, because the model targets and the planning backups
   changed.
