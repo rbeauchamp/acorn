@@ -2863,8 +2863,10 @@ words of a profile, the word of a criterion and the word of a planning selection
 numerals below `2 ^ 64` for the raw input words. A numeral can hold an underscore between two
 digits, as Lean's `String.toNat?` reads it (`Host.AgentArguments.Decimal`). The specification
 names the word relations, the planning names `PlanningSelection.name` and no function of the
-parser. The two inputs of the proof are the ten words of the default construction with a seed
-of zero, which are accepted, and the empty list, which is refused. -/
+parser. The two inputs of the proof are the ten words
+`0 0 1 1 final per-step declared learned discounted expectation`, a construction of the default
+step order with a seed of zero, a capacity exponent of zero, one tiling and a bank of one unit,
+which are accepted, and the empty list, which is refused. -/
 theorem agent_arguments_admit : Regula.ExecutableContract Host.AgentArguments.admit
     (Regula.Decides (·.isSome = true) Host.AgentArguments.Admitted) :=
   ⟨decides admit_isSome
