@@ -138,8 +138,12 @@ in `Acorn.FeatureConsumers`, `Controller.planCosted` in `Acorn.Planning`,
 `lookaheadCosted` and `Model.predictCosted` in `Acorn.Models`) and updates
 (`Transition.outcomeCosted`, `updateRowsCosted`, `beginCosted`, `stepCosted`, `terminalCosted` and
 `stopCosted`, `Managed.stopTrajectoryCosted`, and `Model.beginCosted`, `stepCosted`,
-`terminalCosted` and `stopCosted` in `Acorn.Models`), and the prediction demons' bank step
-(`DemonBank.stepCosted` in `Acorn.Demon`).
+`terminalCosted` and `stopCosted` in `Acorn.Models`), the prediction demons' bank step
+(`DemonBank.stepCosted` in `Acorn.Demon`), and every option's off-policy questions
+(`setFlagsCosted`, `wideSumCosted`, `addAllCosted`, `subAllCosted`, `Preceding.advanceCosted`,
+`GradientLearner.scalarsCosted`, `incrementsCosted` and `stepCosted`, `Question.stepCosted`,
+`GradientBank.stepCosted` and `OptionQuestions.followCosted` in `Acorn.OffPolicy`, and
+`askQuestionsCosted` in `Acorn.Handcrafted.TemporalControl`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -180,8 +184,8 @@ that order, and of the costed definitions of the encoding of a frame and their c
 `NumericState.resumable` and `Checkpoint.presence`, which fold `UniqueBuilder.add` as `unique` does,
 call a specialization of that fold of their own with the body of the one they shared with `unique`,
 and of the costed definitions of an option model's input, ranked features, prediction and updates
-and of the controllers' remaining updates and the prediction demons' bank step, and their
-callers. Each is an observation of one build,
+and of the controllers' remaining updates, the prediction demons' bank step and every option's
+off-policy questions, and their callers. Each is an observation of one build,
 which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
 checked statement says that a segment of the executed code does at most its site's cost in word
 operations.
@@ -201,8 +205,8 @@ charge marks; a charge counts its segment (the module's **Sites**). -/
 inductive Site where
   /-- The control of one visit of a loop: its test, its advance and its branch. -/
   | visit
-  /-- One addition of an ordered sum with the read of its term: a binary32 addition, or the
-  integer addition of a projection's term. -/
+  /-- One addition of an ordered sum with the read of its term: a binary32 addition, the binary64
+  addition of a widened stored word, or the integer addition of a projection's term. -/
   | sumTerm
   /-- The read of one stored element into a list or vector being built, or as the first
   accumulator of a fold. -/
@@ -325,6 +329,26 @@ inductive Site where
   | demonOutput
   /-- The record of a demon bank's outputs: its learners, predictions, errors and cumulants. -/
   | demonClose
+  /-- A membership flag of a feature slot read for a filter's test. -/
+  | flagTest
+  /-- A preceding set's advance: its emptiness and armed tests, a classified transition's step
+  size, counts and record, and the stored set's record. -/
+  | preceding
+  /-- The two inner products of a GTD2-MP step's extragradient midpoint, from its four sums. -/
+  | innerProducts
+  /-- The four increments of a GTD2-MP step, each narrowed once. -/
+  | increments
+  /-- One weight of a GTD2-MP step read, moved by its increment through the weight projection and
+  written. -/
+  | gradientWrite
+  /-- A question's silence test and its record. -/
+  | question
+  /-- A question put before the rest of its bank's. -/
+  | questionBank
+  /-- An option's questions' record after their preceding set's advance. -/
+  | follow
+  /-- An option's armed test and its record after its questions take the frame. -/
+  | ask
   /-- An assignment's feature slot computed before its membership test. -/
   | assignmentPotential
   /-- A declared potential read from the frame's declared values. -/

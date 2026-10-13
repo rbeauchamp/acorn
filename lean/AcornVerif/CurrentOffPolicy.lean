@@ -292,7 +292,7 @@ theorem addAll_get {rule : ValueRule} {dimension : Dimension}
       if query ∈ indices then Weight.project rule (weights[query.val].value.add delta)
       else weights[query.val] := by
   induction indices generalizing weights with
-  | nil => simp [addAll]
+  | nil => simp [addAll_def]
   | cons head tail ih =>
     have fresh := (List.nodup_cons.mp nodup).1
     have step : addAll weights (head :: tail) delta =
@@ -318,7 +318,7 @@ theorem subAll_get {rule : ValueRule} {dimension : Dimension}
       if query ∈ indices then Weight.project rule (weights[query.val].value.sub delta)
       else weights[query.val] := by
   induction indices generalizing weights with
-  | nil => simp [subAll]
+  | nil => simp [subAll_def]
   | cons head tail ih =>
     have fresh := (List.nodup_cons.mp nodup).1
     have step : subAll weights (head :: tail) delta =
@@ -648,7 +648,7 @@ theorem wideSum_approx {rule : ValueRule} (weights : WeightArray rule dimension)
   have start : Approx (Binary64.mk 0) 0 ((0 : Nat) / 1073741824) ((0 : Nat) * 101) :=
     ⟨zeroFinite, by rw [zeroValue]; simp, by simp⟩
   have folded := fold_approx weights indices _ 0 0 start (by omega)
-  simpa [wideSum] using folded
+  simpa [wideSum_def] using folded
 
 /-- The exact sum over an active set is the sum over its two classes. -/
 theorem exactSum_classes {rule : ValueRule} (weights : WeightArray rule dimension)
@@ -1087,7 +1087,7 @@ theorem step_second {discount : Discount} (learner : GradientLearner discount di
         Weight.project _ (learner.second[query.val].value.add
           (learner.increments passage cumulant).1)
       else learner.second[query.val] := by
-  simp only [GradientLearner.step]
+  simp only [GradientLearner.step_def]
   exact addAll_get _ _ _ passage.source.nodup query
 
 /-- The main weights change exactly at `x ∪ x'`, once each, with the increment of the slot's
@@ -1106,7 +1106,7 @@ theorem step_main {discount : Discount} (learner : GradientLearner discount dime
           (learner.increments passage cumulant).2.2.2)
       else learner.main[query.val] := by
   have disjoint := classes_disjoint passage query
-  simp only [GradientLearner.step, subAll_get _ _ _ (onlyTarget_nodup passage),
+  simp only [GradientLearner.step_def, subAll_get _ _ _ (onlyTarget_nodup passage),
     addAll_get _ _ _ (both_nodup passage), addAll_get _ _ _ (onlySource_nodup passage)]
   by_cases inSource : query ∈ passage.onlySource <;>
     by_cases inBoth : query ∈ passage.both <;>
@@ -1750,7 +1750,7 @@ theorem question_step (question : Question discount dimension) (passage : Passag
       if question.silent && cumulant.bits == 0 then question.learner
       else question.learner.step passage cumulant := by
   rcases question with ⟨learner, silent, blank⟩
-  simp only [Question.step]
+  simp only [Question.step_def]
   split <;> rfl
 
 /-- A question stays silent exactly while it is silent and its signal word is zero. -/
@@ -1758,7 +1758,7 @@ theorem question_silent (question : Question discount dimension) (passage : Pass
     (cumulant : Binary32) :
     (question.step passage cumulant).silent = (question.silent && cumulant.bits == 0) := by
   rcases question with ⟨learner, silent, blank⟩
-  simp only [Question.step]
+  simp only [Question.step_def]
   split
   · rename_i kept
     have parts : silent = true ∧ cumulant.bits = 0 := by simpa using kept
@@ -1895,7 +1895,7 @@ theorem advance_stores (preceding : Preceding dimension) (current : SwiftTd.Acti
           decide (preceding.features.indices.length ≤ passageLimit ∧
             current.indices.length ≤ passageLimit))) := by
   rcases preceding with ⟨source, flags, agrees⟩
-  unfold Preceding.advance
+  rw [Preceding.advance_def]
   dsimp only
   split
   · rename_i empty
@@ -1914,7 +1914,7 @@ theorem advance_passage (preceding : Preceding dimension) (current : SwiftTd.Act
     (learned : (preceding.advance current armed).1 = some passage) :
     passage.source = preceding.features ∧ passage.target = current := by
   rcases preceding with ⟨source, flags, agrees⟩
-  unfold Preceding.advance at learned
+  rw [Preceding.advance_def] at learned
   dsimp only at learned
   split at learned
   · cases armed <;> simp at learned
@@ -1993,7 +1993,7 @@ theorem questions_follow {discounts : List Discount}
       if armed then features else SwiftTd.ActiveSet.empty dimension := by
   rcases questions with ⟨learners, preceding⟩
   have stores := (advance_stores preceding features armed).1
-  unfold OptionQuestions.follow
+  rw [OptionQuestions.follow_def]
   dsimp only
   split <;> (rename_i equation; rw [equation] at stores; exact stores)
 
