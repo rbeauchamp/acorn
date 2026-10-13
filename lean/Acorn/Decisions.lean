@@ -837,6 +837,25 @@ theorem predictions_admit : Regula.ExecutableContract Predictions.admit
   ⟨decides (fun _ => dite_isSome _) ⟨[], Nat.zero_le _⟩
     ⟨List.replicate (Acorn.FeatureConstants.demonCount + 1) .zero, by simp⟩⟩
 
+/-- The predictions that prediction-list admission returns: for every list and all
+predictions, admission returns the predictions exactly when they hold that list. A kind states
+accepted inputs and not the value of an accepted result, so this statement is a requirement
+with no kind beside the kind `predictions_admit`. -/
+theorem predictions_admit_value : Regula.ExecutableContract Predictions.admit
+    (fun admit => ∀ values predictions, admit values = some predictions ↔
+      predictions.values = values) :=
+  ⟨fun values predictions => by
+    constructor
+    · intro accepted
+      unfold Predictions.admit at accepted
+      split at accepted
+      · cases accepted
+        rfl
+      · cases accepted
+    · rintro rfl
+      unfold Predictions.admit
+      exact dite_eq_left predictions.bounded⟩
+
 attribute [regula_decision] Predictions.admit
 
 /-- Unit-state admission accepts exactly the words whose utility lies in the utility range.
@@ -1250,7 +1269,9 @@ private theorem cliProfile_isOk (text : String) :
 /-- Research-profile admission accepts exactly the five profile words
 (`Host.Cli.profile_spelled`). The specification is the relation `Host.Cli.ProfileSpelled`, with
 one case for each word, and shares no test with the function. The two inputs of the proof are
-`ranked`, which is accepted, and the empty text, which is refused. -/
+`ranked`, which is accepted, and the empty text, which is refused. The profile that admission
+returns is the one the text spells: `Host.Cli.profile_spelled` is an equivalence over every
+text and profile. -/
 theorem cli_profile : Regula.ExecutableContract Host.Cli.profile
     (Regula.Decides (·.isOk = true)
       (fun text => ∃ selected, Host.Cli.ProfileSpelled text selected)) :=
@@ -2579,7 +2600,8 @@ private theorem commandParse_isSome (text : String) :
 (`Host.Viewer.Command.parse_spelled`). The specification is the relation
 `Host.Viewer.Command.Spelled`, with one case for each word, and shares no test with the
 function. The two inputs of the proof are `start`, which is accepted, and the empty text,
-which is refused. -/
+which is refused. The command that parsing returns is the one the text spells:
+`Host.Viewer.Command.parse_spelled` is an equivalence over every text and command. -/
 theorem command_parse : Regula.ExecutableContract Command.parse
     (Regula.Decides (·.isSome = true) (fun text => ∃ command, Command.Spelled text command)) :=
   ⟨decides commandParse_isSome ⟨"start", .start, .inl ⟨rfl, rfl⟩⟩

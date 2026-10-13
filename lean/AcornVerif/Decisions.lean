@@ -2514,9 +2514,11 @@ theorem managed_words : Regula.ExecutableContract @managedWords (fun words =>
 `Std.Data.String.ToNat` (`String.isNat_iff`, `String.toNat?_eq_some_ofDigitChars`), which this
 library imports and the executing library's registry cannot, so the kinds of the two parsers
 are stated here and registered in `Acorn.Decisions`. The specifications are the grammars
-`Host.Cli.Natural` and `Host.AgentArguments.Admitted`, written beside the parsers with no
-executed function: each numeral has its value in positional notation, which the private lemma
-`ofDigitChars_positional` connects with the left fold of `Nat.ofDigitChars`. -/
+`Host.Cli.Natural` and `Host.AgentArguments.Admitted`, and the relation
+`Host.AgentArguments.Constructs` between an argument list and what admission returns, written
+beside the parsers with no executed function: each numeral has its value in positional
+notation, which the private lemma `ofDigitChars_positional` connects with the left fold of
+`Nat.ofDigitChars`. -/
 
 /-- The positional value of a numeral with one more digit in front: that digit times ten to
 the power of the number of digits after it, plus the value of the rest. -/
@@ -2877,31 +2879,112 @@ theorem agent_arguments_admit : Regula.ExecutableContract Host.AgentArguments.ad
         ⟨0, decimal_digit "0" 0 '0' (by simp) rfl (by decide), by decide⟩, by simp⟩⟩
     ⟨[], fun ⟨_, _, _, _, _, _, _, _, _, _, _, spelled, _⟩ => by simp at spelled⟩⟩
 
+/-- `AgentConstruction.admit` returns a construction exactly when each field of that construction
+is the one stated: the profile, criterion, planning selection and step order given, the seed
+and tiling word given, a bank of the units given, the declared tester, and a capacity of two to
+the power of the exponent given. The conditions that the admission tests hold of every
+construction, so they follow from the fields. -/
+private theorem admit_fields (profile : FeatureProfile) (criterion : Criterion)
+    (planning : PlanningSelection) (order : StepOrder) (seed tilings : UInt64)
+    (units exponent : Nat) (construction : AgentConstruction) :
+    AgentConstruction.admit profile criterion planning order seed tilings units exponent =
+        some construction ↔
+      construction.profile = profile ∧ construction.criterion = criterion ∧
+        construction.planning = planning ∧ construction.order = order ∧
+        construction.config.seed = seed ∧ construction.config.tilings = tilings ∧
+        construction.config.units.count = units ∧ construction.config.tester = declaredTester ∧
+        construction.dimension.capacity = 2 ^ exponent := by
+  constructor
+  · intro admitted
+    unfold AgentConstruction.admit at admitted
+    split at admitted
+    · split at admitted
+      · split at admitted
+        · cases admitted
+          exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+        · cases admitted
+      · cases admitted
+    · cases admitted
+  · rintro ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, tested, sized⟩
+    obtain ⟨profile, criterion, planning, order, ⟨seed, tilings, positive,
+      ⟨units, occupied, bounded⟩, tester⟩, ⟨capacity, nonzero, power, below⟩⟩ := construction
+    dsimp only at tested sized ⊢
+    subst tested sized
+    have small : exponent < 32 := (Nat.pow_lt_pow_iff_right (by decide)).mp below
+    unfold AgentConstruction.admit
+    rw [dite_eq_left positive, dite_eq_left ⟨occupied, bounded⟩, dite_eq_left small]
+
+open Host.AgentArguments in
+/-- An argument list that the native drivers admit spells, field by field, the construction
+and the raw input words that they return. -/
+private theorem admit_constructs (arguments : List String) (admitted : DefaultConstruction)
+    (words : List UInt64) (accepted : admit arguments = some (admitted, words)) :
+    Constructs arguments admitted.construction words := by
+  obtain ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+    texts, profile, selected, selection, s, t, u, e, rfl, profiled, criterioned, planned,
+    seeded, tiled, banked, sized, made, length, each⟩ :=
+    admit_spelled arguments admitted words accepted
+  obtain ⟨rfl, rfl, rfl, ordered, rfl, rfl, rfl, tested, capacity⟩ :=
+    (admit_fields profile selected selection .learnThenAct s t u e admitted.construction).mp made
+  exact ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+    texts, e, rfl, profiled, criterioned, planned, ordered, seeded, tiled, banked, sized,
+    capacity, tested, length, each⟩
+
+open Host.AgentArguments in
+/-- The native drivers admit an argument list that spells a construction of the default step
+order and raw input words, field by field, and return that construction and those words. -/
+private theorem constructs_admit (arguments : List String) (construction : AgentConstruction)
+    (default : construction.order = .learnThenAct) (words : List UInt64)
+    (spelled : Constructs arguments construction words) :
+    admit arguments = some (⟨construction, default⟩, words) := by
+  obtain ⟨seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion, planning,
+    texts, e, rfl, profiled, criterioned, planned, -, seeded, tiled, banked, sized, capacity,
+    tested, length, each⟩ := spelled
+  have made := (admit_fields construction.profile construction.criterion construction.planning
+    .learnThenAct construction.config.seed construction.config.tilings
+    construction.config.units.count e construction).mpr
+      ⟨rfl, rfl, rfl, default, rfl, rfl, rfl, tested, capacity⟩
+  have read := (words_iff texts words).mpr ⟨length, each⟩
+  unfold admit
+  rcases criterioned with ⟨rfl, chosen⟩ | ⟨rfl, chosen⟩ <;> rw [chosen] at made <;>
+    simp only [List.cons_append, (profile_iff _ _ _ _ _).mpr profiled,
+      (PlanningSelection.parse_accepted _ _).mpr planned, (word_iff _ _).mpr seeded,
+      (word_iff _ _).mpr tiled, (toNat?_decimal _ _).mpr banked, (toNat?_decimal _ _).mpr sized,
+      Option.bind_eq_bind, Option.bind_some] <;>
+    split <;> simp_all
+
 /-- The construction and the raw input words that native agent-argument admission returns: for
-every argument list, construction and list of words that admission returns, the arguments are
-ten words and the input words, the four words of a profile spell it, the next spell a criterion
-and a planning selection, the seed, the tiling word, the bank size and the capacity exponent
-are decimal numerals from whose values `AgentConstruction.admit` builds the construction under
-the default step order, and each input word is the value of its numeral. A kind states accepted
-inputs and not the value of an accepted result, so this statement is a requirement with no kind
-beside the kind `agent_arguments_admit`. -/
+every argument list, construction of the default step order and list of words, admission
+returns them exactly when the list spells them field by field (`Host.AgentArguments.Constructs`):
+the four words of a profile spell the construction's profile, the next two its criterion and
+planning selection, the numerals of the seed, the tiling word and the bank size have the values
+of its seed, its tiling word and its number of units, the exponent numeral has the value whose
+power of two is its capacity, its tester is the declared one, and each input word is the value
+of its numeral. The relation names the word relations, `PlanningSelection.name` and
+`Handcrafted.declaredTester`, and no function of the parser. Since admission is a function, an
+accepted list spells no other construction and no other list of words
+(`agent_arguments_constructs_unique`), so a construction that differs from the returned one in
+any field does not satisfy the relation; `agent_arguments_admit` names an accepted list. A kind
+states accepted inputs and not the value of an accepted result, so this statement is a
+requirement with no kind beside the kind `agent_arguments_admit`. -/
 theorem agent_arguments_admit_value : Regula.ExecutableContract Host.AgentArguments.admit
-    (fun admit => ∀ arguments admitted words, admit arguments = some (admitted, words) →
-      ∃ (seed exponent tilings units mode credit rate subtasks criterion planning : String)
-        (texts : List String) (profile : FeatureProfile) (selected : Criterion)
-        (selection : PlanningSelection) (s t : UInt64) (u e : Nat),
-        arguments = [seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion,
-          planning] ++ texts ∧
-        Host.AgentArguments.ProfileSpelled mode credit rate subtasks profile ∧
-        Host.AgentArguments.CriterionSpelled criterion selected ∧
-        planning = PlanningSelection.name selection ∧ Host.AgentArguments.Decimal seed s.toNat ∧
-        Host.AgentArguments.Decimal tilings t.toNat ∧ Host.AgentArguments.Decimal units u ∧
-        Host.AgentArguments.Decimal exponent e ∧
-        AgentConstruction.admit profile selected selection .learnThenAct s t u e =
-          some admitted.construction ∧
-        words.length = texts.length ∧
-        ∀ pair ∈ texts.zip words, Host.AgentArguments.Decimal pair.1 pair.2.toNat) :=
-  ⟨admit_spelled⟩
+    (fun admit => ∀ arguments admitted words, admit arguments = some (admitted, words) ↔
+      Host.AgentArguments.Constructs arguments admitted.construction words) :=
+  ⟨fun arguments admitted words => ⟨admit_constructs arguments admitted words,
+    constructs_admit arguments admitted.construction admitted.default words⟩⟩
+
+/-- An argument list spells at most one construction of the default step order and one list of
+raw input words (`Host.AgentArguments.Constructs`): two that it spells are equal, so changing
+any field of a spelled construction, or any input word, breaks the relation. -/
+theorem agent_arguments_constructs_unique (arguments : List String)
+    (first second : DefaultConstruction) (words others : List UInt64)
+    (spelled : Host.AgentArguments.Constructs arguments first.construction words)
+    (respelled : Host.AgentArguments.Constructs arguments second.construction others) :
+    first = second ∧ words = others := by
+  have one := constructs_admit arguments first.construction first.default words spelled
+  have two := constructs_admit arguments second.construction second.default others respelled
+  rw [one, Option.some.injEq, Prod.mk.injEq] at two
+  exact two
 
 /-! ## Definitions that specifications share
 

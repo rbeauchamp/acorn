@@ -69,10 +69,11 @@ def admit (arguments : List String) : Option (DefaultConstruction × List UInt64
 
 /-! ## The grammar of the arguments
 
-The relations below state the argument lists that `admit` accepts, with no executed function:
-`agent_arguments_admit` in `AcornVerif.Decisions` proves that `admit` accepts exactly the lists
-of `Admitted`, and `agent_arguments_admit_value` states the construction and the words of an
-accepted list. -/
+The relations below state the argument lists that `admit` accepts and what it returns for
+them, with no executed function: `agent_arguments_admit` in `AcornVerif.Decisions` proves that
+`admit` accepts exactly the lists of `Admitted`, and `agent_arguments_admit_value` that it
+returns a construction and input words exactly when the list spells them field by field
+(`Constructs`). -/
 
 /-- A decimal numeral as Lean's `String.toNat?` reads it at the pinned toolchain v4.34.1: at
 least one character, each a digit from `0` to `9` or an underscore, with no underscore first,
@@ -136,5 +137,27 @@ def Admitted (arguments : List String) : Prop :=
     (∃ n, Decimal seed n ∧ n < 2 ^ 64) ∧ (∃ n, Decimal tilings n ∧ 0 < n ∧ n < 2 ^ 64) ∧
     (∃ n, Decimal units n ∧ 0 < n ∧ n ≤ 65535) ∧ (∃ n, Decimal exponent n ∧ n < 32) ∧
     ∀ word ∈ words, ∃ n, Decimal word n ∧ n < 2 ^ 64
+
+/-- The construction and raw input words that an argument list spells, field by field, with no
+executed function: the list is ten words and the input words; the construction's profile is
+the one its four profile words spell, its criterion and planning selection are the ones their
+words spell, and its step order is the default one; its seed and tiling word are the values of
+their numerals, its bank holds the value of the bank-size numeral in units and its tester is
+the declared one; its capacity is two to the power of the value of the exponent numeral; and
+the input words are the values of their numerals, in order. -/
+def Constructs (arguments : List String) (construction : AgentConstruction)
+    (words : List UInt64) : Prop :=
+  ∃ (seed exponent tilings units mode credit rate subtasks criterion planning : String)
+    (texts : List String) (e : Nat),
+    arguments = [seed, exponent, tilings, units, mode, credit, rate, subtasks, criterion,
+      planning] ++ texts ∧
+    ProfileSpelled mode credit rate subtasks construction.profile ∧
+    CriterionSpelled criterion construction.criterion ∧
+    planning = PlanningSelection.name construction.planning ∧
+    construction.order = .learnThenAct ∧ Decimal seed construction.config.seed.toNat ∧
+    Decimal tilings construction.config.tilings.toNat ∧
+    Decimal units construction.config.units.count ∧ Decimal exponent e ∧
+    construction.dimension.capacity = 2 ^ e ∧ construction.config.tester = declaredTester ∧
+    words.length = texts.length ∧ ∀ pair ∈ texts.zip words, Decimal pair.1 pair.2.toNat
 
 end Acorn.Host.AgentArguments

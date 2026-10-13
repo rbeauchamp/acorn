@@ -1532,7 +1532,9 @@ restrictions of the parser, each of which the RFC permits:
 
 The text is a list of Unicode scalar values: the host decodes UTF-8 (section 8.1) before
 `parse` reads it. A number denotes its spelling (`Value.number`), which section 6 leaves to
-the implementation to interpret.
+the implementation to interpret. `Grammar.Number` states section 6 character by character,
+and `Grammar.number_iff` proves that its lists are the spellings (`Numeral.chars`) of the
+formed numerals (`Numeral.Formed`), the numerals that the parser's scanner returns.
 
 `parse_sound` states that every text that `parse` accepts is a JSON text of this grammar
 (`Grammar.Text`), with the value that `parse` gives as the value the grammar gives the text.
@@ -1615,6 +1617,34 @@ def Quoted (cs : List Char) (s : String) : Prop :=
   ∃ body decoded, Characters body decoded ∧ cs = '"' :: (body ++ ['"']) ∧
     s = String.ofList decoded
 
+/-- A decimal digit, `DIGIT = %x30-39` of RFC 5234, appendix B.1, which section 6 uses: a
+character from `0` to `9`, by its code. -/
+def Digit (c : Char) : Prop := 48 ≤ c.toNat ∧ c.toNat ≤ 57
+
+/-- The integer part of a number, `int = zero / ( digit1-9 *DIGIT )` in section 6: a single
+zero, or a digit other than zero (`digit1-9 = %x31-39`) followed by digits. -/
+def IntegerPart (cs : List Char) : Prop :=
+  cs = ['0'] ∨
+    ∃ first more, cs = first :: more ∧ Digit first ∧ first ≠ '0' ∧ ∀ c ∈ more, Digit c
+
+/-- The fraction part of a number, `frac = decimal-point 1*DIGIT` in section 6: a point and
+at least one digit. -/
+def FractionPart (cs : List Char) : Prop :=
+  ∃ digits, cs = '.' :: digits ∧ digits ≠ [] ∧ ∀ c ∈ digits, Digit c
+
+/-- The exponent part of a number, `exp = e [ minus / plus ] 1*DIGIT` with `e = %x65 / %x45`
+in section 6: a mark `e` or `E`, an optional sign and at least one digit. -/
+def ExponentPart (cs : List Char) : Prop :=
+  ∃ mark sign digits, (mark = 'e' ∨ mark = 'E') ∧ (sign = [] ∨ sign = ['-'] ∨ sign = ['+']) ∧
+    digits ≠ [] ∧ (∀ c ∈ digits, Digit c) ∧ cs = mark :: (sign ++ digits)
+
+/-- A number, `number = [ minus ] int [ frac ] [ exp ]` in section 6: an optional minus
+sign, the integer part, an optional fraction part and an optional exponent part. -/
+def Number (cs : List Char) : Prop :=
+  ∃ minus int frac exp, (minus = [] ∨ minus = ['-']) ∧ IntegerPart int ∧
+    (frac = [] ∨ FractionPart frac) ∧ (exp = [] ∨ ExponentPart exp) ∧
+    cs = minus ++ int ++ frac ++ exp
+
 mutual
 
 /-- A value of section 3 at a depth of nesting, and the value it denotes. It has no white
@@ -1628,8 +1658,8 @@ inductive Value : Nat → List Char → Json.Value → Prop
   | falsity {depth : Nat} (within : depth ≤ 128) :
       Value depth ['f', 'a', 'l', 's', 'e'] (.bool false)
   /-- A number of section 6, which denotes its spelling. -/
-  | number {depth : Nat} {numeral : Numeral} (within : depth ≤ 128) (formed : numeral.Formed) :
-      Value depth numeral.chars (.number (String.ofList numeral.chars))
+  | number {depth : Nat} {cs : List Char} (within : depth ≤ 128) (spelled : Number cs) :
+      Value depth cs (.number (String.ofList cs))
   /-- A string of section 7. -/
   | string {depth : Nat} {cs : List Char} {s : String} (within : depth ≤ 128)
       (quoted : Quoted cs s) : Value depth cs (.string s)
@@ -1689,6 +1719,116 @@ def Text (cs : List Char) (v : Json.Value) : Prop :=
     cs = before ++ body ++ after
 
 end Grammar
+
+/-- The optional minus sign of the grammar is the sign of a numeral. -/
+private theorem Grammar.minus_iff (cs : List Char) :
+    (cs = [] ∨ cs = ['-']) ↔ ∃ negative : Bool, (if negative then ['-'] else []) = cs := by
+  constructor
+  · rintro (rfl | rfl)
+    · exact ⟨false, rfl⟩
+    · exact ⟨true, rfl⟩
+  · rintro ⟨negative, rfl⟩
+    cases negative
+    · exact .inl rfl
+    · exact .inr rfl
+
+/-- The integer part of the grammar is the digits before the point of a formed numeral. -/
+private theorem Grammar.integerPart_iff (cs : List Char) :
+    Grammar.IntegerPart cs ↔
+      (cs = ['0'] ∨ (cs ≠ [] ∧ (∀ c ∈ cs, Numeral.Digit c) ∧ cs.head? ≠ some '0')) := by
+  constructor
+  · rintro (zero | ⟨first, more, rfl, digit, nonzero, digits⟩)
+    · exact .inl zero
+    · refine .inr ⟨List.cons_ne_nil _ _, ?_, ?_⟩
+      · intro c inside
+        rcases List.mem_cons.mp inside with same | later
+        · subst same
+          exact digit
+        · exact digits c later
+      · intro same
+        rw [List.head?_cons, Option.some.injEq] at same
+        exact nonzero same
+  · rintro (zero | ⟨nonempty, digits, head⟩)
+    · exact .inl zero
+    · cases cs with
+      | nil => exact absurd rfl nonempty
+      | cons first more =>
+        refine .inr ⟨first, more, rfl, digits first List.mem_cons_self, ?_, ?_⟩
+        · intro same
+          subst same
+          exact head rfl
+        · intro c inside
+          exact digits c (List.mem_cons_of_mem _ inside)
+
+/-- The optional fraction part of the grammar is the part after the point of a formed
+numeral. -/
+private theorem Grammar.fractionPart_iff (cs : List Char) :
+    (cs = [] ∨ Grammar.FractionPart cs) ↔ ∃ fraction : Option (List Char),
+      (∀ digits, fraction = some digits → digits ≠ [] ∧ ∀ c ∈ digits, Numeral.Digit c) ∧
+        Numeral.fractionChars fraction = cs := by
+  constructor
+  · rintro (rfl | ⟨digits, rfl, nonempty, all⟩)
+    · exact ⟨none, fun _ absent => (nomatch absent), rfl⟩
+    · refine ⟨some digits, fun _ same => ?_, rfl⟩
+      cases same
+      exact ⟨nonempty, all⟩
+  · rintro ⟨_ | digits, formed, rfl⟩
+    · exact .inl rfl
+    · exact .inr ⟨digits, rfl, formed digits rfl⟩
+
+/-- The optional exponent part of the grammar is the exponent part of a formed numeral. -/
+private theorem Grammar.exponentPart_iff (cs : List Char) :
+    (cs = [] ∨ Grammar.ExponentPart cs) ↔ ∃ exponent : Option Exponent,
+      (∀ e, exponent = some e → e.digits ≠ [] ∧ ∀ c ∈ e.digits, Numeral.Digit c) ∧
+        Numeral.exponentChars exponent = cs := by
+  constructor
+  · rintro (rfl | ⟨mark, sign, digits, marks, signs, nonempty, all, rfl⟩)
+    · exact ⟨none, fun _ absent => (nomatch absent), rfl⟩
+    · obtain ⟨upper, rfl⟩ : ∃ upper : Bool, (if upper then 'E' else 'e') = mark := by
+        rcases marks with rfl | rfl
+        · exact ⟨false, rfl⟩
+        · exact ⟨true, rfl⟩
+      obtain ⟨signed, rfl⟩ : ∃ s, Exponent.signChars s = sign := by
+        rcases signs with rfl | rfl | rfl
+        · exact ⟨none, rfl⟩
+        · exact ⟨some true, rfl⟩
+        · exact ⟨some false, rfl⟩
+      refine ⟨some ⟨upper, signed, digits⟩, fun _ same => ?_, rfl⟩
+      cases same
+      exact ⟨nonempty, all⟩
+  · rintro ⟨_ | ⟨upper, signed, digits⟩, formed, rfl⟩
+    · exact .inl rfl
+    · obtain ⟨nonempty, all⟩ := formed _ rfl
+      refine .inr ⟨if upper then 'E' else 'e', Exponent.signChars signed, digits, ?_, ?_,
+        nonempty, all, rfl⟩
+      · cases upper
+        · exact .inl rfl
+        · exact .inr rfl
+      · cases signed with
+        | none => exact .inl rfl
+        | some negative =>
+          cases negative
+          · exact .inr (.inr rfl)
+          · exact .inr (.inl rfl)
+
+/-- The numbers of the grammar are the spellings of the formed numerals: a list of
+characters is a number of section 6 exactly when it is `Numeral.chars` of a numeral of
+that form. -/
+theorem Grammar.number_iff (cs : List Char) :
+    Grammar.Number cs ↔ ∃ numeral : Numeral, numeral.Formed ∧ numeral.chars = cs := by
+  constructor
+  · rintro ⟨minus, int, frac, exp, signed, whole, fraction, exponent, rfl⟩
+    obtain ⟨negative, rfl⟩ := (Grammar.minus_iff minus).mp signed
+    obtain ⟨point, pointed, rfl⟩ := (Grammar.fractionPart_iff frac).mp fraction
+    obtain ⟨power, powered, rfl⟩ := (Grammar.exponentPart_iff exp).mp exponent
+    exact ⟨⟨negative, int, point, power⟩,
+      ⟨(Grammar.integerPart_iff int).mp whole, pointed, powered⟩, rfl⟩
+  · rintro ⟨⟨negative, whole, point, power⟩, ⟨integer, pointed, powered⟩, rfl⟩
+    exact ⟨if negative then ['-'] else [], whole, Numeral.fractionChars point,
+      Numeral.exponentChars power, (Grammar.minus_iff _).mpr ⟨negative, rfl⟩,
+      (Grammar.integerPart_iff whole).mpr integer,
+      (Grammar.fractionPart_iff _).mpr ⟨point, pointed, rfl⟩,
+      (Grammar.exponentPart_iff _).mpr ⟨power, powered, rfl⟩, rfl⟩
 
 /-- The white space that `ws` drops is white space of the grammar, and it is the head of the
 list. -/
@@ -2066,7 +2206,8 @@ private theorem read_sound (fuel : Nat) :
           exact ⟨before, _, blank, .falsity within, by simp⟩
         · split at read
           · obtain ⟨numeral, formed, rfl, written⟩ := number_ok read
-            exact ⟨before, numeral.chars, blank, .number within formed,
+            exact ⟨before, numeral.chars, blank,
+              .number within ((Grammar.number_iff _).mpr ⟨numeral, formed, rfl⟩),
               by rw [written, List.append_assoc]⟩
           · exact nomatch read
         · exact nomatch read
