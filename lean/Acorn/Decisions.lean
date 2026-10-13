@@ -4483,17 +4483,17 @@ theorem schema_covers_empty : Regula.ExecutableContract @schemaCovers (fun cover
 
 /-- The arguments of `Costed.mem`, in order. -/
 structure MemberAt where
-  /-- The element type. -/
-  element : Type
-  /-- Equality of elements. -/
-  equality : DecidableEq element
-  /-- The element sought. -/
-  item : element
+  /-- The bound of the numbers. -/
+  bound : Nat
+  /-- The number sought. -/
+  item : Fin bound
   /-- The list searched. -/
-  items : List element
+  items : List (Fin bound)
+  /-- The bound fits below `2 ^ 32`. -/
+  fits : bound < 2 ^ 32
 
-/-- The costed membership test accepts exactly an element of the list, for every element type
-with decidable equality (`Costed.mem_val`). The function returns a costed value, and the kind
+/-- The costed membership test accepts exactly an element of the list, for every list of numbers
+below a bound under 2^32 (`Costed.mem_val`). The function returns a costed value, and the kind
 is about that value. The accepted input is `0` in `[0]`, and the refused one `0` in `[1]`.
 
 **Not claimed:** the work of the test, one comparison for each element visited, which
@@ -4501,13 +4501,40 @@ is about that value. The accepted input is `0` in `[0]`, and the refused one `0`
 theorem costed_mem : Regula.ExecutableContract @Costed.mem (fun mem =>
     Regula.Decides (fun result : Costed Bool => result.val = true)
       (fun input : MemberAt => input.item ∈ input.items)
-      (fun input : MemberAt => @mem input.element input.equality input.item input.items)) :=
+      (fun input : MemberAt => @mem input.bound input.item input.items input.fits)) :=
   ⟨decides
-    (fun input => by letI := input.equality; rw [Costed.mem_val]; exact decide_eq_true_iff)
-    ⟨⟨Nat, inferInstance, 0, [0]⟩, List.mem_singleton_self 0⟩
-    ⟨⟨Nat, inferInstance, 0, [1]⟩, by simp⟩⟩
+    (fun input => by rw [Costed.mem_val]; exact decide_eq_true_iff)
+    ⟨⟨2, 0, [0], by decide⟩, List.mem_singleton_self 0⟩
+    ⟨⟨2, 0, [1], by decide⟩, by decide⟩⟩
 
 attribute [regula_decision] Costed.mem
+
+/-- The arguments of `Costed.vectorEq`, in order. -/
+structure VectorsAt where
+  /-- The length of the vectors. -/
+  count : Nat
+  /-- The first vector. -/
+  first : Vector Binary32 count
+  /-- The second vector. -/
+  second : Vector Binary32 count
+
+/-- The costed equality accepts exactly two equal vectors of raw binary32 words
+(`Costed.vectorEq_val`). The function returns a costed value, and the kind is about that value.
+The accepted input is the pair of `#v[⟨0⟩]` and `#v[⟨0⟩]`, and the refused one the pair of
+`#v[⟨0⟩]` and `#v[⟨1⟩]`.
+
+**Not claimed:** the work of the comparison, one comparison for each element visited, which
+`Costed.vectorEq_within` states. -/
+theorem costed_vector_eq : Regula.ExecutableContract @Costed.vectorEq (fun vectorEq =>
+    Regula.Decides (fun result : Costed Bool => result.val = true)
+      (fun input : VectorsAt => input.first = input.second)
+      (fun input : VectorsAt => @vectorEq input.count input.first input.second)) :=
+  ⟨decides
+    (fun input => by rw [Costed.vectorEq_val]; exact decide_eq_true_iff)
+    ⟨⟨1, #v[⟨0⟩], #v[⟨0⟩]⟩, rfl⟩
+    ⟨⟨1, #v[⟨0⟩], #v[⟨1⟩]⟩, by decide⟩⟩
+
+attribute [regula_decision] Costed.vectorEq
 
 /-! ## Definitions that a registered decision reads
 
