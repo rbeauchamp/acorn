@@ -3201,13 +3201,13 @@ attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidab
 /-! ## Decisions with a dependent type
 
 An argument or result type of each function below is indexed by an earlier argument: the
-receiving interval, the value rule, the feature dimension, the bank configuration or the agent
-construction. The kind of each is stated about the function applied to the two fields of a
-pair or to every field of a structure of its arguments, in order, and about
-`Regula.Dependent.isSome` or `Regula.Dependent.isOk` of that function where the result type
-depends on the input. A statement of the value of an accepted result stands beside its kind
-under the name of the kind with `_value`. A statement that keeps no kind says in its docstring
-what stands in the way. -/
+receiving interval, the value rule, the feature dimension, the bank configuration, the agent
+construction, the bound of a list's numbers or the length of two vectors. The kind of each is
+stated about the function applied to the two fields of a pair or to every field of a structure
+of its arguments, in order, and about `Regula.Dependent.isSome` or `Regula.Dependent.isOk` of
+that function where the result type depends on the input. A statement of the value of an
+accepted result stands beside its kind under the name of the kind with `_value`. A statement
+that keeps no kind says in its docstring what stands in the way. -/
 
 /-- Bounded admission accepts exactly the words inside the receiving interval
 (`Bounded32.admit_refuses`). -/
@@ -4282,6 +4282,61 @@ theorem checkpoint_due_at :
 
 attribute [regula_decision] Host.WritableCheckpoint.dueAt
 
+/-- The arguments of `Costed.mem`, in order. -/
+structure MemberAt where
+  /-- The bound of the numbers. -/
+  bound : Nat
+  /-- The number sought. -/
+  item : Fin bound
+  /-- The list searched. -/
+  items : List (Fin bound)
+  /-- The bound fits below `2 ^ 32`. -/
+  fits : bound < 2 ^ 32
+
+/-- The costed membership test accepts exactly an element of the list, for every list of numbers
+below a bound under 2^32 (`Costed.mem_val`). The function returns a costed value, and the kind
+is about that value. The accepted input is `0` in `[0]`, and the refused one `0` in `[1]`.
+
+**Not claimed:** the work of the test, one comparison for each element visited, which
+`Costed.mem_within` states. -/
+theorem costed_mem : Regula.ExecutableContract @Costed.mem (fun mem =>
+    Regula.Decides (fun result : Costed Bool => result.val = true)
+      (fun input : MemberAt => input.item ∈ input.items)
+      (fun input : MemberAt => @mem input.bound input.item input.items input.fits)) :=
+  ⟨decides
+    (fun input => by rw [Costed.mem_val]; exact decide_eq_true_iff)
+    ⟨⟨2, 0, [0], by decide⟩, List.mem_singleton_self 0⟩
+    ⟨⟨2, 0, [1], by decide⟩, by decide⟩⟩
+
+attribute [regula_decision] Costed.mem
+
+/-- The arguments of `Costed.vectorEq`, in order. -/
+structure VectorsAt where
+  /-- The length of the vectors. -/
+  count : Nat
+  /-- The first vector. -/
+  first : Vector Binary32 count
+  /-- The second vector. -/
+  second : Vector Binary32 count
+
+/-- The costed equality accepts exactly two equal vectors of raw binary32 words
+(`Costed.vectorEq_val`). The function returns a costed value, and the kind is about that value.
+The accepted input is the pair of `#v[⟨0⟩]` and `#v[⟨0⟩]`, and the refused one the pair of
+`#v[⟨0⟩]` and `#v[⟨1⟩]`.
+
+**Not claimed:** the work of the comparison, one comparison for each element visited, which
+`Costed.vectorEq_within` states. -/
+theorem costed_vector_eq : Regula.ExecutableContract @Costed.vectorEq (fun vectorEq =>
+    Regula.Decides (fun result : Costed Bool => result.val = true)
+      (fun input : VectorsAt => input.first = input.second)
+      (fun input : VectorsAt => @vectorEq input.count input.first input.second)) :=
+  ⟨decides
+    (fun input => by rw [Costed.vectorEq_val]; exact decide_eq_true_iff)
+    ⟨⟨1, #v[⟨0⟩], #v[⟨0⟩]⟩, rfl⟩
+    ⟨⟨1, #v[⟨0⟩], #v[⟨1⟩]⟩, by decide⟩⟩
+
+attribute [regula_decision] Costed.vectorEq
+
 /-! ## Decisions that are polymorphic in an element type
 
 The element type of each function below is the first field of the structure of its arguments,
@@ -4480,61 +4535,6 @@ theorem schema_covers_empty : Regula.ExecutableContract @schemaCovers (fun cover
     ∀ (α : Type) (fits : String → α → TelemetryShape → Bool)
       (schema : List (String × TelemetryShape)), @covers α fits [] schema = true) :=
   ⟨fun _ _ _ => rfl⟩
-
-/-- The arguments of `Costed.mem`, in order. -/
-structure MemberAt where
-  /-- The bound of the numbers. -/
-  bound : Nat
-  /-- The number sought. -/
-  item : Fin bound
-  /-- The list searched. -/
-  items : List (Fin bound)
-  /-- The bound fits below `2 ^ 32`. -/
-  fits : bound < 2 ^ 32
-
-/-- The costed membership test accepts exactly an element of the list, for every list of numbers
-below a bound under 2^32 (`Costed.mem_val`). The function returns a costed value, and the kind
-is about that value. The accepted input is `0` in `[0]`, and the refused one `0` in `[1]`.
-
-**Not claimed:** the work of the test, one comparison for each element visited, which
-`Costed.mem_within` states. -/
-theorem costed_mem : Regula.ExecutableContract @Costed.mem (fun mem =>
-    Regula.Decides (fun result : Costed Bool => result.val = true)
-      (fun input : MemberAt => input.item ∈ input.items)
-      (fun input : MemberAt => @mem input.bound input.item input.items input.fits)) :=
-  ⟨decides
-    (fun input => by rw [Costed.mem_val]; exact decide_eq_true_iff)
-    ⟨⟨2, 0, [0], by decide⟩, List.mem_singleton_self 0⟩
-    ⟨⟨2, 0, [1], by decide⟩, by decide⟩⟩
-
-attribute [regula_decision] Costed.mem
-
-/-- The arguments of `Costed.vectorEq`, in order. -/
-structure VectorsAt where
-  /-- The length of the vectors. -/
-  count : Nat
-  /-- The first vector. -/
-  first : Vector Binary32 count
-  /-- The second vector. -/
-  second : Vector Binary32 count
-
-/-- The costed equality accepts exactly two equal vectors of raw binary32 words
-(`Costed.vectorEq_val`). The function returns a costed value, and the kind is about that value.
-The accepted input is the pair of `#v[⟨0⟩]` and `#v[⟨0⟩]`, and the refused one the pair of
-`#v[⟨0⟩]` and `#v[⟨1⟩]`.
-
-**Not claimed:** the work of the comparison, one comparison for each element visited, which
-`Costed.vectorEq_within` states. -/
-theorem costed_vector_eq : Regula.ExecutableContract @Costed.vectorEq (fun vectorEq =>
-    Regula.Decides (fun result : Costed Bool => result.val = true)
-      (fun input : VectorsAt => input.first = input.second)
-      (fun input : VectorsAt => @vectorEq input.count input.first input.second)) :=
-  ⟨decides
-    (fun input => by rw [Costed.vectorEq_val]; exact decide_eq_true_iff)
-    ⟨⟨1, #v[⟨0⟩], #v[⟨0⟩]⟩, rfl⟩
-    ⟨⟨1, #v[⟨0⟩], #v[⟨1⟩]⟩, by decide⟩⟩
-
-attribute [regula_decision] Costed.vectorEq
 
 /-! ## Definitions that a registered decision reads
 
