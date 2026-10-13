@@ -342,8 +342,10 @@ the values of their costed definitions ([cost semantics](../lean/Acorn/Cost.lean
 prediction, both loops, a trajectory's start, a terminal step, a planning step, a
 release, a retirement, the ordered sums and the fresh transient record. So are the
 functions of a frozen policy: its ordered maximum, candidates, reservoir, greedy draw,
-nominal masses, draw and mean (`Acorn.Policy`), and its persistent draw and served
-masses (`Acorn.Exploration`). So are a learner record's entry, retirement and credit
+nominal masses, draw and mean (`Acorn.Policy`), the consistency test of off-policy learning,
+which compares the nominal masses with the behaviour's one word at a time by a scan
+(`PolicySnapshot.consistent`, `Costed.vectorEq`), and its persistent draw and served masses
+(`Acorn.Exploration`). So are a learner record's entry, retirement and credit
 (`Managed.apply`, `Managed.retire`, `Managed.credit`), a controller's predictions, clear,
 release, snapshot and derived rate and its updates `Controller.creditStep`, `valuesStep`,
 `stopStep`, `terminal`, `retire`, `plan`, `policyStep`, `persistentStep`, `startStep`,
@@ -380,23 +382,23 @@ dimension in its place they are functions of the configuration too
 `decideOptionCosted_within_capacity`, `optionStepCosted_within_capacity`,
 `optionCreditCosted_within_capacity`, `frozenPolicyCosted_within_capacity`). An option's
 operations with its model (`Acorn.Temporal`) are also values of their costed definitions,
-for every model operations record, whose type takes the model's start, step, terminal step
-and stop as costed operations (`OptionModelOps`): its start (`Skill.beginTemporal`), step
-(`Skill.stepTemporal`), the credit of a drawn decision (`Skill.creditTemporal`), end
+for every model operations record, whose type takes the model's start, step, terminal step,
+stop and restart as costed operations (`OptionModelOps`): its start (`Skill.beginTemporal`),
+step (`Skill.stepTemporal`), the credit of a drawn decision (`Skill.creditTemporal`), end
 (`Skill.endTemporal`), the stop and the settling of its stored trajectory
-(`Skill.stopFollowing`, `Skill.settleFollowing`, `Skill.settleTemporal`) and a start whose
-first action is drawn (`Skill.startTemporal`). Their bounds are proved at the record
-selection runs (`modelOperations`), which supplies the model's costed start, step, terminal
-step and stop. Each bound grows with the active set's length, and with the capacity of the
+(`Skill.stopFollowing`, `Skill.settleFollowing`, `Skill.settleTemporal`), a start whose
+first action is drawn (`Skill.startTemporal`) and its off-policy following
+(`Skill.startFollowing`, `Skill.followTemporal`). Their bounds are proved at the record the
+agent runs (`modelOperations`), which supplies the model's costed start, step, terminal
+step, stop and restart. Each bound grows with the active set's length, and with the capacity of the
 dimension in its place each is a function of the configuration
 (`AcornVerif.Resource.Twin.beginTemporalCosted_within_capacity`,
 `stepTemporalCosted_within_capacity`, `creditTemporalCosted_within_capacity`,
 `endTemporalCosted_within_capacity`, `stopFollowingCosted_within_capacity`,
 `settleFollowingCosted_within_capacity`, `settleTemporalCosted_within_capacity`,
-`startTemporalCosted_within_capacity`). An option's potential
-(`Interest.potential`) and its off-policy following (`Skill.startFollowing`,
-`Skill.followTemporal`) are not costed yet; the potential has a twin
-(`AcornVerif.Resource.Twin.interestPotential`). A controller's initial
+`startTemporalCosted_within_capacity`, `startFollowingCosted_within_capacity`,
+`followTemporalCosted_within_capacity`). An option's potential (`Interest.potential`) is not
+costed yet and has a twin (`AcornVerif.Resource.Twin.interestPotential`). A controller's initial
 value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
 have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
@@ -413,11 +415,12 @@ with its age slot inserted (`modelInput`, `insert`), its ranked features
 ranked values (`ValueFunction.rankedValues`), the predicted outcome's values
 (`Transition.outcomeValues`), the look-ahead (`Transition.lookahead`), the comparison
 value of a policy (`comparisonValue`) and the model's prediction (`Model.predict`). So are
-an option model's start, step, terminal step and stopped trajectory (`Model.begin`,
-`Model.step`, `Model.terminal`, `Model.stop`), its transition part's (`Transition.begin`,
-`Transition.step`, `Transition.terminal`, `Transition.stop`), the outcome of a terminal frame
-(`Transition.outcome`) and a learner's stopped trajectory (`Managed.stopTrajectory`); a
-model's restart (`Model.restart`) is not costed yet. `Transition.updateRows` keeps its plain
+an option model's start, step, terminal step, stopped trajectory and restart
+(`Model.begin`, `Model.step`, `Model.terminal`, `Model.stop`, `Model.restart`), its
+transition part's (`Transition.begin`, `Transition.step`, `Transition.terminal`,
+`Transition.stop`, `Transition.restart`), the outcome of a terminal frame
+(`Transition.outcome`) and a learner's stopped and restarted trajectories
+(`Managed.stopTrajectory`, `Managed.restartTrajectory`). `Transition.updateRows` keeps its plain
 form beside its costed form `Transition.updateRowsCosted`, and
 `Transition.updateRows_costed` states that the plain form is the costed form's value at
 updates that do no work of their own. A costed

@@ -15,7 +15,7 @@ import AcornVerif.Resource.ModelWork
 
 The bounds of the costed definitions of an option's operations in `Acorn.Options` and of its
 operations with its model in `Acorn.Temporal`, at the model operations of `modelOperations`, the
-ones selection runs, with the adapters the twins read, and the twin of `Interest.potential`. An
+ones the agent runs, with the adapters the twins read, and the twin of `Interest.potential`. An
 option is a policy controller over the world's actions, an option model and an interest;
 `Acorn.Cost` names each costed definition.
 
@@ -405,8 +405,8 @@ theorem terminateOption_costed (κ : Costs)
 
 /-! ## With the option's model
 
-The operations of `Acorn.Temporal` at the model operations of `modelOperations`, the ones
-selection runs. -/
+The operations of `Acorn.Temporal` at the model operations of `modelOperations`, the ones the
+agent's selection and the following of its options run. -/
 
 /-- A started option's continuation holds the start frame. -/
 theorem beginTemporal_frame (skill : Skill actions config criterion dimension discounts)
@@ -605,6 +605,79 @@ theorem startTemporalCosted_within (κ : Costs)
     (congrArg (fun active : SwiftTd.ActiveSet dimension => creditTemporalBound κ _ _ _
       active.indices.length) (beginTemporal_frame _ _ features potential learning rate)))
 
+/-- Bound of the start of a followed trajectory over `width` features. -/
+abbrev startFollowingBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
+  frozenBound κ rows capacity width + (consistentBound κ rows +
+    (startStepBound κ rows capacity width +
+      (modelRestartBound κ capacity positions width + κ .startFollowing)))
+
+/-- The start of a followed trajectory: the frozen policy, the consistency test, the policy's start
+and, on a consistent frame, the model's restart. -/
+theorem startFollowingCosted_within (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (rate : ConsumerRate)
+    (action : Action actions.word.toNat) (behaviour : Vector Binary32 actions.word.toNat) :
+    (skill.startFollowingCosted (modelOperations criterion dimension) features potential rate
+      action behaviour).Within κ (startFollowingBound κ actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity features.indices.length) := by
+  obtain ⟨interest, policy, model, linked, questions⟩ := skill
+  unfold Skill.startFollowingCosted
+  refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+    (skillRateCosted_within κ ⟨interest, policy, model, linked, questions⟩ rate)
+    (Acorn.Costed.bind_within (snapshotCosted_within κ policy features _)
+      (Acorn.Costed.bind_within (consistentCosted_within κ _ behaviour)
+        (Acorn.Costed.bind_within (startStepCosted_within κ policy features action _)
+          (Acorn.Costed.bind_within (Acorn.Costed.ite_within
+            (fun _ => modelRestartCosted_within κ model features _)
+            fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
+            (Acorn.Costed.op_within _ _ κ)))))) ?_
+  simp only [startFollowingBound, frozenBound]
+  omega
+
+/-- Bound of a followed frame over `width` features. -/
+abbrev followTemporalBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
+  decideBound κ rows capacity width + (((consistentBound κ rows +
+    (modelStepBound κ capacity positions width + (backupStepBound κ rows rows capacity width +
+      (modelRestartBound κ capacity positions width + κ .followStep)))) +
+    stopFollowingBound κ rows capacity positions width) +
+    startFollowingBound κ rows capacity positions width)
+
+/-- A followed frame: a start where no trajectory is stored, otherwise the stored trajectory's
+stopping decision, then the consistency test, a live run's model step, the tree-backup credit and
+a restart, or the stop and a new start. -/
+theorem followTemporalCosted_within (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (action : Action actions.word.toNat) (behaviour : Vector Binary32 actions.word.toNat)
+    (reward : Binary32) (gain : RewardRate) :
+    (skill.followTemporalCosted (modelOperations criterion dimension) value features potential
+      goal estimate rate action behaviour reward gain).Within κ
+      (followTemporalBound κ actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity features.indices.length) := by
+  obtain ⟨interest, policy, model, linked, questions⟩ := skill
+  unfold Skill.followTemporalCosted
+  cases linked with
+  | none =>
+    exact (startFollowingCosted_within κ _ features potential rate action behaviour).mono
+      (Nat.le_add_left _ _)
+  | some following =>
+    refine Acorn.Costed.bind_within
+      (decideOptionCosted_within κ _ following.activation features potential goal estimate rate) ?_
+    split
+    · exact Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+        (consistentCosted_within κ _ behaviour) (Acorn.Costed.bind_within (Acorn.Costed.ite_within
+          (fun _ => modelStepCosted_within κ model features following.age reward)
+          fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
+          (Acorn.Costed.bind_within (backupStepCosted_within κ policy features _ action _)
+            (Acorn.Costed.bind_within (Acorn.Costed.ite_within
+              (fun _ => modelRestartCosted_within κ _ features following.age)
+              fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
+              (Acorn.Costed.op_within _ _ κ))))) (by omega)
+    · exact Acorn.Costed.Within.mono (Acorn.Costed.bind_within
+        (stopFollowingCosted_within κ _ value features following potential estimate reward gain)
+        (startFollowingCosted_within κ _ features potential rate action behaviour)) (by omega)
+
 /-! ### Bounds of the configuration -/
 
 /-- A model start's bound grows with the number of features. -/
@@ -770,6 +843,68 @@ theorem startTemporalCosted_within_capacity (κ : Costs)
     learning drawn).mono (Nat.add_le_add (settleBound_mono κ _ _ _ fits)
       (Nat.add_le_add (beginTemporalBound_mono κ _ _ _ fits)
         (creditTemporalBound_mono κ _ _ _ fits)))
+
+/-- A model restart's bound grows with the number of features. -/
+theorem modelRestartBound_mono (κ : Costs) (capacity positions : Nat) {width limit : Nat}
+    (fits : width ≤ limit) :
+    modelRestartBound κ capacity positions width ≤
+      modelRestartBound κ capacity positions limit := by
+  simp only [modelRestartBound, inputBound, restartTrajectoryBound, stepBound, secondLoopBound,
+    transitionRestartBound, rowInputBound, updateRowsBound, pass, Library.work, Library.control,
+    Library.passes]
+  gcongr
+
+/-- The bound of the start of a followed trajectory grows with the number of features. -/
+theorem startFollowingBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
+    (fits : width ≤ limit) :
+    startFollowingBound κ rows capacity positions width ≤
+      startFollowingBound κ rows capacity positions limit := by
+  have := frozenBound_mono κ rows capacity fits
+  have := secondLoopBound_mono κ fits
+  have := modelRestartBound_mono κ capacity positions fits
+  simp only [startFollowingBound, startStepBound, creditStepBound]
+  omega
+
+/-- The bound of a followed frame grows with the number of features. -/
+theorem followTemporalBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
+    (fits : width ≤ limit) :
+    followTemporalBound κ rows capacity positions width ≤
+      followTemporalBound κ rows capacity positions limit := by
+  have := frozenBound_mono κ rows capacity fits
+  have := secondLoopBound_mono κ fits
+  have := modelStepBound_mono κ capacity positions fits
+  have := modelRestartBound_mono κ capacity positions fits
+  have := modelStopBound_mono κ capacity positions fits
+  have := startFollowingBound_mono κ rows capacity positions fits
+  simp only [followTemporalBound, decideBound, backupStepBound, creditStepBound,
+    stopFollowingBound]
+  omega
+
+/-- The start of a followed trajectory is within a function of the configuration alone. -/
+theorem startFollowingCosted_within_capacity (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (rate : ConsumerRate)
+    (action : Action actions.word.toNat) (behaviour : Vector Binary32 actions.word.toNat) :
+    (skill.startFollowingCosted (modelOperations criterion dimension) features potential rate
+      action behaviour).Within κ (startFollowingBound κ actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity dimension.capacity) :=
+  (startFollowingCosted_within κ skill features potential rate action behaviour).mono
+    (startFollowingBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
+
+/-- A followed frame is within a function of the configuration alone. -/
+theorem followTemporalCosted_within_capacity (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
+    (action : Action actions.word.toNat) (behaviour : Vector Binary32 actions.word.toNat)
+    (reward : Binary32) (gain : RewardRate) :
+    (skill.followTemporalCosted (modelOperations criterion dimension) value features potential
+      goal estimate rate action behaviour reward gain).Within κ
+      (followTemporalBound κ actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity dimension.capacity) :=
+  (followTemporalCosted_within κ skill value features potential goal estimate rate action
+    behaviour reward gain).mono
+    (followTemporalBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
 
 /-! ### Adapters -/
 

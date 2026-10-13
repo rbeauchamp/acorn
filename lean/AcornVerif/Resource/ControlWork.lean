@@ -514,6 +514,16 @@ theorem probabilitiesCosted_within (κ : Costs) (snapshot : PolicySnapshot count
   simp only [probabilitiesBound]
   omega
 
+/-- Bound of the consistency test over `size` actions. -/
+abbrev consistentBound (κ : Costs) (size : Nat) : Nat :=
+  probabilitiesBound κ size + Library.vectorEq.control (κ .visit + κ .compare) size
+
+theorem consistentCosted_within (κ : Costs) (snapshot : PolicySnapshot count)
+    (behaviour : Vector Binary32 count.word.toNat) :
+    (snapshot.consistentCosted behaviour).Within κ (consistentBound κ count.word.toNat) :=
+  Acorn.Costed.bind_within (probabilitiesCosted_within κ snapshot)
+    (Acorn.Costed.vectorEq_within _ behaviour κ)
+
 theorem drawCosted_within (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
     (snapshot.drawCosted rng).Within κ
       (κ .drawClose + max (κ .uniform) (greedyBound κ count.word.toNat)) :=
