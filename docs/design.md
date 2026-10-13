@@ -371,7 +371,12 @@ operations (`Acorn.Options`): its start (`Skill.beginOption`), termination decis
 (`Skill.optionCredit`), frozen policy (`Skill.frozenPolicy`) and termination
 (`Skill.terminateOption`). Their costed definitions resolve an option's rate through
 `ConsumerRate.resolveCosted`, whose value is the plain resolution at the values of its
-callback (`ConsumerRate.resolveCosted_val`). An option's potential
+callback (`ConsumerRate.resolveCosted_val`). The termination's bound is a function of the
+configuration; the others grow with the active set's length, and with the capacity of the
+dimension in its place they are functions of the configuration too
+(`AcornVerif.Resource.Twin.beginOptionCosted_within_capacity`,
+`decideOptionCosted_within_capacity`, `optionStepCosted_within_capacity`,
+`optionCreditCosted_within_capacity`, `frozenPolicyCosted_within_capacity`). An option's potential
 (`Interest.potential`) and its operations with its model (`Acorn.Temporal`) are not costed
 yet and have twins (`AcornVerif.Resource.Twin.interestPotential` and the twins of
 `AcornVerif.Resource.OptionWork`). A controller's initial

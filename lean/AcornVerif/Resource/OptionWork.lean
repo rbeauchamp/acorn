@@ -15,7 +15,11 @@ adapters the twins read, and twins of `Interest.potential` and of the operations
 is a policy controller over the world's actions, an option model and an interest; `Acorn.Cost`
 names each costed definition.
 
-Each `_within` theorem bounds a costed definition directly. An adapter pairs the executed
+Each `_within` theorem bounds a costed definition directly. Where that bound grows with an active
+set's length, a `_within_capacity` theorem bounds the definition by a function of the configuration
+alone, with the capacity of the dimension in place of the length: every active set fits the
+dimension (`AcornVerif.CurrentLearner.active_cardinality`), and the set of every index fills it
+(`AcornVerif.CurrentLearner.active_cardinality_attained`). An adapter pairs the executed
 definition's value with that bound, and its `_costed` theorem checks the bound against the costed
 definition. Each twin here is the executed operation's value with the work of a costed run that
 follows the operation's control flow: the run tests the conditions the executed operation tests,
@@ -56,6 +60,23 @@ theorem frozenPolicyCosted_within (κ : Costs)
       (frozenBound κ actions.word.toNat dimension.capacity features.indices.length) :=
   Acorn.Costed.bind_within (skillRateCosted_within κ skill rate)
     (snapshotCosted_within κ skill.policy features _)
+
+/-- An option's frozen policy's bound grows with the number of features. -/
+theorem frozenBound_mono (κ : Costs) (rows capacity : Nat) {width limit : Nat}
+    (fits : width ≤ limit) :
+    frozenBound κ rows capacity width ≤ frozenBound κ rows capacity limit :=
+  Nat.add_le_add_left (Nat.add_le_add_right (Library.vectorMap.work_mono (Nat.le_refl _)
+    (Library.foldl.work_mono fits (Nat.le_refl _))) _) _
+
+/-- An option's frozen policy is within a function of the configuration alone: the number of
+actions, the capacity of the dimension and the cost model. -/
+theorem frozenPolicyCosted_within_capacity (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (features : SwiftTd.ActiveSet dimension) (rate : ConsumerRate) :
+    (skill.frozenPolicyCosted features rate).Within κ
+      (frozenBound κ actions.word.toNat dimension.capacity dimension.capacity) :=
+  (frozenPolicyCosted_within κ skill features rate).mono
+    (frozenBound_mono κ _ _ (CurrentLearner.active_cardinality features))
 
 /-- The costed run of `Interest.potential`: a learned assignment's feature slot and, when it
 has one, its membership test of the frame, or a declared value read. -/
@@ -134,6 +155,18 @@ theorem decideOptionCosted_within (κ : Costs)
     (Acorn.Costed.ite_within (fun _ => Acorn.Costed.pure_within _ κ)
       fun _ => Acorn.Costed.pure_within _ κ)
 
+/-- An option's termination decision is within a function of the configuration alone: the number
+of actions, the capacity of the dimension and the cost model. -/
+theorem decideOptionCosted_within_capacity (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
+    (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate) :
+    (skill.decideOptionCosted activation features potential goal estimate rate).Within κ
+      (decideBound κ actions.word.toNat dimension.capacity dimension.capacity) :=
+  (decideOptionCosted_within κ skill activation features potential goal estimate rate).mono
+    (Nat.add_le_add_right
+      (frozenBound_mono κ _ _ (CurrentLearner.active_cardinality features)) _)
+
 /-- `Skill.decideOption` with its bound. -/
 def decideOption (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
@@ -186,6 +219,18 @@ theorem beginOptionCosted_within (κ : Costs)
   exact Acorn.Costed.charge_within (Acorn.Costed.bind_within (skillRateCosted_within κ _ rate)
     (Acorn.Costed.bind_within (snapshotCosted_within κ _ features _)
       (Acorn.Costed.pure_within _ κ)))
+
+/-- An option's start is within a function of the configuration alone: the number of actions, the
+capacity of the dimension and the cost model. -/
+theorem beginOptionCosted_within_capacity (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
+    (rate : ConsumerRate) :
+    (skill.beginOptionCosted features potential learning rate).Within κ
+      (beginOptionBound κ actions.word.toNat dimension.capacity dimension.capacity) :=
+  (beginOptionCosted_within κ skill features potential learning rate).mono
+    (Nat.add_le_add_left (Nat.add_le_add_left
+      (frozenBound_mono κ _ _ (CurrentLearner.active_cardinality features)) _) _)
 
 /-- `Skill.beginOption` with its bound. -/
 def beginOption (κ : Costs) (skill : Skill actions config criterion dimension discounts)
@@ -278,6 +323,28 @@ theorem optionStepCosted_within (κ : Costs)
       fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)))
     (Acorn.Costed.pure_within _ κ)
 
+/-- A frozen-decision credit's bound grows with the number of features. -/
+theorem policyStepBound_mono (κ : Costs) (rows capacity : Nat) {width limit : Nat}
+    (fits : width ≤ limit) :
+    policyStepBound κ rows capacity width ≤ policyStepBound κ rows capacity limit := by
+  have read := Library.map.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
+  have sum := Library.foldl.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .sumTerm))
+  have second := pass_mono (visit := κ .visit) fits (Nat.le_refl (κ .secondElement))
+  simp only [policyStepBound, creditStepBound, secondLoopBound]
+  omega
+
+/-- An option step is within a function of the configuration alone: the number of actions, the
+capacity of the dimension and the cost model. -/
+theorem optionStepCosted_within_capacity (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
+    (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
+    (skill.optionStepCosted activation next reward gain rng).Within κ
+      (optionStepBound κ actions.word.toNat dimension.capacity dimension.capacity) :=
+  (optionStepCosted_within κ skill activation next reward gain rng).mono
+    (Nat.add_le_add_left (Nat.add_le_add_left
+      (policyStepBound_mono κ _ _ (CurrentLearner.active_cardinality next.features)) _) _)
+
 /-- `Skill.optionStep` with its bound. -/
 def optionStep (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -321,6 +388,19 @@ theorem optionCreditCosted_within (κ : Costs)
       (persistentStepCosted_within κ skill.policy next.features next.policy drawn _ _)
       (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _)))
     fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
+
+/-- The credit of a drawn decision is within a function of the configuration alone: the number of
+actions, the capacity of the dimension and the cost model. -/
+theorem optionCreditCosted_within_capacity (κ : Costs)
+    (skill : Skill actions config criterion dimension discounts)
+    (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
+    (drawn : PersistentDecision actions) (reward : Binary32) (gain : RewardRate) :
+    (skill.optionCreditCosted activation next drawn reward gain).Within κ
+      (κ .optionStep +
+        policyStepBound κ actions.word.toNat dimension.capacity dimension.capacity) :=
+  (optionCreditCosted_within κ skill activation next drawn reward gain).mono
+    (Nat.add_le_add_left
+      (policyStepBound_mono κ _ _ (CurrentLearner.active_cardinality next.features)) _)
 
 /-- An option's termination: its records and a learning option's terminal credit. -/
 theorem terminateOptionCosted_within (κ : Costs)

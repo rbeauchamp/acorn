@@ -76,6 +76,13 @@ theorem active_cardinality (features : ActiveSet dimension) :
     features.indices.length ≤ dimension.capacity := by
   simpa using features.nodup.length_le_card
 
+/-- The capacity is the greatest size of an active set: the set of every index fills the
+dimension. A bound at the capacity in place of an active set's length is therefore that bound at
+some active set. -/
+theorem active_cardinality_attained (dimension : Dimension) :
+    ∃ features : ActiveSet dimension, features.indices.length = dimension.capacity :=
+  ⟨⟨List.finRange dimension.capacity, List.nodup_finRange _⟩, List.length_finRange⟩
+
 /-- A unique eligible sequence fits the dimension; uniqueness is an explicit
 premise because standalone second-loop calls may append existing members. -/
 theorem eligible_cardinality (state : NumericState config dimension)
