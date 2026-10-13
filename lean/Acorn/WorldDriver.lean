@@ -43,11 +43,16 @@ def word (text : String) (width : Nat) : Except String Nat :=
   | none => .error s!"invalid unsigned integer: {text}"
   | some value => if value < 2 ^ width then .ok value else .error s!"integer overflow: {text}"
 
-/-- A terrain coordinate is read as the standard side is (`Cli.side`), independent of world
-bounds: an unsigned number of the command line below `2 ^ 63`, so the diagnostic reads no
-negative coordinate. -/
+/-- A terrain coordinate, independent of world bounds: a signed integer of the command line
+(`Digits.integer`), an optional minus sign or plus sign and then the digits `0` to `9`, from
+`-2 ^ 63` to `2 ^ 63 - 1` (`Coordinate.checked`). -/
 def coordinate (text : String) : Except String Coordinate :=
-  (Cli.side ["--side", text]).mapError cliError
+  match Digits.integer text with
+  | none => .error s!"invalid signed integer: {text}"
+  | some value =>
+    match Coordinate.checked value with
+    | none => .error s!"coordinate overflow: {text}"
+    | some coordinate => .ok coordinate
 
 /-- Native world consumer executes initialization, finite-prefix transition and observation. -/
 @[noinline] def execute (seed : UInt64) (side : Coordinate) (actions : List Action) : Except String String := do
@@ -71,7 +76,7 @@ def dispatch (arguments : List String) : Except String (IO String) := do
     | .external _ _ => return pure "admitted external command; this driver checks its syntax only"
   | "actions" :: seed :: side :: actionTexts =>
     let seed := (← word seed 64).toUInt64
-    let side ← coordinate side
+    let side ← (Cli.side ["--side", side]).mapError cliError
     let actions ← actionTexts.mapM (fun text => return Action.fromIndex (← word text 64))
     return do
       match execute seed side actions with
@@ -87,7 +92,9 @@ def dispatch (arguments : List String) : Except String (IO String) := do
       | .error error => throw (IO.userError error)
       | .ok kind => pure s!"kind={kind}"
   | _ => .error ("usage: world-native actions SEED SIDE [ACTION_INDEX ...] | " ++
-    s!"terrain X Y SEED SCALE_BITS | admit [COMMAND FLAGS ...]\n{Digits.usage}")
+    s!"terrain X Y SEED SCALE_BITS | admit [COMMAND FLAGS ...]\n{Digits.usage} " ++
+    "X and Y are the digits 0 to 9 with an optional leading - or +, " ++
+    "from -9223372036854775808 to 9223372036854775807.")
 
 end Acorn.WorldDriver
 

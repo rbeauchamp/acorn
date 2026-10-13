@@ -2379,11 +2379,13 @@ attribute [regula_decision] Host.CheckpointStatus.parse
 
 /-! ## Decimal digits and the arguments of the native drivers
 
-`Digits.natural` reads every number of an Acorn command line, and `Digits.read` the decimal
-digits of the other readers that `Acorn.Digits` lists; the numbers of the Microduck's JSON
-frames follow the grammar of RFC 8259 through `Json.Value.numeral` instead. `Host.AgentArguments.admit` reads the
-numbers of the native agent and checkpoint drivers with `Digits.natural`. The specifications are the grammars `Digits.Spelled`,
-`Digits.Natural` and `Host.AgentArguments.Admitted`, and the relation
+`Digits.natural` reads every unsigned number of an Acorn command line, `Digits.integer` the
+signed terrain coordinates of `world-native`, and `Digits.read` the decimal digits of the other
+readers that `Acorn.Digits` lists; the numbers of the Microduck's JSON frames follow the grammar
+of RFC 8259 through `Json.Value.numeral` instead. `Host.AgentArguments.admit` reads the numbers
+of the native agent and checkpoint drivers with `Digits.natural`. The specifications are the
+grammars `Digits.Spelled`, `Digits.Natural`, `Digits.Integer` and
+`Host.AgentArguments.Admitted`, and the relation
 `Host.AgentArguments.Constructs` between an argument list and what admission returns, written
 beside the readers with no executed function: each number has its value in positional
 notation, which the private lemma `digits_fold` connects with the left fold of the readers. -/
@@ -2522,6 +2524,89 @@ the kind `digits_natural`. -/
 theorem digits_natural_value : Regula.ExecutableContract Digits.natural (fun natural =>
     ∀ text n, natural text = some n ↔ Digits.Natural text n) :=
   ⟨natural_iff⟩
+
+/-- `Digits.integer` accepts exactly the texts of `Digits.Integer`, with their value. -/
+private theorem integer_iff (text : String) (z : Int) :
+    Digits.integer text = some z ↔ Digits.Integer text z := by
+  have notDigit : ∀ c : Char, c = '+' ∨ c = '-' → ¬ (48 ≤ c.toNat ∧ c.toNat ≤ 57) := by
+    rintro c (rfl | rfl) <;> decide
+  unfold Digits.integer Digits.Integer
+  split
+  · rename_i digits minus
+    simp only [Option.map_eq_some_iff, read_iff, Digits.Spelled, String.toList_ofList, minus]
+    constructor
+    · rintro ⟨n, ⟨nonempty, each, value⟩, rfl⟩
+      exact ⟨['-'], digits, .inr (.inr rfl), nonempty, each, rfl, by subst value; simp⟩
+    · rintro ⟨sign, others, unsigned | plus | signed, nonempty, each, spelled, value⟩
+      · subst unsigned
+        cases others with
+        | nil => exact absurd rfl nonempty
+        | cons c more =>
+          simp only [List.nil_append, List.cons.injEq] at spelled
+          exact absurd (spelled.1 ▸ each c (by simp)) (notDigit '-' (.inr rfl))
+      · subst plus
+        simp at spelled
+      · subst signed
+        simp only [List.cons_append, List.nil_append, List.cons.injEq, true_and] at spelled
+        subst spelled
+        exact ⟨_, ⟨nonempty, each, rfl⟩, by subst value; simp⟩
+  · rename_i digits plus
+    simp only [Option.map_eq_some_iff, read_iff, Digits.Spelled, String.toList_ofList, plus]
+    constructor
+    · rintro ⟨n, ⟨nonempty, each, value⟩, rfl⟩
+      exact ⟨['+'], digits, .inr (.inl rfl), nonempty, each, rfl, by subst value; simp⟩
+    · rintro ⟨sign, others, unsigned | plus | signed, nonempty, each, spelled, value⟩
+      · subst unsigned
+        cases others with
+        | nil => exact absurd rfl nonempty
+        | cons c more =>
+          simp only [List.nil_append, List.cons.injEq] at spelled
+          exact absurd (spelled.1 ▸ each c (by simp)) (notDigit '+' (.inl rfl))
+      · subst plus
+        simp only [List.cons_append, List.nil_append, List.cons.injEq, true_and] at spelled
+        subst spelled
+        exact ⟨_, ⟨nonempty, each, rfl⟩, by subst value; simp⟩
+      · subst signed
+        simp at spelled
+  · rename_i minus plus
+    simp only [Option.map_eq_some_iff, read_iff, Digits.Spelled]
+    constructor
+    · rintro ⟨n, ⟨nonempty, each, value⟩, rfl⟩
+      exact ⟨[], text.toList, .inl rfl, nonempty, each, rfl, by subst value; simp⟩
+    · rintro ⟨sign, digits, unsigned | signed | negated, nonempty, each, spelled, value⟩
+      · subst unsigned
+        simp only [List.nil_append] at spelled
+        subst spelled
+        exact ⟨_, ⟨nonempty, each, rfl⟩, by subst value; simp⟩
+      · subst signed
+        exact absurd spelled (plus digits)
+      · subst negated
+        exact absurd spelled (minus digits)
+
+/-- A signed integer on the command line accepts exactly an optional minus sign or plus sign
+followed by at least one digit (`Digits.Integer`). The specification is the grammar, which states
+each character by its code, and shares no test with the function. The two inputs of the proof are
+`-0`, which is accepted with the value zero, and the text `-`, which is refused. -/
+theorem digits_integer : Regula.ExecutableContract Digits.integer
+    (Regula.Decides (·.isSome = true) (fun text => ∃ z, Digits.Integer text z)) :=
+  ⟨decides
+    (fun text => Option.isSome_iff_exists.trans (exists_congr fun z => integer_iff text z))
+    ⟨"-0", 0, ['-'], ['0'], .inr (.inr rfl), by simp, by simp, by simp, by simp⟩
+    ⟨"-", fun ⟨_, sign, digits, signs, nonempty, each, spelled, _⟩ => by
+      rcases signs with rfl | rfl | rfl <;> cases digits <;> simp at nonempty spelled
+      obtain ⟨rfl, rfl⟩ := spelled
+      exact absurd (each '-' (by simp)) (by decide)⟩⟩
+
+attribute [regula_decision] Digits.integer
+
+/-- The integer that a signed integer on the command line reads as: for every text and integer,
+the reader returns the integer exactly when the text is an optional minus sign or plus sign and
+digits whose value in positional notation, negated after a minus sign, is that integer
+(`Digits.Integer`). A kind states accepted inputs and not the value of an accepted result, so
+this statement is a requirement with no kind beside the kind `digits_integer`. -/
+theorem digits_integer_value : Regula.ExecutableContract Digits.integer (fun integer =>
+    ∀ text z, integer text = some z ↔ Digits.Integer text z) :=
+  ⟨integer_iff⟩
 
 /-- The native word reader returns a machine word exactly for the text of an unsigned number of
 the command line with that word's value (`natural_iff`); a number of `2 ^ 64` or more is

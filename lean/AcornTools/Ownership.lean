@@ -293,6 +293,7 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Handcrafted.Predictions.admit),
   (`Acorn.Decisions, `Acorn.Decisions.digits_read_value, `Acorn.Digits.read),
   (`Acorn.Decisions, `Acorn.Decisions.digits_natural_value, `Acorn.Digits.natural),
+  (`Acorn.Decisions, `Acorn.Decisions.digits_integer_value, `Acorn.Digits.integer),
   (`Acorn.Decisions, `Acorn.Decisions.agent_arguments_admit_value,
     `Acorn.Host.AgentArguments.admit),
   (`Acorn.Host.Microduck.Wire, `Acorn.Host.Microduck.Line.read_state,

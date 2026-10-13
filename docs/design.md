@@ -2064,7 +2064,9 @@ These are core flags, not viewer flags. See
 A number on any Acorn command line, a core flag or an argument of a native driver
 alike, is the digits `0` to `9` with an optional leading `+`; a minus sign, a digit
 separator such as `_` and white space are refused
-([the digit reader](../lean/Acorn/Digits.lean)).
+([the digit reader](../lean/Acorn/Digits.lean)). The one signed exception is the pair
+of terrain coordinates of `world-native terrain X Y SEED SCALE_BITS`, which take an
+optional leading `-` or `+` and range from -2^63 to 2^63 - 1.
 
 After building with the launcher, a short terminal example is:
 
