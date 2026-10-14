@@ -313,8 +313,9 @@ theorem yet establishes, which a later increment of requirement R8 owes:
   listed below, of the frozen policy and of its exploration, of the encoding of a frame,
   of an option model's input, ranked features, prediction and updates, of the prediction
   demons' bank step, of every option's off-policy questions, of an option's rate,
-  start, termination decision, step, credit, frozen policy and termination, and of its
-  operations with its model, described below;
+  potential, start, termination decision, step, credit, frozen policy and termination,
+  of its operations with its model, and of one slot's share of a followed frame,
+  described below;
 - the correspondence of the twins of selection, among them the controllers' initial
   value and reset, with the executed definitions: the twins'
   charges were compared with the compiled call multisets of one build by a one-time
@@ -401,8 +402,9 @@ dimension in its place each is a function of the configuration
 the value of its costed definition, which for a learned option tests its feature slot's
 membership in the frame by a scan (`Assignment.potential`, `Costed.mem`), and so is one
 slot's share of a followed frame (`followSlot`), which reads the potential and updates the
-option's policy and model off-policy; the option's questions learn in `askQuestions`. Both bounds grow with the active set's length, and with the
-capacity of the dimension in its place the slot's is a function of the configuration
+option's policy and model off-policy; the option's questions learn in `askQuestions`. Both
+bounds grow with the active set's length, and with the capacity of the dimension in its
+place the slot's is a function of the configuration
 (`AcornVerif.Resource.Twin.potentialCosted_within`,
 `AcornVerif.Resource.Twin.followSlotCosted_within_capacity`). A controller's initial
 value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
