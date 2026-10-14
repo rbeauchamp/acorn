@@ -789,7 +789,7 @@ theorem followSlot_event (models : OptionModelOps criterion dimension)
         executing skill =
       followSlot models value features declared second estimate rate action behaviour reward
         gain executing skill := by
-  unfold followSlot
+  rw [followSlot_def, followSlot_def]
   cases executing with
   | true => rfl
   | false =>

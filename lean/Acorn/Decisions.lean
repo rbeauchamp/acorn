@@ -5695,9 +5695,9 @@ theorem assignment_potential : Regula.ExecutableContract @Assignment.potential (
     (fun input => by
       show input.assignment.potential input.active = true ↔ _
       cases input.assignment with
-      | neutral => simp [Assignment.potential, Assignment.feature]
+      | neutral => simp [Assignment.potential_def, Assignment.feature]
       | selected unit bonus =>
-        simp only [Assignment.potential, Assignment.feature, decide_eq_true_eq,
+        simp only [Assignment.potential_def, Assignment.feature, decide_eq_true_eq,
           Assignment.selected.injEq]
         exact ⟨fun member => ⟨unit, bonus, ⟨rfl, rfl⟩, member⟩,
           fun ⟨_, _, ⟨same, _⟩, member⟩ => same ▸ member⟩)
@@ -7539,7 +7539,7 @@ theorem dispatch_meta : Regula.ExecutableContract @TemporalControl.dispatchMeta 
         cases state.runtime.lifecycle.consumers.skills[slot.val].interest with
         | learned assignment => exact fun _ => .inl ⟨assignment, rfl⟩
         | declared origin tag =>
-          simp only [Interest.potential]
+          simp only [Interest.potential_def]
           split
           · rename_i same
             exact fun _ => .inr ⟨tag, by rw [same]⟩
@@ -7550,7 +7550,7 @@ theorem dispatch_meta : Regula.ExecutableContract @TemporalControl.dispatchMeta 
         · rw [learnedInterest]
           rfl
         · rw [declaredInterest]
-          simp [Interest.potential, bind, Option.bind]⟩
+          simp [Interest.potential_def, bind, Option.bind]⟩
 
 /-- A free dispatch accepts every aligned state with the potentials of a frame, and returns an
 aligned state (`TemporalControl.boundary_total`); it refuses `foreignFree`, whose dispatch draws

@@ -129,12 +129,29 @@ def Assignment.feature (dimension : Dimension) {config : Config} : Assignment co
   | .neutral => none
   | .selected unit _ => some (unitFeature dimension config unit)
 
+/-- The potential with its work: the feature slot, then its membership test of the frame. -/
+def Assignment.potentialCosted {dimension : Dimension} {config : Config}
+    (assignment : Assignment config) (active : SwiftTd.ActiveSet dimension) : Costed Bool :=
+  Costed.charge .assignmentPotential
+    (match assignment.feature dimension with
+    | none => Costed.pure false
+    | some feature => Costed.mem feature active.indices dimension.wordBound)
+
 /-- The Boolean hashed-slot potential, preserving collision semantics. -/
 def Assignment.potential {dimension : Dimension} {config : Config}
     (assignment : Assignment config) (active : SwiftTd.ActiveSet dimension) : Bool :=
-  match assignment.feature dimension with
-  | none => false
-  | some feature => decide (feature ∈ active.indices)
+  (assignment.potentialCosted active).val
+
+/-- The potential is set exactly when the assignment has a feature slot and the frame holds
+it. -/
+theorem Assignment.potential_def {dimension : Dimension} {config : Config}
+    (assignment : Assignment config) (active : SwiftTd.ActiveSet dimension) :
+    assignment.potential active =
+      match assignment.feature dimension with
+      | none => false
+      | some feature => decide (feature ∈ active.indices) := by
+  unfold Assignment.potential Assignment.potentialCosted
+  cases assignment.feature dimension <;> rfl
 
 /-- The exact held bonus word; neutral uses positive zero. -/
 def Assignment.bonus {config : Config} : Assignment config → Binary32

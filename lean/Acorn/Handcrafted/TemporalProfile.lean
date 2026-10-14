@@ -107,6 +107,6 @@ theorem spatial_admitted {interface : Interface} {config : Features.Config} {dim
     (tag : Fin Acorn.FeatureConstants.skillCount) (features : SwiftTd.ActiveSet dimension)
     (frame : Frame interface) :
     (Interest.declared (config := config) .spatialPotentials tag).potential features frame.declared =
-      some (frame.potentials.get tag) := by simp [Interest.potential, Frame.declared]
+      some (frame.potentials.get tag) := by simp [Interest.potential_def, Frame.declared]
 
 end Acorn.Handcrafted

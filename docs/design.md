@@ -313,8 +313,9 @@ theorem yet establishes, which a later increment of requirement R8 owes:
   listed below, of the frozen policy and of its exploration, of the encoding of a frame,
   of an option model's input, ranked features, prediction and updates, of the prediction
   demons' bank step, of every option's off-policy questions, of an option's rate,
-  start, termination decision, step, credit, frozen policy and termination, and of its
-  operations with its model, described below;
+  potential, start, termination decision, step, credit, frozen policy and termination,
+  of its operations with its model, and of one slot's share of a followed frame,
+  described below;
 - the correspondence of the twins of selection, among them the controllers' initial
   value and reset, with the executed definitions: the twins'
   charges were compared with the compiled call multisets of one build by a one-time
@@ -397,8 +398,15 @@ dimension in its place each is a function of the configuration
 `endTemporalCosted_within_capacity`, `stopFollowingCosted_within_capacity`,
 `settleFollowingCosted_within_capacity`, `settleTemporalCosted_within_capacity`,
 `startTemporalCosted_within_capacity`, `startFollowingCosted_within_capacity`,
-`followTemporalCosted_within_capacity`). An option's potential (`Interest.potential`) is not
-costed yet and has a twin (`AcornVerif.Resource.Twin.interestPotential`). A controller's initial
+`followTemporalCosted_within_capacity`). An option's potential (`Interest.potential`) is also
+the value of its costed definition, which for a learned option tests its feature slot's
+membership in the frame by a scan (`Assignment.potential`, `Costed.mem`), and so is one
+slot's share of a followed frame (`followSlot`), which reads the potential and updates the
+option's policy and model off-policy; the option's questions learn in `askQuestions`. Both
+bounds grow with the active set's length, and with the capacity of the dimension in its
+place the slot's is a function of the configuration
+(`AcornVerif.Resource.Twin.potentialCosted_within`,
+`AcornVerif.Resource.Twin.followSlotCosted_within_capacity`). A controller's initial
 value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
 have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
@@ -541,7 +549,16 @@ with no charge point. That is why the claim that every segment is bounded by a c
 of the code is limited to the first part and to each costed definition's own call. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
-is owed by a later increment of R8.
+is owed by a later increment of R8. The following of the option table
+(`TemporalControl.followOptions`) is not yet the value of a costed definition either: before
+it maps each slot's share (`followSlot`), it computes the stopping estimate
+(`TemporalControl.stoppingEstimate`), the options' rate (`TemporalControl.skillRate`) and the
+value function (`TemporalControl.valueFunction`), which read the controllers' rates
+(`Controller.exploreRate`) and the stopping comparison (`comparisonValue`), values of costed
+definitions, with no charge point. The bound of a slot's share
+(`AcornVerif.Resource.Twin.followSlotCosted_within`) takes those three as computed and does not
+count their computation; costing the table's following with them is owed by the next increment
+of R8.
 
 ### The time a world declares
 

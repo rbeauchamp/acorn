@@ -39,13 +39,35 @@ structure DeclaredPotentials where
   /-- Closed option-slot order. -/
   values : Vector Potential Acorn.FeatureConstants.skillCount
 
+/-- The potential of an interest with its work: a learned assignment's potential, or the read of
+a declared value. -/
+def Interest.potentialCosted {config : Config} {dimension : Dimension} (interest : Interest config)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
+    Costed (Option Potential) :=
+  match interest with
+  | .learned assignment => do
+    let potential ← assignment.potentialCosted features
+    pure (some potential)
+  | .declared origin tag => Costed.op .declaredPotential
+    (if origin = declared.origin then some (declared.values.get tag) else none)
+
 /-- Learned assignments read their own receiving feature slot; declared choices
 read the matching source, refusing a mismatched declaration before execution. -/
 def Interest.potential {config : Config} {dimension : Dimension} (interest : Interest config)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) : Option Potential :=
-  match interest with
-  | .learned assignment => some (assignment.potential features)
-  | .declared origin tag => if origin = declared.origin then some (declared.values.get tag) else none
+  (interest.potentialCosted features declared).val
+
+/-- A learned interest has its assignment's potential, and a declared one the declared value
+of its tag when the source has its origin. -/
+theorem Interest.potential_def {config : Config} {dimension : Dimension}
+    (interest : Interest config) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) :
+    interest.potential features declared =
+      match interest with
+      | .learned assignment => some (assignment.potential features)
+      | .declared origin tag =>
+        if origin = declared.origin then some (declared.values.get tag) else none := by
+  cases interest <;> rfl
 
 /-- Held attainment bonuses remain part of learned stopping values, including at goal
 termination. Declared spatial subtasks have no attainment bonus. -/
