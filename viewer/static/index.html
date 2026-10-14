@@ -835,13 +835,13 @@ const pct = (x, d) => (x*100).toFixed(d == null ? 1 : d) + "%";
    once into preallocated typed arrays. Frames are addressed by a monotonic
    id; slot = id % CAP. Valid ids are [head-CAP, head-1], which makes the ring
    wrap-safe — scrubbing across the wrap point stays in time order.
-   The generated kernel's `observerRing` binds the store to `CAP`: `S` is the
-   columns, `slot` the ring index of an id, `store(id, f)` the write of a
-   validated record — never called with anything else — and `frame(id)` a
-   plain view of one stored frame for the renderers, the generated inverse of
-   `store` from the same column table.
+   The generated kernel declares `CAP`, as it declares every page constant
+   of `BrowserConstant`, and its `observerRing` binds the store to `CAP`:
+   `S` is the columns, `slot` the ring index of an id, `store(id, f)` the
+   write of a validated record — never called with anything else — and
+   `frame(id)` a plain view of one stored frame for the renderers, the
+   generated inverse of `store` from the same column table.
    ========================================================================== */
-const CAP = 30000;
 const {S, slot, store, frame} = observerRing(CAP);
 let head = 0;                       // frames ever accepted; newest id = head-1
 
@@ -1471,7 +1471,6 @@ function announce(f) {
    is invented — every figure is an arithmetic mean of stream values — and the
    mode is always stated beside the number.
    ========================================================================== */
-const WIN = 1000;
 const statsCache = { id: -1, st: null };
 function windowStats(id) {
   if (statsCache.id === id && statsCache.st) return statsCache.st;
@@ -1524,7 +1523,6 @@ function windowStats(id) {
    to CSS units, so drawing code works in logical pixels while the result stays
    crisp on a retina display. `cv._w` / `cv._h` are the logical dimensions.
    ========================================================================== */
-const Z = 4;                          // logical px per tile on the stage (UX-28)
 const LANE_H = 52;                    // px per demon lane: with the 5 % range floor a 1 % error is 7 px, above the stroke
 
 function fitCanvas(cv, logicalH) {
@@ -2620,7 +2618,6 @@ function drawLifetimeGoals(f) {
 
 /* ---------- options ribbon ---------- */
 const ribCv = $("ribbon"), ribG = ribCv.getContext("2d");
-const RIBBON_SPAN = 3000;                              // buffered frames the ribbon shows
 function drawRibbon(cursorId) {
   const W = ribCv._w, H = ribCv._h;
   ribG.clearRect(0,0,W,H);
@@ -2785,9 +2782,9 @@ function drawStreamHealth() {
 /* Text readouts are redrawn at a reading pace, not a frame pace. The canvases
    that show motion — stage, sensor, ribbon, lanes — redraw every frame; the
    numbers a reader has to *read* redraw at most every `READ_MS` while the
-   cursor moves, and at once when it lands (a pause, a scrub). No timer is
+   cursor moves, at once when it lands (a pause, a scrub), and on every frame
+   the cursor reaches while replay runs at 10 frames/s or slower. No timer is
    involved: the gate rides on the animation frame's own clock. */
-const READ_MS = 250;
 let readAt = -Infinity, readId = -1, readFast = null, readHead = -1, readState = "";
 
 function render(now) {
@@ -3121,7 +3118,6 @@ connect();
    reconnect every eight seconds forever and report `stale` for a state the
    operator chose. The control state is what distinguishes them, and it is the
    server's, not a guess. */
-const STALE_MS = 8000;                // no new frame for this long is a stale stream
 setInterval(() => {
   if (Date.now()-lastFrameAt <= STALE_MS) return;
   const idle = ctlState && ctlState.actual !== "running";

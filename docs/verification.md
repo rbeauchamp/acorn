@@ -832,12 +832,15 @@ still decides whether the prose describes that owner faithfully.
 
 ## Mutation diagnostics
 
-**Pinned digest: `28c98382d02dbf12`**
+**Pinned digest: `0x28c98382d02dbf12`**
 
 ```sh
-lean/.lake/build/bin/acorn-core audit --expect 28c98382d02dbf12
+lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12
 ```
 
+The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal digits:
+it is a hash identifier, not a number, so it is not read as a command-line number and
+digit-only text such as `10` is refused.
 Paired checksum `47d37dab0adedf72`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record

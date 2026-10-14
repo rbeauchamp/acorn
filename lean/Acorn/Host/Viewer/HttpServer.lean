@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.Host.Viewer.Broadcast
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.RunDirectory
@@ -71,8 +72,7 @@ private def singleHeader (head : Request.Head) (name : Header.Name) : Option Str
 private def controlHeaders (head : Request.Head) : ControlHeaders :=
   let contentType := (singleHeader head (.mk "content-type")).getD ""
   let mediaType := ((contentType.splitOn ";").headD "").trimAscii.toString.toLower
-  let length := (singleHeader head (.mk "content-length")).bind fun text =>
-    if !text.isEmpty && text.toList.all Char.isDigit then text.toNat? else none
+  let length := (singleHeader head (.mk "content-length")).bind Digits.read
   ⟨toString head.method, mediaType, (singleHeader head (.mk "x-oak-token")).getD "", length⟩
 
 private def response (status : Status) (contentType : Header.Value) (bytes : ByteArray) :

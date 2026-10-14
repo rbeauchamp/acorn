@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Lean
+import Acorn.Digits
 import AcornTools.Ownership
 import Acorn.Host.Viewer.BrowserSchema
 import AcornTools.Corpus.Browser
@@ -232,8 +233,8 @@ private def pathClaim (span : String) : IO Unit := do
           | [single] => pure (single, single)
           | [first, last] => pure (first, last)
           | _ => throw (IO.userError "invalid line range")
-        let some first := first.toNat? | throw (IO.userError "invalid first line")
-        let some last := last.toNat? | throw (IO.userError "invalid last line")
+        let some first := Acorn.Digits.read first | throw (IO.userError "invalid first line")
+        let some last := Acorn.Digits.read last | throw (IO.userError "invalid last line")
         unless 0 < first && first ≤ last do throw (IO.userError "invalid line interval")
         pure (path, none, some last)
       | _ => throw (IO.userError "invalid path anchor")
@@ -304,6 +305,7 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
     for start in [:parts.length] do
       names := names.insert (String.intercalate "." (parts.drop start))
   for (key, _) in Acorn.Host.Viewer.browserSchema do names := names.insert key
+  for constant in Acorn.Host.Viewer.BrowserConstant.all do names := names.insert constant.name
   for (key, rule) in Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules do
     names := names.insert key
     if let .tags tags := rule then

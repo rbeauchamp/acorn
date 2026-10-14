@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.Handcrafted.GridWorld
 
 /-!
@@ -48,17 +49,18 @@ state owners. Caller-supplied words keep native storage dynamically allocated. -
 
 end Acorn.ControlDriver
 
-/-- Parse raw native inputs without wrapping oversized words. -/
+/-- Read the seed and raw word as unsigned numbers of the command line (`Acorn.Digits.natural`),
+refusing either at `2 ^ 64` or more instead of wrapping it. -/
 def main (arguments : List String) : IO UInt32 := do
   let parsed := match arguments with
     | [] => some (0, 0)
     | [seed, word] => do
-      let seed ← seed.toNat?
-      let word ← word.toNat?
+      let seed ← Acorn.Digits.natural seed
+      let word ← Acorn.Digits.natural word
       if seed < 2^64 && word < 2^64 then some (seed, word) else none
     | _ => none
   match parsed with
-  | none => IO.eprintln "usage: control-native [seed raw-word]"; return 2
+  | none => IO.eprintln s!"usage: control-native [SEED RAW_WORD]\n{Acorn.Digits.usage}"; return 2
   | some (seed, word) =>
     let result := Acorn.ControlDriver.execute seed.toUInt64 word.toUInt64 .differential
     IO.println s!"action={result.1} rate={result.2.1} value={result.2.2}"

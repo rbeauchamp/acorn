@@ -42,9 +42,10 @@ def auditArms : List NativeApp.AuditArm := [.declared, .annealed, .differential]
 theorem mem_auditArms (arm : NativeApp.AuditArm) : arm ∈ auditArms := by
   cases arm <;> decide
 
-/-- The pinned action digest of an audit arm, as the audit command prints and accepts it. -/
+/-- The pinned action digest of an audit arm, as the audit command prints and `--expect` reads
+it. -/
 def digest (arm : NativeApp.AuditArm) : String :=
-  NativeApp.hexWord arm.receipt.digest
+  NativeApp.auditWord arm.receipt.digest
 
 /-- The pinned knowledge checksum paired with an audit arm's digest. -/
 def checksum (arm : NativeApp.AuditArm) : String :=

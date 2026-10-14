@@ -47,18 +47,32 @@ def AuditArm.label : AuditArm → String
   | .annealed => "annealed incumbent arm"
   | .differential => "differential research arm"
 
-/-- Full-width hex admission never truncates a supplied expectation. -/
-def auditHex (text : String) : Option UInt64 := do
-  let digits := if text.startsWith "0x" then (text.drop 2).toString else text
-  if digits.isEmpty then none else
-    let number ← digits.toList.foldlM (fun acc char => do
-      let value := char.toNat
-      let digit ← if 48 ≤ value && value ≤ 57 then some (value - 48)
-        else if 65 ≤ value && value ≤ 70 then some (value - 55)
-        else if 97 ≤ value && value ≤ 102 then some (value - 87) else none
-      let next := acc * 16 + digit
-      if next < 2 ^ 64 then some next else none) 0
-    return number.toUInt64
+/-- An audit digest in its one form, which the audit prints and `--expect` reads: `0x`, then the
+sixteen lowercase hexadecimal digits of `hexWord`. -/
+def auditWord (word : UInt64) : String :=
+  "0x" ++ hexWord word
+
+/-- The expected digest of `--expect` in its one form: `0x`, then exactly sixteen lowercase
+hexadecimal digits, the form that `auditWord` prints. A digest is a
+hash identifier, not a quantity, so it is not read as a command-line number
+(`Acorn.Digits.natural`): digit-only text such as `10`, uppercase digits and a shorter or longer
+word are refused. Sixteen hexadecimal digits are below `2 ^ 64`, so the word never wraps. -/
+def auditHex (text : String) : Option UInt64 :=
+  match text.toList with
+  | '0' :: 'x' :: digits =>
+    if digits.length = 16 then
+      (digits.foldlM (fun total c =>
+        let value := c.toNat
+        if 48 ≤ value && value ≤ 57 then some (16 * total + (value - 48))
+        else if 97 ≤ value && value ≤ 102 then some (16 * total + (value - 87)) else none)
+        0).map Nat.toUInt64
+    else none
+  | _ => none
+
+/-- The arguments of the audit command, with the one form of an expected digest. -/
+def auditUsage : String :=
+  "usage: acorn-core audit [--arm declared|annealed|differential] [--expect DIGEST]\n" ++
+    "DIGEST is 0x and exactly sixteen lowercase hexadecimal digits, as the audit prints it."
 
 /-- Audit selectors and expectation are validated before construction or execution. -/
 def auditOptions (arguments : List String) : Except Cli.Error AuditArm := do
@@ -151,14 +165,14 @@ def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO Aud
 def runMutationAudit (arguments : List String) : IO UInt32 := do
   let arm ← match auditOptions arguments with
     | .ok arm => pure arm
-    | .error error => throw (IO.userError error.message)
+    | .error error => throw (IO.userError (error.message ++ "\n" ++ auditUsage))
   let receipt ← executeMutationAudit arm true
-  IO.println s!"audit digest ({arm.label}): {hexWord receipt.digest}"
+  IO.println s!"audit digest ({arm.label}): {auditWord receipt.digest}"
   if receipt = arm.receipt then
-    IO.println s!"audit digest and checksum match the compiled {arm.label} pin ({hexWord receipt.digest} / {hexWord receipt.checksum})"
+    IO.println s!"audit digest and checksum match the compiled {arm.label} pin ({auditWord receipt.digest} / {hexWord receipt.checksum})"
     return 0
   else
-    IO.eprintln s!"audit mismatch ({arm.label}): digest expected {hexWord arm.receipt.digest}, computed {hexWord receipt.digest}; checksum expected {hexWord arm.receipt.checksum}, computed {hexWord receipt.checksum}"
+    IO.eprintln s!"audit mismatch ({arm.label}): digest expected {auditWord arm.receipt.digest}, computed {auditWord receipt.digest}; checksum expected {hexWord arm.receipt.checksum}, computed {hexWord receipt.checksum}"
     return 1
 
 end NativeApp

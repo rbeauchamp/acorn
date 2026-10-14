@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.Handcrafted.TemporalControl
 
 /-!
@@ -64,17 +65,18 @@ credit with dynamic inputs. Each current criterion uses the same typed kernel. -
 
 end Acorn.TemporalDriver
 
-/-- Admit diagnostic raw words without wrapping oversized inputs. -/
+/-- Read the seed and raw word as unsigned numbers of the command line (`Acorn.Digits.natural`),
+refusing either at `2 ^ 64` or more instead of wrapping it. -/
 def main (arguments : List String) : IO UInt32 := do
   let parsed := match arguments with
     | [] => some (0, 0)
     | [seed, word] => do
-      let seed ← seed.toNat?
-      let word ← word.toNat?
+      let seed ← Acorn.Digits.natural seed
+      let word ← Acorn.Digits.natural word
       if seed < 2^64 && word < 2^64 then some (seed, word) else none
     | _ => none
   match parsed with
-  | none => IO.eprintln "usage: temporal-native [seed raw-word]"; return 2
+  | none => IO.eprintln s!"usage: temporal-native [SEED RAW_WORD]\n{Acorn.Digits.usage}"; return 2
   | some (seed, word) =>
     let result := Acorn.TemporalDriver.execute seed.toUInt64 word.toUInt64 .differential
     IO.println s!"option-action={result.1} persistent-action={result.2.1} value={result.2.2}"

@@ -15,9 +15,9 @@ how the page achieves it: mechanism lives in `viewer/static/index.html` and
 requirement here names the owning function only where a reader would otherwise
 have to search. Requirements are numbered; a page behaviour that contradicts
 one is a bug, and a contradiction found in this document is fixed here. The
-gate suite compares numeric rows in Appendix A with their browser or native
-owners. Prose quantities and completeness of
-that table remain review obligations.
+gate suite requires the table of Appendix A to be the one rendered from the Lean
+owners of its constants. Prose quantities and completeness of that table remain
+review obligations.
 
 Reviews judge the page against this document: `proof-review` and
 `pr-review-toolkit` for the code and its guarantees, `ux-review` for whether
@@ -36,7 +36,7 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   request to wind up at the next attempt boundary, which changes *when a run
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
-  (`./lean/.lake/build/bin/acorn-core audit --expect 28c98382d02dbf12`),
+  (`./lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12`),
   checksum `47d37dab0adedf72` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
@@ -1145,19 +1145,22 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 
 ## Appendix A · Constants this document quotes
 
-`AcornTools.Corpus.Browser` compares the numeric rows below against the actual browser
-constants or imported native values. Missing, duplicated or mismatched rows fail
-admission. Other prose quantities and table completeness remain review obligations.
+`AcornTools.Corpus.Browser` renders the table below from its Lean owners, the page's
+constants, which the generated kernel declares from `BrowserConstant` in
+`Acorn.Host.Viewer.BrowserStore`, and the viewer server's values, and admits this appendix
+only when the table is exactly that text and no other line of the appendix holds a table
+cell. Other prose quantities, and whether the table lists every constant this document
+quotes, remain review obligations.
 Durations are milliseconds unless the name denotes another unit.
 
 | constant | value | declared in |
 |---|---|---|
-| `READ_MS` | 250 | `viewer/static/index.html` |
-| `WIN` | 1000 | `viewer/static/index.html` |
-| `CAP` | 30000 | `viewer/static/index.html` |
-| `RIBBON_SPAN` | 3000 | `viewer/static/index.html` |
-| `STALE_MS` | 8000 | `viewer/static/index.html` |
-| `Z` | 4 | `viewer/static/index.html` |
+| `READ_MS` | 250 | `Acorn.Host.Viewer.BrowserStore` |
+| `WIN` | 1000 | `Acorn.Host.Viewer.BrowserStore` |
+| `CAP` | 30000 | `Acorn.Host.Viewer.BrowserStore` |
+| `RIBBON_SPAN` | 3000 | `Acorn.Host.Viewer.BrowserStore` |
+| `STALE_MS` | 8000 | `Acorn.Host.Viewer.BrowserStore` |
+| `Z` | 4 | `Acorn.Host.Viewer.BrowserStore` |
 | `replayCapacity` | 500 | `Acorn.Host.Viewer.Buffer` |
 | `failureLimit` | 3 | `Acorn.Host.Viewer.Retry` |
 | `healthyRunMs` | 30000 | `Acorn.Host.Viewer.SupervisedProcess` |

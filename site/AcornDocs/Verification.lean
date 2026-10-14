@@ -789,6 +789,9 @@ tag := "mutation-diagnostics"
 s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {digest .declared}"
 ```
 
+The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal digits:
+it is a hash identifier, not a number, so it is not read as a command-line number and
+digit-only text such as `10` is refused.
 Paired checksum {spliceCode}`checksum .declared`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all {splice}`numberWord auditArms.length` fixed arms under the same deadline. All {splice}`numberWord auditArms.length` pins record

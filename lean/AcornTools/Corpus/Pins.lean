@@ -45,7 +45,7 @@ def checkTexts (documents : Array (String × String)) (verification readiness : 
   let rows := (readiness.splitOn "\n").filter (·.startsWith "| C-AC5 ")
   let [row] := rows | throw (IO.userError "readiness requires one C-AC5 row")
   for arm in current do
-    let digest := NativeApp.hexWord arm.receipt.digest
+    let digest := NativeApp.auditWord arm.receipt.digest
     let checksum := NativeApp.hexWord arm.receipt.checksum
     require (row.contains s!"`{digest}`, checksum `{checksum}`") s!"C-AC5 omits current pair {digest}/{checksum}"
   let mut expectations := 0

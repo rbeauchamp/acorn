@@ -78,8 +78,9 @@ def dispatch (arguments : List String) : IO UInt32 := do
       | throw (IO.userError "invalid checkpoint construction or input word")
     IO.println (← execute operation path admitted words)
     return 0
-  | _ => throw (IO.userError
-      "usage: checkpoint-native (save|load|resume) FILE SEED EXPONENT TILINGS UNITS MODE CREDIT RATE SUBTASKS CRITERION PLANNING [RAW_WORD ...]")
+  | _ => throw (IO.userError ("usage: checkpoint-native (save|load|resume) FILE SEED EXPONENT " ++
+      "TILINGS UNITS MODE CREDIT RATE SUBTASKS CRITERION PLANNING [RAW_WORD ...]\n" ++
+      Digits.usage))
 
 end Acorn.Host.CheckpointDriver
 

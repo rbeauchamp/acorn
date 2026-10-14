@@ -9,7 +9,9 @@ import Acorn.Host.Viewer.WorldMemory
 /-!
 # Page constants and frame store derived from the browser schema
 
-The page's named dimensions are emitted from their Lean owners. The frame ring
+The page constants that `BrowserConstant` represents are emitted from Lean: each dimension
+from its Lean owner, and the capacities, windows and durations of the page that Appendix A of
+the viewer specification quotes as literals declared here. The frame ring
 is one table of columns, each reading one record field: allocation, the write
 of a record into a slot and the view that reads a slot back are all emitted
 from that table, and no two of its properties share a name
@@ -24,7 +26,8 @@ dimensions; that use is hand-written.
 -/
 namespace Acorn.Host.Viewer
 
-/-- A named page dimension, emitted from its Lean owner. -/
+/-- A named page constant: a dimension emitted from its Lean owner, or a capacity, window or
+duration of the page with no other owner, declared here. -/
 inductive BrowserConstant where
   /-- Telemetry schema version this page reads. -/
   | schema
@@ -58,6 +61,22 @@ inductive BrowserConstant where
   | cycleBins
   /-- Curriculum cycles that own an exact bin. -/
   | exactCycles
+  /-- Milliseconds at least between two redraws of the text readouts while the cursor moves or
+  frames arrive. The readouts redraw at once when the cursor lands, and on every frame the cursor
+  reaches while replay runs at 10 frames per second or slower (UX-8). -/
+  | readPace
+  /-- Buffered frames, ending at the cursor, over which the readouts take their means and shares
+  while the cursor moves faster than a reader can follow. -/
+  | statsWindow
+  /-- Frames the page's ring retains: the store allocates each column for this many frames, and
+  the valid frame ids are the last this many accepted. -/
+  | frameCapacity
+  /-- Buffered frames the options ribbon shows. -/
+  | ribbonSpan
+  /-- Milliseconds with no new frame after which the stream is stale. -/
+  | staleAfter
+  /-- Logical pixels per tile on the stage (UX-28). -/
+  | tilePixels
 
 /-- The JavaScript name the page reads. -/
 def BrowserConstant.name : BrowserConstant → String
@@ -67,10 +86,13 @@ def BrowserConstant.name : BrowserConstant → String
   | .optionEnds => "N_OPTION_END" | .goalFamilies => "N_GOAL_FAMILY"
   | .modelHeads => "N_MODEL" | .historyBins => "HISTORY_BINS"
   | .cycleBins => "CYCLE_BINS" | .exactCycles => "EXACT_CYCLES"
+  | .readPace => "READ_MS" | .statsWindow => "WIN" | .frameCapacity => "CAP"
+  | .ribbonSpan => "RIBBON_SPAN" | .staleAfter => "STALE_MS" | .tilePixels => "Z"
 
 /-- The owner's value. Three literal dimensions (`optionEnds`, `goalFamilies` and
 `modelHeads`) are held to the schema's array widths by `browserColumns_live`, and the
-kind count to admission by `BrowserConstant.tileKinds_admitted`. -/
+kind count to admission by `BrowserConstant.tileKinds_admitted`. The page's own capacities,
+windows and durations, from `readPace` to `tilePixels`, are literals that only the page reads. -/
 def BrowserConstant.value : BrowserConstant → Nat
   | .schema => telemetrySchemaVersion
   | .unseen => (MapCell.byte none).toNat
@@ -87,13 +109,20 @@ def BrowserConstant.value : BrowserConstant → Nat
   | .historyBins => FeatureConstants.historyBins
   | .cycleBins => FeatureConstants.cycleBins
   | .exactCycles => FeatureConstants.exactCycles
+  | .readPace => 250
+  | .statsWindow => 1000
+  | .frameCapacity => 30000
+  | .ribbonSpan => 3000
+  | .staleAfter => 8000
+  | .tilePixels => 4
 
-/-- Every named dimension, in emission order. -/
+/-- Every named constant, in emission order. -/
 def BrowserConstant.all : List BrowserConstant :=
   [.schema, .unseen, .mapSide, .tileKinds, .demons, .primitives, .metaActions, .patch,
-   .skills, .optionEnds, .goalFamilies, .modelHeads, .historyBins, .cycleBins, .exactCycles]
+   .skills, .optionEnds, .goalFamilies, .modelHeads, .historyBins, .cycleBins, .exactCycles,
+   .readPace, .statsWindow, .frameCapacity, .ribbonSpan, .staleAfter, .tilePixels]
 
-/-- No named dimension is left undeclared on the page. -/
+/-- No named constant is left undeclared on the page. -/
 theorem BrowserConstant.all_complete (constant : BrowserConstant) :
     constant ∈ BrowserConstant.all := by
   cases constant <;> simp [BrowserConstant.all]
@@ -103,7 +132,11 @@ theorem BrowserConstant.metaActions_skills :
     BrowserConstant.metaActions.value = BrowserConstant.skills.value + 1 := by
   decide
 
-/-- The page's named dimensions, declared once. -/
+/-- No two named constants share a JavaScript name, so the one declaration below binds each. -/
+theorem BrowserConstant.names_distinct : (BrowserConstant.all.map (·.name)).Nodup := by
+  decide
+
+/-- The page's named constants, declared once. -/
 def browserConstantsJavascript : String :=
   "const " ++ String.intercalate "," (BrowserConstant.all.map fun constant =>
     constant.name ++ "=" ++ toString constant.value) ++ ";\n"

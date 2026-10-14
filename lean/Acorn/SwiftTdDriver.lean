@@ -3,6 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
+import Acorn.Digits
 import Acorn.SwiftTd
 
 /-!
@@ -42,16 +43,17 @@ hoist the complete initial learner into a permanently shared global snapshot. -/
 
 end Acorn.SwiftTdDriver
 
-/-- Run the current native learner for the requested nonnegative step count
-(one by default), printing only integral observation encodings. -/
+/-- Run the current native learner for the requested step count, an unsigned number of the
+command line (`Acorn.Digits.natural`), one by default, printing only integral observation
+encodings. -/
 def main (arguments : List String) : IO UInt32 := do
   let count := match arguments with
     | [] => some 1
-    | [word] => word.toNat?
+    | [word] => Acorn.Digits.natural word
     | _ => none
   match count with
   | none =>
-    IO.eprintln "usage: swifttd-native [nonnegative-step-count]"
+    IO.eprintln s!"usage: swifttd-native [STEP_COUNT]\n{Acorn.Digits.usage}"
     return 2
   | some steps =>
     let learner := Acorn.SwiftTdDriver.execute
