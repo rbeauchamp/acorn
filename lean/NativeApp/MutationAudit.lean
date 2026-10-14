@@ -71,8 +71,8 @@ def auditHex (text : String) : Option UInt64 :=
 
 /-- The arguments of the audit command, with the one form of an expected digest. -/
 def auditUsage : String :=
-  "usage: acorn-core audit [--arm declared|annealed|differential] [--expect 0xDIGEST]\n" ++
-    "DIGEST is exactly sixteen lowercase hexadecimal digits, as the audit prints it."
+  "usage: acorn-core audit [--arm declared|annealed|differential] [--expect DIGEST]\n" ++
+    "DIGEST is 0x and exactly sixteen lowercase hexadecimal digits, as the audit prints it."
 
 /-- Audit selectors and expectation are validated before construction or execution. -/
 def auditOptions (arguments : List String) : Except Cli.Error AuditArm := do
