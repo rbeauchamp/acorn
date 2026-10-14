@@ -47,8 +47,13 @@ def AuditArm.label : AuditArm → String
   | .annealed => "annealed incumbent arm"
   | .differential => "differential research arm"
 
+/-- An audit digest in its one form, which the audit prints and `--expect` reads: `0x`, then the
+sixteen lowercase hexadecimal digits of `hexWord`. -/
+def auditWord (word : UInt64) : String :=
+  "0x" ++ hexWord word
+
 /-- The expected digest of `--expect` in its one form: `0x`, then exactly sixteen lowercase
-hexadecimal digits, the digits that `hexWord` prints for the digest. A digest is a
+hexadecimal digits, the form that `auditWord` prints. A digest is a
 hash identifier, not a quantity, so it is not read as a command-line number
 (`Acorn.Digits.natural`): digit-only text such as `10`, uppercase digits and a shorter or longer
 word are refused. Sixteen hexadecimal digits are below `2 ^ 64`, so the word never wraps. -/
@@ -68,7 +73,6 @@ def auditHex (text : String) : Option UInt64 :=
 def auditUsage : String :=
   "usage: acorn-core audit [--arm declared|annealed|differential] [--expect 0xDIGEST]\n" ++
     "DIGEST is exactly sixteen lowercase hexadecimal digits, as the audit prints it."
-
 
 /-- Audit selectors and expectation are validated before construction or execution. -/
 def auditOptions (arguments : List String) : Except Cli.Error AuditArm := do
@@ -163,12 +167,12 @@ def runMutationAudit (arguments : List String) : IO UInt32 := do
     | .ok arm => pure arm
     | .error error => throw (IO.userError (error.message ++ "\n" ++ auditUsage))
   let receipt ← executeMutationAudit arm true
-  IO.println s!"audit digest ({arm.label}): {hexWord receipt.digest}"
+  IO.println s!"audit digest ({arm.label}): {auditWord receipt.digest}"
   if receipt = arm.receipt then
-    IO.println s!"audit digest and checksum match the compiled {arm.label} pin ({hexWord receipt.digest} / {hexWord receipt.checksum})"
+    IO.println s!"audit digest and checksum match the compiled {arm.label} pin ({auditWord receipt.digest} / {hexWord receipt.checksum})"
     return 0
   else
-    IO.eprintln s!"audit mismatch ({arm.label}): digest expected {hexWord arm.receipt.digest}, computed {hexWord receipt.digest}; checksum expected {hexWord arm.receipt.checksum}, computed {hexWord receipt.checksum}"
+    IO.eprintln s!"audit mismatch ({arm.label}): digest expected {auditWord arm.receipt.digest}, computed {auditWord receipt.digest}; checksum expected {hexWord arm.receipt.checksum}, computed {hexWord receipt.checksum}"
     return 1
 
 end NativeApp

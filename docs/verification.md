@@ -832,7 +832,7 @@ still decides whether the prose describes that owner faithfully.
 
 ## Mutation diagnostics
 
-**Pinned digest: `28c98382d02dbf12`**
+**Pinned digest: `0x28c98382d02dbf12`**
 
 ```sh
 lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12

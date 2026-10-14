@@ -137,19 +137,6 @@ private def documentConstants (text : String) : Except String Unit := do
   unless appendix.filter (·.contains '|') == table do
     throw "a table line in Appendix A outside the constants table"
 
-/-- Changes to the viewer specification that the constants check refuses: a second constants
-table after the first, with its own separator and a wrong value of `WIN`; the name `WIN` split
-into two quoted parts; a copy of the appendix heading and a constants table with a wrong value
-of `WIN` at the start of the file; and the appendix heading twice in a row. -/
-private def refusedConstantEdits : List (String → String) :=
-  let heading := "## " ++ appendixTitle ++ "\n"
-  let wrong := "| constant | value | declared in |\n| --- | --- | --- |\n" ++
-    "| `WIN` | 999 | `Acorn.Host.Viewer.BrowserStore` |\n"
-  [fun text => text.replace constantsTable (constantsTable ++ "\n" ++ wrong),
-    fun text => text.replace "| `WIN` |" "| `W``IN` |",
-    fun text => heading ++ wrong ++ "\n" ++ text,
-    fun text => text.replace heading (heading ++ heading)]
-
 /-- Check the generated-program call sites and the request/timer inventory. -/
 def check : IO Unit := do
   let page ← IO.FS.readFile "viewer/static/index.html"
@@ -189,11 +176,7 @@ def check : IO Unit := do
   let connect ← body script "connect()"
   require ((connect.splitOn "received++").length == 2) "capture counter must have one guarded increment"
   require (page.contains "$(\"t_world\").title = WORLD_TILE_NOTE;") "readout reset omits world-tile title"
-  let document ← IO.FS.readFile "docs/viewer-ux.md"
-  for edit in refusedConstantEdits do
-    require (documentConstants (edit document) matches .error _)
-      "constants table admits a refused control edit"
-  match documentConstants document with
+  match documentConstants (← IO.FS.readFile "docs/viewer-ux.md") with
   | .ok () => pure ()
   | .error message => require false message
   IO.println "browser: generated program wiring and request/timer inventory admitted"

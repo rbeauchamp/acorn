@@ -786,7 +786,7 @@ tag := "mutation-diagnostics"
 *Pinned digest: {spliceCode}`digest .declared`*
 
 ```spliced sh
-s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect 0x{digest .declared}"
+s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {digest .declared}"
 ```
 
 The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal digits:
