@@ -26,8 +26,9 @@ checkout root.
 
 For each change, explain the intended behavior, its implementation and proof
 owners, and any assumptions in the PR. Run `./scripts/verify.sh` from the checkout
-and report its actual result and material limits. CI also requires the
-[Regula audit](docs/verification.md#regula-audit).
+and report its actual result and material limits. The merge gate,
+`./scripts/gate.sh`, which the no-mistakes pipeline runs before a pull request
+opens, also requires the [Regula audit](docs/verification.md#regula-audit).
 
 Pull requests are squash-merged: the PR title becomes the commit header on main
 and the PR body its message. Title each PR as a
@@ -35,8 +36,9 @@ and the PR body its message. Title each PR as a
 `type(scope)!: summary`, with the type one of feat, fix, docs, refactor, perf,
 test, build, ci, chore or revert. The scope is optional text without parentheses;
 the optional `!` marks a breaking change, which also carries a
-`BREAKING CHANGE:` footer in the body. The
-[PR title check](.github/workflows/pr-title.yml) rejects any other title.
+`BREAKING CHANGE:` footer in the body. The no-mistakes pipeline drafts each
+title in this form, and the [PR title check](.github/workflows/pr-title.yml),
+started by hand, rejects any other title.
 Releases follow [Semantic Versioning](https://semver.org/): fix implies a patch
 release, feat a minor release and a breaking change a major release, or a minor
 release before 1.0.

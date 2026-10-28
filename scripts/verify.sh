@@ -21,7 +21,7 @@ acorn_verify_checks() {
   cd "$(dirname "$1")/.."
   git diff --check
   git diff --cached --check
-  shellcheck scripts/verify.sh scripts/lean.sh scripts/start.sh
+  shellcheck scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh
   shift 2
   ./scripts/lean.sh exe acorn-gates "$@"
 }

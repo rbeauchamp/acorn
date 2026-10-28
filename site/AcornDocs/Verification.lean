@@ -37,11 +37,11 @@ Lean, Mathlib, FloatLib and Verso dependencies, a C compiler, OpenSSL 3, ShellCh
 and GNU coreutils.
 Each run of the command has a hard 360-second deadline, which includes the
 project compilation the run does and every ordinary check; from cold project
-outputs that is the whole build. [CI](#build-and-source-inventory) splits the
-cold build over two runs, each with its own deadline. The deadline uses
-process-group SIGKILL with no grace period or budget override; missing, skipped
-or timed-out checks fail. OS scheduling and signal delivery are the trusted
-mechanisms that enforce this deadline.
+outputs that is the whole build. The [merge gate](#build-and-source-inventory)
+splits the cold build over two runs, each with its own deadline. The deadline
+uses process-group SIGKILL with no grace period or budget override; missing,
+skipped or timed-out checks fail. OS scheduling and signal delivery are the
+trusted mechanisms that enforce this deadline.
 
 Project instruction changes have no live Acorn runtime surface. The complete
 verification command remains required for documentation changes.
@@ -63,13 +63,14 @@ The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
-The [CI workflow](../.github/workflows/verify.yml) runs on GitHub's standard
-`ubuntu-24.04` x64 image. It installs no system package: it admits by name the
-packages that image provides, and takes elan from a release pinned by the SHA-256
-of its archive, which the dependency cache keeps. Every workflow step that
-reaches the network has its own time limit, so a stalled download fails that
-step. Dependency caches include the Ubuntu release and runner architecture.
-Automatic local setup supports macOS and Ubuntu/Debian Linux.
+The [verification workflow](../.github/workflows/verify.yml) runs only when
+started by hand, on GitHub's standard `ubuntu-24.04` x64 image. It installs no
+system package: it admits by name the packages that image provides, and takes
+elan from a release pinned by the SHA-256 of its archive, which the dependency
+cache keeps. Every workflow step that reaches the network has its own time
+limit, so a stalled download fails that step. Dependency caches include the
+Ubuntu release and runner architecture. Automatic local setup supports macOS and
+Ubuntu/Debian Linux.
 
 For manual setup, install macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
@@ -413,23 +414,31 @@ Numerical proofs use the executing Lean definitions. Native admission checks
 their compiler IR, primitive calls, resource contracts and compiler flags.
 Primitive IEEE interpretation remains a native assumption.
 
-CI provisions dependencies separately and runs the command twice in one job on
-one runner, from cold project outputs, each run under its own 360-second
-deadline. The first, `./scripts/verify.sh build-executing`, admits the sources as
-the complete command does, then builds every module outside the proof library
-`AcornVerif` with its native object, and every executable; it admits nothing
-after the build. The second is the identical complete command: Lake reuses an
-output of the first only where its trace matches the checked-out source,
-toolchain and options, and builds the rest. So in CI the cold build and the
-checks no longer share one deadline: the first bounds the build of the
-executing library and the tools, the second the proof library's build and every
-check. The job passes only when both runs pass. The cold build keeps all four
-processors of the runner busy, and with the checks beside it inside one deadline
-a slow runner left too little margin. No output is carried from one CI run to
-another. A second job runs the [Regula audit](#regula-audit) on the same head,
-from cold project outputs. The workflow has read-only repository permissions, no
-secrets, no privileged pull-request trigger, and pinned action revisions. Both
-jobs must pass on the exact proposed head before merge.
+The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
+(`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
+validates, in a checkout that holds only tracked files; GitHub Actions runs no
+check on a pull request or a push. The gate provisions the pinned dependencies,
+then runs the command twice, from cold project outputs, each run under its own
+360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
+sources as the complete command does, then builds every module outside the proof
+library `AcornVerif` with its native object, and every executable; it admits
+nothing after the build. The second is the identical complete command: Lake
+reuses an output of the first only where its trace matches the checked-out
+source, toolchain and options, and builds the rest. So in the gate the cold
+build and the checks no longer share one deadline: the first bounds the build of
+the executing library and the tools, the second the proof library's build and
+every check. On a four-processor machine the cold build with the checks beside
+it inside one deadline left too little margin. The gate then runs the
+[Regula audit](#regula-audit) on the same commit, also when verification failed,
+and passes only when both runs and the audit pass.
+
+The pipeline stores the provisioned dependency checkouts and their build outputs
+once for each default-branch commit a run starts from, and gives a run a private
+copy only while the run's toolchain and lock files equal that commit's; Lake
+rebuilds whatever its traces do not show current. Acorn's own outputs are never
+carried from one run to another. The workflows that ran these checks on GitHub
+stay available to start by hand; they have read-only repository permissions,
+no secrets, no privileged pull-request trigger, and pinned action revisions.
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners
@@ -615,11 +624,11 @@ automatic implicits off and turns on the missing-docstring linter and Mathlib's
 standard linter set, whose header linter checks each module's copyright and
 license lines.
 
-The audit is a second required check and is not part of `./scripts/verify.sh`.
-It compiles the claimed modules again and replays them in the kernel, which does
-not fit beside the ordinary checks inside the 360-second deadline. CI requires
-the job of the audit beside the job of ordinary verification before a merge. An
-accepted audit covers Regula's mechanical rules for the claimed surfaces; it does
+The audit is a second check of the merge gate and is not part of
+`./scripts/verify.sh`. It compiles the claimed modules again and replays them in
+the kernel, which does not fit beside the ordinary checks inside the 360-second
+deadline. The gate runs it after ordinary verification and requires both before
+a merge. An accepted audit covers Regula's mechanical rules for the claimed surfaces; it does
 not replace review.
 
 ## What Regula checks in place of Acorn's tools
@@ -638,7 +647,7 @@ shows it, and that check stays.
 Ordinary verification alone therefore does not refuse a project axiom, a
 dependency on an axiom outside propext, Quot.sound and Classical.choice, a
 compiler-trusting proof, or a compiled unsafe or partial declaration. The Regula
-audit refuses each of them, and its CI job is required. Run
+audit refuses each of them, and the merge gate requires it. Run
 `./scripts/lean.sh lint` for it before proposing a change to a Lean source.
 Ordinary verification still refuses the words `axiom`, `sorry`, `unsafe`,
 partial and `native_decide` in every executing and proof source, through source
@@ -766,8 +775,8 @@ The step maps each locked dependency of the site to its provisioned checkout, so
 Lake fetches nothing, and refuses to run until Lake reports pinned Verso built.
 The renderer runs in Lean's interpreter: a linked executable would compile the
 native code of every proof module a document imports. If the site check stops
-fitting the verification deadline, it becomes a separate required check with its
-own bound; the deadline is not raised. Verification also admits the site's source
+fitting the verification deadline, it becomes a separate check of the merge
+gate with its own bound; the deadline is not raised. Verification also admits the site's source
 inventory and requires `site/lake-manifest.json` to lock every dependency of
 `lean/lake-manifest.json` to the same revision, because both packages share one
 set of dependency checkouts.

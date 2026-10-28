@@ -1,0 +1,41 @@
+# Configuration of the no-mistakes pipeline, which validates every change to Acorn before it
+# reaches GitHub. no-mistakes reads every setting below only from the copy of this file on the
+# default branch, so a change to it governs the runs that follow its merge, not its own.
+#
+# The local pipeline is Acorn's merge gate; GitHub Actions runs no check on a pull request or a
+# push. Its Test step runs scripts/gate.sh in a checkout of the exact commit it validates, holding
+# only tracked files. The script provisions the pinned dependencies and runs every check the
+# verification workflows ran: both stages of ./scripts/verify.sh and the Regula audit
+# ./scripts/lean.sh lint. Any failing check fails the step.
+no_ci: true
+
+commands:
+  test: ./scripts/gate.sh
+
+# Dependency provisioning, the largest part of a run from nothing, is reused across runs. For each
+# run's base commit on the default branch, no-mistakes runs the command once and stores
+# lean/.lake/packages: the locked dependency checkouts and their build outputs. A run starts from a
+# private copy only while each file below has the same content as at that base, so the copy holds
+# the revisions the run's lock files name, built by the same toolchain. Lake then rebuilds whatever
+# its traces do not show current, and the script's provisioning builds anything missing. Acorn's own
+# modules are compiled in every run: their outputs in lean/.lake/build are read without any check,
+# and Acorn's verification keeps Lake's artifact cache off.
+#
+# Memory, measured on 2026-10-28 on a fresh clone with 14 cores, as the summed physical footprint of
+# the command's processes sampled every 2 s: provisioning from nothing peaked at 3.1 GiB, and the
+# whole Test command at 11.3 GiB, during the Regula audit. Nothing enforces either bound.
+build_outputs:
+  command: no-mistakes admit --memory 4GiB --limit "none; measured peak 3.1 GiB" -- ./scripts/gate.sh provision
+  directories:
+    - lean/.lake/packages
+  toolchain_files:
+    - lean/lean-toolchain
+    - lean/lake-manifest.json
+    - site/lean-toolchain
+    - site/lake-manifest.json
+
+# The Test step builds Acorn and its documents and replays the claimed modules in the kernel.
+heavy_steps:
+  test:
+    memory: 12GiB
+    limit: none; measured peak 11.3 GiB

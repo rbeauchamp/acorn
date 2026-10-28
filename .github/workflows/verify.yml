@@ -1,8 +1,7 @@
 name: Verify
+# Runs only when started by hand. The merge gate is local: no-mistakes runs every check
+# below through scripts/gate.sh before a pull request opens (.no-mistakes.yaml).
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -176,7 +175,7 @@ jobs:
   regula:
     # Regula audits every surface lean/foundation_manifest.json claims. It builds
     # the claimed modules from source again and takes longer than verification's
-    # deadline allows, so it is a second required check with this job's timeout.
+    # deadline allows, so it is a second job with this job's timeout.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:

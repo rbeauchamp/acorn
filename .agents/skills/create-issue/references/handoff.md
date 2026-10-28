@@ -47,14 +47,15 @@ workaround or preferred design into a universal rule.
 Name the implementation and proof owners to inspect, the intended deliverables,
 and the evidence that will satisfy each acceptance criterion. Define completion
 through the applicable delivery path, including independent review, local
-`./scripts/verify.sh`, CI on the exact proposed head, signed commits and protected
-merge when implementation is included. Preserve the current AGENTS.md hard
+`./scripts/verify.sh`, the merge gate `./scripts/gate.sh` that the no-mistakes
+pipeline runs on the exact proposed head, signed commits and protected merge
+when implementation is included. Preserve the current AGENTS.md hard
 360-second verification deadline and full admission coverage. Issue creation
 itself requires publication readback, not running that implementation suite.
 
 For the affected scope, account for necessary refactoring, removal of newly dead
 code, ownership/gate updates, persistence compatibility and documentation of
-changed semantics. Consider skill or CI updates only when a concrete reusable
+changed semantics. Consider skill or gate updates only when a concrete reusable
 gap requires one; do not mandate changes merely to populate a checklist. Point
 to the relevant canonical docs and shipped review skill instead of duplicating
 whole policies. Keep source comments about current meaning, and the PR/issue
