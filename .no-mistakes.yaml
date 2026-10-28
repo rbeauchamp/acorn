@@ -39,3 +39,93 @@ heavy_steps:
   test:
     memory: 12GiB
     limit: none; measured peak 11.3 GiB
+
+# Tests are no evidence here. Acorn establishes a change's claims by proof, construction and
+# derivation, never by tests (AGENTS.md, "Correct by construction"). The pipeline's review and test
+# agents read this file and no-mistakes' own contracts, not a contributor's instructions, so this
+# file is where they learn that rule. `policy: forbid` tells every pipeline agent that a test is no
+# evidence and that none may be added. It also makes the pipeline report, at its Test step, each
+# line the listing below prints for a change and not for its base, and refuse to publish such a
+# line unreported.
+#
+# The listing prints the tests that Lake, Acorn's build tool, defines. Lake knows one kind of test:
+# a package's test driver, the script, executable or library that `lake test` runs, set by the
+# package's `testDriver` option or by tagging one target `@[test_driver]` (Lake at Lean v4.34.1:
+# `Package.test` in Lake/CLI/Actions.lean, and Lake/Load/Lean/Eval.lean). Every directory with a
+# `lakefile.lean` or `lakefile.toml` is a package that `lake test` can run there (`resolveConfigFile`
+# in Lake/Load/Package.lean). So the listing loads each directory holding such a file in Git's
+# index of the listed snapshot, and prints `{"package":<directory>,"test_driver":<driver>}` for each
+# package that configures a driver.
+#  - Lake's own `loadPackage` loads each package, as `lake check-test` does, under the toolchain
+#    elan selects in its directory. `lake check-test` itself cannot serve: it exits 1 both when the
+#    package configures no driver and when it fails to load. The Lean program below runs Lake's
+#    compiled code (libLake_shared) and exits non-zero when a package fails to load, so the listing
+#    then fails instead of printing an empty or partial list.
+#  - Configuration file names match without regard to case, as Lake finds them on a
+#    case-insensitive file system. A package path that Git prints quoted (one holding a quote, a
+#    backslash or a control character) fails the listing, since the quoted form is not the path.
+#  - The program uses Lake's public Lean interface. A toolchain whose Lake changes the signatures it
+#    calls makes the listing fail. A change in what `loadPackage` records as a package's test driver
+#    is not detected: the listing would then print nothing for that driver and pass.
+# A test Lake does not know, such as a command in a Lean file that runs code on chosen inputs, is
+# not listed. `forbid` leaves it to the review agent, whom it tells to report every test a change
+# adds; that is an instruction an agent follows, not a check.
+#
+# Memory. Measured on 2026-10-27 on fresh clones, loading one package peaked at 0.15 GiB of
+# physical footprint and 1.8 GiB resident, most of it the .olean files Lean maps, which the system
+# can drop without swapping. Each load runs through `no-mistakes admit` with a 2 GiB bound, which
+# it takes from the share of work already admitted, such as the Test step declared in heavy_steps
+# above, or otherwise waits for in the machine's memory budget beside all other admitted work.
+# Nothing enforces the bound.
+test:
+  tests_as_evidence:
+    policy: forbid
+    list_command: |
+      set -eu
+      work=$(mktemp -d "$PWD/.test-listing.XXXXXX")
+      trap 'rm -rf "$work"' EXIT
+      cat > "$work/driver.lean" <<'EOF'
+      import Lake.CLI.Main
+      open Lake
+
+      /-- Load the Lake package in the working directory as `lake check-test` loads it, and write
+      to the output file one JSON line naming the package and its test driver, or nothing when it
+      configures none. A package that fails to load exits non-zero. -/
+      def main (args : List String) : IO UInt32 := do
+        let [pkgPath, out] := args
+          | throw <| IO.userError "usage: <package path> <output file>"
+        let (elanInstall?, leanInstall?, lakeInstall?) <- findInstall?
+        let opts : LakeOptions := {elanInstall?, leanInstall?, lakeInstall?}
+        let cfg <- match <- opts.mkLoadConfig.toBaseIO with
+          | .ok cfg => pure cfg
+          | .error e => throw <| IO.userError (toString e)
+        let some pkg <- (loadPackage cfg).toBaseIO {out := .stderr}
+          | return 1
+        IO.FS.writeFile out <| if pkg.testDriver.isEmpty then "" else
+          (Lean.Json.mkObj [("package", .str pkgPath), ("test_driver", .str pkg.testDriver)]).compress ++ "\n"
+        return 0
+      EOF
+      git -c core.quotePath=false ls-files -- ':(glob,icase)**/lakefile.lean' ':(glob,icase)**/lakefile.toml' > "$work/configs"
+      while IFS= read -r config; do dirname -- "$config"; done < "$work/configs" | LC_ALL=C sort -u > "$work/packages"
+      if [ ! -s "$work/packages" ]; then
+        echo "no Lake package configuration is tracked" >&2
+        exit 1
+      fi
+      while IFS= read -r pkg; do
+        case $pkg in
+          \"*) echo "Git prints the package path $pkg quoted" >&2; exit 1 ;;
+        esac
+        if ! (
+          cd "$pkg" &&
+          prefix=$(lean --print-prefix) &&
+          lib=$prefix/lib/lean/libLake_shared.dylib &&
+          { [ -e "$lib" ] || lib=$prefix/lib/lean/libLake_shared.so; } &&
+          no-mistakes admit --memory 2GiB --limit "none; measured peak 0.15 GiB footprint, 1.8 GiB resident" -- \
+            lean --load-dynlib="$lib" --run "$work/driver.lean" "$pkg" "$work/driver"
+        ) >&2; then
+          echo "Lake could not report the test driver of package $pkg" >&2
+          exit 1
+        fi
+        cat "$work/driver"
+        rm "$work/driver"
+      done < "$work/packages"
