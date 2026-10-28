@@ -174,7 +174,7 @@ def main (args : List String) : IO UInt32 := do
   try
     match args with
     | [] => AcornGate.verify
-    -- The first of CI's two timed stages: the build that the complete command then reuses
+    -- The first of the merge gate's two timed stages: the build that the complete command then reuses
     -- where Lake's traces match. It admits nothing after the build.
     | ["build-executing"] =>
       AcornGate.admitAndBuild fun name => !(`AcornVerif).isPrefixOf name
