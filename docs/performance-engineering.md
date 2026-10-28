@@ -117,18 +117,20 @@ correspondence arguments connecting the required guarantees to the new execution
 ## Evidence for performance claims
 
 Keep contributor verification economical within its full admission contract.
-CI caches only pinned dependencies, keyed by runner image family, architecture,
-elan release, toolchain, dependency manifest and the set of FloatLib modules the
-proof bridge imports; an exact hit avoids repeated provisioning. A changed import set
-restores the same locked dependencies and builds only the added modules.
-Admit restored dependencies and save newly provisioned dependencies before the
-project gate, so a project failure does not discard useful provisioning work.
-Project outputs still build cold in every CI run. Locally one fixed deadline
-bounds the cold build and every check. CI's verify job runs the command twice on
-one runner, each run under its own deadline: `./scripts/verify.sh build-executing`
-builds the executing library, the tools and the native objects, and the complete
-command reuses them where Lake's traces match. So in CI the cold build and the
-checks no longer share one deadline. Reuse Lake's
+The merge gate reuses only pinned dependencies: the no-mistakes pipeline stores
+the provisioned dependency checkouts and their build outputs once for each
+default-branch commit a run starts from, and gives a run a private copy only
+while its toolchains and lock files equal that commit's, so an exact match avoids
+repeated provisioning. A changed set of FloatLib modules that the proof bridge
+imports keeps the same locked dependencies, and Lake builds only the added ones.
+Provisioning is stored apart from every run's checks, so a project failure does
+not discard useful provisioning work. Project outputs still build cold in every
+gate run. One run of `./scripts/verify.sh` bounds the cold build and every check
+with one fixed deadline. The gate runs the command twice, each run under its own
+deadline: `./scripts/verify.sh build-executing` builds the executing library,
+the tools and the native objects, and the complete command reuses them where
+Lake's traces match. So in the gate the cold build and the checks no longer
+share one deadline. Reuse Lake's
 source/toolchain-validated configuration trace and batch independent source
 hashes while checking every result's filename and digest. Neither mechanism
 reuses a previous verification result or substitutes a digest for correctness.

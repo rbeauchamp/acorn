@@ -97,7 +97,7 @@ Then run the complete command in the actual Git checkout:
 ```
 
 - Each run is bounded by a hard 360-second process-group SIGKILL deadline,
-  including the cold project build when outputs are cold. CI runs
+  including the cold project build when outputs are cold. The merge gate runs
   `./scripts/verify.sh build-executing` first, under its own deadline, so there
   the cold build and the checks no longer share one.
 - No override, grace period, partial pass, missing check or cached acceptance
@@ -108,9 +108,11 @@ Then run the complete command in the actual Git checkout:
 - FloatLib is a proof dependency: only the proof bridge imports it, and no
   executing module may.
 
-Sign commits and preserve license notices. CI runs the same command on the exact
-proposed head and, as a second required job outside that deadline, the Regula
-audit `./scripts/lean.sh lint`. Resolve required checks,
+Sign commits and preserve license notices. The merge gate, `./scripts/gate.sh`,
+which the no-mistakes pipeline runs on the exact proposed head before a pull
+request opens, runs the same command and, as a second check outside that
+deadline, the Regula audit `./scripts/lean.sh lint`; GitHub Actions runs no
+check on a pull request. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need

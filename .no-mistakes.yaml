@@ -1,15 +1,52 @@
 # Configuration of the no-mistakes pipeline, which validates every change to Acorn before it
-# reaches GitHub.
-#
-# Acorn establishes a change's claims by proof, construction and derivation, never by tests
-# (AGENTS.md, "Correct by construction"). The pipeline's review and test agents read this file and
-# no-mistakes' own contracts, not a contributor's instructions, so this file is where they learn
-# that rule. no-mistakes reads `test.tests_as_evidence` only from the copy of this file on the
+# reaches GitHub. no-mistakes reads every setting below only from the copy of this file on the
 # default branch, so a change to it governs the runs that follow its merge, not its own.
 #
-# `policy: forbid` tells every pipeline agent that a test is no evidence and that none may be
-# added. It also makes the pipeline report, at its Test step, each line the listing below prints
-# for a change and not for its base, and refuse to publish such a line unreported.
+# The local pipeline is Acorn's merge gate; GitHub Actions runs no check on a pull request or a
+# push. Its Test step runs scripts/gate.sh in a checkout of the exact commit it validates, holding
+# only tracked files. The script provisions the pinned dependencies and runs every check the
+# verification workflows ran: both stages of ./scripts/verify.sh and the Regula audit
+# ./scripts/lean.sh lint. Any failing check fails the step.
+no_ci: true
+
+commands:
+  test: ./scripts/gate.sh
+
+# Dependency provisioning, the largest part of a run from nothing, is reused across runs. For each
+# run's base commit on the default branch, no-mistakes runs the command once and stores
+# lean/.lake/packages: the locked dependency checkouts and their build outputs. A run starts from a
+# private copy only while each file below has the same content as at that base, so the copy holds
+# the revisions the run's lock files name, built by the same toolchain. Lake then rebuilds whatever
+# its traces do not show current, and the script's provisioning builds anything missing. Acorn's own
+# modules are compiled in every run: their outputs in lean/.lake/build are read without any check,
+# and Acorn's verification keeps Lake's artifact cache off.
+#
+# Memory, measured on 2026-10-28 on a fresh clone with 14 cores, as the summed physical footprint of
+# the command's processes sampled every 2 s: provisioning from nothing peaked at 3.1 GiB, and the
+# whole Test command at 11.3 GiB, during the Regula audit. Nothing enforces either bound.
+build_outputs:
+  command: no-mistakes admit --memory 4GiB --limit "none; measured peak 3.1 GiB" -- ./scripts/gate.sh provision
+  directories:
+    - lean/.lake/packages
+  toolchain_files:
+    - lean/lean-toolchain
+    - lean/lake-manifest.json
+    - site/lean-toolchain
+    - site/lake-manifest.json
+
+# The Test step builds Acorn and its documents and replays the claimed modules in the kernel.
+heavy_steps:
+  test:
+    memory: 12GiB
+    limit: none; measured peak 11.3 GiB
+
+# Tests are no evidence here. Acorn establishes a change's claims by proof, construction and
+# derivation, never by tests (AGENTS.md, "Correct by construction"). The pipeline's review and test
+# agents read this file and no-mistakes' own contracts, not a contributor's instructions, so this
+# file is where they learn that rule. `policy: forbid` tells every pipeline agent that a test is no
+# evidence and that none may be added. It also makes the pipeline report, at its Test step, each
+# line the listing below prints for a change and not for its base, and refuse to publish such a
+# line unreported.
 #
 # The listing prints the tests that Lake, Acorn's build tool, defines. Lake knows one kind of test:
 # a package's test driver, the script, executable or library that `lake test` runs, set by the
@@ -27,17 +64,19 @@
 #  - Configuration file names match without regard to case, as Lake finds them on a
 #    case-insensitive file system. A package path that Git prints quoted (one holding a quote, a
 #    backslash or a control character) fails the listing, since the quoted form is not the path.
-#  - The program uses Lake's public Lean interface. A toolchain whose Lake changes that interface
-#    makes the listing fail, never pass; this file then changes on the default branch first.
+#  - The program uses Lake's public Lean interface. A toolchain whose Lake changes the signatures it
+#    calls makes the listing fail. A change in what `loadPackage` records as a package's test driver
+#    is not detected: the listing would then print nothing for that driver and pass.
 # A test Lake does not know, such as a command in a Lean file that runs code on chosen inputs, is
 # not listed. `forbid` leaves it to the review agent, whom it tells to report every test a change
 # adds; that is an instruction an agent follows, not a check.
 #
 # Memory. Measured on 2026-10-27 on fresh clones, loading one package peaked at 0.15 GiB of
 # physical footprint and 1.8 GiB resident, most of it the .olean files Lean maps, which the system
-# can drop without swapping. Each load runs through `no-mistakes admit` with a 2 GiB bound, so it
-# waits until that bound fits the machine's memory budget beside all other admitted work. Nothing
-# enforces the bound.
+# can drop without swapping. Each load runs through `no-mistakes admit` with a 2 GiB bound, which
+# it takes from the share of work already admitted, such as the Test step declared in heavy_steps
+# above, or otherwise waits for in the machine's memory budget beside all other admitted work.
+# Nothing enforces the bound.
 test:
   tests_as_evidence:
     policy: forbid

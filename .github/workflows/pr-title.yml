@@ -1,7 +1,14 @@
 name: PR title
+# Runs only when started by hand, on the title given as its input. A pull request's title
+# is no part of the commit that no-mistakes validates; its PR step drafts each title as a
+# Conventional Commits header, since .no-mistakes.yaml sets no other title format.
 on:
-  pull_request:
-    types: [opened, edited, reopened, synchronize]
+  workflow_dispatch:
+    inputs:
+      title:
+        description: The pull request title to check
+        required: true
+        type: string
 permissions: {}
 jobs:
   pr-title:
@@ -14,7 +21,7 @@ jobs:
         # The title reaches the script only through the environment; interpolating
         # it into the script would let a title inject shell commands.
         env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_TITLE: ${{ inputs.title }}
         shell: bash
         run: |
           pattern='^(feat|fix|docs|refactor|perf|test|build|ci|chore|revert)(\([^()]+\))?!?: [^ ].*$'
