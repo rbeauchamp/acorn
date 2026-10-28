@@ -20,8 +20,12 @@ commands:
 # its traces do not show current, and the script's provisioning builds anything missing. Acorn's own
 # modules are compiled in every run: their outputs in lean/.lake/build are read without any check,
 # and Acorn's verification keeps Lake's artifact cache off.
+#
+# Memory, measured on 2026-10-28 on a fresh clone with 14 cores, as the summed physical footprint of
+# the command's processes sampled every 2 s: provisioning from nothing peaked at 3.1 GiB, and the
+# whole Test command at 11.3 GiB, during the Regula audit. Nothing enforces either bound.
 build_outputs:
-  command: no-mistakes admit --memory 16GiB --limit "none; measured peak pending" -- ./scripts/gate.sh provision
+  command: no-mistakes admit --memory 4GiB --limit "none; measured peak 3.1 GiB" -- ./scripts/gate.sh provision
   directories:
     - lean/.lake/packages
   toolchain_files:
@@ -33,5 +37,5 @@ build_outputs:
 # The Test step builds Acorn and its documents and replays the claimed modules in the kernel.
 heavy_steps:
   test:
-    memory: 16GiB
-    limit: none; measured peak pending
+    memory: 12GiB
+    limit: none; measured peak 11.3 GiB
