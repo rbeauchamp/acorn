@@ -89,15 +89,17 @@ noncomputable executing declarations
   `lean/AcornVerif/Decisions.lean`) and bounded host or gate checks,
   `mission:world` for spatial, kinematic and world-class specifications and
   proofs, and `mission:prior-art` for prior-art design passes, implementations
-  and proofs. The first five issues labelled mission
+  and proofs. The first three issues labelled mission
   ([#163](https://github.com/rbeauchamp/acorn/issues/163),
-  [#135](https://github.com/rbeauchamp/acorn/issues/135),
-  [#134](https://github.com/rbeauchamp/acorn/issues/134),
   [#174](https://github.com/rbeauchamp/acorn/issues/174) and
   [#132](https://github.com/rbeauchamp/acorn/issues/132)) are starter missions
-  of the proof and contract kind (`mission:proof` and `mission:contract`);
-  missions that prove learning and goal-achievement results come with Acorn's
-  research agenda, with no dates promised.
+  of the proof and contract kind (`mission:proof` and `mission:contract`).
+  [#135](https://github.com/rbeauchamp/acorn/issues/135) and
+  [#134](https://github.com/rbeauchamp/acorn/issues/134) were checked and left
+  unlabelled, with the reason recorded on each issue, until their contracts are
+  exact: #135 must fix its slow-variation threshold and #134 its key matrix and
+  feature-rank assumptions. Missions that prove learning and goal-achievement
+  results come with Acorn's research agenda, with no dates promised.
 - **How to find one:** browse
   [open missions](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission)
   or run `gh issue list -R rbeauchamp/acorn --label mission`.
@@ -110,9 +112,10 @@ noncomputable executing declarations
   `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). Files that make up
   Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
   `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
-  and `.github/`) are guarded by [CODEOWNERS](.github/CODEOWNERS) so any outside
-  change to them always gets the owner's review; do not touch them unless the
-  mission contract explicitly requires it.
+  and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
+  the owner's review on every pull request that changes them, and only the
+  owner's account, the one with write access, merges outside pull requests; do
+  not touch them unless the mission contract explicitly requires it.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
