@@ -1,0 +1,10 @@
+# Trusted base of Acorn: build and gate scripts, Lake package configurations,
+# Acorn's own build/verification tools, native C primitive, and GitHub config.
+/scripts/ @rbeauchamp
+/lean/lakefile.lean @rbeauchamp
+/site/lakefile.toml @rbeauchamp
+/lean/AcornTools/ @rbeauchamp
+/lean/AcornTools.lean @rbeauchamp
+/lean/Bootstrap.lean @rbeauchamp
+/lean/os/ @rbeauchamp
+/.github/ @rbeauchamp

@@ -45,6 +45,61 @@ Releases follow [Semantic Versioning](https://semver.org/): fix implies a patch
 release, feat a minor release and a breaking change a major release, or a minor
 release before 1.0.
 
+## Missions for outside contributors and agents
+
+Acorn's missions serve [Oak Lab's mission](https://oaklab.ai/mission):
+discovering and implementing algorithms that allow agents to achieve goals in
+big worlds, together with the evidence for them. Proving a theorem or contract
+is not that discovery by itself; in Acorn, proof is the discipline that makes a
+claim about an algorithm trustworthy (showing that the executed implementation
+is the algorithm designed and that a stated property such as stability holds)
+and makes outside contributions safe to accept.
+
+- **What a mission is:** a GitHub issue labelled mission whose contract, the
+  exact Lean statement, decision contract, check or declared evaluation protocol
+  to establish, is frozen in the issue and may not be weakened. Each mission
+  states how acceptance is decided: a machine-checked proof, the repository
+  gate (`./scripts/gate.sh`), or a declared evaluation protocol under the
+  [scientific evidence guidance](#scientific-evidence) for a learning result.
+  Category labels mark the kind of work: `mission:proof` for proofs over
+  executing definitions or mathematical models in `lean/AcornVerif/`,
+  `mission:contract` for Regula decision contracts (`lean/Acorn/Decisions.lean`,
+  `lean/AcornVerif/Decisions.lean`) and bounded host or gate checks,
+  `mission:world` for spatial, kinematic and world-class specifications and
+  proofs, and `mission:prior-art` for prior-art design passes, implementations
+  and proofs. The first five issues labelled mission
+  ([#163](https://github.com/rbeauchamp/acorn/issues/163),
+  [#135](https://github.com/rbeauchamp/acorn/issues/135),
+  [#134](https://github.com/rbeauchamp/acorn/issues/134),
+  [#174](https://github.com/rbeauchamp/acorn/issues/174) and
+  [#132](https://github.com/rbeauchamp/acorn/issues/132)) are starter missions
+  of the proof and contract kind (`mission:proof` and `mission:contract`);
+  research missions with declared evaluation protocols come with Acorn's
+  research agenda, with no dates promised.
+- **How to find one:** browse
+  [open missions](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission)
+  or run `gh issue list -R rbeauchamp/acorn --label mission`.
+- **How to claim it:** open a pull request that closes the issue (`Closes #<id>.`
+  in the description), or comment claim on the issue; a claim comment lapses
+  after seven days without a pull request that passes the gate.
+- **Files a mission may touch:** modify only the modules and documents the
+  mission names (such as the target modules in `lean/Acorn/` or
+  `lean/AcornVerif/`, the decision registries `lean/Acorn/Decisions.lean` and
+  `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). Files that make up
+  Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
+  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
+  and `.github/`) are guarded by [CODEOWNERS](.github/CODEOWNERS) so any outside
+  change to them always gets the owner's review; do not touch them unless the
+  mission contract explicitly requires it.
+- **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
+  (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
+  `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
+  audit `./scripts/lean.sh lint`) and keep the sections of the
+  [pull request template](.github/pull_request_template.md).
+- **Credit:** squash merges keep the contributor's Git authorship on `main`, and
+  the pull request description credits both the human contributor and the AI
+  agent or model.
+
 ## Scientific evidence
 
 Ordinary engineering needs implementation, proofs, useful documentation and a
