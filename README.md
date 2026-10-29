@@ -143,7 +143,8 @@ Research criticism, proof/implementation review and contributions are welcome,
 including from outside contributors and their AI agents through
 [missions](CONTRIBUTING.md#missions-for-outside-contributors-and-agents).
 Questions about an equation, an adaptation or an unclear explanation are useful
-contributions too; you do not need a Lean proof to open a discussion in an issue.
+contributions too; see [support](SUPPORT.md) for where to ask and what to
+include, and the [code of conduct](CODE_OF_CONDUCT.md) for community standards.
 Report vulnerabilities through [private reporting](SECURITY.md), not public issues.
 MIT licensed; see [LICENSE](LICENSE). Dependencies retain their own licenses.
 
