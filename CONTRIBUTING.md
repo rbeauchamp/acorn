@@ -25,8 +25,10 @@ does, add `@AGENTS.md` to a personal, uncommitted CLAUDE.local.md at the
 checkout root.
 
 For each change, explain the intended behavior, its implementation and proof
-owners, and any assumptions in the PR. Run `./scripts/verify.sh` from the checkout
-and report its actual result and material limits. The merge gate,
+owners, and any assumptions in the PR, whose description keeps the sections of
+the [pull request template](.github/pull_request_template.md). Run
+`./scripts/verify.sh` from the checkout and report its actual result and
+material limits. The merge gate,
 `./scripts/gate.sh`, which the no-mistakes pipeline runs before a pull request
 opens, also requires the [Regula audit](docs/verification.md#regula-audit).
 
