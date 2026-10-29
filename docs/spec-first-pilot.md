@@ -25,8 +25,10 @@ What reached the owner, per function:
 
 | Function | Owner's statement reached by | Consequences derived | Decided on the owner's behalf | Reached the owner, and why | Owner's time |
 |---|---|---|---|---|---|
-| `World.dayPhase` | adopting a proposed world-level statement | 7 | all 7 | none; the owner answered the method question instead | OWNER-TIME-DAY |
-| `Rng.hash2`, `Rng.hash3` | adopting a proposed world-level statement | 6 | 5 | one: whether to require a collision-rate bound, a quality-for-cost trade; the owner accepted it as not covered | OWNER-TIME-HASH |
+| `World.dayPhase` | adopting a proposed world-level statement | 7 | all 7 | none; the owner answered the method question instead | see below |
+| `Rng.hash2`, `Rng.hash3` | adopting a proposed world-level statement | 6 | 5 | one: whether to require a collision-rate bound, a quality-for-cost trade; the owner accepted it as not covered | see below |
+
+The owner's time is an estimate by the assistant supervising the work, from the conversation, which the owner confirmed as about right, not the owner's own measurement: about 10 minutes answering the three function-level questions (12:05 to 12:40 UTC on 2026-10-29, mostly waiting between messages), and about 15 minutes on the discussion of the method that replaced per-consequence confirmation, which settled both functions and the collision-rate question together.
 
 ## Recommendation: which Acorn contracts owner-level records should describe
 
@@ -49,11 +51,12 @@ Day and night, terrain noise and feature hashing sit below them: the agents choo
 
 O1 holds of every record by construction.
 The hash record's O2 before running, a pair of functions meeting the whole record, is not proved: see the hash results below.
-lean-intent's cone check, run on each record against its implementation's declarations, accepted both: neither record's meaning reaches `World.dayPhase`, `Rng.hash2` or `Rng.hash3` (observed, lean-intent at 30fe70d on Lean v4.35.0).
+lean-intent's cone check, run on each record against its implementation's declarations, accepted both: the day record's meaning reaches none of `World.dayPhase`, `Action.energyCost` and `World.observe`, and the hash record's none of `Rng.hash2`, `Rng.hash3` and `Rng.mix64` (observed, lean-intent at 30fe70d on Lean v4.35.0).
 
 ## The decisions made on the owner's behalf
 
-Each decision is recorded twice in `AcornVerif.Intent.Decisions`: as an answer of lean-intent's owners' log given by the principal `agents` under the owner's delegation, so the log itself says the owner did not give it, and as a typed answer that the record's current revision keeps (`dayCycle_keeps`, `hashes_keeps`).
+Each decision is recorded twice in `AcornVerif.Intent.Decisions`: as an answer of lean-intent's owners' log given by the principal named agents under the owner's delegation, so the log itself says the owner did not give it, and as a typed answer that the record's current revision keeps (`dayCycle_keeps`, `hashes_keeps`).
+lean-intent's authority trace, run on that log, accepts all eleven answers as given under a delegation that traces back to the owner (observed by evaluation, not proved here).
 Where the blind second reading differed, the decision names the divergence and how the owner's statement settles it, and keeps Acorn's existing behaviour unless the statement requires otherwise.
 
 ### Day and night
@@ -79,13 +82,13 @@ Where the blind second reading differed, the decision names the divergence and h
 
 Each statement was formalized a second time by OpenAI's gpt-6-astra through the Codex command line (codex-cli 0.165.0), in a fresh, ephemeral, read-only session with memories and hooks off and stdin closed, given only the owner's words, the subject's types and lean-intent's record module.
 Codex's own event log shows each session read only those three files and made no web request; both formalizations elaborated against lean-intent unchanged.
-Codex's global instruction file, the owner's general engineering guidance, was still loaded: it carries no part of either record.
+These options do not switch off Codex's global instruction file, the owner's general engineering guidance, which carries no part of either record.
 The differences, and how each was settled, are in the decisions above.
 
 ## The code against the records
 
-- **Day and night.** `AcornVerif.Intent.DayCycleWorld` reads Acorn's world as the record's subject and ties that reading to the executing code: `payAndAct_spends` (the step spends the subject's cost) and `observe_day` (a successful observation reports the subject's sight). `acornDay_fulfils` proves, through lean-intent's refinement link, that `World.dayPhase` fulfils the record for every day of `8 * m` ticks dividing 2^64, and `standard_fulfils` for the standard 2048-tick day. Outside it: an odd day length, which `WorldConfig.admit` accepts and the record rules out because its halves cannot be equal (`acornDay_odd_unfulfilled`); a length that does not divide 2^64, for which the 64-bit clock's wrap after 2^64 ticks breaks one day; and lengths of 2, 4 and 6 ticks, which the proof does not cover. No executing entry point builds a custom day length.
-- **The hashes.** `AcornVerif.Intent.HashImplementation` proves the first property of both functions (`acornHashes_oneInputMoves`) from `mix64` being a bijection, and that no reordering alone keeps every spot (`acornHashes_reorder`). The second property is not proved for rules that shift two or more inputs: for those it comes down to `mix64` having no fixed difference in any of 2^64 directions, a statement about SplitMix64's finalizer that no proof here establishes. It is expected to hold, since the finalizer is a nonlinear bijection, and it is open.
+- **Day and night.** `AcornVerif.Intent.DayCycleWorld` reads Acorn's world as the record's subject and ties that reading to the executing code: `payAndAct_spends` (the step spends the subject's cost) and `observe_day` (a successful observation reports the subject's sight). `acornDay_fulfils` proves, through lean-intent's refinement link, that `World.dayPhase` fulfils the record for every day of `8 * m` ticks dividing 2^64, and `standard_fulfils` for the standard 2048-tick day. Outside it: an odd day length, which `WorldConfig.admit` accepts and the record rules out because its halves cannot be equal (`acornDay_odd_unfulfilled`); a length that does not divide 2^64, for which the 64-bit clock's wrap after 2^64 ticks breaks one day; and lengths of 2, 4 and 6 ticks, which the proof does not cover. No executing entry point builds a custom day length; these lengths are accepted risk, and #185 is to make admission refuse the lengths the record rules out.
+- **The hashes.** `AcornVerif.Intent.HashImplementation` proves the first property of both functions (`acornHashes_oneInputMoves`) from `mix64` being a bijection, and that no reordering alone keeps every spot (`acornHashes_reorder`). The second property is not proved for rules that shift two or more inputs: for those it comes down to `mix64` having no fixed difference in any of 2^64 directions, a statement about SplitMix64's finalizer that no proof here establishes and for which no affordable route is known. It is expected to hold, since the finalizer is a nonlinear bijection. Leaving it open was decided on the owner's behalf for its cost, as the owner had accepted the collision-rate bound as not covered for the same reason; #184 is to prove it. Until then the hash record's O2 before running is unproved too.
 
 ## Would the records have refused the defects of #154 and #155?
 
