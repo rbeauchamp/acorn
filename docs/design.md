@@ -69,7 +69,7 @@ preceding transition. A frame has three parts, one for each kind of learner inpu
   deferred until its feature-construction semantics is decided;
   [issue #95](https://github.com/rbeauchamp/acorn/issues/95) tracks it. A world with
   only words can lay those words' codes over symbol positions, as the grid world does
-  with its task context. The Microduck world's symbols are its depth zones, and for a
+  with its task context. The [Microduck](https://github.com/pollen-robotics/microduck) world's symbols are its depth zones, and for a
   body with no depth sensor its frames fill every position with one constant, so every
   generated unit is constant there;
 - **signals**, one number per prediction question the world declares.
@@ -1040,7 +1040,7 @@ What these theorems do not establish:
 
 ### An embodied world: the Microduck
 
-The first world after the grid world is a small biped, Pollen Robotics' Microduck.
+The first world after the grid world is a small biped, [Pollen Robotics](https://pollen-robotics.com/microduck/)' [Microduck](https://github.com/pollen-robotics/microduck).
 Its simulator runs the control daemon and the client interface of the robot. That
 interface was observed in one run of the simulator; the record of its commands,
 skills and timing is in

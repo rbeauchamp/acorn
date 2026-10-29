@@ -130,7 +130,7 @@ refuses a native replacement. Every proof passes through the kernel.
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
 owned by one, unless it is one of a world's own declared modules. The grid world's are
-Acorn.Handcrafted.Observation, Acorn.Handcrafted.Cumulants and Acorn.Handcrafted.GridWorld. The Microduck
+Acorn.Handcrafted.Observation, Acorn.Handcrafted.Cumulants and Acorn.Handcrafted.GridWorld. The [Microduck](https://github.com/pollen-robotics/microduck)
 world's is Acorn.Handcrafted.Microduck,
 which binds that world to the interface; the host's sensing builds its percepts, which the
 executable microduck-host runs, and no theorem states what it feeds a learner. The last of the grid world's modules binds the

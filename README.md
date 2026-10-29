@@ -24,8 +24,10 @@ The owner of the project has chosen two kinds of worlds:
 
 - [ARC-AGI-3](https://docs.arcprize.org/) games, interactive games the agent
   learns by playing;
-- Microduck, a small simulated biped and so an embodied world
-  ([design](docs/design.md#an-embodied-world-the-microduck)).
+- [Microduck](https://github.com/pollen-robotics/microduck), a small simulated
+  biped and so an embodied world
+  ([Pollen Robotics](https://pollen-robotics.com/microduck/),
+  [design](docs/design.md#an-embodied-world-the-microduck)).
 
 The tile world the viewer shows was chosen by an agent working on Acorn, not by
 the owner. It has no standing beyond being the first world built.

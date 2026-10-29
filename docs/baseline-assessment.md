@@ -442,7 +442,7 @@ F-E left its feature-construction end inert until U3.
   image is the exact image of the agent, and loading it returns the agent that was
   saved (`CurrentCheckpoint.load_saved`). Its timing is not one either:
   the grid world declares that it waits for the agent (`Grid.interface_timing`),
-  the Microduck's world declares a wall clock with a cycle and a latency
+  the [Microduck](https://github.com/pollen-robotics/microduck)'s world declares a wall clock with a cycle and a latency
   (`Microduck.interface_timing`, [design](design.md#the-time-a-world-declares)),
   and the executable `microduck-host` runs that world's host loop at the declared
   pace. The step itself is two functions, and under the `plan-after-act` and
@@ -461,7 +461,7 @@ F-E left its feature-construction end inert until U3.
   as observations no decision reads (`act_learners`), and the evaluation mode
   `withoutReachRelation` is named for the grid world's reach relation, which only
   the grid adapter omits from its frame
-  words. A second world, the Microduck, has an instance of the interface and an
+  words. A second world, the [Microduck](https://github.com/pollen-robotics/microduck), has an instance of the interface and an
   adapter, and the executable `microduck-host` runs the agent in it against the
   vendor's simulator; no run of it is recorded as a measurement, so that an agent
   learns in another world is not an observation.
