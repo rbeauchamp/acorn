@@ -49,6 +49,8 @@ Day and night, terrain noise and feature hashing sit below them: the agents choo
 | `AcornVerif.Intent.DayCycle.dayCycle` | `DayWorld`: day length, night, energy cost and sight, generic in the world's types | O2 (`dayCycle_o2`), O2 before running (`dayCycle_o2Run`), O3 (`dayCycle_o3`), O4 (`dayCycle_o4`), O5 widest and not with equality (`dayCycle_o5_widest`, `dayCycle_not_o5_eq`) | not covered: the subject is a structure of functions, a higher-order subject lean-intent's check does not cover yet |
 | `AcornVerif.Intent.Hash.hashes` | `Hashes`: the pair of functions on three 64-bit words | O2 (`hashes_o2`), O3 (`hashes_o3`), O4 (`hashes_o4`), O5 widest (`hashes_o5_widest`) | not covered: a structure of functions on 64-bit words, neither of which the check covers |
 
+The degenerate check also does not cover declared types with value parameters or proof fields, `Fin n`, `UInt64`, or `Std.TreeMap`. All are **not covered**, never passed. The pinned library's `LeanIntent.Declared` handler refuses value parameters and proof fields, and its `LeanIntent.Codes` supplies no code for these three types; the pilot's adequacy and implementation theorems do not extend that coverage.
+
 O1 holds of every record by construction.
 The hash record's O2 before running, a pair of functions meeting the whole record, is not proved: see the hash results below.
 lean-intent's cone check, run on each record against its implementation's declarations, accepted both: the day record's meaning reaches none of `World.dayPhase`, `Action.energyCost` and `World.observe`, and the hash record's none of `Rng.hash2`, `Rng.hash3` and `Rng.mix64` (observed, lean-intent at 30fe70d on Lean v4.35.0).
