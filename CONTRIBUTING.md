@@ -49,18 +49,19 @@ release before 1.0.
 
 Acorn's missions serve [Oak Lab's mission](https://oaklab.ai/mission):
 discovering and implementing algorithms that allow agents to achieve goals in
-big worlds, together with the evidence for them. Proving a theorem or contract
-is not that discovery by itself; in Acorn, proof is the discipline that makes a
-claim about an algorithm trustworthy (showing that the executed implementation
-is the algorithm designed and that a stated property such as stability holds)
-and makes outside contributions safe to accept.
+big worlds, and formally proving that they work—that the agent achieves goals
+over a formally modelled class of big worlds. Running the agent in its worlds
+([ARC-AGI-3](https://docs.arcprize.org/) games or Microduck) is a smoke test
+and demonstration, never acceptance evidence. In Acorn, missions are the
+mission's work of discovering algorithms and proving that they work, and each
+mission's acceptance is decided by the stated theorem or contract checked by
+Lean's kernel and the repository gate (`./scripts/gate.sh`).
 
 - **What a mission is:** a GitHub issue labelled mission whose contract, the
-  exact Lean statement, decision contract, check or declared evaluation protocol
-  to establish, is frozen in the issue and may not be weakened. Each mission
-  states how acceptance is decided: a machine-checked proof, the repository
-  gate (`./scripts/gate.sh`), or a declared evaluation protocol under the
-  [scientific evidence guidance](#scientific-evidence) for a learning result.
+  exact Lean theorem statement or decision contract to establish, is frozen in
+  the issue and may not be weakened. Each mission states the theorem or contract
+  that decides its acceptance, checked by Lean's kernel and `./scripts/gate.sh`;
+  runs of the agent in its worlds are demonstrations, not acceptance evidence.
   Category labels mark the kind of work: `mission:proof` for proofs over
   executing definitions or mathematical models in `lean/AcornVerif/`,
   `mission:contract` for Regula decision contracts (`lean/Acorn/Decisions.lean`,
@@ -74,7 +75,7 @@ and makes outside contributions safe to accept.
   [#174](https://github.com/rbeauchamp/acorn/issues/174) and
   [#132](https://github.com/rbeauchamp/acorn/issues/132)) are starter missions
   of the proof and contract kind (`mission:proof` and `mission:contract`);
-  research missions with declared evaluation protocols come with Acorn's
+  missions that prove learning and goal-achievement results come with Acorn's
   research agenda, with no dates promised.
 - **How to find one:** browse
   [open missions](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission)
