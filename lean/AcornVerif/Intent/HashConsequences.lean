@@ -6,15 +6,17 @@ Authors: acorn contributors
 import AcornVerif.Intent.Hash
 
 /-!
-# The hash record's consequences, as shown to the owner
+# The hash record's consequences
 
-Each consequence the owner is asked to confirm or decline is proved to hold of the record as shown
-(`LeanIntent.Shown`), and `hashesExplained` glosses every statement of the record in plain words.
-A second, blind formalization of the same words by a model of another provider wrote "about as
-rarely as pure chance" as a bound on a collision probability whose tolerance and whose relevant
-patterns it left for the owner to choose, allowed a single changed input to collide at that rate,
-and left open whether the two functions share their spots; the glosses of `oneInputMoves`,
-`noRuleKeepsSpots` and `pairsApart` show the owner where this record decides those points.
+Each consequence of the record that a design decision settles is proved to hold of the record,
+and `hashesExplained` glosses every statement of the record in plain words; the decisions, made
+on the owner's behalf, are recorded in `AcornVerif.Intent.Decisions`. A second, blind
+formalization of the same words by a model of another provider wrote "about as rarely as pure
+chance" as a bound on a collision probability whose tolerance and whose relevant patterns it left
+open, allowed a single changed input to collide at that rate, and left open whether the two
+functions share their spots; `oneChangeMoves` and `noFixedRule` record how this record decides
+the first two, and the record leaves the third unasked because the two never share spots in
+Acorn.
 -/
 
 namespace AcornVerif.Intent.Hash
@@ -50,7 +52,7 @@ def rulesOutPlainCombinations : Consequence Hashes :=
 
 theorem rulesOutPlainCombinations_holds : rulesOutPlainCombinations.HoldsOf hashes := by
   intro w hw
-  obtain ⟨-, ⟨h2, h3⟩, -⟩ := hashes_meets.mp hw
+  obtain ⟨-, ⟨h2, h3⟩⟩ := hashes_meets.mp hw
   have hx : ∀ a b c : UInt64, xorAll (b, a, c) = xorAll (a, b, c) := fun a b c => by
     show b ^^^ a ^^^ c = a ^^^ b ^^^ c
     rw [UInt64.xor_comm b a]
@@ -76,14 +78,7 @@ def noFixedRule : Consequence Hashes :=
     fun w => NoRuleKeepsSpots w.hash2 ∧ NoRuleKeepsSpots w.hash3⟩
 
 theorem noFixedRule_holds : noFixedRule.HoldsOf hashes :=
-  fun _ hw => (hashes_meets.mp hw).2.1
-
-/-- The two functions never systematically share their spots. -/
-def apart : Consequence Hashes :=
-  ⟨"the two functions never systematically share their spots", .entailment,
-    fun w => ∀ r : Rule, ∃ x, w.hash3 x ≠ w.hash2 (r.apply x)⟩
-
-theorem apart_holds : apart.HoldsOf hashes := fun _ hw => (hashes_meets.mp hw).2.2
+  fun _ hw => (hashes_meets.mp hw).2
 
 /-- The same inputs always give the same spot. It holds of every pair of functions, the record's
 models among them: a Lean function gives one result for each input. -/
@@ -95,7 +90,7 @@ theorem replay_holds : replay.HoldsOf hashes := fun _ _ _ _ h => h ▸ ⟨rfl, r
 
 /-! ## The record explained -/
 
-/-- The hash record explained for its owner. -/
+/-- The hash record explained in plain words, with its consequences. -/
 def hashesExplained : Explanation hashes where
   shape :=
     { requires := "The subject is the pair of hash functions, each taking three 64-bit inputs \
@@ -111,9 +106,7 @@ def hashesExplained : Explanation hashes where
       rulesOut := "A function that ignores an input, and one where two values of one input \
         share a spot for some values of the others."
       allows := "Any amount of sharing between inputs that differ in two or three places."
-      freedom := "Everything about inputs that differ in more than one place. Pure chance \
-        would let one changed input share a spot about once in 2^64 tries; a second, blind \
-        reading of your words allowed that." },
+      freedom := "Everything about inputs that differ in more than one place." },
     { requires := "No fixed rule moves every input to a different input in the same spot. A \
         rule here puts the three inputs in some order, then adds a fixed amount to each, or \
         flips fixed bits of each."
@@ -122,17 +115,7 @@ def hashesExplained : Explanation hashes where
         flipping the same bits, keeps every spot."
       allows := "Rules of other kinds, such as multiplying the inputs by fixed numbers; and any \
         number of inputs sharing spots without a fixed rule behind it."
-      freedom := "How often inputs share spots overall: the record bounds no rate. A second, \
-        blind reading of your words wrote 'about as rarely as pure chance' as a bound on that \
-        rate, with the tolerance and the patterns that count left for you to choose." },
-    { requires := "No fixed rule of the same kind makes the second function give every input \
-        the spot the first gives the moved input, so the two never systematically share \
-        their spots."
-      rulesOut := "The second function being the first, or the first with its inputs \
-        reordered or shifted."
-      allows := "Two functions that share spots for some inputs."
-      freedom := "Whether the two functions send their inputs into one space of spots at all, \
-        which this reading assumes and a second, blind reading left open." }]
+      freedom := "How often inputs share spots overall: the record bounds no rate." }]
   vocab := [
     { requires := "Two spots are the same 64-bit value."
       rulesOut := "Spots 0 and 1."
@@ -155,11 +138,6 @@ def hashesExplained : Explanation hashes where
         rulesOut := "Those two combinations, since swapping two inputs keeps their spot."
         allows := "Combinations that mix the inputs before combining them."
         freedom := "None that this consequence adds." }⟩,
-    ⟨apart, apart_holds,
-      { requires := "The two functions never systematically share their spots."
-        rulesOut := "One function being a copy of the other, up to a fixed rule."
-        allows := "The two sharing some spots."
-        freedom := "None beyond the property's." }⟩,
     ⟨replay, replay_holds,
       { requires := "The same inputs always give the same spot, so a run can be replayed."
         rulesOut := "Nothing: every function of this type meets it."

@@ -11,10 +11,10 @@ import AcornVerif.LeanIntentBridge
 The owner holds intent for Acorn at the level of what a world and an agent should do, not per
 function. For the two hash functions `Acorn.Rng.hash2` and `Acorn.Rng.hash3` the owner adopted, on
 2026-10-29, a statement proposed by the assistant supervising this work after it had read the
-functions' callers and an issue about them: different things the agent senses, different places, and different goals
-should land in the same spot only about as rarely as pure chance, never systematically; the same
-inputs always give the same result, so a run can be replayed. That statement is this record's only
-source. The record was written knowing only the functions' types, read from Lean's environment,
+functions' callers and an issue about them: different things the agent senses, different places,
+and different goals should land in the same spot only about as rarely as pure chance, never
+systematically; the same inputs always give the same result, so a run can be replayed. That
+statement is this record's only source. The record was written knowing only the functions' types, read from Lean's environment,
 each taking three 64-bit words to one; neither function's source was read before it.
 
 The subject, `Hashes`, is the pair of functions. Each property is a part of the statement that a
@@ -22,25 +22,28 @@ theorem can carry:
 
 * `oneInputMoves`: changing any one input, the others kept, always moves the spot. Pure chance
   would let such a change land in the same spot about once in 2^64 tries; the record asks for
-  never, which is stronger than the statement by that margin. It is an interpretation, shown to the
-  owner, because without it the record would admit a function that sends almost every input to
-  one spot.
+  never, which is stronger than the statement by that margin. It is a design decision, because
+  without it the record would admit a function that sends almost every input to one spot.
 * `noRuleKeepsSpots`: no fixed rule moves every input to a different input in the same spot. A
   rule (`Rule`) reorders the three inputs and then shifts them by fixed amounts, by flipping fixed
   bits or by adding fixed numbers, the two arithmetics of a machine word. This is "never
   systematically" for the rules a combination of words by exclusive or, addition and reordering
   can obey.
-* `pairsApart`: no rule makes one function agree with the other at every input, so the two never
-  systematically share their spots. The statement says the two serve one purpose; reading that as
-  sending into one space of spots is an interpretation, shown to the owner.
+
+The details below the statement are design decisions made on the owner's behalf, under the
+owner's decision of 2026-10-29 that an owner works at the level of intent; each is recorded with
+its reason in `AcornVerif.Intent.Decisions`. The record asks nothing of how the two functions'
+spots relate to each other: in Acorn they feed different consumers (`hash2` the terrain and the
+curriculum's draws, `hash3` feature slots, samples, context codes and goal cues), so no input of
+one competes for a spot with an input of the other.
 
 Not stated: "only about as rarely as pure chance" is a claim about how often inputs collide, a
-rate, and no property here bounds a rate; rules outside the class above, such as multiplying the
-inputs by a fixed factor, are not excluded. "The same inputs always give the same result" holds of
-every subject of this type by construction, since a Lean function returns one result for each
-input, so it is no property, which no subject could fail; the record shows it to the owner as a
-consequence, and replay further trusts the compiler and runtime to compute 64-bit words alike on
-every machine.
+rate, and no property here bounds a rate, which the owner accepted as not covered on 2026-10-29;
+rules outside the class above, such as multiplying the inputs by a fixed factor, are not
+excluded. "The same inputs always give the same result" holds of every subject of this type by
+construction, since a Lean function returns one result for each input, so it is no property,
+which no subject could fail; it is recorded as a consequence (`replay`), and replay further trusts
+the compiler and runtime to compute 64-bit words alike on every machine.
 -/
 
 namespace AcornVerif.Intent.Hash
@@ -132,38 +135,29 @@ def noRuleKeepsSpots : Clause Hashes :=
   ⟨"no fixed rule of reordering and shifting the inputs keeps every spot", fun w =>
     NoRuleKeepsSpots w.hash2 ∧ NoRuleKeepsSpots w.hash3⟩
 
-/-- No rule makes the second function agree with the first at every input. -/
-def pairsApart : Clause Hashes :=
-  ⟨"the two functions never systematically share their spots", fun w =>
-    ∀ r : Rule, ∃ x, w.hash3 x ≠ w.hash2 (r.apply x)⟩
-
 /-- The intent record of the hash functions. -/
 def hashes : IntentRecord Hashes where
   shape := .value _
   dom := []
-  props := [oneInputMoves, noRuleKeepsSpots, pairsApart]
+  props := [oneInputMoves, noRuleKeepsSpots]
   vocab := [⟨"same spot", UInt64 × UInt64, fun p => p.1 = p.2⟩]
 
 /-- A pair of functions meets the record exactly when each moves its spot on any one changed
-input, no moving rule keeps every spot of either, and no rule makes the second a copy of the
-first. -/
+input and no moving rule keeps every spot of either. -/
 theorem hashes_meets {w : Hashes} :
     hashes.Meets w ↔
       (OneInputMoves w.hash2 ∧ OneInputMoves w.hash3) ∧
-      (NoRuleKeepsSpots w.hash2 ∧ NoRuleKeepsSpots w.hash3) ∧
-      (∀ r : Rule, ∃ x, w.hash3 x ≠ w.hash2 (r.apply x)) := by
+      (NoRuleKeepsSpots w.hash2 ∧ NoRuleKeepsSpots w.hash3) := by
   constructor
   · intro h
     exact ⟨h.2 _ (List.mem_cons_self ..),
-      h.2 _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)),
-      h.2 _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))⟩
-  · intro ⟨h1, h2, h3⟩
+      h.2 _ (List.mem_cons_of_mem _ (List.mem_cons_self ..))⟩
+  · intro ⟨h1, h2⟩
     refine ⟨(fun d hd => nomatch hd), fun p hp => ?_⟩
     simp only [hashes, List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with rfl | rfl | rfl
+    rcases hp with rfl | rfl
     · exact h1
     · exact h2
-    · exact h3
 
 /-! ## Adequacy -/
 
@@ -180,17 +174,15 @@ theorem hashes_o2 : O2 hashes := by
   exact ⟨(0, 0), rfl⟩
 
 /-- O3: each property fails of the pair that sends everything to spot 0. Changing the first
-input does not move its spot; adding 1 to the first input keeps every spot; and the second
-function agrees with the first everywhere. -/
+input does not move its spot, and adding 1 to the first input keeps every spot. -/
 theorem hashes_o3 : O3 hashes := by
   refine (o3_correct _).mpr fun p hp => ?_
   simp only [hashes, List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with rfl | rfl | rfl
+  rcases hp with rfl | rfl
   · exact ⟨constantZero, fun h => absurd (h.1.1 0 1 0 0 rfl) (by decide)⟩
   · refine ⟨constantZero, fun h => ?_⟩
     obtain ⟨x, hx⟩ := h.1 ⟨.abc, .add, (1, 0, 0)⟩ (fun h => absurd (congrArg (·.1) h.2) (by decide))
     exact hx rfl
-  · exact ⟨constantZero, fun h => let ⟨_, hx⟩ := h ⟨.abc, .flip, (0, 0, 0)⟩; hx rfl⟩
 
 /-- O4: the subject is a pair of functions with no state carried from one call to the next,
 declared `.value`, of which O4 asks nothing. -/
