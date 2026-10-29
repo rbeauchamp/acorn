@@ -52,7 +52,7 @@ def regularFile (path : System.FilePath) : IO Unit := do
 def overrides : IO (Json × Bool) := do
   regularFile "lake-manifest.json"
   let lock ← checked (Json.parse (← IO.FS.readFile "lake-manifest.json"))
-  unless (← checked (lock.getObjValAs? String "version")) == "1.2.0" &&
+  unless (← checked (lock.getObjValAs? String "version")) == "1.3.0" &&
       (← checked (lock.getObjValAs? String "packagesDir")) == ".lake/packages" &&
       (← checked (lock.getObjValAs? String "lakeDir")) == ".lake" do
     throw (IO.userError "unsupported Lake lock layout; provision separately")

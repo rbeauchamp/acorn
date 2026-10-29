@@ -15,7 +15,7 @@ warningAsError = true
 [[require]]
 name = "verso"
 git = "https://github.com/leanprover/verso"
-rev = "cad4b633e75ea769b851f12f9ca3b4f0dfcc625f"
+rev = "304b8561790c50222551c937ce02928df0d5b445"
 
 # The Lean owners of what the documents cite: declarations, constants and audit pins.
 [[require]]

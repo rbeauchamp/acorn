@@ -80,6 +80,11 @@ The Regula audit of the claimed libraries admits only dependencies on `propext`,
 project-owned axiom and a native proof. Source admission refuses the words. The
 guards below pin the exact dependency sets of selected named theorems.
 
+The guards live in this tool module, outside the libraries the Regula audit claims, because
+Regula's RG2003 refuses a `#guard_msgs` in a claimed module: it drops the messages of the
+command it runs, which the audit reads. Verification builds every discovered module, this
+one included, so a changed dependency set still fails the build.
+
 `#guard_msgs` makes it a build failure: if an `axiom` is introduced, or an
 import starts dragging one in, the message printed by `#print axioms` changes
 and this file stops compiling. These retained exact-set guards complement
@@ -164,39 +169,39 @@ info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on ax
 #guard_msgs in
 #print axioms Acorn.Binary32.finite_not_nan
 
-/-- info: 'Acorn.Binary32.less_finite' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Binary32.less_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Binary32.less_finite
 
-/-- info: 'Acorn.Interval32.interval_admit_exact' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Interval32.interval_admit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.interval_admit_exact
 
-/-- info: 'Acorn.Interval32.interval_admit_refuses' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Interval32.interval_admit_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.interval_admit_refuses
 
-/-- info: 'Acorn.Interval32.finite_between' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Interval32.finite_between' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.finite_between
 
-/-- info: 'Acorn.Interval32.saturate_contains' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Interval32.saturate_contains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.saturate_contains
 
-/-- info: 'Acorn.Interval32.saturate_identity' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Interval32.saturate_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.saturate_identity
 
-/-- info: 'Acorn.Interval32.saturate_idempotent' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Interval32.saturate_idempotent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Interval32.saturate_idempotent
 
-/-- info: 'Acorn.Bounded32.admit_exact' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Bounded32.admit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Bounded32.admit_exact
 
-/-- info: 'Acorn.Bounded32.admit_refuses' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Bounded32.admit_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Bounded32.admit_refuses
 
@@ -680,15 +685,15 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Refresh.unchanged_credit_exact
 
-/-- info: 'Acorn.Symmetric32.symmetric_project_contains' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Symmetric32.symmetric_project_contains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Symmetric32.symmetric_project_contains
 
-/-- info: 'Acorn.Symmetric32.symmetric_project_identity' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Symmetric32.symmetric_project_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Symmetric32.symmetric_project_identity
 
-/-- info: 'Acorn.Symmetric32.symmetric_project_idempotent' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Symmetric32.symmetric_project_idempotent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Symmetric32.symmetric_project_idempotent
 
@@ -944,7 +949,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.normalizedNormal_bounds
 
-/-- info: 'Acorn.Conversion.normalizedNormal_value' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.normalizedNormal_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.normalizedNormal_value
 
@@ -960,7 +965,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.subnormalShift_lower
 
-/-- info: 'Acorn.Conversion.subnormalSignificand_upper' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.subnormalSignificand_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.subnormalSignificand_upper
 
@@ -1008,7 +1013,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.narrowSign_highBit
 
-/-- info: 'Acorn.Conversion.normalExponent_exact' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.normalExponent_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.normalExponent_exact
 
@@ -1108,7 +1113,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.normalMagnitude_units
 
-/-- info: 'Acorn.Conversion.normalExponent_scale' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.normalExponent_scale' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.normalExponent_scale
 
@@ -1332,7 +1337,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.widen_magnitude_unit
 
-/-- info: 'Acorn.Conversion.normalFraction_carry_zero' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.normalFraction_carry_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.normalFraction_carry_zero
 
@@ -1396,7 +1401,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.widen_normal_or_zero
 
-/-- info: 'Acorn.Conversion.trunc64_signed_magnitude' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.trunc64_signed_magnitude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.trunc64_signed_magnitude
 
@@ -1404,7 +1409,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.trunc64_signed_exact
 
-/-- info: 'Acorn.Conversion.signedCast_finite' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.signedCast_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.signedCast_finite
 
@@ -1568,7 +1573,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentExponential.expScale_finite
 
-/-- info: 'AcornVerif.CurrentExponential.expSaturation_ends' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentExponential.expSaturation_ends' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentExponential.expSaturation_ends
 
@@ -2424,7 +2429,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Rounding.nearestEven_word_large_shift
 
-/-- info: 'Acorn.Conversion.normalMagnitude_components' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Conversion.normalMagnitude_components' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Conversion.normalMagnitude_components
 
@@ -2842,7 +2847,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.clear_observers
 
-/-- info: 'AcornVerif.CurrentLearner.exploration_legal' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentLearner.exploration_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentLearner.exploration_legal
 
@@ -2958,7 +2963,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Handcrafted.TemporalControl.step_total
 
-/-- info: 'Acorn.Checkpoint.roundtrip' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Checkpoint.roundtrip' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.roundtrip
 
@@ -3292,7 +3297,7 @@ info: 'AcornVerif.CurrentCheckpoint.previous_generation_unloaded' depends on axi
 #guard_msgs in
 #print axioms AcornVerif.CurrentBackupBounds.option_td_error_termination_conditional
 
-/-- info: 'Acorn.Binary64.less_eq_key' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Acorn.Binary64.less_eq_key' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Acorn.Binary64.less_eq_key
 
@@ -3388,7 +3393,7 @@ info: 'AcornVerif.CurrentCurriculum.coordinate_seed_count' depends on axioms: [p
 #guard_msgs in
 #print axioms AcornVerif.CurrentCurriculum.coordinate_seed_count
 
-/-- info: 'AcornVerif.CurrentHashes.unit_not_tiled' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentHashes.unit_not_tiled' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentHashes.unit_not_tiled
 
@@ -3396,7 +3401,7 @@ info: 'AcornVerif.CurrentCurriculum.coordinate_seed_count' depends on axioms: [p
 #guard_msgs in
 #print axioms AcornVerif.CurrentHashes.unit_tag_tiling
 
-/-- info: 'AcornVerif.CurrentHashes.wood_not_stone' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentHashes.wood_not_stone' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentHashes.wood_not_stone
 
@@ -3414,7 +3419,7 @@ info: 'AcornVerif.CurrentHashes.moisture_not_elevation' depends on axioms: [prop
 #guard_msgs in
 #print axioms AcornVerif.CurrentHashes.tree_not_ore_draw
 
-/-- info: 'AcornVerif.CurrentHashes.sample_not_xor' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentHashes.sample_not_xor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentHashes.sample_not_xor
 
@@ -3605,7 +3610,7 @@ info: 'AcornVerif.CurrentConcealedTarget.find_replay_separates' depends on axiom
 #print axioms AcornVerif.CurrentConcealedTarget.find_replay_separates
 
 /--
-info: 'AcornVerif.CurrentConcealedTarget.find_replay_learns' depends on axioms: [propext, Quot.sound]
+info: 'AcornVerif.CurrentConcealedTarget.find_replay_learns' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentConcealedTarget.find_replay_learns
@@ -3728,7 +3733,7 @@ info: 'AcornVerif.CurrentOak.act_extras' depends on axioms: [propext, Classical.
 #guard_msgs in
 #print axioms AcornVerif.CurrentOak.act_extras
 
-/-- info: 'AcornVerif.CurrentOak.extras_departures' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentOak.extras_departures' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentOak.extras_departures
 
@@ -4048,7 +4053,7 @@ info: 'Acorn.Rng.fnv_byte' depends on axioms: [propext, Quot.sound]
 #guard_msgs in
 #print axioms Acorn.Rng.fnv_byte
 
-/-- info: 'AcornVerif.CurrentCheckpoint.order_edit_refused' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentCheckpoint.order_edit_refused' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentCheckpoint.order_edit_refused
 
@@ -4065,7 +4070,7 @@ info: 'AcornVerif.CurrentCheckpoint.relabeled_unloaded' depends on axioms: [prop
 #print axioms AcornVerif.CurrentCheckpoint.relabeled_unloaded
 
 /--
-info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Quot.sound]
+info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_order
@@ -4167,13 +4172,13 @@ info: 'Acorn.Host.Cli.stepOrder_iff' depends on axioms: [propext, Classical.choi
 #print axioms Acorn.Host.Cli.stepOrder_iff
 
 /--
-info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Quot.sound]
+info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_iff
 
 /--
-info: 'Acorn.Checkpoint.admitHeader_checks' depends on axioms: [propext, Quot.sound]
+info: 'Acorn.Checkpoint.admitHeader_checks' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Acorn.Checkpoint.admitHeader_checks

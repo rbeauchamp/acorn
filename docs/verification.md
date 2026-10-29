@@ -113,7 +113,8 @@ NativeApp, which Lake's globs assign and the [Regula audit](#regula-audit) exami
 or a listed tool module. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
 a maintained module with a non-empty module docstring. Ownership admission
-refuses a facet-qualified build key in the root package's Lake configuration.
+refuses a facet-qualified build key in the root package's Lake configuration,
+except Regula's elaboration observer in a target that also lists it among its needs.
 The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
 pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
@@ -481,14 +482,18 @@ validates, in a checkout that holds only tracked files; GitHub Actions runs no
 check on a pull request or a push. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
-sources as the complete command does, then builds every module outside the proof
-library `AcornVerif` with its native object, and every executable; it admits
-nothing after the build. The second is the identical complete command: Lake
+sources as the complete command does, then selects every module outside the proof
+library `AcornVerif` except `AcornTools.AxiomPins`, and every executable. It builds
+these targets and their dependencies, with native objects where applicable, and
+admits nothing after the build. The axiom pins import the proof library, so they
+remain in the second stage despite belonging to the tools. The second is the
+identical complete command, which selects every discovered module: Lake
 reuses an output of the first only where its trace matches the checked-out
 source, toolchain and options, and builds the rest. So in the gate the cold
 build and the checks no longer share one deadline: the first bounds the build of
-the executing library and the tools, the second the proof library's build and
-every check. On a four-processor machine the cold build with the checks beside
+the executing library, the tools except the axiom pins, and their dependencies;
+the second bounds the remaining proof build, the axiom pins and every check.
+On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
 [Regula audit](#regula-audit) on the same commit, also when verification failed,
 and passes only when both runs and the audit pass.
@@ -512,21 +517,27 @@ available for focused diagnostics.
 
 Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
-native, browser-kernel, ownership and site admission after it. Each of these
+native, browser-kernel and ownership admission after it. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
-before a failure is reported. The build requests modules first and executables
-after them. An executable whose Lake configuration names another target it needs
+before a failure is reported. The site check runs after these admissions, also
+when one of them fails, because building the documents can rebuild this
+package's modules into the build directory that the admissions read. The build
+requests modules first and executables after them. An executable whose Lake
+configuration names a target it needs other than Regula's elaboration observer
 is held back with its root module: both are requested after every other module
 and executable, because Lake waits for that target before it reads the next
-request, so every other job is scheduled first. Each compiler process of the
-build uses at most two threads, where the default is one for each processor;
-this limits how far the processes Lake runs at once compete for the same
-processors.
+request, so every other job is scheduled first. Every library and executable
+that the [Regula audit](#regula-audit) examines needs the observer, which Lake
+builds while the first of their requested modules awaits its library's needs,
+before any executable is requested, so waiting for it again delays nothing.
+Each compiler process of the build uses at most two threads, where the default
+is one for each processor; this limits how far the processes Lake runs at once
+compete for the same processors.
 
 ## Regula audit
 
 [Regula](https://github.com/rbeauchamp/regula) is a strict linter for Lean with a
-published standard. Acorn requires the release pinned in `lean/lakefile.lean` and
+published standard. Acorn requires the revision pinned in `lean/lakefile.lean` and
 starts its lint driver through the offline bootstrap:
 
 ```sh
@@ -694,7 +705,7 @@ not replace review.
 Acorn's tools under `lean/AcornTools` are outside the claim, so no proof covers
 them. They check a compiled declaration or the Lake configuration only where no
 Regula rule refuses at least the same inputs for the same libraries. Each
-paragraph below takes one property: the rule of the pinned Regula release, the
+paragraph below takes one property: the rule of the pinned Regula revision, the
 libraries that the rule covers under `lean/foundation_manifest.json`, and what
 the tools check. Where the tools refuse more, the paragraph gives an input that
 shows it, and that check stays.
@@ -719,14 +730,14 @@ Classical.choice. [RG1005](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG
 library, which is the standard-logical profile for each. Both rules examine every
 declaration: theorems, definitions and instances. The tools make no such check.
 A check over theorems examines fewer declarations, so Regula is stronger. The
-proof module AcornVerif.Axioms still pins the exact axiom sets of selected
-theorems in the build.
+tool module AcornTools.AxiomPins still pins the exact axiom sets of selected
+theorems in the build. It lies outside the claimed libraries because
+[RG2003](https://rbeauchamp.github.io/regula/dev/rules/RG2003/) refuses its message guards in a claimed module.
 
 **Proof holes and compiler-trusting proofs.** [RG1002](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1002/) refuses a declaration
 that depends on Lean's proof-hole axiom, directly or through an import.
-[RG1004](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1004/) refuses a declaration that depends on a native proof: the axiom
-that `native_decide` or a related tactic adds, or one of Lean's three
-compiler-trust axioms. Both rules read the transitive axiom set, which holds
+[RG1004](https://rbeauchamp.github.io/regula/dev/rules/RG1004/) refuses a declaration that depends on an axiom
+that `native_decide` or a related tactic adds. Both rules read the transitive axiom set, which holds
 every such axiom that a declaration names. The tools make no such check. A check
 of the constants that a declaration names directly refuses fewer declarations,
 so Regula is stronger.
@@ -814,8 +825,8 @@ build. The other documents under docs are Markdown and are not built this way.
 ./scripts/verify.sh site
 ```
 
-The site check runs after the project build, beside the other admissions of the
-finished build and inside the deadline of `./scripts/verify.sh`; the command above
+The site check runs after the project build and the other admissions of the
+finished build, inside the deadline of `./scripts/verify.sh`; the command above
 runs it alone. It builds the documents, renders the pages
 and requires `docs/verification.md` to equal the Markdown rendering of this
 document; `./scripts/verify.sh site write` writes that file. The Markdown file is

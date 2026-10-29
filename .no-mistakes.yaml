@@ -50,7 +50,7 @@ heavy_steps:
 #
 # The listing prints the tests that Lake, Acorn's build tool, defines. Lake knows one kind of test:
 # a package's test driver, the script, executable or library that `lake test` runs, set by the
-# package's `testDriver` option or by tagging one target `@[test_driver]` (Lake at Lean v4.34.1:
+# package's `testDriver` option or by tagging one target `@[test_driver]` (Lake at Lean v4.35.0:
 # `Package.test` in Lake/CLI/Actions.lean, and Lake/Load/Lean/Eval.lean). Every directory with a
 # `lakefile.lean` or `lakefile.toml` is a package that `lake test` can run there (`resolveConfigFile`
 # in Lake/Load/Package.lean). So the listing loads each directory holding such a file in Git's

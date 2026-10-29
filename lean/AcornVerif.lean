@@ -7,7 +7,6 @@ import AcornVerif.CurrentBackupBounds
 import AcornVerif.CurrentConstants
 import AcornVerif.CurrentRetirement
 import AcornVerif.CurrentRetirementRounding
-import AcornVerif.Axioms
 import Acorn
 import AcornVerif.CurrentRng
 import AcornVerif.CurrentFloat

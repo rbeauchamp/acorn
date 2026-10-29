@@ -138,11 +138,13 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
   let modules := modules.filter keep
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
-  -- Lake of Lean v4.34.0). A request for an executable's root module resolves to that
-  -- executable (`Package.findTargetModule?`). So an entry with `needs`, and its root
-  -- module, are requested last: every other job is already scheduled when Lake starts to
-  -- wait. The modules lead the rest, so that the proof modules, whose import chain is the
-  -- longest in the build, are scheduled first.
+  -- Lake of Lean v4.35.0). A request for an executable's root module resolves to that
+  -- executable (`Package.findTargetModule?`). So an entry whose `needs` name a target other
+  -- than Regula's observer, and its root module, are requested last: every other job is
+  -- already scheduled when Lake starts to wait. The observer, which every claimed target
+  -- needs, is built while the first requested claimed module awaits its library's `needs`,
+  -- before any executable is requested. The modules lead the rest, so that the proof
+  -- modules, whose import chain is the longest in the build, are scheduled first.
   let waiting ← waiting.get
   let late := AcornOwnership.executables.filter fun entry => waiting.contains entry.1
   let (lateModules, modules) := modules.partition fun name => late.any (·.2 == name)
@@ -156,15 +158,20 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
 
 /-- Every discovered module is built, and every declared native entry retains compilation and
 execution-route admission. Every admission of the finished build runs at once with the
-others, since none depends on another. -/
+others, since none depends on another and none writes what another reads. The documents
+check runs after them, even when one fails: the documentation workspace can rebuild this
+package's modules into the same build directory, because Regula's facet of a library's
+`extraDep` adds a record of its `weakLeanArgs` to the traces of the root package's modules
+only, and this package is the root here and a dependency there. -/
 def verify : IO Unit := do
   admitAndBuild fun _ => true
-  together [
+  let admitted ← (together [
     run ".lake/build/bin/lean-boundary-audit" #["compiled"] (whole := true),
     run ".lake/build/bin/native-audit" (whole := true),
     browserKernel,
-    run ".lake/build/bin/ownership-audit" #["complete"] (whole := true),
-    site false (whole := true)]
+    run ".lake/build/bin/ownership-audit" #["complete"] (whole := true)]).toBaseIO
+  site false (whole := true)
+  IO.ofExcept admitted
   IO.println "All required Lean checks passed, including proof, execution and corpus admission."
 
 end AcornGate
@@ -175,10 +182,12 @@ def main (args : List String) : IO UInt32 := do
     match args with
     | [] => AcornGate.verify
     -- The first of the merge gate's two timed stages: the build that the complete command then reuses
-    -- where Lake's traces match. It admits nothing after the build.
+    -- where Lake's traces match. The axiom pins import the proof library, so this stage
+    -- leaves them out although they are a tool module. It admits nothing after the build.
     | ["build-executing"] =>
-      AcornGate.admitAndBuild fun name => !(`AcornVerif).isPrefixOf name
-      IO.println "build-executing: sources admitted; modules outside AcornVerif and entries built"
+      AcornGate.admitAndBuild fun name =>
+        !(`AcornVerif).isPrefixOf name && name != `AcornTools.AxiomPins
+      IO.println "build-executing: sources admitted; modules outside AcornVerif except axiom pins and entries built"
     | ["diagnostics"] =>
       AcornGate.lake #["build", "acorn-core"]
       AcornGate.audits
