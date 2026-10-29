@@ -385,6 +385,12 @@ library's bridge module imports it; no executable library does. -/
 require floatlib from git
   "https://github.com/lean-dojo/FloatLib" @ "1f5771b3e36a98f17fcac2c6d76aaa024b36aa37"
 
+/-- Intent records, their adequacy obligations and the refinement link from an
+implementation to its record. Only the proof library's intent bridge module imports it;
+no executable library does. -/
+require "lean-intent" from git
+  "https://github.com/rbeauchamp/lean-intent" @ "30fe70d3bdeec8875eab718f38374a76a1df63c4"
+
 /-- The artifacts of every module of `library` that the given sources import, read from
 their own import lines so that each source stays the single owner of its imports. -/
 def importedArtifacts (sources : Array System.FilePath) (library : String) :
@@ -412,3 +418,8 @@ target regulaInterface pkg : Unit :=
   importedArtifacts
     #[pkg.dir / "Acorn" / "Decisions.lean", pkg.dir / "AcornVerif" / "Decisions.lean"]
     "Regula"
+
+/-- The lean-intent modules the intent bridge imports. Provisioning builds this target beside
+`floatlibBridge`, for the same reason. -/
+target leanIntentBridge pkg : Unit :=
+  importedArtifacts #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean"] "LeanIntent"

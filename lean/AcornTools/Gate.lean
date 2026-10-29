@@ -74,20 +74,24 @@ def siteUnprovisioned (missing : String) : IO.Error := IO.userError
 /-- The documentation site in `site/` is a second Lake workspace over this package's
 dependency checkouts and pinned Verso. Each locked Git dependency is mapped to its
 provisioned checkout, as the bootstrap does for this workspace, so Lake fetches
-nothing here. A missing checkout is refused. -/
+nothing here. A missing checkout is refused. A package's checkout is the directory Lake
+materializes it in, `Name.toString (escape := false)` of its locked name read by
+`String.toName` (`PackageEntry.dirName`, Lake of Lean v4.35.0), so the escaped name
+`«lean-intent»` has the directory `lean-intent`. -/
 def siteOverrides : IO String := do
   let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile "../site/lake-manifest.json"))
   let mut entries : Array Lean.Json := #[]
   for entry in ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages") do
     unless (← IO.ofExcept (entry.getObjValAs? String "type")) == "git" do continue
     let name ← IO.ofExcept (entry.getObjValAs? String "name")
+    let directory := name.toName.toString (escape := false)
     let config ← IO.ofExcept (entry.getObjValAs? String "configFile")
-    for component in [name, config] do
+    for component in [directory, config] do
       unless !component.isEmpty && component != "." && component != ".." &&
           component.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') do
         throw (IO.userError s!"unsupported documentation package component: {component}")
-    let dir := s!"../lean/.lake/packages/{name}"
-    unless ← (System.FilePath.mk ".lake/packages" / name / config).pathExists do
+    let dir := s!"../lean/.lake/packages/{directory}"
+    unless ← (System.FilePath.mk ".lake/packages" / directory / config).pathExists do
       throw (siteUnprovisioned name)
     entries := entries.push (Lean.Json.mkObj [
       ("name", name), ("scope", ← IO.ofExcept (entry.getObjVal? "scope")),

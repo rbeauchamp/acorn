@@ -18,6 +18,8 @@ the reviewed tooling boundary.
 namespace AcornDocument
 open Lean
 
+/-- External names used in maintained prose must be registered individually here when the
+prose is added; dependency imports do not contribute maintained declaration names. -/
 private def externalSymbols : List String := [
   "libc",
   "Vec",
@@ -63,6 +65,9 @@ private def externalSymbols : List String := [
   "rename",
   "assume",
   "Lean",
+  "Std.TreeMap",
+  "LeanIntent.Declared",
+  "LeanIntent.Codes",
   "Float",
   "Float32",
   "Int",
@@ -342,7 +347,9 @@ unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   let dependencies ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages")
   let mut paths := [package / ".lake/build/lib/lean"]
   for dependency in dependencies do
-    let name ← IO.ofExcept (dependency.getObjValAs? String "name")
+    -- Lake's checkout directory of the locked name (`PackageEntry.dirName`).
+    let name := (← IO.ofExcept (dependency.getObjValAs? String "name")).toName.toString
+      (escape := false)
     paths := paths ++ [package / ".lake/packages" / name / ".lake/build/lib/lean"]
   searchPathRef.set (paths ++ [← getLibDir sysroot])
   enableInitializersExecution
