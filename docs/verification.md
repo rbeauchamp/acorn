@@ -517,16 +517,18 @@ available for focused diagnostics.
 
 Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
-native, browser-kernel, ownership and site admission after it. Each of these
+native, browser-kernel and ownership admission after it. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
-before a failure is reported. The build requests modules first and executables
-after them. An executable whose Lake configuration names another target it needs
-is held back with its root module: both are requested after every other module
-and executable, because Lake waits for that target before it reads the next
-request, so every other job is scheduled first. Each compiler process of the
-build uses at most two threads, where the default is one for each processor;
-this limits how far the processes Lake runs at once compete for the same
-processors.
+before a failure is reported. The site check runs after these admissions, also
+when one of them fails, because building the documents can rebuild this
+package's modules into the build directory that the admissions read. The build
+requests modules first and executables after them. An executable whose Lake
+configuration names another target it needs is held back with its root module:
+both are requested after every other module and executable, because Lake waits
+for that target before it reads the next request, so every other job is
+scheduled first. Each compiler process of the build uses at most two threads,
+where the default is one for each processor; this limits how far the processes
+Lake runs at once compete for the same processors.
 
 ## Regula audit
 
@@ -699,7 +701,7 @@ not replace review.
 Acorn's tools under `lean/AcornTools` are outside the claim, so no proof covers
 them. They check a compiled declaration or the Lake configuration only where no
 Regula rule refuses at least the same inputs for the same libraries. Each
-paragraph below takes one property: the rule of the pinned Regula release, the
+paragraph below takes one property: the rule of the pinned Regula revision, the
 libraries that the rule covers under `lean/foundation_manifest.json`, and what
 the tools check. Where the tools refuse more, the paragraph gives an input that
 shows it, and that check stays.
@@ -819,8 +821,8 @@ build. The other documents under docs are Markdown and are not built this way.
 ./scripts/verify.sh site
 ```
 
-The site check runs after the project build, beside the other admissions of the
-finished build and inside the deadline of `./scripts/verify.sh`; the command above
+The site check runs after the project build and the other admissions of the
+finished build, inside the deadline of `./scripts/verify.sh`; the command above
 runs it alone. It builds the documents, renders the pages
 and requires `docs/verification.md` to equal the Markdown rendering of this
 document; `./scripts/verify.sh site write` writes that file. The Markdown file is

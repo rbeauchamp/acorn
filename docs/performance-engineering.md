@@ -132,8 +132,7 @@ deadline: `./scripts/verify.sh build-executing` selects every module outside
 targets and their dependencies, with native objects where applicable. The
 complete command selects every discovered module, including the proof library
 and axiom pins, and reuses outputs only where Lake's traces match. So in the gate
-the cold build and the checks no longer
-share one deadline. Reuse Lake's
+the cold build and the checks no longer share one deadline. Reuse Lake's
 source/toolchain-validated configuration trace and batch independent source
 hashes while checking every result's filename and digest. Neither mechanism
 reuses a previous verification result or substitutes a digest for correctness.
