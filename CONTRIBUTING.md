@@ -175,9 +175,7 @@ every promise is one that an organization of one owner and its agents can keep:
   after running `./scripts/gate.sh` on the exact pull request head (and a blind
   specification read-back when a pull request introduces or edits a
   specification). Changes to the trusted-base files listed in
-  [CODEOWNERS](.github/CODEOWNERS) (`scripts/`, `lean/lakefile.lean`,
-  `site/lakefile.toml`, `lean/AcornTools/`, `lean/AcornTools.lean`,
-  `lean/Bootstrap.lean`, `lean/os/` and `.github/`) are reviewed by the owner.
+  [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
 
 ## Scientific evidence
 

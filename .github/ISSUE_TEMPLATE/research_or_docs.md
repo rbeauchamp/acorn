@@ -5,7 +5,7 @@ title: ""
 labels: ["documentation"]
 ---
 
-<!-- Replace or supplement the documentation label with prior art, conformance, enhancement, or evidence as appropriate. For a quick question about an equation, adaptation, or unclear explanation, you may also open a blank issue or see SUPPORT.md. Write each paragraph and each list item on a single line. -->
+<!-- Triage may replace or supplement the documentation label with prior art, conformance, enhancement, or evidence as appropriate. For a quick question about an equation, adaptation, or unclear explanation, you may also open a blank issue or see SUPPORT.md. Write each paragraph and each list item on a single line. -->
 
 ## Goal and context
 

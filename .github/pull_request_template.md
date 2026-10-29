@@ -7,7 +7,7 @@
 <!-- What the change must keep true, and how that is known. Fill each line below; write "none" where a line does not apply, and say why. For a mission pull request, name the mission issue (`Closes #<id>.`), confirm that its frozen theorem or decision contract is unchanged and only the mission's listed files are touched, credit the human contributor and any AI agent or model, and paste the result of running `./scripts/gate.sh` on the exact pull request head. -->
 
 - Mission and credit: <!-- for a mission pull request, `Closes #<id>.`, the frozen theorem or contract established, the touched files, and credit for the human contributor and any AI agent or model; write "none (not a mission pull request)" otherwise -->
-- Gate result: <!-- the `./scripts/gate.sh` result on the exact pull request head (paste the `gate:` summary lines showing `./scripts/verify.sh build-executing`, `./scripts/verify.sh` and `./scripts/lean.sh lint` passing, or include in a fenced block below) -->
+- Gate result: <!-- the `./scripts/gate.sh` result on the exact pull request head: paste its `gate:` lines, the last of which begins `gate: every merge check passed` when every check passes, here or in a fenced block below -->
 - Mission properties: <!-- the properties of the project's purpose that this change depends on or affects, each stated so a reader could tell when it fails -->
 - Formal claims: <!-- the proofs, types and checks in the code that express those properties, each named so a reader can find it; say so plainly when the change adds none -->
 - Trusted base: <!-- the assumptions those claims rest on without proof, such as how a compiler, an operating system or an outside service behaves -->

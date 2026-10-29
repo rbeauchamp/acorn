@@ -10,7 +10,7 @@ Acorn adopts the [Contributor Covenant Code of Conduct, version 2.1](https://www
 
 ## Scope
 
-This Code of Conduct applies in all spaces managed by the Acorn project on GitHub ([issues](https://github.com/rbeauchamp/acorn/issues), [pull requests](https://github.com/rbeauchamp/acorn/pulls), reviews, comments, and [Discussions](https://github.com/rbeauchamp/acorn/discussions) when enabled) and whenever someone represents the project in public.
+This Code of Conduct applies in all spaces managed by the Acorn project on GitHub ([issues](https://github.com/rbeauchamp/acorn/issues), [pull requests](https://github.com/rbeauchamp/acorn/pulls), reviews, comments, and GitHub Discussions when enabled) and whenever someone represents the project in public.
 
 ## Reporting and enforcement
 

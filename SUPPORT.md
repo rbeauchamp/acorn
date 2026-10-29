@@ -11,7 +11,7 @@ Before opening a question, check the repository documentation:
 
 ## Where to ask questions
 
-Open a [GitHub issue](https://github.com/rbeauchamp/acorn/issues) (or use [GitHub Discussions](https://github.com/rbeauchamp/acorn/discussions) once enabled in repository settings; while Discussions is disabled, Issues is the stated place for questions). You do not need a proposed fix or a Lean proof to ask about an equation, a theorem statement, a prior-art adaptation or an unclear explanation: apply the question label or open a blank issue with links to the relevant document, equation or module.
+Open a [GitHub issue](https://github.com/rbeauchamp/acorn/issues) (or use GitHub Discussions once enabled in repository settings; while Discussions is disabled, Issues is the stated place for questions). You do not need a proposed fix or a Lean proof to ask about an equation, a theorem statement, a prior-art adaptation or an unclear explanation: open a blank issue with links to the relevant document, equation or module.
 
 For a setup, build or verification problem, include:
 
