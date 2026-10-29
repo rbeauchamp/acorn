@@ -287,7 +287,7 @@ The once-only, no-replay semantics and executed work measure (contract 3), each 
 
 **Proof boundary.** Refining this contract into Lean requires preserving each cited theorem's quantified domain, hypotheses and exact conclusion: a frozen-agent upper bound supplies no learner's lower bound, a causal fold supplies no learning-update count, and a class-level existential set supplies no guarantee for every member. This correspondence with the prose is argued, not machine-checked; the missing semantics and execution linkage remain proof obligations, not established guarantees.
 
-The ladder starts with the concealed targets of one grid world, then campaigns beyond the agent's capacity (contract 2 (d)), classes of Microduck scenes and classes of ARC-AGI-3 games.
+The ladder starts with the concealed targets of one grid world. Its later rungs include campaigns beyond the agent's capacity (contract 2 (d)), classes of Microduck scenes and classes of ARC-AGI-3 games; their order, like which world comes next, is not yet decided ([README](../README.md#purpose-and-worlds)).
 "Any big world" is the limit of the ladder, never one theorem: each class is a step toward the mission, not a narrowing of it.
 
 ## Open obligations
