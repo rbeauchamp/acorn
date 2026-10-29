@@ -18,7 +18,9 @@ worlds." The mission places no limit on which world: Acorn's agent must be able
 to learn and generalize in any big world. Acorn may restrict its worlds at first,
 to make progress practical, but each restriction is a step toward that end, not a
 narrowing of it. The goals below the mission, such as which capability or world
-comes next, are open and not yet decided.
+comes next, are open and not yet decided. The
+[mission contract](docs/mission-contract.md) states what Acorn promises to prove
+about its agent, the decisions behind it and the sources for each.
 
 The owner of the project has chosen two kinds of worlds:
 
