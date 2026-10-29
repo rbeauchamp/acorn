@@ -138,7 +138,7 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
   let modules := modules.filter keep
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
-  -- Lake of Lean v4.34.0). A request for an executable's root module resolves to that
+  -- Lake of Lean v4.35.0). A request for an executable's root module resolves to that
   -- executable (`Package.findTargetModule?`). So an entry with `needs`, and its root
   -- module, are requested last: every other job is already scheduled when Lake starts to
   -- wait. The modules lead the rest, so that the proof modules, whose import chain is the
@@ -156,15 +156,20 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
 
 /-- Every discovered module is built, and every declared native entry retains compilation and
 execution-route admission. Every admission of the finished build runs at once with the
-others, since none depends on another. -/
+others, since none depends on another and none writes what another reads. The documents
+check runs after them, even when one fails: the documentation workspace can rebuild this
+package's modules into the same build directory, because Regula's facet of a library's
+`extraDep` adds a record of its `weakLeanArgs` to the traces of the root package's modules
+only, and this package is the root here and a dependency there. -/
 def verify : IO Unit := do
   admitAndBuild fun _ => true
-  together [
+  let admitted ← (together [
     run ".lake/build/bin/lean-boundary-audit" #["compiled"] (whole := true),
     run ".lake/build/bin/native-audit" (whole := true),
     browserKernel,
-    run ".lake/build/bin/ownership-audit" #["complete"] (whole := true),
-    site false (whole := true)]
+    run ".lake/build/bin/ownership-audit" #["complete"] (whole := true)]).toBaseIO
+  site false (whole := true)
+  IO.ofExcept admitted
   IO.println "All required Lean checks passed, including proof, execution and corpus admission."
 
 end AcornGate

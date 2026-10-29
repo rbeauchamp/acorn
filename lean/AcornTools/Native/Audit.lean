@@ -27,11 +27,14 @@ def read (path : System.FilePath) : IO String := do
   require ((← path.symlinkMetadata).type == .file) s!"non-regular artifact {path}"
   IO.FS.readFile path
 
-/-- Locate one generated definition, excluding its forward declaration. -/
+/-- Locate one generated definition, excluding its forward declaration: an exported function,
+or, for a symbol named `_init_…`, the static function that computes a constant the compiler
+hoists out of a function body once. -/
 def functionBody (source symbol : String) : Option String := do
+  let marker := if symbol.startsWith "_init_" then "static " else "LEAN_EXPORT "
   let start ← (source.splitOn "\n").find? fun line =>
-    line.startsWith "LEAN_EXPORT " && (line.splitOn (symbol ++ "(")).length > 1 && line.endsWith "{"
-  let after ← (source.splitOn start)[1]?
+    line.startsWith marker && (line.splitOn (symbol ++ "(")).length > 1 && line.endsWith "{"
+  let after : String ← (source.splitOn start)[1]?
   let mut depth := 1
   let mut body := ""
   for c in after.toList do

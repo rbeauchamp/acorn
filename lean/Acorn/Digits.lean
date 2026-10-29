@@ -32,7 +32,7 @@ function. The contracts `digits_read`, `digits_natural` and `digits_integer` in
 values.
 
 Lean core's readers of numbers in text, such as `String.toNat?`, accept `_` between two
-digits: at the pinned toolchain v4.34.1, `String.isNat_iff` in `Std/Data/String/ToNat.lean`
+digits: at the pinned toolchain v4.35.0, `String.isNat_iff` in `Std/Data/String/ToNat.lean`
 admits a separator between two digits, and `String.toNat?_eq_some_ofDigitChars` drops it from
 the value, so `"4_2".toNat? = some 42`. The readers above therefore do not use them. A Regula
 rule that refuses a reference to them is proposed in

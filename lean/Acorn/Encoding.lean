@@ -122,8 +122,11 @@ theorem magnitudeEq_exact (x : Binary32) (word : UInt32) :
 /-- Finite representation predicate, excluding infinity and every NaN encoding. -/
 def Finite (x : Binary32) : Prop := x.magnitude < 0x7f800000
 
+/-- The magnitude field's word comparison, `UInt32.decLt` applied directly: compiled, it is one
+native word comparison. Through `inferInstanceAs`, Lean v4.35.0 unfolds the instance into a
+comparison of natural numbers. -/
 instance (x : Binary32) : Decidable x.Finite :=
-  inferInstanceAs (Decidable (x.bits &&& 0x7fffffff < (0x7f800000 : UInt32)))
+  UInt32.decLt (x.bits &&& 0x7fffffff) 0x7f800000
 
 /-- Strict comparison keeps NaNs unordered without translating their words. -/
 def less (left right : Binary32) : Bool :=
@@ -287,8 +290,9 @@ instance (x : Binary64) : Decidable x.IsNaN := decidable_of_iff _ (isNaN_iff x)
 /-- Finite binary64 encoding, excluding infinity and every NaN payload. -/
 def Finite (x : Binary64) : Prop := x.magnitude < 0x7ff0000000000000
 
+/-- The magnitude field's word comparison, `UInt64.decLt` applied directly, as for binary32. -/
 instance (x : Binary64) : Decidable x.Finite :=
-  inferInstanceAs (Decidable (x.bits &&& 0x7fffffffffffffff < (0x7ff0000000000000 : UInt64)))
+  UInt64.decLt (x.bits &&& 0x7fffffffffffffff) 0x7ff0000000000000
 
 end Binary64
 end Acorn

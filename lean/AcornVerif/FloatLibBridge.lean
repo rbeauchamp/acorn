@@ -16,9 +16,9 @@ import FloatLib.Floats.Formats.Flocq.Theory.Analysis.Ulp
 
 Acorn's binary32 and binary64 arithmetic is Lean core's `Float32` and `Float`
 applied to raw words, and `AcornVerif.CurrentArithmetic` reads those words
-through the pinned Lean 4.34.1 model `Float.Model.UnpackedFloat`. FloatLib
+through the pinned Lean 4.35.0 model `Float.Model.UnpackedFloat`. FloatLib
 (R. J. George, W. Adkisson and A. Anandkumar, *FloatLib*, 2026,
-https://github.com/lean-dojo/FloatLib, commit `7fc7538`) proves real-valued
+https://github.com/lean-dojo/FloatLib, commit `1f5771b`) proves real-valued
 statements about that same model. This module is the only importer of
 FloatLib. It connects the executing Acorn definitions to FloatLib's by proof,
 so FloatLib's theorems apply to them; no executable definition changes.

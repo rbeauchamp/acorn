@@ -113,7 +113,8 @@ NativeApp, which Lake's globs assign and the [Regula audit](#regula-audit) exami
 or a listed tool module. Every retained native target is built and checked against
 Lake's evaluated targets and compiled entry owners; each executable root must be
 a maintained module with a non-empty module docstring. Ownership admission
-refuses a facet-qualified build key in the root package's Lake configuration.
+refuses a facet-qualified build key in the root package's Lake configuration,
+except Regula's elaboration observer in a target that also lists it among its needs.
 The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
 pinned-Lake rationale.
 Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
@@ -719,8 +720,9 @@ Classical.choice. [RG1005](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG
 library, which is the standard-logical profile for each. Both rules examine every
 declaration: theorems, definitions and instances. The tools make no such check.
 A check over theorems examines fewer declarations, so Regula is stronger. The
-proof module AcornVerif.Axioms still pins the exact axiom sets of selected
-theorems in the build.
+tool module AcornTools.AxiomPins still pins the exact axiom sets of selected
+theorems in the build. It lies outside the claimed libraries because
+[RG2003](https://rbeauchamp.github.io/regula/dev/rules/RG2003/) refuses its message guards in a claimed module.
 
 **Proof holes and compiler-trusting proofs.** [RG1002](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1002/) refuses a declaration
 that depends on Lean's proof-hole axiom, directly or through an import.

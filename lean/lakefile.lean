@@ -56,6 +56,20 @@ def nativeDigest (path : System.FilePath) : IO String := do
     | throw (IO.userError "missing native source digest")
   return digest
 
+/-- Regula's elaboration observer: a Lean plugin that records in each module's `.olean` what a
+build's messages do not show, from which the Regula audit decides RG2003 and RG2006. Every
+claimed library and executable loads it through `plugins` and lists the same key in its
+`needs`, as RG2006 requires. Lake awaits a target's `needs` on its one graph thread before any
+module of the target fetches its plugins (`Module.recFetchPreSetup`, Lake of Lean v4.35.0), so
+those fetches find the plugin built. -/
+def regulaObserver : PartialBuildKey := `@regula/RegulaObserver:shared
+
+/-- Whether `key` is `regulaObserver`, compared as Lake's build keys. -/
+def isRegulaObserver (key : PartialBuildKey) : Bool :=
+  let key : BuildKey := key
+  let observer : BuildKey := regulaObserver
+  key == observer
+
 package acorn where
   version := v!"0.1.0"
   -- Lake runs one compiler process per processor, and by default each process starts one
@@ -68,8 +82,8 @@ package acorn where
     ⟨`relaxedAutoImplicit, false⟩,
     ⟨`warningAsError, true⟩,
     ⟨`linter.missingDocs, true⟩,
-    -- The kernel must typecheck every proof term; never skip it.
-    ⟨`debug.skipKernelTC, false⟩,
+    -- The kernel typechecks every proof term: `debug.skipKernelTC` stays at its default, false,
+    -- and Regula's RG2006 refuses any setting of it, as of every option outside its accepted set.
     ⟨`linter.unusedVariables, true⟩,
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
@@ -85,9 +99,17 @@ package acorn where
   ]
   lintDriver := "regula/lint"
 
-/-- Contracts about the executing definitions and their supporting mathematics. -/
+/-- Contracts about the executing definitions and their supporting mathematics.
+Mathlib sets `requiresModuleSystem`, so Lake warns at each import of Mathlib from a file
+without a `module` header. This library's files cannot be `module` files: they import the
+executing definitions, which are not, and Lean refuses that import from a `module` file.
+`allowNonModules` is Lake's opt-out of that warning alone; it is no Lean option and changes
+no elaboration. -/
 lean_lib «AcornVerif» where
   globs := #[.andSubmodules `AcornVerif]
+  allowNonModules := true
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Executable Acorn foundations.
 Executable targets and native admission request their object files explicitly;
@@ -98,6 +120,8 @@ It is the one module that imports Regula's decision attribute, and no executable
 lean_lib «Acorn» where
   globs := #[.andSubmodules `Acorn]
   moreLeancArgs := nativeFloatFlags
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Native entry points embed provenance after their complete source dependency is built.
 This bootstrap is a build/OS boundary, outside the current algorithm library. -/
@@ -105,6 +129,8 @@ lean_lib «NativeApp» where
   globs := #[.andSubmodules `NativeApp]
   extraDepTargets := #[`nativeProvenance, `checkpointSync]
   moreLeancArgs := nativeFloatFlags
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Raw source identity and actual toolchain identity embedded into native entry points.
 The inventory covers every Lean/C source in this package and the declared audit pin owner.
@@ -160,26 +186,36 @@ strict floating-operation options as the executing library. -/
 lean_exe «swifttd-native» where
   root := `Acorn.SwiftTdDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Native consumer of current feature encoding and lifecycle transitions. -/
 lean_exe «feature-native» where
   root := `Acorn.FeatureDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Native consumer of the current local prediction/control composition. -/
 lean_exe «control-native» where
   root := `Acorn.ControlDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Native consumer of current option policy and persistent exploration definitions. -/
 lean_exe «temporal-native» where
   root := `Acorn.TemporalDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Native consumer of the full current agent's exact initialization, prefix and observations. -/
 lean_exe «agent-native» where
   root := `Acorn.AgentDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Minimal POSIX file-sync primitive; all checkpoint semantics remain in Lean. -/
 target checkpointSync pkg : System.FilePath := do
@@ -198,6 +234,8 @@ lean_exe «acorn-core» where
   root := `NativeApp.Main
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Loopback observer and durable supervisor for the native core.
 The core is named by its declaration, a facetless key: Lake resolves it through this
@@ -206,29 +244,38 @@ lean_exe «acorn-viewer» where
   root := `NativeApp.Viewer
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
-  needs := #[«acorn-core»]
+  plugins := #[regulaObserver]
+  needs := #[«acorn-core», regulaObserver]
 
 /-- Deterministic JavaScript kernel generated for the viewer. -/
 lean_exe «browser-kernel» where
   root := `NativeApp.BrowserKernel
   moreLeancArgs := nativeFloatFlags
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Native current-agent checkpoint writer, receiver-bound loader and resume consumer. -/
 lean_exe «checkpoint-native» where
   root := `Acorn.Host.CheckpointDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
   extraDepTargets := #[`checkpointSync]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Native consumer of current world, raw terrain and CLI admission. -/
 lean_exe «world-native» where
   root := `Acorn.WorldDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- The host of the Microduck's world: the agent's loop driven over three `nc` connections
 to the simulated daemons, with telemetry on standard output. -/
 lean_exe «microduck-host» where
   root := `Acorn.Host.Microduck.Driver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Generator-only certificate tool: proposes certificates for selecting properties of a
 seed and prints what the checkers accept. The boundary audit keeps the agent composition,
@@ -238,6 +285,8 @@ and no audit enforces that. -/
 lean_exe «world-certificates» where
   root := `Acorn.Host.CertificateDriver
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Inventory theorem declarations from compiled project modules, scoped by
 the compiler's owning-module index rather than source text or name prefixes. -/
@@ -255,7 +304,9 @@ lean_exe «native-audit» where
   root := `AcornTools.Native.Audit
 
 /-- Interpreted build bootstrap is also compiled by the complete local suite. -/
-lean_lib «Bootstrap»
+lean_lib «Bootstrap» where
+  plugins := #[regulaObserver]
+  needs := #[regulaObserver]
 
 /-- Reviewed build and verification tools, separate from application libraries. -/
 lean_lib AcornTools where
@@ -276,16 +327,22 @@ lean_exe «corpus-audit» where
   supportInterpreter := true
 
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
-`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.34.0; leanprover/lean4#15435) stores a
+`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.35.0; leanprover/lean4#15435) stores a
 facet-qualified key under its target as written, while every other route stores that
 facet under the target's resolved form, which names the package by its key name. The two
 entries differ unless the key was written in that form. Whatever its form, the facet is
 fetched from an asynchronous continuation, which races other fetches on the
 unsynchronized build store. Either way a second job can run on the same output file.
-A facetless key is resolved through its package and fetched synchronously. -/
-def singleJobKey (key : PartialBuildKey) : Bool :=
+A facetless key is resolved through its package and fetched synchronously.
+The one facet-qualified key admitted is `regulaObserver`, in a target whose `needs` also
+lists it. Lake awaits those `needs` on its one graph thread before any module of the target
+fetches its plugins, and no build request of Acorn names the observer, so its first fetch
+completes before any other starts, and every later fetch of the same key finds that job.
+`needs` are the keys the target lists in its `needs`. -/
+def singleJobKey (needs : Array PartialBuildKey) (key : PartialBuildKey) : Bool :=
   match (key : BuildKey) with
-  | .facet .. => false
+  | .facet .. =>
+    isRegulaObserver key && needs.any isRegulaObserver
   | _ => true
 
 /-- Every key a Lean configuration hands to Lake's partial-key fetch. -/
@@ -297,34 +354,36 @@ def configuredKeys (config : LeanConfig) (needs : Array PartialBuildKey) :
 /-- Emit the evaluated Lake executable inventory for ownership admission.
 The gate compares this with compiled `main` owners before accepting a build.
 A key outside `singleJobKey` in this package's configuration refuses the inventory.
-The `needs` field marks an executable whose configuration names another target in
-`needs`: Lake waits for that target before it reads any later build request, so the gate
-requests such an entry last. -/
+The `needs` field marks an executable whose configuration names a target other than
+`regulaObserver` in `needs`: Lake waits for that target before it reads any later build
+request, so the gate requests such an entry last. The observer is built when the first module
+the gate requests awaits its library's `needs`, so waiting for it again delays nothing. -/
 script acornTargets do
   let pkg ← getRootPackage
-  let keys := configuredKeys pkg.config.toLeanConfig #[] ++
-    pkg.leanLibs.flatMap (fun lib => configuredKeys lib.config.toLeanConfig lib.config.needs) ++
-    pkg.leanExes.flatMap (fun exe => configuredKeys exe.config.toLeanConfig exe.config.needs)
-  if let some key := keys.find? (!singleJobKey ·) then
-    IO.eprintln s!"facet-qualified build key '{key}' can give its target two Lake jobs"
-    return 1
+  let targets := #[(pkg.config.toLeanConfig, #[])] ++
+    pkg.leanLibs.map (fun lib => (lib.config.toLeanConfig, lib.config.needs)) ++
+    pkg.leanExes.map (fun exe => (exe.config.toLeanConfig, exe.config.needs))
+  for (config, needs) in targets do
+    if let some key := (configuredKeys config needs).find? (!singleJobKey needs ·) then
+      IO.eprintln s!"facet-qualified build key '{key}' can give its target two Lake jobs"
+      return 1
   let entries := pkg.leanExes.map fun exe => Lean.Json.mkObj [
     ("target", Lean.toJson (exe.name.toString false)),
     ("module", Lean.toJson exe.config.root.toString),
-    ("needs", Lean.toJson !exe.config.needs.isEmpty)]
+    ("needs", Lean.toJson (exe.config.needs.any (!isRegulaObserver ·)))]
   IO.println (Lean.toJson entries).compress
   return 0
 
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4" @ "v4.34.1"
+  "https://github.com/leanprover-community/mathlib4" @ "v4.35.0"
 
 require regula from git
-  "https://github.com/rbeauchamp/regula" @ "v0.11.0"
+  "https://github.com/rbeauchamp/regula" @ "67f2990b0a78cdf61b026346aec41da480ba405a"
 
 /-- Real-valued rounding theory about Lean core's float model. Only the proof
 library's bridge module imports it; no executable library does. -/
 require floatlib from git
-  "https://github.com/lean-dojo/FloatLib" @ "7fc753899afed9562018fe09f336403b179eedbd"
+  "https://github.com/lean-dojo/FloatLib" @ "1f5771b3e36a98f17fcac2c6d76aaa024b36aa37"
 
 /-- The artifacts of every module of `library` that the given sources import, read from
 their own import lines so that each source stays the single owner of its imports. -/
