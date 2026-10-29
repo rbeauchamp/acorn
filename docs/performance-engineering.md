@@ -127,9 +127,12 @@ Provisioning is stored apart from every run's checks, so a project failure does
 not discard useful provisioning work. Project outputs still build cold in every
 gate run. One run of `./scripts/verify.sh` bounds the cold build and every check
 with one fixed deadline. The gate runs the command twice, each run under its own
-deadline: `./scripts/verify.sh build-executing` builds the executing library,
-the tools and the native objects, and the complete command reuses them where
-Lake's traces match. So in the gate the cold build and the checks no longer
+deadline: `./scripts/verify.sh build-executing` selects every module outside
+`AcornVerif` except `AcornTools.AxiomPins`, and every executable. It builds these
+targets and their dependencies, with native objects where applicable. The
+complete command selects every discovered module, including the proof library
+and axiom pins, and reuses outputs only where Lake's traces match. So in the gate
+the cold build and the checks no longer
 share one deadline. Reuse Lake's
 source/toolchain-validated configuration trace and batch independent source
 hashes while checking every result's filename and digest. Neither mechanism

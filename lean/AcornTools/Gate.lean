@@ -180,10 +180,12 @@ def main (args : List String) : IO UInt32 := do
     match args with
     | [] => AcornGate.verify
     -- The first of the merge gate's two timed stages: the build that the complete command then reuses
-    -- where Lake's traces match. It admits nothing after the build.
+    -- where Lake's traces match. The axiom pins import the proof library, so their move
+    -- into the tools does not move them into this stage. It admits nothing after the build.
     | ["build-executing"] =>
-      AcornGate.admitAndBuild fun name => !(`AcornVerif).isPrefixOf name
-      IO.println "build-executing: sources admitted; modules outside AcornVerif and entries built"
+      AcornGate.admitAndBuild fun name =>
+        !(`AcornVerif).isPrefixOf name && name != `AcornTools.AxiomPins
+      IO.println "build-executing: sources admitted; modules outside AcornVerif except axiom pins and entries built"
     | ["diagnostics"] =>
       AcornGate.lake #["build", "acorn-core"]
       AcornGate.audits

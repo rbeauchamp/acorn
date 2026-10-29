@@ -421,14 +421,18 @@ validates, in a checkout that holds only tracked files; GitHub Actions runs no
 check on a pull request or a push. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
-sources as the complete command does, then builds every module outside the proof
-library `AcornVerif` with its native object, and every executable; it admits
-nothing after the build. The second is the identical complete command: Lake
+sources as the complete command does, then selects every module outside the proof
+library `AcornVerif` except `AcornTools.AxiomPins`, and every executable. It builds
+these targets and their dependencies, with native objects where applicable, and
+admits nothing after the build. The axiom pins import the proof library, so they
+remain in the second stage despite belonging to the tools. The second is the
+identical complete command, which selects every discovered module: Lake
 reuses an output of the first only where its trace matches the checked-out
 source, toolchain and options, and builds the rest. So in the gate the cold
 build and the checks no longer share one deadline: the first bounds the build of
-the executing library and the tools, the second the proof library's build and
-every check. On a four-processor machine the cold build with the checks beside
+the executing library, the tools except the axiom pins, and their dependencies;
+the second bounds the remaining proof build, the axiom pins and every check.
+On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
 [Regula audit](#regula-audit) on the same commit, also when verification failed,
 and passes only when both runs and the audit pass.
@@ -671,9 +675,8 @@ theorems in the build. It lies outside the claimed libraries because
 
 *Proof holes and compiler-trusting proofs.* [RG1002](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1002/) refuses a declaration
 that depends on Lean's proof-hole axiom, directly or through an import.
-[RG1004](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1004/) refuses a declaration that depends on a native proof: the axiom
-that `native_decide` or a related tactic adds, or one of Lean's three
-compiler-trust axioms. Both rules read the transitive axiom set, which holds
+[RG1004](https://rbeauchamp.github.io/regula/dev/rules/RG1004/) refuses a declaration that depends on an axiom
+that `native_decide` or a related tactic adds. Both rules read the transitive axiom set, which holds
 every such axiom that a declaration names. The tools make no such check. A check
 of the constants that a declaration names directly refuses fewer declarations,
 so Regula is stronger.
