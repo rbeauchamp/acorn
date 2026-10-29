@@ -86,9 +86,9 @@ broader scope or new follow-up issues. Prefer small coherent changes over rewrit
 Apply [performance engineering](docs/performance-engineering.md) to performance-sensitive work; preserve proofs and
 admission predicates. Do not replace unresolved proof obligations with measurements.
 
-Provision pinned Lean/Mathlib v4.35.0, FloatLib, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
+Provision pinned Lean/Mathlib v4.35.0, FloatLib, lean-intent, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
 compiler first. A fresh worktree has no `lean/.lake` dependencies; run
-`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface)` and then
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface leanIntentBridge)` and then
 `(cd site && lake build verso/VersoManual verso/VersoManual:shared)` there before verifying.
 Then run the complete command in the actual Git checkout:
 

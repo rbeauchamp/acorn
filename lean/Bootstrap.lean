@@ -29,6 +29,13 @@ def component (value : String) : IO String := do
     throw (IO.userError s!"unsupported package component: {value}")
   return value
 
+/-- The package directory of a locked name, computed as Lake computes it (Lake of Lean
+v4.35.0): it reads the name with `String.toName` (`FromJson Name`) and materializes the package
+in the directory `Name.toString (escape := false)` names (`PackageEntry.dirName`). So a name Lake
+writes in Lean's escape, such as `«lean-intent»`, has the directory `lean-intent`. -/
+def packageDir (name : String) : IO String :=
+  component (name.toName.toString (escape := false))
+
 /-- Missing provisioned files are distinct from unreadable or non-regular paths. -/
 def regularFileAvailable (path : System.FilePath) : IO Bool := do
   let mut current : System.FilePath := "."
@@ -62,10 +69,11 @@ def overrides : IO (Json × Bool) := do
   let mut entries : Array Json := #[]
   let mut available := true
   for entry in packages do
-    let name ← component (← checked (entry.getObjValAs? String "name"))
-    unless !names.contains name && (← checked (entry.getObjValAs? String "type")) == "git" do
+    let name ← checked (entry.getObjValAs? String "name")
+    let directory ← packageDir name
+    unless !names.contains directory && (← checked (entry.getObjValAs? String "type")) == "git" do
       throw (IO.userError "duplicate or unsupported locked dependency")
-    names := names.push name
+    names := names.push directory
     let config ← component (← checked (entry.getObjValAs? String "configFile"))
     let manifest ← component (← checked (entry.getObjValAs? String "manifestFile"))
     let scope ← checked (entry.getObjValAs? String "scope")
@@ -75,7 +83,7 @@ def overrides : IO (Json × Bool) := do
       throw (IO.userError s!"invalid locked revision for {name}")
     unless (← checked (entry.getObjVal? "subDir")) == Json.null do
       throw (IO.userError "subdirectory dependencies need explicit provisioning support")
-    let dir := s!".lake/packages/{name}"
+    let dir := s!".lake/packages/{directory}"
     -- Inspect every entry even when an earlier dependency is absent: missing
     -- provisioning cannot hide a later schema or filesystem refusal.
     let configAvailable ← regularFileAvailable (dir / config)
@@ -113,15 +121,16 @@ def lake (overrides : System.FilePath) (args : Array String) : IO.Process.SpawnA
   cmd := "lake", args := #["--no-cache", "--wfail", s!"--packages={overrides}"] ++ args,
   stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
 
-/-- The proof bridge is the single owner of its FloatLib imports, and the two decision
-registries of their Regula imports. FloatLib publishes no build cache, and verification
-must not compile a dependency inside its deadline. Lake itself decides readiness: with
-`--no-build` it exits 3 unless every artifact and trace in the import closure of the
-`floatlibBridge` and `regulaInterface` targets is current, so no list of expected files
-is kept here. -/
+/-- The proof bridge is the single owner of its FloatLib imports, the intent bridge of its
+lean-intent imports, and the two decision registries of their Regula imports. FloatLib and
+lean-intent publish no build cache, and verification must not compile a dependency inside its
+deadline. Lake itself decides readiness: with `--no-build` it exits 3 unless every artifact
+and trace in the import closure of the `floatlibBridge`, `regulaInterface` and
+`leanIntentBridge` targets is current, so no list of expected files is kept here. -/
 def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
   let output ← IO.Process.output
-    (lake overrides #["build", "--no-build", "floatlibBridge", "regulaInterface"])
+    (lake overrides #["build", "--no-build", "floatlibBridge", "regulaInterface",
+      "leanIntentBridge"])
   if output.exitCode == 0 then return true
   if output.exitCode == 3 then return false
   throw (IO.userError
@@ -143,8 +152,8 @@ def run (args : List String) : IO UInt32 := do
   -- This status is the launcher's sole provisioning admission: 0 means ready,
   -- 2 means missing dependencies, and every refusal returns 1. It builds nothing,
   -- writes only the override file above and asks Lake whether the FloatLib modules
-  -- the bridge imports and the Regula modules the decision registries import are
-  -- current.
+  -- the bridge imports, the lean-intent modules the intent bridge imports and the Regula
+  -- modules the decision registries import are current.
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do
     throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")

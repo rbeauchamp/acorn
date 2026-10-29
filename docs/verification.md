@@ -7,7 +7,7 @@ states the property and assumptions it checks. For installation and a first run,
 start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
-Lean, Mathlib, FloatLib and Verso dependencies, a C compiler, OpenSSL 3, ShellCheck
+Lean, Mathlib, FloatLib, lean-intent and Verso dependencies, a C compiler, OpenSSL 3, ShellCheck
 and GNU coreutils.
 Each run of the command has a hard 360-second deadline, which includes the
 project compilation the run does and every ordinary check; from cold project
@@ -25,11 +25,12 @@ verification command remains required for documentation changes.
 Use `./scripts/start.sh` for automatic setup and launch, or
 `./scripts/start.sh --prepare-only` to prepare and build without learning.
 It uses Homebrew on macOS and apt-get on Ubuntu/Debian. It installs missing
-prerequisites and provisions the pinned Lean, Mathlib and FloatLib dependencies;
+prerequisites and provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this builds nothing, writes only the
 launcher's own override file and asks Lake whether the FloatLib modules the proof
-bridge imports and the Regula modules the decision registries import are current.
+bridge imports, the lean-intent modules the intent bridge imports and the Regula
+modules the decision registries import are current.
 The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
@@ -58,12 +59,13 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface)` from the
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface leanIntentBridge)` from the
 repository root to provision the pinned toolchain/dependencies; the build compiles
 only Mathlib modules absent from the upstream cache, plus Regula's lint driver
-and audit worker. FloatLib publishes no cache, so the same command compiles the
-FloatLib modules that the proof bridge imports, and the two Regula interface modules
-that the decision registries import.
+and audit worker. FloatLib and lean-intent publish no cache, so the same command
+compiles the FloatLib modules that the proof bridge imports, the lean-intent modules
+that the intent bridge imports, and the two Regula interface modules that the
+decision registries import.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
@@ -550,8 +552,8 @@ the bootstrap's path overrides or its no-cache and warnings-as-failures flags.
 Those invocations resolve dependencies through the Git lock in
 `lean/lake-manifest.json`. The bootstrap checks no dependency's revision: it
 admits each by the presence of its files, and the FloatLib modules the proof
-bridge imports and the Regula modules the decision registries import by Lake's
-build traces. Lake therefore fetches a dependency whose
+bridge imports, the lean-intent modules the intent bridge imports and the Regula
+modules the decision registries import by Lake's build traces. Lake therefore fetches a dependency whose
 checkout is not at the locked revision.
 
 The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
@@ -577,7 +579,11 @@ compiles for Bool, List and Option, boundaries Mathlib owns, so checked mode
 rejects them. One bridge module in AcornVerif is the only importer of FloatLib,
 a proof dependency whose theorems use the same three axioms and whose compiled
 functions reach the same Mathlib-owned boundaries; the boundary audit refuses a
-FloatLib import by any executing module. The compiler, native runtime, operating
+FloatLib import by any executing module. A second bridge module in AcornVerif is
+the only importer of lean-intent, the proof dependency in which the intent records
+under `AcornVerif.Intent` are stated; it depends on nothing beyond Lean's own
+libraries, and the boundary audit refuses a lean-intent import by any other module.
+The compiler, native runtime, operating
 system and spawned processes stay trusted in both modes. AcornTools is excluded
 with the six tool executables; it is the reviewed tooling trust boundary.
 

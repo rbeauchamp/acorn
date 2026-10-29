@@ -43,9 +43,10 @@ step 'provisioning the pinned dependencies'
       lake build Mathlib regula/lint regula/axiomGate ;;
     *) exit "$current" ;;
   esac
-  # FloatLib publishes no build cache. This builds the modules the proof bridge imports
-  # and the Regula interface modules the decision registries import.
-  lake build floatlibBridge regulaInterface
+  # FloatLib and lean-intent publish no build cache. This builds the modules the proof bridge
+  # imports, the lean-intent modules the intent bridge imports and the Regula interface
+  # modules the decision registries import.
+  lake build floatlibBridge regulaInterface leanIntentBridge
 )
 ./scripts/lean.sh provision-status
 (

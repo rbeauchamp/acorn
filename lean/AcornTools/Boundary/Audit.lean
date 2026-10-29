@@ -76,6 +76,10 @@ def proofContracts : Name := `AcornVerif.Decisions
 modules reach FloatLib's theorems through it; no executing module can. -/
 def floatLibBridge : Name := `AcornVerif.FloatLibBridge
 
+/-- The single proof module that imports the pinned lean-intent dependency. The intent records
+reach lean-intent's declarations through it; no executing module can. -/
+def leanIntentBridge : Name := `AcornVerif.LeanIntentBridge
+
 /-- Owners of the generator-only certificate tool. -/
 def generatorOnly (name : Name) : Bool :=
   #[`Acorn.Host.Certificate, `Acorn.Host.CertificateSearch, `Acorn.Host.CertificateDriver].contains name
@@ -93,8 +97,8 @@ the composed agent cannot name a type of a host or of a world, directly or throu
 import.
 Proof imports name their actual dependencies; Mathlib and FloatLib umbrella imports
 needlessly load an entire library or tactic collection into each compiler process.
-FloatLib modules are admitted for the bridge alone, and Regula's contract type for the proof
-module that states contracts. The decision registry imports
+FloatLib modules are admitted for the bridge alone, lean-intent modules for the intent bridge
+alone, and Regula's contract type for the proof module that states contracts. The decision registry imports
 executing modules and Regula's two registration interfaces, the contract type and the
 decision attribute. No module imports the registry, so the attribute's module, which
 imports Lean's elaborator, enters no executable's or proof's import closure. -/
@@ -108,6 +112,7 @@ def importAllowed (owner imported : Name) : Bool :=
     !#[`Mathlib, `Mathlib.Tactic, `FloatLib].contains imported &&
       (#[`Acorn, `AcornVerif, `Mathlib, `Lean, `Std].any (·.isPrefixOf imported) ||
         (owner == floatLibBridge && (`FloatLib).isPrefixOf imported) ||
+        (owner == leanIntentBridge && (`LeanIntent).isPrefixOf imported) ||
         (owner == proofContracts && imported == `Regula.Contract))
   else if nativeBootstrap owner then
     (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
