@@ -50,12 +50,33 @@ release before 1.0.
 Acorn's missions serve [Oak Lab's mission](https://oaklab.ai/mission):
 discovering and implementing algorithms that allow agents to achieve goals in
 big worlds, and formally proving that they work—that the agent achieves goals
-over a formally modelled class of big worlds. Running the agent in its worlds
-([ARC-AGI-3](https://docs.arcprize.org/) games or Microduck) is a smoke test
-and demonstration, never acceptance evidence. In Acorn, missions are the
-mission's work of discovering algorithms and proving that they work, and each
-mission's acceptance is decided by the stated theorem or contract checked by
-Lean's kernel and the repository gate (`./scripts/gate.sh`).
+over a formally modelled class of big worlds. In Acorn, missions are that work
+of discovering algorithms and proving that they work, and each mission's
+acceptance is decided by the stated theorem or contract checked by Lean's
+kernel and the repository gate (`./scripts/gate.sh`).
+
+An Acorn mission is accepted by a proof rather than a benchmark score because a
+score measures a finite set of cases, while a theorem covers every world in the
+class it states. A score on a fixed evaluation suite can be high without
+showing that the agent learns or achieves goals in general; for example, an
+audit of [ARC-AGI-3](https://docs.arcprize.org/)'s 25 public games found that
+all 25 are reachable by non-intelligent strategies and 10 are solvable in a
+single blind step (Liew, 2026,
+[arXiv:2605.25931](https://arxiv.org/abs/2605.25931)). Running the agent in its
+worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or Microduck) still
+matters as a smoke test and demonstration, never acceptance evidence.
+
+Because the mission is to discover and implement algorithms, a mission's
+theorem is about an executable Acorn definition—the algorithm itself. A proof
+that some algorithm merely exists, without exhibiting an executable definition,
+is not a mission result, though it may serve as a lemma. Proofs about that
+executable definition may use Lean's standard classical axioms (propext,
+Quot.sound and Classical.choice, the standard-logical profile enforced by the
+[Regula audit](docs/verification.md#regula-audit) via
+`lean/foundation_manifest.json` and `lean/AcornTools/AxiomPins.lean`), since
+the algorithm is explicit in the running code and Acorn's gate refuses
+noncomputable executing declarations
+([#132](https://github.com/rbeauchamp/acorn/issues/132)).
 
 - **What a mission is:** a GitHub issue labelled mission whose contract, the
   exact Lean theorem statement or decision contract to establish, is frozen in
@@ -97,7 +118,7 @@ Lean's kernel and the repository gate (`./scripts/gate.sh`).
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
   audit `./scripts/lean.sh lint`) and keep the sections of the
   [pull request template](.github/pull_request_template.md).
-- **Credit:** squash merges keep the contributor's Git authorship on `main`, and
+- **Credit:** squash merges keep the contributor's Git authorship on main, and
   the pull request description credits both the human contributor and the AI
   agent or model.
 
