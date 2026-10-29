@@ -14,12 +14,11 @@ you inspect its predictions, chosen actions, options and planning as it runs.
 
 Acorn's highest-level goal is Oak Lab's mission, in its own words: "Our goal is
 to discover and implement algorithms that allow agents to achieve goals in big
-worlds." The mission places no limit on which
-world: Acorn's agent must be able to learn and generalize in any big world.
-Acorn may restrict its worlds at first, to make progress practical, but each
-restriction is a step toward that end, not a narrowing of it. The goals below the
-mission, such as which capability or world comes next, are open and not yet
-decided.
+worlds." The mission places no limit on which world: Acorn's agent must be able
+to learn and generalize in any big world. Acorn may restrict its worlds at first,
+to make progress practical, but each restriction is a step toward that end, not a
+narrowing of it. The goals below the mission, such as which capability or world
+comes next, are open and not yet decided.
 
 The owner of the project has chosen two kinds of worlds:
 
@@ -137,7 +136,7 @@ You can read the design without installing Lean.
 | Which hand-authored choices remain? | [Learned-only binding](docs/learned-only-binding.md) |
 | What do the compiler and proofs establish? | [Verification](docs/verification.md) |
 | What remains unresolved? | [Research frontier and limitations](docs/frontier.md) |
-| How close is Acorn to the published baseline, and what comes next? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
+| How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
 | How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) |
 
 Research criticism, proof/implementation review and contributions are welcome.
