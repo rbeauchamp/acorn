@@ -18,7 +18,9 @@ worlds." The mission places no limit on which world: Acorn's agent must be able
 to learn and generalize in any big world. Acorn may restrict its worlds at first,
 to make progress practical, but each restriction is a step toward that end, not a
 narrowing of it. The goals below the mission, such as which capability or world
-comes next, are open and not yet decided.
+comes next, are open and not yet decided. The
+[mission contract](docs/mission-contract.md) states what Acorn promises to prove
+about its agent, the decisions behind it and the sources for each.
 
 The owner of the project has chosen two kinds of worlds:
 
@@ -30,9 +32,12 @@ The owner of the project has chosen two kinds of worlds:
 The tile world the viewer shows was chosen by an agent working on Acorn, not by
 the owner. It has no standing beyond being the first world built.
 
-Choosing and shaping worlds well needs a model of what a big world is. That model
-is open work, begun in the issues on modelling worlds as a class with proved
-properties ([#69](https://github.com/rbeauchamp/acorn/issues/69)), ARC-AGI-3 games
+Choosing and shaping worlds well needs a model of what a big world is. The mission
+contract states the conditions that make a class of worlds big
+([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big));
+proving them of chosen classes is open work, begun in the issues on modelling
+worlds as a class with proved properties
+([#69](https://github.com/rbeauchamp/acorn/issues/69)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a
 class of Microduck scenes ([#173](https://github.com/rbeauchamp/acorn/issues/173)).
 
