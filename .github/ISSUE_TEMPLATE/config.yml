@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/rbeauchamp/acorn/security/advisories/new
+    about: Use GitHub private vulnerability reporting for security or trusted-base gate-bypass flaws (see SECURITY.md).
+  - name: Questions and support
+    url: https://github.com/rbeauchamp/acorn/blob/main/SUPPORT.md
+    about: See SUPPORT.md and CONTRIBUTING.md for where to ask questions about equations, proofs, setup, or missions.

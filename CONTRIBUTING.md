@@ -1,13 +1,17 @@
 # Contributing
 
 Questions, research criticism, documentation improvements and code contributions
-are welcome. Open an [issue](https://github.com/rbeauchamp/acorn/issues) with the
-question or problem and links to the relevant text, equation or source. You do
+are welcome, including from AI agents directed by contributors. Open an
+[issue](https://github.com/rbeauchamp/acorn/issues) using the
+[issue templates](.github/ISSUE_TEMPLATE) (or a blank issue for a question) with
+the question or problem and links to the relevant text, equation or source; see
+[SUPPORT](SUPPORT.md) for where to ask questions and what to include. You do
 not need a proposed fix or Lean expertise to report something unclear.
 
 For a substantial implementation or empirical study, discuss the research need
 and scope before starting. For a focused code change, explain its intended
-semantics, assumptions and implementation owner in the pull request. Use
+semantics, assumptions and implementation owner in the pull request. Participation
+is governed by the [Code of Conduct](CODE_OF_CONDUCT.md); use
 [SECURITY](SECURITY.md) for private vulnerability reports.
 
 ## Working on code and proofs
@@ -74,9 +78,10 @@ executable definition may use Lean's standard classical axioms (propext,
 Quot.sound and Classical.choice, the standard-logical profile enforced by the
 [Regula audit](docs/verification.md#regula-audit) via
 `lean/foundation_manifest.json` and `lean/AcornTools/AxiomPins.lean`), since
-the algorithm is explicit in the running code and Acorn's gate refuses
-noncomputable executing declarations
-([#132](https://github.com/rbeauchamp/acorn/issues/132)).
+the algorithm is explicit in the running code (Lean's compiler refuses compiled
+code that reaches a noncomputable declaration, and mission
+[#132](https://github.com/rbeauchamp/acorn/issues/132) adds a source-admission
+check refusing noncomputable in executing modules).
 
 - **What a mission is:** a GitHub issue labelled mission whose contract, the
   exact Lean theorem statement or decision contract to establish, is frozen in
@@ -119,11 +124,58 @@ noncomputable executing declarations
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
-  audit `./scripts/lean.sh lint`) and keep the sections of the
-  [pull request template](.github/pull_request_template.md).
-- **Credit:** squash merges keep the contributor's Git authorship on main, and
-  the pull request description credits both the human contributor and the AI
+  audit `./scripts/lean.sh lint`), keep the sections of the
+  [pull request template](.github/pull_request_template.md), name its mission
+  with `Closes #<id>.` in the description, and paste the output of
+  `./scripts/gate.sh` from the exact pull request head.
+
+### AI-generated contributions
+
+Contributions written with or by AI agents and models are welcome across
+missions, proofs, contracts, code and documentation. Pointing an agent at
+[AGENTS](AGENTS.md), this guide and an open mission issue is an intended way to
+contribute.
+
+- **Responsibility:** the person directing the agent and submitting the issue or
+  pull request is responsible for the contribution: confirming they have the
+  right to submit it under the [MIT License](LICENSE), verifying citations and
+  external claims against primary sources rather than submitting unverified
+  model output, keeping within the mission's frozen contract and touched files,
+  and running `./scripts/gate.sh` locally before opening or updating a pull
+  request.
+- **Credit:** squash merges keep the human contributor's Git authorship on main,
+  and the pull request description credits both the human contributor and the AI
   agent or model.
+- **Acceptance:** every contribution is judged by Lean's kernel, the frozen
+  theorem or decision contract, and `./scripts/gate.sh`, never by trust in the
+  author or the model.
+
+### Triage and response
+
+Acorn is maintained by one owner ([@rbeauchamp](https://github.com/rbeauchamp))
+and the organization's autonomous review and verification agents. To make sure
+every promise is one that an organization of one owner and its agents can keep:
+
+- **Who looks at new issues and pull requests, and how soon:** the organization's
+  agents and the owner triage new issues and gate-passing pull requests with a
+  target initial response within seven days, without promising 24/7 coverage or
+  a fixed merge date. Pull requests that do not name an issue or mission, omit
+  the sections of the [pull request template](.github/pull_request_template.md),
+  omit a passing `./scripts/gate.sh` result, or weaken a frozen mission contract
+  may be closed on triage with a note explaining what is needed to reopen.
+- **How a mission claim lapses:** as stated above under claiming, a contributor
+  claims a mission by opening a pull request with `Closes #<id>.` or by
+  commenting claim on the issue; a claim comment lapses after seven days without
+  an open pull request that passes `./scripts/gate.sh`, freeing the mission for
+  others. Multiple contributors or agents may work on an open mission
+  concurrently; the first pull request that preserves the frozen contract and
+  passes `./scripts/gate.sh` and review merges.
+- **Merge authority and trusted-base review:** outside pull requests are merged
+  only on the owner's word. Only the owner's account has write access to merge,
+  after running `./scripts/gate.sh` on the exact pull request head (and a blind
+  specification read-back when a pull request introduces or edits a
+  specification). Changes to the trusted-base files listed in
+  [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
 
 ## Scientific evidence
 
