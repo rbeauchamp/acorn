@@ -40,6 +40,23 @@ heavy_steps:
     memory: 12GiB
     limit: none; measured peak 11.3 GiB
 
+# Pull request descriptions. Acorn squash-merges each pull request, so its description becomes the
+# commit message on main, and every description carries the sections the template names: Mission
+# accounting, Decisions, Accepted risk and, for a defect fix, Root cause. Without a template, the
+# pull request step of every run on an open pull request (after a rebase or a repair, for example)
+# redrafts its whole description, dropping what its author wrote there. With one, no-mistakes drafts
+# a new pull request's description from the template and refuses one that loses, renames or
+# reorders its top-level (`#`) headings. Later runs keep the text outside the generated appendix,
+# masking only home-directory paths and control characters in it, and refresh only that appendix
+# (no-mistakes' repo-config reference, "pr.template" and "Author-preserving regeneration", and
+# internal/pipeline/steps/pr_ownership.go). It reads the template's bytes from the default branch. A
+# template that is empty, not UTF-8, holds a NUL byte, exceeds 16 KiB, is a symbolic link or
+# contains no-mistakes' own publication markers fails every pull request step. A description an
+# earlier run wrote without a template holds that run's evidence outside any appendix; no-mistakes
+# updates it only after that evidence is removed by hand.
+pr:
+  template: .github/pull_request_template.md
+
 # Tests are no evidence here. Acorn establishes a change's claims by proof, construction and
 # derivation, never by tests (AGENTS.md, "Correct by construction"). The pipeline's review and test
 # agents read this file and no-mistakes' own contracts, not a contributor's instructions, so this
