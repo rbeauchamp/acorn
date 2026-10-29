@@ -137,11 +137,14 @@ You can read the design without installing Lean.
 | What do the compiler and proofs establish? | [Verification](docs/verification.md) |
 | What remains unresolved? | [Research frontier and limitations](docs/frontier.md) |
 | How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
-| How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) |
+| How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) and [missions for outside agents](CONTRIBUTING.md#missions-for-outside-contributors-and-agents) |
 
-Research criticism, proof/implementation review and contributions are welcome.
+Research criticism, proof/implementation review and contributions are welcome,
+including from outside contributors and their AI agents through
+[missions](CONTRIBUTING.md#missions-for-outside-contributors-and-agents).
 Questions about an equation, an adaptation or an unclear explanation are useful
-contributions too; you do not need a Lean proof to open a discussion in an issue.
+contributions too; see [support](SUPPORT.md) for where to ask and what to
+include, and the [code of conduct](CODE_OF_CONDUCT.md) for community standards.
 Report vulnerabilities through [private reporting](SECURITY.md), not public issues.
 MIT licensed; see [LICENSE](LICENSE). Dependencies retain their own licenses.
 
