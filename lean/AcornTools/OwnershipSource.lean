@@ -64,7 +64,8 @@ def sources : IO (Array Name) := do
   return actual
 
 /-- Read Lake's evaluated executable configuration through the offline bootstrap. The
-second component names the executables whose configuration lists another target in `needs`.
+second component names the executables whose configuration lists in `needs` a target other
+than Regula's elaboration observer.
 `modules` are the discovered sources, which hold every executable root. -/
 def inventory (modules : Array Name) : IO (Array (String × Name) × Array String) := do
   let output ← IO.Process.output {

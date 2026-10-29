@@ -523,17 +523,21 @@ before a failure is reported. The site check runs after these admissions, also
 when one of them fails, because building the documents can rebuild this
 package's modules into the build directory that the admissions read. The build
 requests modules first and executables after them. An executable whose Lake
-configuration names another target it needs is held back with its root module:
-both are requested after every other module and executable, because Lake waits
-for that target before it reads the next request, so every other job is
-scheduled first. Each compiler process of the build uses at most two threads,
-where the default is one for each processor; this limits how far the processes
-Lake runs at once compete for the same processors.
+configuration names a target it needs other than Regula's elaboration observer
+is held back with its root module: both are requested after every other module
+and executable, because Lake waits for that target before it reads the next
+request, so every other job is scheduled first. Every library and executable
+that the [Regula audit](#regula-audit) examines needs the observer, which Lake
+builds while the first of their requested modules awaits its library's needs,
+before any executable is requested, so waiting for it again delays nothing.
+Each compiler process of the build uses at most two threads, where the default
+is one for each processor; this limits how far the processes Lake runs at once
+compete for the same processors.
 
 ## Regula audit
 
 [Regula](https://github.com/rbeauchamp/regula) is a strict linter for Lean with a
-published standard. Acorn requires the release pinned in `lean/lakefile.lean` and
+published standard. Acorn requires the revision pinned in `lean/lakefile.lean` and
 starts its lint driver through the offline bootstrap:
 
 ```sh

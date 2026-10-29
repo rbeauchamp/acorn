@@ -139,10 +139,12 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
   -- Lake of Lean v4.35.0). A request for an executable's root module resolves to that
-  -- executable (`Package.findTargetModule?`). So an entry with `needs`, and its root
-  -- module, are requested last: every other job is already scheduled when Lake starts to
-  -- wait. The modules lead the rest, so that the proof modules, whose import chain is the
-  -- longest in the build, are scheduled first.
+  -- executable (`Package.findTargetModule?`). So an entry whose `needs` name a target other
+  -- than Regula's observer, and its root module, are requested last: every other job is
+  -- already scheduled when Lake starts to wait. The observer, which every claimed target
+  -- needs, is built while the first requested claimed module awaits its library's `needs`,
+  -- before any executable is requested. The modules lead the rest, so that the proof
+  -- modules, whose import chain is the longest in the build, are scheduled first.
   let waiting ← waiting.get
   let late := AcornOwnership.executables.filter fun entry => waiting.contains entry.1
   let (lateModules, modules) := modules.partition fun name => late.any (·.2 == name)
@@ -180,8 +182,8 @@ def main (args : List String) : IO UInt32 := do
     match args with
     | [] => AcornGate.verify
     -- The first of the merge gate's two timed stages: the build that the complete command then reuses
-    -- where Lake's traces match. The axiom pins import the proof library, so their move
-    -- into the tools does not move them into this stage. It admits nothing after the build.
+    -- where Lake's traces match. The axiom pins import the proof library, so this stage
+    -- leaves them out although they are a tool module. It admits nothing after the build.
     | ["build-executing"] =>
       AcornGate.admitAndBuild fun name =>
         !(`AcornVerif).isPrefixOf name && name != `AcornTools.AxiomPins
