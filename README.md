@@ -10,6 +10,32 @@ Watch an agent explore a tile world, gather resources and attempt tasks while
 learning from one continuous stream of experience. Acorn's browser viewer lets
 you inspect its predictions, chosen actions, options and planning as it runs.
 
+## Purpose and worlds
+
+Acorn's highest-level goal is Oak Lab's mission, in its own words: "Our goal is
+to discover and implement algorithms that allow agents to achieve goals in big
+worlds." The mission places no limit on which world: Acorn's agent must be able
+to learn and generalize in any big world. Acorn may restrict its worlds at first,
+to make progress practical, but each restriction is a step toward that end, not a
+narrowing of it. The goals below the mission, such as which capability or world
+comes next, are open and not yet decided.
+
+The owner of the project has chosen two kinds of worlds:
+
+- [ARC-AGI-3](https://docs.arcprize.org/) games, interactive games the agent
+  learns by playing;
+- Microduck, a small simulated biped and so an embodied world
+  ([design](docs/design.md#an-embodied-world-the-microduck)).
+
+The tile world the viewer shows was chosen by an agent working on Acorn, not by
+the owner. It has no standing beyond being the first world built.
+
+Choosing and shaping worlds well needs a model of what a big world is. That model
+is open work, begun in the issues on modelling worlds as a class with proved
+properties ([#69](https://github.com/rbeauchamp/acorn/issues/69)), ARC-AGI-3 games
+as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a
+class of Microduck scenes ([#173](https://github.com/rbeauchamp/acorn/issues/173)).
+
 ## Start with the live viewer
 
 From your Acorn checkout, run:
@@ -110,7 +136,7 @@ You can read the design without installing Lean.
 | Which hand-authored choices remain? | [Learned-only binding](docs/learned-only-binding.md) |
 | What do the compiler and proofs establish? | [Verification](docs/verification.md) |
 | What remains unresolved? | [Research frontier and limitations](docs/frontier.md) |
-| How close is Acorn to the published baseline, and what comes next? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
+| How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
 | How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) |
 
 Research criticism, proof/implementation review and contributions are welcome.

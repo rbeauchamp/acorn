@@ -1,9 +1,9 @@
 # Baseline assessment
 
-Acorn's first goal is a baseline agent built from the current state of the prior
-art in continual learning and planning. This page records an assessment of how
-far the implementation meets that goal, measured against the published OaK and
-Alberta Plan designs, and the conformance work it recommends.
+This page records an assessment of how far Acorn's implementation forms a
+baseline agent built from the current state of the prior art in continual
+learning and planning, measured against the published OaK and Alberta Plan
+designs, and the conformance work it recommends.
 
 The assessment was made against `main` at commit 86ce779 (2026-09-28), from
 the executed definitions and the primary literature. No agent run informed it.
