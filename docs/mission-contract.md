@@ -38,13 +38,16 @@ Terms used throughout:
 
 **In plain words.**
 Acorn is an agent, written as running Lean code, about which one kind of theorem is to be proved.
-Put it in any world of a stated class of big worlds and, learning only from its own single stream of experience, it comes to achieve the goals those worlds pose, including goals that no frozen agent achieves, and it keeps achieving what it has achieved while the problem stays the same.
+For each stated class with its learning preconditions, consider a separate run of the same agent from the same initial memory in each member, keeping memory across that member's visits.
+Learning only from its own single stream in each run, the agent eventually solves more than the class's covering bound k members on one common visit; every frozen agent solves at most k members on any visit.
+Within each member's repeated visits, once it achieves the goal it keeps achieving it while the problem stays the same.
+This promises class-level separation and retention; eventual success in every member is a stronger obligation that this contract does not yet impose.
 The parts are the interface every world meets ([contract 1](#contract-1-the-interface-every-world-meets)), what makes a class of worlds big ([contract 2](#contract-2-what-makes-a-class-of-worlds-big)), the invariants of learning from one stream ([contract 3](#contract-3-invariants-of-learning-from-one-stream)) and what achieving goals promises ([the postcondition](#the-postcondition-what-achieves-goals-promises)).
 The theorems concern the definitions that execute.
 
 - **Source.** The mission sentence is the opening of Oak Lab's mission page [[1]](#r1). Its section "Our algorithms learn in real-time without storing or replaying data" says that Oak Lab's "batch-size-one learning algorithms can learn directly from experience without storing or replaying data". The Alberta Plan characterizes "the problem of AI as the online maximization of reward via continual sensing and acting, with limited computation", and grounds learning in experience alone: "Only experience is available to the agent, and the environment is known only as a source and sink for these signals" ([[3]](#r3), "Research Vision: Intelligence as signal processing over time", with Figure 1). Neither source states a formal criterion of success.
 - **The owner's decision: a theorem, not a score.** The promise is a theorem about the executed definitions. A score measures finitely many cases, while a theorem covers every world of the class it states; [missions](../CONTRIBUTING.md#missions-for-outside-contributors-and-agents) gives the rule, with an audit that found ARC-AGI-3's public games reachable by strategies that do not learn.
-- **Acorn's choice: the comparison is with frozen agents, not with an optimum.** In a big world the agent cannot "represent the value or optimal action for every state" ([[2]](#r2), "The Big World Hypothesis"), so the optimum is no yardstick. A frozen agent is one that keeps nothing of its stream, so what learning from experience must add is to do better than every frozen agent. The sources motivate the comparison (tracking can do better than every converging algorithm, see [the postcondition](#the-postcondition-what-achieves-goals-promises)); the predicate is Acorn's.
+- **Acorn's choice: the comparison is with frozen agents, not with an optimum.** In a big world the agent cannot "represent the value or optimal action for every state" ([[2]](#r2), "The Big World Hypothesis"), so the optimum is no yardstick. A frozen agent is one that keeps nothing of its stream, so what learning from experience must add is to solve more members of the class on one visit than every frozen agent can on any visit. Every individual feasible goal has a frozen scripted solver (`feasible_iff_script`, `script_experienceFree`); the separation concerns one agent across the class, not a goal that defeats every frozen agent. The sources motivate the comparison (tracking can do better than every converging algorithm, see [the postcondition](#the-postcondition-what-achieves-goals-promises)); the predicate is Acorn's.
 - **Open.** The mission theorem itself, for Acorn's executed agent; [the open obligations](#open-obligations) list its parts.
 
 Two mathematical facts shape how "any big world" is read.
@@ -91,11 +94,12 @@ A world is big relative to an agent: the agent is far smaller than the world, so
 Acorn turns that relation into four conditions a class of worlds can be proved to meet:
 
 - (a) *feasible:* every goal can be achieved from where its attempt starts, so the class holds no traps;
-- (b) *concealed:* the observations do not show a goal's solution before it is found, so only experience reveals it;
+- (b) *concealed:* before a goal is first met, the member's percepts match those of one reference world; learning from success requires additional feedback;
 - (c) *small frozen share:* a frozen agent solves only a small share of the class on any visit, so learning is necessary;
 - (d) *beyond capacity,* the scaled target: the class poses more separate problems than the agent's memory can hold solutions to at once, so the agent must keep learning and forgetting on its one stream.
 
-Today's precondition is (a) to (c); (d) is the named target for larger classes.
+Today's bigness conditions are (a) to (c); (d) is the named target for larger classes.
+Conditions (a) to (c) establish the comparison bound, not that experience supplies information from which the agent can learn a solution. Each class's mission theorem also needs its own learning preconditions, as below.
 
 - **Source.**
   - The big world hypothesis is relational: "the agent is orders of magnitude smaller than the environment. It can neither fully perceive the state of the world nor can it represent the value or optimal action for every state." It "is more a statement about the class of problems we should care about than a fact about all decision-making problems. It can be made true or false by exercising control over the design of the environment and the agent" ([[2]](#r2), "The Big World Hypothesis"). For benchmarks, "The alternative is to restrict the computational capabilities of the agents instead of making the environments larger", for example "the number of operations, the amount of memory, the amount of memory bandwidth, or the amount of energy" ([[2]](#r2), "Benchmarking Algorithms in Big Worlds").
@@ -122,6 +126,12 @@ structure BigClass (family : WorldClass I) (goals : family.Goals) (len k : ℕ) 
   large : k < members.card                                               -- (c), small share
 ```
 
+**Acorn's choice: qualify learning separately from bigness.** The mission theorem is specialized to each chosen class, rather than claiming that this proposed structure alone implies separation for Acorn's agent. A class must also expose enough goal information and support the agent's exploration; those premises must be stated independently of the promised success and justified for that class.
+
+*Argued obstruction.* Two members can give the same constant percept forever while requiring different first actions for their one-step goals. With len = k = 1, both goals are feasible, concealment holds, and one action sequence covers at most one member. Every agent nevertheless has identical memories and actions in the two runs, by induction on the shared percept stream, including across visits. It solves at most one member on any common visit. Thus (a) to (c) alone cannot support the mission implication.
+
+The replay comparison has a precise additional premise: one function signal from percepts to booleans must, for every member i, state s and action a, return true on that member's percept after stepping from s by a if and only if that successor state satisfies member i's goal (`replay_separates`, hypothesis `decodes`). The same function serves all members; it cannot be given the hidden member index. The theorem also requires a fixed exploration schedule whose visits up to some finite last visit meet the goals of a set of more than k members (`explored` and `many`). Feasibility alone does not establish that a particular schedule does so. These hypotheses suffice for the replay agent's separation, not for Acorn's executed agent; the latter's corresponding goal-information and exploration obligations remain open. The grid-world theorem `witness_separation` discharges the replay hypotheses for its stated set of targets.
+
 **Condition (d): a counting bound** (*argued*, to be machine-checked).
 A *campaign* presents N slots of a concealed class in one stream: one visit of a fixed length to each slot in turn, cycle after cycle, never restarting the agent, and each slot's world starting each visit from its own start state.
 An *assignment* picks, for each slot, a member from a set of T members, so there are T^N assignments.
@@ -143,6 +153,7 @@ That is why (d) is the scaled target and not today's precondition.
 
 - **Open.**
   - A class meeting all of (a) to (c) in the grid world, including the feasibility of every member's goal.
+  - Goal-information and exploration premises for each chosen class, and a proof that they support learning by Acorn's executed agent. The replay theorem's decoding and exploration hypotheses cannot be dropped when using it as a comparison.
   - The counting bound of (d) as a kernel theorem.
   - A memory bound for the executed agent: its memory type holds exact naturals, so `MemoryWithin` holds of no fixed width for that type, and (d) needs a bound on the memories it can reach.
   - Whether (d) is first instantiated for an agent configuration of restricted capacity, as Javed and Sutton recommend for benchmarks ([[2]](#r2), "Benchmarking Algorithms in Big Worlds"), or only at the full configuration. This is a roadmap choice not yet made.
@@ -157,25 +168,28 @@ A stopped agent resumes exactly where it stopped.
 - **Source.** Oak Lab's algorithms "learn directly from experience without storing or replaying data" ([[1]](#r1), "Our algorithms learn in real-time without storing or replaying data"). The Alberta Plan's temporal uniformity: "Temporal uniformity means that all times are the same with respect to the algorithms running on the agent. There are no special training periods when training information is available or when rewards are counted more or less than others. … If the agent learns or plans, then it learns or plans on every time step." The same passage acknowledges "that there may be situations in which it is preferable to depart from absolute temporal uniformity", and on computation, "Computer power, though exponentially more plentiful, is never infinite" ([[3]](#r3), "Research Vision"). For big worlds, "Accepting the big world hypothesis means we should actively look for more computationally efficient learning algorithms" ([[2]](#r2), "Need for Computationally Efficient Learning Algorithms"). The sources state a direction and allow considered departures; they do not state exact bounds, once-only learning, a ban on resets and host writes, or exact resumption.
 - **Acorn's choice.** These invariants are strict and hold on every step of every run, because the contract is a theorem over every run, not a tendency. Each is Acorn's contract.
 - **Acorn's theorems.**
-  - Each percept is learned once and in order, by construction for every kernel agent: the memory at a time is the fold of the agent's decisions over the percepts before it, in order (`memory_causal`), and likewise for a step in two parts (`memory_parts`).
+  - Causal dependence: the memory at a time is the fold of the agent's decisions over the percepts before it, in order (`memory_causal`), and likewise for a step in two parts (`memory_parts`). These theorems hold for every kernel agent. They say nothing about how many learning updates a decision performs on a stored percept: the type of `Kernel.Agent.act` allows it to store a percept and reuse it on every later call, even with fixed memory and work bounds.
   - Exact resumption: loading the bytes a save writes returns the saved state, every field of it (`load_saved`), and resuming returns it with a new evaluator session (`resume_saved`).
   - No host write reaches learning: `act_accounting`, under contract 1.
   - Bounded memory, for some states: for every state whose evaluator naturals each encode within their allowance, a save writes at most a fixed number of bytes (`snapshot_size_bound`).
   - Bounded work, for an accounting: the accounting of a step's first part is bounded for every agent state and percept (`choose_work`). It bounds the accounting of a costed twin; the twin's correspondence with the compiled code was observed in one build and is not proved ([design](design.md#the-work-of-the-first-part)).
 
-*Proposed* Lean form, for an agent with a work measure and a size measure:
+*Proposed* Lean form of the resource bounds only, for an agent with a work measure and a size measure:
 
 ```lean
-structure LearnsFromOneStream (A : Kernel.Agent I) (work : A.Memory → Percept I → ℕ)
+structure StreamResourceBounds (A : Kernel.Agent I) (work : A.Memory → Percept I → ℕ)
     (size : A.Memory → ℕ) (W S : ℕ) : Prop where
   boundedWork : ∀ (world : World I) start t,
     work (memoryAt world A start t) (perceptAt world A start t) ≤ W
   boundedMemory : ∀ (world : World I) start t, size (memoryAt world A start t) ≤ S
 ```
 
-Causality needs no field: `memory_causal` holds of every kernel agent.
+Causality needs no field: `memory_causal` holds of every kernel agent. The proposed resource predicate does not express once-only learning, absence of replay, host isolation or exact resumption.
+
+**Acorn's choice: a separate once-only, no-replay contract.** Direct learning from an experience must consume that experience once, in stream order; stored past observation/action/reward samples must not be submitted again as training data. Retained learned parameters and model-based planning are distinct from resubmitting experience. This property requires a semantics that identifies experience consumption and distinguishes those uses inside the executed learning operations; an arbitrary causal memory transition does not supply one. The property is an additional obligation of the mission, not a consequence of the resource bounds.
 
 - **Open.**
+  - A formal once-only, no-replay contract over the executed learning operations, identifying each experience and its consumption, allowing retained learned state and planning while excluding resubmitted samples. Prove it for every reachable update and link it through the host's dispatch, checkpoint load and resumption paths; the current kernel interface has no experience-consumption semantics with which to state that theorem.
   - That every state the executed agent can reach has evaluator naturals within their allowance, so that its memory is bounded on every run.
   - A Lean semantics of executed work, and a work bound over it; until then the work field can be stated only over the accounting.
   - That the host's run is the kernel's closed loop (contract 1), so that these theorems describe the run that executes.
@@ -187,11 +201,12 @@ This is fork F1: how strong "achieves goals" is. It was decided on the owner's b
 **In plain words.**
 On each class of the ladder below:
 
-- (i) *separation:* after experience, the agent achieves the goals of more members on some visit than any frozen agent achieves on any visit;
+- (i) *separation:* after experience, there is one visit number and a finite set of more than k members such that the agent solves each of those members on that visit in its separate run; every frozen agent solves at most k members on any visit;
 - (ii) *retention:* while the problem stays the same, once the agent has achieved a member's goal it keeps achieving it on later visits;
 - (iii) on classes beyond its capacity (contract 2 (d)), where it cannot keep every solution at once, it keeps the ability to learn, so that it can learn again a solution it had to give up. The precise form of (iii) is open.
 
-The contract does not promise success on a first encounter, the optimal action in every state, or, until an attempt bound is proved, how many failed visits learning takes.
+Separation allows members outside that successful set to remain unsolved; retention applies to every member whenever it is solved. These quantify over separate runs from the same agent initial memory, with continuity within each member's visits. A campaign that interleaves different members in one run needs postcondition (iii).
+The contract does not promise success on a first encounter, eventual success in every member, the optimal action in every state, or, until an attempt bound is proved, how many failed visits learning takes.
 
 - **Source.**
   - *Tracking.* Tracking "can perform better than any converging algorithm on a stationary problem" ([[5]](#r5), Abstract, shown in Section 2), and "tracking methods may outperform converging methods, even in stationary domains" ([[6]](#r6), Section 2.4). "Learning things when they are needed and discarding them when they are not is sometimes called tracking", and "A key requirement for tracking to be effective is temporal coherence" ([[2]](#r2), "Online continual learning for achieving goals in big worlds").
@@ -202,9 +217,9 @@ The contract does not promise success on a first encounter, the optimal action i
   - Separation alone is too weak (*argued*): an agent that succeeds once by luck in many members and never again meets it, and shows no learning. Retention rules that agent out.
   - Retention of every solution forever is too strong (*argued*, from contract 2 (d)): the counting bound holds for every cycle after the first, so once N · log₂(T/k) > b, a b-bit agent that has solved every slot at least once and kept every solution would solve every slot in the next cycle, which happens for at most a fraction 2^b · (k/T)^N of the assignments. Keeping every solution would also contradict the tracking the sources describe, in which knowledge no longer used is given up.
   - Within one member's visits the problem is the same on every visit, because each visit starts the member's world from its start state; so there retention is required on every later visit, as the proposed form below states.
-  - Satisfiable and not trivially met: an agent that replays a route it has found re-solves on every later visit each member it solved once, wherever the percept after every step shows exactly when the step meets the goal (`replay_keeps`, `replay_solves`). It separates under an explicit hypothesis that its exploration meets the goals of more members than the covering bound (`replay_separates`), which one grid world discharges (`witness_separation`). No frozen agent separates (`visits_need`). Retention alone is met by an agent that never succeeds; the conjunction is not.
+  - Separation and retention are jointly satisfiable and not trivially met: an agent that replays a route it has found re-solves on every later visit each member it solved once, wherever one common signal decodes goal satisfaction from the percept after every step (`replay_keeps`, `replay_solves`). With that same decoding hypothesis, concealment, a covering bound and an exploration schedule that meets the goals of more members than the bound by a finite visit, it separates (`replay_separates`); one grid world discharges these hypotheses (`witness_separation`). No frozen agent separates (`visits_need`). Retention alone is met by an agent that never succeeds; the conjunction is not. Replaying actions in the world is distinct from replaying stored experience for training, and these theorems prove neither the no-replay learning contract nor fixed resource bounds.
 - **Open.**
-  - Separation and retention for Acorn's executed agent. Today both are proved only for the replaying agent, a reference that shows the contract can be met.
+  - Separation and retention for Acorn's executed agent. Today both are proved only for the replaying agent, a reference that shows these two postconditions can be met under its decoding and exploration hypotheses.
   - A precise form of (iii) for campaigns: from which memories the agent must be able to learn again, and within how many visits.
   - The attempt bound: how many failed visits learning may take, as a function of the class. It needs a theory of exploration for Acorn's setting.
 
@@ -257,18 +272,20 @@ Where a guarantee needs no randomness, it holds on every run.
 
 ## The mission theorem and its ladder
 
-Put together, under F1 to F4, the mission is one theorem for each class of a ladder of classes.
-For the executed agent from its initial state s₀, with work and size measures and bounds fixed by the interface and the configuration, the *proposed* statement is:
+Put together, under F1 to F4, the mission is one theorem for each chosen class of a ladder of classes. The class, goals, visit length, covering bound and learning preconditions are fixed for that theorem; the proposed BigClass conditions alone are not sufficient premises.
+For the executed agent from its initial state s₀, with work and size measures and bounds fixed by the interface and configuration, the proposed conclusion is the conjunction of:
 
-```lean
-theorem mission (big : BigClass family goals len k) :
-    LearnsFromOneStream (executedAgent s₀) work size W S ∧
-    Separates family goals len k (executedAgent s₀) ∧ Retains family goals len (executedAgent s₀)
-```
+- the resource bounds stated by the proposed StreamResourceBounds predicate;
+- the separate once-only, no-replay contract, causal dependence, host isolation and exact resumption of contract 3, linked to the executed learning and lifecycle operations;
+- separation as stated by the proposed Separates predicate for that class;
+- retention as stated by the proposed Retains predicate for that class.
 
-Where the agent's exploration draws on its generator, F4 turns the last two conjuncts into statements about all but a fraction δ of runs, under the hypothesis that the draws are ideal.
-The statement is satisfiable and not met trivially: the replaying agent meets the separation and retention it asks for, under the hypotheses of its theorems, and no frozen agent meets the separation (see [the postcondition](#the-postcondition-what-achieves-goals-promises)).
-Two of its parts are not yet precise: the work measure (contract 3) and, under F4, how the fraction δ depends on the class and the number of visits.
+Each class theorem must establish its bigness conditions and state and justify its goal-information and exploration premises independently of these conclusions. The replay comparison uses exactly the decoding and exploration hypotheses described in contract 2; the mission theorem must establish how Acorn's executed agent uses the available information and explores. Neither the existence of feasible action sequences nor the comparison theorem supplies that linkage.
+Where the agent's exploration draws on its generator, F4 turns separation and retention into statements about all but a fraction δ of runs, under the hypothesis that the draws are ideal.
+The replaying agent establishes joint satisfiability only of separation and retention under its hypotheses, and no frozen agent meets separation (see [the postcondition](#the-postcondition-what-achieves-goals-promises)). Satisfiability of the complete conjunction with fixed resources and the learning and lifecycle invariants remains open.
+The once-only, no-replay semantics and executed work measure (contract 3), each class's learning premises and, under F4, how the fraction δ depends on the class and the number of visits must be made precise before the full Lean theorem can be stated.
+
+**Proof boundary.** Refining this contract into Lean requires preserving each cited theorem's quantified domain, hypotheses and exact conclusion: a frozen-agent upper bound supplies no learner's lower bound, a causal fold supplies no learning-update count, and a class-level existential set supplies no guarantee for every member. This correspondence with the prose is argued, not machine-checked; the missing semantics and execution linkage remain proof obligations, not established guarantees.
 
 The ladder starts with the concealed targets of one grid world, then campaigns beyond the agent's capacity (contract 2 (d)), classes of Microduck scenes and classes of ARC-AGI-3 games.
 "Any big world" is the limit of the ladder, never one theorem: each class is a step toward the mission, not a narrowing of it.
@@ -280,12 +297,12 @@ Collected from the sections above:
 1. The finite form of "no agent achieves goals in every world" as a kernel theorem.
 2. That the host's run and the kernel's closed loop take the same actions, with the host's accounting composed along a run.
 3. A theorem form of the viewer's rule: every message the core accepts from the viewer is a stop whose handling changes no learned field.
-4. A class meeting all of contract 2 (a) to (c) in the grid world, including the feasibility of every member's goal.
+4. A class meeting all of contract 2 (a) to (c) in the grid world, including the feasibility of every member's goal, with goal-information and exploration premises sufficient for Acorn's executed agent. Bigness alone does not supply them.
 5. The counting bound of contract 2 (d) as a kernel theorem, and the choice of the agent configuration it is first instantiated for.
 6. A bound on the memories the executed agent can reach, which contract 3 and contract 2 (d) both need.
-7. A Lean semantics of executed work and a work bound over it.
+7. A Lean semantics of executed work and a work bound over it, and a separate once-only, no-replay contract with experience-consumption semantics and a proof over the executed updates and their host, checkpoint and resumption paths. The resource predicate and causal fold establish no such consumption rule.
 8. A host loop that runs visits, related by a theorem to `Kernel.visits`, and an account of a crash in the middle of an attempt.
-9. Separation and retention for the executed agent.
+9. Separation and retention for the executed agent under each class's declared learning preconditions, jointly with the resource, learning and lifecycle invariants. The replay comparison establishes only the two postconditions under its own hypotheses.
 10. A precise postcondition (iii) for campaigns: learning again what had to be given up.
 11. An attempt bound, which needs a theory of exploration for Acorn's setting.
 12. A guarantee for exploring agents counted exactly over the generator's seeds; until then, the ideal-draw assumption stays in the trusted base.
