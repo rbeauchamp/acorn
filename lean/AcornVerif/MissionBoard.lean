@@ -25,14 +25,14 @@ What the proofs below establish about the executed definitions:
 * Credit follows acceptance (`credited_accepted`): every mission counted for an account or an agent
   is a mission of the read whose closing pull request was merged into the default branch by the
   repository's owner with the gate's final line on record. A claim, a comment, an open pull request
-  and a run have no field here, so they earn nothing. A mission recorded as landed is counted for
-  each holder it names (`landed_credited`).
+  and a run have no field here, so they earn nothing.
+* Acceptance earns credit (`accepted_credited`): a closed mission of the read that meets `Accepted`
+  is recorded as landed (`landedOf_complete`) and counted for each holder its record names. So an
+  empty board cannot come from a `landing` that refuses what the condition accepts.
 * Text that `escape` outputs holds no character of `active` (`escape_inert`), and `boardMarkdown`
   passes titles through it. An agent's name uses only a closed character set (`agentName_closed`).
 
-What they do not establish: that a closed mission meeting `Accepted` enters `landedOf`, since
-`landedOf_accepted` runs only from the record to the condition and `landed_credited` starts from a
-mission already recorded; that GitHub answers truly; that a merge by the owner followed a passing
+What they do not establish: that GitHub answers truly; that a merge by the owner followed a passing
 gate run (`CONTRIBUTING.md` makes that the rule and nothing on GitHub enforces it; the gate's final
 line in the commit message is what the author pasted); or that the written files are not edited
 afterwards.
@@ -431,6 +431,15 @@ theorem Mission.landing_accepted {m : Mission} {owner branch : String} {l : Land
                 simp only [bne_iff_ne, ne_eq, Decidable.not_not] at base mergedBy
                 exact ⟨⟨completed, c, closing, merged, base, mergedBy, commit, found, contains⟩, rfl⟩
 
+/-- A mission that meets `Accepted` is one that `landing` admits, so `landing` refuses nothing the
+condition accepts. -/
+theorem Mission.landing_complete {m : Mission} {owner branch : String}
+    (accepted : Accepted m owner branch) :
+    ∃ l, m.landing owner branch = .ok l ∧ l.mission = m.number := by
+  obtain ⟨completed, c, closing, merged, base, mergedBy, commit, found, contains⟩ := accepted
+  subst base
+  simp [Mission.landing, completed, closing, merged, mergedBy, found, contains]
+
 /-- The missions of a read that landed. -/
 def landedOf (s : Snapshot) : List Landed :=
   (s.missions.filter (!·.isOpen)).filterMap fun m =>
@@ -450,6 +459,16 @@ theorem landedOf_accepted {s : Snapshot} {l : Landed} (landed : l ∈ landedOf s
     obtain ⟨accepted, same⟩ := Mission.landing_accepted result
     exact ⟨m, member, same.symm, accepted⟩
   · simp at record
+
+/-- A closed mission of the read that meets `Accepted` has a landed record. A mission that is open,
+reopened ones included, is outside the statement and earns nothing. -/
+theorem landedOf_complete {s : Snapshot} {m : Mission} (member : m ∈ s.missions)
+    (closed : m.isOpen = false) (accepted : Accepted m s.owner s.branch) :
+    ∃ l ∈ landedOf s, l.mission = m.number := by
+  obtain ⟨l, landed, number⟩ := Mission.landing_complete accepted
+  refine ⟨l, ?_, number⟩
+  simp only [landedOf, List.mem_filterMap, List.mem_filter]
+  exact ⟨m, ⟨member, by simp [closed]⟩, by simp [landed]⟩
 
 /-- What a holder is credited with: the missions that landed in their name. -/
 structure Credit (α : Type) where
@@ -502,6 +521,18 @@ theorem credited_accepted {α : Type} [DecidableEq α] {names : Landed → List 
   obtain ⟨l, member, same, _⟩ := credited_landed row counted
   obtain ⟨m, found, number, accepted⟩ := landedOf_accepted member
   exact ⟨m, found, number.trans same, accepted⟩
+
+/-- Acceptance earns credit: a closed mission of the read that meets `Accepted` has a landed record,
+and is counted for every holder that record names. -/
+theorem accepted_credited {α : Type} [DecidableEq α] {names : Landed → List α} {s : Snapshot}
+    {m : Mission} (member : m ∈ s.missions) (closed : m.isOpen = false)
+    (accepted : Accepted m s.owner s.branch) :
+    ∃ l ∈ landedOf s, l.mission = m.number ∧ ∀ holder ∈ names l,
+      ∃ c ∈ credits names (landedOf s), c.holder = holder ∧ m.number ∈ c.missions := by
+  obtain ⟨l, landed, number⟩ := landedOf_complete member closed accepted
+  refine ⟨l, landed, number, fun holder name => ?_⟩
+  rw [← number]
+  exact landed_credited landed name
 
 /-- Characters that act as nothing in a Markdown table cell or in HTML. -/
 def inert (c : Char) : Bool :=
