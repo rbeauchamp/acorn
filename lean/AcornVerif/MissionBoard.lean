@@ -7,10 +7,10 @@ import Lean.Data.Json
 
 /-! # The mission board
 
-GitHub is the record of Acorn's missions: an issue labelled `mission` is a mission, and a mission
-has landed when a merged pull request closed it. This module derives the repository's copy of that
-record, `docs/mission-board.md` and `docs/mission-board.json`, from pages of GitHub's GraphQL
-interface. `docs/missions.md` gives the commands that run it.
+GitHub is the record of Acorn's missions: an issue labelled `mission` is a mission, and `Accepted`
+states when a closed one has landed. This module derives the repository's copy of that record,
+`docs/mission-board.md` and `docs/mission-board.json`, from pages of GitHub's GraphQL interface.
+`docs/missions.md` gives the commands that run it.
 
 The module imports only the toolchain and spawns no process: `gh api graphql --paginate --slurp`
 fetches the pages, and the commands fetch them twice. It defines no root `main`, since the ownership
