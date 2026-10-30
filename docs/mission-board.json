@@ -1,0 +1,42 @@
+{"untrusted_fields": ["title", "contract"],
+ "regenerate":
+ "https://github.com/rbeauchamp/acorn/blob/main/docs/missions.md#regenerating-the-board",
+ "open":
+ [{"url": "https://github.com/rbeauchamp/acorn/issues/132",
+   "title":
+   "Refuse noncomputable in executing sources and document classical proofs",
+   "number": 132,
+   "last_edited_by": "rbeauchamp",
+   "last_edited_at": "2026-10-29T15:49:05Z",
+   "kinds": ["mission:contract"],
+   "filed_by": "rbeauchamp",
+   "contract_state": "frozen",
+   "contract":
+   "- Refuse `noncomputable` in every source not owned by `AcornVerif` (`Acorn`, `NativeApp`, `Bootstrap` and the application executables), via Regula or `lean/AcornTools/Boundary/Audit.lean`, covering every form including `noncomputable section`, `mutual` and `in`.\n- Add the classical-proofs note to `site/AcornDocs/Verification.lean` (and regenerate `docs/verification.md`) in the Regula audit section between the axiom-profile paragraph and the `lean/Acorn/Decisions.lean` paragraph, replacing the last sentence of the first paragraph with a statement of the check, and update any documentation that enumerates source-admission rules.\n- Verify with `./scripts/verify.sh` and `./scripts/lean.sh lint` (`./scripts/gate.sh`)."},
+  {"url": "https://github.com/rbeauchamp/acorn/issues/163",
+   "title": "Prove that Json.parse accepts every JSON text of its grammar",
+   "number": 163,
+   "last_edited_by": "rbeauchamp",
+   "last_edited_at": "2026-10-29T15:48:56Z",
+   "kinds": ["mission:proof"],
+   "filed_by": "rbeauchamp",
+   "contract_state": "frozen",
+   "contract":
+   "- Prove completeness over the executed parser in `lean/Acorn/Json.lean` beside `parse_sound`: `∀ text v, Grammar.Text text.toList v → Json.parse text = .ok v`.\n- In `lean/Acorn/Decisions.lean`, replace the two one-way kinds (`json_parse` and `json_parse_text`) with the two-way kind `Regula.Decides (·.isOk = true) (fun text => ∃ v, Grammar.Text text.toList v)`, and give `control_command` the two-way kind over `Host.Viewer.ControlSpelled`.\n- Verify that `./scripts/verify.sh` and `./scripts/lean.sh lint` (`./scripts/gate.sh`) pass on the exact head."},
+  {"url": "https://github.com/rbeauchamp/acorn/issues/174",
+   "title":
+   "Wait for a Microduck posture's declared duration only when its release sends the toggle",
+   "number": 174,
+   "last_edited_by": "rbeauchamp",
+   "last_edited_at": "2026-10-29T15:49:03Z",
+   "kinds": ["mission:contract"],
+   "filed_by": "rbeauchamp",
+   "contract_state": "frozen",
+   "contract":
+   "- In `lean/Acorn/Host/Microduck/Action.lean` and `lean/Acorn/Host/Microduck/Bridge.lean`, make the posture duration a function of the action and the stated posture (`sitting`): zero when the release sends no skill and the declared duration otherwise, with `Bridge.next` keeping its signature and passing the `sitting` its record holds.\n- Restate `Action.next_after`, `Action.next_covers`, `Action.next_least`, `Bridge.next_covers`, `Bridge.ends_bounded` and `Idle.hold_bounded` without weakening them, keep the statements of `Calm.cycle`, `Bridge.ends_held`, `Bridge.ends_covers`, `Bridge.tick_keeps`, `Bridge.ticks_keeps`, `Calm.ticked_keeps` and `bridge_tick_value`, and update `docs/design.md`'s account of the next percept's cycle.\n- `./scripts/verify.sh` and `./scripts/lean.sh lint` (`./scripts/gate.sh`) pass on the exact head."}],
+ "landed": [],
+ "derived_at": "2026-10-30T17:14:03Z",
+ "credit": {"agents": [], "accounts": []},
+ "closed_without_landing": [],
+ "authority":
+ "GitHub (https://github.com/rbeauchamp/acorn) is the record. This is a copy derived at derived_at; it may lag GitHub and never overrides it."}

@@ -51,6 +51,10 @@ release before 1.0.
 
 ## Missions for outside contributors and agents
 
+[Missions](docs/missions.md) is the way in: what a mission costs and pays, step-by-step
+instructions an agent can follow, and how the [mission board](docs/mission-board.md)
+credits what has landed. This section states the rules those instructions rest on.
+
 Acorn's missions serve [Oak Lab's mission](https://oaklab.ai/mission):
 discovering and implementing algorithms that allow agents to achieve goals in
 big worlds, and formally proving that they work—that the agent achieves goals
@@ -107,8 +111,12 @@ check refusing noncomputable in executing modules).
   feature-rank assumptions. Missions that prove learning and goal-achievement
   results come with Acorn's research agenda, with no dates promised.
 - **How to find one:** browse
-  [open missions](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission)
-  or run `gh issue list -R rbeauchamp/acorn --label mission`.
+  [open missions](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission),
+  which are always current, or the [mission board](docs/mission-board.md), a dated
+  copy; or run
+  `gh issue list -R rbeauchamp/acorn --label mission --state open --limit 1000`
+  (the command stops silently at its limit, 30 if none is given; if it returns as
+  many results as the limit, run it again with a larger one until it returns fewer).
 - **How to claim it:** open a pull request that closes the issue (`Closes #<id>.`
   in the description), or comment claim on the issue; a claim comment lapses
   after seven days without a pull request that passes the gate.
@@ -146,7 +154,11 @@ contribute.
   request.
 - **Credit:** squash merges keep the human contributor's Git authorship on main,
   and the pull request description credits both the human contributor and the AI
-  agent or model.
+  agent or model, the agent or model on a line of the form `Agent: <name>`. The
+  [mission board](docs/mission-board.md) counts a landed mission for the account
+  that opened its pull request and for the name on that line
+  ([what the board counts](docs/missions.md#what-the-board-counts)); it counts
+  nothing else and grants no repository privilege.
 - **Acceptance:** every contribution is judged by Lean's kernel, the frozen
   theorem or decision contract, and `./scripts/gate.sh`, never by trust in the
   author or the model.
@@ -177,6 +189,10 @@ every promise is one that an organization of one owner and its agents can keep:
   specification read-back when a pull request introduces or edits a
   specification). Changes to the trusted-base files listed in
   [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
+- **Keeping the board current:** whoever files or merges a mission may
+  [regenerate the board](docs/missions.md#regenerating-the-board) in a pull request,
+  and the organization's agents do so when they triage, with no schedule promised.
+  The board states when it was derived; GitHub stays the record.
 
 ## Scientific evidence
 

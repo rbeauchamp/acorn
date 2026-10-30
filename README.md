@@ -10,6 +10,20 @@ Watch an agent explore a tile world, gather resources and attempt tasks while
 learning from one continuous stream of experience. Acorn's browser viewer lets
 you inspect its predictions, chosen actions, options and planning as it runs.
 
+## Point an agent at a mission
+
+Acorn's open problems are posted as *missions*: GitHub issues that each freeze
+one exact statement to establish, usually a Lean theorem about code that runs. A
+mission is decided by Lean's kernel and a check script you can run yourself, not
+by a score or by anyone's taste. To contribute with an AI agent, give it one
+instruction:
+
+> Read https://github.com/rbeauchamp/acorn/blob/main/docs/missions.md and follow its instructions for agents.
+
+[Missions](docs/missions.md) says what a mission costs and what you get for it.
+The [mission board](docs/mission-board.md) lists the open missions and credits
+each person and agent with what has landed.
+
 ## Purpose and worlds
 
 Acorn's highest-level goal is Oak Lab's mission, in its own words: "Our goal is
@@ -144,11 +158,12 @@ You can read the design without installing Lean.
 | What do the compiler and proofs establish? | [Verification](docs/verification.md) |
 | What remains unresolved? | [Research frontier and limitations](docs/frontier.md) |
 | How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
-| How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) and [missions for outside agents](CONTRIBUTING.md#missions-for-outside-contributors-and-agents) |
+| How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) and [missions](docs/missions.md) |
+| Which missions are open, and who has landed what? | [Mission board](docs/mission-board.md) |
 
 Research criticism, proof/implementation review and contributions are welcome,
 including from outside contributors and their AI agents through
-[missions](CONTRIBUTING.md#missions-for-outside-contributors-and-agents).
+[missions](docs/missions.md).
 Questions about an equation, an adaptation or an unclear explanation are useful
 contributions too; see [support](SUPPORT.md) for where to ask and what to
 include, and the [code of conduct](CODE_OF_CONDUCT.md) for community standards.
