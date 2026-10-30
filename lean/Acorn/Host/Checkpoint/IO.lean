@@ -21,10 +21,22 @@ last-rename-wins; there is no compare-and-swap guarantee.
 ## What a saved report establishes
 
 `Store.save` reports success only after these steps, in this order: a sync of the complete
-temporary file, the rename, and a sync of the directory holding the rename's entry. The first
-order keeps an image whose bytes are not durable from being named by the destination; the
-second keeps the report from preceding the entry. A power loss at any earlier point leaves no
-report, and the destination then names the previous image or the new complete one.
+temporary file, the rename, and a sync of the directory holding the rename's entry. Where each
+sync reaches permanent storage, the first order keeps an image whose bytes are not there from
+being named by the destination, and the second keeps the report from preceding the entry; a
+power loss at any earlier point then leaves no report, and the destination names the previous
+image or the new complete one.
+
+That argument does not hold where a sync stops at the drive (the macOS fsync fallback below, and
+a Linux or other file system that does not flush the disk cache) or where a drive ignores a
+flush, because the order of the syncs then does not order what reaches permanent storage. macOS
+fsync(2) says the drive "may also re-order the data so that later writes may be present, while
+earlier writes are not". A power loss, before or after the report, can then leave the destination
+naming an incomplete image with the image it replaced gone, which is the previous save lost as
+well as this one. A load error other than a missing file disables writes for the run
+(`Store.hooks`). Not every incomplete image need raise one: the frame's checksum detects
+accidental mutation only, and the body's completeness rests on image admission
+(`lean/Acorn/Host/Checkpoint/Frame.lean`).
 
 Each sync establishes what the platform's own documentation says of the call the primitive
 makes, and only that:
@@ -41,20 +53,24 @@ makes, and only that:
   ENOTTY, ENOTSUP or EINVAL (bsd/kern/kern_descrip.c, xnu-12377.121.6, lines 3982-3983). On
   exactly those three the primitive calls fsync, and states the fallback on standard error,
   which `requestSync` forwards. A success then means only what fsync(2) says: the data reached
-  the drive, and a power loss can still lose it from the drive's cache. That is accepted risk on
-  such a file system, in exchange for keeping a save that a refusal would discard. Every other
-  F_FULLFSYNC error, EIO included, fails the save.
+  the drive, which can lose it or write it out of order on power loss. The loss of this save and
+  of the image it replaced, stated above, is accepted risk on such a file system, in exchange for
+  keeping a save that a refusal would discard. Every other F_FULLFSYNC error, EIO included, fails
+  the save.
 - On every other platform the primitive calls fsync, and any failure fails the save. Linux
   fsync(2) says the transfer "includes writing through or flushing a disk cache if present",
   that the directory's entry needs an explicit fsync of the directory, and that older kernels
   and lesser used file systems do not know how to flush disk caches. POSIX leaves the nature of
   the transfer implementation-defined, so elsewhere a success means what that system documents.
+  A file system whose fsync does not flush the disk cache is the stop at the drive stated above.
 
 A failed directory sync fails the save although the rename has happened: the destination then
 names the new complete image, its durability unconfirmed.
 
-No report covers these, which are accepted risk: a drive that ignores or misreports a flush
-(fcntl(2) names certain FireWire drives), which no software here can detect; the entries of
+No report covers these, which are accepted risk: a file system that does not flush the disk
+cache, and a drive that ignores or misreports a flush (fcntl(2) names certain FireWire drives),
+which no software here can detect, each with the loss of this save and of the image it replaced
+stated above; the entries of
 directories above the one holding the destination, so a power loss soon after those were created
 can lose them and the checkpoint with them; and rename's atomicity across a crash, which is
 assumed of the file system.
@@ -64,7 +80,7 @@ open Handcrafted
 
 /-- The private file capability advances only after each required IO succeeds. -/
 private inductive Stage where
-  | created | written | flushed | synced | published | durable
+  | created | written | flushed | synced | published | directorySynced
 
 /-- Destination binding and exclusive ownership cannot be manufactured by callers. -/
 private structure Temporary (_stage : Stage) where
@@ -153,12 +169,13 @@ private def Temporary.publish (temporary : Temporary .synced) : IO (Temporary .p
 destination's parent; a name without a separator lies in the working directory, which the
 primitive inherits. -/
 private def Temporary.syncDirectory (temporary : Temporary .published) (program : System.FilePath) :
-    IO (Temporary .durable) := do
+    IO (Temporary .directorySynced) := do
   requestSync program "directory" (temporary.destination.parent.getD ".")
   return ⟨temporary.destination, temporary.path, temporary.handle⟩
 
-/-- Success is reachable only through the capability of a durable replacement. -/
-private def Temporary.report (_temporary : Temporary .durable) (clock : UInt64) :
+/-- Success is reachable only through the capability of a replacement whose directory sync
+succeeded; the module documentation states what that establishes on each path. -/
+private def Temporary.report (_temporary : Temporary .directorySynced) (clock : UInt64) :
     Except Error UInt64 :=
   .ok clock
 
@@ -188,8 +205,8 @@ the rename, after which the temporary path no longer names this writer's file. -
     catch error =>
       temporary.cleanup
       throw error
-    let durable ← published.syncDirectory store.syncProgram
-    return durable.report state.agent.clock
+    let directorySynced ← published.syncDirectory store.syncProgram
+    return directorySynced.report state.agent.clock
 
 /-- Every positive read decreases the remaining byte budget; one extra byte detects oversize input.
 Short reads continue until EOF, so they cannot become an apparently complete checkpoint. -/

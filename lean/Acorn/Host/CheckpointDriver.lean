@@ -23,7 +23,7 @@ inductive Command where
   | save
   /-- Load and report the image without advancing the learner. -/
   | load
-  /-- Load, consume the supplied prefix and atomically save its next image. -/
+  /-- Load, consume the supplied prefix and save its next image through `Store.save`. -/
   | resume
 
 /-- Unknown operations cannot reach file IO. -/

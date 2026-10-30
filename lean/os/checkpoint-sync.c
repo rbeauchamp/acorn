@@ -5,6 +5,9 @@
  * A file pathname must continue to name the exclusively created regular file;
  * a directory pathname must continue to name the directory holding its entry.
  * lean/Acorn/Host/Checkpoint/IO.lean states what each path here establishes.
+ * The path shared with other platforms uses only names POSIX.1-2008 defines
+ * outside its XSI option, because glibc hides XSI names such as S_IFMT under
+ * these flags and the merge gate compiles on macOS only.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -47,8 +50,9 @@ static int sync_descriptor(int fd) {
     if (sync_to_device(fd) != 0) {
         return -1;
     }
-    fputs("checkpoint-sync: file system lacks F_FULLFSYNC; used fsync, so a power "
-          "loss can still lose this save from the drive's cache\n", stderr);
+    fputs("checkpoint-sync: file system lacks F_FULLFSYNC; used fsync, which stops "
+          "at the drive, so a power loss can lose this save and, if the image's own "
+          "sync took this path, the image it replaced\n", stderr);
     return 0;
 }
 #else
@@ -59,15 +63,15 @@ static int sync_descriptor(int fd) {
 
 int main(int argc, char **argv) {
     int flags;
-    mode_t kind;
+    int want_directory;
     if (argc == 3 && strcmp(argv[1], "file") == 0) {
         flags = O_WRONLY | O_NOFOLLOW | O_CLOEXEC;
-        kind = S_IFREG;
+        want_directory = 0;
     } else if (argc == 3 && strcmp(argv[1], "directory") == 0) {
         /* No O_NOFOLLOW: a parent may be reached through a link (/tmp on macOS),
          * and the entry to persist lies in the directory it resolves to. */
         flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC;
-        kind = S_IFDIR;
+        want_directory = 1;
     } else {
         fputs("usage: checkpoint-sync file|directory PATH\n", stderr);
         return 2;
@@ -83,7 +87,7 @@ int main(int argc, char **argv) {
         (void)close(fd);
         return 1;
     }
-    if ((info.st_mode & S_IFMT) != kind) {
+    if (want_directory ? !S_ISDIR(info.st_mode) : !S_ISREG(info.st_mode)) {
         fputs("checkpoint-sync target has the wrong file type\n", stderr);
         (void)close(fd);
         return 1;
