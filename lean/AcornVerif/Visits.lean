@@ -47,7 +47,8 @@ A class that one action sequence solves gives no evidence of learning. `visitScr
 percept and restarts its count on every visit, with a counter of ⌈log₂ (length + 1)⌉ bits
 (`visitScript_openLoop`, `visitScript_memory`). It solves every member of such a class on every
 visit (`blindSolvable_frozen`), so every covering bound of the class is at least the size of
-every finite set of its members (`blindSolvable_covered`).
+every finite set of its members (`blindSolvable_covered`). This is a lemma the mission theorem
+uses for the margin of condition (c), and not a mission result about learning.
 -/
 
 namespace AcornVerif.Kernel

@@ -29,9 +29,10 @@ slot's memory and member (`campaign_memory_next`), so fixing the memory at a slo
 by the memory at the cycle's start gives the bound.
 
 This is a lemma the mission theorem on campaigns uses, and not a mission result about learning.
-It does not apply to the executed agent as it stands: that agent's memory type holds exact
-naturals, so `MemoryWithin` holds of it at no width, and `campaign_count` needs a set holding the
-memories it reaches, which no theorem supplies yet.
+`campaign_count` holds of the executed agent as of every agent, but says little of it yet: that
+agent's memory type holds exact naturals, so `MemoryWithin` holds of it at no width and
+`campaign_count_bits` gives nothing, and no theorem bounds the size of a set holding the memories
+it reaches.
 -/
 
 namespace AcornVerif.Kernel
