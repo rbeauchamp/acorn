@@ -17,7 +17,7 @@ control and observer machinery remain outside learned module ownership. No
 handcrafted policy may be hidden in an observation, shaping term or model target.
 
 What executes an action belongs to the world. The grid world's step function does
-so, and in the Microduck world the control daemon does, with networks inside it.
+so, and in the [Microduck](https://github.com/pollen-robotics/microduck) world the control daemon does, with networks inside it.
 Those networks are that world's actuation interface and not a departure of this
 register: the action path ends at an action of the declared interface.
 [The design](design.md#an-embodied-world-the-microduck) states this classification

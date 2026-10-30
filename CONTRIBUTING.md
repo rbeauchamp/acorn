@@ -67,7 +67,8 @@ audit of [ARC-AGI-3](https://docs.arcprize.org/)'s 25 public games found that
 all 25 are reachable by non-intelligent strategies and 10 are solvable in a
 single blind step (Liew, 2026,
 [arXiv:2605.25931](https://arxiv.org/abs/2605.25931)). Running the agent in its
-worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or Microduck) still
+worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
+[Microduck](https://github.com/pollen-robotics/microduck)) still
 matters as a smoke test and demonstration, never acceptance evidence.
 
 Because the mission is to discover and implement algorithms, a mission's

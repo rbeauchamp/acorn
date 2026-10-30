@@ -1,4 +1,4 @@
-# Depth dropout at rest and trunk tilt while walking, in the Microduck simulator: result
+# Depth dropout at rest and trunk tilt while walking, in the [Microduck](https://github.com/pollen-robotics/microduck) simulator: result
 
 This is the result of revision 1 of study microduck-depth-and-tilt, the first measurement of
 [issue 95](https://github.com/rbeauchamp/acorn/issues/95). The [protocol](protocol.md) defines
