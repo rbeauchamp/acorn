@@ -42,6 +42,7 @@ required set of probes or a reason to expand into a whole-repository audit:
 | Capability or encapsulation | Trace minting, owner association, reuse, interleaving, accessors and restoration; one-use or field privacy alone may not enforce the promised invariant. |
 | Arbitrary traversal/history | Identify the invariant, base case, preserved transition and linkage to the actual traversal. A bounded harness establishes only its bound unless a valid induction supplies the rest. |
 | Evidence or accuracy attribution | Match the precise predicate to its owner; separate diagnostics from closure, rounded identities from approximation bounds, and audit agreement from universal preservation. |
+| Behaviour resting on an operating-system call | Read what that call's own manual or source says a success establishes, on each platform the code builds on, and compare it with the claim and its callers' reports. Naming the call as trusted does not state what it establishes; a report wider than the call's documentation is a finding. |
 
 Prefer a structural argument or compiler rejection. Use a disposable mutation
 when it discriminates between the claimed enforcement and a plausible bypass;
