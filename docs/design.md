@@ -1036,11 +1036,16 @@ What these theorems do not establish:
 - **That the executed host runs visits.** A world in visits is a definition of the
   kernel. No host loop of Acorn returns the world to a start state between attempts,
   and no theorem relates one to it.
-- **A bound for an agent whose memory at a visit's start differs between members.**
-  The need on every visit holds for experience-free agents, and the first-success
-  bound for every agent only up to its first success in a member. After it, an agent
-  that keeps what it perceived is not bounded, which the replaying agent shows.
-- **That any member can be solved.** Every bound here is an upper bound.
+- **A bound for an agent whose memory at a visit's start differs between members,
+  other than by counting those memories.** The need on every visit holds for
+  experience-free agents, and the first-success bound for every agent only up to its
+  first success in a member. After it, `campaign_count` bounds the assignments solved
+  on a cycle by the size of a set holding those memories times k^N. Without such a set
+  an agent that keeps what it perceived is not bounded, which the replaying agent shows.
+- **That an agent solves a member, beyond the replaying agent's theorems above.** Every
+  bound here is an upper bound. Feasibility, which `feasibleFind` has by how it is
+  indexed, says that some action sequence meets a member's goal, not that an agent
+  finds it.
 
 ### An embodied world: the Microduck
 
