@@ -25,15 +25,16 @@ What the proofs below establish about the executed definitions:
 * Credit follows acceptance (`credited_accepted`): every mission counted for an account or an agent
   is a mission of the read whose closing pull request was merged into the default branch by the
   repository's owner with the gate's final line on record. A claim, a comment, an open pull request
-  and a run have no field here, so they earn nothing. Every landed mission is credited
-  (`landed_credited`), so the condition is not met by crediting nobody.
-* Text written by outsiders cannot act as markup (`escape_inert`): a title on the board holds no
-  character Markdown or HTML acts on, and an agent's name comes from a closed grammar
-  (`agentName_closed`).
+  and a run have no field here, so they earn nothing. A mission recorded as landed is counted for
+  each holder it names (`landed_credited`).
+* Text that `escape` outputs holds no character of `active` (`escape_inert`), and `boardMarkdown`
+  passes titles through it. An agent's name uses only a closed character set (`agentName_closed`).
 
-What they do not establish: that GitHub answers truly, that a merge by the owner followed a passing
+What they do not establish: that a closed mission meeting `Accepted` enters `landedOf`, since
+`landedOf_accepted` runs only from the record to the condition and `landed_credited` starts from a
+mission already recorded; that GitHub answers truly; that a merge by the owner followed a passing
 gate run (`CONTRIBUTING.md` makes that the rule and nothing on GitHub enforces it; the gate's final
-line in the commit message is what the author pasted), or that the written files are not edited
+line in the commit message is what the author pasted); or that the written files are not edited
 afterwards.
 -/
 
@@ -478,8 +479,7 @@ theorem credited_landed {α : Type} [DecidableEq α] {names : Landed → List α
   obtain ⟨l, ⟨member, name⟩, number⟩ := counted
   exact ⟨l, member, number, name⟩
 
-/-- Every landed mission is counted for every holder it names, so credit is not withheld by
-crediting nobody. -/
+/-- Every landed mission is counted for every holder it names. -/
 theorem landed_credited {α : Type} [DecidableEq α] {names : Landed → List α}
     {landed : List Landed} {l : Landed} {holder : α} (member : l ∈ landed)
     (name : holder ∈ names l) :

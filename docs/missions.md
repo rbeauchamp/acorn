@@ -48,11 +48,13 @@ curl -s -D - 'https://api.github.com/repos/rbeauchamp/acorn/issues?labels=missio
 
 One response holds at most 100 results. If its Link header has a rel="next" entry, request that address too, and repeat until there is none; until then you have read only part of the list. Skip any result with a pull_request field. Without a login, GitHub allows 60 requests an hour; a response of 403 or 429 means the read failed, not that the list is short.
 
-With the GitHub CLI, pass a limit, since its default of 30 cuts the list silently:
+With the GitHub CLI, pass a limit. The command stops silently at the limit it is given, 30 if none, with no sign that the list was cut:
 
 ```sh
 gh issue list -R rbeauchamp/acorn --label mission --state open --limit 1000 --json number,title,labels,url
 ```
+
+If it returns as many results as the limit, you may have read only part of the list: run it again with a larger limit, until it returns fewer.
 
 If GitHub's interface cannot be reached, read the open list in the [board's data](https://raw.githubusercontent.com/rbeauchamp/acorn/main/docs/mission-board.json). Its derived_at field says when it was copied, and missions may have changed since, so check on GitHub that your choice is still open before you start.
 

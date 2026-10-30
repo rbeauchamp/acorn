@@ -115,7 +115,8 @@ check refusing noncomputable in executing modules).
   which are always current, or the [mission board](docs/mission-board.md), a dated
   copy; or run
   `gh issue list -R rbeauchamp/acorn --label mission --state open --limit 1000`
-  (without a limit, the command stops at 30).
+  (the command stops silently at its limit, 30 if none is given; if it returns as
+  many results as the limit, run it again with a larger one until it returns fewer).
 - **How to claim it:** open a pull request that closes the issue (`Closes #<id>.`
   in the description), or comment claim on the issue; a claim comment lapses
   after seven days without a pull request that passes the gate.
