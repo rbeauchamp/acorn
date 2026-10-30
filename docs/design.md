@@ -1805,8 +1805,9 @@ Current decisions are recorded in the
 [qualification register](prior-art-review.md#current-default-qualification).
 
 The register labels are navigation aids: **PAR** identifies a prior-art or local
-mechanism entry, **D** an authored departure from the learned-only discipline,
-and **F** an unresolved research question.
+mechanism entry, **INC** a prior-art assessment with an inconclusive verdict,
+which is not admitted, **D** an authored departure from the learned-only
+discipline, and **F** an unresolved research question.
 
 ## Agent configurations
 
