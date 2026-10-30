@@ -2245,4 +2245,25 @@ theorem sweep_reaches (position target : Fin Acorn.FeatureConstants.optionMaxDur
   rw [sweep_position]
   omega
 
+/-! ## An option model's predictions are finite -/
+
+/-- An option model's continuation and duration predictions are finite, for every model state,
+value function, frame and age, under both criteria. A product of an infinite word with zero is
+not a zero word, so a claim that planning writes zero at a zero value needs this. The discounted
+continuation and the duration of either criterion are projected into finite ranges; the raw
+differential continuation is finite by `differential_continuation_bound`. Each learner's own
+prediction before the look-ahead and the projections is finite by `prediction_bound`. -/
+theorem model_predictions_finite {criterion : Criterion} {dimension : Dimension}
+    (model : Model dimension criterion) (value : ValueFunction criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (age : ModelAge) :
+    (model.predict value features age).continuation.Finite ∧
+      (model.predict value features age).duration.value.Finite := by
+  refine ⟨?_, (model.predict value features age).duration.legal.1⟩
+  cases model with
+  | discounted reward continuation transition =>
+    exact (Prediction.project .g99 _).legal.1
+  | differential reward continuation duration transition =>
+    exact (differential_continuation_bound reward continuation duration transition value features
+      age).1
+
 end AcornVerif.CurrentPlanning

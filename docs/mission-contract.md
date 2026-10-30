@@ -55,9 +55,8 @@ Two mathematical facts shape how "any big world" is read.
 ### No agent achieves goals in every world
 
 - **Source.** Lattimore and Hutter prove that no policy is strongly asymptotically optimal in the class of all deterministic computable environments: none converges to the optimal value in every environment of the class ([[11]](#r11), Theorem 8, part 1). The theorem's scope is its own: a policy is a deterministic map from histories to actions (Definition 3), action and observation sets are finite and rewards lie in [0, 1] (Assumption 2), and the discount function is computable with finite, positive tails (Definition 5). It concerns that class and that limit, not a finite horizon in a smaller class.
-- **Argued, in Acorn's kernel.** Over an interface with at least two actions, a kernel agent's first action is fixed by its initial memory and the first percept. Take a world whose percept never changes and whose goal is met exactly when the first action is some other action: the goal is feasible in one step, and the agent does not achieve it. So for every agent some world with a feasible goal defeats it.
+- **Acorn's theorems.** Over an interface with at least two actions, a kernel agent's first action is fixed by its initial memory and the first percept. So for every such interface, every percept and every kernel agent there is a world delivering that one percept at every state, with a start state and a goal of step cap one that some action sequence meets and the agent's closed loop does not (`no_agent_achieves_every_world`). The executed agent is such an agent over the grid interface, from every state of it (`executed_defeated`). This is a lemma for why the mission theorem has preconditions, not a result about learning.
 - **Acorn's choice.** The contract quantifies over a stated class whose preconditions exclude such worlds, and the class grows step by step toward the mission. As the [README](../README.md#purpose-and-worlds) says, "each restriction is a step toward that end, not a narrowing of it".
-- **Open.** The argued fact as a kernel theorem.
 
 ### In a big world nobody does well on a first encounter
 
@@ -77,7 +76,7 @@ Every world meets this same contract: the tile world, each ARC-AGI-3 game and th
 - **Acorn's choice and theorems.**
   - By construction: a world is a `Kernel.World` over the executed `Interface`, and an agent a `Kernel.Agent` whose only input is a `Percept` (a frame and the reward word) and whose only output is an action below the interface's declared count. That no agent reads a world's state is a fact of the types, for every kernel agent. The executed decision is such an agent (`executedAgent`).
   - What the executed decision reads of a percept: on two percepts that agree in the frame's active features and unit outputs, the reward word and three declared extra arrows, it returns the same decision and the same next state (`act_extras`).
-  - No host write reaches learning: a host operation that keeps the learners changes neither the next decision nor the learners after it (`act_accounting`), and from two states with the same learners the executed agent takes the same action at every time, in every world (`executed_actions`).
+  - No host write reaches learning: a host operation that keeps the learners changes neither the next decision nor the learners after it (`act_accounting`), and from two states with the same learners the executed agent takes the same action at every time, in every world (`executed_actions`). At each of the three step orders, the agent's step from two states with the same learners returns the same decision and states with the same learners (`actOrdered_learners`): it writes its lifetime observations and reads them only to write them.
   - The viewer: only a stop request enters the core, at an attempt boundary, and source and compiled ownership keep learned code from reaching host control ([verification](verification.md#viewer-ownership-boundaries)). This is enforced by gates, not by a theorem.
   - Goals: Acorn states a goal as an attempt goal, a condition on states with a step cap, so that achieving it is an event a theorem can count over a class's members. The reward word remains the agent's signal. Stating goals this way is Acorn's choice, not a consequence of the reward hypothesis.
 - **Open.**
@@ -110,14 +109,16 @@ Conditions (a) to (c) establish the comparison bound, not that experience suppli
 - **Acorn's theorems for (a) to (c).**
   - (b) is `Conceals`. With it every agent is blind on the class: until a member's goal is first met, it takes in that member the actions it takes in the reference world (`Conceals.blind`).
   - (c) follows from (b) and a covering bound k for one visit's length: on every visit, every frozen agent solves at most k members (`visits_need`). Condition (c) asks for more than k members; the margin of members over k measures how small the frozen share is.
+  - (c) excludes a class one action sequence solves, which gives no evidence of learning. An agent that reads no percept and restarts its count on every visit, with a counter of ⌈log₂ (length + 1)⌉ bits (`visitScript`, `visitScript_openLoop`, `visitScript_memory`), solves every member of such a class on every visit (`blindSolvable_frozen`), so every covering bound of the class for that visit length is at least the size of every finite set of its members (`blindSolvable_covered`).
   - (a) is `Feasible` for each member's goal within one visit.
-  - Satisfiable in one world: in the grid world at seed 5 and side 64, with visits of seven steps, the class of concealed targets has a covering bound of 98, and an agent that replays a route it has found solves 147 of its members on visit 2 (counting from 0), while every frozen agent solves fewer than 147 on every visit (`witness_separation`). That theorem does not establish (a) for every member of the class.
+  - Satisfiable in one world: in the grid world at seed 5 and side 64, with visits of seven steps, the class of concealed targets has a covering bound of 98, and an agent that replays a route it has found solves 147 of its members on visit 2 (counting from 0), while every frozen agent solves fewer than 147 on every visit (`witness_separation`). That theorem does not establish (a) for every member of the class, since the class holds targets no visit can meet.
+  - One class meeting (a) to (c): in the same world, with the same visits and the same bound of 98, the concealed targets a visit can meet (`feasibleFind`) are feasible, concealed and more numerous than the bound (`witness_big`). Their feasibility holds by how the class is indexed, so the theorem's content is the concealment, the bound and the count. It says nothing about the goal-information and exploration premises below, and it is a lemma the mission theorem on this class uses, not a result about learning.
 
-*Proposed* Lean form of (a) to (c), over the kernel's existing definitions:
+The Lean form of (a) to (c) is `BigClass`, over the kernel's definitions:
 
 ```lean
-structure BigClass (family : WorldClass I) (goals : family.Goals) (len k : ℕ) where
-  reference : World I
+structure BigClass (family : WorldClass interface) (goals : family.Goals) (len k : ℕ) where
+  reference : World interface
   origin : reference.State
   conceals : Conceals family goals reference origin                     -- (b)
   covered : Covered family (visitGoals goals len) k                      -- (c), with visits_need
@@ -126,35 +127,35 @@ structure BigClass (family : WorldClass I) (goals : family.Goals) (len k : ℕ) 
   large : k < members.card                                               -- (c), small share
 ```
 
-**Acorn's choice: qualify learning separately from bigness.** The mission theorem is specialized to each chosen class, rather than claiming that this proposed structure alone implies separation for Acorn's agent. A class must also expose enough goal information and support the agent's exploration; those premises must be stated independently of the promised success and justified for that class.
+**Acorn's choice: qualify learning separately from bigness.** The mission theorem is specialized to each chosen class, rather than claiming that this structure alone implies separation for Acorn's agent. A class must also expose enough goal information and support the agent's exploration; those premises must be stated independently of the promised success and justified for that class.
 
 *Argued obstruction.* Two members can give the same constant percept forever while requiring different first actions for their one-step goals. With len = k = 1, both goals are feasible, concealment holds, and one action sequence covers at most one member. Every agent nevertheless has identical memories and actions in the two runs, by induction on the shared percept stream, including across visits. It solves at most one member on any common visit. Thus (a) to (c) alone cannot support the mission implication.
 
 The replay comparison has a precise additional premise: one function signal from percepts to booleans must, for every member i, state s and action a, return true on that member's percept after stepping from s by a if and only if that successor state satisfies member i's goal (`replay_separates`). The same function serves all members; it cannot be given the hidden member index. The theorem also requires a fixed exploration schedule whose visits up to some finite last visit meet the goals of a set of more than k members. Feasibility alone does not establish that a particular schedule does so. These hypotheses suffice for the replay agent's separation, not for Acorn's executed agent; the latter's corresponding goal-information and exploration obligations remain open. The grid-world theorem `witness_separation` discharges the replay hypotheses for its stated set of targets.
 
-**Condition (d): a counting bound** (*argued*, to be machine-checked).
-A *campaign* presents N slots of a concealed class in one stream: one visit of a fixed length to each slot in turn, cycle after cycle, never restarting the agent, and each slot's world starting each visit from its own start state.
+**Condition (d): a counting bound** (`campaign_count`, `campaign_count_bits`).
+A *campaign* presents N ≥ 1 slots of a concealed class in one stream (`campaign`): one visit of a fixed length to each slot in turn, cycle after cycle, never restarting the agent, and each slot's world starting each visit from its own start state.
 An *assignment* picks, for each slot, a member from a set of T members, so there are T^N assignments.
 Let k be the class's covering bound for one visit.
-Then for every agent whose memory takes at most 2^b values (`MemoryWithin`, b bits), at most 2^b · k^N assignments are ones on which the agent solves every slot on its first visit of the second cycle.
-The fraction of such assignments is at most 2^b · (k/T)^N, which is below 1 exactly when N · log₂(T/k) > b.
+Then for every agent, every N and every cycle, the assignments on which the agent solves every slot on that cycle (`SolvesSlot`) number at most m · k^N, where m is the size of any set holding the memories the agent has at that cycle's start under those assignments (`campaign_count`).
+For an agent whose memory takes at most 2^b values (`MemoryWithin`, b bits), that is at most 2^b · k^N assignments (`campaign_count_bits`).
+The fraction of such assignments is then at most 2^b · (k/T)^N, which is below 1 exactly when N · log₂(T/k) > b (*argued*, from the count).
 
-*Argument.*
-Group the assignments by the agent's memory at the start of the second cycle; there are at most 2^b groups.
+*Proof.*
+Group the assignments by the agent's memory at the start of the cycle; there are at most m groups.
 Within a group that memory is fixed.
 On slot 1's visit, concealment makes the percepts those of the reference world until success, so the actions before success are fixed by the memory, and slot 1 succeeds for at most k members.
 For each such member the run through slot 1's visit is determined, so the memory at slot 2's visit is fixed, and slot 2 succeeds for at most k members; and so on through slot N.
 So at most k^N assignments fall in each group. ∎
 
 The bound counts memory values, in bits; it needs no entropy, so the nats of the capacity C above play no part in it.
+It is a lemma the mission theorem on campaigns uses, not a result about learning, and it holds of the executed agent only through a set holding the memories that agent reaches, which no theorem supplies yet.
 What it means for Acorn's agent today (*argued*): at a visit length of 96 steps, k = 49 + 7 · 96 = 721; a window of radius 99 holds 198² tiles, of which at most 49 lie within three tiles of the start and are not members, so it holds at least 39,155 members, and each slot carries log₂(39155/721) ≈ 5.76 bits.
 If the agent's memory were the 94.4 million bits of its learned parameters, the bound would bite only beyond about 16.4 million slots, each visited twice at 97 decisions a visit: about 3.2 × 10⁹ steps.
 That is why (d) is the scaled target and not today's precondition.
 
 - **Open.**
-  - A class meeting all of (a) to (c) in the grid world, including the feasibility of every member's goal.
   - Goal-information and exploration premises for each chosen class, and a proof that they support learning by Acorn's executed agent. The replay theorem's decoding and exploration hypotheses cannot be dropped when using it as a comparison.
-  - The counting bound of (d) as a kernel theorem.
   - A memory bound for the executed agent: its memory type holds exact naturals, so `MemoryWithin` holds of no fixed width for that type, and (d) needs a bound on the memories it can reach.
   - Whether (d) is first instantiated for an agent configuration of restricted capacity, as Javed and Sutton recommend for benchmarks ([[2]](#r2), "Benchmarking Algorithms in Big Worlds"), or only at the full configuration. This is a roadmap choice not yet made.
 
@@ -215,7 +216,7 @@ The contract does not promise success on a first encounter, eventual success in 
   - What the sources do not establish: a guarantee that the agent keeps a solution after its first success, a bound on relearning from every memory it can reach, or a bound on failed attempts. These are Acorn's design obligations.
 - **Acorn's choice: separation and retention now, the attempt bound later.**
   - Separation alone is too weak (*argued*): an agent that succeeds once by luck in many members and never again meets it, and shows no learning. Retention rules that agent out.
-  - Retention of every solution forever is too strong (*argued*, from contract 2 (d)): the counting bound holds for every cycle after the first, so once N · log₂(T/k) > b, a b-bit agent that has solved every slot at least once and kept every solution would solve every slot in the next cycle, which happens for at most a fraction 2^b · (k/T)^N of the assignments. Keeping every solution would also contradict the tracking the sources describe, in which knowledge no longer used is given up.
+  - Retention of every solution forever is too strong (*argued*, from `campaign_count_bits`): the counting bound holds for every cycle, so once N · log₂(T/k) > b, a b-bit agent that has solved every slot at least once and kept every solution would solve every slot in the next cycle, which happens for at most a fraction 2^b · (k/T)^N of the assignments. Keeping every solution would also contradict the tracking the sources describe, in which knowledge no longer used is given up.
   - Within one member's visits the problem is the same on every visit, because each visit starts the member's world from its start state; so there retention is required on every later visit, as the proposed form below states.
   - Separation and retention are jointly satisfiable and not trivially met: an agent that replays a route it has found re-solves on every later visit each member it solved once, wherever one common signal decodes goal satisfaction from the percept after every step (`replay_keeps`, `replay_solves`). With that same decoding hypothesis, concealment, a covering bound and an exploration schedule that meets the goals of more members than the bound by a finite visit, it separates (`replay_separates`); one grid world discharges these hypotheses (`witness_separation`). No frozen agent separates (`visits_need`). Retention alone is met by an agent that never succeeds; the conjunction is not. Replaying actions in the world is distinct from replaying stored experience for training, and these theorems prove neither the no-replay learning contract nor fixed resource bounds.
 - **Open.**
@@ -272,7 +273,7 @@ Where a guarantee needs no randomness, it holds on every run.
 
 ## The mission theorem and its ladder
 
-Put together, under F1 to F4, the mission is one theorem for each chosen class of a ladder of classes. The class, goals, visit length, covering bound and learning preconditions are fixed for that theorem; the proposed BigClass conditions alone are not sufficient premises.
+Put together, under F1 to F4, the mission is one theorem for each chosen class of a ladder of classes. The class, goals, visit length, covering bound and learning preconditions are fixed for that theorem; the conditions of `BigClass` alone are not sufficient premises.
 For the executed agent from its initial state s₀, with work and size measures and bounds fixed by the interface and configuration, the proposed conclusion is the conjunction of:
 
 - the resource bounds stated by the proposed StreamResourceBounds predicate;
@@ -292,13 +293,12 @@ The ladder starts with the concealed targets of one grid world. Its later rungs 
 
 ## Open obligations
 
-Collected from the sections above:
+Collected from the sections above. An obligation keeps its number when it is discharged: number 1 was the finite form of "no agent achieves goals in every world", now `no_agent_achieves_every_world` and `executed_defeated`; number 4's class is `witness_big`, and number 5's counting bound is `campaign_count`. Each of these is a lemma the mission theorem uses, not a mission result about learning.
 
-1. The finite form of "no agent achieves goals in every world" as a kernel theorem.
 2. That the host's run and the kernel's closed loop take the same actions, with the host's accounting composed along a run.
 3. A theorem form of the viewer's rule: every message the core accepts from the viewer is a stop whose handling changes no learned field.
-4. A class meeting all of contract 2 (a) to (c) in the grid world, including the feasibility of every member's goal, with goal-information and exploration premises sufficient for Acorn's executed agent. Bigness alone does not supply them.
-5. The counting bound of contract 2 (d) as a kernel theorem, and the choice of the agent configuration it is first instantiated for.
+4. Goal-information and exploration premises sufficient for Acorn's executed agent, for a class of the grid world that meets contract 2 (a) to (c). Bigness alone does not supply them.
+5. The choice of the agent configuration the counting bound of contract 2 (d) is first instantiated for.
 6. A bound on the memories the executed agent can reach, which contract 3 and contract 2 (d) both need.
 7. A Lean semantics of executed work and a work bound over it, and a separate once-only, no-replay contract with experience-consumption semantics and a proof over the executed updates and their host, checkpoint and resumption paths. The resource predicate and causal fold establish no such consumption rule.
 8. A host loop that runs visits, related by a theorem to `Kernel.visits`, and an account of a crash in the middle of an attempt.

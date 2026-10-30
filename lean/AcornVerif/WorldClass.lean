@@ -43,6 +43,12 @@ restates the one-world equivalence as a need of zero in the class of one world.
 These theorems hold for every world and class over the interface. They say nothing
 about an agent whose actions read which member it is in: for such an agent a covering
 bound gives no need bound.
+
+## Every world
+
+Over an interface with at least two actions, no agent achieves goals in every world: for
+every agent and percept, a world delivering that one percept holds a goal of step cap one that
+one action meets and the agent's closed loop does not (`no_agent_achieves_every_world`).
 -/
 
 namespace AcornVerif.Kernel
@@ -367,5 +373,52 @@ theorem need_single_iff_infeasible (goal : AttemptGoal world) (start : world.Sta
     (scripts : ∀ actions : ℕ → Act interface, admits (script interface goal.cap actions)) :
     Need (WorldClass.single world start) (fun _ => goal) admits 0 ↔ ¬ Feasible goal start :=
   (need_single goal start admits).trans (need_iff_infeasible goal start admits scripts)
+
+/-! ## No agent achieves goals in every world -/
+
+/-- A world that delivers one percept at every state and records the first action it
+receives, keeping it afterwards. -/
+def firstActionWorld (interface : Interface) (shown : Percept interface) : World interface where
+  State := Option (Act interface)
+  step := fun state action => state.orElse fun _ => some action
+  percept := fun _ => shown
+
+/-- An action other than a given one, over an interface with at least two actions. -/
+def otherThan (interface : Interface) (bound : 2 ≤ interface.actions.word.toNat)
+    (action : Act interface) : Act interface :=
+  if action.val = 0 then ⟨1, bound⟩ else ⟨0, by omega⟩
+
+/-- `otherThan` returns a different action. -/
+theorem otherThan_ne (interface : Interface) (bound : 2 ≤ interface.actions.word.toNat)
+    (action : Act interface) : otherThan interface bound action ≠ action := by
+  intro same
+  have values := congrArg Fin.val same
+  unfold otherThan at values
+  split at values <;> simp_all
+
+/-- **No agent achieves goals in every world.** Over an interface with at least two actions,
+for every percept and every agent there is a world delivering that percept at every state,
+with a start state and a goal of step cap one that some action sequence meets and that the
+agent's closed loop does not. The agent's first action is fixed by its initial memory and the
+percept, and the goal asks for another. This is why the mission contract quantifies over a
+stated class: it is a lemma for the mission theorem's preconditions, and says nothing about
+learning. -/
+theorem no_agent_achieves_every_world {interface : Interface}
+    (bound : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
+    (agent : Agent interface) :
+    ∃ (world : World interface) (start : world.State) (goal : AttemptGoal world),
+      (∀ state, world.percept state = shown) ∧ goal.cap = 1 ∧
+        Feasible goal start ∧ ¬ Achieves agent goal start := by
+  let wrong : Act interface := otherThan interface bound (agent.act agent.initial shown).1
+  refine ⟨firstActionWorld interface shown, (none : Option (Act interface)),
+    ⟨fun state => state = some wrong, 1⟩, fun _ => rfl, rfl, ?_, ?_⟩
+  · exact ⟨fun _ => wrong, 1, le_refl 1, le_refl 1, rfl⟩
+  · rintro ⟨time, low, high, met⟩
+    have one : time = 1 := by
+      change time ≤ 1 at high
+      omega
+    subst one
+    have same : some (agent.act agent.initial shown).1 = some wrong := met
+    exact otherThan_ne interface bound _ (Option.some.inj same).symm
 
 end AcornVerif.Kernel

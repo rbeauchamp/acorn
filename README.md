@@ -50,8 +50,10 @@ the owner. It has no standing beyond being the first world built.
 
 Choosing and shaping worlds well needs a model of what a big world is. The mission
 contract states the conditions that make a class of worlds big
-([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big));
-proving them of chosen classes is open work, begun in the issues on modelling
+([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big)).
+Three of its four conditions are proved of one class in the tile world, with no
+claim yet that the agent learns there; proving them of chosen classes is open
+work, begun in the issues on modelling
 worlds as a class with proved properties
 ([#69](https://github.com/rbeauchamp/acorn/issues/69)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a

@@ -48,6 +48,12 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   members, more than the bound 98, so there the replaying agent solves 147 on visit 2 and
   every experience-free agent fewer on every visit. The kernel evaluates the executed step
   along the three walks, 21 steps (`witness_walk`); the count is structural.
+- **A class with conditions (a) to (c).** `findClass` holds targets no walk can reach within a
+  visit. `feasibleFind` holds the concealed targets a visit can meet, so its members are feasible
+  by how it is indexed; it keeps the concealment and the bound (`feasibleFind_conceals`,
+  `feasibleFind_covered`). In the same world, with visits of seven steps, the 147 members above
+  make it a `Kernel.BigClass` with the bound 98 (`witness_big`). This says nothing about the
+  goal-information and exploration premises a mission theorem also needs.
 
 Hypotheses and limits. The class is of target positions over one host world: reading a bound
 as a fraction of seeds would assume that the seed hash places targets independently of the
@@ -680,5 +686,84 @@ theorem witness_separation (mode : TaskFeatureMode) :
   have separated := find_replay_separates witnessConfig mode witnessLive 7 witnessExplore members
     2 explored (by rw [count]; decide)
   exact ⟨members, by rw [count]; decide, separated⟩
+
+/-! ## A class with conditions (a) to (c) -/
+
+/-- The concealed targets some action sequence meets within a visit of `length` steps. -/
+def feasibleFind (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
+    (length : ℕ) : Kernel.WorldClass Grid.interface where
+  Index := { target : (findClass config mode live).Index //
+    Kernel.Feasible (completion config mode length) (member live target.1) }
+  world := fun _ => gridWorld config mode
+  start := fun target => member live target.1.1
+
+/-- The feasible concealed targets conceal their goals behind the world with no target met,
+as all concealed targets do. -/
+theorem feasibleFind_conceals (mode : TaskFeatureMode) (live : Live config) (length cap : ℕ) :
+    Kernel.Conceals (feasibleFind config mode live length) (fun _ => completion config mode cap)
+      (gridWorld config mode) (member live nowhere) :=
+  fun target actions time unmet => find_conceals mode live cap target.1 actions time unmet
+
+/-- A walk of `length` steps meets at most `49 + 7 length` feasible concealed targets, as it does
+of all concealed targets. -/
+theorem feasibleFind_covered (config : Host.WorldConfig) (mode : TaskFeatureMode)
+    (live : Live config) (length : ℕ) :
+    Kernel.Covered (feasibleFind config mode live length)
+      (Kernel.visitGoals (fun _ => completion config mode length) length) (49 + 7 * length) := by
+  classical
+  intro actions solved each
+  have injective : Function.Injective
+      (fun target : (feasibleFind config mode live length).Index => target.1) :=
+    fun _ _ same => Subtype.ext same
+  rw [← Finset.card_image_of_injective solved injective]
+  apply find_covered config mode live length actions
+  intro target chosen
+  obtain ⟨original, picked, rfl⟩ := Finset.mem_image.mp chosen
+  exact each original picked
+
+/-- In every admitted world, a finite set of more feasible concealed targets than the covering
+bound makes the class big. Feasibility holds by how the class is indexed, so the theorem's content
+is the concealment, the bound and the count. -/
+theorem feasibleFind_big_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
+    (live : Live config) (length : ℕ)
+    (members : Finset (feasibleFind config mode live length).Index)
+    (many : 49 + 7 * length < members.card) :
+    Nonempty (Kernel.BigClass (feasibleFind config mode live length)
+      (fun _ => completion config mode length) length (49 + 7 * length)) :=
+  ⟨{ reference := gridWorld config mode
+     origin := member live nowhere
+     conceals := feasibleFind_conceals mode live length length
+     covered := feasibleFind_covered config mode live length
+     feasible := fun target => target.2
+     members := members
+     large := many }⟩
+
+/-- **A class meeting conditions (a) to (c).** In the admitted world at seed 5 and side 64, with
+visits of seven steps, the feasible concealed targets are a big class with the bound 98: the 147
+members of `witness_separation` are each feasible, since each is solved on a visit. This is a
+lemma the mission theorem on the first class of the ladder uses. It says nothing about the
+goal-information and exploration premises that theorem also needs, and it is no result about
+learning. -/
+theorem witness_big (mode : TaskFeatureMode) :
+    Nonempty (Kernel.BigClass (feasibleFind witnessConfig mode witnessLive 7)
+      (fun _ => completion witnessConfig mode 7) 7 (49 + 7 * 7)) := by
+  classical
+  obtain ⟨members, many, solved, -⟩ := witness_separation mode
+  have feasible : ∀ target ∈ members,
+      Kernel.Feasible (completion witnessConfig mode 7) (member witnessLive target.1) := by
+    intro target chosen
+    have once := (Kernel.solvesOnVisit_iff _ _ 7 _ 2 target).mp (solved target chosen)
+    exact Kernel.Achieves.feasible once
+  let admitted : { target // target ∈ members } →
+      (feasibleFind witnessConfig mode witnessLive 7).Index :=
+    fun target => ⟨target.1, feasible target.1 target.2⟩
+  have injective : Function.Injective admitted := by
+    intro first second same
+    exact Subtype.ext (congrArg
+      (fun target : (feasibleFind witnessConfig mode witnessLive 7).Index => target.1) same)
+  refine feasibleFind_big_of witnessConfig mode witnessLive 7
+    (members.attach.map ⟨admitted, injective⟩) ?_
+  rw [Finset.card_map, Finset.card_attach]
+  exact many
 
 end AcornVerif.CurrentConcealedTarget

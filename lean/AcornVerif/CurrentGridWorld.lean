@@ -35,7 +35,9 @@ proves and a blocked certificate of mountains alone refutes.
 `executed_callback` shows that the host's callback returns that agent's action and
 memory on the kernel world's percept. The host also calls `recordEnvironment` and
 `recordAttempt` between decisions; they are outside this instance, and no theorem here
-shows that the host's run and the kernel's closed loop take the same actions.
+shows that the host's run and the kernel's closed loop take the same actions. Over the grid
+interface it does not achieve goals in every world: `executed_defeated` instantiates
+`Kernel.no_agent_achieves_every_world` at it, from every state of it.
 
 `comparator` is the uniform-random comparator as a kernel agent. It is open-loop
 (`comparator_openLoop`): its action sequence is fixed before any world is consulted
@@ -286,6 +288,20 @@ def executedAgent {interface : Interface} {profile : FeatureProfile} {features :
   Memory := Agent interface profile features criterion dimension planning
   initial := state
   act := fun memory percept => ((memory.act percept).2.action, (memory.act percept).1)
+
+/-- The executed agent, from every state of it and over the grid interface, is defeated as
+`Kernel.no_agent_achieves_every_world` says: for every percept, such as the grid adapter's
+`percept mode none`, a world delivering that percept at every state holds a goal of step cap
+one that some action sequence meets and its closed loop does not. The grid interface declares
+nine actions. -/
+theorem executed_defeated {profile : FeatureProfile} {features : Features.Config}
+    {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
+    (state : Agent Grid.interface profile features criterion dimension planning)
+    (shown : Percept Grid.interface) :
+    ∃ (world : Kernel.World Grid.interface) (start : world.State) (goal : Kernel.AttemptGoal world),
+      (∀ state, world.percept state = shown) ∧ goal.cap = 1 ∧
+        Kernel.Feasible goal start ∧ ¬ Kernel.Achieves (executedAgent state) goal start :=
+  Kernel.no_agent_achieves_every_world (by decide) shown (executedAgent state)
 
 /-- At a live state the host observes, the host's callback returns the kernel agent's
 action, as a host action, and its next memory, on the kernel world's percept. -/
