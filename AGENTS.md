@@ -28,7 +28,7 @@ Proofs must concern the executed definitions or a checked correspondence.
 Distinguish finite-word arithmetic from mathematical integers, rationals and reals.
 State concurrency, serialization, native, compiler and OS assumptions explicitly.
 No custom axiom, sorry, unsafe/partial application definition, panic or unchecked
-native replacement enters governed code. Reviewed tooling and the narrow C fsync
+native replacement enters governed code. Reviewed tooling and the narrow C file-sync
 primitive are explicit trust boundaries.
 
 There are no scenario tests. Counterexamples diagnose missing invariants or

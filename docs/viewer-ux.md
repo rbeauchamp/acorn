@@ -508,9 +508,11 @@ Rules that apply to every number, label and colour on the page.
   seed is taken. Cooperative stop happens first and attempts an armed save.
   The archive retains the available checkpoint and logs; successful final
   saving preserves knowledge at the completed attempt boundary. Refusal or
-  write failure can leave only an older checkpoint or none, so restoring an
-  archive recovers the agent state exactly as last successfully saved; the
-  world restarts and the evaluator begins a new session, as UX-22 says.
+  write failure can leave only an older checkpoint or none, and a failed sync
+  of the directory after the rename leaves the new image, its durability
+  unconfirmed, so restoring an archive recovers the agent state as last
+  written under the checkpoint's name; the world restarts and the evaluator
+  begins a new session, as UX-22 says.
   Archiving and reseeding are inseparable: a checkpoint records its seed, so
   reseeding without archiving would make the core refuse the file and disarm
   saving — a run that neither loads nor saves — and fused into one operation

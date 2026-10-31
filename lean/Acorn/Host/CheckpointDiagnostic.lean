@@ -31,7 +31,8 @@ inductive CheckpointStatus where
   | pending
   /-- The latest boundary write returned successfully. -/
   | saved
-  /-- The latest boundary write failed; older knowledge may still exist. -/
+  /-- The latest boundary write failed; older knowledge, or after a failed directory sync the
+  new image with its durability unconfirmed, may still exist. -/
   | failed
   deriving DecidableEq, BEq
 

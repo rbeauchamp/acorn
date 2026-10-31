@@ -34,7 +34,7 @@
       ],
       "claim": "standard-logical",
       "execution": "checked",
-      "rationale": "Native entry points, embedded provenance and viewer resources over the Acorn definitions. They depend on Classical.choice through those definitions and core string operations, so choice-free is not attainable. Checked execution holds because the library declares no extern, replacement, unsafe or partial code and imports only Acorn and the Lean toolchain, so the runtime, process, filesystem and socket primitives its definitions and three executables reach belong to the toolchain's own trusted base. Those primitives stay trusted, and the reviewed C fsync helper runs as a spawned process outside the account."
+      "rationale": "Native entry points, embedded provenance and viewer resources over the Acorn definitions. They depend on Classical.choice through those definitions and core string operations, so choice-free is not attainable. Checked execution holds because the library declares no extern, replacement, unsafe or partial code and imports only Acorn and the Lean toolchain, so the runtime, process, filesystem and socket primitives its definitions and three executables reach belong to the toolchain's own trusted base. Those primitives stay trusted, and the reviewed C file-sync helper runs as a spawned process outside the account."
     },
     {
       "library": "Bootstrap",

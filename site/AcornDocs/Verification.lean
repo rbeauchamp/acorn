@@ -852,7 +852,8 @@ image is refused and writes to that file are disabled. Loading the bytes that a 
 state writes returns that state, for every state of the resumable construction
 ({decl}`AcornVerif.CurrentCheckpoint.load_saved`). The world restarts, and the host begins a
 new session of the predictive-agreement evaluator. Filesystem persistence relies on the
-narrow C fsync helper, native IO and the operating system.
+narrow C file-sync helper, native IO and the operating system; `lean/Acorn/Host/Checkpoint/IO.lean`
+states what a saved report establishes on each platform and what stays accepted risk.
 
 # Viewer ownership boundaries
 %%%
