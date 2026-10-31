@@ -6,8 +6,8 @@
  * a directory pathname must continue to name the directory holding its entry.
  * lean/Acorn/Host/Checkpoint/IO.lean states what each path here establishes.
  * The path shared with other platforms uses only names POSIX.1-2008 defines
- * outside its XSI option, because glibc hides XSI names such as S_IFMT under
- * these flags and the merge gate compiles on macOS only.
+ * outside its XSI option, since the merge gate compiles on macOS only. Under
+ * the build flags glibc's <sys/stat.h> alone hides S_IFMT; <fcntl.h> shows it.
  */
 #include <errno.h>
 #include <fcntl.h>
