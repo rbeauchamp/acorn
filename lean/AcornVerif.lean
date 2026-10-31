@@ -47,11 +47,13 @@ import AcornVerif.Coverage
 import AcornVerif.CurrentGridWorld
 import AcornVerif.Concealment
 import AcornVerif.Visits
+import AcornVerif.Campaign
 import AcornVerif.Replay
 import AcornVerif.CurrentConcealedTarget
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
+import AcornVerif.CurrentColdStart
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentAgent

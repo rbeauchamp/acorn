@@ -39,6 +39,16 @@ depend on the member. In a world that persists between attempts, `park_keeps` sh
 experience-free agent keeping every goal it has met. `AcornVerif.Replay` shows an agent that
 uses its experience solving, on every later visit, every member it has solved once, and,
 under a hypothesis of exploration, more members on one visit than the covering bound.
+
+`BigClass` packages conditions (a) to (c) of the mission contract's contract 2; a class must
+also expose goal information and support exploration before a mission theorem can hold of it.
+
+A class that one action sequence solves gives no evidence of learning. `visitScript` reads no
+percept and restarts its count on every visit, with a counter of ⌈log₂ (length + 1)⌉ bits
+(`visitScript_openLoop`, `visitScript_memory`). It solves every member of such a class on every
+visit (`blindSolvable_frozen`), so every covering bound of the class is at least the size of
+every finite set of its members (`blindSolvable_covered`). This is a lemma the mission theorem
+uses for the margin of condition (c), and not a mission result about learning.
 -/
 
 namespace AcornVerif.Kernel
@@ -382,5 +392,142 @@ theorem visits_ever (hidden : Conceals family goals reference origin) {length bo
         rw [← found]
         exact Nat.find_spec once
     _ = count * bound := by rw [Finset.card_range]
+
+/-! ## A big class -/
+
+/-- Conditions (a) to (c) of contract 2 of the mission contract, for a class with goals and a
+visit length: it conceals its goals behind one reference world (b); one action sequence meets
+the goals of at most `k` members within a visit, and some finite set holds more than `k`
+members (c); and every member's goal is feasible within a visit (a). These conditions establish
+the comparison bound of `visits_need`. They do not establish that experience supplies
+information from which an agent can learn a solution, which each class's mission theorem needs
+separately. -/
+structure BigClass (family : WorldClass interface) (goals : family.Goals) (len k : ℕ) where
+  /-- The world whose percepts each member shows until its goal is first met. -/
+  reference : World interface
+  /-- The reference world's start state. -/
+  origin : reference.State
+  /-- Condition (b). -/
+  conceals : Conceals family goals reference origin
+  /-- The covering bound of condition (c). -/
+  covered : Covered family (visitGoals goals len) k
+  /-- Condition (a), for every member and so for every visit. -/
+  feasible : ∀ i, Feasible (visitGoals goals len i) (family.start i)
+  /-- A finite set of members. -/
+  members : Finset family.Index
+  /-- The margin of condition (c): more members than the covering bound. -/
+  large : k < members.card
+
+/-! ## A class one action sequence solves -/
+
+/-- A clocked script that restarts with every visit: it reads no percept and counts the
+decisions of a visit of `length` steps. `script` stops at its cap instead, so it solves a member
+on a first visit only. -/
+def visitScript (interface : Interface) (length : ℕ) (actions : ℕ → Act interface) :
+    Agent interface where
+  Memory := Fin (length + 1)
+  initial := ⟨0, Nat.succ_pos length⟩
+  act := fun count _ =>
+    (actions count.val,
+      if within : count.val < length then ⟨count.val + 1, by omega⟩ else ⟨0, Nat.succ_pos length⟩)
+
+/-- A visit script reads no percept, so it is frozen (`OpenLoop.experienceFree`). -/
+theorem visitScript_openLoop (length : ℕ) (actions : ℕ → Act interface) :
+    OpenLoop (visitScript interface length actions) :=
+  ⟨fun count =>
+      if within : count.val < length then ⟨count.val + 1, by omega⟩ else ⟨0, Nat.succ_pos length⟩,
+    fun count => actions count.val, fun _ _ => rfl⟩
+
+/-- A visit script's counter fits ⌈log₂ (length + 1)⌉ bits. -/
+theorem visitScript_memory (length : ℕ) (actions : ℕ → Act interface) :
+    MemoryWithin (visitScript interface length actions) (Nat.clog 2 (length + 1)) :=
+  ⟨⟨fun (count : Fin (length + 1)) => Fin.castLE (Nat.le_pow_clog Nat.one_lt_two _) count,
+    fun (first second : Fin (length + 1)) same =>
+      Fin.ext (by
+        have values := congrArg (fun x : Fin (2 ^ Nat.clog 2 (length + 1)) => x.val) same
+        simpa using values)⟩⟩
+
+/-- A count modulo the decisions of a visit advances to the next count, or to 0 from the last. -/
+theorem succ_mod_visit (time length : ℕ) :
+    (time + 1) % (length + 1) =
+      if time % (length + 1) < length then time % (length + 1) + 1 else 0 := by
+  have split := Nat.div_add_mod time (length + 1)
+  have below : time % (length + 1) < length + 1 := Nat.mod_lt time (Nat.succ_pos length)
+  have whole : time + 1 = (length + 1) * (time / (length + 1)) + (time % (length + 1) + 1) := by
+    omega
+  rw [whole, Nat.mul_add_mod]
+  split
+  · exact Nat.mod_eq_of_lt (by omega)
+  · have last : time % (length + 1) = length := by omega
+    rw [last]
+    exact Nat.mod_self _
+
+/-- A visit script's counter at a time is that time modulo the decisions of a visit, in every
+world. -/
+theorem visitScript_counter (world : World interface) (start : world.State) (length : ℕ)
+    (actions : ℕ → Act interface) (time : ℕ) :
+    Fin.val (n := length + 1) (memoryAt world (visitScript interface length actions) start time) =
+      time % (length + 1) := by
+  induction time with
+  | zero => exact (Nat.zero_mod _).symm
+  | succ time ih =>
+    have next : memoryAt world (visitScript interface length actions) start (time + 1) =
+        (if within : Fin.val (n := length + 1)
+            (memoryAt world (visitScript interface length actions) start time) < length then
+          (⟨Fin.val (n := length + 1)
+            (memoryAt world (visitScript interface length actions) start time) + 1, by omega⟩ :
+            Fin (length + 1))
+          else ⟨0, Nat.succ_pos length⟩) := rfl
+    rw [next, succ_mod_visit]
+    by_cases short : Fin.val (n := length + 1)
+        (memoryAt world (visitScript interface length actions) start time) < length
+    · rw [dite_eq_left short, ite_eq_left (by omega)]
+      simp [ih]
+    · rw [dite_eq_right short, ite_eq_right (by omega)]
+
+/-- Within a visit a visit script takes its sequence's actions. -/
+theorem visitScript_actionAt (world : World interface) (start : world.State) (length : ℕ)
+    (actions : ℕ → Act interface) (time : ℕ) (within : time ≤ length) :
+    actionAt world (visitScript interface length actions) start time = actions time := by
+  have counter := visitScript_counter world start length actions time
+  rw [Nat.mod_eq_of_lt (Nat.lt_succ_of_le within)] at counter
+  exact congrArg actions counter
+
+/-- Where one action sequence meets every member's goal within a visit, a frozen agent solves
+every member on every visit. So such a class gives no evidence of learning. -/
+theorem blindSolvable_frozen {family : WorldClass interface} {goals : family.Goals} {length : ℕ}
+    (actions : ℕ → Act interface)
+    (solves : ∀ index, (visitGoals goals length index).MetBy (family.start index) actions)
+    (index : family.Index) (count : ℕ) :
+    SolvesOnVisit family goals length (visitScript interface length actions) count index := by
+  rw [solvesOnVisit_iff]
+  have resumed : (visitScript interface length actions).resume
+      (memoryAt (visits (family.world index) (family.start index) length)
+        (visitScript interface length actions)
+        (visitStart (family.world index) (family.start index) length) (count * (length + 1))) =
+      visitScript interface length actions := by
+    have zero : memoryAt (visits (family.world index) (family.start index) length)
+        (visitScript interface length actions)
+        (visitStart (family.world index) (family.start index) length) (count * (length + 1)) =
+        (⟨0, Nat.succ_pos length⟩ : Fin (length + 1)) :=
+      Fin.ext ((visitScript_counter _ _ length actions _).trans (Nat.mul_mod_left _ _))
+    rw [zero]
+    rfl
+  rw [resumed]
+  obtain ⟨time, low, high, met⟩ := solves index
+  refine ⟨time, low, high, ?_⟩
+  have within : time ≤ length := high
+  rw [stateAt_eq_path, path_congr _ _ _ actions time (fun step before =>
+    visitScript_actionAt _ _ length actions step (by omega))]
+  exact met
+
+/-- So every covering bound of such a class, for that visit length, is at least the size of
+every finite set of its members: the margin of `BigClass` cannot hold of it. -/
+theorem blindSolvable_covered {family : WorldClass interface} {goals : family.Goals}
+    {length bound : ℕ} (actions : ℕ → Act interface)
+    (solves : ∀ index, (visitGoals goals length index).MetBy (family.start index) actions)
+    (covered : Covered family (visitGoals goals length) bound) (members : Finset family.Index) :
+    members.card ≤ bound :=
+  covered actions members (fun index _ => solves index)
 
 end AcornVerif.Kernel
