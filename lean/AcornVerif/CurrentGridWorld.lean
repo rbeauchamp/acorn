@@ -36,7 +36,8 @@ proves and a blocked certificate of mountains alone refutes.
 memory on the kernel world's percept. The host also calls `recordEnvironment` and
 `recordAttempt` between decisions; they are outside this instance, and no theorem here
 shows that a host's run and the kernel's closed loop take the same actions, which
-`AcornVerif.CurrentVisits` shows of a run of visits. Over the grid
+`AcornVerif.CurrentVisits` shows of a run of visits and `AcornVerif.CurrentHostLoop` of each
+attempt of a campaign. Over the grid
 interface it does not achieve goals in every world: `executed_defeated` instantiates
 `Kernel.no_agent_achieves_every_world` at it, from every state of it.
 

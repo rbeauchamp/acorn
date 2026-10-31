@@ -884,7 +884,7 @@ needs none for it: an infeasible goal is achieved by no agent.
 |---|---|---|
 | The grid instance is the executed world | The kernel world's state under a list of actions holds the world of the executed action fold, and is refused exactly when that fold is. A goal is feasible in the kernel world (`Kernel.Feasible`) exactly when the executed fold of some list of one to cap host actions ends in a world that reports the installed goal satisfied. From a host world with a goal installed, that is exactly when the goal is feasible in the sense of the certificate section (`CurrentCertificates.Feasible`), which an accepted replay certificate proves and a blocked certificate of mountains alone refutes. | `foldl_world`, `feasible_iff_replay`, `feasible_iff_certificate` |
 | The step has two parts in the closed loop | A two-part agent is a kernel agent given as a first part that selects and a second part that learns from what the first returned. The executed agent of the default step order in that form is the executed kernel agent. The executed agent of `plan-after-act` or of `act-then-learn` in that form is the kernel agent of `Agent.actOrdered`. With no planning selected the executed agent of `plan-after-act` is the default one, so the two orders have one closed loop in every world that waits for the agent; with expectation planning no theorem states that it equals or differs from the default one. No theorem states that the executed agent of `act-then-learn` equals or differs from the default one. `plan-after-act` and the default take the same step wherever the decision records no meta decision. A moving world also changes while the agent computes; it is a model, and no theorem states that an executing loop is an instance of it. The Microduck's host loop executes a world that moves, with statements of its own definitions ([an embodied world](#an-embodied-world-the-microduck)). The model takes one two-part agent and a position of the world's transition: after both parts, or between them. From one state and memory, one interaction takes the same action and keeps the same memory at both positions, and with the transition after both parts the action lands on a state that has also moved during the second part; over a run the two positions can then diverge. Two statements are derived for the loop at either position and for every assignment of work to the parts. The memory before a time is the fold of the two parts over that loop's own percepts before it, in order, so each percept is learned exactly once. When the world waits, the loop is the loop of the kernel, so the position changes no state, percept, memory or action. One interaction is also the same at both positions when the world's own change commutes with its transitions. | `executedParts_agent`, `executedParts_unplanned`, `loop_unplanned`, `memory_parts`, `Moving.interact_landing`, `Moving.landing_learn`, `Moving.interact_memory`, `Moving.loop_memory`, `Moving.loop_waits`, `Moving.interact_commutes` |
-| The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback of the default step order returns that agent's action and next memory on the kernel world's percept. The callback of another order is the two parts of that order on the grid percept (`Agent.callbacks_ordered`); no theorem links it to the kernel world's percept. | `executedAgent`, `executed_callback` |
+| The executed decision is a kernel agent | The executed agent's decision function is an agent of the kernel over its own interface, so every statement about all agents covers it. Where the host observes, the host's callback of the default step order returns that agent's action and next memory on the kernel world's percept. The callback of another order is the two parts of that order on the grid percept (`Agent.callbacks_ordered`). A construction's callback, at every order, takes the action and keeps the learners of the kernel agent of that order on the grid percept (`construction_simulates`), which is the kernel world's percept where the host observes (`percept_live`). | `executedAgent`, `executed_callback`, `construction_simulates` |
 | In one world, need is infeasibility | A clocked script is an agent whose memory is a step counter and whose action at a count is the corresponding action of a fixed sequence. It reads no percept, and its counter fits ⌈log₂ (cap + 1)⌉ bits: 12 bits at a cap of 3000. A goal is feasible from a start state exactly when the clocked script of some sequence achieves it. So, for every class of agents that admits the clocked scripts, no admitted agent achieves a goal exactly when the goal is infeasible. The experience-free agents within a memory width with room for the counter are such a class. | `feasible_iff_script`, `script_openLoop`, `script_memory_clog`, `script_fits_attempt`, `need_iff_infeasible`, `experienceFree_iff_infeasible`, `need_single_iff_infeasible` |
 | No agent achieves goals in every world | Over an interface with at least two actions, for every percept and every kernel agent, a world delivering that percept at every state holds a goal of step cap one that one action meets and the agent's closed loop does not. The executed agent is such an agent over the grid interface, from every state of it. | `no_agent_achieves_every_world`, `executed_defeated` |
 | The comparator is open-loop | The uniform-random comparator's action and next stream are functions of its stream alone. Its action sequence is therefore the same in every world over the grid interface from every start state, and its action is the executed draw. | `comparator_openLoop`, `comparator_actions`, `comparator_action` |
@@ -919,13 +919,12 @@ What these theorems do not establish:
 - **That any reach goal is feasible.** The bound is an upper bound. It does not
   show that a target can be reached.
 - **That the kernel loop is a campaign's run.** The grid instance covers one
-  attempt's steps from a state with its goal installed. Goal installation
-  between attempts and the host's accounting callbacks are outside it. An
-  accounting callback changes neither the next decision nor the learners after
-  it (`act_accounting`, [below](#the-oak-picture-and-the-executed-agent)), but
-  no theorem composes that along a campaign's attempts, so no theorem shows that a
-  campaign's run and the kernel's closed loop take the same actions. A run of visits
-  has that theorem ([below](#runs-of-visits-in-the-host)). Where the host refuses to
+  attempt's steps from a state with its goal installed, and
+  [each attempt of a campaign has that theorem](#attempts-of-a-campaign-in-the-kernel),
+  with its own kernel loop from its own start. Goal installation between attempts is
+  outside the instance, and no theorem joins a campaign's boundaries, so no theorem
+  shows that a whole campaign's run and one kernel closed loop take the same actions.
+  A run of visits has its own theorem ([below](#runs-of-visits-in-the-host)). Where the host refuses to
   observe, the kernel world delivers a blank percept that no executed run
   delivers.
 - **Work and time.** The kernel has a memory axis and no axis for an agent's work
@@ -1124,6 +1123,40 @@ empty result a campaign starts from. It refuses a target whose goal box holds th
 target is no member of the class. Its budget is `Host.visitDecisions`. It reads no stop
 request. It prints each visit's row in the fields of the demo's outcome rows, with the visit's
 index as the attempt, and, when the loop returns, the run's report as one flag per visit.
+
+### Attempts of a campaign in the kernel
+
+[The attempt loop's link to the kernel](../lean/AcornVerif/CurrentHostLoop.lean) is proved for
+one attempt at a time, each in its own kernel loop: the grid world from that attempt's world and
+carried result, with the agent of the construction's step order from that attempt's agent. An
+accepted pass (`Host.Attempt.Reaches`) is one where the attempt has not finished, the host
+observes, the agent takes its whole step and the world accepts the action.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| The accepted passes of an attempt | For every value of the construction type, whether or not `AgentConstruction.admit` built it, at every step order, for every host world configuration, goal, cap and attempt in whatever state it stands: after any number of accepted passes, the kernel's closed loop holds the later world and carried result, the kernel's memory and the later agent have the same learners, and the last action is the host action decoding the kernel's action at the preceding time. | `attempt_closed_loop`, `attempt_simulation` |
+| Each action, not only the last | At every pass of such a run, the attempt that pass recorded lies on the run, the kernel's closed loop holds its world and carried result, its agent has the kernel memory's learners, and its action decodes the kernel's at that time. The passes from an attempt are a function of it. | `attempt_each_action`, `reaches_split`, `reaches_unique` |
+| What a completed attempt ran | A value the fold returns without a refusal is the close of an attempt it reaches in accepted passes within the fuel. That close keeps the world, the carried result and the action fingerprint, and writes the attempt's accounting to the agent, which keeps its learners. | `complete_reaches`, `close_run` |
+| What a campaign boundary ran | For every construction, curriculum, plan, observer, stop reader, progress record and world token: when `Host.campaignStep` returns a next progress, the progress it took held a cursor, the attempt it started reaches, in accepted passes within the plan's step cap, an attempt whose close returns the next run state, and the facts above hold of that executed attempt, ending at the next run state's world, carried result and learners. | `campaignStep_closed_loop`, `campaignStep_reaches` |
+
+What these theorems do not establish:
+
+- **That a campaign is one kernel loop.** `Host.Attempt.start` installs a goal between attempts,
+  keeping the agent and the carried result. That changes the world outside the kernel world's
+  transition, so each attempt has its own kernel loop, from its own agent.
+- **That the boundaries join.** No theorem takes one boundary's next progress to the next
+  boundary. The loop that repeats the boundary, `Host.runAdmittedCampaign`, is a library
+  iteration, and nothing here says that a campaign ends.
+- **A boundary that returned no next progress.** A world's refusal has only
+  `Attempt.complete_learned`, for a refused action, and a refused observation produces no action.
+  An attempt whose steps overflow the outcome total ends the campaign with an error and is
+  outside the statement too.
+- **The whole memory.** Learners are related, not memories: the host's accounting writes the
+  lifetime observations, and the kernel's memory does not receive them. The action fingerprint,
+  the attempt's reward sum, the outcome row and the terminal frame are not related to the kernel,
+  and the close's final observation reaches no decision.
+- **That an agent learns or solves anything.** That compiled code computes these definitions is
+  assumed, as for every executing definition.
 
 ### An embodied world: the Microduck
 
@@ -1853,9 +1886,10 @@ What these theorems do not establish:
   arrow's inputs have the picture's types. That the boundary call receives the
   current frame's features and a stored earlier vector is the definition of the
   step, not a theorem about the signature.
-- **A campaign's run of the host.** The accounting theorems concern one decision. No
-  theorem composes them along a campaign's attempts; a
-  [run of visits](#runs-of-visits-in-the-host) has that composition.
+- **A campaign's run of the host.** The accounting theorems concern one decision.
+  [Each attempt a campaign boundary ran](#attempts-of-a-campaign-in-the-kernel) and a
+  [run of visits](#runs-of-visits-in-the-host) have that composition. No theorem joins
+  a campaign's boundaries.
 - **Whether the composition learns.** That stays empirical.
 
 ## Implementation scope

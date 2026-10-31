@@ -15,7 +15,8 @@ import AcornVerif.CurrentHostLoop
 `Host.VisitRun.decide` is one decision of a run of visits, `Host.VisitRun.after` their fold and
 `Host.runVisitDecisions` the native loop. These statements relate them to the kernel's world in
 visits (`Kernel.visits`) of the grid world, from the run's held start, with the agent of the
-construction's step order (`CurrentHostLoop.orderedAgent`).
+construction's step order (`CurrentHostLoop.orderedAgent`), through the simulation of a host's
+callbacks that `AcornVerif.CurrentHostLoop` holds (`Simulates`, `construction_simulates`).
 
 - `executed_visits_closed_loop`: after every number of decisions a run reached, the kernel's state
   holds the run's world, carried result and step count, the kernel's memory and the run's agent have
@@ -69,73 +70,10 @@ abbrev visitOrigin (mode : TaskFeatureMode) (start : Host.VisitStart config goal
     (visitWorld mode start cap).State :=
   Kernel.visitStart (gridWorld config mode) (some ⟨start.world, start.carried⟩) cap.toNat
 
-/-- A kernel agent simulates a host's callbacks under a relation of their states: the host's whole
-step on an observation and a carried result takes the action of the kernel agent's decision on the
-grid percept of that observation and result and keeps the relation, and the host's two accounting
-writes keep it. -/
-structure Simulates (callbacks : Host.AgentCallbacks order α β) (mode : TaskFeatureMode)
-    (agent : Kernel.Agent Grid.interface) (related : α → agent.Memory → Prop) : Prop where
-  /-- The whole step. -/
-  act : ∀ state memory observation (result : Host.RawStepResult), related state memory →
-    (callbacks.act state observation result).1 = Host.Action.fromIndex
-        (agent.act memory (Grid.percept mode observation result.reward result.events.done)).1.val ∧
-      related (callbacks.act state observation result).2
-        (agent.act memory (Grid.percept mode observation result.reward result.events.done)).2
-  /-- The environment write. -/
-  environment : ∀ state memory family reward, related state memory →
-    related (callbacks.recordEnvironment state family reward) memory
-  /-- The attempt write. -/
-  attempt : ∀ state memory family visit steps achieved, related state memory →
-    related (callbacks.recordAttempt state family visit steps achieved) memory
-
 /-- The state of the kernel's world in visits that a run stands at. -/
 abbrev visitHere (mode : TaskFeatureMode) (start : Host.VisitStart config goal)
     (run : Host.VisitRun config α goal cap) : (visitWorld mode start cap).State :=
   (some ⟨run.attempt.run.world, run.attempt.run.carried⟩, run.attempt.steps)
-
-theorem release_accepted {selected : Host.OwnedStep config α goal cap}
-    {environment : Host.OwnedEnvironment config α goal cap}
-    (h : selected.release = .accepted environment) : environment.selected = selected := by
-  unfold Host.OwnedStep.release at h
-  split at h
-  · cases h
-  · cases h
-    rfl
-
-theorem release_refused {selected learned : Host.OwnedStep config α goal cap}
-    {error : Host.WorldError}
-    (h : selected.release = .refused error learned) : learned = selected := by
-  unfold Host.OwnedStep.release at h
-  split at h
-  · cases h
-    rfl
-  · cases h
-
-theorem selectOwned_action (callbacks : Host.AgentCallbacks order α β)
-    (input : Host.DecisionInput config α goal cap) :
-    (input.selectOwned callbacks).action =
-      (callbacks.act input.before.run.agent input.observation input.before.run.carried).1 := by
-  rw [Host.DecisionInput.selectOwned_eq]
-  rfl
-
-theorem selectOwned_agent (callbacks : Host.AgentCallbacks order α β)
-    (input : Host.DecisionInput config α goal cap) :
-    (input.selectOwned callbacks).agent =
-      (callbacks.act input.before.run.agent input.observation input.before.run.carried).2 := by
-  rw [Host.DecisionInput.selectOwned_eq]
-  rfl
-
-theorem selectOwned_world (callbacks : Host.AgentCallbacks order α β)
-    (input : Host.DecisionInput config α goal cap) :
-    (input.selectOwned callbacks).before.run.world = input.before.run.world := by
-  rw [Host.DecisionInput.selectOwned_eq]
-  rfl
-
-theorem selectOwned_steps (callbacks : Host.AgentCallbacks order α β)
-    (input : Host.DecisionInput config α goal cap) :
-    (input.selectOwned callbacks).before.steps = input.before.steps := by
-  rw [Host.DecisionInput.selectOwned_eq]
-  rfl
 
 theorem visit_step_within (mode : TaskFeatureMode) (start : Host.VisitStart config goal)
     (live : Live config) (steps : Fin (cap.toNat + 1)) (within : steps.val < cap.toNat)
@@ -644,35 +582,6 @@ theorem related_loop {first second : Kernel.Agent Grid.interface}
           (world.percept (Kernel.loop world second start time).1)).2
     rw [← ih.1]
     exact ⟨congrArg _ decided.1, decided.2⟩
-
-/-- The learners of a kernel memory and of a construction's state. -/
-abbrev sameLearners (construction : AgentConstruction) (state : construction.State)
-    (host : construction.State)
-    (memory : (orderedAgent construction.order state.agent).Memory) : Prop :=
-  learners host.agent.control = learners memory.control
-
-/-- The executed agent of a construction simulates its callbacks, at every step order. -/
-theorem construction_simulates (construction : AgentConstruction) (state : construction.State) :
-    Simulates construction.callbacks construction.profile.taskMode
-      (orderedAgent construction.order state.agent) (sameLearners construction state) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro host memory observation result same
-    have whole := AgentConstruction.callbacks_act construction host observation result
-    have ordered := Agent.callbacks_ordered construction.order host.agent observation result
-    have kept := actOrdered_learners host.agent memory same construction.order
-      (Grid.percept construction.profile.taskMode observation result.reward result.events.done)
-    constructor
-    · refine (congrArg Prod.fst whole).trans ((congrArg Prod.fst ordered).trans ?_)
-      exact congrArg (fun decision => Host.Action.fromIndex decision.action.val) kept.1
-    · have learned : (construction.callbacks.act host observation result).2.agent =
-          (host.agent.actOrdered construction.order (Grid.percept construction.profile.taskMode
-            observation result.reward result.events.done)).1 :=
-        (congrArg Prod.snd whole).trans (congrArg Prod.snd ordered)
-      exact (congrArg (fun next => learners next.control) learned).trans kept.2
-  · intro host memory family reward same
-    exact same
-  · intro host memory family visit steps achieved same
-    exact same
 
 /-- The comparator's kernel agent simulates the comparator's callbacks: their memories are one
 stream. -/
