@@ -187,8 +187,8 @@ structure AgentConstruction.Chosen (construction : AgentConstruction) where
     (construction.agentCallbacks.choose agent observation result).2 = chosen
 
 /-- The host callbacks of one construction: the two parts of the construction's own step
-order, over the construction's own state type, with that order as the index a host loop
-reads. The step, the loop, the state that a checkpoint stamps and the image it admits
+order, over the construction's own state type, with that order as the index an attempt's
+host loop reads. The step, the loop, the state that a checkpoint stamps and the image it admits
 all come from the one construction. A campaign does not take this record from a caller:
 `AgentConstruction.runCampaign` derives it. The constructor of the record is public, and
 no check stops a module of this project from making a record of this type. -/

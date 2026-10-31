@@ -1111,8 +1111,8 @@ agent from one initial memory. It admits its arguments before it builds a world 
 It requires `--research-profile`, `--visits`, a positive number of visits, and `--target-x`
 and `--target-y`, the target's coordinates. It takes `--seed` and `--side` for the world,
 `--steps` as the cap, and `--step-order`, `--planning`, `--checkpoint` and
-`--checkpoint-every`, whose schedule counts visits, with the demo's meanings, and always the
-discounted criterion; `--comparator` runs `Host.comparatorCallbacks` from `baselineStream`
+`--checkpoint-every`, whose schedule counts visits, with the demo's meanings, except that
+`--step-order` selects the agent's step and not the loop, and always the discounted criterion; `--comparator` runs `Host.comparatorCallbacks` from `baselineStream`
 instead of the agent, and refuses `--step-order`, `--planning` and both checkpoint options.
 Its start is `Host.VisitStart.install` of the world `World.initial` admits, with the same
 empty result a campaign starts from. It refuses a target whose goal box holds the body
