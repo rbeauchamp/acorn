@@ -8,6 +8,7 @@ import Acorn.Host.Viewer.NativeCore
 import Acorn.Host.Ansi
 import Acorn.Host.AgentAudit
 import Acorn.Host.Baseline
+import Acorn.Host.Visits
 import NativeApp.Report
 import NativeApp.MutationAudit
 
@@ -92,12 +93,63 @@ def streamingOptions (arguments : List String) : IO Cli.Streaming := do
   | .ok (.streaming options) =>
     return options
 
+/-- What a run of visits leaves on the standard streams: a value the loop returned, or a refusal. -/
+private def reportVisits {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64} :
+    Except (Refusal config α goal cap) (VisitsResult config α goal cap) → IO UInt32
+  | .error _ => throw (IO.userError "world refused an observation or a step")
+  | .ok result => do
+    let flags := result.run.solved.toList.map fun solved => if solved then "1" else "0"
+    IO.println s!"solved: {" ".intercalate flags}"
+    IO.eprintln result.resources.checkpointStatus.line
+    return 0
+
+/-- One run of visits of one target: `Host.runVisitDecisions` from the admitted world, for the
+construction the command selects or for the comparator's stream. It refuses a target whose box holds
+the body, which is no member of the class of concealed targets, before it builds an agent. Each
+visit's outcome is printed in `outcomeCsv`'s fields, with the visit's index as the attempt. No
+theorem relates this entry to the loop. -/
+def runVisits (arguments : List String) : IO UInt32 := do
+  let options ← match Cli.visits arguments with
+    | .error error => throw (IO.userError error.message)
+    | .ok options => pure options
+  let world ← match World.initial options.world with
+    | .error _ => throw (IO.userError "world generation refused")
+    | .ok world => pure world
+  if targetHoldsBody world options.target then
+    throw (IO.userError "invalid target: its goal box holds the body")
+  let start := VisitStart.install world {} (.find options.target)
+  let budget := visitDecisions options.cap options.visits
+  let seed := options.world.raw.seed
+  let outcome := fun (row : GoalOutcome) => IO.print (outcomeCsv row)
+  if options.comparator then
+    let result : Except (Refusal options.world Acorn.Rng.Xoshiro256 (.find options.target)
+        options.cap) _ ← runVisitsFrom comparatorCallbacks
+      { StreamObserver.none with onOutcome := outcome } start (pure false) budget
+      (baselineStream seed) none
+    reportVisits result
+  else
+    let construction := Acorn.Handcrafted.AgentConstruction.standard seed
+      ⟨options.profile, .discounted⟩ options.planning options.order
+    IO.eprintln (planningProvenance construction)
+    IO.eprintln (orderProvenance construction.order)
+    let checkpoint ← match options.checkpoint with
+      | none => pure none
+      | some path => do
+        let store ← Acorn.Checkpoint.Store.new ((← IO.appDir) / "checkpoint-sync")
+        pure (some (store.hooks construction path options.checkpointEvery))
+    let result : Except (Refusal options.world construction.State (.find options.target)
+        options.cap) _ ← runVisitsFrom construction.callbacks
+      { StreamObserver.none with onOutcome := outcome } start (pure false) budget
+      construction.initial checkpoint
+    reportVisits result
+
 /-- Run the actual full-agent stream with compiled provenance and receiver-bound persistence. -/
 def runCore (arguments : List String) : IO UInt32 := do
   match Cli.dispatch arguments with
   | .error error => throw (IO.userError error.message)
   | .ok (.demo (.ansi common period)) => return ← runAnsiDemo common period
   | .ok (.external ⟨.audit, _⟩ _) => return ← runMutationAudit arguments
+  | .ok (.external ⟨.visits, _⟩ _) => return ← runVisits arguments
   | .ok (.external ⟨.executionIdentity, _⟩ _)
   | .ok (.external ⟨.agentBaseline, _⟩ _)
   | .ok (.external ⟨.intraOptionCredit, _⟩ _)

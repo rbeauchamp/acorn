@@ -582,9 +582,9 @@ transition as one call of the world's step function. Of these entries, the campa
 construction (`AgentConstruction.runCampaign`), which the native campaign, the viewer and
 the mutation audit call, takes the proof that the grid's interface declares
 `synchronized`, so it cannot be called while that interface declares a wall clock. The
-general entry `Host.runCampaign`, the ANSI demo `Host.runAnsi` and the random baseline
-`Host.runRandomBaseline` take no such proof: their modules do not import the module of the
-grid's interface.
+general entry `Host.runCampaign`, the ANSI demo `Host.runAnsi`, the random baseline
+`Host.runRandomBaseline` and the run of visits `Host.runVisitDecisions` take no such proof:
+their modules do not import the module of the grid's interface.
 
 For a wall-clock world the two numbers get their meaning from functions of the
 declaration, of an origin and of instants. An instant is a reading of a host's
@@ -918,13 +918,14 @@ What these theorems do not establish:
   than 21049, so the count excludes no near target.
 - **That any reach goal is feasible.** The bound is an upper bound. It does not
   show that a target can be reached.
-- **That the kernel loop is the host's run.** The grid instance covers one
+- **That the kernel loop is a campaign's run.** The grid instance covers one
   attempt's steps from a state with its goal installed. Goal installation
   between attempts and the host's accounting callbacks are outside it. An
   accounting callback changes neither the next decision nor the learners after
   it (`act_accounting`, [below](#the-oak-picture-and-the-executed-agent)), but
-  no theorem composes that along a run, so no theorem shows that the host's run
-  and the kernel's closed loop take the same actions. Where the host refuses to
+  no theorem composes that along a campaign's attempts, so no theorem shows that a
+  campaign's run and the kernel's closed loop take the same actions. A run of visits
+  has that theorem ([below](#runs-of-visits-in-the-host)). Where the host refuses to
   observe, the kernel world delivers a blank percept that no executed run
   delivers.
 - **Work and time.** The kernel has a memory axis and no axis for an agent's work
@@ -974,8 +975,9 @@ first-visit bound shows nothing a frozen agent could not do. Visits keep the fir
 agent is never restarted and its memory carries from visit to visit. Each member's world
 returns to that member's own start between visits, and every visit has the same length, so
 that neither the world's state nor the step count carries what an earlier visit found. The
-standard curriculum keeps one persisting world; the concealed target is meant for a
-campaign of visits, which the host does not yet run.
+standard curriculum keeps one persisting world; the concealed target is meant for
+[runs of visits](#runs-of-visits-in-the-host), which the host runs one member at a time
+and no campaign calls.
 
 | Property | What is proved | Theorems |
 |---|---|---|
@@ -994,7 +996,7 @@ curriculum's whose observation conceals its target, `Host.Goal.find`. It is met 
 box of a reach goal for the same target and counts as a reach goal, but its task
 relation is the one cue of its family and whether the body is in the box: no
 displacement, and no cue derived from the target. The agent's task words for it are its
-kind and that flag. No campaign installs it yet. [The concealed-target
+kind and that flag. No campaign installs it; a run of visits does. [The concealed-target
 instance](../lean/AcornVerif/CurrentConcealedTarget.lean) builds the class of concealed
 targets over one host world from the executed step, observation and percept adapter: each
 member installs a target whose box does not hold the body's position, in the same world
@@ -1029,13 +1031,13 @@ What these theorems do not establish:
 
 - **That a campaign uses the concealed target.** No goal of the standard curriculum
   conceals its target: a reach goal's cue is a hash of the target and its relation
-  gives the displacement. Nothing installs `Host.Goal.find`.
+  gives the displacement. Only a run of visits installs `Host.Goal.find`.
 - **A bound over seeds.** The class is of target positions over one host world. Reading
   a bound as a fraction of seeds assumes that the seed hash places targets independently
   of the agent's walk (assumed).
-- **That the executed host runs visits.** A world in visits is a definition of the
-  kernel. No host loop of Acorn returns the world to a start state between attempts,
-  and no theorem relates one to it.
+- **That these bounds describe a run by themselves.** A world in visits is a definition
+  of the kernel. [Runs of visits](#runs-of-visits-in-the-host) gives the theorems that
+  relate the host's loop to it.
 - **A bound for an agent whose memory at a visit's start differs between members,
   other than by counting those memories.** The need on every visit holds for
   experience-free agents, and the first-success bound for every agent only up to its
@@ -1046,6 +1048,78 @@ What these theorems do not establish:
   bound here is an upper bound. Feasibility, which `feasibleFind` has by how it is
   indexed, says that some action sequence meets a member's goal, not that an agent
   finds it.
+
+### Runs of visits in the host
+
+[The loop of visits](../lean/Acorn/Host/Visits.lean) sits beside the attempt loop, which it
+does not change, and no campaign calls it. A run holds one start (`Host.VisitStart`), a host
+world with its goal installed and a raw step result, and repeats one decision
+(`Host.VisitRun.decide`): observe the world and have the agent take its whole step on that
+observation and the carried result. While the step count is below the cap, the world takes
+the action, the new world and raw result are kept, the reward is recorded in the agent's
+accounting and the count goes up; a step that meets the goal changes nothing except that the
+run notes the visit met it. When the count equals the cap, the world does not receive the
+action, the agent's step still happens on the percept carrying the last step's result, the
+run records the visit in the agent's accounting, appends to its report whether any step of
+the visit met the goal, and returns to the held start's world, carried result and a count of
+zero, keeping the agent. A refused observation or step ends the run in that refusal. One
+visit is cap steps of the world and cap + 1 decisions.
+
+The first percept of every visit carries the start's result. A result kept across the restart
+would carry what an earlier visit found: a frozen agent reading it could solve more members
+on a later visit than the covering bound (argued). The last step's result reaches the agent
+at the visit's last decision, so nothing is dropped. At every step order the loop evaluates
+the agent's whole step before the world's transition. The grid world waits, so one pass gives
+the same values at both positions (`DecisionInput.chooseOwned_release`); at `plan-after-act`
+and `act-then-learn` the values are those of the order, and the timing is not the external
+order it names. The loop produces no reported durations.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| The kernel's agent of a step order | The executed agent's whole step at a step order is a kernel agent, and at the default order it is the executed agent the kernel's bounds are stated for. | `orderedAgent`, `orderedAgent_default` |
+| Every decision is the kernel's | For every value of the construction type, whether or not `AgentConstruction.admit` built it, at every step order, from every state of it, for every host world configuration, goal, cap and start: after any number of decisions a run reached, the kernel's world in visits of that cap, from the start's world and carried result, holds exactly the run's world, carried result and step count; the kernel's memory and the run's agent have the same learners, which are all of the temporal state except the lifetime observations; and if the next decision observes successfully, its action is the host action decoding the kernel's action at that time, whether the world takes it, refuses it or does not receive it. A refused observation produces no action, and nothing is said of one. | `executed_visits_closed_loop`, `visits_simulation`, `construction_simulates` |
+| The comparator, through the same loop | The uniform-random comparator's callbacks are simulated by its kernel agent, whose memory is the one stream. | `comparator_simulates` |
+| What a run reports | On a member of the class of concealed targets, where the start installs the member's target in its host world with its carried result, the run has completed one visit for every cap + 1 decisions, rounded down, and reports a completed visit solved exactly when `Kernel.SolvesOnVisit` holds of the kernel's agent on that member and visit. | `executed_visits_solved`, `visits_solved` |
+| The native loop computes the fold | If `Host.runVisitDecisions` returns a value, from every world token: a refusal is the refusal of the next decision after some number of decisions below its budget; any other value holds the run after some number of decisions within its budget; a value that ended by running out of budget took the whole budget; a value that ended by a stop stands at the start of a visit, with the held world and carried result, a count of zero and no goal met. | `runVisitDecisions_complete`, `VisitsAgree` |
+| The bounds on values the native loop returned | For one state of a construction and one visit index fixed for all members, the members whose native runs report that visit solved and every earlier visit unsolved number at most 49 + 7·cap. For one stream of the comparator and one visit index fixed for all members, the members whose native runs report that visit solved number at most 49 + 7·cap. Nothing bounds the members solved first at a visit each chooses for itself, because a learner that solves more with experience is what the mission wants. | `executed_runs_first_success`, `comparator_runs_need` |
+| A crash | Take a run at a visit's boundary, bytes a save of its agent wrote, and the state a later process resumes from those bytes. From a visit's first state, the resumed agent's kernel run has the states, the actions and the learners of the original kernel run from that boundary, at every later time. So the visit a crash interrupted runs again exactly and no learning is lost. | `visits_resumed` |
+
+What these theorems do not establish:
+
+- **That the loop returns.** A crash is a loop that did not return, and
+  `runVisitDecisions_complete` says nothing of one. The loop writes a checkpoint only at a
+  visit's boundary, so a crash leaves the last completed save or none. That a completed
+  save survives the crash and a partial one leaves the old file is assumed of the store.
+- **That the bytes a process loads are this run's.** `visits_resumed` takes bytes a save of
+  this run's agent wrote; a checkpoint file is not authenticated. It fixes one start and one
+  cap, which the checkpoint does not hold, so that a later process was given the same ones is
+  assumed.
+- **The rest of the agent, or the host's state, after a resume.** Resuming starts a new
+  session, so the evaluator's session statistics and pending records restart. The host's
+  report, action fingerprint and checkpoint schedule are not saved, so a resumed loop's report
+  starts again. The theorem does not say which visit a process resumed at.
+- **That the native entry runs the loop as stated.** No theorem ties `acorn-core visits` to
+  the loop; that it starts the loop from the admitted world and target rests on reading it.
+- **That a world never refuses, or that an agent learns or solves anything.** Every theorem
+  here is about a run the world accepted so far, and each bound is an upper bound.
+- **A choice of constants, or a run.** Which window, cap and number of visits a study uses is
+  that study's choice, and logs beyond each visit's outcome are not part of this loop. A save
+  made inside a visit is not covered, since the loop makes none.
+
+`acorn-core visits` runs one member per run, since the contract compares separate runs of one
+agent from one initial memory. It admits its arguments before it builds a world or an agent.
+It requires `--research-profile`, `--visits`, a positive number of visits, and `--target-x`
+and `--target-y`, the target's coordinates. It takes `--seed` and `--side` for the world,
+`--steps` as the cap, and `--step-order`, `--planning`, `--checkpoint` and
+`--checkpoint-every`, whose schedule counts visits, with the demo's meanings, and always the
+discounted criterion; `--comparator` runs `Host.comparatorCallbacks` from `baselineStream`
+instead of the agent, and refuses `--step-order`, `--planning` and both checkpoint options.
+Its start is `Host.VisitStart.install` of the world `World.initial` admits, with the same
+empty result a campaign starts from. It refuses a target whose goal box holds the body
+(`Host.targetHoldsBody`, which `targetHoldsBody_iff` shows is that condition), since such a
+target is no member of the class. Its budget is `Host.visitDecisions`. It reads no stop
+request. It prints each visit's row in the fields of the demo's outcome rows, with the visit's
+index as the attempt, and, when the loop returns, the run's report as one flag per visit.
 
 ### An embodied world: the Microduck
 

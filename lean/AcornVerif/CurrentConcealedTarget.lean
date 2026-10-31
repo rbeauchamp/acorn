@@ -58,9 +58,8 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
 Hypotheses and limits. The class is of target positions over one host world: reading a bound
 as a fraction of seeds would assume that the seed hash places targets independently of the
 agent's walk (assumed). A visit is the kernel's world in visits of the executed grid world;
-no executed host loop returns the world to its start between attempts, and no theorem relates
-one to it. A step the host refuses leads to the absorbing refused state, where no goal is
-met, in a member and the reference alike.
+`AcornVerif.CurrentVisits` relates the host's loop of visits to it. A step the host refuses
+leads to the absorbing refused state, where no goal is met, in a member and the reference alike.
 -/
 
 namespace AcornVerif.CurrentConcealedTarget

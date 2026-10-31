@@ -41,6 +41,8 @@ inductive Command where
   | averageRewardControlArm
   /-- Operational study and timed attempt-boundary shutdown. -/
   | enduranceStability
+  /-- One run of visits of one concealed target. -/
+  | visits
   deriving DecidableEq
 
 /-- CLI refusals preserve the offending field rather than silently taking a default. -/
@@ -84,6 +86,7 @@ def command (arguments : List String) : Except Error Command :=
     | "average-reward-control" => .ok .averageRewardControl
     | "average-reward-control-arm" => .ok .averageRewardControlArm
     | "endurance-stability" => .ok .enduranceStability
+    | "visits" => .ok .visits
     | _ => if name.startsWith "--" then .ok .demo else .error (.command name)
 
 /-- The current 21-option schema; the boolean determines value consumption. -/
@@ -542,6 +545,74 @@ def demo (arguments : List String) : Except Error Demo := do
       arguments.contains "--baseline", arguments.contains "--telemetry", csv,
       arguments.contains "--control-stdin", runId, epoch.toUInt64, newEpoch, arguments.contains "--cleared",
       order⟩
+
+/-- The option schema of one run of visits; the boolean determines value consumption. -/
+def visitsFlags : List (String × Bool) :=
+  [("--seed", true), ("--side", true), ("--steps", true), ("--visits", true),
+    ("--target-x", true), ("--target-y", true), ("--research-profile", true),
+    ("--planning", true), ("--step-order", true), ("--checkpoint", true),
+    ("--checkpoint-every", true), ("--comparator", false)]
+
+/-- One run of visits: one world, one target and one agent, or the comparator. -/
+structure Visits where
+  /-- Explicit research profile. -/
+  profile : ResearchProfile
+  /-- Admitted receiving world. -/
+  world : WorldConfig
+  /-- The steps of the world in one visit. -/
+  cap : UInt64
+  /-- The number of visits, which is positive. -/
+  visits : Nat
+  /-- The concealed target. -/
+  target : Position
+  /-- Immutable planning selection. -/
+  planning : Features.PlanningSelection
+  /-- Declared order of the agent's two step parts. -/
+  order : StepOrder
+  /-- Checkpoint destination. -/
+  checkpoint : Option String
+  /-- Positive schedules write, once per that many visits; zero is load-only. -/
+  checkpointEvery : UInt32
+  /-- Run the uniform-random comparator instead of the agent. -/
+  comparator : Bool
+
+/-- A coordinate a command line requires: a signed integer in the coordinate domain. -/
+def requiredCoordinate (arguments : List String) (name : String) : Except Error Coordinate := do
+  let text ← required arguments name
+  let some number := Digits.integer text | .error (.invalid name text)
+  let some coordinate := Coordinate.checked number | .error (.invalid name text)
+  return coordinate
+
+/-- Complete admission of one run of visits, with domain checks before world construction. The
+comparator has no planning, step order or checkpoint, so it refuses those options rather than
+ignoring them. -/
+def visits (arguments : List String) : Except Error Visits := do
+  scan visitsFlags arguments []
+  if arguments.contains "--checkpoint-every" && !(arguments.contains "--checkpoint") then
+    .error (.missing "--checkpoint")
+  let comparator := arguments.contains "--comparator"
+  if comparator then
+    for name in ["--planning", "--step-order", "--checkpoint", "--checkpoint-every"] do
+      if arguments.contains name then
+        .error (.invalid name "unsupported with --comparator")
+  let selected ← profile (← required arguments "--research-profile")
+  if !selected.resumable && arguments.contains "--checkpoint" then
+    .error (.invalid "--checkpoint" "selected research profile has no checkpoint encoding")
+  let planning ← planningSelection arguments
+  let order ← stepOrder arguments
+  let visitsText ← required arguments "--visits"
+  let some count := Digits.natural visitsText | .error (.invalid "--visits" visitsText)
+  if count == 0 || 2 ^ 64 ≤ count then .error (.invalid "--visits" visitsText)
+  let x ← requiredCoordinate arguments "--target-x"
+  let y ← requiredCoordinate arguments "--target-y"
+  let seed := (← unsigned arguments "--seed" 64 defaultSeed.toNat).toUInt64
+  let coordinate ← side arguments
+  let steps := (← unsigned arguments "--steps" 64 3000).toUInt64
+  let checkpointEvery := (← unsigned arguments "--checkpoint-every" 32 4).toUInt32
+  let checkpoint ← value arguments "--checkpoint"
+  let world ← (WorldConfig.standard seed coordinate).mapError Error.world
+  return ⟨selected, world, steps, count, ⟨x, y⟩, planning, order, checkpoint, checkpointEvery,
+    comparator⟩
 
 /-- Streaming schedule is a direct projection, without a second set of defaults. -/
 def Streaming.campaign (options : Streaming) : CampaignSpec :=

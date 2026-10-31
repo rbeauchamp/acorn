@@ -80,7 +80,7 @@ Every world meets this same contract: the tile world, each ARC-AGI-3 game and th
   - The viewer: only a stop request enters the core, at an attempt boundary, and source and compiled ownership keep learned code from reaching host control ([verification](verification.md#viewer-ownership-boundaries)). This is enforced by gates, not by a theorem.
   - Goals: Acorn states a goal as an attempt goal, a condition on states with a step cap, so that achieving it is an event a theorem can count over a class's members. The reward word remains the agent's signal. Stating goals this way is Acorn's choice, not a consequence of the reward hypothesis.
 - **Open.**
-  - That the host's run and the kernel's closed loop take the same actions: `act_accounting` is not composed along a run ([design](design.md#what-a-class-of-worlds-can-and-cannot-show)).
+  - That a campaign's run and the kernel's closed loop take the same actions: `act_accounting` is not composed along a campaign's attempts ([design](design.md#what-a-class-of-worlds-can-and-cannot-show)). A run of visits has that theorem (`executed_visits_closed_loop`, under [fork F3](#fork-f3-the-world-may-restart-the-agent-never-does)).
   - A theorem form of the viewer's rule: every message the core accepts from the viewer is a stop whose handling changes no learned field.
   - The classes of ARC-AGI-3 games ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and Microduck scenes ([#173](https://github.com/rbeauchamp/acorn/issues/173)), each stated over this interface.
 
@@ -193,7 +193,7 @@ Causality needs no field: `memory_causal` holds of every kernel agent. The propo
   - A formal once-only, no-replay contract over the executed learning operations, identifying each experience and its consumption, allowing retained learned state and planning while excluding resubmitted samples. Prove it for every reachable update and link it through the host's dispatch, checkpoint load and resumption paths; the current kernel interface has no experience-consumption semantics with which to state that theorem.
   - That every state the executed agent can reach has evaluator naturals within their allowance, so that its memory is bounded on every run.
   - A Lean semantics of executed work, and a work bound over it; until then the work field can be stated only over the accounting.
-  - That the host's run is the kernel's closed loop (contract 1), so that these theorems describe the run that executes.
+  - That a campaign's run is the kernel's closed loop (contract 1), so that these theorems describe the campaign that executes. A run of visits has that theorem (`executed_visits_closed_loop`).
 
 ## The postcondition: what "achieves goals" promises
 
@@ -250,9 +250,11 @@ The world may restart, between visits, on an ARC-AGI-3 reset or when the host st
   - Visits restart the world and not the agent: each member returns to its own start state between visits, so on every visit every frozen agent solves at most the covering bound (`visits_need`), while the learning agent's memory carries over.
   - ARC-AGI-3 games restart: RESET "Initializes or restarts the game or level state", and in a game-over state it is the only valid action ([[14]](#r14), "Actions"). A contract that forbade the world to restart would exclude these worlds.
   - A stop does not reset the agent: resumption restores the saved state exactly (`load_saved`).
+  - The host runs visits ([design](design.md#runs-of-visits-in-the-host)): `Host.runVisitDecisions` holds one start, returns the world to it after every visit and keeps the agent. For every construction, at every step order, from every state of it, after any number of decisions a run reached, the kernel's world in visits holds the run's world, carried result and step count, the kernel's memory and the run's agent have the same learners, and the action of a next decision that observes successfully decodes the kernel's action at that time (`executed_visits_closed_loop`).
+  - On a member of the class of concealed targets, a run has completed one visit for every cap + 1 decisions, rounded down, and reports a completed visit solved exactly when the kernel's agent solves that member on it (`executed_visits_solved`). A value the native loop returned, unless it is a refusal, holds that run after some number of decisions within its budget (`runVisitDecisions_complete`). So for one visit index, fixed for all members, such values report at most 49 + 7 · cap members solved first on that visit, for one state of a construction (`executed_runs_first_success`), and at most 49 + 7 · cap members solved on that visit, for one stream of the uniform-random comparator (`comparator_runs_need`). Nothing bounds the members solved first at a visit each chooses for itself: a learner that solves more with experience is what the mission wants. Nothing says the loop returns, and no theorem ties the native entry `acorn-core visits` to the loop.
+  - A crash is a loop that did not return. The loop writes a checkpoint only at a visit's boundary, so a crash leaves the last completed save or none. From a visit's first state, the agent resumed from the bytes a save at a boundary wrote has the states, the actions and the learners of the original kernel run from that boundary, at every later time (`visits_resumed`). So the visit a crash interrupted runs again exactly and no learning is lost. The rest of the agent is not claimed: resuming starts a new session, so its evaluator's session statistics and pending records restart, and the host's report, action fingerprint and checkpoint schedule are not saved. The theorem does not say that the bytes loaded are the bytes this run saved or that the later process was given the same start and cap; both are assumed, as is that a completed save survives the crash.
 - **Open.**
-  - No host loop of Acorn yet returns a world to its start state between attempts, and no theorem relates a host loop to `Kernel.visits` ([design](design.md#goals-the-observation-conceals-and-visits)).
-  - A crash in the middle of an attempt is a restart the visits model does not cover.
+  - A world that restarts in the middle of a visit while the agent keeps its memory is a restart the visits model does not cover. The host's loop of visits cannot produce one.
 
 ## Fork F4: how guarantees for exploring agents are stated
 
@@ -293,15 +295,15 @@ The ladder starts with the concealed targets of one grid world. Its later rungs 
 
 ## Open obligations
 
-Collected from the sections above. An obligation keeps its number when it is discharged: number 1 was the finite form of "no agent achieves goals in every world", now `no_agent_achieves_every_world` and `executed_defeated`; number 4's class is `witness_big`, and number 5's counting bound is `campaign_count`. Each of these is a lemma the mission theorem uses, not a mission result about learning.
+Collected from the sections above. An obligation keeps its number when it is discharged: number 1 was the finite form of "no agent achieves goals in every world", now `no_agent_achieves_every_world` and `executed_defeated`; number 4's class is `witness_big`, number 5's counting bound is `campaign_count`, and number 8's loop is `Host.runVisitDecisions`. Each of these is a lemma the mission theorem uses, not a mission result about learning.
 
-2. That the host's run and the kernel's closed loop take the same actions, with the host's accounting composed along a run.
+2. That a campaign's run and the kernel's closed loop take the same actions, with the host's accounting composed along its attempts. A run of visits has this (`executed_visits_closed_loop`).
 3. A theorem form of the viewer's rule: every message the core accepts from the viewer is a stop whose handling changes no learned field.
 4. Goal-information and exploration premises sufficient for Acorn's executed agent, for a class of the grid world that meets contract 2 (a) to (c). Bigness alone does not supply them.
 5. The choice of the agent configuration the counting bound of contract 2 (d) is first instantiated for.
 6. A bound on the memories the executed agent can reach, which contract 3 and contract 2 (d) both need.
 7. A Lean semantics of executed work and a work bound over it, and a separate once-only, no-replay contract with experience-consumption semantics and a proof over the executed updates and their host, checkpoint and resumption paths. The resource predicate and causal fold establish no such consumption rule.
-8. A host loop that runs visits, related by a theorem to `Kernel.visits`, and an account of a crash in the middle of an attempt.
+8. Discharged: a host loop that runs visits is `Host.runVisitDecisions`, related to `Kernel.visits` by `executed_visits_closed_loop`, `executed_visits_solved` and `runVisitDecisions_complete`, and `visits_resumed` is the account of a crash under the assumptions [fork F3](#fork-f3-the-world-may-restart-the-agent-never-does) states. No theorem ties the native entry `acorn-core visits` to the loop.
 9. Separation and retention for the executed agent under each class's declared learning preconditions, jointly with the resource, learning and lifecycle invariants. The replay comparison establishes only the two postconditions under its own hypotheses.
 10. A precise postcondition (iii) for campaigns: learning again what had to be given up.
 11. An attempt bound, which needs a theory of exploration for Acorn's setting.
