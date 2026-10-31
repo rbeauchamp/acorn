@@ -1115,8 +1115,9 @@ It requires `--research-profile`, `--visits`, a positive number of visits, and `
 and `--target-y`, the target's coordinates. It takes `--seed` and `--side` for the world,
 `--steps` as the cap, and `--step-order`, `--planning`, `--checkpoint` and
 `--checkpoint-every`, whose schedule counts visits, with the demo's meanings, except that
-`--step-order` selects the agent's step and not the loop, and always the discounted criterion; `--comparator` runs `Host.comparatorCallbacks` from `baselineStream`
-instead of the agent, and refuses `--step-order`, `--planning` and both checkpoint options.
+`--step-order` selects the agent's step and not the loop. The criterion is always discounted.
+`--comparator` runs `Host.comparatorCallbacks` from `baselineStream` instead of the agent, and
+refuses `--step-order`, `--planning` and both checkpoint options.
 Its start is `Host.VisitStart.install` of the world `World.initial` admits, with the same
 empty result a campaign starts from. It refuses a target whose goal box holds the body
 (`Host.targetHoldsBody`, which `targetHoldsBody_iff` shows is that condition), since such a
@@ -1852,8 +1853,9 @@ What these theorems do not establish:
   arrow's inputs have the picture's types. That the boundary call receives the
   current frame's features and a stored earlier vector is the definition of the
   step, not a theorem about the signature.
-- **A run of the host.** The accounting theorems concern one decision. No theorem
-  composes them along a run.
+- **A campaign's run of the host.** The accounting theorems concern one decision. No
+  theorem composes them along a campaign's attempts; a
+  [run of visits](#runs-of-visits-in-the-host) has that composition.
 - **Whether the composition learns.** That stays empirical.
 
 ## Implementation scope
