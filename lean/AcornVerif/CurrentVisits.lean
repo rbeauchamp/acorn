@@ -42,10 +42,12 @@ writes a checkpoint only at a visit's boundary, so a crash leaves the last compl
 `visits_resumed` takes a run at a boundary, bytes a save of its agent wrote and the state resumed
 from those bytes, and does not say that the bytes a later process loads are the bytes this run saved
 (a file is not authenticated) or that the later process was given the same start and cap (the
-checkpoint holds neither). It also takes as given that a completed save survives the crash. Beyond
-the learners nothing about the agent is claimed: resuming begins a new session, so the evaluator's
-session statistics and pending records restart, and the host's report, action fingerprint and
-checkpoint schedule are not saved.
+checkpoint holds neither). It also takes as given that a completed save survives the crash and a
+partial one leaves the old file: `Acorn.Host.Checkpoint.IO` states what a saved report establishes
+on each platform, and where a sync stops at the drive a power loss can lose this save and the image
+it replaced. Beyond the learners nothing about the agent is claimed: resuming begins a new session,
+so the evaluator's session statistics and pending records restart, and the host's report, action
+fingerprint and checkpoint schedule are not saved.
 -/
 
 namespace AcornVerif.CurrentVisits

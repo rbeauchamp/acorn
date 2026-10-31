@@ -1089,7 +1089,10 @@ What these theorems do not establish:
 - **That the loop returns.** A crash is a loop that did not return, and
   `runVisitDecisions_complete` says nothing of one. The loop writes a checkpoint only at a
   visit's boundary, so a crash leaves the last completed save or none. That a completed
-  save survives the crash and a partial one leaves the old file is assumed of the store.
+  save survives the crash and a partial one leaves the old file is assumed of the store:
+  `lean/Acorn/Host/Checkpoint/IO.lean` states what a saved report establishes on each
+  platform, and where a sync stops at the drive a power loss can lose this save and the image
+  it replaced.
 - **That the bytes a process loads are this run's.** `visits_resumed` takes bytes a save of
   this run's agent wrote; a checkpoint file is not authenticated. It fixes one start and one
   cap, which the checkpoint does not hold, so that a later process was given the same ones is
