@@ -49,6 +49,7 @@ states with the same learners, the executed agent takes the same action at every
 in every world over its interface. The other theorems concern single decisions. No
 theorem here composes them along a run of the host: the kernel instance of
 `AcornVerif.CurrentGridWorld` does not model the host's reports between decisions.
+`AcornVerif.CurrentVisits` composes them along a run of visits.
 -/
 
 namespace AcornVerif.CurrentAccounting

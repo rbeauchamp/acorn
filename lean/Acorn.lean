@@ -16,6 +16,7 @@ import Acorn.FeatureReferences
 import Acorn.Handcrafted.FeatureProfile
 import Acorn.Host.Ansi
 import Acorn.Host.Baseline
+import Acorn.Host.Visits
 import Acorn.Host.Endurance
 import Acorn.Host.TemporalProfile
 

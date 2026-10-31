@@ -30,10 +30,11 @@ namespace Acorn.Host
 variable {order : StepOrder}
 
 /-- The full-agent owner supplies actual learning and accounting definitions. The step
-order is an index of the type: a host loop takes the callbacks of the order whose
-position of the world's transition it implements. The index is a label, and no field
-depends on it: a record is of its order because of the code that made it. The
-constructor is public, and no check stops a module of this project from making a record
+order is an index of the type: an attempt's host loop takes the callbacks of the order whose
+position of the world's transition it implements, while a run of visits (`VisitRun.decide`)
+takes callbacks of every order and evaluates the whole step before the transition at each. The
+index is a label, and no field depends on it: a record is of its order because of the code
+that made it. The constructor is public, and no check stops a module of this project from making a record
 under another index. A record under another index with the same whole step and host
 functions returns the same run state, outcome and refusal
 (`AcornVerif.CurrentRunner.complete_parts`). -/

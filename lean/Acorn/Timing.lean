@@ -216,7 +216,7 @@ theorem StepOrder.parse_accepted (text : String) (order : StepOrder) :
     by_cases third : text = "act-then-learn" <;>
     simp_all [StepOrder.parse, StepOrder.name]
 
-/-- An order whose host loop releases the action between the two parts of a step: every
+/-- An order whose attempt loop releases the action between the two parts of a step: every
 order but the default. A host loop that releases takes the callbacks of such an order. -/
 def StepOrder.Releases (order : StepOrder) : Prop := order ≠ .learnThenAct
 
