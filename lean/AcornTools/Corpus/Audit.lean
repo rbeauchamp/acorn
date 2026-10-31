@@ -52,7 +52,7 @@ private def language (path : String) : IO Unit := do
     s!"{path}: source/archive outside maintained Lean boundary"
   if ext == "c" then
     require (path == "lean/os/checkpoint-sync.c")
-      s!"{path}: C source outside reviewed fsync primitive"
+      s!"{path}: C source outside reviewed file-sync primitive"
   if ["js", "ts", "jsx", "tsx", "mjs", "cjs"].contains ext then
     require (path.startsWith "viewer/static/") s!"{path}: browser code outside observer assets"
   if let some text := String.fromUTF8? bytes then

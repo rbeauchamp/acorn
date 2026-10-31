@@ -217,7 +217,7 @@ lean_exe «agent-native» where
   plugins := #[regulaObserver]
   needs := #[regulaObserver]
 
-/-- Minimal POSIX file-sync primitive; all checkpoint semantics remain in Lean. -/
+/-- Minimal file-sync primitive; all checkpoint semantics remain in Lean. -/
 target checkpointSync pkg : System.FilePath := do
   let source ← inputTextFile (pkg.dir / "os/checkpoint-sync.c")
   let output := pkg.buildDir / "bin/checkpoint-sync"
