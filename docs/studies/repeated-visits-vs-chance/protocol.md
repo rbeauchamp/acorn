@@ -86,6 +86,19 @@ owner is named, and concern the executed definitions of
    either achieves. `baseline_finishes` proves that the comparator's record of a
    bounded campaign is never cut short: it ends at the campaign's completing
    boundary or at an explicit world refusal.
+
+   *Note added on 2026-11-02, after the run; item 2 above stands as
+   registered.* Its label overstates what is machine-checked about the whole
+   run. `boundary_single_attempt` concerns one boundary: at any one cursor, the
+   next attempt does not depend on the outcome. That the agent's arm makes the
+   same 52 attempts, at the same goals in the same order, over the whole run
+   follows from it and the runner's loop, `Host.runAdmittedCampaign`, which
+   repeats the boundary, by argument, not by a theorem. `baseline_finishes`
+   covers the comparator's whole run, and what it states of that run is that
+   its record is not cut short; the comparator's schedule follows from
+   `boundary_single_attempt` and its own loop, `runBaselineCampaign`, by the
+   same argument. The run's own record check confirmed 52 attempts for each arm
+   on every seed ([results](results.md#deviations)).
 3. **An attempt means the same thing in both arms.** *Machine-checked for the
    attempt transition; argued for the native loop.* `Corresponds` relates an
    agent attempt to a comparator attempt with the same world and step count
@@ -757,6 +770,13 @@ directory; its seeds are redrawn only if a run was made at the old ones. After
 the run, the only edits are corrections that follow a renamed declaration or a
 moved link. The identity file holds the hash of the
 revision as run, and Git holds its text.
+
+*Note added on 2026-11-02.* Two notes of a kind this section does not list
+followed the run, both dated: the one under item 2 of
+[what derivation settles](#what-derivation-settles), which corrects that item's
+evidence label and leaves the registered text as it was, and this one, which
+records it. This file therefore no longer has the hash the identity file
+records; the text as run is that of the registering commit.
 
 **Revision 2** is this revision. Revision 1 was registered by
 [#68](https://github.com/rbeauchamp/acorn/pull/68) and never run. Its

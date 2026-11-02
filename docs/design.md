@@ -918,12 +918,15 @@ What these theorems do not establish:
   than 21049, so the count excludes no near target.
 - **That any reach goal is feasible.** The bound is an upper bound. It does not
   show that a target can be reached.
-- **That the kernel loop is a campaign's run.** The grid instance covers one
+- **That a campaign's run is a chain of kernel loops.** The grid instance covers one
   attempt's steps from a state with its goal installed, and
   [each attempt of a campaign has that theorem](#attempts-of-a-campaign-in-the-kernel),
   with its own kernel loop from its own start. Goal installation between attempts is
-  outside the instance, and no theorem joins a campaign's boundaries, so no theorem
-  shows that a whole campaign's run and one kernel closed loop take the same actions.
+  outside the instance, so a whole campaign's run is not one kernel closed loop. What
+  can be stated of it is a chain of kernel closed loops, one per attempt, with goal
+  installation between them and one memory threading through, and no theorem joins a
+  campaign's boundaries into that chain
+  ([obligation 2](mission-contract.md#open-obligations) says when it is due).
   A run of visits has its own theorem ([below](#runs-of-visits-in-the-host)). Where the host refuses to
   observe, the kernel world delivers a blank percept that no executed run
   delivers.
@@ -1141,11 +1144,14 @@ observes, the agent takes its whole step and the world accepts the action.
 
 What these theorems do not establish:
 
-- **That a campaign is one kernel loop.** `Host.Attempt.start` installs a goal between attempts,
-  keeping the agent and the carried result. That changes the world outside the kernel world's
-  transition, so each attempt has its own kernel loop, from its own agent.
+- **That a campaign is one kernel loop.** It is not: `Host.Attempt.start` installs a goal
+  between attempts, keeping the agent and the carried result. That changes the world outside the
+  kernel world's transition, so each attempt has its own kernel loop, from its own agent.
 - **That the boundaries join.** No theorem takes one boundary's next progress to the next
-  boundary. The loop that repeats the boundary, `Host.runAdmittedCampaign`, is a library
+  boundary, so none states a whole campaign's run as the chain of these kernel loops, one per
+  attempt, with goal installation between them and the agent's memory threading through
+  ([obligation 2](mission-contract.md#open-obligations) says when that join is due). The loop
+  that repeats the boundary, `Host.runAdmittedCampaign`, is a library
   iteration, and nothing here says that a campaign ends.
 - **A boundary that returned no next progress.** A world's refusal has only
   `Attempt.complete_learned`, for a refused action, and a refused observation produces no action.
@@ -2270,9 +2276,12 @@ refuses `--baseline` with `--cycles 0` before the agent runs.
 
 The two arms follow one campaign. The comparator admits its plan from the same
 arguments with the agent's own admission and asks the agent's own boundary
-function what follows each attempt. `boundary_single_attempt` proves that with
-one attempt per goal the next attempt does not depend on the outcome, so both
-arms make the same attempts in the same order. `start_corresponds`,
+function what follows each attempt. `boundary_single_attempt` proves, of one
+boundary, that with one attempt per goal the next attempt does not depend on the
+outcome. That both arms therefore make the same attempts in the same order over a
+whole campaign is argued from it and each arm's loop, which repeats the
+boundary, not machine-checked: no theorem states that schedule over either
+loop. `start_corresponds`,
 `tick_corresponds`, `idle_corresponds` and `outcome_corresponds` prove that the
 arms' attempts correspond at goal installation, at each step and at the outcome
 row. That whole attempts therefore agree is argued, not machine-checked: no

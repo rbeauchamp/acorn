@@ -88,12 +88,13 @@ pr:
 # not listed. `forbid` leaves it to the review agent, whom it tells to report every test a change
 # adds; that is an instruction an agent follows, not a check.
 #
-# Memory. Measured on 2026-10-27 on fresh clones, loading one package peaked at 0.15 GiB of
-# physical footprint and 1.8 GiB resident, most of it the .olean files Lean maps, which the system
-# can drop without swapping. Each load runs through `no-mistakes admit` with a 2 GiB bound, which
-# it takes from the share of work already admitted, such as the Test step declared in heavy_steps
-# above, or otherwise waits for in the machine's memory budget beside all other admitted work.
-# Nothing enforces the bound.
+# Memory. Measured on 2026-11-02 with /usr/bin/time -l on a copy of the tracked files, loading the
+# lean package peaked at 1.13 GiB of physical footprint and 2.23 GiB resident, and the site package
+# at 0.22 GiB and 1.30 GiB. Most of the resident memory is the .olean files Lean maps, which the
+# system can drop without swapping. Each load runs through `no-mistakes admit` with a 2 GiB bound,
+# which it takes from the share of work already admitted, such as the Test step declared in
+# heavy_steps above, or otherwise waits for in the machine's memory budget beside all other admitted
+# work. Nothing enforces the bound.
 test:
   tests_as_evidence:
     policy: forbid
@@ -137,7 +138,7 @@ test:
           prefix=$(lean --print-prefix) &&
           lib=$prefix/lib/lean/libLake_shared.dylib &&
           { [ -e "$lib" ] || lib=$prefix/lib/lean/libLake_shared.so; } &&
-          no-mistakes admit --memory 2GiB --limit "none; measured peak 0.15 GiB footprint, 1.8 GiB resident" -- \
+          no-mistakes admit --memory 2GiB --limit "none; measured peak 1.13 GiB footprint, 2.23 GiB resident" -- \
             lean --load-dynlib="$lib" --run "$work/driver.lean" "$pkg" "$work/driver"
         ) >&2; then
           echo "Lake could not report the test driver of package $pkg" >&2
