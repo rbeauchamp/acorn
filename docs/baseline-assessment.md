@@ -12,10 +12,16 @@ Status notes record what has changed since; the
 
 **Claim status.** Every claim below carries one of these labels:
 
-- **Machine-checked**: a Lean theorem over the executed definitions, compiled
-  by `./scripts/verify.sh` on the head that introduced it.
-- **Argued**: derived by hand from the executed definitions or a closed form;
-  not machine-checked.
+- **Machine-checked**: a Lean theorem over the executed definitions whose
+  conclusion states the claim as worded, over the claim's whole domain,
+  compiled by `./scripts/verify.sh` on the head that introduced it. A theorem
+  about one boundary, one step or one case does not make a claim about a whole
+  run, every step or every case machine-checked.
+- **Argued**: derived by hand from the executed definitions or a closed form,
+  including a claim composed by hand from machine-checked theorems, such as a
+  whole-run claim derived from a theorem about one boundary and the loop that
+  repeats it; not machine-checked. The label may name the theorems it rests
+  on, as in "argued from a machine-checked identity".
 - **Assumed**: a stated modelling assumption, such as an idealized random
   number generator.
 - **UNKNOWN**: an irreducibly empirical quantity with no observation yet.
@@ -110,8 +116,9 @@ of the questions about the behaviour; the other two missing rows (reward centeri
 nonlinear continual learning) were not previously recorded.
 
 Correctness of what exists (state legality, admission, numeric containment and
-the proved identities) is strong and machine-checked. The weakness is fidelity
-and composition, which the proofs did not state and so could not catch.
+the proved identities) is strong, argued from machine-checked theorems. The
+weakness is fidelity and composition, which the proofs did not state and so
+could not catch.
 
 ## Composition findings
 
@@ -127,11 +134,12 @@ The defining STOMP loop (subtask → option → model → planning → better
 decisions) exists structurally. The findings below describe how it was broken
 or neutralized. All six are argued from the executed definitions; none is
 machine-checked or observed. The repairs of F-A, F-C, F-E and F-F are
-machine-checked by the U1 to U4 theorems cited under each.
+argued from the machine-checked U1 to U4 theorems cited under each.
 
 ### F-A · Subtask churn erased options, models and meta rows
 
-**Status: resolved by U1.** Argued at 86ce779; the repair is machine-checked.
+**Status: resolved by U1.** Argued at 86ce779; the repair is argued from the
+machine-checked U1 theorems.
 
 At 86ce779, a subtask's identity compared both its unit and the exact bits of its
 bonus, and the bonus was the unit's current Demon-0 weight magnitude, re-read at
@@ -211,7 +219,7 @@ compute their target correctly; the target is the wrong quantity.
 ### F-C · The derived exploration rate started near 0.63
 
 **Status: resolved by U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)).** Argued at
-86ce779; the repair is machine-checked.
+86ce779; the repair is argued from the machine-checked U2 theorems.
 
 At 86ce779, every research profile except the annealed comparison used the
 derived rate:
@@ -380,8 +388,8 @@ least k > 3 units are mature at each (`run_mature_turnover`).
 ### F-F · Options learn from almost none of the experience
 
 **Status: resolved by U4 ([#10](https://github.com/rbeauchamp/acorn/issues/10)).**
-Argued at 86ce779; what the repair writes is machine-checked; the resulting
-option quality is UNKNOWN.
+Argued at 86ce779; what the repair writes is argued from the machine-checked
+U4 theorems; the resulting option quality is UNKNOWN.
 
 At 86ce779 an option's policy and model updated only on steps where that option
 was executing (`Skill.stepTemporal`). The Alberta Plan's Step 10 says option
@@ -535,7 +543,8 @@ option-learning links to adapted forms of the published mechanisms. The foundati
 theirs: SwiftTD under every learner except the off-policy questions,
 reward-respecting feature-attainment subtasks, GVF
 predictions as features, and continual operation without replay. Acorn's
-machine-checked state legality and admission have no counterpart in that work.
+machine-checked theorems of state legality and admission have no counterpart
+in that work.
 
 ## Conformance sequence
 
@@ -842,7 +851,8 @@ improves decisions.
   uniform, independent draw listed below.
 - **Argued.** F-A to F-F, including F-C's initial derived rate, E[D] = H₁₂₈, the renewal
   fraction of about 0.90, and F-D's lemma (conditional on equal prediction
-  buckets and no layout collision). None is machine-checked.
+  buckets and no layout collision). None is machine-checked. The repairs of
+  F-A, F-C, F-E and F-F are argued from the machine-checked theorems above.
 - **Assumed.**
   - An idealized uniform, independent random draw for the renewal fraction and
     for U2's distributional results; the deterministic generator does not

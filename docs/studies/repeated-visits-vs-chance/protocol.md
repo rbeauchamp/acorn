@@ -75,6 +75,17 @@ owner is named, and concern the executed definitions of
    c = 2 049 638 230 412 172 401 and 2⁶⁴ = 9c + 7 (`word_space`). Under a
    uniform output word (assumed), every action has probability within 2⁻⁶⁴ of
    1/9. Only the comparator's task outcomes need observing.
+
+   *Note added on 2026-11-02, after the run; item 1 above stands as
+   registered.* Read against the claim labels the
+   [baseline assessment](../../baseline-assessment.md) now defines, its label
+   overstates what is machine-checked. The theorems it cites state the
+   action's code, the one output a draw consumes, the interval of words that
+   selects each code and that interval's size, and none of them states a
+   probability. That every action has probability within 2⁻⁶⁴ of 1/9 under a
+   uniform output word is argued from `action_word_count` and `word_space`,
+   with that assumption, by arithmetic: c/2⁶⁴ and (c + 1)/2⁶⁴ lie 7/(9 · 2⁶⁴)
+   and 2/(9 · 2⁶⁴) from 1/9.
 2. **The arms follow one campaign.** *By construction and machine-checked.*
    `runRandomBaseline` admits its plan with `CampaignPlan.admit` from the
    arguments the agent's runner admits its plan from, starts from
@@ -122,6 +133,17 @@ owner is named, and concern the executed definitions of
    the agent's learning. One refusal is on the agent's side only: the agent
    observes the world before each action and the comparator does not, so an
    observation the world refuses ends the agent's pass alone.
+
+   *Note added on 2026-11-02, after the run; item 3 above stands as
+   registered.* Read against the claim labels the
+   [baseline assessment](../../baseline-assessment.md) now defines, the
+   machine-checked part of its label covers single transitions only:
+   `start_corresponds`, `tick_corresponds`, `idle_corresponds` and
+   `outcome_corresponds` each concern one goal installation, one step or one
+   outcome row. That the two arms' whole attempts are one function of the
+   world and the action sequence follows from them by argument over the
+   comparator's attempt loop, as it does over the native loop; no theorem it
+   cites composes these steps over either loop.
 4. **What an earlier visit leaves behind.** *Argued from the definitions.*
    `Goal.observe` satisfies a collect goal when the inventory holds the
    requested count and a craft goal when the tool is owned, whenever they were
@@ -771,11 +793,11 @@ the run, the only edits are corrections that follow a renamed declaration or a
 moved link. The identity file holds the hash of the
 revision as run, and Git holds its text.
 
-*Note added on 2026-11-02.* Two notes of a kind this section does not list
-followed the run, both dated: the one under item 2 of
-[what derivation settles](#what-derivation-settles), which corrects that item's
-evidence label and leaves the registered text as it was, and this one, which
-records it. This file therefore no longer has the hash the identity file
+*Note added on 2026-11-02.* Notes of a kind this section does not list
+followed the run, each dated: those under items 1, 2 and 3 of
+[what derivation settles](#what-derivation-settles), which correct those items'
+evidence labels and leave the registered text as it was, and this one, which
+records them. This file therefore no longer has the hash the identity file
 records; the text as run is that of the registering commit.
 
 **Revision 2** is this revision. Revision 1 was registered by

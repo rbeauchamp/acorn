@@ -106,8 +106,8 @@ identity checks and `./scripts/verify.sh` there before building, and wrote
 
 The identity file's time is when the build block ended; the run block started
 after it. A content hash shows that a file is unchanged, not when it was
-written. On 2026-11-02 the protocol gained dated notes on the evidence label
-of its item 2 ([what derivation settles](protocol.md#what-derivation-settles)),
+written. On 2026-11-02 the protocol gained dated notes on the evidence labels
+of its items 1, 2 and 3 ([what derivation settles](protocol.md#what-derivation-settles)),
 so its present text no longer has the recorded hash; the text as run is that of
 the registering commit.
 
