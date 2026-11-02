@@ -146,3 +146,40 @@ test:
         cat "$work/driver"
         rm "$work/driver"
       done < "$work/packages"
+
+  # A `no-surface` verdict says that no claim of a change needs execution against a running
+  # product. By default it parks the Test step to ask whether to proceed without live validation.
+  # Here it completes the step: for a proof or document change that verdict is the normal result,
+  # and the question guards against something cheap to undo, since a run of Acorn's programs is a
+  # smoke test and never acceptance evidence (CONTRIBUTING.md), and every claim stays listed on the
+  # pull request.
+  #
+  # no-mistakes documents `proceed` as a repository's declaration that it has no running product to
+  # drive, and says so to the step's agent in a fixed line of its prompt (`testClaimParkingRules`
+  # in internal/pipeline/steps/test_claims.go). That declaration is not true of Acorn, which has a
+  # viewer and native hosts that can be run. Here `proceed` decides only what a `no-surface` verdict
+  # does; `no-go`, `inconclusive` and the refusal of a `pass` or `fail` claim under `no-surface`
+  # stay as they are. The runbook below reaches the agent's evidence prompt in its "Context"
+  # section, ahead of that line (`trustedTestInstructionsSection` in
+  # internal/pipeline/steps/test.go), so it corrects the line in advance and says which changes have
+  # a surface. no-mistakes keeps the line breaks of the runbook and collapses the white space within
+  # each line. It reads both settings only from the copy on the default branch. Nothing checks the
+  # agent's judgment of a change: one with a surface that it judges to have none lands undriven, an
+  # accepted risk for the reason above.
+  no_surface: proceed
+  instructions: |
+    A later line of these instructions says that this repository declares it has no running product to drive. That line is no-mistakes' fixed wording for the setting test.no_surface: proceed. It is not true of Acorn, which has programs that a person or a world runs. Here the setting decides only that a no-surface verdict does not park. Judge each change by what follows.
+
+    The programs. The lean_exe declarations in lean/lakefile.lean are the complete list, and each one's root module sorts it. A program rooted under AcornTools is an audit or build tool of the merge gate. Every other program serves a person or a world: for example acorn-viewer with its core acorn-core, microduck-host and the native command-line consumers. scripts/start.sh launches the viewer, and viewer/static and lean/os hold parts of those programs.
+
+    A change has a surface when it alters what one of those programs does, accepts, prints, renders or writes when it runs. Its verdict is go, no-go or inconclusive, never no-surface, even when proofs settle most of its claims. Proofs and the gate settle what they state. Derive a runtime claim for what they do not reach, such as the compiled program's arguments, files, sockets, process lifetime, output or rendering, and drive that claim.
+
+    A change has no surface when it leaves the behaviour of all those programs as it was: proofs and other modules that no such program executes, documents, comments, the audit tools, the gate and this configuration. The gate's result, derivation or reading settle its claims, so run no program for it and return no-surface. The build embeds a digest of every Lean and C source in the native entry points, so any such edit changes that digest; that alone is not a surface.
+
+    Driving a program. Run the built program itself, for the smallest run that shows the claim. A passing gate leaves every program under lean/.lake/build/bin. Build a missing one with no-mistakes admit --memory 12GiB --limit "none; the Test command's measured peak 11.3 GiB" -- ./scripts/lean.sh build NAME, and run any other job that may use more than about 2 GiB through no-mistakes admit with its declared peak. Keep every run's files in a fresh temporary directory outside the checkout. Run the viewer as the last step of scripts/start.sh does, with --run-dir set to that directory and without --open-browser: --control-stdin lets you stop it by writing the line stop to its standard input, which must stay open until then.
+
+    scripts/start.sh can install system packages, so run it only for a change to the script itself, with --no-browser and a --run-dir in that directory, and only after reading that it would install nothing here. microduck-host requires its --control and --depth sockets from the simulator's daemons, and the simulator is not in this repository. When what a claim needs cannot be stood up as a disposable process of this run, report the claim open with that reason.
+
+    The machine. Start, stop, reconfigure or reset none of the machine's own services that this run did not create: a container runtime or virtual machine, a system daemon, a package manager's global state or a shared database. Stop only a process this run started, by the process id recorded when it started, never by matching a name or command line.
+
+    What a run shows. A live result here is a smoke test: this run of this program did the one observable thing the claim names (CONTRIBUTING.md). It is never acceptance evidence, and it settles no claim that the agent learns, achieves a goal or meets a theorem; those belong to proofs and to registered studies, so report such a claim from its proof or as open. Do not sweep seeds, compare scores, tune anything, rerun learning or promote a default (AGENTS.md).
