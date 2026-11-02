@@ -6,34 +6,23 @@ Authors: acorn contributors
 import Acorn.Host.Viewer.PipePump
 
 /-!
-# Serialized supervised process and pipe lifetime
+# The supervised child and its readers
 
-The child, its generation and its readers share one supervisor slot. Reaping
-revokes broadcast rights immediately. The slot remains occupied until all pipe
-and log tasks finish, so archival cannot race a retained run-directory writer.
-Neither control submission nor the process poll waits for pipe EOF. An external
-descendant retaining a pipe may delay retirement indefinitely; no native join
-deadline is claimed.
+The child, its generation and its readers share one native slot. The slot stays occupied
+until every pipe and log task finishes, so archival cannot race a retained run-directory
+writer. Neither control submission nor a poll waits for pipe EOF. An external descendant
+retaining a pipe may delay retirement indefinitely; no native join deadline is claimed.
+
+The slot decides nothing about the lifecycle: the supervisor's step says when to spawn, start
+the readers, send the stop line and join (`Acorn.Host.Viewer.Supervision`), and this module
+performs each and reports what the operating system answered.
 -/
 namespace Acorn.Host.Viewer
 
-/-- A run longer than this many milliseconds resets the short-failure sequence. -/
-def healthyRunMs : Nat := 30000
-
-/-- Actual native exit facts, kept while the process-local pipes drain. -/
-structure ProcessExit where
-  /-- The generation whose child was reaped. -/
-  generation : UInt64
-  /-- Native exit status. -/
-  code : UInt32
-  /-- Native elapsed process time. -/
-  uptimeMs : Nat
-  /-- A wind-up request was recorded, including refused pipe writes. -/
-  stopRequested : Bool
-
 private inductive ProcessSlot where
+  | spawned (output : ProcessOutput)
   | live (generation : UInt64) (pump : PipePump)
-  | draining (exit : ProcessExit) (pump : PipePump)
+  | draining (pump : PipePump)
 
 /-- Supervisor process capability owns the process and every task that can write its run. -/
 structure SupervisedProcess where
@@ -46,96 +35,84 @@ structure SupervisedProcess where
 def SupervisedProcess.new (broadcast : Broadcast) : BaseIO SupervisedProcess := do
   return ⟨← ProcessOwner.new, broadcast, ← Std.Mutex.new none⟩
 
-/-- Launch outcomes distinguish policy refusal from an actual native spawn error. -/
-inductive LaunchResult where
-  /-- A child or its readers still own the previous run. -/
-  | occupied
-  /-- Lifecycle intent, retry policy or generation exhaustion forbids launching. -/
-  | deferred
-  /-- A newly installed generation owns its child and both output readers. -/
-  | started (generation : UInt64)
-  /-- Native spawn failed; the generation remains consumed by both allocators. -/
+/-- Spawn the child of a reserved generation. Its readers start only when the step attaches
+them, after the broadcaster holds the generation's output for its identity. A native spawn
+error leaves the slot empty; the generation stays consumed by both allocators. -/
+def SupervisedProcess.spawn (process : SupervisedProcess) (generation : UInt64)
+    (executable : System.FilePath) (arguments : Array String) : IO (Except String Unit) :=
+  process.slot.atomically do
+    if (← get).isSome then return .error "a core process or its readers still own the run"
+    try
+      let output ← process.owner.spawn generation executable arguments
+      set (some (ProcessSlot.spawned output))
+      return .ok ()
+    catch error => return .error error.toString
+
+private def ProcessSlot.attach (slot : ProcessSlot) (broadcast : Broadcast)
+    (directory : RunDirectory) : BaseIO ProcessSlot := do
+  match slot with
+  | .spawned output =>
+    return .live output.generation (← PipePump.start output broadcast directory)
+  | slot => return slot
+
+/-- Start the readers of the spawned child of this generation. -/
+def SupervisedProcess.attach (process : SupervisedProcess) (generation : UInt64)
+    (directory : RunDirectory) : BaseIO Unit :=
+  process.slot.atomically do
+    if let some (.spawned output) := ← get then
+      if output.generation == generation then
+        set (some (← (ProcessSlot.spawned output).attach process.broadcast directory))
+
+/-- Send the child its one stop line. A refusal is reported; a child that already took the
+line, or that no longer exists, has nothing more to receive. -/
+def SupervisedProcess.windUp (process : SupervisedProcess) (generation : UInt64) :
+    IO (Except String Unit) := do
+  match ← process.owner.windUp generation with
+  | .refused reason => return .error reason
+  | .stale | .alreadyRequested | .sent => return .ok ()
+
+/-- What a poll observed of the slot. -/
+inductive ProcessObservation where
+  /-- No change: no child, a live child, or readers still draining. -/
+  | quiet
+  /-- The live child was reaped with this status after this many milliseconds. -/
+  | exited (code : UInt32) (uptimeMs : Nat)
+  /-- The reaped child's readers and log writer finished; the slot is empty. -/
+  | finished (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus)
+  /-- The native wait refused; the slot stays owned. -/
   | refused (reason : String)
 
-/-- Reserve, spawn, install and attach the generation in one serialized launch.
-The caller persists launch intent before invoking this operation. -/
-def SupervisedProcess.launch (process : SupervisedProcess) (directory : RunDirectory)
-    (executable : System.FilePath) (arguments : Array String) : IO LaunchResult :=
+/-- Poll without waiting for pipe completion. A spawned child whose readers did not start,
+because an effect before their start failed, has them started here, so its pipes are read
+while it lives. -/
+def SupervisedProcess.poll (process : SupervisedProcess) (directory : RunDirectory) :
+    IO ProcessObservation :=
   process.slot.atomically do
-    if (← get).isSome then return .occupied
-    let now := (min (← IO.monoMsNow) (2 ^ 64 - 1)).toUInt64
-    let some generation ← process.broadcast.reserve now | return .deferred
-    let output ← try process.owner.spawn generation executable arguments
-      catch error =>
-        process.broadcast.failed generation now false
-        return .refused error.toString
-    process.broadcast.started generation
-    process.broadcast.awaitIdentity generation
-    let pump ← PipePump.start output process.broadcast directory
-    set (some (ProcessSlot.live generation pump))
-    return .started generation
-
-/-- A poll retains unresolved ownership rather than treating an IO refusal as an exit. -/
-inductive SupervisedPoll where
-  /-- No child or reader task owns a run directory. -/
-  | empty
-  /-- The native child remains live. -/
-  | running (generation : UInt64) (uptimeMs : Nat)
-  /-- The child exited but at least one reader or log writer remains active. -/
-  | draining (exit : ProcessExit)
-  /-- Reaping and all output/log joins completed; later archival may proceed. -/
-  | finished (exit : ProcessExit) (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus)
-  /-- Native wait, wind-up or signal IO refused; the complete slot remains owned. -/
-  | refused (reason : String)
-
-/-- Poll without waiting for pipe completion. Stop and Clear intent raise the
-sole allowed stdin command; elapsed time cannot authorize destructive termination.
-Unexpected exits use the existing retry transition, while requested stops do
-not consume its failure budget. -/
-def SupervisedProcess.poll (process : SupervisedProcess) : IO SupervisedPoll :=
-  process.slot.atomically do
-    let some slot ← get | return .empty
+    let some slot ← get | return .quiet
+    let slot ← slot.attach process.broadcast directory
+    set (some slot)
     match slot with
-    | .draining exit pump =>
-      if !(← pump.ready) then return .draining exit
+    | .spawned _ => return .quiet
+    | .draining pump =>
+      if !(← pump.ready) then return .quiet
       let (stdout, stderr, log) ← pump.finish
-      if log.checkpoint == some .refused then
-        process.broadcast.refuseFinalCheckpoint exit.generation
       set (none : Option ProcessSlot)
-      return .finished exit stdout stderr log
+      return .finished stdout stderr log
     | .live generation pump =>
-      let lifecycle ← process.broadcast.lifecycle
-      if lifecycle.phaseValue == .stopping generation then
-        match ← process.owner.windUp generation with
-        | .refused reason => return .refused reason
-        | _ => pure ()
       match ← process.owner.poll generation with
       | .stale => return .refused "supervisor lost its owned process generation"
       | .refused reason => return .refused reason
-      | .running uptime => return .running generation uptime
-      | .exited code uptime stopped =>
-        let exit : ProcessExit := ⟨generation, code, uptime, stopped⟩
-        let now := (min (← IO.monoMsNow) (2 ^ 64 - 1)).toUInt64
-        if lifecycle.phaseValue != .stopping generation then
-          process.broadcast.failed generation now (uptime > healthyRunMs)
-        process.broadcast.retire generation
-        set (some (ProcessSlot.draining exit pump))
-        return .draining exit
+      | .running _ => return .quiet
+      | .exited code uptime =>
+        set (some (ProcessSlot.draining pump))
+        return .exited code uptime
 
-/-- Clear's directory effect shares the launch/retirement mutex. No child or
-pipe/log task may still own the run. A successful rename keeps the lifecycle
-archiving until the caller persists and admits the replacement identity.
-Failures retain their exact filesystem outcome and disable automatic restart. -/
+/-- Archive the run directory while no child or reader owns it; an owned slot leaves the run
+unchanged. -/
 def SupervisedProcess.archive (process : SupervisedProcess) (directory : RunDirectory)
-    (stamp : UInt64) (announce : IO Unit := pure ()) : IO (Option ArchiveResult) :=
+    (stamp : UInt64) : IO ArchiveResult :=
   process.slot.atomically do
-    if (← get).isSome then return none
-    if !(← process.broadcast.beginArchive) then return none
-    announce
-    let result ← directory.archive stamp
-    match result with
-    | .ready _ => pure ()
-    | .unchanged _ | .moved _ _ => process.broadcast.archiveFailed
-    return some result
+    if (← get).isSome then return .unchanged "a core process or its readers still own the run"
+    directory.archive stamp
 
 end Acorn.Host.Viewer

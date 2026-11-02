@@ -11,9 +11,11 @@ import Acorn.Host.Viewer.LogPump
 # Supervisor control-state emission
 
 Actual phase, desired intent, identity and retry count come from the lifecycle
-owner. Transition reasons and native stderr remain observations supplied by the
-supervisor. Text passes through the shared JSON string encoder, and the final
-physical record passes through the same byte and delimiter admission as frames.
+the supervisor's step decided. Transition reasons and native stderr come with the
+step's detail. Whether the current process refused its checkpoint and whether the
+retained map may miss observations are the observer's own facts. Text passes
+through the shared JSON string encoder, and the final physical record passes
+through the same byte and delimiter admission as frames.
 -/
 namespace Acorn.Host.Viewer
 
@@ -74,10 +76,17 @@ structure ControlDetail where
   clearDisabled : Option String
   /-- Actual bounded process-local stderr observations. -/
   log : LogStatus
-  /-- Persistent possibility of lost world observations, independent of agent epoch. -/
-  mapPartial : Bool := false
   /-- Observed nonzero child exit; cleared with the process-local log at launch. -/
   abnormalExit : Bool := false
+
+/-- Facts the observer holds about the current run's output, which no supervisor decision
+writes: the stderr reader's report of a refused checkpoint and the possibility that the
+retained map misses observations. -/
+structure ControlObservation where
+  /-- The current process refused its checkpoint, so it saves nothing this run. -/
+  checkpointRefused : Bool := false
+  /-- Persistent possibility of lost world observations, independent of agent epoch. -/
+  mapPartial : Bool := false
 
 /-- Diagnostic presentation is capped independently of the authoritative state.
 The marker makes omitted text explicit; JSON escaping may enlarge each retained
@@ -111,7 +120,8 @@ theorem controlWarning_active (lifecycle : Lifecycle) (detail : ControlDetail)
   simp [controlWarning, active]
 
 /-- Complete control record with state-derived fields and bounded native tail. -/
-def controlTelemetry (lifecycle : Lifecycle) (detail : ControlDetail) : List TelemetryField :=
+def controlTelemetry (lifecycle : Lifecycle) (observed : ControlObservation)
+    (detail : ControlDetail) : List TelemetryField :=
   let tail := (controlTail lifecycle detail).toArray.toVector
   [⟨"ctl", .flag, true⟩,
    ⟨"desired", .text, lifecycle.desiredValue.tag⟩,
@@ -124,14 +134,15 @@ def controlTelemetry (lifecycle : Lifecycle) (detail : ControlDetail) : List Tel
    ⟨"transitionReason", .text, controlDiagnostic detail.reason⟩,
    ⟨"failures", .natural, lifecycle.failureCount⟩,
    ⟨"clearDisabled", .optional .text, detail.clearDisabled.map controlDiagnostic⟩,
-   ⟨"checkpointRefused", .flag, lifecycle.checkpointRefusedValue⟩,
+   ⟨"checkpointRefused", .flag, observed.checkpointRefused⟩,
    ⟨"terminalWarning", .optional .text, controlWarning lifecycle detail⟩,
-   ⟨"mapPartial", .flag, detail.mapPartial⟩,
+   ⟨"mapPartial", .flag, observed.mapPartial⟩,
    ⟨"tail", .array tail.size .text, tail⟩]
 
 /-- Native control emission refuses an oversized complete record before retention. -/
-def controlTelemetryLine (lifecycle : Lifecycle) (detail : ControlDetail) : Except String WireText := do
-  let some line := wireText (emitTelemetryFields (controlTelemetry lifecycle detail))
+def controlTelemetryLine (lifecycle : Lifecycle) (observed : ControlObservation)
+    (detail : ControlDetail) : Except String WireText := do
+  let some line := wireText (emitTelemetryFields (controlTelemetry lifecycle observed detail))
     | throw "control state exceeds the admitted physical-line bound"
   return line
 

@@ -6,7 +6,7 @@ Authors: acorn contributors
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.Buffer
 import Acorn.Host.Viewer.Retry
-import Acorn.Host.Viewer.SupervisedProcess
+import Acorn.Host.Viewer.Supervision
 import Acorn.Host.Viewer.WorldMemory
 
 /-! # Browser execution wiring admission
@@ -98,7 +98,7 @@ private def ownedConstants : List (String × String × Nat) :=
     (constant.name, "Acorn.Host.Viewer.BrowserStore", constant.value)) ++
   [("replayCapacity", "Acorn.Host.Viewer.Buffer", replayCapacity),
     ("failureLimit", "Acorn.Host.Viewer.Retry", failureLimit),
-    ("healthyRunMs", "Acorn.Host.Viewer.SupervisedProcess", healthyRunMs),
+    ("healthyRunMs", "Acorn.Host.Viewer.Supervision", healthyRunMs),
     ("mapSideCapacity", "Acorn.Host.Viewer.WorldMemory", mapSideCapacity)]
 
 /-- The constants table of Appendix A rendered from the Lean owners: its header, its separator
