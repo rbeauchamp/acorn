@@ -315,8 +315,9 @@ theorem outcome_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} 
     · simp [BaselineAttempt.outcome, related.done, taken]
     · simp [BaselineAttempt.outcome, related.world]
 
-/-- With one attempt per goal the next cursor does not depend on the outcome:
-both arms visit the same goals in the same order, whatever either achieves. -/
+/-- With one attempt per goal, the cursor that follows any one boundary does not depend on the
+outcome. That both arms therefore visit the same goals in the same order over a whole campaign is
+argued from this and the loops that repeat the boundary; no theorem states that schedule. -/
 theorem boundary_single_attempt {size : Nat} {plan : CampaignPlan size}
     (single : plan.attempts.toNat = 1) (cursor : CampaignCursor plan) (first second : Bool) :
     atAttemptBoundary cursor first false = atAttemptBoundary cursor second false := by
