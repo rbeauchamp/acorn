@@ -546,8 +546,9 @@ segment of the next charge of a costed definition, or of the part's last charge,
 second part's segments are not yet bounded by constants of the code and its bound is part
 of [obligation 7](mission-contract.md#open-obligations), the executed work bound.
 `DemonRecords.observe` is one such stretch: a loop over the channels of the demons'
-lifetime records, whose trip count depends on the configuration, with no charge point. That is why the claim that every segment is bounded by a constant
-of the code is limited to the first part and to each costed definition's own call. The
+lifetime records, whose trip count depends on the configuration, with no charge point.
+That is why the claim that every segment is bounded by a constant of the code is limited
+to the first part and to each costed definition's own call. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
 is part of obligation 7. The following of the option table
