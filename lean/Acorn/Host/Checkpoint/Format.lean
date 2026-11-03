@@ -499,8 +499,10 @@ def decodeNaturalInto : List UInt8 → List Nat → Option (Nat × List UInt8)
 def decodeNatural (bytes : List UInt8) : Option (Nat × List UInt8) := decodeNaturalInto bytes []
 
 /-- A natural of any size. Reading a natural of `n` bytes takes work quadratic in `n`, since
-each digit rebuilds the accumulated value; bounding the length of a natural belongs with the
-bounds of work and memory (requirement R8 of issue #90). -/
+each digit rebuilds the accumulated value. The image writes the evaluator's exact naturals in
+this format; that those of every reached agent fit their allowance (`naturalAllowance`), which
+bounds their length, is part of obligation 6 of `docs/mission-contract.md`, also part of the
+bounds of work and memory that requirement R8 of issue #90 owes. -/
 def natural : Format Nat := ⟨encodeNatural, decodeNatural⟩
 
 /-- Written digits precede the digits of the natural. -/

@@ -22,9 +22,9 @@ rounding ratios) or the two of each agreement point's ratio. The limit allows
 an image above the limit (`Store.save`), so every file it writes can be read. The proof
 library proves that the save of every state whose evaluator naturals each encode in at most
 `naturalAllowance` bytes fits the limit (`AcornVerif.CurrentCheckpointSize.snapshot_size_bound`).
-That the evaluator's naturals of every reached agent fit the allowance is an open
-obligation, part of the bounds of work and memory (requirement R8 of issue #90). These
-bounds do not promise successful allocation on every machine.
+That the evaluator's naturals of every reached agent fit the allowance is part of obligation 6
+of `docs/mission-contract.md`, also part of the bounds of work and memory that requirement R8 of
+issue #90 owes. These bounds do not promise successful allocation on every machine.
 -/
 namespace Acorn.Checkpoint
 open Features Handcrafted

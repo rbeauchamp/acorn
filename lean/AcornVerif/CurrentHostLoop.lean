@@ -34,9 +34,9 @@ Hypotheses and limits. Each statement is about one attempt, from that attempt's 
 
 - Goal installation is not a kernel step: `Host.Attempt.start` changes the world outside the kernel
   world's transition, so a campaign is not one kernel loop, and each attempt has its own.
-- No theorem joins several boundaries. The loop that repeats a boundary is a library iteration
-  (`Host.runAdmittedCampaign`), and nothing here says that it hands one boundary's progress to the
-  next, or that a campaign ends.
+- The campaign join is obligation 2 of `docs/mission-contract.md`. The loop that repeats a
+  boundary is a library iteration (`Host.runAdmittedCampaign`), and nothing here says that it hands
+  one boundary's progress to the next, or that a campaign ends.
 - Learners, not whole memories, are related: the host's two accounting writes change the lifetime
   observations and the kernel's memory does not receive them. The close keeps the world and the
   carried result, and writes only the attempt's accounting (`close_run`); its final observation

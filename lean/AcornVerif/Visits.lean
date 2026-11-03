@@ -40,8 +40,8 @@ experience-free agent keeping every goal it has met. `AcornVerif.Replay` shows a
 uses its experience solving, on every later visit, every member it has solved once, and,
 under a hypothesis of exploration, more members on one visit than the covering bound.
 
-`BigClass` packages conditions (a) to (c) of the mission contract's contract 2; a class must
-also expose goal information and support exploration before a mission theorem can hold of it.
+`BigClass` packages conditions (a) to (c) of the mission contract's contract 2; they do not supply
+obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
 
 A class that one action sequence solves gives no evidence of learning. `visitScript` reads no
 percept and restarts its count on every visit, with a counter of ⌈log₂ (length + 1)⌉ bits
@@ -400,8 +400,8 @@ visit length: it conceals its goals behind one reference world (b); one action s
 the goals of at most `k` members within a visit, and some finite set holds more than `k`
 members (c); and every member's goal is feasible within a visit (a). These conditions establish
 the comparison bound of `visits_need`. They do not establish that experience supplies
-information from which an agent can learn a solution, which each class's mission theorem needs
-separately. -/
+information from which an agent can learn a solution, which is part of obligation 4 of
+`docs/mission-contract.md`, the goal-information and exploration premises. -/
 structure BigClass (family : WorldClass interface) (goals : family.Goals) (len k : ℕ) where
   /-- The world whose percepts each member shows until its goal is first met. -/
   reference : World interface
