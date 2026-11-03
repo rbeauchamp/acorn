@@ -58,12 +58,14 @@ Day and night, terrain noise and feature hashing sit below them: the agents choo
 
 ## The records and their adequacy
 
-| Record | Subject | Obligations proved | Degenerate check |
+| Record | Subject | Obligations proved | Degenerate check at lean-intent 30fe70d |
 |---|---|---|---|
-| `AcornVerif.Intent.DayCycle.dayCycleFor`, which Acorn declares at the types of its world as `AcornVerif.Intent.DayCycle.dayCycle` | `DayWorld`: day length, night, energy cost and sight, generic in the world's types | O2 (`dayCycle_o2`), O2 before running (`dayCycle_o2Run`), O3 (`dayCycle_o3`), O4 (`dayCycle_o4`), O5 widest and not with equality (`dayCycle_o5_widest`, `dayCycle_not_o5_eq`) | not covered: the subject is a structure of functions, a higher-order subject lean-intent's check does not cover yet |
-| `AcornVerif.Intent.Hash.hashes` | `Hashes`: the pair of functions on three 64-bit words | O2 (`hashes_o2`), O3 (`hashes_o3`), O4 (`hashes_o4`), O5 widest (`hashes_o5_widest`) | not covered: a structure of functions on 64-bit words, neither of which the check covers |
+| `AcornVerif.Intent.DayCycle.dayCycleFor`, which Acorn declares at the types of its world as `AcornVerif.Intent.DayCycle.dayCycle` | `DayWorld`: day length, night, energy cost and sight, generic in the world's types | O2 (`dayCycle_o2`), O2 before running (`dayCycle_o2Run`), O3 (`dayCycle_o3`), O4 (`dayCycle_o4`), O5 widest and not with equality (`dayCycle_o5_widest`, `dayCycle_not_o5_eq`) | not covered: the subject is a structure of functions, a higher-order subject that version's check did not cover |
+| `AcornVerif.Intent.Hash.hashes` | `Hashes`: the pair of functions on three 64-bit words | O2 (`hashes_o2`), O3 (`hashes_o3`), O4 (`hashes_o4`), O5 widest (`hashes_o5_widest`) | not covered: a structure of functions on 64-bit words, neither of which that version's check covered |
 
-The degenerate check also does not cover declared types with value parameters or proof fields, `Fin n`, `UInt64`, or `Std.TreeMap`. All are **not covered**, never passed. The pinned library's `LeanIntent.Declared` handler refuses value parameters and proof fields, and its `LeanIntent.Codes` supplies no code for these three types; the pilot's adequacy and implementation theorems do not extend that coverage.
+At the pilot's pin, lean-intent 30fe70d, the degenerate check also left declared types with value parameters or proof fields, `Fin n`, `UInt64`, and `Std.TreeMap` **not covered**, never passed. These are the pilot's coverage results at that revision.
+
+At lean-intent 9502fbe, the pin Acorn adopts here, `LeanIntent.Degenerate` supplies codes for `Fin (n + 1)` and `UInt64`, and for nondependent function types whose argument and result types have codes. The upgrade adds no degenerate-check verdict proofs (`LeanIntent.Verdicts`) for either Acorn record. Library support therefore does not establish a new coverage result for these records; their adequacy and implementation theorems do not supply those verdicts.
 
 O1 holds of every record by construction.
 The hash record's O2 before running, a pair of functions meeting the whole record, is not proved: see the hash results below.
@@ -126,7 +128,7 @@ In lean-intent:
 
 1. The renderer printed every statement fully elaborated (explicit universes, instances and `@` applications): the day record rendered as 625 lines no owner would read. A printer that keeps the round-trip guarantee while printing with notation and without implicit arguments would make the rendering usable. lean-intent pull request 34, in the commit Acorn pins, made such a readable form the default.
 2. No shape fitted a subject that is a description made of functions with no state (a world's day rules, a pair of hash functions): `.value` asks nothing of O4. lean-intent pull request 34 added a shape for such bundles; adopting it for the two records is a later change.
-3. The degenerate check covered neither subject here (higher-order, 64-bit words); lean-intent pull request 35 extended it to function types and to finite types too large to enumerate.
+3. At lean-intent 30fe70d, the degenerate check covered neither subject here (higher-order, 64-bit words); lean-intent pull request 35 extended it to function types and to finite types too large to enumerate. This pin upgrade does not apply that check to the two Acorn records.
 4. Records generic in a world's types need witness hypotheses for O2, O3 and every possibility; lean-intent pull request 34 added a way to render a generic record at representative types and states what such an instance establishes.
 5. The owners' log answers carried the record's revision and the predicate as text that nothing tied to the Lean terms. lean-intent's confirmation check, which Acorn's merge gate runs since its move to commit 9502fbe, computes both texts from the build and refuses an answer whose texts differ.
 6. Properties over all 64-bit inputs of a mixing function, such as "no fixed rule keeps every spot", have no affordable proof route in a project that forbids evaluation by native code, which leaves O2 before running unproved for such records. lean-intent pull request 34 gave a recipe for constructing a model, in a worked example; adopting it for the hash record is a later change.
