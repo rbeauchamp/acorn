@@ -16,6 +16,13 @@ mutex. A publisher never waits for a network reader. Each subscriber has a
 bounded application queue and one wake promise; promises carry no frame payload.
 One delivery task owns each subscription. Native mutex/promise scheduling and
 allocator overhead remain trusted infrastructure, without a liveness guarantee.
+
+The broadcaster decides nothing about the process lifecycle. It holds a copy of the
+lifecycle that the supervisor's step decided (`Acorn.Host.Viewer.Supervision`), which
+the supervisor installs, with the observer changes that go with it, in one serialized
+operation (`Broadcast.settle`); frame admission reads that copy. The step's state is
+authoritative, and the copy lags it only between a step and the settlement that the
+actor performs next.
 -/
 namespace Acorn.Host.Viewer
 
@@ -34,8 +41,23 @@ private structure IdentityWait where
   frames : Buffer WireText replayCapacity := .empty
   dropped : Nat := 0
 
+/-- An observer change that a supervisor transition installs together with its lifecycle. -/
+inductive Change where
+  /-- The retiring process's buffered output may be lost: mark the retained map partial. -/
+  | loseTail
+  /-- A new process: hold its output until its identity is persisted; it has refused no
+  checkpoint yet. -/
+  | await (generation : UInt64)
+  /-- Refuse the identity the waiting process reported, with every output it holds. -/
+  | refuseIdentity (generation : UInt64)
+  /-- The joined stderr of the last process reported a refused checkpoint. -/
+  | refuseCheckpoint
+  /-- A new run: drop the old run's replay, map, queued frames, pending identity and control. -/
+  | newRun
+
 private structure BroadcastState where
   lifecycle : Lifecycle
+  checkpointRefused : Bool := false
   control : Option WireText := none
   waiting : Option IdentityWait := none
   adopted : Option (UInt64 × CoreIdentity) := none
@@ -90,10 +112,6 @@ def Broadcast.worldForWrite (broadcast : Broadcast) :
     let state ← get
     return (state.worldRevision, state.world)
 
-/-- Missing history remains visible even before the first map allocation. -/
-def Broadcast.worldIsPartial (broadcast : Broadcast) : BaseIO Bool :=
-  broadcast.state.atomically do return (← get).worldPartial
-
 /-- Startup restore cannot replace an observed map or attach a foreign identity. -/
 def Broadcast.restoreWorld (broadcast : Broadcast) {key : MapKey} (memory : WorldMemory key) :
     BaseIO Bool :=
@@ -105,34 +123,6 @@ def Broadcast.restoreWorld (broadcast : Broadcast) {key : MapKey} (memory : Worl
     set { state.withWorld (some ⟨key, memory.markPartial⟩) with worldPartial := true }
     return true
 
-/-- Admit one operator command without permitting replacement of generation state. -/
-def Broadcast.request (broadcast : Broadcast) (command : Command) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    { state with lifecycle := state.lifecycle.request command })
-
-/-- Reserve and install the next generation atomically, before spawning any process. -/
-def Broadcast.reserve (broadcast : Broadcast) (now : UInt64) : BaseIO (Option UInt64) :=
-  broadcast.state.atomically do
-    let state ← get
-    match state.lifecycle.reserve now with
-    | none => return none
-    | some (generation, lifecycle) =>
-      set { state with lifecycle }
-      return some generation
-
-/-- Only the currently reserved generation can report a successful spawn. -/
-def Broadcast.started (broadcast : Broadcast) (generation : UInt64) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    { state with lifecycle := state.lifecycle.started generation })
-
-/-- Supervised stdout remains bounded and unforwarded until its actual identity
-is persisted. This is installed before any reader task receives the pipe. -/
-def Broadcast.awaitIdentity (broadcast : Broadcast) (generation : UInt64) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    if state.lifecycle.phaseValue.accepts generation then
-      { state with waiting := some ⟨generation, none, false, .empty, 0⟩, adopted := none }
-    else state)
-
 /-- The current process may complete attribution while its readers drain,
 without restoring that reaped process's observation rights. -/
 def Broadcast.pendingIdentity (broadcast : Broadcast) : BaseIO (Option (UInt64 × CoreIdentity)) :=
@@ -142,71 +132,11 @@ def Broadcast.pendingIdentity (broadcast : Broadcast) : BaseIO (Option (UInt64 �
     if waiting.refused || !state.lifecycle.ownsIdentity waiting.generation then return none
     return waiting.candidate.map (waiting.generation, ·)
 
-/-- Definitive identity refusal consumes the handshake and suppresses all remaining
-output from that generation while its process remains owned through wind-up/reap. -/
-def Broadcast.refuseIdentity (broadcast : Broadcast) (generation : UInt64) : BaseIO Unit :=
-  broadcast.state.atomically do
-    let state ← get
-    let some waiting := state.waiting | return
-    if waiting.generation != generation then return
-    set { state with
-      lifecycle := state.lifecycle.request .stop
-      waiting := some { waiting with candidate := none, refused := true, frames := .empty } }
-
-/-- Revocation excludes every subsequent publication from the retired process. -/
-def Broadcast.retire (broadcast : Broadcast) (generation : UInt64) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    let next := if state.lifecycle.phaseValue.accepts generation then state.loseWorldTail else state
-    { next with lifecycle := state.lifecycle.retire generation })
-
-/-- Unexpected exit revokes writes, marks possible lost map tails and updates retry policy atomically. -/
-def Broadcast.failed (broadcast : Broadcast) (generation now : UInt64) (healthy : Bool) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    if state.lifecycle.acceptsFailure generation then
-      { state.loseWorldTail with lifecycle := state.lifecycle.failed generation now healthy }
-    else state)
-
-/-- Archive admission is serialized with process retirement and operator commands. -/
-def Broadcast.beginArchive (broadcast : Broadcast) : BaseIO Bool :=
-  broadcast.state.atomically do
-    let state ← get
-    match state.lifecycle.beginArchive with
-    | none => return false
-    | some lifecycle => set { state with lifecycle }; return true
-
-/-- Successful archive completion installs the admitted new identity and clears old replay. -/
-def Broadcast.archived (broadcast : Broadcast) (identity : Identity) : BaseIO Bool :=
-  broadcast.state.atomically do
-    let state ← get
-    match state.lifecycle.archived identity with
-    | none => return false
-    | some lifecycle =>
-      let subscribers := state.subscribers.values.map fun subscriber =>
-        { subscriber with queue := .empty }
-      set { state.withWorld none with
-        lifecycle, replay := .empty, worldPartial := false, control := none, waiting := none, adopted := none
-        subscribers := ⟨subscribers, by simpa [subscribers] using state.subscribers.bounded⟩ }
-      return true
-
-/-- Archive failure reports through the current phase without replacing its generation allocator. -/
-def Broadcast.archiveFailed (broadcast : Broadcast) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    { state with lifecycle := state.lifecycle.archiveFailed })
-
-/-- Only an ongoing archive may revise the intent to install with its replacement. -/
-def Broadcast.replacementIntent (broadcast : Broadcast) (desired : Desired) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    { state with lifecycle := state.lifecycle.replacementIntent desired })
-
 /-- A checkpoint-refusal diagnostic is admitted under its actual process generation. -/
 def Broadcast.refuseCheckpoint (broadcast : Broadcast) (generation : UInt64) : BaseIO Unit :=
   broadcast.state.atomically (modify fun state =>
-    { state with lifecycle := state.lifecycle.refuseCheckpoint generation })
-
-/-- Joined stderr can finish checkpoint attribution before the process slot is released. -/
-def Broadcast.refuseFinalCheckpoint (broadcast : Broadcast) (generation : UInt64) : BaseIO Unit :=
-  broadcast.state.atomically (modify fun state =>
-    { state with lifecycle := state.lifecycle.refuseFinalCheckpoint generation })
+    if state.lifecycle.phaseValue.accepts generation then { state with checkpointRefused := true }
+    else state)
 
 private def Subscriber.enqueue (subscriber : Subscriber) (text : WireText) : Subscriber :=
   match subscriber.queue.offer text with
@@ -233,20 +163,24 @@ private def BroadcastState.observe (state : BroadcastState) (text : WireText) : 
       next.withWorld (some ⟨key, if state.worldPartial then memory.markPartial else memory⟩)
     else next
 
+private def BroadcastState.observation (state : BroadcastState) : ControlObservation :=
+  ⟨state.checkpointRefused, state.worldPartial⟩
+
 /-- The actor calls this only after publishing the selected identity to state.json.
 The candidate, active generation, identity update, control update, queued suffix
-and subscriber wakeups share one serialization boundary. Pending overflow is
-reported to the caller and conservatively marks any retained map partial. -/
+and subscriber wakeups share one serialization boundary. The lifecycle installed is the one
+the supervisor's step decided, with the identity adopted, and the control record encodes it
+with the step's detail. Pending overflow is reported to the caller and conservatively marks
+any retained map partial. -/
 def Broadcast.commitIdentity (broadcast : Broadcast) (generation : UInt64) (actual : CoreIdentity)
-    (encode : Lifecycle → Except String WireText) : BaseIO (Except String Nat) := do
+    (lifecycle : Lifecycle) (detail : ControlDetail) : BaseIO (Except String Nat) := do
   let result : Except String (Nat × List (IO.Promise Unit)) ← broadcast.state.atomically do
     let state ← get
     let some waiting := state.waiting | return .error "no identity handshake is pending"
     if waiting.generation != generation || waiting.candidate != some actual ||
         !state.lifecycle.ownsIdentity generation then return .error "identity handshake is stale"
     let forwarding := state.lifecycle.phaseValue.accepts generation
-    let lifecycle := state.lifecycle.adoptFinalIdentity generation actual.identity
-    let control ← match encode lifecycle with
+    let control ← match controlTelemetryLine lifecycle state.observation detail with
       | .error reason => return .error reason
       | .ok text => pure text
     let changed := state.lifecycle.identityValue != actual.identity
@@ -273,14 +207,39 @@ def Broadcast.commitIdentity (broadcast : Broadcast) (generation : UInt64) (actu
     for wake in wakes do wake.resolve ()
     return .ok dropped
 
-/-- Supervisor records bypass process-generation admission while retaining the same
-serialized subscriber boundary. They have a dedicated current snapshot and do
-not consume process replay slots. The encoder runs against the locked lifecycle. -/
-def Broadcast.publishControl (broadcast : Broadcast) (encode : Lifecycle → Except String WireText) :
-    BaseIO (Except String Unit) := do
+private def BroadcastState.change (state : BroadcastState) : Change → BroadcastState
+  | .loseTail => state.loseWorldTail
+  | .await generation =>
+    { state with
+      waiting := some ⟨generation, none, false, .empty, 0⟩, adopted := none
+      checkpointRefused := false }
+  | .refuseIdentity generation =>
+    match state.waiting with
+    | some waiting =>
+      if waiting.generation == generation then
+        { state with waiting := some { waiting with candidate := none, refused := true, frames := .empty } }
+      else state
+    | none => state
+  | .refuseCheckpoint => { state with checkpointRefused := true }
+  | .newRun =>
+    let subscribers := state.subscribers.values.map fun subscriber =>
+      { subscriber with queue := .empty }
+    { state.withWorld none with
+      replay := .empty, worldPartial := false, control := none, waiting := none, adopted := none
+      checkpointRefused := false
+      subscribers := ⟨subscribers, by simpa [subscribers] using state.subscribers.bounded⟩ }
+
+/-- Install the lifecycle the supervisor's step decided, apply the observer changes that go
+with it, in order, and publish the control record of that lifecycle with the step's detail,
+all in one serialized operation. Supervisor records bypass process-generation admission while
+retaining the same serialized subscriber boundary. They have a dedicated current snapshot and
+do not consume process replay slots; an unchanged record is not sent again. -/
+def Broadcast.settle (broadcast : Broadcast) (lifecycle : Lifecycle) (changes : List Change)
+    (detail : ControlDetail) : BaseIO (Except String Unit) := do
   let result : Except String (List (IO.Promise Unit)) ← broadcast.state.atomically do
-    let state ← get
-    match encode state.lifecycle with
+    let state := { (changes.foldl BroadcastState.change (← get)) with lifecycle }
+    set state
+    match controlTelemetryLine lifecycle state.observation detail with
     | .error reason => return .error reason
     | .ok text =>
       if state.control.map (·.val) == some text.val then return .ok []

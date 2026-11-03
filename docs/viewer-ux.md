@@ -1163,7 +1163,7 @@ Durations are milliseconds unless the name denotes another unit.
 | `Z` | 4 | `Acorn.Host.Viewer.BrowserStore` |
 | `replayCapacity` | 500 | `Acorn.Host.Viewer.Buffer` |
 | `failureLimit` | 3 | `Acorn.Host.Viewer.Retry` |
-| `healthyRunMs` | 30000 | `Acorn.Host.Viewer.SupervisedProcess` |
+| `healthyRunMs` | 30000 | `Acorn.Host.Viewer.Supervision` |
 | `mapSideCapacity` | 4096 | `Acorn.Host.Viewer.WorldMemory` |
 
 ### Research eligibility and launch selection

@@ -86,6 +86,21 @@ def Phase.accepts (phase : Phase) (generation : UInt64) : Bool :=
   | .running current | .stopping current => current == generation
   | .idle | .starting _ | .archiving => false
 
+/-- The comparison with the idle phase is equality with it. -/
+theorem Phase.beq_idle (phase : Phase) : (phase == .idle) = true ↔ phase = .idle := by
+  cases phase with
+  | idle => exact ⟨fun _ => rfl, fun _ => rfl⟩
+  | starting _ | running _ | stopping _ | archiving =>
+    exact ⟨fun same => (nomatch same), fun same => (nomatch same)⟩
+
+/-- The comparison with the archiving phase is equality with it. -/
+theorem Phase.beq_archiving (phase : Phase) :
+    (phase == .archiving) = true ↔ phase = .archiving := by
+  cases phase with
+  | archiving => exact ⟨fun _ => rfl, fun _ => rfl⟩
+  | idle | starting _ | running _ | stopping _ =>
+    exact ⟨fun same => (nomatch same), fun same => (nomatch same)⟩
+
 /-- Complete process intent, generation allocator and durable identity state. -/
 structure Lifecycle where
   private mk ::
@@ -99,14 +114,16 @@ structure Lifecycle where
   private lastGeneration : UInt64 := 0
   /-- Clear waits for retirement before any filesystem effect. -/
   private clearPending : Option Desired := none
-  /-- A current-process refusal disarms checkpoint writes for its run. -/
-  private checkpointRefused : Bool := false
   /-- Failure budget and elapsed backoff are enforced before each reservation. -/
   private retry : Retry := .initial
+  /-- An exhausted restart budget leaves the operator's intent stopped, so no lifecycle
+  value holds an exhausted budget while it intends to run. -/
+  private exhaustedStopped : retry.exhausted = true → desired = .stopped
 
 /-- Native startup has no live process or inherited generation capability. -/
 def Lifecycle.initial (identity : Identity) (desired : Desired) : Lifecycle :=
-  { identity, desired }
+  { identity, desired, exhaustedStopped := fun exhausted =>
+      absurd exhausted (by simp [Retry.initial_not_exhausted]) }
 
 /-- Read-only durable identity for publication and frame admission. -/
 def Lifecycle.identityValue (state : Lifecycle) : Identity := state.identity
@@ -117,11 +134,28 @@ def Lifecycle.phaseValue (state : Lifecycle) : Phase := state.phase
 /-- Read-only current operator intent. -/
 def Lifecycle.desiredValue (state : Lifecycle) : Desired := state.desired
 
-/-- Read-only current-process checkpoint refusal indicator. -/
-def Lifecycle.checkpointRefusedValue (state : Lifecycle) : Bool := state.checkpointRefused
+/-- Read-only last reserved generation. -/
+def Lifecycle.lastGenerationValue (state : Lifecycle) : UInt64 := state.lastGeneration
+
+/-- Read-only intent that a pending Clear restores after archival. -/
+def Lifecycle.clearPendingValue (state : Lifecycle) : Option Desired := state.clearPending
+
+/-- Whether the restart budget is exhausted. -/
+def Lifecycle.exhausted (state : Lifecycle) : Bool := state.retry.exhausted
+
+/-- **An exhausted restart budget leaves the run stopped.** Every lifecycle value carries it,
+so no transition can intend to run on a budget the failure limit has used up. -/
+theorem Lifecycle.exhausted_stopped (state : Lifecycle) (exhausted : state.exhausted = true) :
+    state.desiredValue = .stopped :=
+  state.exhaustedStopped exhausted
 
 /-- Read-only consecutive-failure count for control telemetry. -/
 def Lifecycle.failureCount (state : Lifecycle) : Nat := state.retry.count
+
+/-- Exhaustion is exactly a failure count of three, for every lifecycle value. -/
+theorem Lifecycle.exhausted_iff (state : Lifecycle) :
+    state.exhausted = true ↔ state.failureCount = 3 := by
+  simp [exhausted, failureCount, Retry.exhausted, Retry.count, failureLimit]
 
 /-- Clear's retained post-archive intent is visible only after process retirement. -/
 def Lifecycle.archiveIntent (state : Lifecycle) : Option Desired :=
@@ -135,14 +169,21 @@ def Lifecycle.replacementIntent (state : Lifecycle) (desired : Desired) : Lifecy
 /-- Pure command handling never starts a second process or archives a live one. -/
 def Lifecycle.request (state : Lifecycle) (command : Command) : Lifecycle :=
   match command with
-  | .start => { state with desired := .running, clearPending := none, retry := .initial }
+  | .start =>
+    { state with
+      desired := .running, clearPending := none, retry := .initial
+      exhaustedStopped := fun exhausted =>
+        absurd exhausted (by simp [Retry.initial_not_exhausted]) }
   | .stop =>
-    { state with desired := .stopped, clearPending := none, phase := match state.phase with
+    { state with
+      desired := .stopped, clearPending := none, exhaustedStopped := fun _ => rfl
+      phase := match state.phase with
         | .running generation => .stopping generation
         | phase => phase }
   | .clear =>
     { state with
       desired := .stopped, clearPending := state.clearPending.or (some state.desired)
+      exhaustedStopped := fun _ => rfl
       phase := match state.phase with
         | .running generation => .stopping generation
         | phase => phase }
@@ -159,7 +200,7 @@ def Lifecycle.reserve (state : Lifecycle) (now : UInt64) : Option (UInt64 × Lif
 def Lifecycle.started (state : Lifecycle) (generation : UInt64) : Lifecycle :=
   if state.phase == .starting generation then
     { state with phase := if state.desired == .stopped || state.clearPending.isSome then
-        .stopping generation else .running generation, checkpointRefused := false }
+        .stopping generation else .running generation }
   else state
 
 /-- Only a failed spawn or unexpectedly exited running process consumes the restart budget. -/
@@ -172,7 +213,8 @@ def Lifecycle.failed (state : Lifecycle) (generation now : UInt64) (healthy : Bo
     let retry := state.retry.failed now healthy
     { state with
       phase := .idle, retry
-      desired := if retry.exhausted then .stopped else state.desired }
+      desired := if retry.exhausted then .stopped else state.desired
+      exhaustedStopped := fun exhausted => by simp [exhausted] }
   else state
 
 /-- Reaping revokes observation rights before any later filesystem action. -/
@@ -196,24 +238,18 @@ def Lifecycle.archived (state : Lifecycle) (identity : Identity) : Option Lifecy
       phase := .idle
       desired := state.clearPending.getD state.desired
       clearPending := none
-      checkpointRefused := false
-      retry := .initial }
+      retry := .initial
+      exhaustedStopped := fun exhausted =>
+        absurd exhausted (by simp [Retry.initial_not_exhausted]) }
   else none
 
 /-- Failed archival leaves the old identity installed and disables automatic restart. -/
 def Lifecycle.archiveFailed (state : Lifecycle) : Lifecycle :=
   if state.phase == .archiving then
-    { state with phase := .idle, desired := .stopped, clearPending := none }
+    { state with
+      phase := .idle, desired := .stopped, clearPending := none
+      exhaustedStopped := fun _ => rfl }
   else state
-
-/-- Late checkpoint refusal text cannot disarm another process's checkpoint writes. -/
-def Lifecycle.refuseCheckpoint (state : Lifecycle) (generation : UInt64) : Lifecycle :=
-  if state.phase.accepts generation then { state with checkpointRefused := true } else state
-
-/-- Only the active process can install its checkpoint-selected logical identity.
-The broadcaster separately freezes the first admitted identity for this generation. -/
-def Lifecycle.adoptIdentity (state : Lifecycle) (generation : UInt64) (identity : Identity) : Lifecycle :=
-  if state.phase.accepts generation then { state with identity } else state
 
 /-- The last reserved generation retains identity attribution while its readers
 drain in idle phase. This does not confer observation-forwarding rights. -/
@@ -248,20 +284,6 @@ theorem Lifecycle.ownsIdentity_iff (state : Lifecycle) (generation : UInt64) :
     have closed : (Phase.archiving == Phase.idle) = false := rfl
     simp [Phase.accepts, closed]
 
-/-- Final stderr attribution may record refusal only while the generation still owns identity. -/
-def Lifecycle.refuseFinalCheckpoint (state : Lifecycle) (generation : UInt64) : Lifecycle :=
-  if state.ownsIdentity generation then { state with checkpointRefused := true } else state
-
-/-- Final refusal records a fault without reviving observation or process ownership. -/
-theorem Lifecycle.finalRefusal_phase (state : Lifecycle) (generation : UInt64) :
-    (state.refuseFinalCheckpoint generation).phase = state.phase := by
-  simp [refuseFinalCheckpoint]; split <;> rfl
-
-/-- A generation that no longer owns identity cannot alter checkpoint status. -/
-theorem Lifecycle.finalRefusal_stale (state : Lifecycle) (generation : UInt64)
-    (stale : state.ownsIdentity generation = false) :
-    state.refuseFinalCheckpoint generation = state := by simp [refuseFinalCheckpoint, stale]
-
 /-- Final pipe drain may complete identity attribution before any subsequent
 reservation or archive. Frame forwarding remains governed by `Phase.accepts`. -/
 def Lifecycle.adoptFinalIdentity (state : Lifecycle) (generation : UInt64) (identity : Identity) : Lifecycle :=
@@ -271,21 +293,6 @@ def Lifecycle.adoptFinalIdentity (state : Lifecycle) (generation : UInt64) (iden
 theorem Lifecycle.finalIdentity_phase (state : Lifecycle) (generation : UInt64) (identity : Identity) :
     (state.adoptFinalIdentity generation identity).phase = state.phase := by
   simp [adoptFinalIdentity]; split <;> rfl
-
-/-- A retired process cannot change durable identity. -/
-theorem Lifecycle.stale_identity (state : Lifecycle) (generation : UInt64) (identity : Identity)
-    (stale : state.phase.accepts generation = false) :
-    state.adoptIdentity generation identity = state := by simp [adoptIdentity, stale]
-
-/-- Generation admission wraps the entire observer mutation, not just a preliminary read. -/
-def Lifecycle.admit {α : Type} (state : Lifecycle) (generation : UInt64)
-    (value : α) (write : α → α) : α :=
-  if state.phase.accepts generation then write value else value
-
-/-- Every stale writer preserves the complete observer state. -/
-theorem Lifecycle.stale_preserves {α : Type} (state : Lifecycle) (generation : UInt64)
-    (value : α) (write : α → α) (stale : state.phase.accepts generation = false) :
-    state.admit generation value write = value := by simp [admit, stale]
 
 /-- The retiring generation can no longer write, regardless of its prior phase. -/
 theorem Lifecycle.retire_revokes (state : Lifecycle) (generation : UInt64) :
@@ -303,13 +310,8 @@ theorem Lifecycle.request_identity (state : Lifecycle) (command : Command) :
 /-- Repeated Clear preserves the original post-archive intent and pending retirement. -/
 theorem Lifecycle.clear_idempotent (state : Lifecycle) :
     (state.request .clear).request .clear = state.request .clear := by
-  rcases state with ⟨identity, phase, desired, generation, pending, refused, retry⟩
+  rcases state with ⟨identity, phase, desired, generation, pending, retry, sound⟩
   cases phase <;> cases pending <;> rfl
-
-/-- A late stderr refusal cannot alter current state. -/
-theorem Lifecycle.stale_refusal (state : Lifecycle) (generation : UInt64)
-    (stale : state.phase.accepts generation = false) :
-    state.refuseCheckpoint generation = state := by simp [refuseCheckpoint, stale]
 
 /-- A successfully started process retains the durable run identity. -/
 theorem Lifecycle.started_identity (state : Lifecycle) (generation : UInt64) :
@@ -319,5 +321,239 @@ theorem Lifecycle.started_identity (state : Lifecycle) (generation : UInt64) :
 /-- An archiving owner accepts no generation, including an old buffered tail. -/
 theorem Phase.archiving_rejects (generation : UInt64) :
     Phase.archiving.accepts generation = false := rfl
+
+/-- Whether the restart budget admits a launch at this instant. -/
+def Lifecycle.retryReady (state : Lifecycle) (now : UInt64) : Bool := state.retry.ready now
+
+/-! ## The generation allocator
+
+Only a reservation moves the allocator, and it moves it up by one. -/
+
+theorem Lifecycle.request_lastGeneration (state : Lifecycle) (command : Command) :
+    (state.request command).lastGenerationValue = state.lastGenerationValue := by
+  cases command <;> rfl
+
+theorem Lifecycle.started_lastGeneration (state : Lifecycle) (generation : UInt64) :
+    (state.started generation).lastGenerationValue = state.lastGenerationValue := by
+  unfold started lastGenerationValue; split <;> rfl
+
+theorem Lifecycle.failed_lastGeneration (state : Lifecycle) (generation now : UInt64)
+    (healthy : Bool) :
+    (state.failed generation now healthy).lastGenerationValue = state.lastGenerationValue := by
+  unfold failed lastGenerationValue; split <;> rfl
+
+theorem Lifecycle.retire_lastGeneration (state : Lifecycle) (generation : UInt64) :
+    (state.retire generation).lastGenerationValue = state.lastGenerationValue := by
+  unfold retire lastGenerationValue; split <;> rfl
+
+theorem Lifecycle.archiveFailed_lastGeneration (state : Lifecycle) :
+    state.archiveFailed.lastGenerationValue = state.lastGenerationValue := by
+  unfold archiveFailed lastGenerationValue; split <;> rfl
+
+theorem Lifecycle.replacementIntent_lastGeneration (state : Lifecycle) (desired : Desired) :
+    (state.replacementIntent desired).lastGenerationValue = state.lastGenerationValue := by
+  unfold replacementIntent lastGenerationValue; split <;> rfl
+
+theorem Lifecycle.adoptFinalIdentity_lastGeneration (state : Lifecycle) (generation : UInt64)
+    (identity : Identity) :
+    (state.adoptFinalIdentity generation identity).lastGenerationValue =
+      state.lastGenerationValue := by
+  unfold adoptFinalIdentity lastGenerationValue; split <;> rfl
+
+theorem Lifecycle.beginArchive_lastGeneration (state next : Lifecycle)
+    (begun : state.beginArchive = some next) :
+    next.lastGenerationValue = state.lastGenerationValue := by
+  unfold beginArchive at begun
+  split at begun
+  · cases begun; rfl
+  · cases begun
+
+theorem Lifecycle.archived_lastGeneration (state next : Lifecycle) (identity : Identity)
+    (installed : state.archived identity = some next) :
+    next.lastGenerationValue = state.lastGenerationValue := by
+  unfold archived at installed
+  split at installed
+  · cases installed; rfl
+  · cases installed
+
+/-- **A reservation takes the next generation of an idle lifecycle that intends to run, has no
+Clear pending and whose restart budget admits a launch now.** The generation it returns is
+one more than the last, as natural numbers, so no generation is reserved twice, and the
+lifecycle it returns is starting that generation. -/
+theorem Lifecycle.reserve_some (state next : Lifecycle) (now generation : UInt64)
+    (reserved : state.reserve now = some (generation, next)) :
+    state.phaseValue = .idle ∧ state.desiredValue = .running ∧ state.clearPendingValue = none ∧
+      state.retryReady now = true ∧
+      generation.toNat = state.lastGenerationValue.toNat + 1 ∧
+      next.lastGenerationValue = generation ∧ next.phaseValue = .starting generation ∧
+      next.desiredValue = state.desiredValue ∧ next.clearPendingValue = state.clearPendingValue := by
+  unfold reserve at reserved
+  split at reserved
+  · rename_i admitted
+    simp only [Option.some.injEq, Prod.mk.injEq] at reserved
+    obtain ⟨rfl, rfl⟩ := reserved
+    simp only [Bool.and_eq_true] at admitted
+    obtain ⟨⟨⟨⟨idle, running⟩, pending⟩, notLast⟩, ready⟩ := admitted
+    have idle : state.phase = .idle := (Phase.beq_idle _).mp idle
+    have running : state.desired = .running := by
+      revert running; cases state.desired <;> intro running <;> first | rfl | nomatch running
+    have pending : state.clearPending = none := Option.isNone_iff_eq_none.mp pending
+    have notLast : state.lastGeneration ≠ 18446744073709551615 := by simpa using notLast
+    have below : state.lastGeneration.toNat < 18446744073709551615 := by
+      have bound := state.lastGeneration.toNat_lt_size
+      have differs : state.lastGeneration.toNat ≠ 18446744073709551615 := fun same =>
+        notLast (UInt64.toNat_inj.mp (by simpa using same))
+      change state.lastGeneration.toNat < 18446744073709551616 at bound
+      omega
+    refine ⟨idle, running, pending, ready, ?_, rfl, rfl, rfl, rfl⟩
+    simp only [lastGenerationValue, UInt64.toNat_add, UInt64.toNat_one]
+    change (state.lastGeneration.toNat + 1) % 18446744073709551616 = _
+    omega
+  · cases reserved
+
+/-- A queued intent revision keeps the installed identity. -/
+theorem Lifecycle.replacementIntent_identity (state : Lifecycle) (desired : Desired) :
+    (state.replacementIntent desired).identityValue = state.identityValue := by
+  unfold replacementIntent identityValue; split <;> rfl
+
+/-- An installed replacement holds its identity, whose run differs from the run it replaced. -/
+theorem Lifecycle.archived_identity (state next : Lifecycle) (identity : Identity)
+    (installed : state.archived identity = some next) :
+    next.identityValue = identity ∧ identity.run ≠ state.identityValue.run := by
+  unfold archived at installed
+  split at installed
+  · rename_i admitted
+    cases installed
+    simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at admitted
+    exact ⟨rfl, admitted.2⟩
+  · cases installed
+
+/-! ## Clear's absence
+
+A lifecycle with no Clear pending and not archiving keeps both under every transition except a
+Clear request, and offers no archival. -/
+
+/-- No Clear is pending and no archival is under way. -/
+def Lifecycle.Clearless (state : Lifecycle) : Prop :=
+  state.clearPending = none ∧ state.phase ≠ .archiving
+
+theorem Lifecycle.ite_clearless (condition : Prop) [Decidable condition] (left right : Lifecycle) :
+    (if condition then left else right).Clearless ↔
+      (condition → left.Clearless) ∧ (¬condition → right.Clearless) := by
+  by_cases holds : condition <;> simp [holds]
+
+theorem Lifecycle.initial_clearless (identity : Identity) (desired : Desired) :
+    (Lifecycle.initial identity desired).Clearless :=
+  ⟨rfl, nofun⟩
+
+theorem Lifecycle.request_clearless (state : Lifecycle) (command : Command)
+    (notClear : command ≠ .clear) (clearless : state.Clearless) :
+    (state.request command).Clearless := by
+  obtain ⟨none, notArchiving⟩ := clearless
+  cases command with
+  | clear => exact absurd rfl notClear
+  | start => exact ⟨rfl, notArchiving⟩
+  | stop =>
+    refine ⟨rfl, ?_⟩
+    show (match state.phase with
+      | .running generation => Phase.stopping generation
+      | phase => phase) ≠ .archiving
+    split <;> simp_all
+
+theorem Lifecycle.reserve_clearless (state next : Lifecycle) (now generation : UInt64)
+    (reserved : state.reserve now = some (generation, next)) (clearless : state.Clearless) :
+    next.Clearless := by
+  unfold reserve at reserved
+  split at reserved
+  · simp only [Option.some.injEq, Prod.mk.injEq] at reserved
+    obtain ⟨rfl, rfl⟩ := reserved
+    exact ⟨clearless.1, nofun⟩
+  · cases reserved
+
+theorem Lifecycle.started_clearless (state : Lifecycle) (generation : UInt64)
+    (clearless : state.Clearless) : (state.started generation).Clearless := by
+  unfold started
+  split
+  · refine ⟨clearless.1, ?_⟩
+    show (if state.desired == .stopped || state.clearPending.isSome then
+      Phase.stopping generation else .running generation) ≠ .archiving
+    split <;> nofun
+  · exact clearless
+
+theorem Lifecycle.failed_clearless (state : Lifecycle) (generation now : UInt64)
+    (healthy : Bool) (clearless : state.Clearless) :
+    (state.failed generation now healthy).Clearless := by
+  unfold failed
+  split
+  · exact ⟨clearless.1, nofun⟩
+  · exact clearless
+
+theorem Lifecycle.retire_clearless (state : Lifecycle) (generation : UInt64)
+    (clearless : state.Clearless) : (state.retire generation).Clearless := by
+  unfold retire
+  split
+  · exact ⟨clearless.1, nofun⟩
+  · exact clearless
+
+theorem Lifecycle.archiveFailed_clearless (state : Lifecycle) (clearless : state.Clearless) :
+    state.archiveFailed.Clearless := by
+  unfold archiveFailed
+  split
+  · exact ⟨rfl, nofun⟩
+  · exact clearless
+
+theorem Lifecycle.replacementIntent_clearless (state : Lifecycle) (desired : Desired)
+    (clearless : state.Clearless) : (state.replacementIntent desired).Clearless := by
+  unfold replacementIntent
+  split
+  · rename_i archiving
+    exact absurd ((Phase.beq_archiving _).mp archiving) clearless.2
+  · exact clearless
+
+theorem Lifecycle.adoptFinalIdentity_clearless (state : Lifecycle) (generation : UInt64)
+    (identity : Identity) (clearless : state.Clearless) :
+    (state.adoptFinalIdentity generation identity).Clearless := by
+  unfold adoptFinalIdentity
+  split
+  · exact clearless
+  · exact clearless
+
+theorem Lifecycle.clearless_archiveIntent (state : Lifecycle) (clearless : state.Clearless) :
+    state.archiveIntent = none := by
+  unfold archiveIntent
+  split
+  · exact clearless.1
+  · rfl
+
+theorem Lifecycle.clearless_beginArchive (state : Lifecycle) (clearless : state.Clearless) :
+    state.beginArchive = none := by
+  unfold beginArchive
+  simp [clearless.1]
+
+theorem Lifecycle.clearless_archived (state : Lifecycle) (identity : Identity)
+    (clearless : state.Clearless) : state.archived identity = none := by
+  unfold archived
+  have notArchiving : (state.phase == .archiving) = false :=
+    Bool.eq_false_iff.mpr fun same => clearless.2 ((Phase.beq_archiving _).mp same)
+  simp [notArchiving]
+
+/-- A Stop or Clear request moves a running generation to stopping. -/
+theorem Lifecycle.request_stopping (state : Lifecycle) (command : Command)
+    (generation : UInt64) (stopping : command ≠ .start)
+    (running : state.phaseValue = .running generation) :
+    (state.request command).phaseValue = .stopping generation := by
+  unfold phaseValue at running
+  cases command with
+  | start => exact absurd rfl stopping
+  | stop =>
+    show (match state.phase with
+      | .running generation => Phase.stopping generation
+      | phase => phase) = _
+    rw [running]
+  | clear =>
+    show (match state.phase with
+      | .running generation => Phase.stopping generation
+      | phase => phase) = _
+    rw [running]
 
 end Acorn.Host.Viewer

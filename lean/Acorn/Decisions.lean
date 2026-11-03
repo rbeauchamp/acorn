@@ -304,6 +304,17 @@ report of the definitions that have no contract is work of Regula
 * The definition is the comparison of an instance that a `deriving` clause generated.
 * The definition is the default value of a structure field that is not a function, which is
   stored data as the field is.
+* The definition is a transition, test or classifier of the viewer supervisor whose properties
+  the supervisor's own theorems state, in `Host.Viewer.Lifecycle` and `Host.Viewer.Supervision`:
+  `Host.Viewer.Lifecycle.reserve`, `Host.Viewer.Lifecycle.beginArchive`,
+  `Host.Viewer.Lifecycle.archived`, `Host.Viewer.Lifecycle.archiveIntent`,
+  `Host.Viewer.Lifecycle.exhausted`, `Host.Viewer.Lifecycle.retryReady`,
+  `Host.Viewer.PersistedState.launch` and the classifiers `Host.Viewer.Pending.writes`,
+  `Host.Viewer.Pending.clears` and `Host.Viewer.Pending.serves`. Those theorems are the evidence
+  of what the supervisor's step decides, and the ownership audit requires by name the ones that
+  state what an accepted result holds (`Host.Viewer.Lifecycle.reserve_some`,
+  `Host.Viewer.Lifecycle.archived_identity`, `Host.Viewer.PersistedState.launch_identity`).
+  Contracts with a kind for them are remaining work.
 * The definition belongs to the proof library `AcornVerif`, which has no executable. Its
   theorems relate it to the executing definitions, and no claim rests on running it. The
   interaction kernel and the world classes (`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state

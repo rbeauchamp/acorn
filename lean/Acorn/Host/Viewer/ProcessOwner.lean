@@ -28,10 +28,6 @@ private inductive CommandInput where
   | ready (handle : IO.FS.Handle)
   | requested
 
-private def CommandInput.wasRequested : CommandInput → Bool
-  | .ready _ => false
-  | .requested => true
-
 private structure OwnedChild where
   generation : UInt64
   child : IO.Process.Child { corePipes with stdin := .null }
@@ -110,7 +106,7 @@ inductive ProcessPoll where
   /-- The runtime reports a still-running child. -/
   | running (uptimeMs : Nat)
   /-- Successful reaping is the only result that releases the live slot. -/
-  | exited (code : UInt32) (uptimeMs : Nat) (stopRequested : Bool)
+  | exited (code : UInt32) (uptimeMs : Nat)
   /-- The native wait failed; process ownership remains held. -/
   | refused (reason : String)
 
@@ -128,7 +124,7 @@ def ProcessOwner.poll (owner : ProcessOwner) (generation : UInt64) : IO ProcessP
         return .running (now - live.started)
       | some code =>
         set { state with live := none }
-        return .exited code (now - live.started) live.input.wasRequested
+        return .exited code (now - live.started)
     catch error => return .refused error.toString
 
 end Acorn.Host.Viewer

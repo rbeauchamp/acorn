@@ -11,9 +11,11 @@ import Acorn.Host.Viewer.LogPump
 # Supervisor control-state emission
 
 Actual phase, desired intent, identity and retry count come from the lifecycle
-owner. Transition reasons and native stderr remain observations supplied by the
-supervisor. Text passes through the shared JSON string encoder, and the final
-physical record passes through the same byte and delimiter admission as frames.
+the supervisor's step decided. Transition reasons and native stderr come with the
+step's detail. Whether the current process refused its checkpoint and whether the
+retained map may miss observations are the observer's own facts. Text passes
+through the shared JSON string encoder, and the final physical record passes
+through the same byte and delimiter admission as frames.
 -/
 namespace Acorn.Host.Viewer
 
@@ -74,10 +76,17 @@ structure ControlDetail where
   clearDisabled : Option String
   /-- Actual bounded process-local stderr observations. -/
   log : LogStatus
-  /-- Persistent possibility of lost world observations, independent of agent epoch. -/
-  mapPartial : Bool := false
   /-- Observed nonzero child exit; cleared with the process-local log at launch. -/
   abnormalExit : Bool := false
+
+/-- Facts the observer holds about the current run's output, which no supervisor decision
+writes: the stderr reader's report of a refused checkpoint and the possibility that the
+retained map misses observations. -/
+structure ControlObservation where
+  /-- The current process refused its checkpoint, so it saves nothing this run. -/
+  checkpointRefused : Bool := false
+  /-- Persistent possibility of lost world observations, independent of agent epoch. -/
+  mapPartial : Bool := false
 
 /-- Diagnostic presentation is capped independently of the authoritative state.
 The marker makes omitted text explicit; JSON escaping may enlarge each retained
@@ -85,6 +94,12 @@ character, but no unbounded native error can consume the physical frame budget. 
 def controlDiagnostic (text : String) : String :=
   let retained := text.toList.take 1024
   String.ofList retained ++ if text.length > 1024 then " [truncated]" else ""
+
+/-- Explain the exhausted restart budget for every failure route at publication. Keep the
+capped cause and append the explanation afterwards, so truncation cannot hide exhaustion. -/
+def controlReason (lifecycle : Lifecycle) (detail : ControlDetail) : String :=
+  controlDiagnostic detail.reason ++ if lifecycle.exhausted then
+    s!" — gave up after {failureLimit} failed starts in a row" else ""
 
 /-- Only the six newest retained, valid UTF-8 stderr lines enter a stopped
 control frame. Invalid encoding is explicitly represented as a refusal. -/
@@ -111,27 +126,45 @@ theorem controlWarning_active (lifecycle : Lifecycle) (detail : ControlDetail)
   simp [controlWarning, active]
 
 /-- Complete control record with state-derived fields and bounded native tail. -/
-def controlTelemetry (lifecycle : Lifecycle) (detail : ControlDetail) : List TelemetryField :=
+def controlTelemetry (lifecycle : Lifecycle) (observed : ControlObservation)
+    (detail : ControlDetail) : List TelemetryField :=
   let tail := (controlTail lifecycle detail).toArray.toVector
   [⟨"ctl", .flag, true⟩,
    ⟨"desired", .text, lifecycle.desiredValue.tag⟩,
    ⟨"actual", .text, lifecycle.phaseValue.controlTag⟩,
-   ⟨"reason", .text, if lifecycle.phaseValue == .idle then controlDiagnostic detail.reason else ""⟩,
+   ⟨"reason", .text, if lifecycle.phaseValue == .idle then controlReason lifecycle detail else ""⟩,
    ⟨"seed", .natural, lifecycle.identityValue.seed.toNat⟩,
    ⟨"runId", .text, runHex lifecycle.identityValue.run⟩,
    ⟨"agentEpoch", .natural, lifecycle.identityValue.agentEpoch.toNat⟩,
    ⟨"transition", .text, detail.transition.tag⟩,
-   ⟨"transitionReason", .text, controlDiagnostic detail.reason⟩,
+   ⟨"transitionReason", .text, controlReason lifecycle detail⟩,
    ⟨"failures", .natural, lifecycle.failureCount⟩,
    ⟨"clearDisabled", .optional .text, detail.clearDisabled.map controlDiagnostic⟩,
-   ⟨"checkpointRefused", .flag, lifecycle.checkpointRefusedValue⟩,
+   ⟨"checkpointRefused", .flag, observed.checkpointRefused⟩,
    ⟨"terminalWarning", .optional .text, controlWarning lifecycle detail⟩,
-   ⟨"mapPartial", .flag, detail.mapPartial⟩,
+   ⟨"mapPartial", .flag, observed.mapPartial⟩,
    ⟨"tail", .array tail.size .text, tail⟩]
 
+/-- **Every published reason explains exhausted retries without losing the capped cause.**
+For every lifecycle, observation and detail, the fields consumed by the control encoder append
+the UX-24 sentence exactly at three failures. The stopped reason remains idle-only; the
+transition reason is always present. This covers exits and spawn refusals through their shared
+publication boundary, without assuming the text or length of their cause. -/
+theorem controlTelemetry_reasons (lifecycle : Lifecycle) (observed : ControlObservation)
+    (detail : ControlDetail) :
+    let reason := controlDiagnostic detail.reason ++ if lifecycle.failureCount = 3 then
+      " — gave up after 3 failed starts in a row" else ""
+    (controlTelemetry lifecycle observed detail)[3]? =
+      some ⟨"reason", .text, if lifecycle.phaseValue = .idle then reason else ""⟩ ∧
+    (controlTelemetry lifecycle observed detail)[8]? =
+      some ⟨"transitionReason", .text, reason⟩ := by
+  simp [controlTelemetry, controlReason, Lifecycle.exhausted_iff, Phase.beq_idle, failureLimit]
+  constructor <;> rfl
+
 /-- Native control emission refuses an oversized complete record before retention. -/
-def controlTelemetryLine (lifecycle : Lifecycle) (detail : ControlDetail) : Except String WireText := do
-  let some line := wireText (emitTelemetryFields (controlTelemetry lifecycle detail))
+def controlTelemetryLine (lifecycle : Lifecycle) (observed : ControlObservation)
+    (detail : ControlDetail) : Except String WireText := do
+  let some line := wireText (emitTelemetryFields (controlTelemetry lifecycle observed detail))
     | throw "control state exceeds the admitted physical-line bound"
   return line
 
