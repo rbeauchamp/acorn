@@ -6,7 +6,7 @@
 # push. Its Test step runs scripts/gate.sh in a checkout of the exact commit it validates, holding
 # only tracked files. The script provisions the pinned dependencies and runs every check the
 # verification workflows ran: both stages of ./scripts/verify.sh and the Regula audit
-# ./scripts/lean.sh lint. Any failing check fails the step.
+# ./scripts/regula.sh. Any failing check fails the step.
 no_ci: true
 
 commands:

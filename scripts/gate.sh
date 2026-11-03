@@ -31,16 +31,16 @@ step 'provisioning the pinned dependencies'
 (
   dependency_git
   cd lean
-  # Lake decides whether Mathlib and Regula's tools need provisioning: with --no-build
-  # it exits 3 unless every artifact and trace of these targets is current.
+  # Lake decides whether Mathlib and Regula's lint driver need provisioning: with
+  # --no-build it exits 3 unless every artifact and trace of these targets is current.
   current=0
-  lake build --no-build Mathlib regula/lint regula/axiomGate || current=$?
+  lake build --no-build Mathlib regula/lint || current=$?
   case "$current" in
     0) ;;
     3)
       # The upstream cache can omit modules; Lake compiles only those it lacks.
       lake exe cache get
-      lake build Mathlib regula/lint regula/axiomGate ;;
+      lake build Mathlib regula/lint ;;
     *) exit "$current" ;;
   esac
   # FloatLib and lean-intent publish no build cache. This builds the modules the proof bridge
@@ -59,7 +59,9 @@ step 'provisioned'
 [[ "$provision_only" == 0 ]] || exit 0
 
 # The two stages of ordinary verification, each under its own 360-second deadline, then
-# the Regula audit. The audit runs even when verification fails, so one run reports both.
+# the Regula audit (scripts/regula.sh: Regula's rules and Acorn's kernel replay in the place of
+# lake check, not Regula's proof verdict as its release defines it) on its own build with no
+# deadline. The audit runs even when verification fails, so one run reports both.
 verified=0
 step 'verification, stage one'
 if ./scripts/verify.sh build-executing; then
@@ -70,7 +72,7 @@ else
 fi
 step "verification exited $verified; Regula audit"
 audited=0
-./scripts/lean.sh lint || audited=$?
+( dependency_git; ./scripts/regula.sh ) || audited=$?
 step "Regula audit exited $audited"
 [[ "$verified" == 0 && "$audited" == 0 ]] || exit 1
 step 'every merge check passed'

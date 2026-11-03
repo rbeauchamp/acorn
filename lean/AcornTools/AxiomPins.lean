@@ -75,24 +75,21 @@ import AcornVerif.Endurance
 /-!
 # Axiom audit
 
-The Regula audit of the claimed libraries admits only dependencies on `propext`,
+The Regula audit of the claimed modules admits only dependencies on `propext`,
 `Classical.choice` and `Quot.sound`, for every declaration, and refuses a
 project-owned axiom and a native proof. Source admission refuses the words. The
 guards below pin the exact dependency sets of selected named theorems.
 
-The guards live in this tool module, outside the libraries the Regula audit claims, because
-Regula's RG2003 refuses a `#guard_msgs` in a claimed module: it drops the messages of the
-command it runs, which the audit reads. Verification builds every discovered module, this
-one included, so a changed dependency set still fails the build.
+The guards live in this tool module, outside the modules the Regula audit claims, with the
+other tools. Verification builds every discovered module, this one included, so a changed
+dependency set still fails the build.
 
 `#guard_msgs` makes it a build failure: if an `axiom` is introduced, or an
 import starts dragging one in, the message printed by `#print axioms` changes
 and this file stops compiling. These retained exact-set guards complement
-Regula's RG1003 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1003/) and
-RG1005 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1005/), which read
-compiler module ownership and check the transitive axioms of every public,
-private and generated declaration against the same three names. New declarations
-cannot bypass that audit through namespace aliases or source formatting.
+Regula's RG1003 and RG1005, which check the transitive axioms of every public,
+private and generated declaration of a claimed module against the same three names.
+New declarations cannot bypass that audit through namespace aliases or source formatting.
 
 A `sorry` is caught by a different mechanism: `warningAsError := true` in
 `lakefile.lean` turns "declaration uses `sorry`" into a build failure before

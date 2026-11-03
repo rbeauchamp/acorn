@@ -32,15 +32,19 @@ definitions. No module imports it, so no entry point links what it declares. It 
 import and command admission below. -/
 def registry (name : Name) : Bool := name == AcornModuleInventory.decisionRegistry
 
-/-- Executing application sources and their shared constant leaf. -/
+/-- The executables' roots: each declares the top-level `main` of one executable. -/
+def entry (name : Name) : Bool := (`Entry).isPrefixOf name
+
+/-- Executing application sources, their shared constant leaf and the executables' roots. -/
 def governed (name : Name) : Bool := ((`Acorn).isPrefixOf name ||
-  (`NativeApp).isPrefixOf name) && !registry name
+  (`NativeApp).isPrefixOf name || entry name) && !registry name
 
 /-- Mathematical proofs have separate import admission. -/
 def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name
 
-/-- Native entry/resource owners are checked as host code, never learned algorithms. -/
-def nativeBootstrap (name : Name) : Bool := (`NativeApp).isPrefixOf name
+/-- Native entry/resource owners and the executables' roots are checked as host code, never
+learned algorithms. -/
+def nativeBootstrap (name : Name) : Bool := (`NativeApp).isPrefixOf name || entry name
 
 /-- Host and declared modules are quarantined by their owning module, not namespaces. -/
 def quarantined (name : Name) : Bool :=
@@ -100,8 +104,8 @@ needlessly load an entire library or tactic collection into each compiler proces
 FloatLib modules are admitted for the bridge alone, lean-intent modules for the intent bridge
 alone, and Regula's contract type for the proof module that states contracts. The decision registry imports
 executing modules and Regula's two registration interfaces, the contract type and the
-decision attribute. No module imports the registry, so the attribute's module, which
-imports Lean's elaborator, enters no executable's or proof's import closure. -/
+registration type. No module imports the registry, so neither enters an executable's or a
+proof's import closure. -/
 def importAllowed (owner imported : Name) : Bool :=
   if (`Init).isPrefixOf imported then true
   else if registry imported then false
@@ -130,10 +134,6 @@ def reject {α : Type} (owner : Name) (reason : String) : IO α :=
 
 /-- A small reviewed attribute domain has no native replacement or metaprogram registration. -/
 def allowedAttributes : Array Name := #[`simp, `inline, `noinline, `reducible, `irreducible]
-
-/-- Regula's decision registration, admitted in the decision registry alone. It adds the
-requirement of a decision contract to the registered function and changes no definition. -/
-def decisionAttribute : Name := `regula_decision
 
 /-- These options change proof resource limits, never kernel checking or parser admission. -/
 def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiation.threshold]
@@ -183,8 +183,7 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
       unless nodeSyntax[1].isOfKind ``Parser.Attr.simple do
         reject owner s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
       let attributeName := nodeSyntax[1][0].getId
-      unless allowedAttributes.contains attributeName ||
-          (registry owner && attributeName == decisionAttribute) do
+      unless allowedAttributes.contains attributeName do
         reject owner s!"unreviewed attribute {attributeName}"
       unless nodeSyntax[1][1].getArgs.isEmpty do
         reject owner s!"attribute arguments require review: {attributeName}"
@@ -213,14 +212,6 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
     inspectCommand owner nested
     inspectSyntax owner command
   else if proofOwner owner && kind == ``Parser.Command.printAxioms then
-    inspectSyntax owner command
-  else if registry owner && kind == ``Parser.Command.attribute then
-    -- `attribute [regula_decision] f`: every listed item applies an attribute, and that
-    -- attribute is the decision registration. Erasing an attribute is refused.
-    for item in command[2].getSepArgs do
-      unless item.isOfKind ``Parser.Term.attrInstance &&
-          item[1].isOfKind ``Parser.Attr.simple && item[1][0].getId == decisionAttribute do
-        reject owner "the registry's attribute command may only register decisions"
     inspectSyntax owner command
   else if #[``Parser.Command.declaration, ``Parser.Command.namespace, ``Parser.Command.end,
       ``Parser.Command.section, ``Parser.Command.open, ``Parser.Command.variable,

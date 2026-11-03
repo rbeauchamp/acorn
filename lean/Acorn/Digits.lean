@@ -34,9 +34,8 @@ values.
 Lean core's readers of numbers in text, such as `String.toNat?`, accept `_` between two
 digits: at the pinned toolchain v4.35.0, `String.isNat_iff` in `Std/Data/String/ToNat.lean`
 admits a separator between two digits, and `String.toNat?_eq_some_ofDigitChars` drops it from
-the value, so `"4_2".toNat? = some 42`. The readers above therefore do not use them. A Regula
-rule that refuses a reference to them is proposed in
-https://github.com/rbeauchamp/regula/issues/445.
+the value, so `"4_2".toNat? = some 42`. The readers above therefore do not use them; review, and
+no check, keeps them out of the executing library.
 -/
 namespace Acorn.Digits
 

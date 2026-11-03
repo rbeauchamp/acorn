@@ -102,9 +102,9 @@ jobs:
         timeout-minutes: 15
         working-directory: lean
         # The upstream cache can omit modules; Lake compiles only those it lacks.
-        # Regula's lint driver and audit worker are compiled here, so both jobs
-        # provision the same dependency cache.
-        run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
+        # Regula's lint driver is compiled here, so both jobs provision the same
+        # dependency cache.
+        run: lake exe cache get && lake build Mathlib regula/lint
       - name: Provision the FloatLib, lean-intent and Regula modules the project imports
         working-directory: lean
         # FloatLib and lean-intent publish no build cache. This step compiles the
@@ -173,9 +173,13 @@ jobs:
       - name: Verify exact source over the first stage's outputs
         run: ./scripts/verify.sh
   regula:
-    # Regula audits every surface lean/foundation_manifest.json claims. It builds
-    # the claimed modules from source again and takes longer than verification's
-    # deadline allows, so it is a second job with this job's timeout.
+    # The Regula audit of the modules that the default targets of lean/lakefile.lean
+    # claim (scripts/regula.sh): Regula's rules and Acorn's kernel replay in the
+    # place of lake check, not Regula v0.12.0's proof verdict as the release defines
+    # it (docs/verification.md#regula-audit). It builds those modules, replays them
+    # with every constant they depend on in Lean's kernel and runs Regula's checker,
+    # which takes longer than verification's deadline allows, so it is a second job
+    # with this job's timeout. Regula's contract names macOS, not this Linux runner.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -257,9 +261,9 @@ jobs:
         timeout-minutes: 15
         working-directory: lean
         # The upstream cache can omit modules; Lake compiles only those it lacks.
-        # Regula's lint driver and audit worker are compiled here, so both jobs
-        # provision the same dependency cache.
-        run: lake exe cache get && lake build Mathlib regula/lint regula/axiomGate
+        # Regula's lint driver is compiled here, so both jobs provision the same
+        # dependency cache.
+        run: lake exe cache get && lake build Mathlib regula/lint
       - name: Provision the FloatLib, lean-intent and Regula modules the project imports
         working-directory: lean
         # FloatLib and lean-intent publish no build cache. This step compiles the
@@ -279,5 +283,5 @@ jobs:
             ~/.elan
             lean/.lake/packages
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
-      - name: Audit exact source against the Regula standard
-        run: ./scripts/lean.sh lint
+      - name: The Regula audit on the exact source
+        run: ./scripts/regula.sh

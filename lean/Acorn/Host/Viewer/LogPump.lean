@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Acorn.Host.Viewer.RunDirectory
 import Acorn.Host.Viewer.Buffer
 import Acorn.Host.CheckpointDiagnostic
+import Acorn.Host.Forever
 
 /-!
 # Isolated stderr persistence
@@ -110,7 +111,7 @@ private def LogSink.next (sink : LogSink) : BaseIO LogNext := do
       return .wait wake.result?
 
 private def consumeLog (sink : LogSink) (directory : RunDirectory) : IO Unit := do
-  repeat
+  for _ in forever do
     match ← sink.next with
     | .done => return
     | .wait task =>

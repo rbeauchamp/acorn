@@ -480,8 +480,7 @@ lists as left inside a segment, whose trip counts are bounded by constants of th
 combinator or a costed definition, and each path of a recursion must pass a charge. The
 combinators cannot enforce this: `Costed.pure` accepts any value, the learner's step
 among them, at no work. The
-discipline is checked by reading until the rule that
-[Regula issue 333](https://github.com/rbeauchamp/regula/issues/333) proposes checks it.
+discipline is checked by reading, and no check enforces it.
 
 Each loop is charged the passes of its runtime implementation, with one visit for each
 pass's end. One table states the passes of every library loop that costed code and the
@@ -1146,8 +1145,8 @@ What these theorems do not establish:
   between attempts, keeping the agent and the carried result. That changes the world outside the
   kernel world's transition, so each attempt has its own kernel loop, from its own agent.
 - **The campaign join.** [Obligation 2](mission-contract.md#open-obligations), the campaign
-  join, is not established here. The loop that repeats the boundary, `Host.runAdmittedCampaign`, is a library
-  iteration, and nothing here says that a campaign ends.
+  join, is not established here. The loop that repeats the boundary, `Host.runAdmittedCampaign`, iterates over
+  `Acorn.Host.forever`, and nothing here says that a campaign ends.
 - **A boundary that returned no next progress.** A world's refusal has only
   `Attempt.complete_learned`, for a refused action, and a refused observation produces no action.
   An attempt whose steps overflow the outcome total ends the campaign with an error and is
@@ -2356,8 +2355,10 @@ The viewer receives telemetry and requests lifecycle stop only.
 [Acorn.Decisions](../lean/Acorn/Decisions.lean) registers the admissions, parsers
 and validity tests of the executing library for which a property of the accepted
 or refused result is proved, with what each proof establishes; the
-[Regula audit](verification.md#regula-audit) requires a contract of every
-registered function whose result type is not `Decidable`. The module
+ownership audit requires a contract about the whole function whose condition
+applies a kind to that function, of every registered function whose result type
+is not `Decidable`
+([verification](verification.md#regula-audit)). The module
 documentation of that registry lists the groups of definitions with a `Bool`,
 `Option`, `Except` or `Decidable` result that carry no contract; no check keeps
 that list complete.

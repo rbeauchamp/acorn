@@ -224,7 +224,7 @@ def dispatch (arguments : List String) : IO UInt32 := do
 end Acorn.Host.CertificateDriver
 
 /-- Native admission failure produces a failing exit status. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.Host.CertificateDriver.main (arguments : List String) : IO UInt32 := do
   try Acorn.Host.CertificateDriver.dispatch arguments
   catch error =>
     try IO.eprintln s!"world-certificates: {error}" catch _ => pure ()

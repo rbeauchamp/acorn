@@ -35,7 +35,7 @@ their costed definitions, under the cost discipline of `Acorn.Cost`: every value
 passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without a costed
 definition and with no loop except those `Acorn.Cost` lists as left inside a segment, whose trip
 counts are bounded by constants of the code (the at most 33 steps of `Portable.pow` among them),
-which is checked by reading until rbeauchamp/regula#333 checks it. The other parts, among them the
+which is checked by reading, and no check enforces it. The other parts, among them the
 controllers' initial value and reset (`Controller.initial`, `Controller.resetAction`) and selection,
 are twins (`AcornVerif.Resource.Work`) whose charges were compared with the compiled call multisets
 of one build by a one-time inventory, an observation of that build which no gate repeats.

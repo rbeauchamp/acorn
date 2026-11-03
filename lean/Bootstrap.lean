@@ -140,9 +140,9 @@ def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
 def run (args : List String) : IO UInt32 := do
   silentElaboration
   unless args == ["provision-status"] ||
-      (!args.isEmpty && (#["build", "exe", "env", "query", "lint"].contains (args.headD "") ||
+      (!args.isEmpty && (#["build", "exe", "env", "query"].contains (args.headD "") ||
       args == ["script", "run", "acornTargets"])) do
-    throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|lint|provision-status) ...")
+    throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
   let (contents, available) ← overrides
   let path : System.FilePath := ".lake/acorn-path-packages.json"
   -- Lake validates its configuration trace against source and toolchain changes;

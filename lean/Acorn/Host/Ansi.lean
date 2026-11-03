@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.Cli
+import Acorn.Host.Forever
 
 /-!
 # Separate ANSI loop protocol
@@ -98,7 +99,7 @@ def runAnsi {α β : Type} (common : Cli.Common) (period : Word.Count)
         let goals := min common.goals.toNat curriculum.size
         if goals == 0 then return .ok state
         let mut cycle : UInt64 := 0
-        repeat
+        for _ in forever do
           for index in List.finRange goals do
             have hi : index.val < curriculum.size := by have := index.isLt; dsimp [goals] at *; omega
             let (goal, tier) := curriculum[index.val]'hi
@@ -118,6 +119,8 @@ def runAnsi {α β : Type} (common : Cli.Common) (period : Word.Count)
             endGoal index.val tier state.carried.events.done used
           cycle := saturatingIncrement64 cycle
           if common.cycles != 0 && cycle ≥ common.cycles then return .ok state
+        -- The loop has no `break`, so it ends only by returning.
+        throw (IO.userError "cycle loop ended without a result")
     catch error => return .error (.io error.toString)
 
 end Acorn.Host

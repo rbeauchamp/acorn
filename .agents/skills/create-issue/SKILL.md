@@ -34,15 +34,11 @@ behavior, deductions, hypotheses and unknowns. Read theorem hypotheses and
 execution linkage; a name or passing check does not establish the intended
 property. Verify paper citations against primary sources, with precise sections
 or equations where the algorithm depends on them. If evidence is unavailable,
-name the gap instead of inventing a diagnosis or citation. Write each Regula
-rule ID as a link to that rule's page for the Regula build the statement is
-about. For a release that is
-`[RG3002](https://rbeauchamp.github.io/regula/v/<version>/rules/RG3002/)`,
-where `<version>` is the release tag without its leading `v` (`v0.11.0` gives
-`/v/0.11.0/rules/RG3002/`). By default the statement is about the Regula pinned
-in `lean/lakefile.lean`; link the page that a finding's `rule:` line prints for
-that build, as the [Regula skill](../regula/SKILL.md) states. In a file that does
-not render Markdown, put the plain URL after the ID.
+name the gap instead of inventing a diagnosis or citation. A Regula rule ID
+refers to the Regula release pinned in `lean/lakefile.lean` unless the statement
+names another; that release publishes no rule pages, so cite its README or
+`specification/README.md` at its tag where a statement needs the rule's text, as
+the [Regula skill](../regula/SKILL.md) states.
 
 Define the outcome, scope, remaining design decisions, relevant owners and
 observable completion criteria. Preserve the user's accepted constraints and

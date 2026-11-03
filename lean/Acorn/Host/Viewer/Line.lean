@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Init
+import Acorn.Host.Forever
 
 /-!
 # Bounded incremental pipe admission
@@ -89,7 +90,7 @@ The callback must enqueue locally; network delivery belongs to a separate task.
 IO failure propagates to the owning process pump instead of manufacturing EOF. -/
 def readLines (input : IO.FS.Stream) (consume : LineResult → IO Unit) : IO Unit := do
   let mut decoder := LineDecoder.reading .empty
-  repeat
+  for _ in forever do
     let chunk ← input.read 1
     if chunk.isEmpty then
       if let some result := decoder.finish then consume result

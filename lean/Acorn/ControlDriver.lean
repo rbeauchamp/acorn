@@ -51,7 +51,7 @@ end Acorn.ControlDriver
 
 /-- Read the seed and raw word as unsigned numbers of the command line (`Acorn.Digits.natural`),
 refusing either at `2 ^ 64` or more instead of wrapping it. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.ControlDriver.main (arguments : List String) : IO UInt32 := do
   let parsed := match arguments with
     | [] => some (0, 0)
     | [seed, word] => do

@@ -75,6 +75,99 @@ def anchor (env : Environment) (maintained : Array Name)
   require (theoremInfo.type.getUsedConstantsAsSet.contains implementation)
     s!"{theoremName}: statement no longer refers to {implementation}"
 
+/-- The decision kinds of `Regula.Contract`. A contract whose condition applies one of them to its
+implementation (`appliesKind`) states which direction of the decision is proved. -/
+def decisionKinds : Array Name :=
+  #[`Regula.Decides, `Regula.DecidesSoundly, `Regula.DecidesCompletely]
+
+/-- The modules that state decision contracts: the registry, and the proof module whose contracts
+need the proof library. -/
+def contractOwners : Array Name := #[AcornModuleInventory.decisionRegistry, `AcornVerif.Decisions]
+
+/-- The binder kinds of a type, outermost first. -/
+def binderInfos : Expr → List BinderInfo
+  | .mdata _ type => binderInfos type
+  | .forallE _ _ body binder => binder :: binderInfos body
+  | _ => []
+
+/-- Whether a contract's condition applies a decision kind `K` to the contract's implementation, in
+one of two closed forms: `K accepts spec`, which lacks exactly the kind's last explicit argument, so
+the contract applies it to the implementation; or `fun g => K accepts spec t`, whose last explicit
+argument `t` contains the bound `g`, which the contract instantiates with the implementation. Every
+other form is refused, such as `fun _ => K accepts spec id`, whose decision is not about the
+implementation. -/
+def appliesKind (env : Environment) (condition : Expr) : Bool := Id.run do
+  let (body, bound) := match condition.consumeMData with
+    | .lam _ _ body _ => (body.consumeMData, true)
+    | condition => (condition, false)
+  let .const kind _ := body.getAppFn | return false
+  unless decisionKinds.contains kind do return false
+  let some info := env.find? kind | return false
+  let binders := binderInfos info.type
+  unless binders.getLast?.any (·.isExplicit) do return false
+  let args := body.getAppArgs
+  if bound then
+    return args.size == binders.length && args.back?.any (·.hasLooseBVar 0)
+  else
+    return args.size + 1 == binders.length
+
+/-- Whether a type is that of a decision procedure: its result, after every binder, is a
+`Decidable` proposition, which carries both directions of the decision in its type. -/
+def decidableResult : Expr → Bool
+  | .mdata _ type => decidableResult type
+  | .forallE _ _ body _ => decidableResult body
+  | type => #[`Decidable, `DecidableEq, `DecidablePred, `DecidableRel].contains
+      type.getAppFn.constName
+
+/-- The function a contract is about, when its subject is that function itself: a constant applied
+to nothing but arguments its type takes implicitly (a universe-, type- or instance-level
+instantiation). A subject applied to an explicit argument, such as `f x₀`, states the contract of
+one application, and names no function here. -/
+def wholeFunction (env : Environment) (subject : Expr) : Option Name := do
+  let subject := subject.consumeMData
+  let .const function _ := subject.getAppFn | none
+  let mut type := (← env.find? function).type
+  for _ in subject.getAppArgs do
+    let .forallE _ _ body binder := type.consumeMData | none
+    guard !binder.isExplicit
+    type := body
+  return function
+
+/-- Every function the registry registers (`Regula.RegisteredDecision`) has a contract in
+`contractOwners` about the whole function (`wholeFunction`) whose condition applies a decision kind
+to that function (`appliesKind`), unless it is a decision procedure. Regula v0.12.0 reads no
+registration or contract, so this audit is what makes a registration require its contract. A
+registration outside the registry is refused, and so is a registry that registers nothing. Returns
+the number of registrations. -/
+def registrations (env : Environment) : IO Nat := do
+  let mut registered : Array Name := #[]
+  let mut contracted : NameSet := {}
+  for (name, info) in env.constants do
+    let .thmInfo theoremInfo := info | continue
+    let type := theoremInfo.type.consumeMData
+    let head := type.getAppFn
+    let isRegistration := head.isConstOf `Regula.RegisteredDecision
+    let isContract := head.isConstOf `Regula.ExecutableContract
+    unless isRegistration || isContract do continue
+    let owner ← ownerOf env name
+    if isRegistration then
+      require (owner == AcornModuleInventory.decisionRegistry)
+        s!"{name}: a registration outside {AcornModuleInventory.decisionRegistry}"
+      let some function := (type.getArgD 1 default).consumeMData.getAppFn.constName?
+        | throw (IO.userError s!"{name}: registers no named function")
+      registered := registered.push function
+    else if contractOwners.contains owner && appliesKind env (type.getArgD 2 default) then
+      if let some function := wholeFunction env (type.getArgD 1 default) then
+        contracted := contracted.insert function
+  require (!registered.isEmpty) "the decision registry registers no function"
+  for function in registered do
+    let some info := env.find? function
+      | throw (IO.userError s!"{function}: registered, and absent from the environment")
+    unless decidableResult info.type || contracted.contains function do
+      throw (IO.userError
+        s!"{function}: registered with no contract that applies a decision kind to it")
+  return registered.size
+
 /-- Follow the entry's actual serialized import edges. Shared dependency data
 must never make a declaration outside this closure available to its IR check. -/
 def importClosure (env : Environment) (root : Name) : IO NameSet := do
@@ -155,7 +248,10 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
       require (modules.contains proofOwner) s!"stale proof owner {proofOwner}"
     for (owner, _) in AcornOwnership.entryUses do
       require (entries.any (·.2 == owner)) s!"stale entry contract {owner}"
-    IO.println s!"ownership: {modules.size} maintained modules, {entries.size} native entries, {AcornOwnership.anchors.size} required execution/proof links"
+    let registered ← registrations common
+    IO.println (s!"ownership: {modules.size} maintained modules, {entries.size} native entries, " ++
+      s!"{AcornOwnership.anchors.size} required execution/proof links, " ++
+      s!"{registered} registered decisions")
     if complete then
       require (projects.all counted.contains && counted.size == projects.size)
         "incomplete or duplicate theorem-owner admission"

@@ -48,8 +48,9 @@ def siteSources : IO Unit := do
     require (shared.contains (name, url, revision))
       s!"site/lake-manifest.json does not lock {name} to {url} at {revision}"
 
-/-- Every discovered source is a module of a library that Regula examines or a listed tool
-module, and a stale tool entry is refused. -/
+/-- Every discovered source is a module of a library whose modules Lake's globs assign
+(`AcornModuleInventory.libraryModule`) or a listed tool module, and a stale tool entry is
+refused. -/
 def sources : IO (Array Name) := do
   siteSources
   let actual ← AcornModuleInventory.allModules
@@ -64,8 +65,7 @@ def sources : IO (Array Name) := do
   return actual
 
 /-- Read Lake's evaluated executable configuration through the offline bootstrap. The
-second component names the executables whose configuration lists in `needs` a target other
-than Regula's elaboration observer.
+second component names the executables whose configuration lists a target in `needs`.
 `modules` are the discovered sources, which hold every executable root. -/
 def inventory (modules : Array Name) : IO (Array (String × Name) × Array String) := do
   let output ← IO.Process.output {

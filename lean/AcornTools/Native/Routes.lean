@@ -345,7 +345,8 @@ def routes : Array (String × String × Array String) := #[
   ("Host/Runner", "lp_acorn_Acorn_Host_runCampaign___redArg", #["lp_acorn_Acorn_Host_ResearchProfile_resumable", "lp_acorn_Acorn_Host_standardCurriculum", "lp_acorn_Acorn_Host_CampaignPlan_admit", "lp_acorn_Acorn_Host_World_initial"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runCampaign___redArg___lam__1", #["lp_acorn_Acorn_Host_WritableCheckpoint_admit"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runCampaign___redArg___lam__0", #["lp_acorn_Acorn_Host_runAdmittedCampaign___redArg"]),
-  ("Host/Runner", "lp_acorn___private_Init_While_0__repeatM_erased___at___00Acorn_Host_runAdmittedCampaign_spec__0___redArg", #["lp_acorn_Acorn_Host_campaignStep___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg", #["lp_acorn_Acorn_Host_Forever_loopIO___redArg"]),
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg___lam__0", #["lp_acorn_Acorn_Host_campaignStep___redArg"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_campaignStep___redArg", #["lp_acorn_Acorn_Host_Attempt_start___redArg", "lp_acorn_Acorn_Host_runAttempt___redArg"]),
   ("Host/Attempt", "lp_acorn_Acorn_Host_AgentCallbacks_act___redArg", #["lean_apply_3", "lean_apply_1"]),
   ("Host/Attempt", "lp_acorn_Acorn_Host_DecisionInput_selectOwned___redArg", #["lp_acorn_Acorn_Host_AgentCallbacks_act___redArg"]),
@@ -373,6 +374,8 @@ def routes : Array (String × String × Array String) := #[
 /-- Ordered closure code pointers connect deferred IO and capture to the same
 reviewed owners; checking a detached lambda alone does not establish that link. -/
 def closures : Array (String × String × Array String) := #[
+  ("Host/Runner", "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg", #[
+    "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg___lam__0___boxed"]),
   ("Host/Runner", "lp_acorn_Acorn_Host_runAttemptSteps___redArg", #[
     "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__1",
     "lp_acorn_Acorn_Host_runAttemptSteps___redArg___lam__2",

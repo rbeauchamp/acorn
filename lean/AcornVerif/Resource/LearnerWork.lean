@@ -17,9 +17,8 @@ cost discipline of `Acorn.Cost`: every function a combinator takes is costed, an
 costed definition passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without
 a costed definition and with no loop except those `Acorn.Cost` lists as left inside a segment, whose
 trip counts are bounded by constants of the code. The combinators cannot enforce the second, since
-`Costed.pure` accepts any value; it is checked by reading until the cost-closed rule of
-rbeauchamp/regula#333 checks it. Giving that reading a checked statement is part of obligation 7
-of `docs/mission-contract.md`.
+`Costed.pure` accepts any value; it is checked by reading, and no check enforces it. Giving that
+reading a checked statement is part of obligation 7 of `docs/mission-contract.md`.
 
 Each bound is a function of the number of eligible entries of the learner the definition receives
 and of the length of the feature list it reads. No bound depends on the learner's values: the

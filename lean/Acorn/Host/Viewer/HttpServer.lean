@@ -116,19 +116,28 @@ private def wakeSelector (task : Task (Option Unit)) : Selector (Option Unit) wh
       waiter.race (pure ()) (fun promise => promise.resolve (.ok value))
   unregisterFn := pure ()
 
-private def liveFrames (subscription : Subscription) (stream : Body.Stream) : Async Unit := do
-  repeat
+/-- Send each frame of the subscription as it arrives, and a keepalive line after five seconds
+without one, until the subscription closes or its wake is dropped. It iterates with Std's own
+loop of the `Async` monad, `EAsync.forIn`, the definition that `repeat` reaches in this monad
+(the `ForIn (EAsync ε) Lean.Loop Unit` instance of `Std/Async/Basic.lean` at Lean v4.35.0):
+`Async` runs a continuation in a task, so no fixed point of its iteration can be defined. -/
+private def liveFrames (subscription : Subscription) (stream : Body.Stream) : Async Unit :=
+  EAsync.forIn () fun _ _ => do
     match ← subscription.poll with
-    | .closed => return
-    | .item text => sendLine stream text.val
+    | .closed => return .done ()
+    | .item text =>
+      sendLine stream text.val
+      return .yield ()
     | .wait task =>
       let result ← Selectable.one #[
         .case (wakeSelector task) (fun wake => pure (some wake)),
         .case (← Selector.sleep 5000) (fun _ => pure none)]
       match result with
-      | some none => return
-      | some (some ()) => pure ()
-      | none => stream.send (.ofByteArray ": keepalive\n\n".toUTF8)
+      | some none => return .done ()
+      | some (some ()) => return .yield ()
+      | none =>
+        stream.send (.ofByteArray ": keepalive\n\n".toUTF8)
+        return .yield ()
 
 private def HttpViewer.events (viewer : HttpViewer) : ContextAsync (Response Body.Any) := do
   let context ← ContextAsync.getContext

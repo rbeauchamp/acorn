@@ -35,12 +35,9 @@ def toolExecutables : List String :=
   (AcornOwnership.executables.toList.filter fun entry =>
     AcornModuleInventory.toolingModules.contains entry.2).map (·.1)
 
-/-- Every fixed audit arm. -/
-def auditArms : List NativeApp.AuditArm := [.declared, .annealed, .differential]
-
-/-- `auditArms` omits no arm, so its length is the number of arms. -/
-theorem mem_auditArms (arm : NativeApp.AuditArm) : arm ∈ auditArms := by
-  cases arm <;> decide
+/-- Every fixed audit arm: `NativeApp.AuditArm.all`, which omits no arm
+(`NativeApp.AuditArm.mem_all`). -/
+def auditArms : List NativeApp.AuditArm := NativeApp.AuditArm.all
 
 /-- The pinned action digest of an audit arm, as the audit command prints and `--expect` reads
 it. -/

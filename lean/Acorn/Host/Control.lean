@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Std.Sync.Mutex
+import Acorn.Host.Forever
 
 /-!
 # Monotone lifecycle control
@@ -86,7 +87,7 @@ def StopFlag.requested (flag : StopFlag) : BaseIO Bool :=
 /-- Process one input stream until EOF or an input error; neither ends the campaign.
 Diagnostic-output failure is contained in this reader rather than terminating learning. -/
 private def StopFlag.readCommands (flag : StopFlag) (input : IO.FS.Stream) : IO Unit := do
-  repeat
+  for _ in forever do
     if ← IO.checkCanceled then return
     let line ← try input.getLine catch _ => return
     if (← IO.checkCanceled) || line.isEmpty then return

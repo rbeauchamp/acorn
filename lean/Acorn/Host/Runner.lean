@@ -8,6 +8,7 @@ import Acorn.Host.Control
 import Acorn.Host.CheckpointDiagnostic
 import Acorn.FeatureConsumers
 import Acorn.Timing
+import Acorn.Host.Forever
 
 /-!
 # Native streaming runner shell
@@ -770,10 +771,12 @@ def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curr
     if checkpoint.isSome then .pending else if admission == .refused then .refused else .disabled }
   let mut phase : CampaignProgress config α plan ⊕ Except RunnerError (CampaignResult config α) :=
     .inl ⟨initial, plan.initial, 0, {}, 0, resources, checkpoint⟩
-  repeat
+  for _ in forever do
     match phase with
     | .inr result => return result
     | .inl progress => phase ← campaignStep curriculum callbacks observer readStop progress
+  -- The loop has no `break`, so it ends only by returning.
+  throw (IO.userError "campaign loop ended without a result")
 
 /-- Startup preserves refusal order and never constructs an agent before campaign admission.
 Unexpected loader errors retain the fresh agent and disable writes, like a refused image.
