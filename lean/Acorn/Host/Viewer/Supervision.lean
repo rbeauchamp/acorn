@@ -802,40 +802,40 @@ every state a run reaches (`Ran`). -/
 
 namespace Core
 
-@[simp] theorem report_pending (core : Core) (transition : ControlTransition) (reason : String) :
+theorem report_pending (core : Core) (transition : ControlTransition) (reason : String) :
     (core.report transition reason).pending = core.pending := rfl
-@[simp] theorem report_owner (core : Core) (transition : ControlTransition) (reason : String) :
+theorem report_owner (core : Core) (transition : ControlTransition) (reason : String) :
     (core.report transition reason).owner = core.owner := rfl
-@[simp] theorem report_closing (core : Core) (transition : ControlTransition) (reason : String) :
+theorem report_closing (core : Core) (transition : ControlTransition) (reason : String) :
     (core.report transition reason).closing = core.closing := rfl
-@[simp] theorem report_lifecycle (core : Core) (transition : ControlTransition) (reason : String) :
+theorem report_lifecycle (core : Core) (transition : ControlTransition) (reason : String) :
     (core.report transition reason).lifecycle = core.lifecycle := rfl
-@[simp] theorem report_replacement (core : Core) (transition : ControlTransition)
+theorem report_replacement (core : Core) (transition : ControlTransition)
     (reason : String) : (core.report transition reason).replacement = core.replacement := rfl
-@[simp] theorem report_slot (core : Core) (transition : ControlTransition) (reason : String) :
+theorem report_slot (core : Core) (transition : ControlTransition) (reason : String) :
     (core.report transition reason).slot = core.slot := rfl
-@[simp] theorem report_persisted (core : Core) (transition : ControlTransition)
+theorem report_persisted (core : Core) (transition : ControlTransition)
     (reason : String) : (core.report transition reason).persisted = core.persisted := rfl
-@[simp] theorem report_transition (core : Core) (transition : ControlTransition)
+theorem report_transition (core : Core) (transition : ControlTransition)
     (reason : String) : (core.report transition reason).detail.transition = transition := rfl
 
-@[simp] theorem moveTo_pending (core : Core) (lifecycle : Lifecycle) :
+theorem moveTo_pending (core : Core) (lifecycle : Lifecycle) :
     (core.moveTo lifecycle).pending =
       (windUpTarget core.slot core.lifecycle lifecycle).map .windUp := rfl
-@[simp] theorem moveTo_owner (core : Core) (lifecycle : Lifecycle) :
+theorem moveTo_owner (core : Core) (lifecycle : Lifecycle) :
     (core.moveTo lifecycle).owner = core.owner := rfl
-@[simp] theorem moveTo_closing (core : Core) (lifecycle : Lifecycle) :
+theorem moveTo_closing (core : Core) (lifecycle : Lifecycle) :
     (core.moveTo lifecycle).closing = core.closing := rfl
-@[simp] theorem moveTo_lifecycle (core : Core) (lifecycle : Lifecycle) :
+theorem moveTo_lifecycle (core : Core) (lifecycle : Lifecycle) :
     (core.moveTo lifecycle).lifecycle = lifecycle := rfl
-@[simp] theorem moveTo_replacement (core : Core) (lifecycle : Lifecycle) :
+theorem moveTo_replacement (core : Core) (lifecycle : Lifecycle) :
     (core.moveTo lifecycle).replacement = core.replacement := rfl
-@[simp] theorem moveTo_slot (core : Core) (lifecycle : Lifecycle) :
+theorem moveTo_slot (core : Core) (lifecycle : Lifecycle) :
     (core.moveTo lifecycle).slot = core.slot := rfl
-@[simp] theorem moveTo_persisted (core : Core) (lifecycle : Lifecycle) :
+theorem moveTo_persisted (core : Core) (lifecycle : Lifecycle) :
     (core.moveTo lifecycle).persisted = core.persisted := rfl
 
-@[simp] theorem stop_eq (core : Core) : core.stop = core.moveTo (core.lifecycle.request .stop) :=
+theorem stop_eq (core : Core) : core.stop = core.moveTo (core.lifecycle.request .stop) :=
   rfl
 
 end Core
@@ -896,15 +896,15 @@ theorem Stepped.effects_settle (stepped : Stepped) :
 namespace Core
 
 /-- The derived comparison of commands is equality. -/
-@[simp] theorem command_beq (left right : Command) : (left == right) = decide (left = right) := by
+theorem command_beq (left right : Command) : (left == right) = decide (left = right) := by
   cases left <;> cases right <;> rfl
 
 /-- The derived comparison of intents is equality. -/
-@[simp] theorem desired_beq (left right : Desired) : (left == right) = decide (left = right) := by
+theorem desired_beq (left right : Desired) : (left == right) = decide (left = right) := by
   cases left <;> cases right <;> rfl
 
 /-- The derived comparison of phases is equality. -/
-@[simp] theorem phase_beq (left right : Phase) : (left == right) = decide (left = right) := by
+theorem phase_beq (left right : Phase) : (left == right) = decide (left = right) := by
   cases left <;> cases right <;> first
     | rfl
     | (rename_i first second; show (first == second) = _; rw [Bool.eq_iff_iff]; simp)
@@ -915,82 +915,87 @@ private theorem forall_map_some {α β : Type} (f : α → β) (value : Option �
       ∀ inner, value = some inner → property (f inner) := by
   cases value <;> simp
 
-/-- Discharges the invariant of a branch of a transition: each field follows from the
-transition's own guards, the invariant of the state it starts from, and the lifecycle's
-lemmas. -/
-scoped macro "invariant_leaf" : tactic => `(tactic| (
-  refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩
-  · simp_all [Pending.writes, forall_map_some, Core.mapWritable]
-  · (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    simp_all [Pending.clears, forall_map_some, Lifecycle.ite_clearless,
-      Lifecycle.request_clearless, Lifecycle.reserve_clearless, Lifecycle.started_clearless,
-      Lifecycle.failed_clearless, Lifecycle.retire_clearless, Lifecycle.archiveFailed_clearless,
-      Lifecycle.replacementIntent_clearless, Lifecycle.adoptFinalIdentity_clearless,
-      Lifecycle.clearless_archiveIntent, Lifecycle.clearless_beginArchive,
-      Lifecycle.clearless_archived]
-  · simp_all [Pending.serves, Pending.clears, forall_map_some]
-  · (try have := PersistedState.launch_identity _ _ (by assumption))
-    simp_all [forall_map_some]
-  · simp_all [forall_map_some]))
-
 theorem command_invariant (core : Core) (clearDisabled : Option String) (command : Command)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none)
     (serving : core.closing = .open) :
     (core.command clearDisabled command).core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
     unfold Core.command Core.intentFailed <;> cases command <;> repeat' split
-  all_goals invariant_leaf
-
-/-- The definitions a transition's proof unfolds, its helpers included. -/
-scoped macro "unfold_transition" : tactic => `(tactic| simp only [Core.command, Core.intentFailed,
-  Core.candidate, Core.adoptFailed, Core.exited, Core.refused, Core.closed, Core.closeOut,
-  Core.exitReported, Core.finished, Core.launchCheck, Core.mapOrLaunch, Core.clear, Core.tick,
-  Core.close])
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
 
 theorem candidate_invariant (core : Core) (clearDisabled : Option String) (generation : UInt64)
     (actual : CoreIdentity) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) :
     (core.candidate generation actual).core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.candidate, Core.adoptFailed] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
 
 theorem exited_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (code : UInt32) (uptime : Nat) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) :
     (core.exited now code uptime).core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.exited] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, phase_beq,
+        Pending.writes, Pending.clears, Pending.serves, Lifecycle.failed_clearless, Lifecycle.retire_clearless])
 
 theorem refused_invariant (core : Core) (clearDisabled : Option String) (reason : String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.refused reason).core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.refused] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Pending.writes, Pending.clears, Pending.serves])
 
 theorem closed_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.closed.core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.closed] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Pending.writes, Pending.clears, Pending.serves])
 
 theorem exitReported_invariant (core : Core) (clearDisabled : Option String)
     (report : ExitReport) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) (serving : core.closing = .open) :
     (core.exitReported report).core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.exitReported] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
 
 theorem closeOut_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.closeOut.core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.closed, Core.closeOut] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable])
 
 theorem finished_invariant (core : Core) (clearDisabled : Option String)
     (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus)
@@ -1001,15 +1006,31 @@ theorem finished_invariant (core : Core) (clearDisabled : Option String)
   · split
     · split
       · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-          invariant_leaf
+          (
+            (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+            (try have := PersistedState.launch_identity _ _ (by assumption))
+            refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+              simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable])
       · exact Core.exitReported_invariant _ clearDisabled _
           (by obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-                invariant <;> invariant_leaf)
+                invariant <;> (
+                  (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+                  (try have := PersistedState.launch_identity _ _ (by assumption))
+                  refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+                    simp_all [Pending.writes, Pending.clears, Pending.serves, Core.mapWritable]))
           ready (by assumption)
     · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-        invariant_leaf
+        (
+          (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+          (try have := PersistedState.launch_identity _ _ (by assumption))
+          refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+            simp_all [Core.report, Pending.writes, Pending.clears, Pending.serves])
     · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-        invariant_leaf
+        (
+          (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+          (try have := PersistedState.launch_identity _ _ (by assumption))
+          refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+            simp_all [Pending.writes, Pending.clears, Pending.serves])
   · exact invariant
   · exact invariant
 
@@ -1017,8 +1038,12 @@ theorem launchCheck_invariant (core : Core) (clearDisabled : Option String) (now
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.launchCheck now).core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.launchCheck] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
 
 theorem tick_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
@@ -1026,19 +1051,30 @@ theorem tick_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
   unfold Core.tick
   split
   · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-      unfold_transition <;> repeat' split
-    all_goals invariant_leaf
-  · split
-    · exact core.closeOut_invariant clearDisabled invariant ready
-    · exact invariant
+      simp only [Core.launchCheck, Core.mapOrLaunch, Core.clear] <;> repeat' split
+    all_goals (
+      (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+      (try have := PersistedState.launch_identity _ _ (by assumption))
+      refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+        simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable,
+          Lifecycle.request_clearless, Lifecycle.clearless_archiveIntent])
+  · cases core.slot with
+    | empty => exact core.closeOut_invariant clearDisabled invariant ready
+    | live _ | draining _ _ _ => exact invariant
   · exact invariant
 
 theorem close_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.close.core.Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+    simp only [Core.closed, Core.closeOut,
+      Core.close] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable,
+        Lifecycle.request_clearless])
 
 /-- A state that waits for a call that only a serving viewer makes is serving. -/
 theorem Invariant.serving {clearDisabled : Option String} {core : Core} {pending : Pending}
@@ -1053,19 +1089,19 @@ theorem Invariant.serving {clearDisabled : Option String} {core : Core} {pending
     have refused := invariant.closing (by simp [closing]) pending waiting
     simp_all
 
-/-- The outcomes a proof of a call's outcome unfolds, its helpers included. -/
-scoped macro "unfold_outcome" : tactic => `(tactic| simp only [Core.resolve, Core.intentFailed,
-  Core.intentSaved, Core.adoptFailed, Core.adopted, Core.committed, Core.seeded, Core.replaced,
-  Core.refused])
-
 theorem resolve_intent_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (command : Command) (state : PersistedState)
     (result : ((Pending.intent command state).call core.lifecycle).Result)
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.intent command state)) :
     ({ core with pending := none }.resolve now (.intent command state) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve, Core.intentFailed,
+      Core.intentSaved] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
 
 theorem resolve_launch_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState) (plan : CoreLaunch)
@@ -1073,8 +1109,12 @@ theorem resolve_launch_invariant (core : Core) (clearDisabled : Option String) (
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.launch state plan)) :
     ({ core with pending := none }.resolve now (.launch state plan) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
 
 theorem resolve_spawn_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (plan : CoreLaunch)
@@ -1082,8 +1122,12 @@ theorem resolve_spawn_invariant (core : Core) (clearDisabled : Option String) (n
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.spawn generation plan)) :
     ({ core with pending := none }.resolve now (.spawn generation plan) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.started_clearless, Lifecycle.failed_clearless])
 
 theorem resolve_adopt_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (actual : CoreIdentity) (state : PersistedState)
@@ -1091,8 +1135,12 @@ theorem resolve_adopt_invariant (core : Core) (clearDisabled : Option String) (n
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.adopt generation actual state)) :
     ({ core with pending := none }.resolve now (.adopt generation actual state) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve, Core.adoptFailed, Core.adopted] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
 
 theorem resolve_commit_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (actual : CoreIdentity) (state : PersistedState) (detail : ControlDetail)
@@ -1100,8 +1148,12 @@ theorem resolve_commit_invariant (core : Core) (clearDisabled : Option String) (
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.commit generation actual state detail)) :
     ({ core with pending := none }.resolve now (.commit generation actual state detail) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve, Core.committed] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless, Lifecycle.adoptFinalIdentity_clearless])
 
 theorem resolve_exitIntent_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState)
@@ -1109,8 +1161,12 @@ theorem resolve_exitIntent_invariant (core : Core) (clearDisabled : Option Strin
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.exitIntent state)) :
     ({ core with pending := none }.resolve now (.exitIntent state) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
 
 theorem resolve_seed_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (intended : Desired)
@@ -1118,8 +1174,12 @@ theorem resolve_seed_invariant (core : Core) (clearDisabled : Option String) (no
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.seed intended)) :
     ({ core with pending := none }.resolve now (.seed intended) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve, Core.seeded] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves])
 
 theorem resolve_archive_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (identity : Identity) (intended : Desired) (stamp : UInt64)
@@ -1127,8 +1187,12 @@ theorem resolve_archive_invariant (core : Core) (clearDisabled : Option String) 
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.archive identity intended stamp)) :
     ({ core with pending := none }.resolve now (.archive identity intended stamp) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
 
 theorem resolve_reopen_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (identity : Identity) (intended : Desired) (archive : System.FilePath)
@@ -1136,8 +1200,12 @@ theorem resolve_reopen_invariant (core : Core) (clearDisabled : Option String) (
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.reopen identity intended archive)) :
     ({ core with pending := none }.resolve now (.reopen identity intended archive) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
 
 theorem resolve_replacement_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState)
@@ -1145,15 +1213,23 @@ theorem resolve_replacement_invariant (core : Core) (clearDisabled : Option Stri
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.replacement state)) :
     ({ core with pending := none }.resolve now (.replacement state) result).core.Invariant clearDisabled := by
   cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> unfold_outcome <;> repeat' split
-  all_goals invariant_leaf
+    invariant <;> simp only [Core.resolve, Core.replaced] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+    (try have := PersistedState.launch_identity _ _ (by assumption))
+    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
 
 /-- The state an outcome starts from keeps the invariant of the state that waited. -/
 theorem cleared_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) :
     ({ core with pending := none } : Core).Invariant clearDisabled := by
   obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    invariant_leaf
+    (
+      (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
+      (try have := PersistedState.launch_identity _ _ (by assumption))
+      refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
+        simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves])
 
 theorem resolve_windUp_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (result : ((Pending.windUp generation).call core.lifecycle).Result)
@@ -1338,7 +1414,7 @@ theorem resume_launch (core : Core) (reading : Nat) (state : PersistedState) (pl
       core.lifecycle.clearPendingValue = none := by
   cases result with
   | error reason =>
-    simp [resume, Stepped.at, resolve, Option.map_eq_some_iff] at spawning
+    simp [resume, Stepped.at, resolve, Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff] at spawning
   | ok =>
     simp only [resume, Stepped.at, resolve] at spawning ⊢
     split at spawning
@@ -1367,21 +1443,21 @@ theorem stop_winds_up (core : Core) (clearDisabled : Option String) (reading : N
   have stopping := core.lifecycle.request_stopping .stop generation (by decide) running
   have target : windUpTarget core.slot core.lifecycle (core.lifecycle.request .stop) =
       some generation := by
-    simp [windUpTarget, live, stopping, running, bne]
+    simp [windUpTarget, live, stopping, running, phase_beq, bne]
   cases owner : core.owner with
   | retired reason =>
     left
-    simp [step, dispatch, Stepped.at, ready, serving, Core.command, noReplacement, owner,
-      intentFailed, target]
+    simp [step, dispatch, Stepped.at, ready, serving, Core.command, command_beq, noReplacement, owner,
+      intentFailed, Core.report, Core.moveTo, Core.stop, target]
   | current =>
     right
     refine ⟨{ core.persisted with desired := .stopped }, ?_, ?_⟩
-    · simp [step, dispatch, Stepped.at, ready, serving, Core.command, noReplacement, owner,
+    · simp [step, dispatch, Stepped.at, ready, serving, Core.command, command_beq, noReplacement, owner,
         Command.desired]
     · intro later result
       cases result <;>
-        simp [step, dispatch, Stepped.at, ready, serving, Core.command, noReplacement, owner,
-          resume, resolve, intentFailed, intentSaved, target]
+        simp [step, dispatch, Stepped.at, ready, serving, Core.command, command_beq, noReplacement, owner,
+          resume, resolve, intentFailed, intentSaved, Core.report, Core.moveTo, Core.stop, target]
 
 /-- **Clear installs a run other than the one it retires.** For every state and replacement
 state: when publishing the replacement installs it, the lifecycle holds the replacement's
@@ -1397,7 +1473,7 @@ theorem replaced_identity (core : Core) (state : PersistedState)
     refine ⟨facts.1, ?_⟩
     rw [← Lifecycle.replacementIntent_identity core.lifecycle state.desired]
     exact facts.2
-  · simp at cleared
+  · simp [Core.report] at cleared
 
 /-- The readers' report closes nothing and begins no closing map write. -/
 theorem finished_defers (core : Core) (stdout : OutputStatus) (stderr : PipeResult)
@@ -1408,7 +1484,7 @@ theorem finished_defers (core : Core) (stdout : OutputStatus) (stderr : PipeResu
         core.pending = some (.closeMap skip) := by
   simp only [Core.finished, Core.exitReported]
   repeat' split
-  all_goals simp_all
+  all_goals simp_all [Core.report]
 
 /-- **A core's exit never closes the viewer.** For every state and every report of a reaped
 child's readers, the step on that report yields a closed state only from a closed one, and waits
@@ -1441,81 +1517,121 @@ structure Calm (before after : Core) : Prop where
   /-- The state does not wait to spawn. -/
   quiet : ∀ generation plan, after.pending ≠ some (.spawn generation plan)
 
-/-- Discharges calmness of a branch of a transition. -/
-scoped macro "calm_leaf" : tactic => `(tactic| (
-  (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
-  (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
-  constructor <;>
-  simp_all [Option.map_eq_some_iff, Lifecycle.request_lastGeneration,
-    Lifecycle.started_lastGeneration, Lifecycle.failed_lastGeneration,
-    Lifecycle.retire_lastGeneration, Lifecycle.archiveFailed_lastGeneration,
-    Lifecycle.replacementIntent_lastGeneration, Lifecycle.adoptFinalIdentity_lastGeneration]))
-
 theorem command_calm (core : Core) (clearDisabled : Option String) (command : Command)
     (ready : core.pending = none) :
     Calm core (core.command clearDisabled command).core := by
-  unfold_transition
+  simp only [Core.command, Core.intentFailed]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
 theorem candidate_calm (core : Core) (generation : UInt64) (actual : CoreIdentity)
     (ready : core.pending = none) :
     Calm core (core.candidate generation actual).core := by
-  unfold_transition
+  simp only [Core.candidate, Core.adoptFailed]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
 theorem exited_calm (core : Core) (now : Nat) (code : UInt32) (uptime : Nat)
     (ready : core.pending = none) : Calm core (core.exited now code uptime).core := by
-  unfold_transition
+  simp only [Core.exited]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, phase_beq, Lifecycle.failed_lastGeneration,
+      Lifecycle.retire_lastGeneration])
 
 theorem refused_calm (core : Core) (reason : String) (ready : core.pending = none) :
     Calm core (core.refused reason).core := by
-  unfold_transition
+  simp only [Core.refused]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report])
 
 theorem closed_calm (core : Core) (ready : core.pending = none) : Calm core core.closed.core := by
-  unfold_transition
+  simp only [Core.closed]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])
 
 theorem closeOut_calm (core : Core) (ready : core.pending = none) :
     Calm core core.closeOut.core := by
-  unfold_transition
+  simp only [Core.closed, Core.closeOut]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])
 
 theorem exitReported_calm (core : Core) (report : ExitReport) (ready : core.pending = none) :
     Calm core (core.exitReported report).core := by
-  unfold_transition
+  simp only [Core.exitReported]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report])
 
 theorem launchCheck_calm (core : Core) (now : Nat) (ready : core.pending = none) :
     Calm core (core.launchCheck now).core := by
-  unfold_transition
+  simp only [Core.launchCheck]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
 theorem tick_calm (core : Core) (now : Nat) (ready : core.pending = none) :
     Calm core (core.tick now).core := by
   unfold Core.tick
   split
-  · unfold_transition
+  · simp only [Core.launchCheck, Core.mapOrLaunch, Core.clear]
     repeat' split
-    all_goals calm_leaf
-  · split
-    · exact core.closeOut_calm ready
-    · calm_leaf
-  · calm_leaf
+    all_goals (
+      (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+      (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+      constructor <;>
+      simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
+  · cases core.slot with
+    | empty => exact core.closeOut_calm ready
+    | live _ | draining _ _ _ => (
+      (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+      (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+      constructor <;>
+      simp_all [])
+  · (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])
 
 theorem close_calm (core : Core) (ready : core.pending = none) : Calm core core.close.core := by
-  unfold_transition
+  simp only [Core.closed, Core.closeOut,
+    Core.close]
   repeat' split
-  all_goals calm_leaf
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
 /-- Calmness composes through a state that differs in neither field. -/
 theorem Calm.through {before middle after : Core} (first : Calm before middle)
@@ -1529,12 +1645,36 @@ theorem finished_calm (core : Core) (stdout : OutputStatus) (stderr : PipeResult
   split
   · split
     · split
-      · calm_leaf
-      · exact Calm.through (by calm_leaf) (Core.exitReported_calm _ _ (by simpa using ready))
-    · calm_leaf
-    · calm_leaf
-  · calm_leaf
-  · calm_leaf
+      · (
+        (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+        (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+        constructor <;>
+        simp_all [])
+      · exact Calm.through (by (
+        (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+        (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+        constructor <;>
+        simp_all [])) (Core.exitReported_calm _ _ (by simpa using ready))
+    · (
+      (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+      (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+      constructor <;>
+      simp_all [Core.report])
+    · (
+      (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+      (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+      constructor <;>
+      simp_all [])
+  · (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])
+  · (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])
 
 /-- **No event reserves a generation or makes the state wait to spawn.** -/
 theorem step_calm (core : Core) (clearDisabled : Option String) (reading : Nat)
@@ -1552,7 +1692,11 @@ theorem step_calm (core : Core) (clearDisabled : Option String) (reading : Nat)
         | exact core.refused_calm _ ready
         | exact core.tick_calm _ ready
         | exact core.close_calm ready
-        | calm_leaf
+        | (
+          (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+          (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+          constructor <;>
+          simp_all [])
   exact ⟨calm.generation, calm.quiet⟩
 
 /-- A state that waits takes no event: its step changes only the instant. -/
@@ -1568,84 +1712,150 @@ namespace Core
 theorem resolve_intent_calm (core : Core) (now : Nat) (command : Command) (state : PersistedState)
     (result : ((Pending.intent command state).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.intent command state) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve, Core.intentFailed,
+    Core.intentSaved] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
 theorem resolve_spawn_calm (core : Core) (now : Nat) (generation : UInt64) (plan : CoreLaunch)
     (result : ((Pending.spawn generation plan).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.spawn generation plan) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Option.map_eq_some_iff, Lifecycle.started_lastGeneration, Lifecycle.failed_lastGeneration])
 
 theorem resolve_adopt_calm (core : Core) (now : Nat) (generation : UInt64) (actual : CoreIdentity) (state : PersistedState)
     (result : ((Pending.adopt generation actual state).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.adopt generation actual state) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve, Core.adoptFailed, Core.adopted] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
 theorem resolve_commit_calm (core : Core) (now : Nat) (generation : UInt64) (actual : CoreIdentity) (state : PersistedState) (detail : ControlDetail)
     (result : ((Pending.commit generation actual state detail).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.commit generation actual state detail) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve, Core.committed] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration,
+      Lifecycle.adoptFinalIdentity_lastGeneration])
 
 theorem resolve_exitIntent_calm (core : Core) (now : Nat) (state : PersistedState)
     (result : ((Pending.exitIntent state).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.exitIntent state) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report])
 
 theorem resolve_seed_calm (core : Core) (now : Nat) (intended : Desired)
     (result : ((Pending.seed intended).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.seed intended) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve, Core.seeded] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
 theorem resolve_archive_calm (core : Core) (now : Nat) (identity : Identity) (intended : Desired) (stamp : UInt64)
     (result : ((Pending.archive identity intended stamp).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.archive identity intended stamp) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Lifecycle.archiveFailed_lastGeneration])
 
 theorem resolve_reopen_calm (core : Core) (now : Nat) (identity : Identity) (intended : Desired) (archive : System.FilePath)
     (result : ((Pending.reopen identity intended archive).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.reopen identity intended archive) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report])
 
 theorem resolve_replacement_calm (core : Core) (now : Nat) (state : PersistedState)
     (result : ((Pending.replacement state).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.replacement state) result).core := by
-  cases result <;> unfold_outcome <;> repeat' split
-  all_goals calm_leaf
+  cases result <;> simp only [Core.resolve, Core.replaced] <;> repeat' split
+  all_goals (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report, Lifecycle.replacementIntent_lastGeneration])
 
 theorem resolve_windUp_calm (core : Core) (now : Nat) (generation : UInt64)
     (result : ((Pending.windUp generation).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.windUp generation) result).core := by
   cases result
-  · exact Calm.through (by calm_leaf) (Core.refused_calm _ _ rfl)
+  · exact Calm.through (by (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])) (Core.refused_calm _ _ rfl)
   · exact ⟨rfl, fun _ _ waiting => nomatch waiting⟩
 
 theorem resolve_exitMap_calm (core : Core) (now : Nat) (report : ExitReport) (skip : Option Nat)
     (result : ((Pending.exitMap report skip).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.exitMap report skip) result).core := by
   cases result
-  · exact Calm.through (by calm_leaf) (Core.exitReported_calm _ _ rfl)
-  · exact Calm.through (by calm_leaf) (Core.exitReported_calm _ _ rfl)
+  · exact Calm.through (by (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])) (Core.exitReported_calm _ _ rfl)
+  · exact Calm.through (by (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])) (Core.exitReported_calm _ _ rfl)
 
 theorem resolve_map_calm (core : Core) (now : Nat) (skip : Option Nat)
     (result : ((Pending.map skip).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.map skip) result).core := by
   cases result
-  · exact Calm.through (by calm_leaf) (Core.launchCheck_calm _ _ rfl)
-  · exact Calm.through (by calm_leaf) (Core.launchCheck_calm _ _ rfl)
+  · exact Calm.through (by (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report])) (Core.launchCheck_calm _ _ rfl)
+  · exact Calm.through (by (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])) (Core.launchCheck_calm _ _ rfl)
 
 theorem resolve_closeMap_calm (core : Core) (now : Nat) (skip : Option Nat)
     (result : ((Pending.closeMap skip).call core.lifecycle).Result) :
     Calm core ({ core with pending := none }.resolve now (.closeMap skip) result).core := by
   cases result
-  · exact Calm.through (by calm_leaf) (Core.closed_calm _ rfl)
-  · exact Calm.through (by calm_leaf) (Core.closed_calm _ rfl)
+  · exact Calm.through (by (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [Core.report])) (Core.closed_calm _ rfl)
+  · exact Calm.through (by (
+    (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
+    (try have := Lifecycle.archived_lastGeneration _ _ _ (by assumption)) <;>
+    constructor <;>
+    simp_all [])) (Core.closed_calm _ rfl)
 
 /-- **Only a launch write's outcome reserves a generation or makes the state wait to spawn.**
 Every other outcome leaves the allocator unchanged and the state not waiting to spawn. -/
