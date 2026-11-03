@@ -559,17 +559,25 @@ obtainable for a project that imports Mathlib, the gate returns to Regula's own
 commands and the kernel replay is retired. The other passages of Acorn's
 documents that describe the gate's Regula step refer to this one.
 
-The first command fails on any warning. The kernel replay reads the build with
-Regula's own code, as `lake lint` reads it, and takes its claim from there:
-every constant that Regula's rules read as claimed, with the constants each
-claimed module's own data lists. It replays each of them, with every constant
-that it depends on, in Lean's kernel from an empty environment. It then compares
-the quotient constants with the kernel's, as Lean's own checker does, and
-refuses an axiom other than propext, Quot.sound and Classical.choice that a
-replayed constant uses, by the function that `lake check` uses. It prints
+The first command fails on any warning. The kernel replay reads the build once
+with Regula's own code, as `lake lint` reads it, under the profile that the
+package's `lintDriverArgs` states, read by Regula's own parser of them. On that
+one input it runs Regula's rules, prints what Regula prints of a verdict other
+than a pass, and refuses unless they pass. From the same input it takes its
+claim: every constant that Regula's rules read as claimed, with the constants
+each claimed module's own data lists. It replays each of them, with every
+constant that it depends on, in Lean's kernel from an empty environment. It then
+reads what it covered from the environment that the kernel returns: every
+constant there must equal the build's, the quotient constants among them, as
+Lean's own checker compares those, and every claimed constant must be one of
+them. It refuses an axiom other than propext, Quot.sound and Classical.choice
+that one of them uses, by the function that `lake check` uses. It prints
 Regula's line of what it read, and the script fails unless `lake lint` prints
-the same line, so a build that changed between the two fails. It leaves out an
-unsafe or partial claimed constant, as `lake check` does, and the constants of
+the same line: a consistency check that both runs read the same numbers of
+claimed modules and constants, not a check that the build did not change
+between them; another process changing the build during the audit is outside
+Regula's own contract. It leaves out an unsafe or partial claimed constant, as
+`lake check` does, and the constants of
 the imported environment that no claimed constant depends on. A kernel check of
 a claimed constant looks up only the constants that the terms it checks name and
 the kernel's own built-in constants, which the replay holds, and a name that the
@@ -579,7 +587,7 @@ where `lake check` replays an export in a process that maps none of them. The
 third command is Regula's checker. It exits 0 for a pass, 1 for a fail and 2 for
 an incomplete run, and its last line states the verdict; a pass ends that line
 with the directory it audited. The script passes only when the kernel replay
-accepts, the two lines of what was read agree, and `lake lint` exits 0 with its
+exits 0, the two lines of what was read agree, and `lake lint` exits 0 with its
 last line the pass on lean. The commands resolve dependencies through the Git
 lock in `lean/lake-manifest.json`, without the bootstrap's path overrides, so
 Lake fetches a dependency whose checkout is not at the locked revision.
@@ -820,9 +828,15 @@ executable names that the build order and this document read.
 
 **Decision registrations.** The ownership audit requires a contract with a kind for
 each registered decision function whose result is not `Decidable`, as stated
-above, and counts only a contract about the whole function: its subject is the
-function applied to nothing but the arguments its type takes implicitly, so a
-contract about one application does not count. Regula reads no registration.
+above, and counts only a contract about the whole function whose condition
+applies its kind to that function. Its subject is the function applied to
+nothing but the arguments its type takes implicitly, so a contract about one
+application does not count. Its condition is the kind with every argument but
+the last, which the contract supplies with the function, or a function of the
+contract's subject whose body is the kind with a last argument that mentions the
+bound variable; any other form, such as a condition that ignores its argument
+and decides the identity function, does not count. Regula reads no
+registration.
 
 Regula has no rule for the import layers of the learned-only boundary, the
 capability owners, source syntax admission, the departures register, native

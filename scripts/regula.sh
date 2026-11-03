@@ -10,10 +10,14 @@
 # `lake check`. So the audit obtains Regula's rules under the profile and that replay, not
 # Regula v0.12.0's proof verdict as the release defines it.
 # The claim is the modules of the package's default targets and every module of the package
-# their imports reach. The replay prints Regula's own line of what it read, and the audit fails
-# unless `lake lint` prints the same line. It passes only when `lake lint` also exits 0 and its
-# last line is the pass on this package's directory; a fail (exit 1), an incomplete run (exit 2)
-# and any other last line fail it.
+# their imports reach. The replay reads it once, with Regula's own code, under the profile of the
+# package's `lintDriverArgs`; it runs Regula's rules on that one input and replays the same input's
+# claim, and exits 0 only when the rules pass and the kernel accepts. Then `lake lint` runs as the
+# release names it. Both print Regula's line of what they read, and the audit fails unless the two
+# lines agree: a consistency check that both runs read the same numbers of claimed modules and
+# constants, not a check that the build did not change between them. The audit passes only when
+# `lake lint` also exits 0 and its last line is the pass on this package's directory; a fail
+# (exit 1), an incomplete run (exit 2) and any other last line fail it.
 set -euo pipefail
 cd "$(dirname "$0")/../lean"
 # Acorn's verification keeps Lake's artifact cache off.
@@ -24,15 +28,14 @@ lake build --wfail
 replayed=$(mktemp)
 report=$(mktemp)
 trap 'rm -f "$replayed" "$report"' EXIT
-lake exe kernel-replay > "$replayed"
-cat "$replayed"
+lake exe kernel-replay | tee "$replayed"
 
 status=0
 lake lint > "$report" || status=$?
 cat "$report"
 
 # Regula's line of what it read (`Regula.Shell.coverage`, which `lake lint` indents by two spaces):
-# the replay's and the lint's must be one and the same line.
+# the replay's and the lint's must state the same numbers of claimed modules and constants.
 coverage() {
   grep -E '^ *regula: read [0-9]+ claimed modules and [0-9]+ of their constants$' "$1" |
     sed -E 's/^ +//' || true
@@ -50,4 +53,4 @@ if [[ "$status" != 0 || "$verdict" != "$expected" ]]; then
   echo "Regula audit: lake lint exited $status with the last line: $verdict" >&2
   exit 1
 fi
-echo "Regula audit: Regula's rules pass and the kernel replay accepts the same claim on $(pwd -P)"
+echo "Regula audit: Regula's rules pass on the claim the kernel replay accepts, and lake lint passes, on $(pwd -P)"

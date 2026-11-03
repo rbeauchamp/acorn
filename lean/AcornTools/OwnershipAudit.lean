@@ -75,8 +75,8 @@ def anchor (env : Environment) (maintained : Array Name)
   require (theoremInfo.type.getUsedConstantsAsSet.contains implementation)
     s!"{theoremName}: statement no longer refers to {implementation}"
 
-/-- The decision kinds of `Regula.Contract`. A contract with one of them as its condition's head
-states which direction of the decision is proved. -/
+/-- The decision kinds of `Regula.Contract`. A contract whose condition applies one of them to its
+implementation (`appliesKind`) states which direction of the decision is proved. -/
 def decisionKinds : Array Name :=
   #[`Regula.Decides, `Regula.DecidesSoundly, `Regula.DecidesCompletely]
 
@@ -84,12 +84,32 @@ def decisionKinds : Array Name :=
 need the proof library. -/
 def contractOwners : Array Name := #[AcornModuleInventory.decisionRegistry, `AcornVerif.Decisions]
 
-/-- Whether a contract's condition, `fun f => K accepts spec …` or `K accepts spec`, has a decision
-kind `K` at its head. -/
-def statesKind : Expr → Bool
-  | .mdata _ condition => statesKind condition
-  | .lam _ _ body _ => decisionKinds.contains body.consumeMData.getAppFn.constName
-  | condition => decisionKinds.contains condition.getAppFn.constName
+/-- The binder kinds of a type, outermost first. -/
+def binderInfos : Expr → List BinderInfo
+  | .mdata _ type => binderInfos type
+  | .forallE _ _ body binder => binder :: binderInfos body
+  | _ => []
+
+/-- Whether a contract's condition applies a decision kind `K` to the contract's implementation, in
+one of two closed forms: `K accepts spec`, which lacks exactly the kind's last explicit argument, so
+the contract applies it to the implementation; or `fun g => K accepts spec t`, whose last explicit
+argument `t` contains the bound `g`, which the contract instantiates with the implementation. Every
+other form is refused, such as `fun _ => K accepts spec id`, whose decision is not about the
+implementation. -/
+def appliesKind (env : Environment) (condition : Expr) : Bool := Id.run do
+  let (body, bound) := match condition.consumeMData with
+    | .lam _ _ body _ => (body.consumeMData, true)
+    | condition => (condition, false)
+  let .const kind _ := body.getAppFn | return false
+  unless decisionKinds.contains kind do return false
+  let some info := env.find? kind | return false
+  let binders := binderInfos info.type
+  unless binders.getLast?.any (·.isExplicit) do return false
+  let args := body.getAppArgs
+  if bound then
+    return args.size == binders.length && args.back?.any (·.hasLooseBVar 0)
+  else
+    return args.size + 1 == binders.length
 
 /-- Whether a type is that of a decision procedure: its result, after every binder, is a
 `Decidable` proposition, which carries both directions of the decision in its type. -/
@@ -113,11 +133,12 @@ def wholeFunction (env : Environment) (subject : Expr) : Option Name := do
     type := body
   return function
 
-/-- Every function the registry registers (`Regula.RegisteredDecision`) has a contract with a
-decision kind in `contractOwners` about the whole function (`wholeFunction`), unless it is a
-decision procedure. Regula v0.12.0 reads no registration or contract, so this audit is what makes
-a registration require its contract. A registration outside the registry is refused, and so is a
-registry that registers nothing. Returns the number of registrations. -/
+/-- Every function the registry registers (`Regula.RegisteredDecision`) has a contract in
+`contractOwners` about the whole function (`wholeFunction`) whose condition applies a decision kind
+to that function (`appliesKind`), unless it is a decision procedure. Regula v0.12.0 reads no
+registration or contract, so this audit is what makes a registration require its contract. A
+registration outside the registry is refused, and so is a registry that registers nothing. Returns
+the number of registrations. -/
 def registrations (env : Environment) : IO Nat := do
   let mut registered : Array Name := #[]
   let mut contracted : NameSet := {}
@@ -135,7 +156,7 @@ def registrations (env : Environment) : IO Nat := do
       let some function := (type.getArgD 1 default).consumeMData.getAppFn.constName?
         | throw (IO.userError s!"{name}: registers no named function")
       registered := registered.push function
-    else if contractOwners.contains owner && statesKind (type.getArgD 2 default) then
+    else if contractOwners.contains owner && appliesKind env (type.getArgD 2 default) then
       if let some function := wholeFunction env (type.getArgD 1 default) then
         contracted := contracted.insert function
   require (!registered.isEmpty) "the decision registry registers no function"
@@ -143,7 +164,8 @@ def registrations (env : Environment) : IO Nat := do
     let some info := env.find? function
       | throw (IO.userError s!"{function}: registered, and absent from the environment")
     unless decidableResult info.type || contracted.contains function do
-      throw (IO.userError s!"{function}: registered with no contract that states a decision kind")
+      throw (IO.userError
+        s!"{function}: registered with no contract that applies a decision kind to it")
   return registered.size
 
 /-- Follow the entry's actual serialized import edges. Shared dependency data

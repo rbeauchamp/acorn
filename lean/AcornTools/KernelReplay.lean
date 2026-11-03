@@ -17,21 +17,27 @@ environment, Mathlib's included, and replays the export in one process; on Acorn
 not fit the machines that run the gate. So the audit obtains Regula's rules under its profile and
 this replay, not Regula v0.12.0's proof verdict as the release defines it.
 
-The replay takes its claim from Regula itself. It runs the steps by which `lake lint` reads the
-build (`Regula.Shell.loadPlain` and `Regula.Shell.inputOf` of Regula v0.12.0): Lake's load of the
-workspace, the modules of the default targets, the import of them, and Regula's closed input of
-that environment. Its seeds are that input's claimed constants (`Regula.Closed.Input.claimedDecls`),
-the set every rule of `lake lint` reads, together with the constants each claimed module's own data
-lists. It prints Regula's own line of what it read (`Regula.Shell.coverage`); the audit requires
-that line to be the one `lake lint` prints after it, so a change of the build between the two
-fails the audit.
+The replay and Regula's rules judge one claim, read once. The replay runs the steps by which
+`lake lint` reads the build (`Regula.Shell.loadPlain` and `Regula.Shell.inputOf` of Regula v0.12.0):
+Lake's load of the workspace, the modules of the default targets, the import of them, and Regula's
+closed input of that environment, under the profile that the root package's `lintDriverArgs` states,
+read by Regula's `Regula.Shell.profileOfRun` as `lake lint` reads it. On that one input it evaluates
+Regula's rules (`Regula.Closed.decision`), prints what Regula prints of a report other than a pass,
+and refuses unless the report is a pass. Its seeds are the same input's claimed constants
+(`Regula.Closed.Input.claimedDecls`), together with the constants each claimed module's own data
+lists. It prints Regula's own line of what it read (`Regula.Shell.coverage`), and the audit requires
+the one that `lake lint` prints after it to be the same: a consistency check that both runs read the
+same numbers of claimed modules and constants, not a check that the build did not change between
+them, which is outside Regula's own contract.
 
 Every seed and every constant it names, transitively, is replayed in Lean's kernel by
 `Lean.Kernel.Environment.replay`, starting from an empty environment, so no claimed constant is
-checked against one the kernel did not check. The quotient constants are then compared with the
-kernel's, as `leanchecker --from-export` does, and every axiom a replayed constant names must be one
-of the three that `lake check` admits, by Lake's own `usedAxioms`. An unsafe or partial claimed
-constant is left out and counted, as `lake check` leaves it out: its export skips an unsafe constant
+checked against one the kernel did not check. Coverage is read from the environment that the replay
+returns: every constant it holds must equal the build's, the quotient constants the kernel adds
+among them, as `leanchecker --from-export` compares those, and every seed must be one of them. Every
+axiom one of them names must be one of the three that `lake check` admits, by Lake's own
+`usedAxioms` over exactly those constants. An unsafe or partial claimed constant is left out and
+counted, as `lake check` leaves it out: its export skips an unsafe constant
 (`LeanExport/Basic.lean:255` at Lean v4.35.0) and Lean's replay skips both
 (`Lean/Replay.lean:183-185`); RG1006 refuses each one except the helper Lean gives a terminating
 recursive definition.
@@ -94,11 +100,21 @@ def replayNeeds (ci : ConstantInfo) : Array Name := Id.run do
   | _ => pure ()
   return out
 
-/-- Regula's closed input of the workspace in the current directory, with the environment it read:
-the steps of `Regula.Shell.loadPlain` and `Regula.Shell.inputOf` (Regula v0.12.0), which `lake lint`
-runs, with the environment kept. The profile does not change which modules and constants are
-claimed; `standard-logical`, the weakest, refuses no input that a stronger profile admits. -/
-def load : Regula.Reader.Attempt Lake.LeanLib Environment (Environment × Regula.Closed.Input) := do
+/-- Regula's calls of Lake (`Regula.Load.lakeCalls`), whose load of the workspace also keeps the
+root package's `lintDriverArgs`, the arguments that `lake lint` with none of its own passes
+Regula's driver (`Lake.Package.lint`, `Lake/CLI/Actions.lean` of Lean v4.35.0). -/
+def calls (driverArgs : IO.Ref (Option (Array String))) : Regula.Effect.LakeCalls Lake.LeanLib :=
+  { Regula.Load.lakeCalls with
+    loadWorkspace := fun sysroot wsDir => EIO.toBaseIO do
+      let lakeEnv ← Regula.Load.lakeEnvironment sysroot
+      let (ws?, log) ← (Lake.loadWorkspace { lakeEnv, wsDir }).captureLog
+      if let some ws := ws? then driverArgs.set (some ws.root.lintDriverArgs)
+      return (ws?.map Regula.Load.rootOf, Regula.Load.messagesOf log) }
+
+/-- Regula's facts of the workspace in the current directory, with the modules of its default
+targets: the steps of `Regula.Shell.loadPlain` and `Regula.Shell.inputOf` (Regula v0.12.0), which
+`lake lint` runs, up to the closed input, which `audit` forms under the profile. -/
+def load : Regula.Reader.Attempt Lake.LeanLib Environment (Regula.Load.Facts × List Name) := do
   let sysroot ← Regula.Reader.requireEnv "LEAN_SYSROOT"
     "LEAN_SYSROOT is not set: run `lake exe kernel-replay`, which sets it"
   let dir ← Regula.Reader.realPath "."
@@ -115,8 +131,7 @@ def load : Regula.Reader.Attempt Lake.LeanLib Environment (Environment × Regula
   let env ← Regula.Reader.attempt
     (Regula.Effect.Prog.call (.importForRules root.leanPath roots.toArray))
   let facts ← Regula.Shell.factsOf env root.leanPath root.leanLib root.rootLib
-  let input ← ExceptT.mk (pure (facts.input roots .standardLogical))
-  return (env, input)
+  return (facts, roots)
 
 /-- The replay of the claim of `input` in the environment `env` it was read from. -/
 def replay (env : Environment) (input : Regula.Closed.Input) : IO UInt32 := do
@@ -146,7 +161,6 @@ def replay (env : Environment) (input : Regula.Closed.Input) : IO UInt32 := do
   let mut done : NameSet := quotientParts.foldl (·.insert ·) {}
   let mut expanding : NameSet := {}
   let mut stack : Array (Name × Bool) := seeds.reverse.map (·, false)
-  let mut replayed := 0
   while !stack.isEmpty do
     let (n, ready) := stack.back!
     stack := stack.pop
@@ -162,7 +176,6 @@ def replay (env : Environment) (input : Regula.Closed.Input) : IO UInt32 := do
         IO.eprintln s!"kernel replay: Lean's kernel refuses {n}:\n{e}"
         return 1
       done := unit.foldl (·.insert ·) done
-      replayed := replayed + batch.size
     else
       stack := stack.push (n, true)
       expanding := unit.foldl (·.insert ·) expanding
@@ -170,16 +183,16 @@ def replay (env : Environment) (input : Regula.Closed.Input) : IO UInt32 := do
         if let some c := toReplay[x]? then
           for d in replayNeeds c do
             unless done.contains d || unit.contains d do stack := stack.push (d, false)
-  for n in seeds do
-    unless done.contains n do
-      IO.eprintln s!"kernel replay: {n} was not replayed"
+  let checked : Std.HashMap Name ConstantInfo :=
+    kenv.constants.fold (init := {}) fun out n info => out.insert n info
+  for (n, info) in checked do
+    unless constants[n]? == some info do
+      IO.eprintln s!"kernel replay: the kernel's {n} differs from the build's"
       return 1
-  for q in #[`Quot] ++ quotientParts do
-    if let some info := constants[q]? then
-      unless kenv.find? q == some info do
-        IO.eprintln s!"kernel replay: the kernel's {q} differs from the build's"
-        return 1
-  let checked := constants.filter fun n _ => done.contains n
+  for n in seeds ++ quotientParts do
+    unless checked.contains n do
+      IO.eprintln s!"kernel replay: the environment the kernel returns holds no {n}"
+      return 1
   let used := Lake.Check.usedAxioms
     { constMap := checked, constOrder := checked.toArray.map (·.1) }
   let refused := used.filter fun (ax, _) => !admittedAxioms.contains ax
@@ -187,12 +200,29 @@ def replay (env : Environment) (input : Regula.Closed.Input) : IO UInt32 := do
     for (ax, ref) in refused do
       IO.eprintln s!"kernel replay: the axiom {ax}, which {ref} uses, is not admitted"
     return 1
-  IO.println (Regula.Shell.coverage input)
-  IO.println s!"kernel replay: Lean's kernel accepts {replayed} constants from an empty \
-    environment, the {kept.size} safe constants that the claim of {input.modules.length} modules \
-    names and every constant they depend on, leaving out {unchecked} unsafe or partial claimed \
-    constants; they use the axioms {used.toList.map (·.1)}"
+  IO.println s!"kernel replay: Lean's kernel accepts, from an empty environment, the {kept.size} \
+    safe constants that the claim of {input.modules.length} modules names and every constant they \
+    depend on, {checked.size} constants each equal to the build's, leaving out {unchecked} unsafe \
+    or partial claimed constants; they use the axioms {used.toList.map (·.1)}"
   return 0
+
+/-- Regula's rules and the kernel replay on one closed input: that of `facts` and the modules
+`roots` of the default targets under the profile that `driverArgs` states, read by
+`Regula.Shell.profileOfRun` with this Lean's version and commit, as `lake lint` reads it. It
+prints what Regula prints of the input and of a report other than a pass, and replays the input's
+claim only when Regula's report on it (`Regula.Closed.decision`) is a pass. -/
+def audit (facts : Regula.Load.Facts) (roots : List Name) (driverArgs : Array String) :
+    IO UInt32 := do
+  let input? := (Regula.Shell.profileOfRun Lean.versionString Lean.githash driverArgs.toList).bind
+    (facts.input roots)
+  if let .ok input := input? then IO.println (Regula.Shell.coverage input)
+  let report := Regula.Closed.decision input?
+  for line in Regula.Shell.details report do IO.println line
+  match input?, report with
+  | .ok input, .pass => replay facts.env input
+  | _, _ =>
+    IO.eprintln "kernel replay: Regula's rules do not pass on the claim, so it is not replayed"
+    return 1
 
 end AcornKernelReplay
 
@@ -203,11 +233,12 @@ unsafe def main (args : List String) : IO UInt32 := do
   unless args.isEmpty do
     IO.eprintln "usage: kernel-replay"
     return 2
+  let driverArgs ← IO.mkRef none
   let result ← (Regula.Effect.Prog.interpret
-    (Regula.Effect.table Lean.enableInitializersExecution Regula.Load.lakeCalls)
+    (Regula.Effect.table Lean.enableInitializersExecution (AcornKernelReplay.calls driverArgs))
     AcornKernelReplay.load.run).toIO
   match result with
   | .error why =>
     IO.eprintln s!"kernel replay: Regula could not read the build: {why}"
     return 1
-  | .ok (env, input) => AcornKernelReplay.replay env input
+  | .ok (facts, roots) => AcornKernelReplay.audit facts roots ((← driverArgs.get).getD #[])

@@ -2355,8 +2355,9 @@ The viewer receives telemetry and requests lifecycle stop only.
 [Acorn.Decisions](../lean/Acorn/Decisions.lean) registers the admissions, parsers
 and validity tests of the executing library for which a property of the accepted
 or refused result is proved, with what each proof establishes; the
-ownership audit requires a contract with a kind, about the whole function, of every
-registered function whose result type is not `Decidable`
+ownership audit requires a contract about the whole function whose condition
+applies a kind to that function, of every registered function whose result type
+is not `Decidable`
 ([verification](verification.md#regula-audit)). The module
 documentation of that registry lists the groups of definitions with a `Bool`,
 `Option`, `Except` or `Decidable` result that carry no contract; no check keeps
