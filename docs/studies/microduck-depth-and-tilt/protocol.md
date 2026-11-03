@@ -4,12 +4,14 @@ This is the protocol of study microduck-depth-and-tilt, the first measurement of
 [issue 95](https://github.com/rbeauchamp/acorn/issues/95) (increment 6). It fixes every
 choice below before any observation of the study exists.
 
-**Protocol revision 1. Status when written: not run.** It is registered by the signed commit
-that adds this file, made before any run of the study; the record of the run names that
-commit. A change after registration is a new revision with a new number. The owner's standing
-approval of every run of the vendor's simulator (2026-10-08, relayed by Firstmate) is the
-authorization that the [scientific evidence guidance](../../../CONTRIBUTING.md#scientific-evidence)
-requires; it is not an approval of this design.
+**Protocol revision 2, an editorial revision of revision 1 ([revisions](#revisions)); the study
+ran under revision 1. Status of revision 1 when written: not run.** Revision 1 is registered by
+the signed commit that adds this file, made before any run of the study; the record of the run
+names that commit. A change after registration is a new revision with a new number. The owner's
+standing approval of every run of the vendor's simulator (2026-10-08, relayed by the owner's
+supervising agent) is the authorization that the
+[scientific evidence guidance](../../../CONTRIBUTING.md#scientific-evidence) requires; it is not
+an approval of this design.
 
 ## Questions
 
@@ -125,8 +127,8 @@ counted and left out.
 
 The installation (about 5 GB of disk in a scratch root inside the worktree, about 2 minutes of
 build at two jobs), about 90 s for session T and 90 s for session D with start and stop, under
-the build slot that Firstmate grants. Nothing is left running, no cache of the home directory
-is written, and the scratch root is removed after the records are copied.
+the build slot that the owner's supervising agent grants. Nothing is left running, no cache of
+the home directory is written, and the scratch root is removed after the records are copied.
 
 ## Execution
 
@@ -313,4 +315,15 @@ code, because derivation 2 already shows the next level unsafe for a sitting bod
 
 ## Revisions
 
-Revision 1 is this file as committed by its registering commit.
+Revision 1 is this file as committed by its registering commit,
+3c9afd7c1af770638267aacd82058e1839d06be7, which the repository keeps under the tag
+microduck-depth-and-tilt-r1-registered. The study ran under revision 1, and the file's SHA-256
+at that commit is the one the [identity file](observations/r1/identity.txt) records as run.
+
+Revision 2 (2026-11-03) is editorial and changes no commitment of revision 1: what runs, under
+what approval, on what resources, what is measured and what is reported are as revision 1 states
+them. Revision 1 named a private tool of the owner as the party that relayed the owner's approval
+of the simulator's runs and as the party that grants the build slot; revision 2 describes that
+party by its role, the owner's supervising agent, because Acorn's public text names no private
+repository or tool of the owner. Revision 2 also names, in the status line, the revision this
+file is, and records itself here.

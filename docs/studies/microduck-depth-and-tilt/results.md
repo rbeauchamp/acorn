@@ -2,9 +2,9 @@
 
 This is the result of revision 1 of study microduck-depth-and-tilt, the first measurement of
 [issue 95](https://github.com/rbeauchamp/acorn/issues/95). The [protocol](protocol.md) defines
-every term used here and fixed every choice before the run; its registering commit is
-3c9afd7c1af770638267aacd82058e1839d06be7. The run was on 2026-10-09 from 10:51:47 to 10:55:06
-UTC; the [identity file](observations/r1/identity.txt) names its inputs, and the
+every term used here and fixed every choice before the run; the registering commit of its
+revision 1, under which the study ran, is 3c9afd7c1af770638267aacd82058e1839d06be7. The run
+was on 2026-10-09 from 10:51:47 to 10:55:06 UTC; the [identity file](observations/r1/identity.txt) names its inputs, and the
 [manifest](observations/r1/manifest-sha256.txt) the hash of every record.
 
 ## Result
@@ -73,12 +73,16 @@ The protocol was registered by the signed commit 3c9afd7c1af770638267aacd82058e1
 committed at 2026-10-09T09:48:40Z, about an hour before the run began at 10:51:47Z, on a branch
 that was not published before the run. Publication rebased that branch onto the main branch,
 and the change reaches the main branch as one squash commit dated after the run; neither
-carries 3c9afd7c. The protocol as published has the SHA-256 that the identity file records as
-run (fb00446c71d8a353999c6810507feba332a4c07180cf02ef726a6b8903653619), so its bytes are those
-of revision 1; a hash establishes integrity, not the time of registration, so the published
-history alone cannot show that the protocol preceded the run, and nothing independent attests
-the time of the commit. The commit 3c9afd7c is kept in the repository under the tag
-microduck-depth-and-tilt-r1-registered.
+carries 3c9afd7c. The protocol as that squash commit
+(c9384fddb2f1153137a0c1988792ee6349957261) published it has the SHA-256 that the identity file
+records as run (fb00446c71d8a353999c6810507feba332a4c07180cf02ef726a6b8903653619), so its bytes
+are those of revision 1; a hash establishes integrity, not the time of registration, so the
+published history alone cannot show that the protocol preceded the run, and nothing independent
+attests the time of the commit. The commit 3c9afd7c is kept in the repository under the tag
+microduck-depth-and-tilt-r1-registered. The protocol on the main branch is now revision 2, an
+editorial revision that changes none of revision 1's commitments
+([revisions](protocol.md#revisions)), so its bytes no longer have that SHA-256; revision 1's
+bytes are those of the squash commit and of the tagged commit.
 
 ## Addendum, 2026-10-09, after the second reading of the change
 
