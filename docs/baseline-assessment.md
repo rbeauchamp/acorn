@@ -813,8 +813,8 @@ and the constant input), and
 `CurrentModels.planning_primitive`, `CurrentModels.planning_traces` and
 `CurrentModels.planning_lags` (what planning leaves alone).
 
-Argued from Lean-proved rational identities: what an expectation model keeps
-under a maximum or a tie-window mean over action values
+Argued from Lean-proved results over rational inputs: what an expectation
+model keeps under a maximum or a tie-window mean over action values
 (`CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,
 `CurrentPlanning.expectation_maximum_eq` and
 `CurrentPlanning.expectation_sandwiched`), and that the shared residual and
@@ -865,7 +865,7 @@ improves decisions.
   buckets and no layout collision). None is machine-checked. The repairs of
   F-A, F-C, F-E and F-F are argued from the machine-checked theorems above.
   Applications of the declared parameter-budget model, U2's distributional
-  model and the abstract U5 identities are argued from Lean-proved model
+  model and the abstract U5 theorems are argued from Lean-proved model
   results, as distinguished above. U2's distributional results hold under
   the assumed uniform, independent draw listed below.
 - **Assumed.**
