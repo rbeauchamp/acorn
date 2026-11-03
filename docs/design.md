@@ -298,9 +298,10 @@ until `Agent.choose` returns, including the construction of its `Chosen` value; 
 world receives the action after the second part under `learn-then-act`, and between the
 two parts under `plan-after-act` and `act-then-learn`. The deadline of a world on a wall
 clock needs a bound of the executed work before the action is released; under
-`learn-then-act` that work also includes the second part, whose bound R8 still owes.
-Reading the twin's bound as a bound of the executed first part rests on four things no
-theorem yet establishes, which a later increment of requirement R8 owes:
+`learn-then-act` that work also includes the second part, whose bound is part of
+[obligation 7](mission-contract.md#open-obligations), the executed work bound. Reading
+the twin's bound as a bound of the executed first part rests on four things no theorem
+yet establishes, each part of that obligation:
 
 - that a cost model in word operations counts the segments of the executed code:
   `choose_words` bounds the accounting charged at a cost model `words` under
@@ -542,14 +543,15 @@ The first part under `act-then-learn`, the second part in each order and the mem
 of the agent state are not bounded here. The second part runs stretches outside the
 costed definitions. In the second part, the operations of those stretches belong to the
 segment of the next charge of a costed definition, or of the part's last charge, so the
-second part's segments are not yet bounded by constants of the code and its bound is an
-open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
-channels of the demons' lifetime records, whose trip count depends on the configuration,
-with no charge point. That is why the claim that every segment is bounded by a constant
-of the code is limited to the first part and to each costed definition's own call. The
+second part's segments are not yet bounded by constants of the code and its bound is part
+of [obligation 7](mission-contract.md#open-obligations), the executed work bound.
+`DemonRecords.observe` is one such stretch: a loop over the channels of the demons'
+lifetime records, whose trip count depends on the configuration, with no charge point.
+That is why the claim that every segment is bounded by a constant of the code is limited
+to the first part and to each costed definition's own call. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
-is owed by a later increment of R8. The following of the option table
+is part of obligation 7. The following of the option table
 (`TemporalControl.followOptions`) is not yet the value of a costed definition either: before
 it maps each slot's share (`followSlot`), it computes the stopping estimate
 (`TemporalControl.stoppingEstimate`), the options' rate (`TemporalControl.skillRate`) and the
@@ -557,8 +559,7 @@ value function (`TemporalControl.valueFunction`), which read the controllers' ra
 (`Controller.exploreRate`) and the stopping comparison (`comparisonValue`), values of costed
 definitions, with no charge point. The bound of a slot's share
 (`AcornVerif.Resource.Twin.followSlotCosted_within`) takes those three as computed and does not
-count their computation; costing the table's following with them is owed by the next increment
-of R8.
+count their computation; costing the table's following with them is part of obligation 7.
 
 ### The time a world declares
 

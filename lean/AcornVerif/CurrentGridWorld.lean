@@ -37,8 +37,8 @@ memory on the kernel world's percept. The host also calls `recordEnvironment` an
 `recordAttempt` between decisions; they are outside this instance, and no theorem here
 shows that a host's run and the kernel's closed loop take the same actions, which
 `AcornVerif.CurrentVisits` shows of a run of visits and `AcornVerif.CurrentHostLoop` of each
-attempt of a campaign. Over the grid
-interface it does not achieve goals in every world: `executed_defeated` instantiates
+attempt of a campaign; a whole campaign's run is obligation 2 of `docs/mission-contract.md`.
+Over the grid interface it does not achieve goals in every world: `executed_defeated` instantiates
 `Kernel.no_agent_achieves_every_world` at it, from every state of it.
 
 `comparator` is the uniform-random comparator as a kernel agent. It is open-loop
