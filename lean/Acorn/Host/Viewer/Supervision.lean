@@ -487,7 +487,8 @@ def exitReported (core : Core) (report : ExitReport) : Stepped :=
       [], follows⟩
 
 /-- The readers of the reaped child finished. A serving viewer persists the map, then reports
-the exit; a closing one reports it, persists the map and closes. -/
+the exit; a closing one reports it and closes at a later tick, after the identity the readers
+delivered is attributed. -/
 def finished (core : Core) (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus) :
     Stepped :=
   match core.slot with
@@ -509,10 +510,8 @@ def finished (core : Core) (stdout : OutputStatus) (stderr : PipeResult) (log : 
         let reported := core.exitReported report
         { reported with changes := changes ++ reported.changes }
     | .closing before =>
-      let core := ({ core with detail, failure, closing := .closing (before || failed) }).report
-        .coreStopped reason
-      let out := core.closeOut
-      { out with changes := changes ++ out.changes, follows := Follow.say reason :: out.follows }
+      ⟨({ core with detail, failure, closing := .closing (before || failed) }).report
+        .coreStopped reason, changes, [Follow.say reason]⟩
     | .closed _ => ⟨core, [], []⟩
   | .empty | .live _ => ⟨core, [], []⟩
 
@@ -559,7 +558,8 @@ def clear (core : Core) (intended : Desired) : Stepped :=
     | .retired _ => ⟨core, [], []⟩
 
 /-- Nothing else happened: publish a replacement that waits, or go on with a Clear the reaped
-process admits, or persist the map and consider a launch. -/
+process admits, or persist the map and consider a launch. A closing viewer with no process
+closes. -/
 def tick (core : Core) (now : Nat) : Stepped :=
   match core.closing with
   | .open =>
@@ -572,7 +572,11 @@ def tick (core : Core) (now : Nat) : Stepped :=
       match core.lifecycle.archiveIntent, core.slot with
       | some intended, .empty => core.clear intended
       | _, _ => core.mapOrLaunch now
-  | .closing _ | .closed _ => ⟨core, [], []⟩
+  | .closing _ =>
+    match core.slot with
+    | .empty => core.closeOut
+    | .live _ | .draining _ _ _ => ⟨core, [], []⟩
+  | .closed _ => ⟨core, [], []⟩
 
 /-- The operator closes the viewer: the core winds up without the intent being saved, and the
 viewer closes once it is reaped. -/
@@ -1002,10 +1006,8 @@ theorem finished_invariant (core : Core) (clearDisabled : Option String)
           (by obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
                 invariant <;> invariant_leaf)
           ready (by assumption)
-    · exact Core.closeOut_invariant _ clearDisabled
-        (by obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-              invariant <;> invariant_leaf)
-        ready
+    · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
+        invariant_leaf
     · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
         invariant_leaf
   · exact invariant
@@ -1021,9 +1023,15 @@ theorem launchCheck_invariant (core : Core) (clearDisabled : Option String) (now
 theorem tick_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.tick now).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold_transition <;> repeat' split
-  all_goals invariant_leaf
+  unfold Core.tick
+  split
+  · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
+      unfold_transition <;> repeat' split
+    all_goals invariant_leaf
+  · split
+    · exact core.closeOut_invariant clearDisabled invariant ready
+    · exact invariant
+  · exact invariant
 
 theorem close_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
@@ -1391,6 +1399,36 @@ theorem replaced_identity (core : Core) (state : PersistedState)
     exact facts.2
   · simp at cleared
 
+/-- The readers' report closes nothing and begins no closing map write. -/
+theorem finished_defers (core : Core) (stdout : OutputStatus) (stderr : PipeResult)
+    (log : LogStatus) :
+    (∀ failed, (core.finished stdout stderr log).core.closing = .closed failed →
+        core.closing = .closed failed) ∧
+      ∀ skip, (core.finished stdout stderr log).core.pending = some (.closeMap skip) →
+        core.pending = some (.closeMap skip) := by
+  simp only [Core.finished, Core.exitReported]
+  repeat' split
+  all_goals simp_all
+
+/-- **A core's exit never closes the viewer.** For every state and every report of a reaped
+child's readers, the step on that report yields a closed state only from a closed one, and waits
+on the closing map write only when the state it starts from does. A closing viewer closes at a
+later tick, which the actor hands after it attributes the identity the readers delivered. -/
+theorem step_finished_defers_close (core : Core) (clearDisabled : Option String) (reading : Nat)
+    (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus) :
+    (∀ failed, (core.step clearDisabled reading (.finished stdout stderr log)).core.closing =
+        .closed failed → core.closing = .closed failed) ∧
+      ∀ skip, (core.step clearDisabled reading (.finished stdout stderr log)).core.pending =
+        some (.closeMap skip) → core.pending = some (.closeMap skip) := by
+  have deferred := core.finished_defers stdout stderr log
+  cases pending : core.pending with
+  | some waiting => simp [step, dispatch, Stepped.at, pending]
+  | none =>
+    cases closing : core.closing with
+    | closed failed => simp [step, dispatch, Stepped.at, pending, closing]
+    | «open» => simpa [step, dispatch, Stepped.at, pending, closing] using deferred
+    | closing failed => simpa [step, dispatch, Stepped.at, pending, closing] using deferred
+
 end Core
 
 namespace Core
@@ -1464,9 +1502,15 @@ theorem launchCheck_calm (core : Core) (now : Nat) (ready : core.pending = none)
 
 theorem tick_calm (core : Core) (now : Nat) (ready : core.pending = none) :
     Calm core (core.tick now).core := by
-  unfold_transition
-  repeat' split
-  all_goals calm_leaf
+  unfold Core.tick
+  split
+  · unfold_transition
+    repeat' split
+    all_goals calm_leaf
+  · split
+    · exact core.closeOut_calm ready
+    · calm_leaf
+  · calm_leaf
 
 theorem close_calm (core : Core) (ready : core.pending = none) : Calm core core.close.core := by
   unfold_transition
@@ -1487,7 +1531,7 @@ theorem finished_calm (core : Core) (stdout : OutputStatus) (stderr : PipeResult
     · split
       · calm_leaf
       · exact Calm.through (by calm_leaf) (Core.exitReported_calm _ _ (by simpa using ready))
-    · exact Calm.through (by calm_leaf) (Core.closeOut_calm _ (by simpa using ready))
+    · calm_leaf
     · calm_leaf
   · calm_leaf
   · calm_leaf

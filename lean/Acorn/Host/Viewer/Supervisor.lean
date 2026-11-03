@@ -227,8 +227,9 @@ def Supervisor.step (supervisor : Supervisor) : IO Unit :=
     supervisor.attribute
     if ← supervisor.ready then supervisor.handle .tick
 
-/-- One turn of a closing viewer: the close is handed once, then the process is watched. The
-result is whether the viewer closed with a failure, once it has closed. -/
+/-- One turn of a closing viewer: the close is handed once, then the process is watched, the
+identity its readers delivered is attributed, and a tick closes the viewer once no process
+remains. The result is whether the viewer closed with a failure, once it has closed. -/
 private def Supervisor.closeTurn (supervisor : Supervisor) : IO (Option Bool) :=
   supervisor.actor.atomically do
     supervisor.drive []
@@ -237,6 +238,7 @@ private def Supervisor.closeTurn (supervisor : Supervisor) : IO (Option Bool) :=
     supervisor.attribute
     supervisor.observe
     supervisor.attribute
+    if ← supervisor.ready then supervisor.handle .tick
     match (← get).supervision.core.closing with
     | .closed failed => return some failed
     | .open | .closing _ => return none

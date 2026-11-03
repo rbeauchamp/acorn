@@ -886,8 +886,11 @@ only when the lifecycle is idle, intends to run, has no Clear pending and its re
 admits a launch at that instant ({decl}`Acorn.Host.Viewer.Core.resume_launch`); no event and no other
 outcome reserves a generation or waits to spawn ({decl}`Acorn.Host.Viewer.Core.step_calm`,
 {decl}`Acorn.Host.Viewer.Core.resume_calm`). A Stop winds a live process up whether or not its intent
-is saved ({decl}`Acorn.Host.Viewer.Core.stop_winds_up`); every lifecycle value with an exhausted
-restart budget intends to stay stopped ({decl}`Acorn.Host.Viewer.Lifecycle.exhausted_stopped`); Clear
+is saved ({decl}`Acorn.Host.Viewer.Core.stop_winds_up`); a core's exit never closes the viewer,
+which closes at a later tick that the actor hands after it attributes the identity the core's
+readers delivered ({decl}`Acorn.Host.Viewer.Core.step_finished_defers_close`); every lifecycle
+value with an exhausted restart budget intends to stay stopped
+({decl}`Acorn.Host.Viewer.Lifecycle.exhausted_stopped`); Clear
 installs a run other than the one it retires ({decl}`Acorn.Host.Viewer.Core.replaced_identity`); and
 every result first installs its own lifecycle and publishes its control record from it
 ({decl}`Acorn.Host.Viewer.Stepped.effects_settle`). The operating system's process, signal and wait
