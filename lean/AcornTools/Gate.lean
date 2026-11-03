@@ -143,12 +143,10 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
   -- Lake of Lean v4.35.0). A request for an executable's root module resolves to that
-  -- executable (`Package.findTargetModule?`). So an entry whose `needs` name a target other
-  -- than Regula's observer, and its root module, are requested last: every other job is
-  -- already scheduled when Lake starts to wait. The observer, which every claimed target
-  -- needs, is built while the first requested claimed module awaits its library's `needs`,
-  -- before any executable is requested. The modules lead the rest, so that the proof
-  -- modules, whose import chain is the longest in the build, are scheduled first.
+  -- executable (`Package.findTargetModule?`). So an entry whose `needs` name a target, and
+  -- its root module, are requested last: every other job is already scheduled when Lake
+  -- starts to wait. The modules lead the rest, so that the proof modules, whose import chain
+  -- is the longest in the build, are scheduled first.
   let waiting ← waiting.get
   let late := AcornOwnership.executables.filter fun entry => waiting.contains entry.1
   let (lateModules, modules) := modules.partition fun name => late.any (·.2 == name)
@@ -163,10 +161,9 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
 /-- Every discovered module is built, and every declared native entry retains compilation and
 execution-route admission. Every admission of the finished build runs at once with the
 others, since none depends on another and none writes what another reads. The documents
-check runs after them, even when one fails: the documentation workspace can rebuild this
-package's modules into the same build directory, because Regula's facet of a library's
-`extraDep` adds a record of its `weakLeanArgs` to the traces of the root package's modules
-only, and this package is the root here and a dependency there. -/
+check runs after them, even when one fails: the documentation workspace requires this package
+by path (`site/lakefile.toml`), so its build can write into the build directory that the
+admissions read. -/
 def verify : IO Unit := do
   admitAndBuild fun _ => true
   let admitted ← (together [

@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Acorn.Host.AgentAdmission
 import Acorn.Host.Cli
 import Acorn.Host.Microduck.Transport
+import Acorn.Host.Forever
 
 /-!
 # `microduck-host`: the driver of a Microduck host's loop
@@ -264,7 +265,8 @@ def drive (stepper : Stepper State Choice) (initial : State) (control depth : Sy
     let mut steps := 0
     let mut ticker : Ticker := ⟨origin, 0, 0⟩
     let mut nextTick := origin + tickPeriod
-    while !failed do
+    for _ in forever do
+      if failed then break
       let lines ← transport.take
       for text in lines do
         let (next, taken, delivered) ←
@@ -330,7 +332,7 @@ end Acorn.Host.Microduck
 open Acorn.Host.Microduck in
 /-- Decode the options and run them. A refusal of the options is reported with the exit status
 2; a failure, and a connection that ended before the duration, with the exit status 1. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.Host.Microduck.Driver.main (arguments : List String) : IO UInt32 := do
   match Options.decode arguments with
   | .error error =>
     try IO.eprintln s!"microduck-host: {error.message}" catch _ => pure ()

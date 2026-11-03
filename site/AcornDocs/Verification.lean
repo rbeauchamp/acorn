@@ -89,10 +89,10 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface leanIntentBridge)` from the
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge)` from the
 repository root to provision the pinned toolchain/dependencies; the build compiles
-only Mathlib modules absent from the upstream cache, plus Regula's lint driver
-and audit worker. FloatLib and lean-intent publish no cache, so the same command
+only Mathlib modules absent from the upstream cache, plus Regula's lint driver.
+FloatLib and lean-intent publish no cache, so the same command
 compiles the FloatLib modules that the proof bridge imports, the lean-intent modules
 that the intent bridge imports, and the two Regula interface modules that the
 decision registries import.
@@ -152,22 +152,22 @@ run as a pass. Run the complete command to check all verification owners.
 tag := "compiler-and-execution-boundary"
 %%%
 
-Every discovered Lean source must be a module of the libraries Acorn, AcornVerif or
-NativeApp, which Lake's globs assign and the [Regula audit](#regula-audit) examines,
-or a listed tool module. Every retained native target is built and checked against
-Lake's evaluated targets and compiled entry owners; each executable root must be
-a maintained module with a non-empty module docstring. Ownership admission
-refuses a facet-qualified build key in the root package's Lake configuration,
-except Regula's elaboration observer in a target that also lists it among its needs.
-The [Lake configuration](../lean/lakefile.lean) documents the restriction and its
-pinned-Lake rationale.
-Before any Lake command, `Bootstrap.lean` must elaborate with no message, and
-Lake runs with `--wfail`, so any warning, including a header-time warning such
-as a deprecated import, fails the build. Source/compiled admission checks
-imports, capability owners, artifact origins and native routes. The Regula audit, not
-ordinary verification, checks the axioms that each declaration of the claimed
-libraries depends on. The theorem inventory counts the theorem declarations and
-refuses a native replacement. Every proof passes through the kernel.
+Every discovered Lean source must be a module of the libraries Acorn,
+AcornVerif, NativeApp, AcornDocument or Entry, which Lake's globs assign, or a
+listed tool module. The [Regula audit](#regula-audit) claims the first four with
+Bootstrap; Entry holds the executables' roots. Every retained native target is
+built and checked against Lake's evaluated targets and compiled entry owners;
+each executable root must be a maintained module with a non-empty module
+docstring. Ownership admission refuses a facet-qualified build key in the root
+package's Lake configuration. The [Lake configuration](../lean/lakefile.lean)
+documents the restriction and its pinned-Lake rationale. Before any Lake
+command, `Bootstrap.lean` must elaborate with no message, and Lake runs with
+`--wfail`, so any warning, including a header-time warning such as a deprecated
+import, fails the build. Source/compiled admission checks imports, capability
+owners, artifact origins and native routes. The Regula audit, not ordinary
+verification, checks the axioms that each declaration of the claimed libraries
+depends on. The theorem inventory counts the theorem declarations and refuses a
+native replacement. Every proof passes through the kernel.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
@@ -465,13 +465,10 @@ before a failure is reported. The site check runs after these admissions, also
 when one of them fails, because building the documents can rebuild this
 package's modules into the build directory that the admissions read. The build
 requests modules first and executables after them. An executable whose Lake
-configuration names a target it needs other than Regula's elaboration observer
-is held back with its root module: both are requested after every other module
-and executable, because Lake waits for that target before it reads the next
-request, so every other job is scheduled first. Every library and executable
-that the [Regula audit](#regula-audit) examines needs the observer, which Lake
-builds while the first of their requested modules awaits its library's needs,
-before any executable is requested, so waiting for it again delays nothing.
+configuration names a target it needs is held back with its root module: both
+are requested after every other module and executable, because Lake waits for
+that target before it reads the next request, so every other job is scheduled
+first.
 Each compiler process of the build uses at most two threads, where the default
 is one for each processor; this limits how far the processes Lake runs at once
 compete for the same processors.
@@ -481,147 +478,155 @@ compete for the same processors.
 tag := "regula-audit"
 %%%
 
-[Regula](https://github.com/rbeauchamp/regula) is a strict linter for Lean with a
-published standard. Acorn requires the revision pinned in `lean/lakefile.lean` and
-starts its lint driver through the offline bootstrap:
+[Regula](https://github.com/rbeauchamp/regula) is an audit of Lean builds. Acorn
+requires its release v0.12.0, pinned in `lean/lakefile.lean`, and the merge gate
+requires its proof verdict:
 
 ```sh
-./scripts/lean.sh lint
+./scripts/regula.sh
 ```
 
-Only that outer lint command goes through the bootstrap. Regula's driver then
-runs Lake itself to build, query and enter the workspace environment, without
-the bootstrap's path overrides or its no-cache and warnings-as-failures flags.
-Those invocations resolve dependencies through the Git lock in
-`lean/lake-manifest.json`. The bootstrap checks no dependency's revision: it
-admits each by the presence of its files, and the FloatLib modules the proof
-bridge imports, the lean-intent modules the intent bridge imports and the Regula
-modules the decision registries import by Lake's build traces. Lake therefore fetches a dependency whose
-checkout is not at the locked revision.
+Regula's release names three commands for that verdict, run in order on one
+build: `lake build --wfail`, `lake check --inadvisably-no-sandbox` and
+`lake lint`. The script runs them in lean, each from that directory with no
+option of Lake's, except that the package's script kernelReplay takes the place
+of the second. The first fails on any warning. The kernel replay replays every
+constant of every claimed module, with every constant that it depends on, in
+Lean's kernel from an empty environment. It then compares the quotient constants
+with the kernel's, as Lean's own checker does, and refuses an axiom other than
+propext, Quot.sound and Classical.choice that a replayed constant uses, by the
+function that `lake check` uses. `lake check` replays the whole imported
+environment instead, Mathlib's included: about half a million constants, from an
+export that it holds in memory. On Acorn's claim that check had not finished
+after 3 hours 45 minutes on a 24 GiB machine, its memory footprint at 39 GB. The
+constants the kernel replay leaves out are those that no claimed constant
+depends on, which no kernel check of a claimed constant reads. The third command
+is Regula's checker. It exits 0 for a pass, 1 for a fail and 2 for an incomplete
+run, and its last line states the verdict; a pass ends that line with the
+directory it audited. The script passes only when `lake lint` exits 0 and its
+last line is the pass on lean. The commands resolve dependencies through the Git
+lock in `lean/lake-manifest.json`, without the bootstrap's path overrides, so
+Lake fetches a dependency whose checkout is not at the locked revision.
 
-The command exits 0 when the audit is accepted, 1 on a violation, 2 on an invalid
-configuration and 3 when the audit is incomplete. Regula writes scratch copies
-of Lean sources to .lake/regula-scratch under
-lean; a killed run leaves them until the next Regula run removes them. Git ignores
-.lake, and the module inventory, the native source inventory and the corpus walk
-skip it as Lake's build directory.
+A pass means that the proofs of the claimed modules are sound and use only the
+axioms of the profile. It says nothing about what a compiled program runs, which
+the checks of ordinary verification below cover, or about whether a theorem
+states what was meant, which review reads. Regula's
+[README](https://github.com/rbeauchamp/regula/tree/v0.12.0#what-a-pass-means)
+states what a pass rests on.
 
-`lean/foundation_manifest.json` states what is audited. A claim names the
-strongest axioms any declaration of a library may depend on. Acorn, AcornVerif,
-NativeApp and Bootstrap, with the {splice}`numberWord applicationExecutables.length` application executables, claim Regula's
-standard-logical profile: propext, Quot.sound and Classical.choice, and no other
-axiom. No stricter profile is attainable, because Lean's core definitions of
-binary32 and binary64 arithmetic depend on Classical.choice, as do the Mathlib
-analysis in AcornVerif and the core string and JSON operations that Bootstrap
-uses. Acorn, NativeApp and Bootstrap claim compiled code in
-Regula's checked mode: the audit fails on any extern, replacement, unsafe or
-partial boundary that their compiled code reaches outside the Lean toolchain's
-own trusted base. AcornVerif claims report mode, where each boundary is reported
-and not failed: its compiled definitions reach the recursors that Mathlib
-compiles for Bool, List and Option, boundaries Mathlib owns, so checked mode
-rejects them. One bridge module in AcornVerif is the only importer of FloatLib,
-a proof dependency whose theorems use the same three axioms and whose compiled
-functions reach the same Mathlib-owned boundaries; the boundary audit refuses a
-FloatLib import by any executing module. A second bridge module in AcornVerif is
-the only importer of lean-intent, the proof dependency in which the intent records
-under `AcornVerif.Intent` are stated; it depends on nothing beyond Lean's own
-libraries, and the boundary audit refuses a lean-intent import by any other module.
-The compiler, native runtime, operating
-system and spawned processes stay trusted in both modes. AcornTools is excluded
-with the {splice}`numberWord toolExecutables.length` tool executables; it is the reviewed tooling trust boundary.
+The claim is the modules of the default targets of the Lake configuration and
+every module of the package that their imports reach. The default targets are
+the libraries Acorn, AcornVerif, NativeApp, Bootstrap and AcornDocument. They hold
+every Acorn theorem: the executing definitions with the theorems stated beside
+them, the proof library, the native application, the build launcher, and the
+names that the document audit admits from outside the project with the theorem
+that states what an admitted name is. A theorem can mention only declarations of
+the modules its own module imports, so every definition of the package that a
+claimed theorem is about is claimed as well. The kernel replay and `lake lint`
+import the claimed modules into one environment, where Lean refuses two
+declarations of `main`. So Bootstrap, which `lean --run` interprets before anything is built,
+declares the one top-level `main` of the claim, and the root of each of the
+{splice}`numberWord applicationExecutables.length` application executables is a
+module of the library Entry, outside the claim. Its `main` applies the entry
+function of a claimed module, such as `Acorn.SwiftTdDriver.main`, and it holds
+nothing else; the theorem inventory refuses a theorem in it. AcornTools, the
+reviewed tooling trust boundary with the
+{splice}`numberWord toolExecutables.length` tool executables, and the
+[documentation site](#documentation-site) are also outside the claim and hold no
+theorem.
 
-`lean/Acorn/Decisions.lean` registers the library's decision functions for which
-a property of the accepted or refused result is proved. A decision function is
-an admission, parser or validity test: its result accepts or refuses an input. A
-registration is a Regula executable contract about the executing definition
-itself, with the kind its proof establishes. A two-way kind states that the
-function accepts exactly the inputs that satisfy the written specification, with
-one accepted and one refused input as witnesses. Regula's decision attribute
-makes the contract a requirement of the function, so the audit fails when a
-contract is removed while its function stays registered. A decision procedure
-whose result type is `Decidable` carries both directions in its type and is
-registered with no contract. An admission with an argument or result type that
-depends on an earlier argument, and a decision that takes its element type as an
-argument, carry a kind in the forms that Regula reads for them. The kind is
+The profile is standard-logical: propext, Quot.sound and Classical.choice, and no
+other axiom, for the whole claim. No stricter profile is attainable, because
+Lean's core definitions of binary32 and binary64 arithmetic depend on
+Classical.choice, as does the Mathlib analysis in AcornVerif. One bridge module in
+AcornVerif is the only importer of FloatLib, a proof dependency whose theorems
+use the same three axioms; the boundary audit refuses a FloatLib import by any
+executing module. A second bridge module in AcornVerif is the only importer of
+lean-intent, the proof dependency in which the intent records under
+`AcornVerif.Intent` are stated; it depends on nothing beyond Lean's own
+libraries, and the boundary audit refuses a lean-intent import by any other
+module. The compiler, native runtime, operating system and spawned processes stay
+trusted.
+
+`lean/Acorn/Decisions.lean` states the contracts of the library's decision
+functions for which a property of the accepted or refused result is proved, and
+registers those functions. A decision function is an admission, parser or
+validity test: its result accepts or refuses an input. A contract is a Regula
+executable contract about the executing definition itself, with the kind its
+proof establishes. A two-way kind states that the function accepts exactly the
+inputs that satisfy the written specification, with one accepted and one refused
+input as witnesses. A registration is a declaration of Regula's type
+RegisteredDecision. No rule of Regula reads a contract or a registration: the
+ownership audit requires, for each registered function, a contract with a kind
+in `Acorn.Decisions` or `AcornVerif.Decisions`, so it fails when a contract is
+removed while its function stays registered. A decision procedure whose result
+type is `Decidable` carries both directions in its type and is registered with
+no contract. An admission with an argument or result type that depends on an
+earlier argument, and a decision that takes its element type as an argument,
+carry a kind in the forms that Regula.Contract gives for them. The kind is
 stated about the function applied to every field of a structure of its arguments
 and, where the result type depends on the input, about whether the result holds
 a value, with the value forgotten. A statement of the value of an accepted
 result stands beside such a kind as a requirement with no kind. A function keeps
-a requirement with no kind where no kind is true of it or where Regula refuses
-the kind, and the ownership audit requires the contract by name. The module
-documentation of `lean/Acorn/Decisions.lean` gives the four reasons: a function
-that accepts every input or whose accepted inputs no theorem states; a
-specification that reads a part of the input, such as the state of a learner,
-whose type declares an invariant that names tests that the function runs, where
-the audit reads the declaration of that part although the specification names
-none of those tests ([Regula issue
-320](https://github.com/rbeauchamp/regula/issues/320)); a verdict that is the
-guard of the function, where the guard applies a definition that no proposition
-states apart from it, such as an order of the viewer's captures; and a result
-whose type depends on the input and is neither an option nor an error, such as
-an index that comes with the equation that names it, which Regula reads only
-through whether it holds a value. A requirement with no
-kind is a statement that the Regula audit does not examine: that audit checks
-only that its theorem is proved about the executing definition. Such a statement
-can fix one direction only, and it need not show that both outcomes occur for
-its function. Kinds for the functions of the second reason are remaining work of
+a requirement with no kind where no kind is true of it or where the rule for
+specifications below excludes the kind, and the ownership audit requires the
+contract by name. The module documentation of `lean/Acorn/Decisions.lean` gives
+the four reasons: a function that accepts every input or whose accepted inputs
+no theorem states; a specification that reads a part of the input, such as the
+state of a learner, whose type declares an invariant that names tests that the
+function runs; a verdict that is the guard of the function, where the guard
+applies a definition that no proposition states apart from it, such as an order
+of the viewer's captures; and a result whose type depends on the input and is
+neither an option nor an error, such as an index that comes with the equation
+that names it, which the kinds read only through whether it holds a value. A
+requirement with no kind is checked only as a theorem about the executing
+definition. Such a statement can fix one direction only, and it need not show
+that both outcomes occur for its function. Kinds for the functions of the second
+reason are remaining work of
 [issue 105](https://github.com/rbeauchamp/acorn/issues/105). A contract states
 only what its theorem proves.
 
 A kind compares a function with its specification as the two are defined now.
 Where the two call one test, a defect of that test changes the two sides
-together, and the proof of the kind can stay valid.
-[RG1009](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) therefore
-refuses a contract with a kind whose specification reaches a test that the
-function or the acceptance predicate also reaches. A test is a function with a
-result of `Bool`, or a definition of an instance of BEq, Lean's class of
-equality tests, outside Lean's own library. The projection function of a
-structure field is no test, whatever the type of the field: it reads stored
-data. The rule reads the specification at any depth. Acorn states each such
-condition as a proposition, with a theorem that connects the test with it, such
-as `Binary32.Negative` for the sign bit or the strict order `Binary32.Less`. A
-function that a specification reaches, such as the signed key `Binary32.key`,
-decides the proposition through an instance that runs the test, so the executed
-comparison is the same one. The rule compares names: it does not find a copy of
-a test under a second name. It refuses nothing for a projection function, so
-`inventory_craft` is not refused for the fields `Host.Inventory.axe` and
-`Host.Inventory.boat`, which its specification and its function both read. It
-refuses nothing for a shared function with another result than those two, such
-as `Binary32.key` or `Host.terrain`. Those functions stay a matter of review,
-which admits one where something other than the kind fixes it: a primitive
-operation of a number type that Lean's library defines, or a definition with a
-statement of its own against a reading that does not apply it, such as the slot
-map of the feature bank, stated as SplitMix64 on Lean core's bit vectors. The
-module documentation of `lean/Acorn/Decisions.lean` names those statements and
-the groups of shared definitions that have none yet.
-For a contract with a kind, the account of the audit names each such function
-where the specification reaches it first. It does not name a function that the
-specification reaches only through a named one, and it does not name a
-projection function. The module documentation of `lean/Acorn/Decisions.lean`
-names each proposition with its theorem.
+together, and the proof of the kind can stay valid. So the specification of a
+contract with a kind reaches no test that the function or the acceptance
+predicate also reaches, read at any depth through the declarations it names,
+the declared types of the parts of the input it reads among them. A test is a
+function with a result of `Bool`, or a definition of an instance of BEq, Lean's
+class of equality tests, outside Lean's own library. The projection function of
+a structure field is no test, whatever the type of the field: it reads stored
+data. Review applies this rule; no check of Regula or of Acorn does. Acorn states
+each such condition as a proposition, with a theorem that connects the test with
+it, such as `Binary32.Negative` for the sign bit or the strict order
+`Binary32.Less`. A function that a specification reaches, such as the signed key
+`Binary32.key`, decides the proposition through an instance that runs the test,
+so the executed comparison is the same one. The rule says nothing of a
+projection function, so `inventory_craft` may read the fields
+`Host.Inventory.axe` and `Host.Inventory.boat`, which its specification and its
+function both read, and nothing of a shared function with another result than
+those two, such as `Binary32.key` or `Host.terrain`. Review admits such a
+function where something other than the kind fixes it: a primitive operation of
+a number type that Lean's library defines, or a definition with a statement of
+its own against a reading that does not apply it, such as the slot map of the
+feature bank, stated as SplitMix64 on Lean core's bit vectors. The module
+documentation of `lean/Acorn/Decisions.lean` names those statements, the groups
+of shared definitions that have none yet, and each proposition with its theorem.
 
-Regula's audit does not find a decision function that is not registered, and no
-check of Acorn does. The module documentation of `lean/Acorn/Decisions.lean`
-lists the groups of definitions with a `Bool`, `Option`, `Except` or `Decidable`
-result that carry no contract, with the reason for each group. That list has no
-check of completeness: a new definition with such a result can arrive with no
-contract and no entry. A report of the definitions with no contract is work of
-Regula ([issue 115](https://github.com/rbeauchamp/regula/issues/115)).
-`Acorn.Decisions` cannot register a function of another library, such as a
-NativeApp parser. No kind says that a specification is the intended one.
-`Acorn.Decisions` belongs to the Acorn library because Regula refuses a
-registration that one library writes for a function of another. It is the only
-module that imports Regula's decision attribute. No module imports it, so no
-entry point links what it declares; the boundary audit admits it with the proof
-sources and refuses an import of it. `AcornVerif.Decisions` states the contracts
-whose proofs need the proof library. The AcornVerif surface of the Regula
-manifest names Acorn in its decides field, so Regula counts those contracts
-toward the registrations of the Acorn library: their functions are registered
-in `Acorn.Decisions`, and
-[RG1008](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1008/) fails the
-audit when such a function stays registered without its kind. The ownership
-audit requires each statement there with no kind by name. The certificate
-checkers have their contracts there. No
+No check of Acorn finds a decision function that is not registered. The module
+documentation of `lean/Acorn/Decisions.lean` lists the groups of definitions with
+a `Bool`, `Option`, `Except` or `Decidable` result that carry no contract, with
+the reason for each group. That list has no check of completeness: a new
+definition with such a result can arrive with no contract and no entry. No kind
+says that a specification is the intended one. `Acorn.Decisions` belongs to the
+Acorn library, so the claim covers it, and it registers no function of another
+library. It is the only module that imports Regula's registration type. No module
+imports it, so no entry point links what it declares; the boundary audit admits
+it with the proof sources and refuses an import of it. `AcornVerif.Decisions`
+states the contracts whose proofs need the proof library. Their functions are
+registered in `Acorn.Decisions`, and the ownership audit counts a contract with a
+kind in either module toward a registration. It requires each statement there
+with no kind by name. The certificate checkers have their contracts there. No
 checker is complete about its goal, so a refused certificate establishes nothing
 about whether the goal can be reached: the blocked checker and the stance
 checker carry the sound kind. The replay checker carries the two-way kind about
@@ -634,20 +639,12 @@ test with the checker. The module documentation of
 kind, with the reason for each and which of them are also remaining work of
 issue 105.
 
-The driver builds every claimed module with warnings as failures, then inspects
-the compiled environments. It rejects holes, project axioms, unsafe or partial
-definitions, an axiom outside the claim, a module that no library includes, and
-a claimed target whose Lake options weaken the required set. That set turns
-automatic implicits off and turns on the missing-docstring linter and Mathlib's
-standard linter set, whose header linter checks each module's copyright and
-license lines.
-
 The audit is a second check of the merge gate and is not part of
-`./scripts/verify.sh`. It compiles the claimed modules again and replays them in
-the kernel, which does not fit beside the ordinary checks inside the 360-second
-deadline. The gate runs it after ordinary verification and requires both before
-a merge. An accepted audit covers Regula's mechanical rules for the claimed surfaces; it does
-not replace review.
+`./scripts/verify.sh`. It builds the claimed modules again where Lake's traces
+differ, exports them with everything they import and replays them in the kernel,
+which does not fit beside the ordinary checks inside the 360-second deadline. The
+gate runs it after ordinary verification and requires both before a merge. A pass
+covers Regula's rules for the claimed modules; it does not replace review.
 
 ## What Regula checks in place of Acorn's tools
 %%%
@@ -656,66 +653,64 @@ tag := "regula-scope"
 
 Acorn's tools under `lean/AcornTools` are outside the claim, so no proof covers
 them. They check a compiled declaration or the Lake configuration only where no
-Regula rule refuses at least the same inputs for the same libraries. Each
-paragraph below takes one property: the rule of the pinned Regula revision, the
-libraries that the rule covers under `lean/foundation_manifest.json`, and what
-the tools check. Where the tools refuse more, the paragraph gives an input that
-shows it, and that check stays.
+part of the proof verdict refuses at least the same inputs for the same modules.
+Each paragraph below takes one property: what the proof verdict refuses for the
+claimed modules, and what the tools check. Where the tools refuse more, the
+paragraph gives an input that shows it, and that check stays.
 
 Ordinary verification alone therefore does not refuse a project axiom, a
 dependency on an axiom outside propext, Quot.sound and Classical.choice, a
 compiler-trusting proof, or a compiled unsafe or partial declaration. The Regula
 audit refuses each of them, and the merge gate requires it. Run
-`./scripts/lean.sh lint` for it before proposing a change to a Lean source.
+`./scripts/regula.sh` for it before proposing a change to a Lean source.
 Ordinary verification still refuses the words `axiom`, `sorry`, `unsafe`,
 partial and `native_decide` in every executing and proof source, through source
 admission, and a proof hole through the build, where a warning is an error.
 
-*Project axioms.* [RG1001](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1001/) refuses an axiom declared in a module of Acorn,
-AcornVerif, NativeApp or Bootstrap. The tools make no such check. A check over
-the compiled declarations of the project modules covers Acorn, AcornVerif and
-NativeApp, so Regula is stronger: it covers Bootstrap as well.
+*Project axioms.* RG1001 refuses an axiom declared in a claimed module. The tools
+make no such check.
 
-*Axioms that a declaration depends on.* [RG1003](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1003/) refuses a declaration of
-those four libraries with a transitive axiom outside propext, Quot.sound and
-Classical.choice. [RG1005](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1005/) refuses one whose axioms exceed the claim of its
-library, which is the standard-logical profile for each. Both rules examine every
-declaration: theorems, definitions and instances. The tools make no such check.
-A check over theorems examines fewer declarations, so Regula is stronger. The
-tool module AcornTools.AxiomPins still pins the exact axiom sets of selected
-theorems in the build. It lies outside the claimed libraries because
-[RG2003](https://rbeauchamp.github.io/regula/dev/rules/RG2003/) refuses its message guards in a claimed module.
+*Axioms that a declaration depends on.* RG1003 refuses a constant of a claimed
+module with a transitive axiom outside propext, Quot.sound and Classical.choice,
+and RG1005 one whose axioms exceed the standard-logical profile. Both rules
+examine every constant: theorems, definitions and instances. The kernel replay
+refuses an axiom outside the same three that a replayed constant uses. The tools make
+no such check. The tool module AcornTools.AxiomPins still pins the exact axiom
+sets of selected theorems in the build, with message guards around
+`#print axioms`; it imports the proof library and lies outside the claim with the
+other tools.
 
-*Proof holes and compiler-trusting proofs.* [RG1002](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1002/) refuses a declaration
-that depends on Lean's proof-hole axiom, directly or through an import.
-[RG1004](https://rbeauchamp.github.io/regula/dev/rules/RG1004/) refuses a declaration that depends on an axiom
-that `native_decide` or a related tactic adds. Both rules read the transitive axiom set, which holds
-every such axiom that a declaration names. The tools make no such check. A check
-of the constants that a declaration names directly refuses fewer declarations,
-so Regula is stronger.
+*Proof holes and compiler-trusting proofs.* RG1002 refuses a constant that
+depends on Lean's proof-hole axiom, directly or through an import, and RG1004 one
+that depends on an axiom that `native_decide` or a related tactic adds. Both rules
+read the transitive axiom set. The tools make no such check.
 
-*Unsafe and partial declarations.* [RG1006](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1006/) refuses an unsafe or partial
-declaration in a module of the four libraries, in both execution modes. It
-admits the partial helper that Lean generates for a terminating recursive
-definition only when Lean's recursion compiler regenerates the definition from
-the helper and the kernel checks the recursion equation, with the definition
-safe and in the helper's module. The tools make no such check. Admission of that
-helper by its name and its parent admits every helper that the rule admits, so
-Regula is stronger.
+*Unsafe, partial and looping declarations.* RG1006 refuses an unsafe or partial
+constant of a claimed module, a constant with the name of a recursion helper
+without the form that Lean gives the helper of a terminating recursive
+definition, and a constant whose value mentions the loop constructs that while
+and repeat compile to. The tools make no such check of compiled declarations.
+The host's loops that run until something outside the program happens, such as
+the end of a stream or a stop request, iterate over `Acorn.Host.forever`, whose
+iteration in IO and BaseIO is a fixed-point definition with the one-step
+unfolding of Lean's own loop (`Acorn.Host.forIn_io`). The viewer's stream of
+live frames runs in Std's Async monad, which runs a continuation in a task, so
+no such definition exists for it; it calls Std's own loop of that monad, the
+one that repeat reaches there, and that loop is part of the trusted toolchain.
+
+*Kernel replay.* The kernel replay checks every constant of the claim, and every
+constant it depends on, in Lean's kernel again from an empty environment, so a
+proof that the build's own kernel check skipped is checked there. Regula's
+specification records a module that added a theorem of False with the kernel
+check skipped: it passed `lake build` and `lake lint`, and `lake check` refused
+it. The kernel replay sends such a theorem to the kernel as well, which refuses
+a proof of False. The tools make no such check.
 
 *Native replacements: the tools refuse more.* The theorem inventory refuses each
-declaration of a module of Acorn, AcornVerif or NativeApp that carries a
-replacement attribute or an extern attribute, whatever reaches it and whatever
-is proved about it. [RG3002](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG3002/) refuses, in the libraries that claim checked
-mode (Acorn, NativeApp and Bootstrap), a replacement or an extern outside the
-Lean toolchain that an execution root reaches and that has no kernel-checked
-equality with its reference. A root is each computable, safe definition of the
-library that has no internal name and is not a proposition, used or not, and an
-extern never has that equality. [RG3001](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG3001/) refuses an execution path that the audit cannot resolve,
-in both modes. Three inputs pass Regula and not the inventory: a replacement or
-an extern in AcornVerif, which claims report mode; a replacement in Acorn or
-NativeApp with a proved equality to its reference; and a declaration with either
-attribute that is no root and that no root reaches. Source admission refuses
+declaration of a module of Acorn, AcornVerif, NativeApp, AcornDocument or Entry
+that carries a replacement attribute or an extern attribute, whatever reaches it
+and whatever is proved about it. The proof verdict reads no replacement or extern:
+a pass says nothing about what a compiled program runs. Source admission refuses
 both attributes as words in every executing and proof source, so the inventory
 adds the declarations that elaboration generates. This check runs once, in the
 theorem inventory. A copy in the compiled boundary admission would repeat the
@@ -726,36 +721,30 @@ same predicate for a subset of the same modules in the same command,
 compiler's intermediate code from the entry point of each executable, the tool
 executables among them. It refuses an extern or a proof hole in a maintained
 module on the way, and requires that the entry reaches each definition that
-`entryUses` lists for it. Regula examines no excluded target, so an extern that
-only a tool executable reaches passes the audit, and no rule requires that a
-root reaches a definition.
+`entryUses` lists for it, the claimed entry function first. Regula examines no
+compiled code.
 
-*Module inventory: the tools refuse more for tool modules.* [RG2002](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG2002/)
-refuses a root library that the manifest does not classify. [RG2004](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG2004/)
-refuses a module of the package outside exactly one classified library, and a
-module that a claimed module imports and that no claimed target has. Lake's glob
-decides which library has a source. A new source below Acorn, AcornVerif or
-NativeApp is therefore a module of that library, the audit examines it under the
-library's claim, and Acorn's boundary predicates class it by its name. The
-tools keep no written list of these modules. Two inputs pass Regula and not the tools. A new source below
-`lean/AcornTools` is a module of an excluded library, which no rule examines:
-ownership admission requires each discovered source outside the three libraries
-to be an entry of `toolingModules`, and each entry to be a source. A source
-below lean that no library has is invisible to the audit unless a claimed module
-imports it: the same requirement refuses it, and Lake refuses the build request
-for a module that no library has.
+*Module inventory: the tools refuse more.* Lake's glob decides which library has
+a source. A new source below Acorn, AcornVerif or NativeApp is therefore a module
+of that library, the claim covers it, and Acorn's boundary predicates class it by
+its name. The tools keep no written list of these modules. A new source below
+`lean/AcornTools` is a module of a tool library outside the claim: ownership
+admission requires each discovered source outside the five libraries that Lake's
+globs assign to be an entry of `toolingModules`, and each entry to be a source. A
+source below lean that no library has is outside the claim unless a claimed
+module imports it: the same requirement refuses it, and Lake refuses the build
+request for a module that no library has.
 
-*Executable inventory: the tools refuse more.* Ownership admission refuses a
-Lake executable whose target name and root module are not a pair of
-`executables`, and a listed pair that Lake does not have. It also requires that
-a module declares `main` exactly when it is the root module of an executable or
-is Bootstrap, the interpreted build launcher. [RG2002](https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG2002/) refuses an
-executable that the manifest does not classify, a manifest name that is no Lake
-target, and an executable that is not classified with the library of its root.
-The manifest holds the names and no root: an exchange of the root modules of two
-executables of one library changes nothing that the rule reads. The list is also
-the Lean owner of the executable names that the build order and this document
-read.
+*Executable inventory: the tools refuse more.* Ownership admission refuses a Lake
+executable whose target name and root module are not a pair of `executables`,
+and a listed pair that Lake does not have. It also requires that a module
+declares `main` exactly when it is the root module of an executable or is
+Bootstrap, the interpreted build launcher. The list is also the Lean owner of the
+executable names that the build order and this document read.
+
+*Decision registrations.* The ownership audit requires a contract with a kind for
+each registered decision function whose result is not `Decidable`, as stated
+above. Regula reads no registration.
 
 Regula has no rule for the import layers of the learned-only boundary, the
 capability owners, source syntax admission, the departures register, native

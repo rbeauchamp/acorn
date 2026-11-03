@@ -43,10 +43,12 @@ are excluded. `package` is the package directory, for a caller that runs outside
 def allModules (package : System.FilePath := ".") : IO (Array Name) :=
   modulesUnder package #[".lake", "lake-packages", ".git", ".DS_Store", "lakefile.lean"]
 
-/-- The libraries whose modules Lake's globs assign and the Regula audit examines. A source
-below one of these roots needs no entry in a written list. -/
+/-- The libraries whose modules Lake's globs assign: `Acorn`, `AcornVerif`, `NativeApp` and
+`AcornDocument`, the default targets whose modules Regula's proof verdict claims, and `Entry`,
+the executables' roots, which it does not claim. A source below one of these roots needs no
+entry in a written list. -/
 def libraryModule (name : Name) : Bool :=
-  #[`Acorn, `AcornVerif, `NativeApp].any (·.isPrefixOf name)
+  #[`Acorn, `AcornVerif, `NativeApp, `AcornDocument, `Entry].any (·.isPrefixOf name)
 
 /-- Discover the Lean sources of the documentation site, the separate Lake package in
 `site/`. Its Lake outputs and the rendered pages are excluded. -/
@@ -57,18 +59,19 @@ def siteModules : IO (Array Name) :=
 def projectModules : IO (Array Name) := do
   return (← allModules).filter (!toolingModules.contains ·)
 
-/-- The registration leaf of the executing library: Regula executable contracts about the
-executing definitions, and their decision registrations. It belongs to the `Acorn` library
-because Regula decides a registered function against the contracts of the function's own
-library. No module may import it, so no entry point links what it declares: theorems,
-specification predicates, the structures of the arguments of the functions with a dependent
-type, and closed values that are inputs of the witnesses of kinds. -/
+/-- The registration leaf of the executing library: Regula executable contracts about the executing
+definitions, and their decision registrations (`Regula.RegisteredDecision`). It belongs to the
+`Acorn` library, so the proof claim covers it, and the ownership audit requires a contract with a
+decision kind for each function it registers. No module may import it, so no entry point links what
+it declares: theorems, specification predicates, the structures of the arguments of the functions
+with a dependent type, and closed values that are inputs of the witnesses of kinds. -/
 def decisionRegistry : Name := `Acorn.Decisions
 
 /-- Every current native module needs an actual object and compiler trace, even
 when no executable imports its library root. The decision registry is no native module:
 no module imports it, so it is linked into no entry point. -/
 def nativeModule (owner : Name) : Bool :=
-  owner != decisionRegistry && ((`Acorn).isPrefixOf owner || (`NativeApp).isPrefixOf owner)
+  owner != decisionRegistry && ((`Acorn).isPrefixOf owner || (`NativeApp).isPrefixOf owner ||
+    (`Entry).isPrefixOf owner)
 
 end AcornModuleInventory

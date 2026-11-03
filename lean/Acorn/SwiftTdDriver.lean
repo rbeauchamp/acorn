@@ -46,7 +46,7 @@ end Acorn.SwiftTdDriver
 /-- Run the current native learner for the requested step count, an unsigned number of the
 command line (`Acorn.Digits.natural`), one by default, printing only integral observation
 encodings. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.SwiftTdDriver.main (arguments : List String) : IO UInt32 := do
   let count := match arguments with
     | [] => some 1
     | [word] => Acorn.Digits.natural word

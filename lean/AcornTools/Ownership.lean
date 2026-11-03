@@ -8,13 +8,13 @@ import Init
 /-! # Maintained ownership obligations
 
 The executable inventory is compared with Lake's evaluated configuration and
-compiled module owners. A module of the libraries `Acorn`, `AcornVerif` and
-`NativeApp` has no entry here: Lake's glob assigns each source below a library
-root to that library, and the Regula audit examines every module of a claimed
-library. Each other source is a tool listed in `AcornTools.ModuleInventory` or a
+compiled module owners. A module of the libraries `Acorn`, `AcornVerif`, `NativeApp`,
+`AcornDocument` and `Entry` has no entry here: Lake's glob assigns each source below a
+library root to that library, and Regula's proof verdict claims every module of the first
+four, the default targets. Each other source is a tool listed in `AcornTools.ModuleInventory` or a
 module of the documentation site listed below. This routing information does not
 assert semantic completeness. Runtime sources receive source/compiled boundary
-admission; the Regula audit checks the axioms of every project declaration.
+admission; Regula's proof verdict checks the axioms of every claimed declaration.
 Tooling is the explicit trust boundary listed in `AcornTools.ModuleInventory`,
 never an application escape hatch.
 -/
@@ -31,18 +31,18 @@ def siteModules : Array Name := #[
 
 /-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/
 def executables : Array (String × Name) := #[
-  ("swifttd-native", `Acorn.SwiftTdDriver),
-  ("feature-native", `Acorn.FeatureDriver),
-  ("control-native", `Acorn.ControlDriver),
-  ("temporal-native", `Acorn.TemporalDriver),
-  ("agent-native", `Acorn.AgentDriver),
-  ("acorn-core", `NativeApp.Main),
-  ("acorn-viewer", `NativeApp.Viewer),
-  ("browser-kernel", `NativeApp.BrowserKernel),
-  ("checkpoint-native", `Acorn.Host.CheckpointDriver),
-  ("world-native", `Acorn.WorldDriver),
-  ("world-certificates", `Acorn.Host.CertificateDriver),
-  ("microduck-host", `Acorn.Host.Microduck.Driver),
+  ("swifttd-native", `Entry.SwiftTdNative),
+  ("feature-native", `Entry.FeatureNative),
+  ("control-native", `Entry.ControlNative),
+  ("temporal-native", `Entry.TemporalNative),
+  ("agent-native", `Entry.AgentNative),
+  ("acorn-core", `Entry.AcornCore),
+  ("acorn-viewer", `Entry.AcornViewer),
+  ("browser-kernel", `Entry.BrowserKernel),
+  ("checkpoint-native", `Entry.CheckpointNative),
+  ("world-native", `Entry.WorldNative),
+  ("world-certificates", `Entry.WorldCertificates),
+  ("microduck-host", `Entry.MicroduckHost),
   ("theorem-count", `AcornTools.TheoremCount),
   ("lean-boundary-audit", `AcornTools.Boundary.Main),
   ("native-audit", `AcornTools.Native.Audit),
@@ -53,8 +53,8 @@ def executables : Array (String × Name) := #[
 
 /-- Required statements about executing definitions must retain their actual execution
 references. The entries are the critical entry and transition obligations, the decision
-contracts of `Acorn.Decisions` and `AcornVerif.Decisions` that no `@[regula_decision]`
-registration requires, and the theorem `AcornDocument.external_listed`. The list is not a
+contracts of `Acorn.Decisions` and `AcornVerif.Decisions` that no registration requires,
+and the theorem `AcornDocument.external_listed`. The list is not a
 quota or a claim that all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Host.AgentConstruction, `Acorn.Handcrafted.AgentConstruction.admit_iff,
@@ -648,7 +648,7 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Discount.predictionRange),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.quantity_limit, `Acorn.Lifetime.Quantity.bound),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.envelope_units, `Acorn.Agreement.envelopeUnits),
-  (`AcornTools.Corpus.Documents, `AcornDocument.external_listed, `AcornDocument.external),
+  (`AcornDocument, `AcornDocument.external_listed, `AcornDocument.external),
   (`Acorn.Host.Viewer.Admission, `Acorn.Host.Viewer.Admission.rejected_preserves_history,
     `Acorn.Host.Viewer.Admission.receive),
   (`Acorn.Host.Viewer.Admission, `Acorn.Host.Viewer.Admission.stored_capture,
@@ -702,28 +702,35 @@ def anchors : Array (Name × Name × Name) := #[
 
 /-- Required native entry dependencies after proof erasure. These are routing
 obligations; the IR graph alone does not prove control-flow or argument semantics.
+Each root's `main` applies its claimed module's entry function, the first one listed.
 Erased ANSI, checksum and timing-proof parameters select the compiler's reduced-arity
 owners. -/
 def entryUses : Array (Name × Array Name) := #[
-  (`NativeApp.Main, #[`NativeApp.streamingOptions, `Acorn.Host.Viewer.runNativeCampaign,
+  (`Entry.AcornCore, #[`NativeApp.Main.main, `NativeApp.streamingOptions,
+    `Acorn.Host.Viewer.runNativeCampaign,
     `Acorn.Host.StopFlag.withCommands._redArg,
     `Acorn.Handcrafted.Agent.callbacks, `Acorn.Handcrafted.AgentConstruction.callbacks,
     `Acorn.Handcrafted.AgentConstruction.runCampaign._redArg,
     `Acorn.Checkpoint.Store.hooks,
     `Acorn.Host.runAnsi._redArg, `Acorn.Host.agentChecksum._redArg, `NativeApp.runMutationAudit,
     `NativeApp.AuditArm.construction]),
-  (`NativeApp.Viewer, #[`NativeApp.runViewer, `Acorn.Host.Viewer.ViewerOptions.decode,
+  (`Entry.AcornViewer, #[`NativeApp.Viewer.main, `NativeApp.runViewer,
+    `Acorn.Host.Viewer.ViewerOptions.decode,
     `Acorn.Host.Viewer.Supervisor.new, `Acorn.Host.Viewer.Supervisor.step]),
-  (`NativeApp.BrowserKernel, #[`Acorn.Host.Viewer.browserKernelJavascript]),
-  (`Acorn.SwiftTdDriver, #[`Acorn.SwiftTdDriver.execute]),
-  (`Acorn.FeatureDriver, #[`Acorn.FeatureDriver.execute]),
-  (`Acorn.ControlDriver, #[`Acorn.ControlDriver.execute]),
-  (`Acorn.TemporalDriver, #[`Acorn.TemporalDriver.execute]),
-  (`Acorn.AgentDriver, #[`Acorn.AgentDriver.execute]),
-  (`Acorn.WorldDriver, #[`Acorn.WorldDriver.execute]),
-  (`Acorn.Host.CheckpointDriver, #[`Acorn.Host.CheckpointDriver.dispatch]),
-  (`Acorn.Host.Microduck.Driver, #[`Acorn.Host.Microduck.Options.run]),
-  (`Acorn.Host.CertificateDriver, #[`Acorn.Host.CertificateDriver.execute,
+  (`Entry.BrowserKernel, #[`NativeApp.BrowserKernel.main,
+    `Acorn.Host.Viewer.browserKernelJavascript]),
+  (`Entry.SwiftTdNative, #[`Acorn.SwiftTdDriver.main, `Acorn.SwiftTdDriver.execute]),
+  (`Entry.FeatureNative, #[`Acorn.FeatureDriver.main, `Acorn.FeatureDriver.execute]),
+  (`Entry.ControlNative, #[`Acorn.ControlDriver.main, `Acorn.ControlDriver.execute]),
+  (`Entry.TemporalNative, #[`Acorn.TemporalDriver.main, `Acorn.TemporalDriver.execute]),
+  (`Entry.AgentNative, #[`Acorn.AgentDriver.main, `Acorn.AgentDriver.execute]),
+  (`Entry.WorldNative, #[`Acorn.WorldDriver.main, `Acorn.WorldDriver.execute]),
+  (`Entry.CheckpointNative, #[`Acorn.Host.CheckpointDriver.main,
+    `Acorn.Host.CheckpointDriver.dispatch]),
+  (`Entry.MicroduckHost, #[`Acorn.Host.Microduck.Driver.main,
+    `Acorn.Host.Microduck.Options.run]),
+  (`Entry.WorldCertificates, #[`Acorn.Host.CertificateDriver.main,
+    `Acorn.Host.CertificateDriver.execute,
     `Acorn.Host.replayCertified, `Acorn.Host.regionBlocked, `Acorn.Host.stanceCertified]),
   (`AcornTools.Boundary.Main, #[`AcornBoundaryAudit.command]),
   (`AcornTools.TheoremCount, #[`AcornTheoremCount.inventory]),

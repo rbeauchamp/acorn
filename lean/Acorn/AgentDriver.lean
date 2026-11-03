@@ -32,7 +32,7 @@ def dispatch (arguments : List String) : Option String := do
 end Acorn.AgentDriver
 
 /-- Native admission/output failures cannot produce a false success status. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.AgentDriver.main (arguments : List String) : IO UInt32 := do
   try
     match Acorn.AgentDriver.dispatch arguments with
     | some output => IO.println output; return 0

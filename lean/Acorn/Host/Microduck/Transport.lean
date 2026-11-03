@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Std.Sync.Mutex
 import Acorn.Host.Microduck.Loop
+import Acorn.Host.Forever
 
 /-!
 # The transport of a Microduck host
@@ -71,7 +72,7 @@ them. -/
 private def readLines (input : IO.FS.Stream) (heard : Std.Mutex (Array String))
     (ended : Std.Mutex (Option Nat)) : IO Unit := do
   try
-    repeat
+    for _ in forever do
       if ← IO.checkCanceled then return
       let line ← input.getLine
       if line.isEmpty then return

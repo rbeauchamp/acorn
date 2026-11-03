@@ -33,12 +33,14 @@ import Acorn.Host.Viewer.WorldMemory
 # Registered decisions of the executing library
 
 A decision is a function whose result accepts or refuses its input: an admission, a parser or
-a validity test. Each registration below is a `Regula.ExecutableContract` about the executing
+a validity test. Each contract below is a `Regula.ExecutableContract` about the executing
 definition itself, with the kind its proof establishes: `Regula.Decides` states that the
 function accepts exactly the inputs that satisfy the written specification, with one accepted
-and one refused input as witnesses. `@[regula_decision]` then makes that contract a
-requirement of the function, so removing the contract while the function stays registered
-fails the Regula audit.
+and one refused input as witnesses. A declaration of type `Regula.RegisteredDecision` beside
+the contract registers the function, and the ownership audit requires a contract with a kind
+for each registered function whose result is not `Decidable _`, so removing the contract while
+the function stays registered fails the audit. No rule of Regula reads a contract or a
+registration.
 
 ## Selection rule
 
@@ -55,11 +57,11 @@ with one proved direction carries that direction alone. Five groups are register
   so it is registered with no contract.
 * A decision with an argument or result type that depends on an earlier argument, such as
   `Bounded32.admit`, and a decision that takes its element type as an argument, such as
-  `Host.Viewer.Buffer.offer`, carry a kind and the registration in the forms that Regula reads
-  for them. The kind is stated about the function applied to the two fields of a pair, or to
+  `Host.Viewer.Buffer.offer`, carry a kind and the registration in the forms that `Regula.Contract`
+  gives for them. The kind is stated about the function applied to the two fields of a pair, or to
   every field of a structure of its arguments, in order. The structure is declared beside the
-  contract, and a field can be a type or have a type that depends on an earlier field. Where
-  the result type depends on the input, the kind is about `Regula.Dependent.isSome` or
+  contract, and a field can be a type or have a type that depends on an earlier field. Where the
+  result type depends on the input, the kind is about `Regula.Dependent.isSome` or
   `Regula.Dependent.isOk` of that function: whether the result holds a value, with the value
   forgotten.
 * A function with a kind can carry a second statement beside it for what its kind does not
@@ -73,10 +75,11 @@ with one proved direction carries that direction alone. Five groups are register
   inputs the daemon accepted, and `microduck_line_read`, for the lines of a daemon that a host
   reads). That statement is a requirement with no kind, and the ownership audit requires it by
   name.
-* A function keeps a requirement with no kind where no kind is true of it, or where Regula
-  refuses the kind. The function carries no `@[regula_decision]` registration, and the
-  ownership audit requires the contract by name, with a statement that still refers to the
-  executing definition. The docstring of each such statement says what stands in the way.
+* A function keeps a requirement with no kind where no kind is true of it, or where the rule of the
+  section "Tests that a specification does not share" excludes the kind. The function carries no
+  registration, and the ownership audit requires the contract by name, with a statement that still
+  refers to the executing definition. The docstring of each such statement says what stands in the
+  way.
 
 ## Statements that keep no kind
 
@@ -105,96 +108,90 @@ definitions that specifications share with their functions have the statements o
   (`CurrentCheckpoint.unresumable_unloaded`), and under a resumable profile the restore returns
   the image's agent (`AgentConstruction.State.restore_exact`).
 * The specification reads a part of the input whose type declares an invariant that names tests that
-  the function runs. RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) does not
-  enter the declaration of the input type itself, but it reads the declaration of the result type of
-  a field that the specification reads, and of the type of a definition that the specification
-  applies to such a field, so it refuses the kind although the specification names none of those
-  tests (https://github.com/rbeauchamp/regula/issues/320). These are
-  `Features.Lifecycle.lessUseful`, `Features.Lifecycle.candidate` and `Features.Lifecycle.prefer`,
-  whose specifications read the stored utilities of the lifecycle state; the two transitions
-  `Host.Microduck.Idle.sense` and `Host.Microduck.Awaiting.release`, whose host carries the proof
-  that it is reached by the transitions; and nine selection functions of the temporal controller,
-  whose specifications read the temporal state: `TemporalControl.serve`,
-  `TemporalControl.serveDraw`, `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
+  the function runs. The rule of the section "Tests that a specification does not share" reads the
+  declaration of the result type of a field that the specification reads, and of the type of a
+  definition that the specification applies to such a field, so it excludes the kind although the
+  specification names none of those tests. These are `Features.Lifecycle.lessUseful`,
+  `Features.Lifecycle.candidate` and `Features.Lifecycle.prefer`, whose specifications read the
+  stored utilities of the lifecycle state; the two transitions `Host.Microduck.Idle.sense` and
+  `Host.Microduck.Awaiting.release`, whose host carries the proof that it is reached by the
+  transitions; and nine selection functions of the temporal controller, whose specifications read
+  the temporal state: `TemporalControl.serve`, `TemporalControl.serveDraw`,
+  `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
   `TemporalControl.selectWithOperations`, `TemporalControl.select`, `TemporalControl.step`,
-  `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. An audit with Regula v0.11.0
-  refused the kinds of the three lifecycle functions for the tests `Binary32.isNaN`, `Binary32.less`
-  and `Binary32.negative`, which the declaration of the lifecycle state reaches through the
-  invariants of the learners of its consumers. For the transitions and the selection functions the
-  refusal is a conclusion from the documented reading, and no audit of their kinds has run. A
-  temporal state reaches such tests through the invariants of its learners, the stored-word check
-  `NumericState.resumable` of a learner read from an image among them, and its lifetime records. A
-  served step reaches one of them, `Binary32.negative`, through the value predictions it reports,
-  and has a statement of the step it serves beside its contract (`temporal_serve_frame`,
-  `serve_draw_frame`).
+  `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. The declaration of the lifecycle
+  state reaches the tests `Binary32.isNaN`, `Binary32.less` and `Binary32.negative` through the
+  invariants of the learners of its consumers. A temporal state reaches such tests through the
+  invariants of its learners, the stored-word check `NumericState.resumable` of a learner read from
+  an image among them, and its lifetime records. A served step reaches one of them,
+  `Binary32.negative`, through the value predictions it reports, and has a statement of the step it
+  serves beside its contract (`temporal_serve_frame`, `serve_draw_frame`).
 * The verdict is the guard of the function, and the guard applies a definition that no
   proposition states apart from it. Whether `Host.Viewer.Admission.receive` stores a capture and
   whether `Host.Viewer.HealthAdmission.receive` accepts one depend on the capture orders
   `Host.Viewer.Capture.follows` and `Host.Viewer.Capture.after`, which carry one-way kinds and no
-  proposition, so a specification would name the test and RG1009 refuses it; the verdict of each
-  is also the first component of a pair whose state has a type that depends on the identity, and
-  Regula reads a result whose type depends on the input only through `Regula.Dependent.isSome`
-  and `Regula.Dependent.isOk`.
+  proposition, so a specification would name the test, which the rule of the section "Tests that
+  a specification does not share" excludes; the verdict of each is also the first component of a
+  pair whose state has a type that depends on the identity, and the kinds read a result whose
+  type depends on the input only through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`.
 * The result has a type that depends on the input and is neither an `Option` nor an `Except`, and
-  Regula reads such a result only through `Regula.Dependent.isSome` and
+  the kinds read such a result only through `Regula.Dependent.isSome` and
   `Regula.Dependent.isOk`. `Costed.findIdx?` returns its index with the equation that names it,
   a type that depends on the array and the test.
 
-A requirement with no kind is a statement that the Regula audit does not examine: that audit
-checks only that its theorem is proved about the executing definition. Such a statement can
-fix one direction only, and it need not show that both outcomes occur for its function.
-RG1009 does not read its specification. Each docstring says what its statement gives and what
+A requirement with no kind is checked only as a theorem about the executing definition. Such a
+statement can fix one direction only, and it need not show that both outcomes occur for its
+function, and the rule of the section "Tests that a specification does not share" does not
+apply to its specification. Each docstring says what its statement gives and what
 it does not claim. Kinds for the functions of the second reason are remaining
 work of https://github.com/rbeauchamp/acorn/issues/105.
 
-A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. The
-`AcornVerif` surface of the Regula manifest names `Acorn` in `decides`, so Regula counts the
-decision contracts of that module toward the registrations of this library. A function whose
-kind is stated there is registered in the last section of this module, and RG1008 requires the
-kind as it requires a kind stated here; a statement with no kind there is required by name by
-the ownership audit, as one here is. The
-certificate checkers `Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified`
-are stated there, with `Host.walkableTile`: what an accepted certificate establishes is a
-statement about runs of the executed world step, proved in `AcornVerif.CurrentCertificates`.
-No checker is complete about its goal, so `Host.regionBlocked` and `Host.stanceCertified`
-carry the sound kind. `Host.replayCertified` carries the two-way kind about its action list,
-with `Host.ReplayCertificate.check` and the replay `Host.World.advanceActions`: their
-specifications are about runs of the executed world step, which decides propositions in the
-place of its tests. `Host.walkableTile` carries the two-way kind. The terrain generator
-`Host.terrain` and its readers `Host.World.tileKind` and `Host.World.enterable` carry the
-two-way kind there too, with the value noise `Host.valueNoise`, its fold over the octaves
-`Host.octaveLoop` and the field of the terrain `Host.fbm`, which the generator applies, because
-the proof of their refusals needs the exact floor of `AcornVerif.CurrentFloor`.
-`Host.Released.environment` carries the two-way kind there, and `Host.World.observe`,
-`Host.Attempt.finish` and `Host.Attempt.complete` have an accepted input stated there, because
-the observation of the attempt `fresh` succeeds by the terrain admission of
-`AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the
-rule `Host.considerSpawn` of the spawn search carry the two-way kind there (`spawn_count`,
-`spawn_consider`), because their proofs need the terrain admission of
-`AcornVerif.CurrentTerrain` (`CurrentTerrain.tileKind_isOk`) and the checked translation of
-`AcornVerif.CurrentCertificates`. The values of their accepted results (`spawn_count_value`,
-`spawn_consider_value`) and the requirement with no kind of the search `Host.selectSpawn`
-(`spawn_select`) are stated there because their theorems are in `AcornVerif.CurrentSpawn`.
-`Host.World.initial` has an accepted input stated there (`world_initial_accepts`), at a
-configuration of one tile whose spawn search succeeds by the terrain admission of
-`AcornVerif.CurrentTerrain`.
-The test of a cleared learner slot `NumericState.clearAt` carries the two-way kind there
-(`learner_clear`), because its theorem is in `AcornVerif.CurrentLearnerCheck`. The stored-word
-check `NumericState.resumable` has a requirement with no kind there (`learner_resumable`), for
-the second reason above: its kind was proved and Regula's collector refuses it.
+A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. The ownership
+audit counts the decision contracts of that module toward the registrations of this library. A
+function whose kind is stated there is registered in the last section of this module, and the
+ownership audit requires the kind as it requires a kind stated here; a statement with no kind there
+is required by name by the ownership audit, as one here is. The certificate checkers
+`Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified` are stated there, with
+`Host.walkableTile`: what an accepted certificate establishes is a statement about runs of the
+executed world step, proved in `AcornVerif.CurrentCertificates`. No checker is complete about its
+goal, so `Host.regionBlocked` and `Host.stanceCertified` carry the sound kind.
+`Host.replayCertified` carries the two-way kind about its action list, with
+`Host.ReplayCertificate.check` and the replay `Host.World.advanceActions`: their specifications are
+about runs of the executed world step, which decides propositions in the place of its tests.
+`Host.walkableTile` carries the two-way kind. The terrain generator `Host.terrain` and its readers
+`Host.World.tileKind` and `Host.World.enterable` carry the two-way kind there too, with the value
+noise `Host.valueNoise`, its fold over the octaves `Host.octaveLoop` and the field of the terrain
+`Host.fbm`, which the generator applies, because the proof of their refusals needs the exact floor
+of `AcornVerif.CurrentFloor`. `Host.Released.environment` carries the two-way kind there, and
+`Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete` have an accepted input
+stated there, because the observation of the attempt `fresh` succeeds by the terrain admission of
+`AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the rule `Host.considerSpawn` of the
+spawn search carry the two-way kind there (`spawn_count`, `spawn_consider`), because their proofs
+need the terrain admission of `AcornVerif.CurrentTerrain` (`CurrentTerrain.tileKind_isOk`) and the
+checked translation of `AcornVerif.CurrentCertificates`. The values of their accepted results
+(`spawn_count_value`, `spawn_consider_value`) and the requirement with no kind of the search
+`Host.selectSpawn` (`spawn_select`) are stated there because their theorems are in
+`AcornVerif.CurrentSpawn`. `Host.World.initial` has an accepted input stated there
+(`world_initial_accepts`), at a configuration of one tile whose spawn search succeeds by the terrain
+admission of `AcornVerif.CurrentTerrain`. The test of a cleared learner slot `NumericState.clearAt`
+carries the two-way kind there (`learner_clear`), because its theorem is in
+`AcornVerif.CurrentLearnerCheck`. The stored-word check `NumericState.resumable` has a requirement
+with no kind there (`learner_resumable`), for the second reason above: its kind was proved, and the
+rule of the next section excludes it.
 
 ## Tests that a specification does not share
 
 A kind compares a function with its specification as the two are defined now. Where the two
 call one test, a defect of that test changes the two sides together, and the proof of the kind
-can stay valid. Regula's RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/)
-therefore refuses a contract with a kind whose specification reaches a test that the function
-or the acceptance predicate also reaches. A test is a function with a result of `Bool`, or a
+can stay valid. So the specification of a contract with a kind reaches no test that the function
+or the acceptance predicate also reaches. Review applies this rule; no check of Regula or of
+Acorn does. A test is a function with a result of `Bool`, or a
 definition with a result of `BEq`, outside Lean's own library. The projection function of a
 structure field is no test, whatever the type of the field: it reads stored data. So
-`inventory_craft` is not refused for the fields `Host.Inventory.axe` and `Host.Inventory.boat`,
-which `Host.Inventory.Owns` and `Host.Inventory.craft` both read. The rule reads the
-specification at any depth.
+`inventory_craft` may read the fields `Host.Inventory.axe` and `Host.Inventory.boat`, which
+`Host.Inventory.Owns` and `Host.Inventory.craft` both read. The rule reads the specification at
+any depth, through the declarations it names and the declared types of the parts of the input it
+reads.
 
 Each such condition is a proposition, with a theorem that connects the test with it:
 
@@ -226,7 +223,7 @@ instance of each proposition runs its test, so the executed comparison is the sa
 specification that would name a test names the proposition: `inventory_craft` and
 `region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
 
-The rule compares names. It refuses nothing for a shared function with a result that is
+The rule compares names. It says nothing of a shared function with a result that is
 neither `Bool` nor `BEq`, such as `Binary32.key`, `Binary32.magnitude` or `Host.terrain`: no
 type tells a function that a specification is about from one that prepares its input. Those
 functions stay a matter of review. Review admits such a shared function where something other
@@ -254,11 +251,8 @@ which is stored data as a structure field is. The readers of a number word that 
 and `Conversion.widen`, and the world step `Host.World.step`, the installation of a goal
 `Host.World.setGoal` and the terrain `Host.terrain`, which the replays and the kinds of the terrain
 are about, are shared with no statement of their own against another reading; statements of
-their own for them are remaining work of https://github.com/rbeauchamp/acorn/issues/67. For a
-contract with a kind, the account of the Regula audit names each such function where the
-specification reaches it first. It does not name a function that the specification reaches only
-through a named one, and it does not name a projection function. The audit gives no such account
-for a statement with no kind. The inventory above covers the contracts with a kind; `box_center`
+their own for them are remaining work of https://github.com/rbeauchamp/acorn/issues/67. The
+inventory above covers the contracts with a kind; `box_center`
 stands beside it for `spawn_select` in `AcornVerif.Decisions`, which keeps no kind. The statements
 with no kind also apply definitions that their functions apply: declared constants, readers and
 arithmetic of the executing library, and the executing constructors that build a witness; which
@@ -272,9 +266,7 @@ therefore shares no comparison of actions, tile kinds or positions with the step
 ## What is not registered
 
 The groups below are a list with no check of completeness: a new definition with a `Bool`,
-`Option`, `Except` or `Decidable _` result can arrive with no contract and no entry here. A
-report of the definitions that have no contract is work of Regula
-(https://github.com/rbeauchamp/regula/issues/115).
+`Option`, `Except` or `Decidable _` result can arrive with no contract and no entry here.
 
 * A structure field, which is stored data, and a function with a `Decidable _` result, which
   carries both directions of its decision in its type, have no contract.
@@ -396,8 +388,8 @@ contracts `microduck_sense` and `microduck_release`, which keep no kind, as thei
 
 What the list does not hold:
 
-* This module cannot register a function of `NativeApp`: Regula refuses a registration written
-  for a declaration of another library. Each is in the group that no theorem names. `Bootstrap`
+* This module registers no function of `NativeApp`, another library. Each is in the group that
+  no theorem names. `Bootstrap`
   decides only in `IO`.
 * An effect is not in the list: its result type is `IO`. An effect with a pure core is covered
   through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.resume` on the
@@ -643,7 +635,8 @@ theorem binary32_nan : Regula.ExecutableContract Binary32.isNaN
       exact decide_eq_true_iff)
     ⟨⟨0x7fc00000⟩, by decide⟩ ⟨.zero, by decide⟩⟩
 
-attribute [regula_decision] Binary32.isNaN
+/-- Registers `Binary32.isNaN` as a decision function. -/
+theorem Binary32_isNaN_registered : Regula.RegisteredDecision @Binary32.isNaN := ⟨⟩
 
 /-- A binary32 word is not a NaN exactly when its magnitude does not exceed infinity's. -/
 private theorem ordered32 (word : Binary32) :
@@ -661,7 +654,8 @@ theorem binary32_zero : Regula.ExecutableContract Binary32.isZero
       exact decide_eq_true_iff)
     ⟨.zero, by decide⟩ ⟨⟨0x3f800000⟩, by decide⟩⟩
 
-attribute [regula_decision] Binary32.isZero
+/-- Registers `Binary32.isZero` as a decision function. -/
+theorem Binary32_isZero_registered : Regula.RegisteredDecision @Binary32.isZero := ⟨⟩
 
 /-- Strict word comparison accepts exactly two words with a magnitude of infinity's or less in
 strict signed-key order
@@ -679,7 +673,8 @@ theorem binary32_less : Regula.ExecutableContract Binary32.less (fun compare =>
       simp [and_assoc])
     ⟨(.zero, ⟨0x3f800000⟩), by decide⟩ ⟨(.zero, .zero), by decide⟩⟩
 
-attribute [regula_decision] Binary32.less
+/-- Registers `Binary32.less` as a decision function. -/
+theorem Binary32_less_registered : Regula.RegisteredDecision @Binary32.less := ⟨⟩
 
 /-- Non-strict word comparison accepts exactly two words with a magnitude of infinity's or less
 in signed-key order
@@ -697,7 +692,8 @@ theorem binary32_less_or_equal : Regula.ExecutableContract Binary32.lessOrEqual 
       simp [and_assoc])
     ⟨(.zero, .zero), by decide⟩ ⟨(⟨0x3f800000⟩, .zero), by decide⟩⟩
 
-attribute [regula_decision] Binary32.lessOrEqual
+/-- Registers `Binary32.lessOrEqual` as a decision function. -/
+theorem Binary32_lessOrEqual_registered : Regula.RegisteredDecision @Binary32.lessOrEqual := ⟨⟩
 
 /-- Numeric word equality accepts exactly two words with a magnitude of infinity's or less and
 equal signed keys
@@ -715,7 +711,9 @@ theorem binary32_equal : Regula.ExecutableContract Binary32.numericallyEqual (fu
       simp [and_assoc])
     ⟨(.zero, .zero), by decide⟩ ⟨(⟨0x3f800000⟩, .zero), by decide⟩⟩
 
-attribute [regula_decision] Binary32.numericallyEqual
+/-- Registers `Binary32.numericallyEqual` as a decision function. -/
+theorem Binary32_numericallyEqual_registered :
+    Regula.RegisteredDecision @Binary32.numericallyEqual := ⟨⟩
 
 /-- The magnitude test accepts exactly a word whose magnitude field is the given constant
 (`Binary32.magnitudeEq_exact`). -/
@@ -730,7 +728,8 @@ theorem binary32_magnitude : Regula.ExecutableContract Binary32.magnitudeEq (fun
       exact beq_iff_eq)
     ⟨(.zero, 0), by decide⟩ ⟨(.zero, 1), by decide⟩⟩
 
-attribute [regula_decision] Binary32.magnitudeEq
+/-- Registers `Binary32.magnitudeEq` as a decision function. -/
+theorem Binary32_magnitudeEq_registered : Regula.RegisteredDecision @Binary32.magnitudeEq := ⟨⟩
 
 /-- Binary64 NaN classification accepts exactly the words whose magnitude exceeds
 infinity's. -/
@@ -739,7 +738,8 @@ theorem binary64_nan : Regula.ExecutableContract Binary64.isNaN
   ⟨decides (fun _ => decide_eq_true_iff)
     ⟨⟨0x7ff8000000000000⟩, by decide⟩ ⟨⟨0⟩, by decide⟩⟩
 
-attribute [regula_decision] Binary64.isNaN
+/-- Registers `Binary64.isNaN` as a decision function. -/
+theorem Binary64_isNaN_registered : Regula.RegisteredDecision @Binary64.isNaN := ⟨⟩
 
 /-- A binary64 word is not a NaN exactly when its magnitude does not exceed infinity's. -/
 private theorem ordered64 (word : Binary64) :
@@ -763,7 +763,8 @@ theorem binary64_less : Regula.ExecutableContract Binary64.less (fun compare =>
       simp [and_assoc])
     ⟨(⟨0⟩, ⟨0x3ff0000000000000⟩), by decide⟩ ⟨(⟨0⟩, ⟨0⟩), by decide⟩⟩
 
-attribute [regula_decision] Binary64.less
+/-- Registers `Binary64.less` as a decision function. -/
+theorem Binary64_less_registered : Regula.RegisteredDecision @Binary64.less := ⟨⟩
 
 /-- The sign classification accepts exactly the words whose sign bit is set. -/
 theorem binary32_negative : Regula.ExecutableContract Binary32.negative
@@ -771,7 +772,8 @@ theorem binary32_negative : Regula.ExecutableContract Binary32.negative
   ⟨decides (fun word => by simp [Binary32.negative]) ⟨⟨0x80000000⟩, by decide⟩
     ⟨.zero, by decide⟩⟩
 
-attribute [regula_decision] Binary32.negative
+/-- Registers `Binary32.negative` as a decision function. -/
+theorem Binary32_negative_registered : Regula.RegisteredDecision @Binary32.negative := ⟨⟩
 
 /-! ## Machine-state admission -/
 
@@ -787,7 +789,8 @@ theorem interval_admit : Regula.ExecutableContract Interval32.admit (fun admit =
       (Interval32.interval_admit_refuses endpoints.1 endpoints.2)).trans Classical.not_not)
     ⟨(.zero, .zero), by decide⟩ ⟨(⟨0x7fc00000⟩, .zero), by decide⟩⟩
 
-attribute [regula_decision] Interval32.admit
+/-- Registers `Interval32.admit` as a decision function. -/
+theorem Interval32_admit_registered : Regula.RegisteredDecision @Interval32.admit := ⟨⟩
 
 /-- Reward-rate admission accepts exactly the words of the reward-rate interval
 (`Bounded32.admit_refuses`). -/
@@ -798,7 +801,8 @@ theorem reward_rate_admit : Regula.ExecutableContract RewardRate.admit
       Classical.not_not)
     ⟨.zero, by decide⟩ ⟨⟨0x7fc00000⟩, by decide⟩⟩
 
-attribute [regula_decision] RewardRate.admit
+/-- Registers `RewardRate.admit` as a decision function. -/
+theorem RewardRate_admit_registered : Regula.RegisteredDecision @RewardRate.admit := ⟨⟩
 
 /-- The word positivity test accepts exactly the words with a positive signed key
 (`Binary32.keyPositive_exact`). -/
@@ -806,7 +810,8 @@ theorem key_positive : Regula.ExecutableContract Binary32.keyPositive
     (Regula.Decides (· = true) (fun word : Binary32 => 0 < word.key)) :=
   ⟨decides Binary32.keyPositive_exact ⟨⟨0x3f800000⟩, by decide⟩ ⟨.zero, by decide⟩⟩
 
-attribute [regula_decision] Binary32.keyPositive
+/-- Registers `Binary32.keyPositive` as a decision function. -/
+theorem Binary32_keyPositive_registered : Regula.RegisteredDecision @Binary32.keyPositive := ⟨⟩
 
 /-- Bonus admission accepts exactly the positive words of the Demon-0 prediction range. Every
 held bonus is one of them (`Bonus.admit_self`). -/
@@ -822,7 +827,8 @@ theorem bonus_admit : Regula.ExecutableContract Bonus.admit
       · simp [legal])
     ⟨⟨0x3f800000⟩, by decide⟩ ⟨.zero, by decide⟩⟩
 
-attribute [regula_decision] Bonus.admit
+/-- Registers `Bonus.admit` as a decision function. -/
+theorem Bonus_admit_registered : Regula.RegisteredDecision @Bonus.admit := ⟨⟩
 
 /-- A prediction word of the Demon-0 range is a bonus exactly when its signed key is
 positive. -/
@@ -836,7 +842,8 @@ theorem bonus_of_weight : Regula.ExecutableContract Bonus.ofWeight
       split <;> simp_all)
     ⟨⟨⟨0x3f800000⟩, by decide⟩, by decide⟩ ⟨⟨.zero, by decide⟩, by decide⟩⟩
 
-attribute [regula_decision] Bonus.ofWeight
+/-- Registers `Bonus.ofWeight` as a decision function. -/
+theorem Bonus_ofWeight_registered : Regula.RegisteredDecision @Bonus.ofWeight := ⟨⟩
 
 /-- Prediction-list admission accepts exactly the lists within the prediction-channel count. -/
 theorem predictions_admit : Regula.ExecutableContract Predictions.admit
@@ -864,7 +871,8 @@ theorem predictions_admit_value : Regula.ExecutableContract Predictions.admit
       unfold Predictions.admit
       exact dite_eq_left predictions.bounded⟩
 
-attribute [regula_decision] Predictions.admit
+/-- Registers `Predictions.admit` as a decision function. -/
+theorem Predictions_admit_registered : Regula.RegisteredDecision @Predictions.admit := ⟨⟩
 
 /-- Unit-state admission accepts exactly the words whose utility lies in the utility range.
 Every stored unit is admitted from its own words (`UnitState.words_roundtrip`). -/
@@ -879,7 +887,8 @@ theorem unit_state_admit : Regula.ExecutableContract UnitState.admit
         Classical.not_not)
     ⟨(0, 0, .zero), by decide⟩ ⟨(0, 0, ⟨0x7fc00000⟩), by decide⟩⟩
 
-attribute [regula_decision] UnitState.admit
+/-- Registers `UnitState.admit` as a decision function. -/
+theorem UnitState_admit_registered : Regula.RegisteredDecision @UnitState.admit := ⟨⟩
 
 /-- Checked clock advancement accepts exactly the pairs whose sum fits the 64-bit word
 (`Word.clock_advance_refuses`). -/
@@ -892,7 +901,8 @@ theorem clock_advance : Regula.ExecutableContract Word.advanceClock (fun advance
       Nat.not_le)
     ⟨(0, 0), by decide⟩ ⟨(0xffffffffffffffff, 1), by decide⟩⟩
 
-attribute [regula_decision] Word.advanceClock
+/-- Registers `Word.advanceClock` as a decision function. -/
+theorem Word_advanceClock_registered : Regula.RegisteredDecision @Word.advanceClock := ⟨⟩
 
 /-- Ratio admission accepts exactly a numerator bounded by a positive denominator. -/
 theorem ratio_admit : Regula.ExecutableContract Agreement.Ratio.admit (fun admit =>
@@ -906,7 +916,8 @@ theorem ratio_admit : Regula.ExecutableContract Agreement.Ratio.admit (fun admit
         simp [positive, bounded])
     ⟨(0, 1), by decide⟩ ⟨(0, 0), by decide⟩⟩
 
-attribute [regula_decision] Agreement.Ratio.admit
+/-- Registers `Agreement.Ratio.admit` as a decision function. -/
+theorem Agreement_Ratio_admit_registered : Regula.RegisteredDecision @Agreement.Ratio.admit := ⟨⟩
 
 /-! ## Agent construction and checkpoint admission -/
 
@@ -938,7 +949,9 @@ theorem agent_construction_admit :
         .learnThenAct), 0), 0), 1), 0),
       by decide⟩⟩
 
-attribute [regula_decision] AgentConstruction.admit
+/-- Registers `AgentConstruction.admit` as a decision function. -/
+theorem AgentConstruction_admit_registered :
+    Regula.RegisteredDecision @AgentConstruction.admit := ⟨⟩
 
 /-- The resumable-profile test accepts exactly the profile with all four checkpointed
 discriminants (`FeatureProfile.checkpoint_iff`). -/
@@ -949,7 +962,9 @@ theorem checkpoint_supported : Regula.ExecutableContract FeatureProfile.checkpoi
   ⟨decides FeatureProfile.checkpoint_iff ⟨⟨.final, .perStep, .declared, .learned⟩, by decide⟩
     ⟨⟨.frozen, .perStep, .declared, .learned⟩, by decide⟩⟩
 
-attribute [regula_decision] FeatureProfile.checkpointSupported
+/-- Registers `FeatureProfile.checkpointSupported` as a decision function. -/
+theorem FeatureProfile_checkpointSupported_registered :
+    Regula.RegisteredDecision @FeatureProfile.checkpointSupported := ⟨⟩
 
 /-- Goal-total admission accepts exactly the triples whose successes do not exceed their
 attempts and whose steps are zero when no attempt completed. -/
@@ -958,7 +973,8 @@ theorem goal_admit : Regula.ExecutableContract Checkpoint.admitGoal
       words.2.1.toNat ≤ words.1.toNat ∧ (words.1 = 0 → words.2.2 = 0))) :=
   ⟨decides (fun _ => dite_isSome _) ⟨(0, 0, 0), by decide⟩ ⟨(0, 1, 0), by decide⟩⟩
 
-attribute [regula_decision] Checkpoint.admitGoal
+/-- Registers `Checkpoint.admitGoal` as a decision function. -/
+theorem Checkpoint_admitGoal_registered : Regula.RegisteredDecision @Checkpoint.admitGoal := ⟨⟩
 
 /-- The specification of header admission, over a receiving construction and a header: some
 reward rate meets every condition of `Checkpoint.HeaderAdmitted`. That structure states the
@@ -1006,7 +1022,8 @@ theorem header_admit : Regula.ExecutableContract Checkpoint.admitHeader (fun adm
           Acorn.FeatureConstants.defaultImprintUnits.toUInt32, 1, 0⟩),
       fun ⟨_, specified⟩ => absurd specified.version (by decide)⟩⟩
 
-attribute [regula_decision] Checkpoint.admitHeader
+/-- Registers `Checkpoint.admitHeader` as a decision function. -/
+theorem Checkpoint_admitHeader_registered : Regula.RegisteredDecision @Checkpoint.admitHeader := ⟨⟩
 
 /-- Fixed-width word decoding accepts exactly the encodings of a word below the width's
 bound, followed by any suffix (`Checkpoint.nat_roundtrip`, `Checkpoint.decodeNat_bound`). -/
@@ -1026,7 +1043,8 @@ theorem nat_decode : Regula.ExecutableContract Checkpoint.decodeNat (fun decode 
        rfl
      refused := ⟨(1, []), by decide⟩ }⟩
 
-attribute [regula_decision] Checkpoint.decodeNat
+/-- Registers `Checkpoint.decodeNat` as a decision function. -/
+theorem Checkpoint_decodeNat_registered : Regula.RegisteredDecision @Checkpoint.decodeNat := ⟨⟩
 
 /-- Write-capability admission accepts exactly a positive interval with no refused image
 (`Host.WritableCheckpoint.refused`). -/
@@ -1044,7 +1062,9 @@ theorem writable_checkpoint_admit :
         simp [Host.WritableCheckpoint.admit, positive])
     ⟨((⟨""⟩, 1), .loaded), by decide⟩ ⟨((⟨""⟩, 1), .refused), by decide⟩⟩
 
-attribute [regula_decision] Host.WritableCheckpoint.admit
+/-- Registers `Host.WritableCheckpoint.admit` as a decision function. -/
+theorem Host_WritableCheckpoint_admit_registered :
+    Regula.RegisteredDecision @Host.WritableCheckpoint.admit := ⟨⟩
 
 /-- The public resumable-profile test accepts exactly the ranked profile. It agrees with the
 constructed profile's test (`Host.research_resumable`). -/
@@ -1053,7 +1073,9 @@ theorem profile_resumable : Regula.ExecutableContract Host.ResearchProfile.resum
   ⟨decides (fun profile => by cases profile <;> simp [Host.ResearchProfile.resumable])
     ⟨.ranked, rfl⟩ ⟨.primitive, by decide⟩⟩
 
-attribute [regula_decision] Host.ResearchProfile.resumable
+/-- Registers `Host.ResearchProfile.resumable` as a decision function. -/
+theorem Host_ResearchProfile_resumable_registered :
+    Regula.RegisteredDecision @Host.ResearchProfile.resumable := ⟨⟩
 
 /-! ## Host admission and parsing -/
 
@@ -1067,7 +1089,9 @@ theorem coordinate_checked : Regula.ExecutableContract Host.Coordinate.checked
       Classical.not_not)
     ⟨0, by decide⟩ ⟨2 ^ 63, by decide⟩⟩
 
-attribute [regula_decision] Host.Coordinate.checked
+/-- Registers `Host.Coordinate.checked` as a decision function. -/
+theorem Host_Coordinate_checked_registered :
+    Regula.RegisteredDecision @Host.Coordinate.checked := ⟨⟩
 
 /-- Custom world admission accepts exactly a positive side and a nonzero day length. -/
 theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
@@ -1082,7 +1106,8 @@ theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
     ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩
     ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩⟩
 
-attribute [regula_decision] Host.WorldConfig.admit
+/-- Registers `Host.WorldConfig.admit` as a decision function. -/
+theorem Host_WorldConfig_admit_registered : Regula.RegisteredDecision @Host.WorldConfig.admit := ⟨⟩
 
 /-- Standard world admission accepts exactly a side within the supported interval
 (`Host.WorldConfig.standard_bounds`). -/
@@ -1104,7 +1129,9 @@ theorem world_config_standard :
         · simp [low, high, Except.isOk, Except.toBool] <;> omega)
     ⟨(0, ⟨64, by decide⟩), by decide⟩ ⟨(0, ⟨63, by decide⟩), by decide⟩⟩
 
-attribute [regula_decision] Host.WorldConfig.standard
+/-- Registers `Host.WorldConfig.standard` as a decision function. -/
+theorem Host_WorldConfig_standard_registered :
+    Regula.RegisteredDecision @Host.WorldConfig.standard := ⟨⟩
 
 /-- The raw area product is accepted exactly when it is a signed 64-bit integer
 (`Host.RawWorldConfig.area_exact`). -/
@@ -1115,7 +1142,9 @@ theorem world_area : Regula.ExecutableContract Host.RawWorldConfig.area
     ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩
     ⟨⟨0, ⟨2 ^ 62, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩⟩
 
-attribute [regula_decision] Host.RawWorldConfig.area
+/-- Registers `Host.RawWorldConfig.area` as a decision function. -/
+theorem Host_RawWorldConfig_area_registered :
+    Regula.RegisteredDecision @Host.RawWorldConfig.area := ⟨⟩
 
 /-- Energy spending accepts exactly a cost within the balance (`Host.Energy.spend_balance`). -/
 theorem energy_spend : Regula.ExecutableContract Host.Energy.spend (fun spend =>
@@ -1128,7 +1157,8 @@ theorem energy_spend : Regula.ExecutableContract Host.Energy.spend (fun spend =>
       split <;> simp_all)
     ⟨(Host.Energy.new 0, 0), Nat.zero_le _⟩ ⟨(Host.Energy.new 0, 1), by decide⟩⟩
 
-attribute [regula_decision] Host.Energy.spend
+/-- Registers `Host.Energy.spend` as a decision function. -/
+theorem Host_Energy_spend_registered : Regula.RegisteredDecision @Host.Energy.spend := ⟨⟩
 
 /-- The derived comparison of an action with the harvest action accepts exactly the harvest
 action. -/
@@ -1166,7 +1196,9 @@ theorem raw_energy_cost : Regula.ExecutableContract Host.Action.rawEnergyCost (f
           fun both => both.2 harvest⟩)
     ⟨(.wait, 0), by decide⟩ ⟨(.harvest, 0xffffffff), by decide⟩⟩
 
-attribute [regula_decision] Host.Action.rawEnergyCost
+/-- Registers `Host.Action.rawEnergyCost` as a decision function. -/
+theorem Host_Action_rawEnergyCost_registered :
+    Regula.RegisteredDecision @Host.Action.rawEnergyCost := ⟨⟩
 
 /-- Crafting accepts exactly a tool that is not owned and whose recipe the inventory covers
 (`Host.Inventory.craft_exact`). Ownership is the proposition `Host.Inventory.Owns`, which
@@ -1196,7 +1228,8 @@ theorem inventory_craft : Regula.ExecutableContract Host.Inventory.craft (fun cr
     ⟨(⟨100, 100, 0, 0, false, false⟩, .axe), by decide⟩
     ⟨(⟨0, 0, 0, 0, true, false⟩, .axe), by decide⟩⟩
 
-attribute [regula_decision] Host.Inventory.craft
+/-- Registers `Host.Inventory.craft` as a decision function. -/
+theorem Host_Inventory_craft_registered : Regula.RegisteredDecision @Host.Inventory.craft := ⟨⟩
 
 /-- Step-total aggregation accepts exactly a total and an outcome whose step sum fits 64 bits
 (`Host.addOutcomeSteps_exact`). -/
@@ -1217,7 +1250,8 @@ theorem outcome_steps : Regula.ExecutableContract Host.addOutcomeSteps (fun add 
         ⟨0, 0, 0, 1, false, .zero, ⟨.zero, .zero, .zero⟩, ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩⟩),
       by decide⟩⟩
 
-attribute [regula_decision] Host.addOutcomeSteps
+/-- Registers `Host.addOutcomeSteps` as a decision function. -/
+theorem Host_addOutcomeSteps_registered : Regula.RegisteredDecision @Host.addOutcomeSteps := ⟨⟩
 
 /-- The unaided enterability test accepts exactly the terrain that is neither water nor
 mountain. -/
@@ -1227,7 +1261,8 @@ theorem tile_walkable : Regula.ExecutableContract Host.TileKind.walkable
   ⟨decides (fun kind => by cases kind <;> simp [Host.TileKind.walkable])
     ⟨.grass, by decide⟩ ⟨.water, by decide⟩⟩
 
-attribute [regula_decision] Host.TileKind.walkable
+/-- Registers `Host.TileKind.walkable` as a decision function. -/
+theorem Host_TileKind_walkable_registered : Regula.RegisteredDecision @Host.TileKind.walkable := ⟨⟩
 
 /-- Planning-selection parsing accepts exactly the two canonical spellings
 (`PlanningSelection.parse_accepted`). -/
@@ -1239,7 +1274,9 @@ theorem planning_parse : Regula.ExecutableContract PlanningSelection.parse
       ((PlanningSelection.parse_accepted text selection).mp parsed).symm)
     .expectation (unwritten := "") rfl⟩
 
-attribute [regula_decision] PlanningSelection.parse
+/-- Registers `PlanningSelection.parse` as a decision function. -/
+theorem PlanningSelection_parse_registered :
+    Regula.RegisteredDecision @PlanningSelection.parse := ⟨⟩
 
 /-- The command-line planning value is accepted exactly when the shared parser accepts it. -/
 private theorem planningValue_isOk (text : String) :
@@ -1260,7 +1297,8 @@ theorem planning_value : Regula.ExecutableContract Host.Cli.planningValue
     planning_parse.evidence.toDecidesSoundly.satisfiable
     planning_parse.evidence.toDecidesCompletely.refutable⟩
 
-attribute [regula_decision] Host.Cli.planningValue
+/-- Registers `Host.Cli.planningValue` as a decision function. -/
+theorem Host_Cli_planningValue_registered : Regula.RegisteredDecision @Host.Cli.planningValue := ⟨⟩
 
 /-- Research-profile admission returns a profile exactly for a text that spells one
 (`Host.Cli.profile_spelled`). -/
@@ -1286,7 +1324,8 @@ theorem cli_profile : Regula.ExecutableContract Host.Cli.profile
   ⟨decides cliProfile_isOk ⟨"ranked", .ranked, .inl ⟨rfl, rfl⟩⟩
     ⟨"", fun ⟨_, spelled⟩ => by simp [Host.Cli.ProfileSpelled] at spelled⟩⟩
 
-attribute [regula_decision] Host.Cli.profile
+/-- Registers `Host.Cli.profile` as a decision function. -/
+theorem Host_Cli_profile_registered : Regula.RegisteredDecision @Host.Cli.profile := ⟨⟩
 
 /-- The option reader accepts exactly when the first occurrence of the option is not the last
 argument (`Host.Cli.value_missing`). -/
@@ -1348,7 +1387,9 @@ theorem planning_selection : Regula.ExecutableContract Host.Cli.planningSelectio
               exact (planning_parse.evidence.iff text).mpr ⟨selection, written⟩)
     ⟨[], by decide⟩ ⟨["--planning"], by decide⟩⟩
 
-attribute [regula_decision] Host.Cli.planningSelection
+/-- Registers `Host.Cli.planningSelection` as a decision function. -/
+theorem Host_Cli_planningSelection_registered :
+    Regula.RegisteredDecision @Host.Cli.planningSelection := ⟨⟩
 
 /-- Step-order parsing returns an order exactly for a text that spells one
 (`StepOrder.parse_spelled`). -/
@@ -1373,7 +1414,8 @@ theorem step_order_parse : Regula.ExecutableContract StepOrder.parse
   ⟨decides stepOrderParse_isSome ⟨"act-then-learn", .actThenLearn, .inr (.inr ⟨rfl, rfl⟩)⟩
     ⟨"", fun specified => absurd ((stepOrderParse_isSome "").mpr specified) (by decide)⟩⟩
 
-attribute [regula_decision] StepOrder.parse
+/-- Registers `StepOrder.parse` as a decision function. -/
+theorem StepOrder_parse_registered : Regula.RegisteredDecision @StepOrder.parse := ⟨⟩
 
 /-- The command-line step-order value is accepted exactly when the shared parser accepts it. -/
 private theorem stepOrderValue_isOk (text : String) :
@@ -1394,7 +1436,9 @@ theorem step_order_value : Regula.ExecutableContract Host.Cli.stepOrderValue
     step_order_parse.evidence.toDecidesSoundly.satisfiable
     step_order_parse.evidence.toDecidesCompletely.refutable⟩
 
-attribute [regula_decision] Host.Cli.stepOrderValue
+/-- Registers `Host.Cli.stepOrderValue` as a decision function. -/
+theorem Host_Cli_stepOrderValue_registered :
+    Regula.RegisteredDecision @Host.Cli.stepOrderValue := ⟨⟩
 
 /-- Step-order admission from an argument list returns an order exactly for a list without
 the option, or one whose first occurrence of the option is followed by a text that spells an
@@ -1434,7 +1478,8 @@ theorem step_order : Regula.ExecutableContract Host.Cli.stepOrder
     ⟨["--step-order"], fun specified =>
       absurd ((stepOrder_isOk ["--step-order"]).mpr specified) (by decide)⟩⟩
 
-attribute [regula_decision] Host.Cli.stepOrder
+/-- Registers `Host.Cli.stepOrder` as a decision function. -/
+theorem Host_Cli_stepOrder_registered : Regula.RegisteredDecision @Host.Cli.stepOrder := ⟨⟩
 
 /-- The deadline verdict of a wall-clock world accepts exactly the releases that fall in a
 cycle before the one the deadline starts: the cycles that have begun at the instant of the
@@ -1453,7 +1498,8 @@ theorem pace_meets : Regula.ExecutableContract Pace.meets (fun meets =>
     ⟨(((⟨1, 1, by decide, by decide⟩, ⟨0⟩), 0), ⟨0⟩), by decide⟩
     ⟨(((⟨1, 1, by decide, by decide⟩, ⟨0⟩), 0), ⟨1⟩), by decide⟩⟩
 
-attribute [regula_decision] Pace.meets
+/-- Registers `Pace.meets` as a decision function. -/
+theorem Pace_meets_registered : Regula.RegisteredDecision @Pace.meets := ⟨⟩
 
 /-- The outcome of a released Microduck action says that the daemon accepted the action, which
 is to be neither a refusal nor unanswered, exactly when the daemon's answer is the accepted
@@ -1477,7 +1523,9 @@ theorem microduck_outcome :
     ⟨(((.still, false), .accepted), true), by decide⟩
     ⟨(((.still, false), .pending), true), by decide⟩⟩
 
-attribute [regula_decision] Host.Microduck.Action.outcome
+/-- Registers `Host.Microduck.Action.outcome` as a decision function. -/
+theorem Host_Microduck_Action_outcome_registered :
+    Regula.RegisteredDecision @Host.Microduck.Action.outcome := ⟨⟩
 
 /-- Which of its five outcomes a released Microduck action has: for every action, stated
 posture, answer of the daemon, evidence and outcome, the function gives the outcome exactly
@@ -1522,7 +1570,9 @@ theorem microduck_upright :
         Vector.replicate 3 ⟨0, by decide⟩, ⟨0, by decide⟩, .stand, false, false, none,
         ⟨false, false, false, false⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] Handcrafted.Microduck.upright
+/-- Registers `Handcrafted.Microduck.upright` as a decision function. -/
+theorem Handcrafted_Microduck_upright_registered :
+    Regula.RegisteredDecision @Handcrafted.Microduck.upright := ⟨⟩
 
 /-- A Microduck state frame stamped at zero whose upward component of gravity is -1000
 thousandths. -/
@@ -1586,7 +1636,9 @@ theorem microduck_fresh :
     ⟨unobstructed, _, rfl, by decide⟩
     ⟨unsighted, fun ⟨_, absent, _⟩ => nomatch absent⟩⟩
 
-attribute [regula_decision] Handcrafted.Microduck.fresh
+/-- Registers `Handcrafted.Microduck.fresh` as a decision function. -/
+theorem Handcrafted_Microduck_fresh_registered :
+    Regula.RegisteredDecision @Handcrafted.Microduck.fresh := ⟨⟩
 
 /-- A Microduck reading near an obstacle, the specification of `microduck_near`: the upward
 component of gravity is below -967 thousandths, the reading has a depth frame and the time from
@@ -1666,7 +1718,9 @@ theorem microduck_near :
     ⟨obstructed, obstructed_near⟩
     ⟨unsighted, fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
 
-attribute [regula_decision] Handcrafted.Microduck.near
+/-- Registers `Handcrafted.Microduck.near` as a decision function. -/
+theorem Handcrafted_Microduck_near_registered :
+    Regula.RegisteredDecision @Handcrafted.Microduck.near := ⟨⟩
 
 /-- The Microduck world's clear test accepts a reading exactly when the upward component of
 gravity is below -967 thousandths, which is the gravity word of the frame below its level
@@ -1685,7 +1739,9 @@ theorem microduck_clear :
     ⟨unobstructed, unobstructed_clear⟩
     ⟨unsighted, fun ⟨_, ⟨_, absent, _⟩, _⟩ => nomatch absent⟩⟩
 
-attribute [regula_decision] Handcrafted.Microduck.clear
+/-- Registers `Handcrafted.Microduck.clear` as a decision function. -/
+theorem Handcrafted_Microduck_clear_registered :
+    Regula.RegisteredDecision @Handcrafted.Microduck.clear := ⟨⟩
 
 /-- `unobstructed` is not near an obstacle, since a near reading is not clear
 (`Handcrafted.Microduck.near_clear`). -/
@@ -1711,7 +1767,9 @@ theorem microduck_achieved :
     ⟨(true, obstructed), rfl, obstructed_near⟩
     ⟨(false, obstructed), fun ⟨armed, _⟩ => nomatch armed⟩⟩
 
-attribute [regula_decision] Handcrafted.Microduck.achieved
+/-- Registers `Handcrafted.Microduck.achieved` as a decision function. -/
+theorem Handcrafted_Microduck_achieved_registered :
+    Regula.RegisteredDecision @Handcrafted.Microduck.achieved := ⟨⟩
 
 /-- The latch of the Microduck goal is armed after a reading exactly when the reading is not
 near an obstacle and either the latch was armed or the reading is clear
@@ -1742,7 +1800,9 @@ theorem microduck_arm :
     ⟨(false, unobstructed), unobstructed_far, .inr unobstructed_clear⟩
     ⟨(true, obstructed), fun ⟨far, _⟩ => far obstructed_near⟩⟩
 
-attribute [regula_decision] Handcrafted.Microduck.arm
+/-- Registers `Handcrafted.Microduck.arm` as a decision function. -/
+theorem Handcrafted_Microduck_arm_registered :
+    Regula.RegisteredDecision @Handcrafted.Microduck.arm := ⟨⟩
 
 /-- A candidate depth frame fits a state frame exactly when there is one and it is stamped at
 or before the state frame (`Host.Microduck.fitting_ordered` states the second part of an
@@ -1769,7 +1829,8 @@ theorem microduck_fitting :
     ⟨(standing, obstructed.depth), _, rfl, Nat.le_refl 0⟩
     ⟨(standing, none), fun ⟨_, absent, _⟩ => nomatch absent⟩⟩
 
-attribute [regula_decision] Host.Microduck.fitting
+/-- Registers `Host.Microduck.fitting` as a decision function. -/
+theorem Host_Microduck_fitting_registered : Regula.RegisteredDecision @Host.Microduck.fitting := ⟨⟩
 
 /-- The state frame of a line is present exactly when the line is a state frame. The two inputs
 of the proof are the line of the state frame `standing`, which is accepted, and a notice of
@@ -1781,7 +1842,9 @@ theorem microduck_state_frame :
   ⟨decides (fun line => by cases line <;> simp [Host.Microduck.Line.stateFrame])
     ⟨.state standing, _, rfl⟩ ⟨.notice, fun ⟨_, same⟩ => nomatch same⟩⟩
 
-attribute [regula_decision] Host.Microduck.Line.stateFrame
+/-- Registers `Host.Microduck.Line.stateFrame` as a decision function. -/
+theorem Host_Microduck_Line_stateFrame_registered :
+    Regula.RegisteredDecision @Host.Microduck.Line.stateFrame := ⟨⟩
 
 /-- The depth frame of a line is present exactly when the line is a depth frame. The two inputs
 of the proof are the line of a depth frame whose every zone has a valid return at 100 mm, which
@@ -1794,7 +1857,9 @@ theorem microduck_depth_frame :
     ⟨.depth ⟨⟨0⟩, Vector.replicate 64 ⟨⟨100, by decide⟩, 5⟩⟩, _, rfl⟩
     ⟨.notice, fun ⟨_, same⟩ => nomatch same⟩⟩
 
-attribute [regula_decision] Host.Microduck.Line.depthFrame
+/-- Registers `Host.Microduck.Line.depthFrame` as a decision function. -/
+theorem Host_Microduck_Line_depthFrame_registered :
+    Regula.RegisteredDecision @Host.Microduck.Line.depthFrame := ⟨⟩
 
 /-- The scanner of a number accepts only a text that starts with the spelling of a formed
 numeral (`Json.Numeral.scan_formed`): an optional minus sign, digits with no leading zero or
@@ -1820,7 +1885,8 @@ theorem json_scan :
        exact ⟨parts, rest, Json.Numeral.scan_formed same⟩
      accepted := ⟨['0'], by decide⟩ }⟩
 
-attribute [regula_decision] Json.Numeral.scan
+/-- Registers `Json.Numeral.scan` as a decision function. -/
+theorem Json_Numeral_scan_registered : Regula.RegisteredDecision @Json.Numeral.scan := ⟨⟩
 
 /-- The reader of a number's spelling accepts a JSON value exactly when the value is a number
 whose kept spelling is the whole spelling of a formed numeral, `Json.Value.Numeric`
@@ -1847,7 +1913,8 @@ theorem json_numeral :
       ⟨Or.inl rfl, fun _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩, rfl⟩
     ⟨.null, fun ⟨_, _, wrong⟩ => nomatch wrong⟩⟩
 
-attribute [regula_decision] Json.Value.numeral
+/-- Registers `Json.Value.numeral` as a decision function. -/
+theorem Json_Value_numeral_registered : Regula.RegisteredDecision @Json.Value.numeral := ⟨⟩
 
 /-- The reader of a decimal accepts exactly the JSON values that the reader of a number's
 spelling accepts: a number whose kept spelling is the whole spelling of a formed numeral,
@@ -1877,7 +1944,9 @@ theorem microduck_decimal :
       ⟨Or.inl rfl, fun _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩, rfl⟩
     ⟨.null, fun ⟨_, _, wrong⟩ => nomatch wrong⟩⟩
 
-attribute [regula_decision] Host.Microduck.Decimal.read
+/-- Registers `Host.Microduck.Decimal.read` as a decision function. -/
+theorem Host_Microduck_Decimal_read_registered :
+    Regula.RegisteredDecision @Host.Microduck.Decimal.read := ⟨⟩
 
 /-- The member lookup accepts exactly a name and a value that is an object with a member of
 that name (`Json.Value.member_iff`). The specification `Json.Value.Member` is stated on the
@@ -1906,7 +1975,8 @@ theorem json_member :
     ⟨("a", .object [("a", .null)]), .null, [], [], rfl, fun _ wrong => (nomatch wrong)⟩
     ⟨("a", .null), fun ⟨_, _, _, wrong, _⟩ => nomatch wrong⟩⟩
 
-attribute [regula_decision] Json.Value.member
+/-- Registers `Json.Value.member` as a decision function. -/
+theorem Json_Value_member_registered : Regula.RegisteredDecision @Json.Value.member := ⟨⟩
 
 /-- The reader of a state frame accepts exactly a JSON value that writes some state frame,
 member by member (`Host.Microduck.State.read_iff`). The specification
@@ -1956,7 +2026,9 @@ theorem microduck_state :
       obtain ⟨_, ⟨_, _, wrong, _⟩, _⟩ := written.taken
       exact nomatch wrong⟩⟩
 
-attribute [regula_decision] Host.Microduck.State.read
+/-- Registers `Host.Microduck.State.read` as a decision function. -/
+theorem Host_Microduck_State_read_registered :
+    Regula.RegisteredDecision @Host.Microduck.State.read := ⟨⟩
 
 /-- The reader of a depth frame accepts exactly a JSON value that writes some depth frame,
 member by member (`Host.Microduck.Depth.read_iff`). The specification
@@ -2004,7 +2076,9 @@ theorem microduck_depth :
       obtain ⟨_, ⟨_, _, wrong, _⟩, _⟩ := written.taken
       exact nomatch wrong⟩⟩
 
-attribute [regula_decision] Host.Microduck.Depth.read
+/-- Registers `Host.Microduck.Depth.read` as a decision function. -/
+theorem Host_Microduck_Depth_read_registered :
+    Regula.RegisteredDecision @Host.Microduck.Depth.read := ⟨⟩
 
 /-- The reader of a daemon's line gives a line that is not `Host.Microduck.Line.invalid`
 exactly for a value that meets one of three declared criteria: a notification of some
@@ -2067,7 +2141,9 @@ theorem microduck_line :
       rintro (⟨_, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩ | ⟨_, _, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩ |
         ⟨_, ⟨_, ⟨_, _, wrong, _⟩, _⟩, _⟩) <;> exact nomatch wrong⟩⟩
 
-attribute [regula_decision] Host.Microduck.Line.read
+/-- Registers `Host.Microduck.Line.read` as a decision function. -/
+theorem Host_Microduck_Line_read_registered :
+    Regula.RegisteredDecision @Host.Microduck.Line.read := ⟨⟩
 
 /-- Which line a value is read as, for every JSON value, with one statement for each
 constructor of `Host.Microduck.Line`: a state frame and a depth frame exactly for a
@@ -2128,7 +2204,8 @@ theorem json_parse :
        rfl
      refused := ⟨"", by decide +kernel⟩ }⟩
 
-attribute [regula_decision] Json.parse
+/-- Registers `Json.parse` as a decision function. -/
+theorem Json_parse_registered : Regula.RegisteredDecision @Json.parse := ⟨⟩
 
 /-- The value that the JSON parser gives for the text of a request: for every such request,
 the value of the request, with every member in its place (`Json.parse_request`). A kind
@@ -2188,7 +2265,9 @@ theorem microduck_shows :
     ⟨(.still, .stand), .still⟩
     ⟨(.still, .walk), fun shown => nomatch shown⟩⟩
 
-attribute [regula_decision] Host.Microduck.Action.shows
+/-- Registers `Host.Microduck.Action.shows` as a decision function. -/
+theorem Host_Microduck_Action_shows_registered :
+    Regula.RegisteredDecision @Host.Microduck.Action.shows := ⟨⟩
 
 /-- The sensing of a percept gives one exactly for an instant and a host with no percept
 awaiting of which two things hold: a state frame is held, and the cycle of the instant is
@@ -2201,11 +2280,9 @@ instance of `Nonempty Host.Microduck.Awaiting` is made.
 
 The statement keeps no kind. The type of a host carries the proof that the host is reached by the
 transitions, which names every transition and so the tests that this one runs. A specification reads
-the host, a field of the input, and RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that field's
-type (https://github.com/rbeauchamp/regula/issues/320). By that reading the rule refuses the kind,
-although the specification names none of those tests; this is a conclusion from the documented
-reading, and no audit of the kind has run.
+the host, a field of the input, and the rule of the section "Tests that a specification does not
+share" reads the declaration of that field's type, so it excludes the kind, although the
+specification names none of those tests.
 
 **Not claimed:** what the percept is built from and the state after it, which
 `Host.Microduck.Idle.sense_iff` states; that the frame held was heard since the last
@@ -2283,7 +2360,9 @@ theorem bridge_tick : Regula.ExecutableContract Host.Microduck.Bridge.tick (fun 
      accepted := ⟨⟨Host.Microduck.Declared.pace, Host.Microduck.Declared.keep, ⟨0⟩,
        ⟨.forward, false, 0, ⟨0⟩, ⟨0⟩⟩, ⟨100000000⟩⟩, by decide⟩ }⟩
 
-attribute [regula_decision] Host.Microduck.Bridge.tick
+/-- Registers `Host.Microduck.Bridge.tick` as a decision function. -/
+theorem Host_Microduck_Bridge_tick_registered :
+    Regula.RegisteredDecision @Host.Microduck.Bridge.tick := ⟨⟩
 
 /-- A reading of the clock between two releases sends a command only for an action with a
 velocity that is not zero, before the end of the hold and once the last send is the resend age
@@ -2360,7 +2439,8 @@ theorem cli_value : Regula.ExecutableContract Host.Cli.value (fun value =>
   ⟨.of_iff (fun input => value_accepts input.1 input.2) ⟨([], ""), by decide⟩
     ⟨([""], ""), by decide⟩⟩
 
-attribute [regula_decision] Host.Cli.value
+/-- Registers `Host.Cli.value` as a decision function. -/
+theorem Host_Cli_value_registered : Regula.RegisteredDecision @Host.Cli.value := ⟨⟩
 
 /-- The option reader returns no value exactly for a list without the option, and it returns a
 value exactly when that value stands after the first occurrence of the option
@@ -2386,7 +2466,9 @@ theorem checkpoint_status_parse : Regula.ExecutableContract Host.CheckpointStatu
       split at parsed <;> cases parsed <;> rfl)
     .saved (unwritten := "") rfl⟩
 
-attribute [regula_decision] Host.CheckpointStatus.parse
+/-- Registers `Host.CheckpointStatus.parse` as a decision function. -/
+theorem Host_CheckpointStatus_parse_registered :
+    Regula.RegisteredDecision @Host.CheckpointStatus.parse := ⟨⟩
 
 /-! ## Decimal digits and the arguments of the native drivers
 
@@ -2504,7 +2586,8 @@ theorem digits_read : Regula.ExecutableContract Digits.read
     ⟨"0", 0, by simp, by simp, by simp⟩
     ⟨"", fun ⟨_, nonempty, _⟩ => nonempty (by simp)⟩⟩
 
-attribute [regula_decision] Digits.read
+/-- Registers `Digits.read` as a decision function. -/
+theorem Digits_read_registered : Regula.RegisteredDecision @Digits.read := ⟨⟩
 
 /-- The number that reading decimal digits returns: for every text and number, the reader
 returns the number exactly when the text is digits whose value in positional notation is that
@@ -2525,7 +2608,8 @@ theorem digits_natural : Regula.ExecutableContract Digits.natural
     ⟨"0", 0, [], ['0'], .inl rfl, by simp, by simp, by simp, by simp⟩
     ⟨"", fun ⟨_, sign, digits, _, nonempty, _, spelled, _⟩ => nonempty (by simp_all)⟩⟩
 
-attribute [regula_decision] Digits.natural
+/-- Registers `Digits.natural` as a decision function. -/
+theorem Digits_natural_registered : Regula.RegisteredDecision @Digits.natural := ⟨⟩
 
 /-- The number that an unsigned number on the command line reads as: for every text and number,
 the reader returns the number exactly when the text is an optional plus sign and digits whose
@@ -2608,7 +2692,8 @@ theorem digits_integer : Regula.ExecutableContract Digits.integer
       obtain ⟨rfl, rfl⟩ := spelled
       exact absurd (each '-' (by simp)) (by decide)⟩⟩
 
-attribute [regula_decision] Digits.integer
+/-- Registers `Digits.integer` as a decision function. -/
+theorem Digits_integer_registered : Regula.RegisteredDecision @Digits.integer := ⟨⟩
 
 /-- The integer that a signed integer on the command line reads as: for every text and integer,
 the reader returns the integer exactly when the text is an optional minus sign or plus sign and
@@ -2827,7 +2912,9 @@ theorem agent_arguments_admit : Regula.ExecutableContract Host.AgentArguments.ad
         ⟨0, natural_digit "0" 0 '0' (by simp) rfl (by decide), by decide⟩, by simp⟩⟩
     ⟨[], fun ⟨_, _, _, _, _, _, _, _, _, _, _, spelled, _⟩ => by simp at spelled⟩⟩
 
-attribute [regula_decision] Host.AgentArguments.admit
+/-- Registers `Host.AgentArguments.admit` as a decision function. -/
+theorem Host_AgentArguments_admit_registered :
+    Regula.RegisteredDecision @Host.AgentArguments.admit := ⟨⟩
 
 /-- `AgentConstruction.admit` returns a construction exactly when each field of that construction
 is the one stated: the profile, criterion, planning selection and step order given, the seed
@@ -2953,7 +3040,8 @@ theorem region_member : Regula.ExecutableContract Host.inRegion (fun test =>
       List.mem_singleton.mpr rfl⟩
     ⟨([], ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩), List.not_mem_nil⟩⟩
 
-attribute [regula_decision] Host.inRegion
+/-- Registers `Host.inRegion` as a decision function. -/
+theorem Host_inRegion_registered : Regula.RegisteredDecision @Host.inRegion := ⟨⟩
 
 /-- The box test accepts exactly the tiles with both coordinates inside the side of the
 receiving box. `AcornVerif.CurrentCertificates.inBox_position` states that it accepts every
@@ -2970,7 +3058,8 @@ theorem box_member : Regula.ExecutableContract Host.inBox (fun test =>
     ⟨(⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide, by decide⟩,
         ⟨⟨-1, by decide⟩, ⟨0, by decide⟩⟩), by decide⟩⟩
 
-attribute [regula_decision] Host.inBox
+/-- Registers `Host.inBox` as a decision function. -/
+theorem Host_inBox_registered : Regula.RegisteredDecision @Host.inBox := ⟨⟩
 
 /-- The cover test accepts exactly an absent tile, a listed tile and a tile outside the
 receiving box. A tile outside the box is one that the proposition `Host.InBox` does not hold
@@ -2994,7 +3083,8 @@ theorem region_covers : Regula.ExecutableContract Host.covered (fun test =>
       fun covers =>
         (covers _ rfl).elim List.not_mem_nil (fun outside => absurd outside (by decide))⟩⟩
 
-attribute [regula_decision] Host.covered
+/-- Registers `Host.covered` as a decision function. -/
+theorem Host_covered_registered : Regula.RegisteredDecision @Host.covered := ⟨⟩
 
 /-- The impassable test accepts exactly a tile whose static terrain is a mountain, or water
 when the certificate is for a body without a boat. It refuses a terrain refusal. The terrain
@@ -3018,7 +3108,8 @@ theorem tile_impassable : Regula.ExecutableContract Host.impassable (fun test =>
     ⟨((wide, false), ⟨⟨15, by decide⟩, ⟨0, by decide⟩⟩), by decide +kernel⟩
     ⟨((wide, true), last), by decide +kernel⟩⟩
 
-attribute [regula_decision] Host.impassable
+/-- Registers `Host.impassable` as a decision function. -/
+theorem Host_impassable_registered : Regula.RegisteredDecision @Host.impassable := ⟨⟩
 
 /-! ## Viewer protocol admission -/
 
@@ -3032,7 +3123,8 @@ theorem goal_kind_decode : Regula.ExecutableContract decodeGoalKind
     (fun _ _ decoded => by simpa using List.find?_some decoded)
     none (unwritten := 5) rfl⟩
 
-attribute [regula_decision] decodeGoalKind
+/-- Registers `decodeGoalKind` as a decision function. -/
+theorem decodeGoalKind_registered : Regula.RegisteredDecision @decodeGoalKind := ⟨⟩
 
 /-- Goal-item decoding accepts exactly the emitted item codes
 (`Host.Viewer.goalItem_roundtrip`). -/
@@ -3042,7 +3134,8 @@ theorem goal_item_decode : Regula.ExecutableContract decodeGoalItem
     (fun _ _ decoded => by simpa using List.find?_some decoded)
     none (unwritten := 1000) rfl⟩
 
-attribute [regula_decision] decodeGoalItem
+/-- Registers `decodeGoalItem` as a decision function. -/
+theorem decodeGoalItem_registered : Regula.RegisteredDecision @decodeGoalItem := ⟨⟩
 
 /-- Line extension accepts exactly a line below the line capacity
 (`LineBytes.append_exact`). -/
@@ -3054,7 +3147,8 @@ theorem line_append : Regula.ExecutableContract LineBytes.append (fun append =>
     ⟨(⟨⟨Array.replicate lineCapacity 0⟩, by simp [ByteArray.size]⟩, 0),
       by simp [ByteArray.size]⟩⟩
 
-attribute [regula_decision] LineBytes.append
+/-- Registers `LineBytes.append` as a decision function. -/
+theorem LineBytes_append_registered : Regula.RegisteredDecision @LineBytes.append := ⟨⟩
 
 /-- A byte completes a record exactly when it is the delimiter, for every decoder: the
 result holds a record exactly for byte 10. The accepted input is the delimiter on an
@@ -3077,7 +3171,8 @@ theorem line_step : Regula.ExecutableContract LineDecoder.step (fun step =>
           cases line.append byte <;> simp)
     ⟨(.reading .empty, 10), rfl⟩ ⟨(.reading .empty, 32), by decide⟩⟩
 
-attribute [regula_decision] LineDecoder.step
+/-- Registers `LineDecoder.step` as a decision function. -/
+theorem LineDecoder_step_registered : Regula.RegisteredDecision @LineDecoder.step := ⟨⟩
 
 /-- The delimiter returns every decoder to an empty line (`LineDecoder.delimiter_resets`);
 it reports the bytes of a line being read, and the refusal `LineResult.oversized` for a line
@@ -3107,7 +3202,8 @@ theorem phase_accepts : Regula.ExecutableContract Phase.accepts (fun test =>
       cases phase <;> simp [Phase.accepts])
     ⟨(.running 0, 0), .inl rfl⟩ ⟨(.idle, 0), by decide⟩⟩
 
-attribute [regula_decision] Phase.accepts
+/-- Registers `Phase.accepts` as a decision function. -/
+theorem Phase_accepts_registered : Regula.RegisteredDecision @Phase.accepts := ⟨⟩
 
 /-- Map-cell admission accepts exactly the unseen marker and the eight terrain codes. -/
 theorem map_cell_admit : Regula.ExecutableContract MapCell.admit
@@ -3121,7 +3217,8 @@ theorem map_cell_admit : Regula.ExecutableContract MapCell.admit
       · by_cases terrain : byte.toNat < 8 <;> simp [unseen, terrain])
     ⟨255, by decide⟩ ⟨8, by decide⟩⟩
 
-attribute [regula_decision] MapCell.admit
+/-- Registers `MapCell.admit` as a decision function. -/
+theorem MapCell_admit_registered : Regula.RegisteredDecision @MapCell.admit := ⟨⟩
 
 /-- Capture attribution accepts exactly the captures that name the published run and agent
 epoch. -/
@@ -3134,7 +3231,8 @@ theorem capture_matches : Regula.ExecutableContract Capture.matches (fun test =>
     ⟨(⟨0, 0, 0, 0, 0, false⟩, ⟨0, 0, 0⟩), by decide⟩
     ⟨(⟨1, 0, 0, 0, 0, false⟩, ⟨0, 0, 0⟩), by decide⟩⟩
 
-attribute [regula_decision] Capture.matches
+/-- Registers `Capture.matches` as a decision function. -/
+theorem Capture_matches_registered : Regula.RegisteredDecision @Capture.matches := ⟨⟩
 
 /-- Control-body admission accepts exactly the bodies within the declared byte bound. -/
 theorem control_body : Regula.ExecutableContract controlBody
@@ -3143,7 +3241,8 @@ theorem control_body : Regula.ExecutableContract controlBody
   ⟨decides (fun _ => dite_isSome _) ⟨ByteArray.empty, Nat.zero_le _⟩
     ⟨⟨Array.replicate 1025 0⟩, by simp [ByteArray.size, controlBodyCapacity]⟩⟩
 
-attribute [regula_decision] controlBody
+/-- Registers `controlBody` as a decision function. -/
+theorem controlBody_registered : Regula.RegisteredDecision @controlBody := ⟨⟩
 
 /-- Lifecycle-command parsing returns a command exactly for a text that spells one
 (`Host.Viewer.Command.parse_spelled`). -/
@@ -3163,7 +3262,8 @@ theorem command_parse : Regula.ExecutableContract Command.parse
   ⟨decides commandParse_isSome ⟨"start", .start, .inl ⟨rfl, rfl⟩⟩
     ⟨"", fun ⟨_, spelled⟩ => by simp [Command.Spelled] at spelled⟩⟩
 
-attribute [regula_decision] Command.parse
+/-- Registers `Command.parse` as a decision function. -/
+theorem Command_parse_registered : Regula.RegisteredDecision @Command.parse := ⟨⟩
 
 /-- A byte array that Lean's UTF-8 decoding reads as a text is the encoding of that text. -/
 private theorem fromUTF8?_some {bytes : ByteArray} {text : String}
@@ -3332,7 +3432,8 @@ theorem control_command_written : Regula.ExecutableContract controlCommand
        rfl
      refused := ⟨⟨ByteArray.empty, by decide⟩, by decide +kernel⟩ }⟩
 
-attribute [regula_decision] controlCommand
+/-- Registers `controlCommand` as a decision function. -/
+theorem controlCommand_registered : Regula.RegisteredDecision @controlCommand := ⟨⟩
 
 /-- The command that control-body decoding returns: for every body and command, a command
 that the accepted body spells (`Host.Viewer.ControlSpelled`). A kind states accepted inputs and not
@@ -3359,7 +3460,8 @@ theorem wire_text_legal : Regula.ExecutableContract wireTextLegal
   ⟨.of_iff wireTextLegal_iff ⟨"", by simp [wireTextLegal, lineCapacity]⟩
     ⟨"\n", by simp [wireTextLegal, lineCapacity]⟩⟩
 
-attribute [regula_decision] wireTextLegal
+/-- Registers `wireTextLegal` as a decision function. -/
+theorem wireTextLegal_registered : Regula.RegisteredDecision @wireTextLegal := ⟨⟩
 
 /-- Wire-text admission accepts exactly the texts the wire-line test accepts. -/
 theorem wire_text : Regula.ExecutableContract wireText
@@ -3369,7 +3471,8 @@ theorem wire_text : Regula.ExecutableContract wireText
     ⟨"\n", fun accepted =>
       absurd ((dite_isSome _).mp accepted) (by simp [wireTextLegal, lineCapacity])⟩⟩
 
-attribute [regula_decision] wireText
+/-- Registers `wireText` as a decision function. -/
+theorem wireText_registered : Regula.RegisteredDecision @wireText := ⟨⟩
 
 /-- Binary32 field extraction accepts exactly the finite words. -/
 theorem binary32_dyadic : Regula.ExecutableContract binary32Dyadic
@@ -3381,7 +3484,8 @@ theorem binary32_dyadic : Regula.ExecutableContract binary32Dyadic
       split <;> simp_all)
     ⟨.zero, by decide⟩ ⟨⟨0x7fc00000⟩, by decide⟩⟩
 
-attribute [regula_decision] binary32Dyadic
+/-- Registers `binary32Dyadic` as a decision function. -/
+theorem binary32Dyadic_registered : Regula.RegisteredDecision @binary32Dyadic := ⟨⟩
 
 /-- Binary64 field extraction accepts exactly the finite words. -/
 theorem binary64_dyadic : Regula.ExecutableContract binary64Dyadic
@@ -3393,7 +3497,8 @@ theorem binary64_dyadic : Regula.ExecutableContract binary64Dyadic
       split <;> simp_all)
     ⟨⟨0⟩, by decide⟩ ⟨⟨0x7ff8000000000000⟩, by decide⟩⟩
 
-attribute [regula_decision] binary64Dyadic
+/-- Registers `binary64Dyadic` as a decision function. -/
+theorem binary64Dyadic_registered : Regula.RegisteredDecision @binary64Dyadic := ⟨⟩
 
 /-- Folding the byte differences of a list against itself leaves the accumulator unchanged. -/
 private theorem difference_self (bytes : List UInt8) (difference : UInt8) :
@@ -3424,7 +3529,8 @@ theorem token_matches : Regula.ExecutableContract tokenMatches (fun test =>
   ⟨decides (fun tokens => tokenMatches_iff tokens.1 tokens.2) ⟨("", ""), rfl⟩
     ⟨("", "a"), by decide⟩⟩
 
-attribute [regula_decision] tokenMatches
+/-- Registers `tokenMatches` as a decision function. -/
+theorem tokenMatches_registered : Regula.RegisteredDecision @tokenMatches := ⟨⟩
 
 /-- Control authorization accepts exactly a JSON POST whose token is nonempty and equal to
 the expected token and whose declared length is the admitted body's size. -/
@@ -3443,7 +3549,9 @@ theorem control_authorizes : Regula.ExecutableContract ControlHeaders.authorizes
     ⟨((⟨"GET", "application/json", "a", some 0⟩, "a"), ⟨ByteArray.empty, Nat.zero_le _⟩),
       fun authorized => absurd authorized.1 (by decide)⟩⟩
 
-attribute [regula_decision] ControlHeaders.authorizes
+/-- Registers `ControlHeaders.authorizes` as a decision function. -/
+theorem ControlHeaders_authorizes_registered :
+    Regula.RegisteredDecision @ControlHeaders.authorizes := ⟨⟩
 
 /-- The fitting test accepts exactly: the identity conversion of every shape, a float
 conversion of a binary32 or binary64 shape, an optional-reading or optional-index conversion
@@ -3474,7 +3582,8 @@ theorem conversion_fits : Regula.ExecutableContract BrowserConversion.fits (fun 
                 cases inner <;> simp [Function.uncurry, BrowserConversion.fits])))
     ⟨(.keep, .natural), .inl rfl⟩ ⟨(.nonFinite, .natural), by simp⟩⟩
 
-attribute [regula_decision] BrowserConversion.fits
+/-- Registers `BrowserConversion.fits` as a decision function. -/
+theorem BrowserConversion_fits_registered : Regula.RegisteredDecision @BrowserConversion.fits := ⟨⟩
 
 /-- The exclusive bound that the browser rules place on the present indices of a field: the
 bound of the first rule that gives the key an array of optional bounded indices. Stated on the
@@ -3552,7 +3661,9 @@ theorem conversion_indexed : Regula.ExecutableContract BrowserConversion.indexed
       | _ => simp [BrowserConversion.indexed])
     ⟨(.keep, ""), by decide⟩ ⟨(.absentIndices, ""), by decide +kernel⟩⟩
 
-attribute [regula_decision] BrowserConversion.indexed
+/-- Registers `BrowserConversion.indexed` as a decision function. -/
+theorem BrowserConversion_indexed_registered :
+    Regula.RegisteredDecision @BrowserConversion.indexed := ⟨⟩
 
 /-- The capture order accepts only two different captures (`Capture.after_irreflexive`).
 
@@ -3566,7 +3677,8 @@ theorem capture_after : Regula.ExecutableContract Capture.after (fun test =>
        exact Bool.false_ne_true later
      accepted := ⟨(⟨0, 0, 1, 0, 0, false⟩, ⟨0, 0, 0, 0, 0, false⟩), by decide⟩ }⟩
 
-attribute [regula_decision] Capture.after
+/-- Registers `Capture.after` as a decision function. -/
+theorem Capture_after_registered : Regula.RegisteredDecision @Capture.after := ⟨⟩
 
 /-- The retry test accepts only a retry state whose failure count is below the failure
 limit (`Retry.exhausted_not_ready`). The specification names the count and no function that
@@ -3583,7 +3695,8 @@ theorem retry_ready : Regula.ExecutableContract Retry.ready (fun test =>
        exact absurd ready Bool.false_ne_true
      accepted := ⟨(Retry.initial, 0), by decide⟩ }⟩
 
-attribute [regula_decision] Retry.ready
+/-- Registers `Retry.ready` as a decision function. -/
+theorem Retry_ready_registered : Regula.RegisteredDecision @Retry.ready := ⟨⟩
 
 /-- The exhaustion test accepts exactly a retry state whose failure count is the failure
 limit. `Retry.exhausted_not_ready` states that no retry is ready in such a state. -/
@@ -3593,7 +3706,8 @@ theorem retry_exhausted : Regula.ExecutableContract Retry.exhausted
     ⟨((Retry.initial.failed 0 false).failed 0 false).failed 0 false, by decide⟩
     ⟨Retry.initial, by decide⟩⟩
 
-attribute [regula_decision] Retry.exhausted
+/-- Registers `Retry.exhausted` as a decision function. -/
+theorem Retry_exhausted_registered : Regula.RegisteredDecision @Retry.exhausted := ⟨⟩
 
 /-- Aggregation accepts exactly a list in which no channel is missing
 (`Agreement.aggregateAll_missing` states the refusal of a missing first channel). -/
@@ -3610,7 +3724,8 @@ theorem aggregate_all : Regula.ExecutableContract Agreement.aggregateAll
         | some ratio => simpa [Agreement.aggregateAll] using ih)
     ⟨[], by simp⟩ ⟨[none], by simp⟩⟩
 
-attribute [regula_decision] Agreement.aggregateAll
+/-- Registers `Agreement.aggregateAll` as a decision function. -/
+theorem Agreement_aggregateAll_registered : Regula.RegisteredDecision @Agreement.aggregateAll := ⟨⟩
 
 /-- The aggregate score is present exactly when the product of the question count and the
 denominator is positive. `AcornVerif.CurrentAgreement.aggregate_ratio_value` states its value. -/
@@ -3622,7 +3737,9 @@ theorem aggregate_ratio : Regula.ExecutableContract Agreement.Aggregate.ratio
     ⟨Agreement.Aggregate.empty.add ⟨0, 1, by decide, by decide⟩, by decide⟩
     ⟨.empty, by decide⟩⟩
 
-attribute [regula_decision] Agreement.Aggregate.ratio
+/-- Registers `Agreement.Aggregate.ratio` as a decision function. -/
+theorem Agreement_Aggregate_ratio_registered :
+    Regula.RegisteredDecision @Agreement.Aggregate.ratio := ⟨⟩
 
 /-- Clear is unavailable exactly under a fixed launch command (`fixed_clear_disabled`). -/
 theorem clear_disabled : Regula.ExecutableContract LaunchMode.clearDisabled
@@ -3631,7 +3748,9 @@ theorem clear_disabled : Regula.ExecutableContract LaunchMode.clearDisabled
   ⟨decides (fun mode => by cases mode <;> simp [LaunchMode.clearDisabled])
     ⟨.fixed "", "", rfl⟩ ⟨.ranked, by simp⟩⟩
 
-attribute [regula_decision] LaunchMode.clearDisabled
+/-- Registers `LaunchMode.clearDisabled` as a decision function. -/
+theorem LaunchMode_clearDisabled_registered :
+    Regula.RegisteredDecision @LaunchMode.clearDisabled := ⟨⟩
 
 /-- The capture-follow test accepts every pair with equal lifetime clocks whose next capture
 is terminal, whose previous capture is not, and whose world clock advanced by one
@@ -3651,7 +3770,8 @@ theorem capture_follows_complete : Regula.ExecutableContract Capture.follows (fu
        simp [terminal, running, advanced]
      refused := ⟨(⟨0, 0, 0, 0, 0, false⟩, ⟨0, 0, 0, 0, 0, false⟩), by decide⟩ }⟩
 
-attribute [regula_decision] Capture.follows
+/-- Registers `Capture.follows` as a decision function. -/
+theorem Capture_follows_registered : Regula.RegisteredDecision @Capture.follows := ⟨⟩
 
 /-- The capture-follow test, for two captures with the same lifetime clock, is exactly: the
 next capture is terminal, the previous one is not, and the world clock advanced by one
@@ -3680,14 +3800,14 @@ capture. A capture is stored: the first capture of an identity into the empty st
 capture is skipped: the same capture into the empty state of the identity of run one, which it
 does not match.
 
-The statement keeps no kind, for two reasons. Whether a capture is stored depends on the
-capture order `Capture.follows`, which has the complete kind `capture_follows_complete` and
-no proposition that states it, so a specification of the verdict would name that test, and
-RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) refuses a kind whose
-specification shares a test with its function. And the verdict, an `Intake`, is the first
-component of a pair whose state has a type that depends on the identity, an earlier
-argument; Regula reads a result whose type depends on the input only through
-`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`.
+The statement keeps no kind, for two reasons. Whether a capture is stored depends on the capture
+order `Capture.follows`, which has the complete kind `capture_follows_complete` and no proposition
+that states it, so a specification of the verdict would name that test, and the rule of the section
+"Tests that a specification does not share" excludes a kind whose specification shares a test with
+its function. And the verdict, an `Intake`, is the first component of a pair whose state has a type
+that depends on the identity, an earlier argument; the kinds read a result whose type depends on the
+input only through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an
+`Except`.
 
 **Not claimed:** which captures are stored, rewound or skipped beyond the identity test, and
 the newest timestamp the state keeps. -/
@@ -3746,7 +3866,8 @@ theorem inventory_owns : Regula.ExecutableContract Host.Inventory.owns (fun owns
     ⟨(⟨0, 0, 0, 0, true, false⟩, .axe), by decide⟩
     ⟨(⟨0, 0, 0, 0, false, false⟩, .axe), by decide⟩⟩
 
-attribute [regula_decision] Host.Inventory.owns
+/-- Registers `Host.Inventory.owns` as a decision function. -/
+theorem Host_Inventory_owns_registered : Regula.RegisteredDecision @Host.Inventory.owns := ⟨⟩
 
 /-- The harvest table yields an item exactly for a tree, stone or ore tile. -/
 theorem harvest_yield : Regula.ExecutableContract Host.TileKind.harvestYield
@@ -3755,7 +3876,9 @@ theorem harvest_yield : Regula.ExecutableContract Host.TileKind.harvestYield
   ⟨decides (fun kind => by cases kind <;> simp [Host.TileKind.harvestYield])
     ⟨.tree, .inl rfl⟩ ⟨.grass, by decide⟩⟩
 
-attribute [regula_decision] Host.TileKind.harvestYield
+/-- Registers `Host.TileKind.harvestYield` as a decision function. -/
+theorem Host_TileKind_harvestYield_registered :
+    Regula.RegisteredDecision @Host.TileKind.harvestYield := ⟨⟩
 
 /-- A checkpoint write is due exactly at a closing boundary or at phase zero of its period.
 The accepted input is an admitted writer at phase zero, and the refused input is that
@@ -3771,7 +3894,9 @@ theorem checkpoint_due : Regula.ExecutableContract Host.WritableCheckpoint.due (
     ⟨(((Host.WritableCheckpoint.admit "checkpoint" 2 .loaded).get (by decide)).advance, false),
       by decide⟩⟩
 
-attribute [regula_decision] Host.WritableCheckpoint.due
+/-- Registers `Host.WritableCheckpoint.due` as a decision function. -/
+theorem Host_WritableCheckpoint_due_registered :
+    Regula.RegisteredDecision @Host.WritableCheckpoint.due := ⟨⟩
 
 /-- The index-bound lookup finds a bound exactly for a key that the browser rules give an
 array of optional bounded indices. -/
@@ -3796,7 +3921,8 @@ theorem index_bound : Regula.ExecutableContract browserIndexBound
         exact ⟨_, member, by simp⟩)
     ⟨"agreement_channel_score", by decide +kernel⟩ ⟨"", by decide +kernel⟩⟩
 
-attribute [regula_decision] browserIndexBound
+/-- Registers `browserIndexBound` as a decision function. -/
+theorem browserIndexBound_registered : Regula.RegisteredDecision @browserIndexBound := ⟨⟩
 
 /-- The element-bound lookup finds a bound exactly for a key that the browser rules give an
 array of bounded elements (`BrowserConstant.tileKinds_admitted` states the bound of the
@@ -3821,7 +3947,8 @@ theorem element_bound : Regula.ExecutableContract browserElementBound
         exact ⟨_, member, by simp⟩)
     ⟨"tiles", by decide +kernel⟩ ⟨"", by decide +kernel⟩⟩
 
-attribute [regula_decision] browserElementBound
+/-- Registers `browserElementBound` as a decision function. -/
+theorem browserElementBound_registered : Regula.RegisteredDecision @browserElementBound := ⟨⟩
 
 /-- The numeric-record test accepts exactly: a float conversion of a binary32 or binary64
 shape, an optional-reading or optional-index conversion of an optional natural, and the
@@ -3844,7 +3971,9 @@ theorem conversion_number : Regula.ExecutableContract BrowserConversion.number (
              simp [Function.uncurry, BrowserConversion.number, BrowserConversion.fits]))
     ⟨(.keep, .natural), .inr (.inr ⟨rfl, .inl rfl⟩)⟩ ⟨(.keep, .text), by simp⟩⟩
 
-attribute [regula_decision] BrowserConversion.number
+/-- Registers `BrowserConversion.number` as a decision function. -/
+theorem BrowserConversion_number_registered :
+    Regula.RegisteredDecision @BrowserConversion.number := ⟨⟩
 
 /-- The numeric-array test finds a length exactly for: a binary32 array under the float32
 conversion, a binary64 array under the float64 conversion, a natural array under the counts
@@ -3872,7 +4001,9 @@ theorem conversion_numbers : Regula.ExecutableContract BrowserConversion.numbers
     ⟨(.float32, .array 1 .binary32), 1, .inl ⟨rfl, rfl⟩⟩
     ⟨(.keep, .natural), by simp⟩⟩
 
-attribute [regula_decision] BrowserConversion.numbers
+/-- Registers `BrowserConversion.numbers` as a decision function. -/
+theorem BrowserConversion_numbers_registered :
+    Regula.RegisteredDecision @BrowserConversion.numbers := ⟨⟩
 
 /-- The identity test accepts exactly the generation of a live process, or the last reserved
 generation while no process is live (`Lifecycle.ownsIdentity_iff`). The specification
@@ -3887,7 +4018,9 @@ theorem owns_identity :
     ⟨(.initial ⟨0, 0, 0⟩ .stopped, 0), by decide⟩
     ⟨(.initial ⟨0, 0, 0⟩ .stopped, 1), by decide⟩⟩
 
-attribute [regula_decision] Host.Viewer.Lifecycle.ownsIdentity
+/-- Registers `Host.Viewer.Lifecycle.ownsIdentity` as a decision function. -/
+theorem Host_Viewer_Lifecycle_ownsIdentity_registered :
+    Regula.RegisteredDecision @Host.Viewer.Lifecycle.ownsIdentity := ⟨⟩
 
 /-- Each column of the browser store fits each schema field of its own key. -/
 private theorem columns_fit : ∀ entry ∈ browserColumns, ∀ field ∈ browserSchema,
@@ -3907,7 +4040,8 @@ theorem column_fits : Regula.ExecutableContract BrowserColumn.fits (fun fits =>
        columns_fit input.1 listed.1 (input.1.1, input.2) listed.2 rfl
      refused := ⟨(("flag", ⟨"flag", .flag⟩), .text), by decide +kernel⟩ }⟩
 
-attribute [regula_decision] BrowserColumn.fits
+/-- Registers `BrowserColumn.fits` as a decision function. -/
+theorem BrowserColumn_fits_registered : Regula.RegisteredDecision @BrowserColumn.fits := ⟨⟩
 
 /-- A table lookup returns only an item that the table holds. -/
 private theorem lookup_listed {β : Type} : ∀ (table : List (String × β)) (key : String) (item : β),
@@ -3972,7 +4106,8 @@ theorem property_fits : Regula.ExecutableContract BrowserProperty.fits (fun fits
     ⟨(("", ⟨"", .value⟩), .text), .inl rfl⟩
     ⟨(("", ⟨"", .twice⟩), .text), by simp⟩⟩
 
-attribute [regula_decision] BrowserProperty.fits
+/-- Registers `BrowserProperty.fits` as a decision function. -/
+theorem BrowserProperty_fits_registered : Regula.RegisteredDecision @BrowserProperty.fits := ⟨⟩
 
 /-- The phase comparison refuses exactly the idle phase. -/
 private theorem phase_live (phase : Host.Viewer.Phase) :
@@ -4035,7 +4170,8 @@ theorem control_warning : Regula.ExecutableContract controlWarning (fun warning 
         { transition := .initialized, reason := "", clearDisabled := none, log := {} }),
       by decide⟩⟩
 
-attribute [regula_decision] controlWarning
+/-- Registers `controlWarning` as a decision function. -/
+theorem controlWarning_registered : Regula.RegisteredDecision @controlWarning := ⟨⟩
 
 /-! ## Decision procedures
 
@@ -4043,16 +4179,104 @@ Each result is a `Decidable` value: an accepting result carries a proof of the d
 proposition and a refusing result a proof of its negation, so no contract is registered. The
 instances are registered under their declared names, or the names Lean generates for them. -/
 
-attribute [regula_decision] Interval32.orderedDecidable Binary32.positiveDecidable
-  Binary32.instDecidableFinite Binary64.instDecidableFinite Interval32.instDecidableContains
-  Features.instDecidableRecent Features.instDecidableDominates Lifetime.instDecidableLegalSum
-  Checkpoint.instDecidableValid Checkpoint.instDecidableOptionsValid
-  Checkpoint.instDecidableInterestAligned Checkpoint.instDecidableEnsembleAligned
-  Checkpoint.instDecidableEnsembleDistinct Checkpoint.instDecidableEpisodes
-  Binary32.instDecidableNegative Binary32.instDecidableIsNaN Binary32.instDecidableLess
-  Binary64.instDecidableIsNaN Binary64.instDecidableLess Host.instDecidableWalkable
-  Host.instDecidableOwns Host.instDecidableInBox Handcrafted.instDecidableResumable
-  Host.instDecidableGoalSatisfied Host.instDecidableFoodDue
+/-- Registers `Interval32.orderedDecidable` as a decision function. -/
+theorem Interval32_orderedDecidable_registered :
+    Regula.RegisteredDecision @Interval32.orderedDecidable := ⟨⟩
+
+/-- Registers `Binary32.positiveDecidable` as a decision function. -/
+theorem Binary32_positiveDecidable_registered :
+    Regula.RegisteredDecision @Binary32.positiveDecidable := ⟨⟩
+
+/-- Registers `Binary32.instDecidableFinite` as a decision function. -/
+theorem Binary32_instDecidableFinite_registered :
+    Regula.RegisteredDecision @Binary32.instDecidableFinite := ⟨⟩
+
+/-- Registers `Binary64.instDecidableFinite` as a decision function. -/
+theorem Binary64_instDecidableFinite_registered :
+    Regula.RegisteredDecision @Binary64.instDecidableFinite := ⟨⟩
+
+/-- Registers `Interval32.instDecidableContains` as a decision function. -/
+theorem Interval32_instDecidableContains_registered :
+    Regula.RegisteredDecision @Interval32.instDecidableContains := ⟨⟩
+
+/-- Registers `Features.instDecidableRecent` as a decision function. -/
+theorem Features_instDecidableRecent_registered :
+    Regula.RegisteredDecision @Features.instDecidableRecent := ⟨⟩
+
+/-- Registers `Features.instDecidableDominates` as a decision function. -/
+theorem Features_instDecidableDominates_registered :
+    Regula.RegisteredDecision @Features.instDecidableDominates := ⟨⟩
+
+/-- Registers `Lifetime.instDecidableLegalSum` as a decision function. -/
+theorem Lifetime_instDecidableLegalSum_registered :
+    Regula.RegisteredDecision @Lifetime.instDecidableLegalSum := ⟨⟩
+
+/-- Registers `Checkpoint.instDecidableValid` as a decision function. -/
+theorem Checkpoint_instDecidableValid_registered :
+    Regula.RegisteredDecision @Checkpoint.instDecidableValid := ⟨⟩
+
+/-- Registers `Checkpoint.instDecidableOptionsValid` as a decision function. -/
+theorem Checkpoint_instDecidableOptionsValid_registered :
+    Regula.RegisteredDecision @Checkpoint.instDecidableOptionsValid := ⟨⟩
+
+/-- Registers `Checkpoint.instDecidableInterestAligned` as a decision function. -/
+theorem Checkpoint_instDecidableInterestAligned_registered :
+    Regula.RegisteredDecision @Checkpoint.instDecidableInterestAligned := ⟨⟩
+
+/-- Registers `Checkpoint.instDecidableEnsembleAligned` as a decision function. -/
+theorem Checkpoint_instDecidableEnsembleAligned_registered :
+    Regula.RegisteredDecision @Checkpoint.instDecidableEnsembleAligned := ⟨⟩
+
+/-- Registers `Checkpoint.instDecidableEnsembleDistinct` as a decision function. -/
+theorem Checkpoint_instDecidableEnsembleDistinct_registered :
+    Regula.RegisteredDecision @Checkpoint.instDecidableEnsembleDistinct := ⟨⟩
+
+/-- Registers `Checkpoint.instDecidableEpisodes` as a decision function. -/
+theorem Checkpoint_instDecidableEpisodes_registered :
+    Regula.RegisteredDecision @Checkpoint.instDecidableEpisodes := ⟨⟩
+
+/-- Registers `Binary32.instDecidableNegative` as a decision function. -/
+theorem Binary32_instDecidableNegative_registered :
+    Regula.RegisteredDecision @Binary32.instDecidableNegative := ⟨⟩
+
+/-- Registers `Binary32.instDecidableIsNaN` as a decision function. -/
+theorem Binary32_instDecidableIsNaN_registered :
+    Regula.RegisteredDecision @Binary32.instDecidableIsNaN := ⟨⟩
+
+/-- Registers `Binary32.instDecidableLess` as a decision function. -/
+theorem Binary32_instDecidableLess_registered :
+    Regula.RegisteredDecision @Binary32.instDecidableLess := ⟨⟩
+
+/-- Registers `Binary64.instDecidableIsNaN` as a decision function. -/
+theorem Binary64_instDecidableIsNaN_registered :
+    Regula.RegisteredDecision @Binary64.instDecidableIsNaN := ⟨⟩
+
+/-- Registers `Binary64.instDecidableLess` as a decision function. -/
+theorem Binary64_instDecidableLess_registered :
+    Regula.RegisteredDecision @Binary64.instDecidableLess := ⟨⟩
+
+/-- Registers `Host.instDecidableWalkable` as a decision function. -/
+theorem Host_instDecidableWalkable_registered :
+    Regula.RegisteredDecision @Host.instDecidableWalkable := ⟨⟩
+
+/-- Registers `Host.instDecidableOwns` as a decision function. -/
+theorem Host_instDecidableOwns_registered : Regula.RegisteredDecision @Host.instDecidableOwns := ⟨⟩
+
+/-- Registers `Host.instDecidableInBox` as a decision function. -/
+theorem Host_instDecidableInBox_registered :
+    Regula.RegisteredDecision @Host.instDecidableInBox := ⟨⟩
+
+/-- Registers `Handcrafted.instDecidableResumable` as a decision function. -/
+theorem Handcrafted_instDecidableResumable_registered :
+    Regula.RegisteredDecision @Handcrafted.instDecidableResumable := ⟨⟩
+
+/-- Registers `Host.instDecidableGoalSatisfied` as a decision function. -/
+theorem Host_instDecidableGoalSatisfied_registered :
+    Regula.RegisteredDecision @Host.instDecidableGoalSatisfied := ⟨⟩
+
+/-- Registers `Host.instDecidableFoodDue` as a decision function. -/
+theorem Host_instDecidableFoodDue_registered :
+    Regula.RegisteredDecision @Host.instDecidableFoodDue := ⟨⟩
 
 /-! ## Decisions with a dependent type
 
@@ -4074,7 +4298,8 @@ theorem bounded_admit : Regula.ExecutableContract Bounded32.admit (fun admit =>
   ⟨present (fun input => accepts_iff (Bounded32.admit_refuses input.1 input.2))
     ⟨(point, .zero), by decide⟩ ⟨(point, ⟨0x7fc00000⟩), by decide⟩⟩
 
-attribute [regula_decision] Bounded32.admit
+/-- Registers `Bounded32.admit` as a decision function. -/
+theorem Bounded32_admit_registered : Regula.RegisteredDecision @Bounded32.admit := ⟨⟩
 
 /-- Weight admission accepts exactly the words inside the receiving rule's domain
 (`weight_admit_refuses`). -/
@@ -4086,7 +4311,8 @@ theorem weight_admit : Regula.ExecutableContract Weight.admit (fun admit =>
     ⟨(.differential, .zero), ValueRule.differential.domain.zeroLegal⟩
     ⟨(.differential, ⟨0x7fc00000⟩), fun legal => absurd legal.1 (by decide)⟩⟩
 
-attribute [regula_decision] Weight.admit
+/-- Registers `Weight.admit` as a decision function. -/
+theorem Weight_admit_registered : Regula.RegisteredDecision @Weight.admit := ⟨⟩
 
 /-- Feature-index admission accepts exactly the words below the receiving capacity
 (`feature_index_admit_refuses`). -/
@@ -4099,7 +4325,8 @@ theorem feature_index_admit : Regula.ExecutableContract FeatIdx.admit (fun admit
       Nat.not_le)
     ⟨(narrow, 0), by decide⟩ ⟨(narrow, 1), by decide⟩⟩
 
-attribute [regula_decision] FeatIdx.admit
+/-- Registers `FeatIdx.admit` as a decision function. -/
+theorem FeatIdx_admit_registered : Regula.RegisteredDecision @FeatIdx.admit := ⟨⟩
 
 /-- Action admission accepts exactly the indices inside the action space
 (`Action.admit_none`). -/
@@ -4109,7 +4336,8 @@ theorem action_admit : Regula.ExecutableContract Action.admit (fun admit =>
   ⟨present (fun input => (accepts_iff_not (Action.admit_none input.1 input.2)).trans Nat.not_le)
     ⟨(1, 0), by decide⟩ ⟨(0, 0), by decide⟩⟩
 
-attribute [regula_decision] Action.admit
+/-- Registers `Action.admit` as a decision function. -/
+theorem Action_admit_registered : Regula.RegisteredDecision @Action.admit := ⟨⟩
 
 /-- Rail admission accepts every configuration (`rails_admission_total`).
 
@@ -4151,7 +4379,8 @@ theorem squared_admit : Regula.ExecutableContract Agreement.admitSquared (fun ad
           fun accepted => absurd ⟨accepted.1, accepted.2.1⟩ finite⟩)
     ⟨⟨0, .zero, .zero⟩, by decide⟩ ⟨⟨0, ⟨0x7fc00000⟩, .zero⟩, by decide⟩⟩
 
-attribute [regula_decision] Agreement.admitSquared
+/-- Registers `Agreement.admitSquared` as a decision function. -/
+theorem Agreement_admitSquared_registered : Regula.RegisteredDecision @Agreement.admitSquared := ⟨⟩
 
 /-- An admitted sample is the exact squared discrepancy of the two words
 (`Agreement.admitSquared_exact`). A kind does not state the value of a result, so this
@@ -4174,7 +4403,8 @@ theorem event_admit : Regula.ExecutableContract Event.admit (fun admit =>
   ⟨.of_iff (fun input => written (fun _ => Event.words_roundtrip _) Event.admit_words input.2)
     ⟨(bank, (0, 0)), by decide⟩ ⟨(bank, (0, 1)), by decide⟩⟩
 
-attribute [regula_decision] Event.admit
+/-- Registers `Event.admit` as a decision function. -/
+theorem Event_admit_registered : Regula.RegisteredDecision @Event.admit := ⟨⟩
 
 /-- Event admission returns the event whose words it reads (`Event.words_roundtrip`). A kind
 does not state the value of a result, so this statement is a requirement with no kind beside
@@ -4196,7 +4426,8 @@ theorem last_admit : Regula.ExecutableContract admitLast (fun admit =>
   ⟨.of_iff (fun input => written (fun _ => admitLast_roundtrip _) admitLast_words input.2)
     ⟨(bank, (0, 0, 0)), by decide⟩ ⟨(bank, (2, 0, 0)), by decide⟩⟩
 
-attribute [regula_decision] admitLast
+/-- Registers `admitLast` as a decision function. -/
+theorem admitLast_registered : Regula.RegisteredDecision @admitLast := ⟨⟩
 
 /-- Latest-event admission returns the latest event whose words it reads
 (`admitLast_roundtrip`). A kind does not state the value of a result, so this statement is a
@@ -4239,7 +4470,8 @@ theorem progress_admit : Regula.ExecutableContract Progress.admit (fun admit =>
     ⟨⟨bank, 0, ⟨0, 0, 0, (0, 0, 0), [(0, 0, .zero)]⟩⟩, by decide⟩
     ⟨⟨bank, 0, ⟨0, 0, 0, (0, 0, 0), []⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] Progress.admit
+/-- Registers `Progress.admit` as a decision function. -/
+theorem Progress_admit_registered : Regula.RegisteredDecision @Progress.admit := ⟨⟩
 
 /-- Tester admission returns the state whose words it reads (`Progress.words_roundtrip`). A
 kind does not state the value of a result, so this statement is a requirement with no kind
@@ -4275,7 +4507,8 @@ theorem assignment_admit : Regula.ExecutableContract Assignment.admit (fun admit
       (Assignment.admit_words input.dimension) input.raw)
     ⟨⟨narrow, bank, ⟨0, 0, 0, 0⟩⟩, by decide⟩ ⟨⟨narrow, bank, ⟨2, 0, 0, 0⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] Assignment.admit
+/-- Registers `Assignment.admit` as a decision function. -/
+theorem Assignment_admit_registered : Regula.RegisteredDecision @Assignment.admit := ⟨⟩
 
 /-- Assignment admission returns the assignment whose words it reads
 (`Assignment.words_roundtrip`). A kind does not state the value of a result, so this
@@ -4325,7 +4558,9 @@ theorem box_position_checked : Regula.ExecutableContract Host.BoxPosition.checke
       (fun _ => Host.BoxPosition.checked_position _) checked_coordinates (input.x, input.y))
     ⟨⟨wide, 0, 0⟩, by decide⟩ ⟨⟨wide, -1, 0⟩, by decide⟩⟩
 
-attribute [regula_decision] Host.BoxPosition.checked
+/-- Registers `Host.BoxPosition.checked` as a decision function. -/
+theorem Host_BoxPosition_checked_registered :
+    Regula.RegisteredDecision @Host.BoxPosition.checked := ⟨⟩
 
 /-- Box admission returns the position whose coordinates it reads
 (`Host.BoxPosition.checked_position`). A kind does not state the value of a result, so this
@@ -4353,7 +4588,9 @@ theorem campaign_admit : Regula.ExecutableContract Host.CampaignPlan.admit (fun 
       · simp [steps, Except.isOk, Except.toBool])
     ⟨(0, ⟨1, 0, 0, 1⟩), by decide⟩ ⟨(0, ⟨0, 0, 0, 0⟩), by decide⟩⟩
 
-attribute [regula_decision] Host.CampaignPlan.admit
+/-- Registers `Host.CampaignPlan.admit` as a decision function. -/
+theorem Host_CampaignPlan_admit_registered :
+    Regula.RegisteredDecision @Host.CampaignPlan.admit := ⟨⟩
 
 /-- The distinctness test accepts exactly the assignment tables in which no two slots hold a
 selected objective of the same unit (`Assignment.distinct_iff`). The specification states the
@@ -4398,7 +4635,8 @@ theorem assignment_distinct : Regula.ExecutableContract @Assignment.distinct (fu
       absurd (distinct ⟨0, by decide⟩ ⟨1, by decide⟩ ⟨0, by decide⟩ spark spark
         (by simp [chosen]) (by simp [chosen])) (by decide)⟩⟩
 
-attribute [regula_decision] Assignment.distinct
+/-- Registers `Assignment.distinct` as a decision function. -/
+theorem Assignment_distinct_registered : Regula.RegisteredDecision @Assignment.distinct := ⟨⟩
 
 /-- Harvest-key admission accepts exactly the positions of the receiving box extended by one
 tile on every side. -/
@@ -4419,7 +4657,8 @@ theorem harvest_key : Regula.ExecutableContract Host.harvestKey (fun admit =>
     ⟨(wide, ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩), by decide⟩
     ⟨(wide, ⟨⟨-2, by decide⟩, ⟨0, by decide⟩⟩), by decide⟩⟩
 
-attribute [regula_decision] Host.harvestKey
+/-- Registers `Host.harvestKey` as a decision function. -/
+theorem Host_harvestKey_registered : Regula.RegisteredDecision @Host.harvestKey := ⟨⟩
 
 /-- The arguments of `Host.Viewer.mapIndex`, in order. -/
 structure MapIndex where
@@ -4442,7 +4681,8 @@ theorem map_index : Regula.ExecutableContract mapIndex (fun admit =>
       split <;> simp_all)
     ⟨⟨⟨1, by decide⟩, 0, 0⟩, by decide⟩ ⟨⟨⟨1, by decide⟩, -1, 0⟩, by decide⟩⟩
 
-attribute [regula_decision] mapIndex
+/-- Registers `mapIndex` as a decision function. -/
+theorem mapIndex_registered : Regula.RegisteredDecision @mapIndex := ⟨⟩
 
 /-- Event-line admission accepts exactly the texts within the receiving capacity that hold
 neither newline character. -/
@@ -4453,7 +4693,8 @@ theorem sse_line : Regula.ExecutableContract sseLine (fun admit =>
       (Regula.Dependent.isSome fun input : Nat × String => admit input.1 input.2)) :=
   ⟨present (fun _ => dite_isSome _) ⟨(0, ""), by simp⟩ ⟨(0, "\n"), by simp⟩⟩
 
-attribute [regula_decision] sseLine
+/-- Registers `sseLine` as a decision function. -/
+theorem sseLine_registered : Regula.RegisteredDecision @sseLine := ⟨⟩
 
 /-- Frame decoding accepts exactly the encodings of the payloads (`Checkpoint.roundtrip`, and
 `Checkpoint.decode_written` for the converse: the header codec reads back only the bytes that
@@ -4468,7 +4709,8 @@ theorem checkpoint_decode : Regula.ExecutableContract Checkpoint.decode
     ⟨[], fun ⟨payload, same⟩ => by
       simp [Checkpoint.encode, Checkpoint.magic, Acorn.FeatureConstants.checkpointMagic] at same⟩⟩
 
-attribute [regula_decision] Checkpoint.decode
+/-- Registers `Checkpoint.decode` as a decision function. -/
+theorem Checkpoint_decode_registered : Regula.RegisteredDecision @Checkpoint.decode := ⟨⟩
 
 /-- Frame decoding returns the payload whose encoding it reads (`Checkpoint.roundtrip`). A
 kind does not state the value of a result, so this statement is a requirement with no kind
@@ -4505,7 +4747,8 @@ theorem checkpoint_save : Regula.ExecutableContract Checkpoint.saveBytes (fun sa
     ⟨⟨construction primitive, AgentConstruction.initial _⟩,
       fun supported => nomatch supported.1⟩⟩
 
-attribute [regula_decision] Checkpoint.saveBytes
+/-- Registers `Checkpoint.saveBytes` as a decision function. -/
+theorem Checkpoint_saveBytes_registered : Regula.RegisteredDecision @Checkpoint.saveBytes := ⟨⟩
 
 /-- An objective holds a unit exactly when it is a selected objective of that unit. -/
 private theorem holds_selected {config : Features.Config} (unit : Fin config.units.count)
@@ -4536,7 +4779,8 @@ theorem assignment_holds : Regula.ExecutableContract @Assignment.holds (fun test
     ⟨⟨bank, ⟨0, by decide⟩, chosen⟩, spark, rfl⟩
     ⟨⟨bank, ⟨0, by decide⟩, .neutral⟩, fun ⟨_, same⟩ => nomatch same⟩⟩
 
-attribute [regula_decision] Assignment.holds
+/-- Registers `Assignment.holds` as a decision function. -/
+theorem Assignment_holds_registered : Regula.RegisteredDecision @Assignment.holds := ⟨⟩
 
 /-- The arguments of `Features.Assignment.same`, in order. -/
 structure AssignmentSame where
@@ -4557,7 +4801,8 @@ theorem assignment_same : Regula.ExecutableContract @Assignment.same (fun test =
   ⟨decides (fun input => Assignment.same_iff input.left input.right)
     ⟨⟨bank, .neutral, .neutral⟩, rfl⟩ ⟨⟨bank, .neutral, chosen⟩, fun same => nomatch same⟩⟩
 
-attribute [regula_decision] Assignment.same
+/-- Registers `Assignment.same` as a decision function. -/
+theorem Assignment_same_registered : Regula.RegisteredDecision @Assignment.same := ⟨⟩
 
 /-- The arguments of `Features.Interest.sameAssignment`, in order. -/
 structure InterestSame where
@@ -4581,17 +4826,18 @@ theorem interest_same : Regula.ExecutableContract @Features.Interest.sameAssignm
       cases learned
       exact nomatch same⟩⟩
 
-attribute [regula_decision] Features.Interest.sameAssignment
+/-- Registers `Features.Interest.sameAssignment` as a decision function. -/
+theorem Features_Interest_sameAssignment_registered :
+    Regula.RegisteredDecision @Features.Interest.sameAssignment := ⟨⟩
 
 /-- The utility comparison accepts exactly a unit whose stored utility key is strictly below
 the other's (`Lifecycle.lessUseful_iff`).
 
-The statement keeps no kind. An audit with Regula v0.11.0 refused the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/): the specification reads the stored
-utility keys through the lifecycle state, a field of the input, and the rule reads the declaration
-of that field's type. Through the invariants of the learners of the lifecycle state, that
-declaration reaches `Binary32.isNaN`, `Binary32.less` and `Binary32.negative`, which the comparison
-runs (https://github.com/rbeauchamp/regula/issues/320). The specification names none of those tests.
+The statement keeps no kind: the specification reads the stored utility keys through the
+lifecycle state, a field of the input, and the rule of the section "Tests that a specification
+does not share" reads the declaration of that field's type. Through the invariants of the learners
+of the lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
+`Binary32.negative`, which the comparison runs. The specification names none of those tests.
 -/
 theorem less_useful : Regula.ExecutableContract @Features.Lifecycle.lessUseful (fun test =>
     ∀ {shape actions config criterion dimension discounts}
@@ -4624,7 +4870,9 @@ theorem snapshot_consistent : Regula.ExecutableContract @PolicySnapshot.consiste
     ⟨⟨metaCount, level, level.probabilities⟩, rfl⟩
     ⟨⟨metaCount, level, Vector.replicate _ .zero⟩, by decide +kernel⟩⟩
 
-attribute [regula_decision] PolicySnapshot.consistent
+/-- Registers `PolicySnapshot.consistent` as a decision function. -/
+theorem PolicySnapshot_consistent_registered :
+    Regula.RegisteredDecision @PolicySnapshot.consistent := ⟨⟩
 
 /-- The arguments of `Features.Assignment.admitUsing`, in order. -/
 structure AssignmentUsing where
@@ -4654,7 +4902,8 @@ theorem assignment_admit_using : Regula.ExecutableContract Assignment.admitUsing
     ⟨⟨narrow, bank, fun _ => ⟨0, by decide⟩, ⟨0, 0, 0, 0⟩⟩, by decide⟩
     ⟨⟨narrow, bank, fun _ => ⟨0, by decide⟩, ⟨2, 0, 0, 0⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] Assignment.admitUsing
+/-- Registers `Assignment.admitUsing` as a decision function. -/
+theorem Assignment_admitUsing_registered : Regula.RegisteredDecision @Assignment.admitUsing := ⟨⟩
 
 /-- Identity-or-refusal restoration returns the assignment whose words it reads
 (`Assignment.wordsUsing_roundtrip`). A kind does not state the value of a result, so this
@@ -4698,7 +4947,8 @@ theorem controller_step_raw : Regula.ExecutableContract @Controller.stepRaw (fun
     ⟨⟨⟨.control, .differential⟩, narrow, 1, .initial _ _ _, .empty _, 0, .zero⟩, by decide⟩
     ⟨⟨⟨.control, .differential⟩, narrow, 1, .initial _ _ _, .empty _, 1, .zero⟩, by decide⟩⟩
 
-attribute [regula_decision] Controller.stepRaw
+/-- Registers `Controller.stepRaw` as a decision function. -/
+theorem Controller_stepRaw_registered : Regula.RegisteredDecision @Controller.stepRaw := ⟨⟩
 
 /-- The arguments of `Handcrafted.Agent.restore`, in order. -/
 structure AgentRestore where
@@ -4738,7 +4988,8 @@ theorem agent_restore : Regula.ExecutableContract @Agent.restore (fun restore =>
       (Agent.initial _ _ _ _ _ PlanningSelection.none).image⟩,
       fun supported => nomatch supported.1⟩⟩
 
-attribute [regula_decision] Agent.restore
+/-- Registers `Agent.restore` as a decision function. -/
+theorem Agent_restore_registered : Regula.RegisteredDecision @Agent.restore := ⟨⟩
 
 /-- The arguments of `Handcrafted.PredictionControl.advanceRaw`, in order. -/
 structure PredictionAdvance where
@@ -4792,7 +5043,9 @@ theorem prediction_advance_raw :
     ⟨⟨resumable, .discounted, narrow, .initial _ _ _ _, bank, .initial _ _, blank, .zero,
       Acorn.FeatureConstants.primitiveCount, false⟩, by decide⟩⟩
 
-attribute [regula_decision] PredictionControl.advanceRaw
+/-- Registers `PredictionControl.advanceRaw` as a decision function. -/
+theorem PredictionControl_advanceRaw_registered :
+    Regula.RegisteredDecision @PredictionControl.advanceRaw := ⟨⟩
 
 /-- The arguments of `Host.Viewer.ClockProgram.Predicate.eval`, in order. -/
 structure PredicateEval where
@@ -4838,7 +5091,9 @@ theorem predicate_eval : Regula.ExecutableContract @ClockProgram.Predicate.eval 
        ClockProgram.snapshotFollows_goal _ (by decide) (by decide) (by decide) (by decide)
          (by decide)⟩ }⟩
 
-attribute [regula_decision] ClockProgram.Predicate.eval
+/-- Registers `ClockProgram.Predicate.eval` as a decision function. -/
+theorem ClockProgram_Predicate_eval_registered :
+    Regula.RegisteredDecision @ClockProgram.Predicate.eval := ⟨⟩
 
 /-- The clock-predicate evaluator accepts the snapshot-order program for every two snapshots
 with the same process marker, the same clock and the same cycle, whose previous snapshot is
@@ -4884,7 +5139,8 @@ theorem candidate_of_weight : Regula.ExecutableContract @candidateOfWeight (fun 
     ⟨⟨double, pair, split, ⟨0, by decide⟩⟩, by decide⟩
     ⟨⟨double, pair, split, ⟨1, by decide⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] candidateOfWeight
+/-- Registers `candidateOfWeight` as a decision function. -/
+theorem candidateOfWeight_registered : Regula.RegisteredDecision @candidateOfWeight := ⟨⟩
 
 /-- An entering weight carries the bits of its own stored word as its key
 (`candidateOfWeight_key`). A kind does not state the value of a result, so this statement is
@@ -4948,12 +5204,11 @@ unit can be replaced and has the least stored utility among the units that can
 (`Lifecycle.candidate_none_iff`, `candidate_eligible`, `candidate_least`). The specification
 `Replaceable` is stated on stored data and names no eligibility test.
 
-The statement keeps no kind. An audit with Regula v0.11.0 refused the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/): the specification that some unit can
-be replaced reads the lifecycle state, a field of the input, and the rule reads the declaration of
-that field's type. Through the invariants of the learners of the lifecycle state, that declaration
-reaches `Binary32.isNaN`, `Binary32.less` and `Binary32.negative`, which the selection runs
-(https://github.com/rbeauchamp/regula/issues/320). The specification names none of those tests. -/
+The statement keeps no kind: the specification that some unit can be replaced reads the lifecycle
+state, a field of the input, and the rule of the section "Tests that a specification does not
+share" reads the declaration of that field's type. Through the invariants of the learners of the
+lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and
+`Binary32.negative`, which the selection runs. The specification names none of those tests. -/
 theorem lifecycle_candidate :
     Regula.ExecutableContract @Features.Lifecycle.candidate (fun candidate =>
     ∀ {shape actions config criterion dimension discounts}
@@ -4991,7 +5246,8 @@ theorem total_ratio : Regula.ExecutableContract @Agreement.Total.ratio (fun rati
     ⟨⟨1, ⟨⟨1, by decide⟩, 0, Nat.zero_le _⟩⟩, by decide⟩
     ⟨⟨1, .empty 1⟩, by decide⟩⟩
 
-attribute [regula_decision] Agreement.Total.ratio
+/-- Registers `Agreement.Total.ratio` as a decision function. -/
+theorem Agreement_Total_ratio_registered : Regula.RegisteredDecision @Agreement.Total.ratio := ⟨⟩
 
 /-- A channel publishes a score exactly when it has no recorded fault and holds at least one
 sample (`Agreement.Channel.fault_no_score` is the fault direction). The envelope of every
@@ -5017,7 +5273,9 @@ theorem channel_ratio : Regula.ExecutableContract @Agreement.Channel.ratio (fun 
       rfl, by decide⟩
     ⟨⟨.g99, .empty .g99⟩, fun accepted => absurd accepted.2 (by decide)⟩⟩
 
-attribute [regula_decision] Agreement.Channel.ratio
+/-- Registers `Agreement.Channel.ratio` as a decision function. -/
+theorem Agreement_Channel_ratio_registered :
+    Regula.RegisteredDecision @Agreement.Channel.ratio := ⟨⟩
 
 /-- The arguments of `Host.Viewer.GoalAchievement.State.headline`, in order. -/
 structure GoalHeadline where
@@ -5042,7 +5300,9 @@ theorem goal_headline :
         simp [GoalAchievement.State.headline, invalid, empty])
     ⟨⟨1, 0, .empty 1 0⟩, rfl, by decide⟩ ⟨⟨0, 0, .empty 0 0⟩, fun accepted => accepted.2 rfl⟩⟩
 
-attribute [regula_decision] GoalAchievement.State.headline
+/-- Registers `GoalAchievement.State.headline` as a decision function. -/
+theorem GoalAchievement_State_headline_registered :
+    Regula.RegisteredDecision @GoalAchievement.State.headline := ⟨⟩
 
 /-- An attempt has stopped: its steps reached the cap, or it has taken a step and the carried
 result ends it. -/
@@ -5078,7 +5338,8 @@ theorem attempt_finished : Regula.ExecutableContract @Host.Attempt.finished (fun
     ⟨⟨_, _, _, 0, fresh 0⟩, Or.inl rfl⟩
     ⟨⟨_, _, _, 1, fresh 1⟩, fun stopped => Or.elim stopped (by decide) (fun later => later.1 rfl)⟩⟩
 
-attribute [regula_decision] Host.Attempt.finished
+/-- Registers `Host.Attempt.finished` as a decision function. -/
+theorem Host_Attempt_finished_registered : Regula.RegisteredDecision @Host.Attempt.finished := ⟨⟩
 
 /-- The arguments of `Host.BoundaryDecision.closing`, in order. -/
 structure BoundaryClosing where
@@ -5103,7 +5364,9 @@ theorem boundary_closing :
     ⟨⟨1, plan, .continue ⟨0, ⟨0, by decide⟩, ⟨0, by decide⟩⟩⟩,
       fun closing => closing.elim (nomatch ·) (nomatch ·)⟩⟩
 
-attribute [regula_decision] Host.BoundaryDecision.closing
+/-- Registers `Host.BoundaryDecision.closing` as a decision function. -/
+theorem Host_BoundaryDecision_closing_registered :
+    Regula.RegisteredDecision @Host.BoundaryDecision.closing := ⟨⟩
 
 /-- The arguments of `Host.WritableCheckpoint.dueAt`, in order. -/
 structure CheckpointDue where
@@ -5136,7 +5399,9 @@ theorem checkpoint_due_at :
     ⟨⟨1, plan, writer.advance, .continue ⟨0, ⟨0, by decide⟩, ⟨0, by decide⟩⟩⟩,
       fun due => due.elim (nomatch ·) (·.elim (nomatch ·) (fun zero => absurd zero (by decide)))⟩⟩
 
-attribute [regula_decision] Host.WritableCheckpoint.dueAt
+/-- Registers `Host.WritableCheckpoint.dueAt` as a decision function. -/
+theorem Host_WritableCheckpoint_dueAt_registered :
+    Regula.RegisteredDecision @Host.WritableCheckpoint.dueAt := ⟨⟩
 
 /-- The arguments of `Costed.mem`, in order. -/
 structure MemberAt where
@@ -5164,7 +5429,8 @@ theorem costed_mem : Regula.ExecutableContract @Costed.mem (fun mem =>
     ⟨⟨2, 0, [0], by decide⟩, List.mem_singleton_self 0⟩
     ⟨⟨2, 0, [1], by decide⟩, by decide⟩⟩
 
-attribute [regula_decision] Costed.mem
+/-- Registers `Costed.mem` as a decision function. -/
+theorem Costed_mem_registered : Regula.RegisteredDecision @Costed.mem := ⟨⟩
 
 /-- The arguments of `Costed.vectorEq`, in order. -/
 structure VectorsAt where
@@ -5191,7 +5457,8 @@ theorem costed_vector_eq : Regula.ExecutableContract @Costed.vectorEq (fun vecto
     ⟨⟨1, #v[⟨0⟩], #v[⟨0⟩]⟩, rfl⟩
     ⟨⟨1, #v[⟨0⟩], #v[⟨1⟩]⟩, by decide⟩⟩
 
-attribute [regula_decision] Costed.vectorEq
+/-- Registers `Costed.vectorEq` as a decision function. -/
+theorem Costed_vectorEq_registered : Regula.RegisteredDecision @Costed.vectorEq := ⟨⟩
 
 /-! ## Decisions that are polymorphic in an element type
 
@@ -5228,7 +5495,8 @@ theorem list_decode : Regula.ExecutableContract @Checkpoint.decodeList (fun deco
       rfl)
     ⟨⟨UInt8, Checkpoint.byteCodec, 1, []⟩, by decide⟩⟩
 
-attribute [regula_decision] Checkpoint.decodeList
+/-- Registers `Checkpoint.decodeList` as a decision function. -/
+theorem Checkpoint_decodeList_registered : Regula.RegisteredDecision @Checkpoint.decodeList := ⟨⟩
 
 /-- List decoding returns the list whose encoding it reads, with the suffix
 (`Checkpoint.list_roundtrip`). A kind does not state the value of a result, so this statement
@@ -5271,7 +5539,9 @@ theorem list_decode_into : Regula.ExecutableContract @Checkpoint.decodeListInto 
       rfl)
     ⟨⟨UInt8, Checkpoint.byteCodec, 1, [], []⟩, by decide⟩⟩
 
-attribute [regula_decision] Checkpoint.decodeListInto
+/-- Registers `Checkpoint.decodeListInto` as a decision function. -/
+theorem Checkpoint_decodeListInto_registered :
+    Regula.RegisteredDecision @Checkpoint.decodeListInto := ⟨⟩
 
 /-- Accumulating list decoding returns the list after the accumulator, with the suffix
 (`Checkpoint.list_into_roundtrip`). A kind does not state the value of a result, so this
@@ -5320,7 +5590,9 @@ theorem format_decode_into : Regula.ExecutableContract @Checkpoint.Format.decode
         rfl
      refused := ⟨⟨Nat, Checkpoint.Format.natural, 1, [], []⟩, nofun⟩ }⟩
 
-attribute [regula_decision] Checkpoint.Format.decodeInto
+/-- Registers `Checkpoint.Format.decodeInto` as a decision function. -/
+theorem Checkpoint_Format_decodeInto_registered :
+    Regula.RegisteredDecision @Checkpoint.Format.decodeInto := ⟨⟩
 
 /-- Reading values one by one with a lawful format returns the list after the accumulator, with
 the suffix (`Checkpoint.Format.decodeInto_lawful`). A kind does not state the value of a result,
@@ -5354,7 +5626,8 @@ theorem buffer_offer : Regula.ExecutableContract @Buffer.offer (fun offer =>
   ⟨present (fun input => Buffer.offer_iff input.buffer input.value)
     ⟨⟨Unit, 1, .empty, ()⟩, by decide⟩ ⟨⟨Unit, 0, .empty, ()⟩, by decide⟩⟩
 
-attribute [regula_decision] Buffer.offer
+/-- Registers `Buffer.offer` as a decision function. -/
+theorem Buffer_offer_registered : Regula.RegisteredDecision @Buffer.offer := ⟨⟩
 
 /-- The arguments of `Host.Viewer.schemaCovers`, in order. -/
 structure SchemaCovers where
@@ -5382,7 +5655,8 @@ theorem schema_covers : Regula.ExecutableContract @schemaCovers (fun covers =>
   ⟨{ sound := fun input => schemaCovers_sound input.fits input.table input.schema
      accepted := ⟨⟨Bool, fun _ item _ => item, [("a", true)], [("a", .natural)]⟩, by decide⟩ }⟩
 
-attribute [regula_decision] schemaCovers
+/-- Registers `schemaCovers` as a decision function. -/
+theorem schemaCovers_registered : Regula.RegisteredDecision @schemaCovers := ⟨⟩
 
 /-- The schema test accepts the empty table against every schema, for every element type and
 every test of an entry. The sound kind `schema_covers` carries one accepted input and does not
@@ -5407,7 +5681,7 @@ reach it through that retirement. Both verdicts occur: the search of `#[false, t
 test that reads the element finds the index one, and the search of the empty array finds none.
 
 The statement keeps no kind: the result, a costed index with the equation that names it, has
-a type that depends on the array and the test, and Regula reads a result whose type depends on
+a type that depends on the array and the test, and the kinds read a result whose type depends on
 the input only through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or
 an `Except`.
 
@@ -5442,7 +5716,8 @@ theorem assignment_identity : Regula.ExecutableContract @Assignment.identity (fu
     ⟨⟨bank, chosen⟩, ⟨0, by decide⟩, spark, rfl⟩
     ⟨⟨bank, .neutral⟩, fun ⟨_, _, same⟩ => nomatch same⟩⟩
 
-attribute [regula_decision] Assignment.identity
+/-- Registers `Assignment.identity` as a decision function. -/
+theorem Assignment_identity_registered : Regula.RegisteredDecision @Assignment.identity := ⟨⟩
 
 /-- The identity of an objective is absent for the neutral objective and is the unit of a
 selected one. A kind does not state the value of a result, so this statement is a requirement
@@ -5479,7 +5754,9 @@ theorem total_observe : Regula.ExecutableContract @Agreement.Total.observe (fun 
     ⟨⟨0, .empty 0, 0⟩, by decide⟩
     ⟨⟨0, ⟨⟨Agreement.countLimit, by decide⟩, 0, Nat.zero_le _⟩, 0⟩, by decide⟩⟩
 
-attribute [regula_decision] Agreement.Total.observe
+/-- Registers `Agreement.Total.observe` as a decision function. -/
+theorem Agreement_Total_observe_registered :
+    Regula.RegisteredDecision @Agreement.Total.observe := ⟨⟩
 
 /-- An admitted write adds one to the count and the sample to the sum
 (`Agreement.Total.observe_exact`). A kind does not state the value of a result, so this
@@ -5497,7 +5774,8 @@ theorem action_direction : Regula.ExecutableContract Host.Action.direction
   ⟨decides (fun action => by cases action <;> simp [Host.Action.direction])
     ⟨.north, .inl rfl⟩ ⟨.wait, by simp⟩⟩
 
-attribute [regula_decision] Host.Action.direction
+/-- Registers `Host.Action.direction` as a decision function. -/
+theorem Host_Action_direction_registered : Regula.RegisteredDecision @Host.Action.direction := ⟨⟩
 
 /-- A successful world step advances the clock by one (`Host.World.step_clock`).
 
@@ -5548,7 +5826,9 @@ theorem lifecycle_mature : Regula.ExecutableContract @Features.Lifecycle.mature 
     ⟨⟨_, _, _, _, _, _, lifecycle (.initial bank) (.replicate _ (.learned .neutral)),
       ⟨0, by decide⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] Features.Lifecycle.mature
+/-- Registers `Features.Lifecycle.mature` as a decision function. -/
+theorem Features_Lifecycle_mature_registered :
+    Regula.RegisteredDecision @Features.Lifecycle.mature := ⟨⟩
 
 /-- The arguments of `Features.Lifecycle.eligible`, in order. -/
 structure LifecycleEligible where
@@ -5586,7 +5866,9 @@ theorem lifecycle_eligible :
     ⟨⟨_, _, _, _, _, _, lifecycle (.initial bank) (.replicate _ (.learned .neutral)), true,
       ⟨0, by decide⟩⟩, fun replaceable => absurd replaceable.1 (by decide)⟩⟩
 
-attribute [regula_decision] Features.Lifecycle.eligible
+/-- Registers `Features.Lifecycle.eligible` as a decision function. -/
+theorem Features_Lifecycle_eligible_registered :
+    Regula.RegisteredDecision @Features.Lifecycle.eligible := ⟨⟩
 
 /-- The arguments of `Features.Ensemble.holds`, in order. -/
 structure EnsembleHolds where
@@ -5633,20 +5915,20 @@ theorem ensemble_holds : Regula.ExecutableContract @Ensemble.holds (fun holds =>
         rw [member.2] at learned
         exact nomatch learned⟩⟩
 
-attribute [regula_decision] Ensemble.holds
+/-- Registers `Ensemble.holds` as a decision function. -/
+theorem Ensemble_holds_registered : Regula.RegisteredDecision @Ensemble.holds := ⟨⟩
 
 /-- One preference step keeps its choice for a unit that cannot be replaced. For a unit that
 can, it selects that unit when there is no choice, and with a choice it selects the unit
 exactly when the stored utility key of the unit is below the key of the choice
 (`Lifecycle.lessUseful_iff`).
 
-The statement keeps no kind. An audit with Regula v0.11.0 refused the kind under RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/): the specification that the step had a
-choice or the unit can be replaced reads the lifecycle state, a field of the input, and the rule
-reads the declaration of that field's type. Through the invariants of the learners of the lifecycle
-state, that declaration reaches `Binary32.isNaN`, `Binary32.less` and `Binary32.negative`, which the
-preference step runs (https://github.com/rbeauchamp/regula/issues/320). The specification names none
-of those tests. -/
+The statement keeps no kind: the specification that the step had a choice or the unit can be
+replaced reads the lifecycle state, a field of the input, and the rule of the section "Tests that a
+specification does not share" reads the declaration of that field's type. Through the invariants
+of the learners of the lifecycle state, that declaration reaches `Binary32.isNaN`, `Binary32.less`
+and `Binary32.negative`, which the preference step runs. The specification names none of those
+tests. -/
 theorem lifecycle_prefer : Regula.ExecutableContract @Features.Lifecycle.prefer (fun prefer =>
     ∀ {shape actions config criterion dimension discounts}
       (state : Features.Lifecycle shape actions config criterion dimension discounts)
@@ -5719,7 +6001,8 @@ theorem assignment_potential : Regula.ExecutableContract @Assignment.potential (
         cases same
         exact absurd member (by decide)⟩⟩
 
-attribute [regula_decision] Assignment.potential
+/-- Registers `Assignment.potential` as a decision function. -/
+theorem Assignment_potential_registered : Regula.RegisteredDecision @Assignment.potential := ⟨⟩
 
 /-- The lifetime payload of a decision is present exactly when the decision ended an option.
 `episode_end_value` states the payload. -/
@@ -5738,7 +6021,9 @@ theorem episode_end : Regula.ExecutableContract @TemporalDecision.episodeEnd (fu
     ⟨⟨⟨1, by decide⟩, ⟨.primitive, ⟨0, by decide⟩, .replicate _ .zero, .replicate _ .zero, false,
       .replicate _ .zero, none, none, none⟩⟩, fun ⟨_, same⟩ => nomatch same⟩⟩
 
-attribute [regula_decision] TemporalDecision.episodeEnd
+/-- Registers `TemporalDecision.episodeEnd` as a decision function. -/
+theorem TemporalDecision_episodeEnd_registered :
+    Regula.RegisteredDecision @TemporalDecision.episodeEnd := ⟨⟩
 
 /-- The lifetime payload of a decision that ended an option carries the slot, the age and the
 reason of that ending (`TemporalControl.finish_options` states that the lifetime record reads
@@ -5782,7 +6067,8 @@ theorem assignment_feature : Regula.ExecutableContract @Assignment.feature (fun 
     ⟨⟨narrow, bank, chosen⟩, ⟨0, by decide⟩, spark, rfl⟩
     ⟨⟨narrow, bank, .neutral⟩, fun ⟨_, _, same⟩ => nomatch same⟩⟩
 
-attribute [regula_decision] Assignment.feature
+/-- Registers `Assignment.feature` as a decision function. -/
+theorem Assignment_feature_registered : Regula.RegisteredDecision @Assignment.feature := ⟨⟩
 
 /-- The feature of an objective is absent for the neutral objective and is the unit feature of
 a selected one. `unitFeature` is the slot map, which the lookup reads. A kind does not state
@@ -5826,7 +6112,8 @@ theorem next_ready : Regula.ExecutableContract @SwiftTd.nextReady (fun next =>
     ⟨⟨narrow, .clear, false⟩, .inr (.inr (.inl rfl))⟩
     ⟨⟨narrow, .retire ⟨0, by decide⟩, false⟩, by simp⟩⟩
 
-attribute [regula_decision] SwiftTd.nextReady
+/-- Registers `SwiftTd.nextReady` as a decision function. -/
+theorem SwiftTd_nextReady_registered : Regula.RegisteredDecision @SwiftTd.nextReady := ⟨⟩
 
 /-- The natural reader reads the one byte zero as zero with no rest. -/
 private theorem zero_read : Checkpoint.Format.decodeNatural [0] = some (0, []) := rfl
@@ -5859,7 +6146,9 @@ theorem natural_decode : Regula.ExecutableContract Checkpoint.Format.decodeNatur
       rw [← same] at read
       exact absurd read nofun⟩⟩
 
-attribute [regula_decision] Checkpoint.Format.decodeNatural
+/-- Registers `Checkpoint.Format.decodeNatural` as a decision function. -/
+theorem Checkpoint_Format_decodeNatural_registered :
+    Regula.RegisteredDecision @Checkpoint.Format.decodeNatural := ⟨⟩
 
 /-- The reader of a natural returns the natural whose encoding starts its input, with the bytes
 after it (`Checkpoint.Format.natural_lawful`). A kind does not state the value of a result, so
@@ -5935,7 +6224,9 @@ theorem natural_decode_into : Regula.ExecutableContract Checkpoint.Format.decode
       · exact absurd empty nofun
       · exact positive both.1.symm⟩⟩
 
-attribute [regula_decision] Checkpoint.Format.decodeNaturalInto
+/-- Registers `Checkpoint.Format.decodeNaturalInto` as a decision function. -/
+theorem Checkpoint_Format_decodeNaturalInto_registered :
+    Regula.RegisteredDecision @Checkpoint.Format.decodeNaturalInto := ⟨⟩
 
 /-- The reader of a natural after lower digits reads the natural that starts its input and folds
 the lower digits into it, refusing a highest digit of zero after a lower one
@@ -5973,7 +6264,8 @@ theorem food_due : Regula.ExecutableContract Host.foodDue (fun due =>
       · simp [zero, Nat.dvd_iff_mod_eq_zero])
     ⟨(0, 0), Nat.dvd_refl 0⟩ ⟨(1, 0), by decide⟩⟩
 
-attribute [regula_decision] Host.foodDue
+/-- Registers `Host.foodDue` as a decision function. -/
+theorem Host_foodDue_registered : Regula.RegisteredDecision @Host.foodDue := ⟨⟩
 
 /-- The binary32 value of a coordinate is the library's unsigned conversion of its magnitude,
 Lean core's `UInt64.toFloat32` through `Binary32.ofUInt64`, with the sign bit set for a
@@ -6439,7 +6731,8 @@ theorem occupancy_free : Regula.ExecutableContract @Occupancy.free (fun free =>
       cases occupancy <;> simp [Occupancy.free])
     ⟨⟨Unit, Unit, .idle⟩, rfl⟩ ⟨⟨Unit, Unit, .exploring ()⟩, nofun⟩⟩
 
-attribute [regula_decision] Occupancy.free
+/-- Registers `Occupancy.free` as a decision function. -/
+theorem Occupancy_free_registered : Regula.RegisteredDecision @Occupancy.free := ⟨⟩
 
 /-- The ranking assigns the subtasks exactly under a profile whose subtasks are learned. -/
 theorem ranks_subtasks : Regula.ExecutableContract FeatureProfile.ranksSubtasks (fun ranks =>
@@ -6452,7 +6745,9 @@ theorem ranks_subtasks : Regula.ExecutableContract FeatureProfile.ranksSubtasks 
     ⟨⟨.final, .perStep, .declared, .learned⟩, rfl⟩
     ⟨⟨.final, .perStep, .declared, .spatial⟩, nofun⟩⟩
 
-attribute [regula_decision] FeatureProfile.ranksSubtasks
+/-- Registers `FeatureProfile.ranksSubtasks` as a decision function. -/
+theorem FeatureProfile_ranksSubtasks_registered :
+    Regula.RegisteredDecision @FeatureProfile.ranksSubtasks := ⟨⟩
 
 /-- A profile uses the option hierarchy exactly when its mode is not primitive-only. -/
 theorem uses_hierarchy : Regula.ExecutableContract FeatureProfile.usesHierarchy (fun uses =>
@@ -6465,7 +6760,9 @@ theorem uses_hierarchy : Regula.ExecutableContract FeatureProfile.usesHierarchy 
     ⟨⟨.final, .perStep, .declared, .learned⟩, nofun⟩
     ⟨⟨.primitiveOnly, .perStep, .declared, .learned⟩, fun other => other rfl⟩⟩
 
-attribute [regula_decision] FeatureProfile.usesHierarchy
+/-- Registers `FeatureProfile.usesHierarchy` as a decision function. -/
+theorem FeatureProfile_usesHierarchy_registered :
+    Regula.RegisteredDecision @FeatureProfile.usesHierarchy := ⟨⟩
 
 /-- A channel is reserved exactly when it is the first feedback channel plus a position of the
 layout, in wrapping word arithmetic. -/
@@ -6504,7 +6801,8 @@ theorem interface_reserved : Regula.ExecutableContract Interface.reserved (fun r
     ⟨(Grid.interface, Grid.interface.feedback), by decide⟩
     ⟨(Grid.interface, Grid.interface.feedback - 1), by decide⟩⟩
 
-attribute [regula_decision] Interface.reserved
+/-- Registers `Interface.reserved` as a decision function. -/
+theorem Interface_reserved_registered : Regula.RegisteredDecision @Interface.reserved := ⟨⟩
 
 /-- The arguments of `Features.OptionActivation.learning`, in order. -/
 structure ActivationLearning where
@@ -6521,7 +6819,9 @@ theorem activation_learning : Regula.ExecutableContract @OptionActivation.learni
   ⟨decides (fun _ => Iff.rfl) ⟨⟨true, .first true false⟩, rfl⟩
     ⟨⟨false, .first false false⟩, nofun⟩⟩
 
-attribute [regula_decision] OptionActivation.learning
+/-- Registers `OptionActivation.learning` as a decision function. -/
+theorem OptionActivation_learning_registered :
+    Regula.RegisteredDecision @OptionActivation.learning := ⟨⟩
 
 /-- A decision of the meta action space with the given source: the first action, zero values
 and masses, no exploration, no meta decision, and no start or end of an option. -/
@@ -6548,7 +6848,8 @@ theorem decision_own : Regula.ExecutableContract @TemporalDecision.own (fun own 
     ⟨⟨metaCount, sourced .primitive⟩, fun _ => nofun⟩
     ⟨⟨metaCount, sourced (.option ⟨0, by decide⟩)⟩, fun other => other ⟨0, by decide⟩ rfl⟩⟩
 
-attribute [regula_decision] TemporalDecision.own
+/-- Registers `TemporalDecision.own` as a decision function. -/
+theorem TemporalDecision_own_registered : Regula.RegisteredDecision @TemporalDecision.own := ⟨⟩
 
 /-- The arguments of `Handcrafted.askedBy`, in order. -/
 structure AskedBy where
@@ -6577,7 +6878,8 @@ theorem asked_by : Regula.ExecutableContract @askedBy (fun asked =>
     ⟨⟨metaCount, sourced (.option ⟨0, by decide⟩), ⟨0, by decide⟩, none⟩, by decide⟩
     ⟨⟨metaCount, sourced .primitive, ⟨0, by decide⟩, none⟩, by decide⟩⟩
 
-attribute [regula_decision] askedBy
+/-- Registers `askedBy` as a decision function. -/
+theorem askedBy_registered : Regula.RegisteredDecision @askedBy := ⟨⟩
 
 /-- Meta action zero delegates to primitive control, and every other meta action names a
 skill. `skill_of_meta_value` states the skill that it names. -/
@@ -6590,7 +6892,8 @@ theorem skill_of_meta : Regula.ExecutableContract skillOfMeta (fun skill =>
       by_cases zero : action.val = 0 <;> simp [zero])
     ⟨⟨1, by decide⟩, by decide⟩ ⟨⟨0, by decide⟩, by decide⟩⟩
 
-attribute [regula_decision] skillOfMeta
+/-- Registers `skillOfMeta` as a decision function. -/
+theorem skillOfMeta_registered : Regula.RegisteredDecision @skillOfMeta := ⟨⟩
 
 /-- Each meta action other than zero names the skill one below it: an action names exactly the
 skill whose index plus one is the action's. A kind does not state the value of a result, so
@@ -6621,7 +6924,8 @@ theorem run_serve : Regula.ExecutableContract @ExploratoryRun.serve (fun serve =
     ⟨⟨metaCount, ⟨firstAction metaCount, ⟨1, by decide⟩⟩⟩, by decide⟩
     ⟨⟨metaCount, ⟨firstAction metaCount, ⟨0, by decide⟩⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] ExploratoryRun.serve
+/-- Registers `ExploratoryRun.serve` as a decision function. -/
+theorem ExploratoryRun_serve_registered : Regula.RegisteredDecision @ExploratoryRun.serve := ⟨⟩
 
 /-- A run serves exactly its committed action, and the run it continues with has the same
 action and one action fewer remaining (`ExploratoryRun.serve_exact`, `ExploratoryRun.spent`).
@@ -6679,7 +6983,8 @@ theorem occupancy_executing : Regula.ExecutableContract @Occupancy.executing (fu
     ⟨⟨metaCount, true, .idle⟩, fun specified => by
       rcases specified with ⟨_, _, same⟩ | ⟨_, same, _⟩ <;> exact nomatch same⟩⟩
 
-attribute [regula_decision] Occupancy.executing
+/-- Registers `Occupancy.executing` as a decision function. -/
+theorem Occupancy_executing_registered : Regula.RegisteredDecision @Occupancy.executing := ⟨⟩
 
 /-- The executing invocation is the slot of the live option, or the slot of the option that a
 committed run holds. A kind does not state the value of a result, so this statement is a
@@ -6722,7 +7027,8 @@ theorem best_of : Regula.ExecutableContract @best (fun scan =>
       cases items <;> simp [best])
     ⟨⟨bank, [spot]⟩, by decide⟩ ⟨⟨bank, []⟩, by decide⟩⟩
 
-attribute [regula_decision] best
+/-- Registers `best` as a decision function. -/
+theorem best_registered : Regula.RegisteredDecision @best := ⟨⟩
 
 /-- A scan returns one of its candidates that dominates every candidate: the largest key, and
 on equal keys the lowest unit (`best_spec`). A kind does not state the value of a result, so
@@ -6755,7 +7061,8 @@ theorem assignment_retain : Regula.ExecutableContract @Assignment.retain (fun re
       cases assignment <;> simp [Regula.Dependent.isSome, Assignment.retain, List.find?_isSome])
     ⟨⟨bank, [spot], chosen⟩, by decide⟩ ⟨⟨bank, [], chosen⟩, by decide⟩⟩
 
-attribute [regula_decision] Assignment.retain
+/-- Registers `Assignment.retain` as a decision function. -/
+theorem Assignment_retain_registered : Regula.RegisteredDecision @Assignment.retain := ⟨⟩
 
 /-- A retained objective keeps its unit, and its bonus is the larger, by its unsigned word, of
 the held bonus and the score of the first ranked candidate that names the unit. The two
@@ -6847,7 +7154,8 @@ theorem kept_slot : Regula.ExecutableContract @kept (fun keep =>
     ⟨⟨bank, #v[chosen, .neutral, .neutral], [spot], ⟨0, by decide⟩⟩, by decide⟩
     ⟨⟨bank, #v[chosen, .neutral, .neutral], [spot], ⟨1, by decide⟩⟩, by decide⟩⟩
 
-attribute [regula_decision] kept
+/-- Registers `kept` as a decision function. -/
+theorem kept_registered : Regula.RegisteredDecision @kept := ⟨⟩
 
 /-- A slot returns nothing when an earlier slot selects its unit, and otherwise returns the
 retained objective of its held one (`assignment_retain_value`). A kind does not state the
@@ -6937,7 +7245,9 @@ theorem ranked_position : Regula.ExecutableContract @RankedFeatures.position (fu
     ⟨⟨sixteen, .empty sixteen, ⟨0, by decide⟩⟩, fun ⟨_, holds⟩ => by
       simp [RankedFeatures.empty, RankedFeatures.ofSlots] at holds⟩⟩
 
-attribute [regula_decision] RankedFeatures.position
+/-- Registers `RankedFeatures.position` as a decision function. -/
+theorem RankedFeatures_position_registered :
+    Regula.RegisteredDecision @RankedFeatures.position := ⟨⟩
 
 /-- A lookup returns exactly the position that holds the index: a returned position holds it
 (`RankedFeatures.position_slot`), and a position that holds it is the one returned, since no
@@ -7012,7 +7322,9 @@ theorem active_slot : Regula.ExecutableContract @TemporalControl.activeSlot (fun
     ⟨⟨Grid.interface, _, bank, .discounted, narrow, phased .idle⟩, fun specified => by
       rcases specified with ⟨_, _, same⟩ | ⟨_, same, _⟩ <;> exact nomatch same⟩⟩
 
-attribute [regula_decision] TemporalControl.activeSlot
+/-- Registers `TemporalControl.activeSlot` as a decision function. -/
+theorem TemporalControl_activeSlot_registered :
+    Regula.RegisteredDecision @TemporalControl.activeSlot := ⟨⟩
 
 /-- The executing invocation of a temporal state is the slot of its live option, or of the
 option that its committed run holds (`occupancy_executing_value` on its dispatch phase). A kind
@@ -7065,7 +7377,8 @@ theorem force_named : Regula.ExecutableContract @Force.named (fun named =>
     ⟨⟨Unit, ⟨some (), none⟩, none, ⟨0⟩⟩, .inl ⟨.inl rfl, nofun⟩⟩
     ⟨⟨Unit, ⟨none, none⟩, none, ⟨0⟩⟩, by simp⟩⟩
 
-attribute [regula_decision] Force.named
+/-- Registers `Force.named` as a decision function. -/
+theorem Force_named_registered : Regula.RegisteredDecision @Force.named := ⟨⟩
 
 /-- A force names the released action while it is in force, and the world's default from its
 lapse on (`Force.named_lasting`, `Force.named_lapse`). A kind does not state the value of a
@@ -7194,13 +7507,11 @@ private theorem serveDraw_isSome {interface : Interface} {profile : FeatureProfi
 committed run with an action remaining. `temporal_serve_frame` states the step that it serves.
 
 The statement keeps no kind. Its specification reads the temporal state, a field of its input, and
-RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of that
-field's type (https://github.com/rbeauchamp/regula/issues/320): through the invariants of the
-learners that type reaches `Binary32.negative`, which the function also reaches through the value
-predictions it reports (`Controller.predictAll`, whose weights are words of an interval ordered by
-`Binary32.key`). By that reading the rule refuses a kind over it, although the specification names
-no test. This is a conclusion from the documented reading: an audit with Regula v0.10.0 refused the
-kind with that test, and no audit of it with v0.11.0 has run. -/
+the rule of the section "Tests that a specification does not share" reads the declaration of that
+field's type: through the invariants of the learners that type reaches `Binary32.negative`, which
+the function also reaches through the value predictions it reports (`Controller.predictAll`, whose
+weights are words of an interval ordered by `Binary32.key`). So the rule excludes a kind over it,
+although the specification names no test. -/
 theorem temporal_serve : Regula.ExecutableContract @TemporalControl.serve (fun serve =>
     ∀ {interface profile config criterion dimension}
       (state : TemporalControl interface profile config criterion dimension)
@@ -7229,8 +7540,7 @@ theorem temporal_serve_frame : Regula.ExecutableContract @TemporalControl.serve 
 /-- A temporal state serves a step first exactly when its dispatch phase holds a committed run
 with an action remaining, the condition of `temporal_serve`. `serve_draw_frame` states the step
 that it serves. The statement keeps no kind, for the reason that `temporal_serve` states, with the
-same test; the refusal is likewise a conclusion from the documented reading of RG1009, not the
-result of an audit with Regula v0.11.0. -/
+same test. -/
 theorem serve_draw : Regula.ExecutableContract @TemporalControl.serveDraw (fun serve =>
     ∀ {interface profile config criterion dimension}
       (state : TemporalControl interface profile config criterion dimension)
@@ -7394,14 +7704,13 @@ state (`TemporalControl.select_total`); it refuses `foreignHeld`, whose executin
 source that no frame supplies.
 
 The statement keeps no kind. A specification of it reads the temporal state, a field of its input,
-and RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of
-that field's type (https://github.com/rbeauchamp/regula/issues/320): that type reaches, through the
-invariants of the learners (`StepSizeRails`, `ManagedAdmission`) and the lifetime records
-(`Lifetime.settlementHorizon`), tests that selection also runs, among them `Binary32.isNaN`,
-`Binary32.less`, `Binary32.negative` and `SwiftTd.nextReady`. By that reading the rule refuses a
-kind over it, although the specification names none of them; no audit of the kind has run. The two
-conjuncts are the content of a complete kind: every input of the specification is accepted, and an
-input is refused. -/
+and the rule of the section "Tests that a specification does not share" reads the declaration of
+that field's type: that type reaches, through the invariants of the learners (`StepSizeRails`,
+`ManagedAdmission`) and the lifetime records (`Lifetime.settlementHorizon`), tests that selection
+also runs, among them `Binary32.isNaN`, `Binary32.less`, `Binary32.negative` and
+`SwiftTd.nextReady`. So the rule excludes a kind over it, although the specification names none of
+them. The two conjuncts are the content of a complete kind: every input of the specification is
+accepted, and an input is refused. -/
 theorem select_operations : Regula.ExecutableContract @TemporalControl.selectWithOperations
     (fun select =>
       (∀ {interface profile config criterion dimension}
@@ -7511,8 +7820,9 @@ names one whose interest is learned or declares the supplied source (`skill_of_m
 `TemporalControl.learnMeta_interest`). The specification states the interest by its
 constructors.
 
-The statement keeps no kind: its input holds a temporal state, so RG1009 refuses a kind over it
-for the reason that `select_operations` states. -/
+The statement keeps no kind: its input holds a temporal state, so the rule of the section "Tests
+that a specification does not share" excludes a kind over it for the reason that `select_operations`
+states. -/
 theorem dispatch_meta : Regula.ExecutableContract @TemporalControl.dispatchMeta (fun dispatch =>
     ∀ {interface profile config criterion dimension}
       (state : TemporalControl interface profile config criterion dimension)
@@ -7670,10 +7980,9 @@ the stage, and the world and the events of that step, and a refusal is the step'
 The statement keeps no kind. The stage is accepted exactly when the world's step accepts its action,
 and no theorem states which steps succeed (`world_step`). A specification of the accepted stages
 would read the stage, whose type carries the proof that its observation succeeded, which reaches the
-ownership test `Host.Inventory.owns` that the function runs through the crafting of the step. RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) reads the declaration of such a part of
-the input (https://github.com/rbeauchamp/regula/issues/320), so by that reading it would refuse a
-kind over it; no audit of such a kind has run. -/
+ownership test `Host.Inventory.owns` that the function runs through the crafting of the step. The
+rule of the section "Tests that a specification does not share" reads the declaration of such a part
+of the input, so it would exclude a kind over it. -/
 theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
     (fun environment =>
       ∀ {config α goal cap} (selected : Host.OwnedStep config α goal cap),
@@ -7763,7 +8072,7 @@ The statement keeps no kind. An attempt that has stopped is accepted without an 
 one that has not stopped is accepted exactly when the world's observation succeeds, and no
 theorem states which observations succeed. A specification of the accepted attempts would name
 `Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that sensing runs, so
-RG1009 would refuse a kind with it. -/
+the rule of the section "Tests that a specification does not share" would exclude a kind with it. -/
 theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense =>
     ∀ {config α goal cap} (attempt : Host.Attempt config α goal cap),
       (sense attempt = .ok none ↔ Stopped attempt) ∧
@@ -8073,20 +8382,109 @@ theorem baseline_tick : Regula.ExecutableContract @Host.BaselineAttempt.tick (fu
 /-! ## Decisions whose kinds the proof library states
 
 Each function below has its kind in `AcornVerif.Decisions`, because the proof of the kind or one
-of its witnesses needs that library. The `AcornVerif` surface of the Regula manifest names `Acorn`
-in `decides`, so Regula counts the decision contracts of `AcornVerif.Decisions` toward the
-functions registered here, and RG1008
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1008/) fails the audit when such a function
-stays registered without its kind. The registration stays in this module, because Regula refuses a
-registration that the proof library writes for a function of this library. -/
+of its witnesses needs that library. The ownership audit counts the decision contracts of
+`AcornVerif.Decisions` toward the functions registered here, and fails when such a function stays
+registered without its kind. The registrations stay in this module, the one module that registers
+decisions. -/
 
-attribute [regula_decision] Checkpoint.load Checkpoint.admitSum Agreement.precision
-  Portable.expSaturation Features.Interest.potential Host.Endurance.rankIndex
-  Host.Position.translate Host.TaskObservation.satisfied Host.World.goalSatisfied
-  Host.World.advanceActions Host.World.tileKind Host.World.enterable Host.terrain Host.walkableTile
-  Host.regionBlocked Host.replayCertified Host.stanceCertified Host.ReplayCertificate.check
-  Host.StanceCertificate.check Host.BlockedCertificate.check Host.countKindNear Host.considerSpawn
-  Host.payAndAct Host.performAction Host.Released.environment NumericState.clearAt
-  Checkpoint.resume Host.valueNoise Host.octaveLoop Host.fbm
+/-- Registers `Checkpoint.load` as a decision function. -/
+theorem Checkpoint_load_registered : Regula.RegisteredDecision @Checkpoint.load := ⟨⟩
+
+/-- Registers `Checkpoint.admitSum` as a decision function. -/
+theorem Checkpoint_admitSum_registered : Regula.RegisteredDecision @Checkpoint.admitSum := ⟨⟩
+
+/-- Registers `Agreement.precision` as a decision function. -/
+theorem Agreement_precision_registered : Regula.RegisteredDecision @Agreement.precision := ⟨⟩
+
+/-- Registers `Portable.expSaturation` as a decision function. -/
+theorem Portable_expSaturation_registered : Regula.RegisteredDecision @Portable.expSaturation := ⟨⟩
+
+/-- Registers `Features.Interest.potential` as a decision function. -/
+theorem Features_Interest_potential_registered :
+    Regula.RegisteredDecision @Features.Interest.potential := ⟨⟩
+
+/-- Registers `Host.Endurance.rankIndex` as a decision function. -/
+theorem Host_Endurance_rankIndex_registered :
+    Regula.RegisteredDecision @Host.Endurance.rankIndex := ⟨⟩
+
+/-- Registers `Host.Position.translate` as a decision function. -/
+theorem Host_Position_translate_registered :
+    Regula.RegisteredDecision @Host.Position.translate := ⟨⟩
+
+/-- Registers `Host.TaskObservation.satisfied` as a decision function. -/
+theorem Host_TaskObservation_satisfied_registered :
+    Regula.RegisteredDecision @Host.TaskObservation.satisfied := ⟨⟩
+
+/-- Registers `Host.World.goalSatisfied` as a decision function. -/
+theorem Host_World_goalSatisfied_registered :
+    Regula.RegisteredDecision @Host.World.goalSatisfied := ⟨⟩
+
+/-- Registers `Host.World.advanceActions` as a decision function. -/
+theorem Host_World_advanceActions_registered :
+    Regula.RegisteredDecision @Host.World.advanceActions := ⟨⟩
+
+/-- Registers `Host.World.tileKind` as a decision function. -/
+theorem Host_World_tileKind_registered : Regula.RegisteredDecision @Host.World.tileKind := ⟨⟩
+
+/-- Registers `Host.World.enterable` as a decision function. -/
+theorem Host_World_enterable_registered : Regula.RegisteredDecision @Host.World.enterable := ⟨⟩
+
+/-- Registers `Host.terrain` as a decision function. -/
+theorem Host_terrain_registered : Regula.RegisteredDecision @Host.terrain := ⟨⟩
+
+/-- Registers `Host.walkableTile` as a decision function. -/
+theorem Host_walkableTile_registered : Regula.RegisteredDecision @Host.walkableTile := ⟨⟩
+
+/-- Registers `Host.regionBlocked` as a decision function. -/
+theorem Host_regionBlocked_registered : Regula.RegisteredDecision @Host.regionBlocked := ⟨⟩
+
+/-- Registers `Host.replayCertified` as a decision function. -/
+theorem Host_replayCertified_registered : Regula.RegisteredDecision @Host.replayCertified := ⟨⟩
+
+/-- Registers `Host.stanceCertified` as a decision function. -/
+theorem Host_stanceCertified_registered : Regula.RegisteredDecision @Host.stanceCertified := ⟨⟩
+
+/-- Registers `Host.ReplayCertificate.check` as a decision function. -/
+theorem Host_ReplayCertificate_check_registered :
+    Regula.RegisteredDecision @Host.ReplayCertificate.check := ⟨⟩
+
+/-- Registers `Host.StanceCertificate.check` as a decision function. -/
+theorem Host_StanceCertificate_check_registered :
+    Regula.RegisteredDecision @Host.StanceCertificate.check := ⟨⟩
+
+/-- Registers `Host.BlockedCertificate.check` as a decision function. -/
+theorem Host_BlockedCertificate_check_registered :
+    Regula.RegisteredDecision @Host.BlockedCertificate.check := ⟨⟩
+
+/-- Registers `Host.countKindNear` as a decision function. -/
+theorem Host_countKindNear_registered : Regula.RegisteredDecision @Host.countKindNear := ⟨⟩
+
+/-- Registers `Host.considerSpawn` as a decision function. -/
+theorem Host_considerSpawn_registered : Regula.RegisteredDecision @Host.considerSpawn := ⟨⟩
+
+/-- Registers `Host.payAndAct` as a decision function. -/
+theorem Host_payAndAct_registered : Regula.RegisteredDecision @Host.payAndAct := ⟨⟩
+
+/-- Registers `Host.performAction` as a decision function. -/
+theorem Host_performAction_registered : Regula.RegisteredDecision @Host.performAction := ⟨⟩
+
+/-- Registers `Host.Released.environment` as a decision function. -/
+theorem Host_Released_environment_registered :
+    Regula.RegisteredDecision @Host.Released.environment := ⟨⟩
+
+/-- Registers `NumericState.clearAt` as a decision function. -/
+theorem NumericState_clearAt_registered : Regula.RegisteredDecision @NumericState.clearAt := ⟨⟩
+
+/-- Registers `Checkpoint.resume` as a decision function. -/
+theorem Checkpoint_resume_registered : Regula.RegisteredDecision @Checkpoint.resume := ⟨⟩
+
+/-- Registers `Host.valueNoise` as a decision function. -/
+theorem Host_valueNoise_registered : Regula.RegisteredDecision @Host.valueNoise := ⟨⟩
+
+/-- Registers `Host.octaveLoop` as a decision function. -/
+theorem Host_octaveLoop_registered : Regula.RegisteredDecision @Host.octaveLoop := ⟨⟩
+
+/-- Registers `Host.fbm` as a decision function. -/
+theorem Host_fbm_registered : Regula.RegisteredDecision @Host.fbm := ⟨⟩
 
 end Acorn.Decisions

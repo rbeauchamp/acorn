@@ -20,8 +20,8 @@ is governed by the [Code of Conduct](CODE_OF_CONDUCT.md); use
 learned-only boundaries, prior-art admission, and delivery requirements. Follow
 its [review and delivery](AGENTS.md#review-and-delivery) section for checks,
 signed commits and independent review. The shipped skills under .agents/skills
-provide the review workflow, proof-specific questions and the Regula rules for
-writing Lean.
+provide the review workflow, proof-specific questions and how Regula's proof
+verdict applies to writing Lean.
 
 Claude Code reads AGENTS.md by itself only when no CLAUDE.md or CLAUDE.local.md
 applies to the checkout, including a CLAUDE.md in a parent directory. If one
@@ -81,8 +81,8 @@ that some algorithm merely exists, without exhibiting an executable definition,
 is not a mission result, though it may serve as a lemma. Proofs about that
 executable definition may use Lean's standard classical axioms (propext,
 Quot.sound and Classical.choice, the standard-logical profile enforced by the
-[Regula audit](docs/verification.md#regula-audit) via
-`lean/foundation_manifest.json` and `lean/AcornTools/AxiomPins.lean`), since
+[Regula audit](docs/verification.md#regula-audit), whose profile `lean/lakefile.lean`
+states, and pinned for selected theorems by `lean/AcornTools/AxiomPins.lean`), since
 the algorithm is explicit in the running code (Lean's compiler refuses compiled
 code that reaches a noncomputable declaration, and mission
 [#132](https://github.com/rbeauchamp/acorn/issues/132) adds a source-admission
@@ -133,7 +133,7 @@ check refusing noncomputable in executing modules).
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
-  audit `./scripts/lean.sh lint`), keep the sections of the
+  audit `./scripts/regula.sh`), keep the sections of the
   [pull request template](.github/pull_request_template.md), name its mission
   with `Closes #<id>.` in the description, and paste the output of
   `./scripts/gate.sh` from the exact pull request head.

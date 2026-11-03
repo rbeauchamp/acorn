@@ -99,7 +99,7 @@ def dispatch (arguments : List String) : Except String (IO String) := do
 end Acorn.WorldDriver
 
 /-- Native startup, output and computation refusals return failure with an explicit diagnostic. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.WorldDriver.main (arguments : List String) : IO UInt32 := do
   try
     match Acorn.WorldDriver.dispatch arguments with
     | .error error =>

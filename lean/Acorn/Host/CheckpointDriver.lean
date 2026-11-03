@@ -85,7 +85,7 @@ def dispatch (arguments : List String) : IO UInt32 := do
 end Acorn.Host.CheckpointDriver
 
 /-- Native IO or admission failure produces a failing exit status. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.Host.CheckpointDriver.main (arguments : List String) : IO UInt32 := do
   try Acorn.Host.CheckpointDriver.dispatch arguments
   catch error =>
     try IO.eprintln s!"checkpoint-native: {error}" catch _ => pure ()

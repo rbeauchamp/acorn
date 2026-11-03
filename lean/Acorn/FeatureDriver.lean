@@ -50,7 +50,7 @@ end Acorn.FeatureDriver
 /-- Run one direct native feature operation with an optional seed and sensory word, each an
 unsigned number of the command line (`Acorn.Digits.natural`) below `2 ^ 64`; a larger number
 is refused instead of wrapped. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.Acorn.FeatureDriver.main (arguments : List String) : IO UInt32 := do
   let parsed := match arguments with
     | [] => some (0, 0)
     | [seed, word] => do

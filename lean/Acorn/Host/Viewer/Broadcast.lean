@@ -7,6 +7,7 @@ import Acorn.Host.Viewer.Sensed
 import Acorn.Host.Viewer.IdentityHandshake
 import Acorn.Host.Viewer.ControlTelemetry
 import Std.Sync.Mutex
+import Acorn.Host.Forever
 
 /-!
 # Serialized observer delivery
@@ -376,11 +377,13 @@ def Subscription.poll (subscription : Subscription) : BaseIO SubscriptionRead :=
 /-- Wait outside the publication lock; only the subscriber delivery task can block here.
 Dropped promises and explicit disconnect both terminate this subscription reader. -/
 def Subscription.receive (subscription : Subscription) : BaseIO (Option WireText) := do
-  repeat
+  for _ in forever do
     match ← subscription.poll with
     | .closed => return none
     | .item text => return some text
     | .wait task =>
       if (← IO.wait task).isNone then return none
+  -- The loop has no `break`, so it ends only by returning.
+  return none
 
 end Acorn.Host.Viewer

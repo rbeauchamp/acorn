@@ -88,7 +88,7 @@ admission predicates. Do not replace unresolved proof obligations with measureme
 
 Provision pinned Lean/Mathlib v4.35.0, FloatLib, lean-intent, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
 compiler first. A fresh worktree has no `lean/.lake` dependencies; run
-`(cd lean && lake exe cache get && lake build Mathlib regula/lint regula/axiomGate floatlibBridge regulaInterface leanIntentBridge)` and then
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge)` and then
 `(cd site && lake build verso/VersoManual verso/VersoManual:shared)` there before verifying.
 Then run the complete command in the actual Git checkout:
 
@@ -111,15 +111,15 @@ Then run the complete command in the actual Git checkout:
 Sign commits and preserve license notices. The merge gate, `./scripts/gate.sh`,
 which the no-mistakes pipeline runs on the exact proposed head before a pull
 request opens, runs the same command and, as a second check outside that
-deadline, the Regula audit `./scripts/lean.sh lint`; GitHub Actions runs no
+deadline, the Regula audit `./scripts/regula.sh`; GitHub Actions runs no
 check on a pull request. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need
 no permanent receipt. Optional diagnostics are not ordinary acceptance substitutes.
 
-- Every maintained source belongs to a library that the Regula manifest claims
-  or to one explicit ownership inventory.
+- Every maintained source belongs to a library of `lean/lakefile.lean` or to one
+  explicit ownership inventory.
 - Shared specification and analysis definitions remain where proofs use them.
 - A missing file fails verification; it never selects a smaller suite.
 - No release, repository creation, visibility change, external submission or

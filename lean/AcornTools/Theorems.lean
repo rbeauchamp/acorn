@@ -19,10 +19,8 @@ even if their declaration names resemble project names.
 The inventory includes compiler-generated auxiliary theorem declarations and
 private theorems. Counts report this complete scope of compiled declarations.
 The axioms of each declaration, project axioms, and `unsafe` and `partial`
-declarations are checked by the Regula audit of the claimed libraries, not here.
-The replacement refusal stays: `AcornVerif` claims report execution, where
-Regula's RG3002 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG3002/)
-reports a replacement and does not refuse it.
+declarations are checked by the Regula audit of the claimed modules, not here.
+The replacement refusal stays: Regula's proof verdict reads no replacement or extern.
 -/
 
 namespace AcornTheoremCount
@@ -37,19 +35,24 @@ structure Counts where
   current : Nat := 0
   /-- Theorem declarations owned by native application bootstrap modules. -/
   application : Nat := 0
+  /-- Theorem declarations owned by the document vocabulary, `AcornDocument`. -/
+  document : Nat := 0
 
 /-- Sum disjoint owning-module inventories. -/
 def Counts.add (a b : Counts) : Counts :=
   { verification := a.verification + b.verification
     current := a.current + b.current
-    application := a.application + b.application }
+    application := a.application + b.application
+    document := a.document + b.document }
 
 /-- Report declaration scope, not a correctness score. -/
 def Counts.report (counts : Counts) : IO Unit := do
   IO.println s!"theorem-count AcornVerif={counts.verification}"
   IO.println s!"theorem-count Acorn={counts.current}"
   IO.println s!"theorem-count NativeApp={counts.application}"
-  IO.println s!"theorem-count total={counts.verification + counts.current + counts.application}"
+  IO.println s!"theorem-count AcornDocument={counts.document}"
+  let total := counts.verification + counts.current + counts.application + counts.document
+  IO.println s!"theorem-count total={total}"
 
 /-- Count the selected owning modules in one compiled environment. A declaration of a
 selected module with `implemented_by` or `extern` is refused. -/
@@ -68,6 +71,8 @@ def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
         counts := { counts with current := counts.current + 1 }
       else if (`NativeApp).isPrefixOf owner then
         counts := { counts with application := counts.application + 1 }
+      else if owner == `AcornDocument then
+        counts := { counts with document := counts.document + 1 }
       else
         throw (IO.userError s!"{owner}: unexpected project module")
   pure counts

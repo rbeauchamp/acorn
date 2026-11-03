@@ -89,7 +89,7 @@ mathematical identities and conditional algorithm contracts supporting the
 current mechanisms. Each theorem states its domain and hypotheses; mathematical
 identities establish execution properties only through their checked linkage.
 
-The Regula audit of the claimed libraries checks the axioms of every
+The Regula audit of the claimed modules checks the axioms of every
 declaration. The only admitted axiom dependencies are propext, Classical.choice
 and Quot.sound. Native compiler/runtime, reviewed tooling and OS boundaries
 remain explicit. No theorem count, source digest or successful build establishes

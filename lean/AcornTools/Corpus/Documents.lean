@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Lean
+import AcornDocument
 import Acorn.Digits
 import AcornTools.Ownership
 import Acorn.Host.Viewer.BrowserSchema
@@ -17,89 +18,6 @@ the reviewed tooling boundary.
 -/
 namespace AcornDocument
 open Lean
-
-/-- External names used in maintained prose must be registered individually here when the
-prose is added; dependency imports do not contribute maintained declaration names. -/
-private def externalSymbols : List String := [
-  "libc",
-  "Vec",
-  "Some",
-  "None",
-  "u8",
-  "u16",
-  "u32",
-  "usize",
-  "f32",
-  "f64",
-  "i64",
-  "i128",
-  "u32",
-  "u64",
-  "NonZeroU32",
-  "Result",
-  "assert",
-  "debug_assert",
-  "include_str",
-  "eprintln",
-  "panic",
-  "unwrap",
-  "expect",
-  "todo",
-  "unimplemented",
-  "unreachable",
-  "exit",
-  "is_finite",
-  "is_power_of_two",
-  "unwrap_or_else",
-  "read_dir",
-  "zip",
-  "exp",
-  "ln",
-  "powf",
-  "sqrt",
-  "floor",
-  "fma",
-  "mul_add",
-  "spawn",
-  "exec",
-  "rename",
-  "assume",
-  "Lean",
-  "Std.TreeMap",
-  "LeanIntent.Declared",
-  "LeanIntent.Codes",
-  "Float",
-  "Float32",
-  "Int",
-  "Nat",
-  "Bool",
-  "Option",
-  "Except",
-  "Decidable",
-  "Classical",
-  "Quot",
-  "propext",
-  "IO",
-  "decide",
-  "native_decide",
-  "sorry",
-  "ring",
-  "SwiftTD",
-  "Horde",
-  "learn_online_lsvi",
-  "JSON",
-  "localStorage",
-  "requestAnimationFrame",
-  "setTimeout",
-  "RUSTFLAGS",
-  "RUSTDOCFLAGS",
-  "CARGO_TARGET_DIR",
-  "cargo",
-  "pdftotext",
-  "ACORN_REGISTRATION_TRUST",
-  "warningAsError",
-  "autoImplicit",
-  "missingDocs"]
 
 private def proseTokens : List String := [
   "assumed",
@@ -262,17 +180,6 @@ private def pathClaim (span : String) : IO Unit := do
       if let some count := lines then
         unless count ≤ ((← IO.FS.readFile path).splitOn "\n").length do
           throw (IO.userError "line anchor exceeds file")
-
-/-- Whether a name is one of the external symbols. Admission is equality with a listed name,
-so a listed name admits no other name of its namespace: every qualified external name a
-document uses is listed in full. -/
-def external (name : String) : Bool :=
-  (externalSymbols.map (·.replace "::" ".")).contains name
-
-/-- An admitted external name is one of the listed symbols. -/
-theorem external_listed (name : String) (admitted : external name = true) :
-    name ∈ externalSymbols.map (·.replace "::" ".") := by
-  simpa [external] using admitted
 
 private def symbol (span : String) : Option String := do
   guard (span.toList.all (fun c => c.toNat < 128))

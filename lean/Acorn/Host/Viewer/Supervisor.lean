@@ -7,6 +7,7 @@ import Acorn.Host.Viewer.Supervision
 import Acorn.Host.Viewer.SupervisedProcess
 import Acorn.Host.Viewer.MapCodec
 import Acorn.Host.Viewer.HttpServer
+import Acorn.Host.Forever
 
 /-!
 # The viewer supervisor's native actor
@@ -250,7 +251,7 @@ is reported and the next turn goes on from the stored state, so it cannot skip w
 terminal failures are reported after it. -/
 def Supervisor.shutdown (supervisor : Supervisor) : IO Unit := do
   let failed ← IO.mkRef false
-  repeat
+  for _ in forever do
     let closed ← try supervisor.closeTurn catch error => do
       failed.set true
       try IO.eprintln s!"viewer shutdown: {error}" catch _ => pure ()

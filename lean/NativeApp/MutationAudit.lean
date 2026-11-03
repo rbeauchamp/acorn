@@ -27,6 +27,13 @@ inductive AuditArm where
   | differential
   deriving DecidableEq
 
+/-- Every audit arm, in the order of the constructors. -/
+def AuditArm.all : List AuditArm := [.declared, .annealed, .differential]
+
+/-- `AuditArm.all` omits no arm, so its length is the number of arms. -/
+theorem AuditArm.mem_all (arm : AuditArm) : arm ∈ AuditArm.all := by
+  cases arm <;> decide
+
 /-- A receipt pairs the ordered action digest with the knowledge checksum. -/
 structure AuditReceipt where
   /-- Ordered action/outcome/retirement digest. -/

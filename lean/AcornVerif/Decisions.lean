@@ -77,10 +77,9 @@ theorem proves.
 
 ## Statements that keep no kind
 
-A requirement with no kind is a statement that the Regula audit does not examine: that audit
-checks only that its theorem is proved about the executing definition. Such a statement can
-fix one direction only, and it need not show that both outcomes occur for its function.
-Each docstring says what its statement gives and what it does not claim.
+A requirement with no kind is checked only as a theorem about the executing definition. Such a
+statement can fix one direction only, and it need not show that both outcomes occur for its
+function. Each docstring says what its statement gives and what it does not claim.
 
 Sixteen functions of this module have a contract and no kind. The reasons are six. Sixteen
 more are no decisions, and their statements say what they are: `Agent.input`,
@@ -94,12 +93,12 @@ definitions that specifications share with their functions have the statements o
   image declares the invariants of its learners, which name the stored-word check
   `NumericState.resumable` and the other tests that the admissions run. It names the writer
   `Checkpoint.imagePayload` too, whose format holds the reader of each field beside its writer and
-  so reaches the reader's tests. An audit with Regula v0.11.0 refused the kind under RG1009 for
-  those tests. Which images there are depends on them, so the two sides share them in substance and
-  not only by the reading: a kind needs a statement of the written payloads that does not depend on
-  those tests. Kinds for these two functions are remaining work of
-  https://github.com/rbeauchamp/acorn/issues/105, and they need a statement of the written
-  payloads that does not depend on the tests the admissions run.
+  so reaches the reader's tests, so the rule of `Acorn.Decisions` for tests that a specification
+  does not share excludes the kind. Which images there are depends on them, so the two sides share
+  them in substance and not only by the reading: a kind needs a statement of the written payloads
+  that does not depend on those tests. Kinds for these two functions are remaining work of
+  https://github.com/rbeauchamp/acorn/issues/105, and they need a statement of the written payloads
+  that does not depend on the tests the admissions run.
 * The statement gives an accepted input of a host transition whose statement in
   `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
   `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
@@ -118,10 +117,10 @@ definitions that specifications share with their functions have the statements o
   states which worlds it accepts.
 * The specification reads a part of the input whose type declares an invariant that names tests
   that the function runs: the stored-word check of a learner, `NumericState.resumable`. Its kind
-  was proved, and Regula's collector refuses it under RG1009 for `Binary32.isNaN` and
-  `Binary32.less`, which the specification reaches only through the declaration of the learner
-  state and the function runs in the interval test of a pruning reference
-  (https://github.com/rbeauchamp/regula/issues/320). The kind is remaining work of
+  was proved, and the rule of `Acorn.Decisions` for tests that a specification does not share
+  excludes it for `Binary32.isNaN` and `Binary32.less`, which the specification reaches only
+  through the declaration of the learner state and the function runs in the interval test of a
+  pruning reference. The kind is remaining work of
   https://github.com/rbeauchamp/acorn/issues/105.
 * The verdict is one component of a pair, and a component of that pair has a type that depends
   on an earlier argument: whether `Features.beginExploration` begins a run, where the run that
@@ -130,15 +129,15 @@ definitions that specifications share with their functions have the statements o
   settles a slot and whether `NumericState.firstLoopElement` prunes an index, beside a state that
   depends on the dimension, the discount or the configuration; and whether
   `Checkpoint.loadKeeping`, loading that keeps its receiver, refuses the bytes, beside a state
-  that depends on the construction. Regula reads a result whose type depends on the input only
+  that depends on the construction. The kinds read a result whose type depends on the input only
   through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`.
   Each statement states the verdict for every input and names an input of each verdict.
 
 ## Tests that a specification does not share
 
-No specification of a contract with a kind here reaches a test that its function runs: Regula's
-RG1009 refuses such a contract, and `Acorn.Decisions` states the rule and lists the propositions
-that take the place of the tests. The specification of `exp_saturation` names the strict order
+No specification of a contract with a kind here reaches a test that its function runs:
+`Acorn.Decisions` states that rule, which review applies, and lists the propositions that take
+the place of the tests. The specification of `exp_saturation` names the strict order
 `Binary32.Less`, and `Host.World.Attained` names the ownership `Host.Inventory.Owns`. The
 specifications of the requirements `payload_admit` and `candidate_load`, which keep no kind,
 likewise name the resumable profile `FeatureProfile.Resumable` in the place of the test that the
@@ -195,17 +194,16 @@ name neither the comparison of tile kinds that the count runs, Lean's `instBEqOf
 the derived decidable equality, nor the walkability test `Host.TileKind.walkable` that the rule
 runs, which refuse nothing.
 
-RG1009 does not examine a statement with no kind, and statements with no kind here do reach
+The rule does not apply to a statement with no kind, and statements with no kind here do reach
 tests that their functions run. This module keeps no list of them, and the examples that follow
 are not one: `task_observed` names `Host.Inventory.owns` in its craft clause.
 
-The `AcornVerif` surface of the Regula manifest names `Acorn` in `decides`, so Regula counts the
-decision contracts of this module toward the registrations of the executing library. Each
-function with a kind here is registered in `Acorn.Decisions`, because Regula refuses a
-registration that this library writes for a function of that one, and RG1008 requires the kind.
-The ownership audit requires each statement with no kind by name, with a statement that still
-refers to the executing definition, and so the second kind of `Agreement.admitSquared`, whose
-registration a kind in `Acorn.Decisions` already meets.
+The ownership audit counts the decision contracts of this module toward the registrations of the
+executing library. Each function with a kind here is registered in `Acorn.Decisions`, the one module
+that registers decisions, and the ownership audit requires the kind there. It requires each
+statement with no kind by name, with a statement that still refers to the executing definition, and
+so the second kind of `Agreement.admitSquared`, whose registration a kind in `Acorn.Decisions`
+already meets.
 -/
 
 namespace AcornVerif.Decisions
@@ -816,9 +814,9 @@ private theorem payload_iff (construction : AgentConstruction)
 /-- Payload admission accepts exactly the payloads of the agent images of a resumable
 construction (`payload_iff`). `payload_admit_value` states the image that it returns.
 
-The statement keeps no kind. An audit with Regula v0.11.0 refused the two-way kind with this
-specification under RG1009 (https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/). The
-specification quantifies over agent images, whose type declares the invariants of their learners,
+The statement keeps no kind: the rule of `Acorn.Decisions` for tests that a specification does
+not share excludes the two-way kind with this specification. The specification quantifies over
+agent images, whose type declares the invariants of their learners,
 and it names the writer `imagePayload`, whose format holds the reader of each field beside its
 writer. Both reach ten tests that the admission runs, among them the stored-word check
 `NumericState.resumable`, `Binary32.isNaN` and `Binary32.less`. Which images there are depends on
@@ -862,8 +860,8 @@ private theorem candidate_iff (construction : AgentConstruction) (bytes : List U
 /-- Candidate loading accepts exactly the encoded payloads of the agent images of a resumable
 construction (`candidate_iff`). `candidate_load_value` states the image that it returns.
 
-The statement keeps no kind, for the reason that `payload_admit` gives: an audit with Regula
-v0.11.0 refused the kind under RG1009 for the same ten tests. -/
+The statement keeps no kind, for the reason that `payload_admit` gives, with the same ten tests.
+-/
 theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
     ∀ (construction : AgentConstruction) (bytes : List UInt8),
       (load construction bytes).isOk = true ↔
@@ -2154,13 +2152,12 @@ zero.
 The statement keeps no kind. A two-way kind whose specification states the invariant with the
 readiness of an eligible trace as a nonzero signed key, in the place of the zero test, was
 proved, with the fresh learner of `control` over `narrow` as the accepted input and that learner
-with `first` eligible as the refused one; Regula's collector refuses it under RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) for `Binary32.isNaN` and
-`Binary32.less`. The specification reaches them only through the declaration of the learner
-state, whose step-size rails declare an invariant that names `Portable.ln`; the function runs them
-in the interval test of a pruning reference. This is the reading of
-https://github.com/rbeauchamp/regula/issues/320, and the kind is remaining work of
-https://github.com/rbeauchamp/acorn/issues/105. -/
+with `first` eligible as the refused one, and the rule of `Acorn.Decisions` for tests that a
+specification does not share excludes it for `Binary32.isNaN` and `Binary32.less`. The
+specification reaches them only through the declaration of the learner state, whose step-size
+rails declare an invariant that names `Portable.ln`; the function runs them in the interval test of
+a pruning reference. The kind is remaining work of https://github.com/rbeauchamp/acorn/issues/105.
+-/
 theorem learner_resumable : Regula.ExecutableContract @NumericState.resumable (fun resumable =>
     ∀ {config : Acorn.Config} {dimension : Dimension} (state : NumericState config dimension)
       (phase : Bool),
@@ -2277,9 +2274,8 @@ for every receiver of that construction (`CurrentCheckpoint.save_load`). The sou
 The statement keeps no kind. The complete kind with these bytes as its specification quantifies
 over the states of the construction, whose type declares the invariants of the learners, and names
 the writer `Checkpoint.snapshot`, whose format holds the reader of each field beside its writer.
-Both reach tests that loading runs, so by the documented reading of RG1009
-(https://rbeauchamp.github.io/regula/v/0.11.0/rules/RG1009/) the rule refuses that kind. This is a
-conclusion from the reading; no audit of the kind has run. -/
+Both reach tests that loading runs, so the rule of `Acorn.Decisions` for tests that a specification
+does not share excludes that kind. -/
 theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun load =>
     ∀ (construction : AgentConstruction) (source receiver : construction.State),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
@@ -2300,7 +2296,7 @@ are refused with an error, since that profile is not resumable and loading accep
 under a resumable profile (`load_resumable`).
 
 The statement keeps no kind: the verdict is the second component of a pair whose state has a
-type that depends on the construction, an earlier argument, and Regula reads a result whose
+type that depends on the construction, an earlier argument, and the kinds read a result whose
 type depends on the input only through `Regula.Dependent.isSome` and
 `Regula.Dependent.isOk`, of an `Option` or an `Except`. -/
 theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun keeping =>
@@ -2792,7 +2788,7 @@ Each function below returns its verdict as one component of a pair, and a compon
 has a type that depends on an earlier argument: the run that `Features.beginExploration` begins,
 which is its verdict component, depends on the action count, and the state beside each other
 verdict, the record, the statistics or the learner state, depends on the dimension, the discount
-or the configuration. Regula reads a result whose type depends on the input only through
+or the configuration. The kinds read a result whose type depends on the input only through
 `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`, so no kind
 here is about such a component, and each statement is a requirement with no kind. Each states
 the verdict for every input; `preceding_advance`, `slot_settles` and `first_loop_prune` also

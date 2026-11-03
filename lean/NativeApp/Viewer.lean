@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import NativeApp.Assets
 import Acorn.Host.Viewer.Options
+import Acorn.Host.Forever
 
 /-!
 # Native viewer bootstrap
@@ -106,7 +107,7 @@ def runViewer (arguments : List String) : IO UInt32 := do
         | .accepted => pure ()
         | _ => throw (IO.userError "initial Start request could not be queued")
       if options.openBrowser then opener.set (← openBrowser url)
-      repeat
+      for _ in forever do
         pollBrowser opener
         if ← stop.requested then return 0
         if (← IO.getTaskState shutdown) == .finished then
@@ -115,6 +116,8 @@ def runViewer (arguments : List String) : IO UInt32 := do
           | .error error => throw error
         supervisor.step
         IO.sleep 50
+      -- The loop has no `break`, so it ends only by returning or throwing.
+      throw (IO.userError "viewer loop ended without a result")
     finally
       try supervisor.shutdown
       finally
@@ -132,7 +135,7 @@ def runViewer (arguments : List String) : IO UInt32 := do
 end NativeApp
 
 /-- Startup failure is visible and cannot silently launch a replacement run. -/
-def main (arguments : List String) : IO UInt32 := do
+def _root_.NativeApp.Viewer.main (arguments : List String) : IO UInt32 := do
   try NativeApp.runViewer arguments
   catch error =>
     try IO.eprintln s!"acorn-viewer: {error}" catch _ => pure ()

@@ -480,8 +480,7 @@ lists as left inside a segment, whose trip counts are bounded by constants of th
 combinator or a costed definition, and each path of a recursion must pass a charge. The
 combinators cannot enforce this: `Costed.pure` accepts any value, the learner's step
 among them, at no work. The
-discipline is checked by reading until the rule that
-[Regula issue 333](https://github.com/rbeauchamp/regula/issues/333) proposes checks it.
+discipline is checked by reading, and no check enforces it.
 
 Each loop is charged the passes of its runtime implementation, with one visit for each
 pass's end. One table states the passes of every library loop that costed code and the
@@ -2356,8 +2355,8 @@ The viewer receives telemetry and requests lifecycle stop only.
 [Acorn.Decisions](../lean/Acorn/Decisions.lean) registers the admissions, parsers
 and validity tests of the executing library for which a property of the accepted
 or refused result is proved, with what each proof establishes; the
-[Regula audit](verification.md#regula-audit) requires a contract of every
-registered function whose result type is not `Decidable`. The module
+ownership audit requires a contract with a kind of every registered function whose
+result type is not `Decidable` ([verification](verification.md#regula-audit)). The module
 documentation of that registry lists the groups of definitions with a `Bool`,
 `Option`, `Except` or `Decidable` result that carry no contract; no check keeps
 that list complete.
