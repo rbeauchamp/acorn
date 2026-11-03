@@ -36,6 +36,36 @@ comes next, are open and not yet decided. The
 [mission contract](docs/mission-contract.md) states what Acorn promises to prove
 about its agent, the decisions behind it and the sources for each.
 
+On 2026-11-03 the owner of the project stated this intent for Acorn: its
+architecture and mission are driven by the research of Rich Sutton, Khurram
+Javed and Oak Lab, and by the OaK architecture, so what each contract in the
+mission contract requires is what that research indicates.
+
+The OaK architecture is an overall design for an agent, which Rich Sutton
+presented at the 2025 Reinforcement Learning Conference in
+[The OaK Architecture: A Vision of SuperIntelligence from Experience](https://www.youtube.com/watch?v=gEbbGyNkR2U)
+(the recording, with the talk's abstract). Its name stands for options and
+knowledge. An option is a way of behaving together with a way of deciding when
+to stop, and the agent's knowledge is what it learns about what happens when it
+follows an option: a model of its world above the level of single actions, with
+which it can plan in larger steps. The design is meant to contain nothing
+specific to any one world, to grow the agent's mind only from the experience it
+has while it runs, and to let it form whatever concepts its world calls for,
+limited only by its computational resources. In outline it is model-based
+reinforcement learning, in which the agent learns a model of its world and plans
+with it, with three further features: every component learns continually; every
+learned weight has its own step size, which the agent tunes as it runs
+(meta-learned by online cross-validation); and abstractions in state and time
+are built continually in five steps. The agent constructs features of its
+situation from what it senses; for a feature it ranks highly it poses the
+subtask of making that feature high without giving up too much reward; it
+learns an option that solves the subtask, learns a model of that option, and
+plans with the model. The parts that use the features report which ones have
+proved useful, and that feedback informs which features are kept and which new
+ones are made. The talk presents this as a vision not yet fully specified: it
+needs reliable continual learning in deep networks and a method for generating
+new features, and Sutton treats both as unsolved.
+
 The owner of the project has chosen two kinds of worlds:
 
 - [ARC-AGI-3](https://docs.arcprize.org/) games, interactive games the agent
