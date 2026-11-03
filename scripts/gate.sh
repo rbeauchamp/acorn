@@ -59,9 +59,9 @@ step 'provisioned'
 [[ "$provision_only" == 0 ]] || exit 0
 
 # The two stages of ordinary verification, each under its own 360-second deadline, then
-# the Regula audit (scripts/regula.sh: Regula's rules and Acorn's kernel replay in the place of
-# lake check, not Regula's proof verdict as its release defines it) on its own build with no
-# deadline. The audit runs even when verification fails, so one run reports both.
+# the Regula audit (scripts/regula.sh: Regula's proof verdict, by the two commands its release
+# publishes) on its own build with no deadline. The audit runs even when verification fails, so
+# one run reports both.
 verified=0
 step 'verification, stage one'
 if ./scripts/verify.sh build-executing; then

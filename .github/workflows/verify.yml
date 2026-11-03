@@ -174,12 +174,13 @@ jobs:
         run: ./scripts/verify.sh
   regula:
     # The Regula audit of the modules that the default targets of lean/lakefile.lean
-    # claim (scripts/regula.sh): Regula's rules and Acorn's kernel replay in the
-    # place of lake check, not Regula v0.12.0's proof verdict as the release defines
-    # it (docs/verification.md#regula-audit). It builds those modules, replays them
-    # with every constant they depend on in Lean's kernel and runs Regula's checker,
-    # which takes longer than verification's deadline allows, so it is a second job
-    # with this job's timeout. Regula's contract names macOS, not this Linux runner.
+    # claim (scripts/regula.sh): Regula's proof verdict, by the two commands its
+    # release publishes (docs/verification.md#regula-audit). It builds those modules
+    # and runs Regula's checker, which replays the claim's cone in Lean's kernel and
+    # takes longer than verification's deadline allows, so it is a second job with
+    # this job's timeout. Regula's contract names Ubuntu 24.04.5 LTS on x86-64, the
+    # release that this runner image held when Regula observed it; an image of
+    # another release is outside that contract.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:

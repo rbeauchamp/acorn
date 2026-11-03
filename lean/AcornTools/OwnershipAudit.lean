@@ -135,7 +135,7 @@ def wholeFunction (env : Environment) (subject : Expr) : Option Name := do
 
 /-- Every function the registry registers (`Regula.RegisteredDecision`) has a contract in
 `contractOwners` about the whole function (`wholeFunction`) whose condition applies a decision kind
-to that function (`appliesKind`), unless it is a decision procedure. Regula v0.12.0 reads no
+to that function (`appliesKind`), unless it is a decision procedure. Regula v0.13.0 reads no
 registration or contract, so this audit is what makes a registration require its contract. A
 registration outside the registry is refused, and so is a registry that registers nothing. Returns
 the number of registrations. -/

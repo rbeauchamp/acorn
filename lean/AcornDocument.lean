@@ -95,6 +95,7 @@ def externalSymbols : List String := [
   "warningAsError",
   "autoImplicit",
   "lintDriverArgs",
+  "REGULA_FULL",
   "missingDocs"]
 
 /-- Whether a name is one of the external symbols. Admission is equality with a listed name,
