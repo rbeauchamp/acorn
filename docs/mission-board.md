@@ -1,6 +1,6 @@
 # Mission board
 
-This page is a copy of what GitHub records about Acorn's missions, derived at 2026-10-31T06:37:51Z. GitHub is the record: this copy may lag it and never overrides it. For the current state, see the [open missions on GitHub](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission). [Regenerating the board](missions.md#regenerating-the-board) says how this page is made. New to missions? [Start here](missions.md).
+This page is a copy of what GitHub records about Acorn's missions, derived at 2026-11-03T10:01:28Z. GitHub is the record: this copy may lag it and never overrides it. For the current state, see the [open missions on GitHub](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission). [Regenerating the board](missions.md#regenerating-the-board) says how this page is made. New to missions? [Start here](missions.md).
 
 ## Open missions
 
