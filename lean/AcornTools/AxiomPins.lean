@@ -75,10 +75,12 @@ import AcornVerif.Endurance
 /-!
 # Axiom audit
 
-The Regula audit of the claimed modules admits only dependencies on `propext`,
-`Classical.choice` and `Quot.sound`, for every declaration, and refuses a
-project-owned axiom and a native proof. Source admission refuses the words. The
-guards below pin the exact dependency sets of selected named theorems.
+A pass of the Regula audit, Regula's proof verdict on the claimed modules, means that no
+declaration of them depends on an axiom other than `propext`, `Classical.choice` and
+`Quot.sound`, on a project-owned axiom or on a native proof, for a project that places no file
+or code aimed at Regula's checker or Lean's toolchain: an assumption that Acorn makes of itself
+(`docs/verification.md`, "Regula audit"). Source admission refuses the words. The guards below
+pin the exact dependency sets of selected named theorems.
 
 The guards live in this tool module, outside the modules the Regula audit claims, with the
 other tools. Verification builds every discovered module, this one included, so a changed

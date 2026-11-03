@@ -48,7 +48,6 @@ def executables : Array (String × Name) := #[
   ("native-audit", `AcornTools.Native.Audit),
   ("ownership-audit", `AcornTools.OwnershipAudit),
   ("corpus-audit", `AcornTools.Corpus.Main),
-  ("kernel-replay", `AcornTools.KernelReplay),
   ("acorn-gates", `AcornTools.Gate)
 ]
 
@@ -738,8 +737,6 @@ def entryUses : Array (Name × Array Name) := #[
   (`AcornTools.Native.Audit, #[`AcornNativeAudit.audit]),
   (`AcornTools.OwnershipAudit, #[`AcornOwnershipAudit.compiled]),
   (`AcornTools.Corpus.Main, #[`AcornCorpus.check]),
-  (`AcornTools.KernelReplay,
-    #[`AcornKernelReplay.load, `AcornKernelReplay.audit, `AcornKernelReplay.replay]),
   (`AcornTools.Gate, #[`AcornGate.verify])
 ]
 

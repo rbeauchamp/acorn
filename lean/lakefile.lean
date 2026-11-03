@@ -59,11 +59,10 @@ def nativeDigest (path : System.FilePath) : IO String := do
 /-- The package. Its default targets are the libraries that hold every Acorn theorem and every
 definition those theorems are about, so they are the modules of Regula's claim: the modules
 of the root package's default targets and each root-package module their imports reach
-(Regula v0.12.0, `specification/README.md`, "The closed input"). The kernel replay
-(`kernel-replay`) and `lake lint` import those modules into one environment, so at most one of
-them can declare a top-level `main`: that one is `Bootstrap`'s, which `lean --run` interprets
-before anything is built, and every executable's `main` lies in a module of the `Entry`
-library, outside the claim. -/
+(Regula v0.13.0, README, "The checks"). `lake lint` imports those modules into one environment,
+so at most one of them can declare a top-level `main`: that one is `Bootstrap`'s, which
+`lean --run` interprets before anything is built, and every executable's `main` lies in a module
+of the `Entry` library, outside the claim. -/
 package acorn where
   version := v!"0.1.0"
   -- Lake runs one compiler process per processor, and by default each process starts one
@@ -77,8 +76,8 @@ package acorn where
     ⟨`warningAsError, true⟩,
     ⟨`linter.missingDocs, true⟩,
     -- `debug.skipKernelTC` stays at its default, false, so the kernel typechecks every proof
-    -- term the build adds, and the Regula audit's kernel replay (`kernel-replay`) replays each
-    -- proof of the claimed modules in Lean's kernel in any case.
+    -- term the build adds, and the Regula audit's `lake lint` replays the cone of the claim in
+    -- Lean's kernel in any case.
     ⟨`linter.unusedVariables, true⟩,
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
@@ -92,11 +91,9 @@ package acorn where
     ⟨`weak.linter.hashCommand, false⟩,
     ⟨`weak.linter.style.longFile, .ofNat 0⟩,
   ]
-  -- The Regula audit (`scripts/regula.sh`) runs, on one build, `lake build --wfail`, the kernel
-  -- replay `kernel-replay` in the place of `lake check --inadvisably-no-sandbox`, which does not
-  -- fit the gate's machines, and `lake lint`. So it obtains Regula's rules under this profile and
-  -- that replay, not Regula v0.12.0's proof verdict as the release defines it. The one profile
-  -- covers the whole claim: `standard-logical` admits `propext`, `Quot.sound` and
+  -- The Regula audit (`scripts/regula.sh`) runs Regula v0.13.0's two commands of its proof
+  -- verdict on one build, `lake build --wfail` and then `lake lint`, which reads this profile.
+  -- The one profile covers the whole claim: `standard-logical` admits `propext`, `Quot.sound` and
   -- `Classical.choice`, and the binary32 and binary64 operations of Lean's core float model,
   -- which the executing library uses, depend on `Classical.choice`.
   lintDriver := "regula/lint"
@@ -292,10 +289,9 @@ audit admits, with the theorem that states what an admitted name is. -/
 lean_lib «AcornDocument» where
 
 /-- The executables' roots. Each module declares the top-level `main` of one executable,
-which applies the entry function of a claimed module and holds nothing else. The kernel
-replay (`kernel-replay`) and `lake lint` import the claimed modules into one environment, where
-Lean refuses two declarations of `main`, so these roots are no default target and no claimed
-module imports one. -/
+which applies the entry function of a claimed module and holds nothing else. `lake lint`
+imports the claimed modules into one environment, where Lean refuses two declarations of
+`main`, so these roots are no default target and no claimed module imports one. -/
 lean_lib «Entry» where
   globs := #[.andSubmodules `Entry]
   moreLeancArgs := nativeFloatFlags
@@ -316,12 +312,6 @@ lean_exe «acorn-gates» where
 /-- Source-only maintained-corpus admission. -/
 lean_exe «corpus-audit» where
   root := `AcornTools.Corpus.Main
-  supportInterpreter := true
-
-/-- The kernel replay of the Regula audit (`scripts/regula.sh`): the claim that Regula reads,
-replayed with every constant it depends on in Lean's kernel. -/
-lean_exe «kernel-replay» where
-  root := `AcornTools.KernelReplay
   supportInterpreter := true
 
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
@@ -369,10 +359,10 @@ script acornTargets do
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.35.0"
 
-/-- Regula v0.12.0: the lint driver of the Regula audit (`lake lint`), and the library
+/-- Regula v0.13.0: the lint driver of the Regula audit (`lake lint`), and the library
 `RegulaContract`, whose contract and registration types the two decision registries import. -/
 require regula from git
-  "https://github.com/rbeauchamp/regula" @ "v0.12.0"
+  "https://github.com/rbeauchamp/regula" @ "v0.13.0"
 
 /-- Real-valued rounding theory about Lean core's float model. Only the proof
 library's bridge module imports it; no executable library does. -/

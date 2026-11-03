@@ -89,9 +89,10 @@ mathematical identities and conditional algorithm contracts supporting the
 current mechanisms. Each theorem states its domain and hypotheses; mathematical
 identities establish execution properties only through their checked linkage.
 
-The Regula audit of the claimed modules checks the axioms of every
-declaration. The only admitted axiom dependencies are propext, Classical.choice
-and Quot.sound. Native compiler/runtime, reviewed tooling and OS boundaries
-remain explicit. No theorem count, source digest or successful build establishes
-useful learning.
+The Regula audit, Regula's proof verdict on the claimed modules, checks the axioms of
+every declaration, and the only admitted axiom dependencies are propext,
+Classical.choice and Quot.sound. A pass means that for a project that places no file
+or code aimed at Regula's checker or Lean's toolchain, which Acorn assumes of itself.
+Native compiler/runtime, reviewed tooling and OS boundaries remain explicit. No theorem
+count, source digest or successful build establishes useful learning.
 -/
