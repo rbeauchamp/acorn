@@ -24,8 +24,8 @@ type of its collection fixes.
 **What the bound covers.** The theorems bound the accounting of the first part's twin, which
 counts each loop as the passes of its runtime implementation, with one visit for each pass's
 end. None of them is a bound of the executed first part's work: reading them as one rests on a
-trust assumption and correspondences that no theorem checks, which a later increment of
-requirement R8 (rbeauchamp/acorn#90) owes. The trust assumption is that the compiler erases a
+trust assumption and correspondences that no theorem checks, part of obligation 7 of
+`docs/mission-contract.md`. The trust assumption is that the compiler erases a
 costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
 The learner's, the learner record's, the policy's, the controllers' costed parts (those
 `Acorn.Cost` names), the encoding's and the option models' input, ranked features,
@@ -165,8 +165,8 @@ derived rate and the updates `Acorn.Cost` names), of the frozen policy and of it
 exploration, of the encoding of a frame and of an option model's input, ranked features, prediction
 and updates, a trust assumption, on the cost discipline of the same costed definitions, checked by
 reading, and on the twins' correspondence with the executed selection, the controllers' initial
-value and reset among them, observed in one build by a one-time inventory of its compiled calls; a
-later increment of requirement R8 owes it. -/
+value and reset among them, observed in one build by a one-time inventory of its compiled calls;
+this linkage is part of obligation 7 of `docs/mission-contract.md`. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -187,8 +187,8 @@ of the controllers (their predictions, clear, release, snapshot, derived rate an
 of a frame and of an option model's input, ranked features, prediction and updates, a trust
 assumption, the cost discipline of the same costed definitions, checked by reading, and the twins'
 correspondence with the executed selection, the controllers' initial value and reset among them,
-observed in one build by a one-time inventory of its compiled calls; a later increment of
-requirement R8 owes it. -/
+observed in one build by a one-time inventory of its compiled calls; this linkage is part of
+obligation 7 of `docs/mission-contract.md`. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

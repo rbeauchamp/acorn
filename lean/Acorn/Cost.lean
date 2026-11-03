@@ -45,8 +45,8 @@ segment at a charge point of that site, so `κ site` must cover the largest segm
 `SiteBounds words κ` (`AcornVerif.Resource.Twin.SiteBounds`) states only `words site ≤ κ site` for
 every site, a relation between two cost models, and a bound in word operations bounds the
 accounting charged at `words` under it; it is not a bound of executed work. That `words` counts the
-segments of the executed code, so that such a bound bounds the executed work, is a correspondence a
-later increment of requirement R8 (rbeauchamp/acorn#90) owes. A `visit` segment of the SwiftTD loops
+segments of the executed code, so that such a bound bounds the executed work, is a correspondence
+covered by obligation 7 of `docs/mission-contract.md`. A `visit` segment of the SwiftTD loops
 (`learnFirstLoopGoCosted`, `learnSecondLoopGoCosted`, `planWeightsGoCosted`) can include the work of
 a whole element and, in the first loop, a prune, and the first visits of the second and planning
 loops can include operations their opens name, so `κ visit` must cover the largest visit segment.
@@ -74,16 +74,17 @@ with an extracted cost.
 The second part runs stretches outside the costed definitions. In the second part's trace the
 operations of those stretches belong to the segment of the next costed charge point, or of the
 part's last one, so the second part's segments are not yet bounded by constants of the code and its
-bound is an open obligation of R8. `DemonRecords.observe` is one such stretch: a loop over the
-channels of the demons' lifetime records, whose trip count depends on the configuration, with no
-charge point. The following of the option table (`TemporalControl.followOptions`) is another:
+bound is part of obligation 7 of `docs/mission-contract.md`. `DemonRecords.observe` is one such
+stretch: a loop over the channels of the demons' lifetime records, whose trip count depends on the
+configuration, with no charge point. The following of the option table (`TemporalControl.followOptions`)
+is another:
 before it maps each slot's costed share (`followSlotCosted`), it computes the stopping estimate, the
 options' rate and the value function, which read the controllers' rates (`Controller.exploreRate`)
 and the stopping comparison (`comparisonValue`), values of costed definitions, with no charge point.
 The bound of a slot's share takes those three as computed and does not count their computation;
-costing the table's following with them is owed by the next increment of R8. That is why the claim
-above that every segment is bounded by a constant of the code is limited to the first part and to
-each costed definition's own call.
+costing the table's following with them is part of obligation 7 of `docs/mission-contract.md`.
+That is why the claim above that every segment is bounded by a constant of the code is limited to
+the first part and to each costed definition's own call.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
