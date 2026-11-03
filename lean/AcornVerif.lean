@@ -91,7 +91,7 @@ identities establish execution properties only through their checked linkage.
 
 The Regula audit, Regula's proof verdict on the claimed modules, checks the axioms of
 every declaration, and the only admitted axiom dependencies are propext,
-Classical.choice and Quot.sound. A pass means that for a project that places no file
+Classical.choice and Quot.sound. A pass means this for a project that places no file
 or code aimed at Regula's checker or Lean's toolchain, which Acorn assumes of itself.
 Native compiler/runtime, reviewed tooling and OS boundaries remain explicit. No theorem
 count, source digest or successful build establishes useful learning.
