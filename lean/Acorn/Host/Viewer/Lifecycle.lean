@@ -152,6 +152,11 @@ theorem Lifecycle.exhausted_stopped (state : Lifecycle) (exhausted : state.exhau
 /-- Read-only consecutive-failure count for control telemetry. -/
 def Lifecycle.failureCount (state : Lifecycle) : Nat := state.retry.count
 
+/-- Exhaustion is exactly a failure count of three, for every lifecycle value. -/
+theorem Lifecycle.exhausted_iff (state : Lifecycle) :
+    state.exhausted = true ↔ state.failureCount = 3 := by
+  simp [exhausted, failureCount, Retry.exhausted, Retry.count, failureLimit]
+
 /-- Clear's retained post-archive intent is visible only after process retirement. -/
 def Lifecycle.archiveIntent (state : Lifecycle) : Option Desired :=
   if state.phase == .idle then state.clearPending else none

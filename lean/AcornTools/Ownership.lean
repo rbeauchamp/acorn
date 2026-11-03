@@ -661,6 +661,8 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Viewer.Lifecycle.archived),
   (`Acorn.Host.Viewer.Lifecycle, `Acorn.Host.Viewer.Lifecycle.exhausted_stopped,
     `Acorn.Host.Viewer.Lifecycle.exhausted),
+  (`Acorn.Host.Viewer.ControlTelemetry, `Acorn.Host.Viewer.controlTelemetry_reasons,
+    `Acorn.Host.Viewer.controlTelemetry),
   (`Acorn.Host.Viewer.Supervision, `Acorn.Host.Viewer.PersistedState.launch_identity,
     `Acorn.Host.Viewer.PersistedState.launch),
   (`Acorn.Host.Viewer.Supervision, `Acorn.Host.Viewer.Ran.invariant, `Acorn.Host.Viewer.Ran),

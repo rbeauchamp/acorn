@@ -95,6 +95,12 @@ def controlDiagnostic (text : String) : String :=
   let retained := text.toList.take 1024
   String.ofList retained ++ if text.length > 1024 then " [truncated]" else ""
 
+/-- Explain the exhausted restart budget for every failure route at publication. Keep the
+capped cause and append the explanation afterwards, so truncation cannot hide exhaustion. -/
+def controlReason (lifecycle : Lifecycle) (detail : ControlDetail) : String :=
+  controlDiagnostic detail.reason ++ if lifecycle.exhausted then
+    s!" — gave up after {failureLimit} failed starts in a row" else ""
+
 /-- Only the six newest retained, valid UTF-8 stderr lines enter a stopped
 control frame. Invalid encoding is explicitly represented as a refusal. -/
 def controlTail (lifecycle : Lifecycle) (detail : ControlDetail) : List String :=
@@ -126,18 +132,34 @@ def controlTelemetry (lifecycle : Lifecycle) (observed : ControlObservation)
   [⟨"ctl", .flag, true⟩,
    ⟨"desired", .text, lifecycle.desiredValue.tag⟩,
    ⟨"actual", .text, lifecycle.phaseValue.controlTag⟩,
-   ⟨"reason", .text, if lifecycle.phaseValue == .idle then controlDiagnostic detail.reason else ""⟩,
+   ⟨"reason", .text, if lifecycle.phaseValue == .idle then controlReason lifecycle detail else ""⟩,
    ⟨"seed", .natural, lifecycle.identityValue.seed.toNat⟩,
    ⟨"runId", .text, runHex lifecycle.identityValue.run⟩,
    ⟨"agentEpoch", .natural, lifecycle.identityValue.agentEpoch.toNat⟩,
    ⟨"transition", .text, detail.transition.tag⟩,
-   ⟨"transitionReason", .text, controlDiagnostic detail.reason⟩,
+   ⟨"transitionReason", .text, controlReason lifecycle detail⟩,
    ⟨"failures", .natural, lifecycle.failureCount⟩,
    ⟨"clearDisabled", .optional .text, detail.clearDisabled.map controlDiagnostic⟩,
    ⟨"checkpointRefused", .flag, observed.checkpointRefused⟩,
    ⟨"terminalWarning", .optional .text, controlWarning lifecycle detail⟩,
    ⟨"mapPartial", .flag, observed.mapPartial⟩,
    ⟨"tail", .array tail.size .text, tail⟩]
+
+/-- **Every published reason explains exhausted retries without losing the capped cause.**
+For every lifecycle, observation and detail, the fields consumed by the control encoder append
+the UX-24 sentence exactly at three failures. The stopped reason remains idle-only; the
+transition reason is always present. This covers exits and spawn refusals through their shared
+publication boundary, without assuming the text or length of their cause. -/
+theorem controlTelemetry_reasons (lifecycle : Lifecycle) (observed : ControlObservation)
+    (detail : ControlDetail) :
+    let reason := controlDiagnostic detail.reason ++ if lifecycle.failureCount = 3 then
+      " — gave up after 3 failed starts in a row" else ""
+    (controlTelemetry lifecycle observed detail)[3]? =
+      some ⟨"reason", .text, if lifecycle.phaseValue = .idle then reason else ""⟩ ∧
+    (controlTelemetry lifecycle observed detail)[8]? =
+      some ⟨"transitionReason", .text, reason⟩ := by
+  simp [controlTelemetry, controlReason, Lifecycle.exhausted_iff, Phase.beq_idle, failureLimit]
+  constructor <;> rfl
 
 /-- Native control emission refuses an oversized complete record before retention. -/
 def controlTelemetryLine (lifecycle : Lifecycle) (observed : ControlObservation)
