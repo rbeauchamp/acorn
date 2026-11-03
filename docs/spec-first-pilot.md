@@ -17,6 +17,7 @@ The decision has three parts:
 The reason: a specification that misses the owner's intent is a bug, and this pilot showed that the owner's attention belongs at a system's contracts, not at internal functions an agent invented.
 [#178](https://github.com/rbeauchamp/acorn/issues/178) tracks the adoption, with one sub-issue for each contract.
 
+On the same day the owner confirmed plain restatements of the three contracts and of the mission's postcondition, what achieving goals promises, which became a fourth contract the owner confirms; the [mission contract](mission-contract.md#the-owners-confirmation-of-2026-11-03) records the confirmation, and the postcondition is carried through intent-first in the same way ([#219](https://github.com/rbeauchamp/acorn/issues/219)).
 ## What the pilot found first: where the owner's intent lives
 
 Asked in plain words what `World.dayPhase` is for, the owner did not know: an agent had added it, and the owner could only guess that it was meant to give the world days and nights.
@@ -47,11 +48,11 @@ The owner's time is an estimate by the assistant supervising the work, from the 
 Acorn's purpose, from its README, is agents that learn from experience to achieve goals in big worlds, learning one observation at a time from one continuous stream, with the algorithms developed and verified in Lean.
 Owner-level intent records belong at the contracts that purpose names, where the owner holds intent and an implementation can change beneath them:
 
-1. **The agent's interface with a world.** What the agent receives each step (an observation, and a reward or task signal) and what it returns (an action), with no other channel: the agent cannot read a world's internals, and a host or the viewer cannot alter its learning decisions. This is the contract every world, the tile world, ARC-AGI-3 games and [Microduck](https://github.com/pollen-robotics/microduck) alike, must meet, and the one the owner's chosen worlds exercise.
-2. **What a big world must satisfy.** The class of worlds the agent must handle, stated by properties rather than by one world (the work of #69, with ARC-AGI-3 in #71 and Microduck in #173): for example that a world's state is larger than any bounded agent can represent, that it keeps changing, and that goals are reachable but not given.
+1. **The agent's interface with a world.** What the agent receives each step (an observation, which carries any further signal such as a task signal, and a scalar reward) and what it returns (an action), with no other channel: the agent cannot read a world's internals, and a host or the viewer cannot alter its learning decisions. This is the contract every world, the tile world, ARC-AGI-3 games and [Microduck](https://github.com/pollen-robotics/microduck) alike, must meet, and the one the owner's chosen worlds exercise.
+2. **What a big world must satisfy.** The class of worlds the agent must handle, stated by properties rather than by one world (the work of #69, with ARC-AGI-3 in #71 and Microduck in #173): for example that a world's state is larger than any bounded agent can represent and that goals are reachable but not given. A big world need not change by itself, as the confirmed restatement of this contract states.
 3. **The invariants of learning from one stream of experience.** Each step does bounded work and holds bounded memory; nothing is replayed, reset or trained offline; every learned quantity changes only through the stream; and a stopped and resumed run continues exactly as the uninterrupted run would (the checkpoint contract).
 
-These three are the system's preconditions, postconditions and invariants in the owner's sense.
+These three are the system's preconditions and invariants in the owner's sense; its postcondition, what achieving goals promises, is the fourth contract the owner confirmed on 2026-11-03.
 Day and night, terrain noise and feature hashing sit below them: the agents choose them to meet these contracts, and their records, like the two here, are the agents' design.
 
 ## The records and their adequacy
