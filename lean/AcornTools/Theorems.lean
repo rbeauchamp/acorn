@@ -20,7 +20,7 @@ The inventory includes compiler-generated auxiliary theorem declarations and
 private theorems. Counts report this complete scope of compiled declarations.
 The axioms of each declaration, project axioms, and `unsafe` and `partial`
 declarations are checked by the Regula audit of the claimed modules, not here.
-The replacement refusal stays: Regula's proof verdict reads no replacement or extern.
+The replacement refusal stays: the Regula audit reads no replacement or extern.
 -/
 
 namespace AcornTheoremCount

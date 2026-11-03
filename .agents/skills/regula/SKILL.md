@@ -1,31 +1,33 @@
 ---
 name: regula
-description: Regula v0.12.0, the audit whose proof verdict Acorn's merge gate requires. Use before writing or changing Lean definitions, theorems, proofs or lean/lakefile.lean, and when `lake lint` reports an RG rule ID or a verdict other than pass.
+description: Regula v0.12.0 and the Regula audit of Acorn's merge gate, which runs Regula's rules and Acorn's kernel replay. Use before writing or changing Lean definitions, theorems, proofs or lean/lakefile.lean, and when `lake lint` reports an RG rule ID or a verdict other than pass, or the kernel replay refuses.
 ---
 
 # Regula in Acorn
 
-[Regula](https://github.com/rbeauchamp/regula) v0.12.0 gives Acorn its proof verdict. Its README and `specification/README.md` at the tag `v0.12.0` are its documentation; this skill states how Acorn uses it.
+[Regula](https://github.com/rbeauchamp/regula) v0.12.0 is the audit of Lean builds that Acorn's merge gate runs. Its README and `specification/README.md` at the tag `v0.12.0` are its documentation; this skill states how Acorn uses it.
 
-## The proof verdict
+## The Regula audit
 
-The merge gate runs `./scripts/regula.sh`. Regula's release names three commands for the verdict, run in order on one build from the package's directory with no option of Lake's: `lake build --wfail`, `lake check --inadvisably-no-sandbox` and `lake lint`. The script runs them in `lean/`, with the package's script `kernelReplay` (`lean/lakefile.lean`) in the place of the second:
+The merge gate runs `./scripts/regula.sh`. Regula's release names three commands for its proof verdict, run in order on one build from the package's directory with no option of Lake's: `lake build --wfail`, `lake check --inadvisably-no-sandbox` and `lake lint`. `lake check` replays the whole imported environment, Mathlib's included (496,347 constants here), from an export it holds in memory, and on Acorn's claim it does not fit a 24 GiB machine. So the script runs, in `lean/`:
 
 ```sh
 lake build --wfail
-lake script run kernelReplay
+lake exe kernel-replay
 lake lint
 ```
 
-`lake build --wfail` fails on any warning, `sorry` among them. `kernelReplay` replays every constant of every claimed module, with every constant it depends on, in Lean's kernel from an empty environment, compares the quotient constants with the kernel's, and refuses an axiom outside `propext`, `Quot.sound` and `Classical.choice`, by Lake's own `usedAxioms`. `lake check` would replay the whole imported environment, Mathlib's included (about 496,000 constants), from an export it holds in memory, and on Acorn's claim it does not fit a 24 GiB machine; the replay leaves out only the constants that no claimed constant depends on (it checks about 87,000) and takes under 2 minutes and 4 GiB. `lake lint` runs Regula's rules. It exits 0 for `pass`, 1 for `fail` and 2 for `incomplete` (RG2001), and its last line names the verdict: a pass reads `regula: proof verdict: pass, which says nothing about what ran during the build, on <directory>`. The script passes only on exit 0 with that line naming `lean/`.
+and obtains Regula's rules under the profile and Acorn's kernel replay, not Regula v0.12.0's proof verdict as the release defines it. The departure is interim: when a Regula release makes its proof verdict obtainable for a project that imports Mathlib, the gate returns to Regula's own commands. `docs/verification.md` (section "Regula audit") states it for the documents.
 
-A pass means that the proofs of the claimed modules are sound and use only axioms that the profile admits. It says nothing about what a compiled program runs, and nothing about whether a theorem states what was meant: review still reads each statement.
+`lake build --wfail` fails on any warning, `sorry` among them. `kernel-replay` (`lean/AcornTools/KernelReplay.lean`) reads the build with Regula's own code, as `lake lint` reads it, and replays every constant Regula's rules read as claimed, with every constant it depends on, in Lean's kernel from an empty environment (about 87,000 constants, under 2 minutes); it compares the quotient constants with the kernel's and refuses an axiom outside `propext`, `Quot.sound` and `Classical.choice`, by Lake's own `usedAxioms`. It prints Regula's line of what it read, and the script fails unless `lake lint` prints the same line. `lake lint` runs Regula's rules. It exits 0 for `pass`, 1 for `fail` and 2 for `incomplete` (RG2001), and its last line names the verdict: a pass reads `regula: proof verdict: pass, which says nothing about what ran during the build, on <directory>`. The script passes only when the replay accepts, the two lines agree, and `lake lint` exits 0 with that line naming `lean/`.
+
+A pass of the audit means that Lean's kernel accepts the proofs of the claimed modules and that they use only axioms that the profile admits. It says nothing about what a compiled program runs, and nothing about whether a theorem states what was meant: review still reads each statement.
 
 ## The claim and the profile
 
 The claimed modules are the modules of the default targets of `lean/lakefile.lean` and every module of the package that their imports reach: the libraries `Acorn`, `AcornVerif`, `NativeApp`, `Bootstrap` and `AcornDocument`. Every Acorn theorem lives in one of them, and so does every definition such a theorem is about. A new source below `lean/Acorn`, `lean/AcornVerif` or `lean/NativeApp` is claimed by its library's glob.
 
-`kernelReplay` and `lake lint` import the claimed modules into one environment, so only one of them can declare a top-level `main`: `Bootstrap`'s, which `lean --run` interprets. Each executable's root is a module of the library `Entry`, outside the claim, whose `main` applies the entry function of a claimed module (such as `Acorn.SwiftTdDriver.main`). Put an executable's logic in the claimed module and keep its `Entry` root to that one application. Tool code under `lean/AcornTools` and the documentation site are outside the claim, so neither holds a theorem.
+`kernel-replay` and `lake lint` import the claimed modules into one environment, so only one of them can declare a top-level `main`: `Bootstrap`'s, which `lean --run` interprets. Each executable's root is a module of the library `Entry`, outside the claim, whose `main` applies the entry function of a claimed module (such as `Acorn.SwiftTdDriver.main`). Put an executable's logic in the claimed module and keep its `Entry` root to that one application. Tool code under `lean/AcornTools` and the documentation site are outside the claim, so neither holds a theorem.
 
 The profile is `standard-logical`, the one argument in `lintDriverArgs`: `propext`, `Quot.sound` and `Classical.choice`. Lean core's binary32 and binary64 operations, which the executing library uses, depend on `Classical.choice`.
 

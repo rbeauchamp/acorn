@@ -10,11 +10,11 @@ import Init
 The executable inventory is compared with Lake's evaluated configuration and
 compiled module owners. A module of the libraries `Acorn`, `AcornVerif`, `NativeApp`,
 `AcornDocument` and `Entry` has no entry here: Lake's glob assigns each source below a
-library root to that library, and Regula's proof verdict claims every module of the first
+library root to that library, and the Regula audit claims every module of the first
 four, the default targets. Each other source is a tool listed in `AcornTools.ModuleInventory` or a
 module of the documentation site listed below. This routing information does not
 assert semantic completeness. Runtime sources receive source/compiled boundary
-admission; Regula's proof verdict checks the axioms of every claimed declaration.
+admission; the Regula audit checks the axioms of every claimed declaration.
 Tooling is the explicit trust boundary listed in `AcornTools.ModuleInventory`,
 never an application escape hatch.
 -/
@@ -48,6 +48,7 @@ def executables : Array (String × Name) := #[
   ("native-audit", `AcornTools.Native.Audit),
   ("ownership-audit", `AcornTools.OwnershipAudit),
   ("corpus-audit", `AcornTools.Corpus.Main),
+  ("kernel-replay", `AcornTools.KernelReplay),
   ("acorn-gates", `AcornTools.Gate)
 ]
 
@@ -737,6 +738,7 @@ def entryUses : Array (Name × Array Name) := #[
   (`AcornTools.Native.Audit, #[`AcornNativeAudit.audit]),
   (`AcornTools.OwnershipAudit, #[`AcornOwnershipAudit.compiled]),
   (`AcornTools.Corpus.Main, #[`AcornCorpus.check]),
+  (`AcornTools.KernelReplay, #[`AcornKernelReplay.load, `AcornKernelReplay.replay]),
   (`AcornTools.Gate, #[`AcornGate.verify])
 ]
 

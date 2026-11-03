@@ -3,9 +3,6 @@ Copyright (c) 2026 acorn contributors.
 Released under the MIT license as described in the repository LICENSE.
 -/
 import Lake
-import Lake.Check.Axioms
-import Lean.Replay
-import Lean.Util.FoldConsts
 open Lake DSL
 
 /-- Strict operation settings shared by the executing library and native application. -/
@@ -63,7 +60,7 @@ def nativeDigest (path : System.FilePath) : IO String := do
 definition those theorems are about, so they are the modules of Regula's claim: the modules
 of the root package's default targets and each root-package module their imports reach
 (Regula v0.12.0, `specification/README.md`, "The closed input"). The kernel replay
-(`kernelReplay`) and `lake lint` import those modules into one environment, so at most one of
+(`kernel-replay`) and `lake lint` import those modules into one environment, so at most one of
 them can declare a top-level `main`: that one is `Bootstrap`'s, which `lean --run` interprets
 before anything is built, and every executable's `main` lies in a module of the `Entry`
 library, outside the claim. -/
@@ -80,8 +77,8 @@ package acorn where
     ⟨`warningAsError, true⟩,
     ⟨`linter.missingDocs, true⟩,
     -- `debug.skipKernelTC` stays at its default, false, so the kernel typechecks every proof
-    -- term the build adds, and the kernel replay of the proof verdict (`kernelReplay`)
-    -- replays each proof of the claimed modules in Lean's kernel in any case.
+    -- term the build adds, and the Regula audit's kernel replay (`kernel-replay`) replays each
+    -- proof of the claimed modules in Lean's kernel in any case.
     ⟨`linter.unusedVariables, true⟩,
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
@@ -95,12 +92,13 @@ package acorn where
     ⟨`weak.linter.hashCommand, false⟩,
     ⟨`weak.linter.style.longFile, .ofNat 0⟩,
   ]
-  -- Regula's proof verdict on one build (`scripts/regula.sh`): `lake build --wfail`, the
-  -- kernel replay `kernelReplay` in the place of `lake check --inadvisably-no-sandbox`, and
-  -- `lake lint`. The one profile covers the whole
-  -- claim: `standard-logical` admits `propext`, `Quot.sound` and `Classical.choice`, and the
-  -- binary32 and binary64 operations of Lean's core float model, which the executing library
-  -- uses, depend on `Classical.choice`.
+  -- The Regula audit (`scripts/regula.sh`) runs, on one build, `lake build --wfail`, the kernel
+  -- replay `kernel-replay` in the place of `lake check --inadvisably-no-sandbox`, which does not
+  -- fit the gate's machines, and `lake lint`. So it obtains Regula's rules under this profile and
+  -- that replay, not Regula v0.12.0's proof verdict as the release defines it. The one profile
+  -- covers the whole claim: `standard-logical` admits `propext`, `Quot.sound` and
+  -- `Classical.choice`, and the binary32 and binary64 operations of Lean's core float model,
+  -- which the executing library uses, depend on `Classical.choice`.
   lintDriver := "regula/lint"
   lintDriverArgs := #["standard-logical"]
 
@@ -295,7 +293,7 @@ lean_lib «AcornDocument» where
 
 /-- The executables' roots. Each module declares the top-level `main` of one executable,
 which applies the entry function of a claimed module and holds nothing else. The kernel
-replay (`kernelReplay`) and `lake lint` import the claimed modules into one environment, where
+replay (`kernel-replay`) and `lake lint` import the claimed modules into one environment, where
 Lean refuses two declarations of `main`, so these roots are no default target and no claimed
 module imports one. -/
 lean_lib «Entry» where
@@ -318,6 +316,12 @@ lean_exe «acorn-gates» where
 /-- Source-only maintained-corpus admission. -/
 lean_exe «corpus-audit» where
   root := `AcornTools.Corpus.Main
+  supportInterpreter := true
+
+/-- The kernel replay of the Regula audit (`scripts/regula.sh`): the claim that Regula reads,
+replayed with every constant it depends on in Lean's kernel. -/
+lean_exe «kernel-replay» where
+  root := `AcornTools.KernelReplay
   supportInterpreter := true
 
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
@@ -362,165 +366,11 @@ script acornTargets do
   IO.println (Lean.toJson entries).compress
   return 0
 
-/-- The constants that Lean's kernel names by itself, so a replay holds them beside what the
-claim needs: the list `lake comparator` roots for that reason (`primitiveTargets` and
-`builtinTargets`, `Lake/CLI/Check.lean` of Lean v4.35.0), and the three axioms `lake check`
-admits. -/
-def kernelRoots : Array Lean.Name := #[`Nat.add, `Nat.sub, `Nat.mul, `Nat.pow, `Nat.gcd,
-  `Nat.div, `Nat.mod, `Nat.beq, `Nat.ble, `Nat.land, `Nat.lor, `Nat.xor, `Nat.shiftLeft,
-  `Nat.shiftRight, `String.ofList, `Char.ofNat, `List, `eagerReduce, `Nat, `String,
-  `String.mk, `Char, `optParam, `autoParam, `semiOutParam, `outParam, `Quot, `propext,
-  `Classical.choice, `Quot.sound]
-
-/-- The axioms `lake check` admits (`standardAxioms`, `Lake/CLI/Check.lean` of Lean v4.35.0). -/
-def admittedAxioms : Array Lean.Name := #[`propext, `Classical.choice, `Quot.sound]
-
-/-- The quotient constants the kernel adds itself when it adds `Quot`. The replay leaves them to
-it and then compares them with the build's, as `leanchecker --from-export` does
-(`LeanChecker.lean:68-90` of Lean v4.35.0). -/
-def quotientParts : Array Lean.Name := #[`Quot.mk, `Quot.lift, `Quot.ind]
-
-/-- What the kernel adds together with `n`: an inductive type with the other types of its block
-and all their constructors, or `n` alone. -/
-def replayUnit (map : Std.HashMap Lean.Name Lean.ConstantInfo) (n : Lean.Name) :
-    Array Lean.Name := Id.run do
-  let head := match map[n]? with
-    | some (.ctorInfo v) => some v.induct
-    | some (.inductInfo v) => some v.name
-    | _ => none
-  let some ind := head | return #[n]
-  let some (.inductInfo v) := map[ind]? | return #[n]
-  let mut out := #[]
-  for t in v.all do
-    out := out.push t
-    if let some (.inductInfo w) := map[t]? then out := out ++ w.ctors.toArray
-  return out
-
-/-- What the kernel needs before `ci`: every constant its type or value names, and for an
-inductive type, a constructor or a recursor, the types and constructors of its block, and
-for `Quot`, `Eq`. A name
-missing from the replayed environment makes the kernel refuse, never accept. -/
-def replayNeeds (ci : Lean.ConstantInfo) : Array Lean.Name := Id.run do
-  let mut out := ci.getUsedConstantsAsSet.foldl (·.push ·) #[]
-  match ci with
-  | .inductInfo v => out := out ++ v.ctors.toArray ++ v.all.toArray
-  | .ctorInfo v => out := out.push v.induct
-  | .recInfo v => out := out ++ v.all.toArray ++ (v.rules.map (·.ctor)).toArray
-  -- `Quot.lift` and `Quot.ind` state `Eq`, which the kernel needs before `Quot`
-  -- (`Lean/Replay.lean`).
-  | .quotInfo _ => out := out.push `Eq
-  | _ => pure ()
-  return out
-
-/-- The kernel replay of Acorn's proof verdict (`scripts/regula.sh`). Every constant of every
-claimed module, with every constant it depends on, is replayed in Lean's kernel from an empty
-environment by `Lean.Kernel.Environment.replay`.
-
-A module is claimed as Regula v0.12.0 claims it: the modules of the root package's default
-targets (Lake's `defaultModules` facet, which `lake check` exports) and every module their
-imports reach whose `.olean` lies in the root package's library directory, each with the
-constants its own module data lists. Every constant they name is replayed before them, so no
-claimed constant is checked against one the kernel did not check. After the replay the quotient
-constants are compared with the kernel's, and every axiom a replayed constant names must be one
-of the three `lake check` admits, by Lake's own `usedAxioms`.
-
-`lake check` replays every constant of the whole imported environment, Mathlib's included, from
-an export it parses into memory; on Acorn's claim that check does not fit this machine. This
-replay reads the build's `.olean` files in Lake's process and leaves out only the constants that
-no claimed constant depends on, which no kernel check of a claimed constant reads. It leaves out
-an unsafe or partial claimed constant, as `lake check` does: its export skips an unsafe constant
-(`LeanExport/Basic.lean:255`) and Lean's replay skips both (`Lean/Replay.lean:183-185`). Regula's
-RG1006 refuses each such claimed constant except the helper that Lean gives a terminating
-recursive definition. -/
-script kernelReplay do
-  let ws ← getWorkspace
-  let defaults ← ws.runBuild ws.root.defaultModules.fetch
-  if defaults.isEmpty then
-    IO.eprintln "kernel replay: the root package's default targets name no module"
-    return 1
-  Lean.initSearchPath ws.lakeEnv.lean.sysroot ws.augmentedLeanPath
-  let env ← Lean.importModules (defaults.map fun m => { module := m.name }) {}
-  let header := env.header
-  let rootLib ← IO.FS.realPath ws.root.leanLibDir
-  let mut claimed : Lean.NameSet := {}
-  let mut seeds : Array Lean.Name := #[]
-  for h : i in [0:header.moduleNames.size] do
-    let olean ← IO.FS.realPath (← Lean.findOLean header.moduleNames[i])
-    if rootLib.components.isPrefixOf olean.components then
-      claimed := claimed.insert header.moduleNames[i]
-      let some data := header.moduleData[i]?
-        | IO.eprintln s!"kernel replay: no module data for {header.moduleNames[i]}"; return 1
-      seeds := seeds ++ data.constNames
-  for m in defaults do
-    unless claimed.contains m.name do
-      IO.eprintln s!"kernel replay: the default module {m.name} lies outside {rootLib}"
-      return 1
-  let constants := env.constants.map₁
-  let toReplay := quotientParts.foldl (init := constants) (·.erase ·)
-  let mut kept : Array Lean.Name := #[]
-  let mut unchecked := 0
-  for n in seeds do
-    let some ci := toReplay[n]?
-      | IO.eprintln s!"kernel replay: the environment holds no claimed constant {n}"; return 1
-    if ci.isUnsafe || ci.isPartial then unchecked := unchecked + 1 else kept := kept.push n
-  let claimedConstants := kept.size
-  seeds := kernelRoots ++ kept
-  let mut kenv := (← Lean.mkEmptyEnvironment).toKernelEnv
-  let mut done : Lean.NameSet := quotientParts.foldl (·.insert ·) {}
-  let mut expanding : Lean.NameSet := {}
-  let mut stack : Array (Lean.Name × Bool) := seeds.reverse.map (·, false)
-  let mut replayed := 0
-  while !stack.isEmpty do
-    let (n, ready) := stack.back!
-    stack := stack.pop
-    if done.contains n || (!ready && expanding.contains n) || !toReplay.contains n then continue
-    let unit := replayUnit toReplay n
-    if ready then
-      let mut batch : Std.HashMap Lean.Name Lean.ConstantInfo := {}
-      for x in unit do
-        if let some c := toReplay[x]? then batch := batch.insert x c
-      try
-        kenv ← kenv.replay batch
-      catch e =>
-        IO.eprintln s!"kernel replay: Lean's kernel refuses {n}:\n{e}"
-        return 1
-      done := unit.foldl (·.insert ·) done
-      replayed := replayed + batch.size
-    else
-      stack := stack.push (n, true)
-      expanding := unit.foldl (·.insert ·) expanding
-      for x in unit do
-        if let some c := toReplay[x]? then
-          for d in replayNeeds c do
-            unless done.contains d || unit.contains d do stack := stack.push (d, false)
-  for n in seeds do
-    unless done.contains n do
-      IO.eprintln s!"kernel replay: {n} was not replayed"
-      return 1
-  for q in #[`Quot] ++ quotientParts do
-    if let some info := constants[q]? then
-      unless kenv.find? q == some info do
-        IO.eprintln s!"kernel replay: the kernel's {q} differs from the build's"
-        return 1
-  let checked := constants.filter fun n _ => done.contains n
-  let used := Lake.Check.usedAxioms
-    { constMap := checked, constOrder := checked.toArray.map (·.1) }
-  let refused := used.filter fun (ax, _) => !admittedAxioms.contains ax
-  unless refused.isEmpty do
-    for (ax, ref) in refused do
-      IO.eprintln s!"kernel replay: the axiom {ax}, which {ref} uses, is not admitted"
-    return 1
-  IO.println s!"kernel replay: Lean's kernel accepts {replayed} constants from an empty \
-    environment, the {claimedConstants} constants of {claimed.size} claimed modules and every \
-    constant they depend on, leaving out {unchecked} unsafe or partial claimed constants; \
-    they use the axioms {used.toList.map (·.1)}"
-  return 0
-
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.35.0"
 
-/-- Regula v0.12.0: the lint driver of the proof verdict, and the library `RegulaContract`, whose
-contract and registration types the two decision registries import. -/
+/-- Regula v0.12.0: the lint driver of the Regula audit (`lake lint`), and the library
+`RegulaContract`, whose contract and registration types the two decision registries import. -/
 require regula from git
   "https://github.com/rbeauchamp/regula" @ "v0.12.0"
 

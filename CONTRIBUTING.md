@@ -20,8 +20,8 @@ is governed by the [Code of Conduct](CODE_OF_CONDUCT.md); use
 learned-only boundaries, prior-art admission, and delivery requirements. Follow
 its [review and delivery](AGENTS.md#review-and-delivery) section for checks,
 signed commits and independent review. The shipped skills under .agents/skills
-provide the review workflow, proof-specific questions and how Regula's proof
-verdict applies to writing Lean.
+provide the review workflow, proof-specific questions and how the
+[Regula audit](docs/verification.md#regula-audit) applies to writing Lean.
 
 Claude Code reads AGENTS.md by itself only when no CLAUDE.md or CLAUDE.local.md
 applies to the checkout, including a CLAUDE.md in a parent directory. If one

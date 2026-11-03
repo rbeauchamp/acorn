@@ -12,7 +12,7 @@ open Lean
 /-- Reviewed verification/bootstrap modules are explicit trust boundaries. New
 root tools do not acquire an exemption merely by living outside `Acorn`. -/
 def toolingModules : Array Name := #[`AcornTools, `Bootstrap, `AcornTools.Boundary.Audit, `AcornTools.Boundary.Main, `AcornTools.ModuleInventory,
-  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount, `AcornTools.AxiomPins, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
+  `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.KernelReplay, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount, `AcornTools.AxiomPins, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate]
 
 /-- Lean sources below `root`, named relative to it. `skipped` lists the entries of `root`
 itself that are generated, dependency or Lake configuration files. Traversal and metadata
@@ -44,7 +44,7 @@ def allModules (package : System.FilePath := ".") : IO (Array Name) :=
   modulesUnder package #[".lake", "lake-packages", ".git", ".DS_Store", "lakefile.lean"]
 
 /-- The libraries whose modules Lake's globs assign: `Acorn`, `AcornVerif`, `NativeApp` and
-`AcornDocument`, the default targets whose modules Regula's proof verdict claims, and `Entry`,
+`AcornDocument`, the default targets whose modules the Regula audit claims, and `Entry`,
 the executables' roots, which it does not claim. A source below one of these roots needs no
 entry in a written list. -/
 def libraryModule (name : Name) : Bool :=

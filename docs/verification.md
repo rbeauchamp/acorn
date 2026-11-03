@@ -537,40 +537,60 @@ compete for the same processors.
 
 [Regula](https://github.com/rbeauchamp/regula) is an audit of Lean builds. Acorn
 requires its release v0.12.0, pinned in `lean/lakefile.lean`, and the merge gate
-requires its proof verdict:
+requires the Regula audit:
 
 ```sh
 ./scripts/regula.sh
 ```
 
-Regula's release names three commands for that verdict, run in order on one
+Regula's release names three commands for its proof verdict, run in order on one
 build: `lake build --wfail`, `lake check --inadvisably-no-sandbox` and
-`lake lint`. The script runs them in lean, each from that directory with no
-option of Lake's, except that the package's script kernelReplay takes the place
-of the second. The first fails on any warning. The kernel replay replays every
-constant of every claimed module, with every constant that it depends on, in
-Lean's kernel from an empty environment. It then compares the quotient constants
-with the kernel's, as Lean's own checker does, and refuses an axiom other than
-propext, Quot.sound and Classical.choice that a replayed constant uses, by the
-function that `lake check` uses. `lake check` replays the whole imported
-environment instead, Mathlib's included: about half a million constants, from an
-export that it holds in memory. On Acorn's claim that check had not finished
-after 3 hours 45 minutes on a 24 GiB machine, its memory footprint at 39 GB. The
-constants the kernel replay leaves out are those that no claimed constant
-depends on, which no kernel check of a claimed constant reads. The third command
-is Regula's checker. It exits 0 for a pass, 1 for a fail and 2 for an incomplete
-run, and its last line states the verdict; a pass ends that line with the
-directory it audited. The script passes only when `lake lint` exits 0 and its
-last line is the pass on lean. The commands resolve dependencies through the Git
+`lake lint`. The second exports every constant of the whole imported
+environment, Mathlib's included, used by a claimed constant or not: here 496,347
+constants from 5,585 modules, which it replays from an export held in memory. On
+Acorn's claim it had not finished after 3 hours 45 minutes on a 24 GiB machine,
+its memory footprint at 39 GB, so it does not fit the machines that run the
+gate. The script runs the first and the third in lean, each from that directory
+with no option of Lake's, and in the place of the second Acorn's kernel replay,
+`lake exe kernel-replay`. So the audit obtains Regula's rules under the profile
+and that replay, not Regula v0.12.0's proof verdict as the release defines it.
+The departure is interim: when a release of Regula makes its proof verdict
+obtainable for a project that imports Mathlib, the gate returns to Regula's own
+commands and the kernel replay is retired. The other passages of Acorn's
+documents that describe the gate's Regula step refer to this one.
+
+The first command fails on any warning. The kernel replay reads the build with
+Regula's own code, as `lake lint` reads it, and takes its claim from there:
+every constant that Regula's rules read as claimed, with the constants each
+claimed module's own data lists. It replays each of them, with every constant
+that it depends on, in Lean's kernel from an empty environment. It then compares
+the quotient constants with the kernel's, as Lean's own checker does, and
+refuses an axiom other than propext, Quot.sound and Classical.choice that a
+replayed constant uses, by the function that `lake check` uses. It prints
+Regula's line of what it read, and the script fails unless `lake lint` prints
+the same line, so a build that changed between the two fails. It leaves out an
+unsafe or partial claimed constant, as `lake check` does, and the constants of
+the imported environment that no claimed constant depends on. A kernel check of
+a claimed constant looks up only the constants that the terms it checks name and
+the kernel's own built-in constants, which the replay holds, and a name that the
+replayed environment lacks makes the kernel refuse: that is an assumption about
+Lean's kernel. The replay reads the build's compiled modules in its own process,
+where `lake check` replays an export in a process that maps none of them. The
+third command is Regula's checker. It exits 0 for a pass, 1 for a fail and 2 for
+an incomplete run, and its last line states the verdict; a pass ends that line
+with the directory it audited. The script passes only when the kernel replay
+accepts, the two lines of what was read agree, and `lake lint` exits 0 with its
+last line the pass on lean. The commands resolve dependencies through the Git
 lock in `lean/lake-manifest.json`, without the bootstrap's path overrides, so
 Lake fetches a dependency whose checkout is not at the locked revision.
 
-A pass means that the proofs of the claimed modules are sound and use only the
-axioms of the profile. It says nothing about what a compiled program runs, which
-the checks of ordinary verification below cover, or about whether a theorem
-states what was meant, which review reads. Regula's
+A pass of the audit means that Lean's kernel accepts the proofs of the claimed
+modules and that they use only the axioms of the profile. It says nothing about
+what a compiled program runs, which the checks of ordinary verification below
+cover, or about whether a theorem states what was meant, which review reads.
+Regula's
 [README](https://github.com/rbeauchamp/regula/tree/v0.12.0#what-a-pass-means)
-states what a pass rests on.
+states what a pass of its own proof verdict rests on.
 
 The claim is the modules of the default targets of the Lake configuration and
 every module of the package that their imports reach. The default targets are
@@ -589,7 +609,7 @@ module of the library Entry, outside the claim. Its `main` applies the entry
 function of a claimed module, such as `Acorn.SwiftTdDriver.main`, and it holds
 nothing else; the theorem inventory refuses a theorem in it. AcornTools, the
 reviewed tooling trust boundary with the
-six tool executables, and the
+seven tool executables, and the
 [documentation site](#documentation-site) are also outside the claim and hold no
 theorem.
 
@@ -698,17 +718,19 @@ issue 105.
 
 The audit is a second check of the merge gate and is not part of
 `./scripts/verify.sh`. It builds the claimed modules again where Lake's traces
-differ, exports them with everything they import and replays them in the kernel,
-which does not fit beside the ordinary checks inside the 360-second deadline. The
+differ, replays the claim with every constant it depends on in the kernel and
+runs Regula's checker, which does not fit beside the ordinary checks inside the
+360-second deadline. The
 gate runs it after ordinary verification and requires both before a merge. A pass
-covers Regula's rules for the claimed modules; it does not replace review.
+covers Regula's rules and the kernel replay for the claimed modules; it does not
+replace review.
 
 ### What Regula checks in place of Acorn's tools
 
 Acorn's tools under `lean/AcornTools` are outside the claim, so no proof covers
 them. They check a compiled declaration or the Lake configuration only where no
-part of the proof verdict refuses at least the same inputs for the same modules.
-Each paragraph below takes one property: what the proof verdict refuses for the
+part of the Regula audit refuses at least the same inputs for the same modules.
+Each paragraph below takes one property: what the Regula audit refuses for the
 claimed modules, and what the tools check. Where the tools refuse more, the
 paragraph gives an input that shows it, and that check stays.
 
@@ -763,7 +785,7 @@ a proof of False. The tools make no such check.
 **Native replacements: the tools refuse more.** The theorem inventory refuses each
 declaration of a module of Acorn, AcornVerif, NativeApp, AcornDocument or Entry
 that carries a replacement attribute or an extern attribute, whatever reaches it
-and whatever is proved about it. The proof verdict reads no replacement or extern:
+and whatever is proved about it. The Regula audit reads no replacement or extern:
 a pass says nothing about what a compiled program runs. Source admission refuses
 both attributes as words in every executing and proof source, so the inventory
 adds the declarations that elaboration generates. This check runs once, in the
@@ -798,7 +820,9 @@ executable names that the build order and this document read.
 
 **Decision registrations.** The ownership audit requires a contract with a kind for
 each registered decision function whose result is not `Decidable`, as stated
-above. Regula reads no registration.
+above, and counts only a contract about the whole function: its subject is the
+function applied to nothing but the arguments its type takes implicitly, so a
+contract about one application does not count. Regula reads no registration.
 
 Regula has no rule for the import layers of the learned-only boundary, the
 capability owners, source syntax admission, the departures register, native
