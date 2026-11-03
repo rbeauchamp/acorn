@@ -59,8 +59,10 @@ prerequisites and provisions the pinned Lean, Mathlib, FloatLib and lean-intent 
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this builds nothing, writes only the
 launcher's own override file and asks Lake whether the FloatLib modules the proof
-bridge imports, the lean-intent modules the intent bridge imports and the Regula
-modules the decision registries import are current.
+bridge imports, the lean-intent modules that the intent bridge and the gate's
+lean-intent checker `lean/AcornTools/Intent.lean` import, the native objects of the
+lean-intent modules that checker links, and the Regula modules the decision
+registries import are current.
 The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
@@ -89,13 +91,14 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck c
 ```
 
 Ensure Lean and Lake are available in your shell, then run
-`(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge)` from the
+`(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge leanIntentNative)` from the
 repository root to provision the pinned toolchain/dependencies; the build compiles
 only Mathlib modules absent from the upstream cache, plus Regula's lint driver.
 FloatLib and lean-intent publish no cache, so the same command
 compiles the FloatLib modules that the proof bridge imports, the lean-intent modules
-that the intent bridge imports, and the two Regula interface modules that the
-decision registries import.
+that the intent bridge and the lean-intent checker import with the native objects
+the checker links, and the two Regula interface modules that the decision
+registries import.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
@@ -439,8 +442,34 @@ the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
-[Regula audit](#regula-audit) on the same commit, also when verification failed,
-and passes only when both runs and the audit pass.
+[Regula audit](#regula-audit) and then lean-intent's two checks on the same commit,
+each also when an earlier step failed, and passes only when both runs, the audit
+and the checks pass.
+
+The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
+modules from Lake: the libraries among the default targets, through the Lake
+script intentLibraries of the [Lake configuration](../lean/lakefile.lean), and
+the modules of each through the modules facet of Lake itself, refusing an empty list of
+libraries, a library with no module and a module listed twice. It imports those
+modules into one environment and gives the one list to lean-intent's confirmation
+check, which decides that each deliverable's current revision is confirmed by
+answers whose authority traces back to the owner, and to its implementation check,
+which decides that each deliverable names the constant implementing it, with the
+proof that it fulfils the record. The gate passes only when the first finds
+nothing and the findings of the second are, as a set, the unimplemented findings of
+the deliverables that the checker's one closed list names as awaiting an
+implementation, each with the issue that tracks its fulfilment proof
+(`AcornVerif.Intent.onlyAwaiting_iff`, `AcornVerif.Intent.implemented_of_onlyAwaiting`).
+Another finding, a listed name that is no declared deliverable and a listed
+deliverable that gains an implementation each fail it, and both checks refuse a
+project that declares no deliverable. The list names only the hash record's
+deliverable, whose proof rbeauchamp/acorn#184 tracks; it was decided on the owner's
+behalf by the agent supervising Acorn's research, since the intent-first method
+confirms a record before its implementation exists, and it is retired once
+lean-intent can declare a deliverable awaiting its implementation itself
+(rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
+package, and that the constant an implementation names is what an executable runs,
+are trusted.
 
 The pipeline stores the provisioned dependency checkouts and their build outputs
 once for each default-branch commit a run starts from, and gives a run a private
@@ -576,8 +605,10 @@ executing module. A second bridge module in AcornVerif is the only importer of
 lean-intent, the proof dependency in which the intent records under
 `AcornVerif.Intent` are stated; it depends on nothing beyond Lean's own
 libraries, and the boundary audit refuses a lean-intent import by any other
-module. The compiler, native runtime, operating system and spawned processes stay
-trusted.
+module it admits. Of the tool modules, which it does not admit, only the merge
+gate's lean-intent checker, `lean/AcornTools/Intent.lean`, imports lean-intent, for
+the two readers it runs. The compiler, native runtime, operating system and spawned
+processes stay trusted.
 
 `lean/Acorn/Decisions.lean` states the contracts of the library's decision
 functions for which a property of the accepted or refused result is proved, and

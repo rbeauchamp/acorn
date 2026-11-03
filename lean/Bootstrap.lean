@@ -126,11 +126,12 @@ lean-intent imports, and the two decision registries of their Regula imports. Fl
 lean-intent publish no build cache, and verification must not compile a dependency inside its
 deadline. Lake itself decides readiness: with `--no-build` it exits 3 unless every artifact
 and trace in the import closure of the `floatlibBridge`, `regulaInterface` and
-`leanIntentBridge` targets is current, so no list of expected files is kept here. -/
+`leanIntentBridge` targets, and every native object of the `leanIntentNative` target, is
+current, so no list of expected files is kept here. -/
 def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
   let output ← IO.Process.output
     (lake overrides #["build", "--no-build", "floatlibBridge", "regulaInterface",
-      "leanIntentBridge"])
+      "leanIntentBridge", "leanIntentNative"])
   if output.exitCode == 0 then return true
   if output.exitCode == 3 then return false
   throw (IO.userError
@@ -141,7 +142,8 @@ def run (args : List String) : IO UInt32 := do
   silentElaboration
   unless args == ["provision-status"] ||
       (!args.isEmpty && (#["build", "exe", "env", "query"].contains (args.headD "") ||
-      args == ["script", "run", "acornTargets"])) do
+      args == ["script", "run", "acornTargets"] ||
+      args == ["script", "run", "intentLibraries"])) do
     throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
   let (contents, available) ← overrides
   let path : System.FilePath := ".lake/acorn-path-packages.json"

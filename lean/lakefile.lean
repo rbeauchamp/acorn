@@ -314,6 +314,12 @@ lean_exe «corpus-audit» where
   root := `AcornTools.Corpus.Main
   supportInterpreter := true
 
+/-- lean-intent's confirmation and implementation checks, which the merge gate runs on the
+modules of the default libraries of the finished build. -/
+lean_exe «intent-check» where
+  root := `AcornTools.Intent
+  supportInterpreter := true
+
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
 `PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.35.0; leanprover/lean4#15435) stores a
 facet-qualified key under its target as written, while every other route stores that
@@ -356,6 +362,17 @@ script acornTargets do
   IO.println (Lean.toJson entries).compress
   return 0
 
+/-- The libraries among the package's default targets, as a JSON array of their names: the
+libraries whose modules `intent-check` gives lean-intent's two checks. -/
+script intentLibraries do
+  let pkg ← getRootPackage
+  let libraries := pkg.defaultTargets.filter fun name => pkg.leanLibs.any (·.name == name)
+  if libraries.isEmpty then
+    IO.eprintln "the package has no default library"
+    return 1
+  IO.println (Lean.toJson (libraries.map (·.toString false))).compress
+  return 0
+
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.35.0"
 
@@ -373,7 +390,7 @@ require floatlib from git
 implementation to its record. Only the proof library's intent bridge module imports it;
 no executable library does. -/
 require "lean-intent" from git
-  "https://github.com/rbeauchamp/lean-intent" @ "30fe70d3bdeec8875eab718f38374a76a1df63c4"
+  "https://github.com/rbeauchamp/lean-intent" @ "9502fbe0000af59574e9b8c427eca8483199ee33"
 
 /-- The artifacts of every module of `library` that the given sources import, read from
 their own import lines so that each source stays the single owner of its imports. -/
@@ -403,7 +420,27 @@ target regulaInterface pkg : Unit :=
     #[pkg.dir / "Acorn" / "Decisions.lean", pkg.dir / "AcornVerif" / "Decisions.lean"]
     "Regula"
 
-/-- The lean-intent modules the intent bridge imports. Provisioning builds this target beside
-`floatlibBridge`, for the same reason. -/
+/-- The lean-intent modules the intent bridge and the gate's `intent-check` import. Provisioning
+builds this target beside `floatlibBridge`, for the same reason. -/
 target leanIntentBridge pkg : Unit :=
-  importedArtifacts #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean"] "LeanIntent"
+  importedArtifacts
+    #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean", pkg.dir / "AcornTools" / "Intent.lean"]
+    "LeanIntent"
+
+/-- The native objects of the lean-intent modules `intent-check` links: each lean-intent module that
+it or the intent bridge imports, read from their import lines, and every module that one imports.
+Provisioning builds this target beside `leanIntentBridge`, so that verification, which builds every
+declared executable, compiles no dependency inside its deadline. -/
+target leanIntentNative pkg : Unit := do
+  let mut job : Job Unit := Job.nil
+  for path in #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean",
+      pkg.dir / "AcornTools" / "Intent.lean"] do
+    for line in (← IO.FS.readFile path).splitOn "\n" do
+      if line.startsWith "import LeanIntent." then
+        let name := ((line.drop 7).trimAscii.toString).toName
+        let some mod ← findModule? name
+          | error s!"{path} imports an unknown module: {name}"
+        let imported ← (← mod.transImports.fetch).await
+        for dependency in imported.push mod do
+          job := job.mix ((← dependency.coExport.fetch).map fun _ => ())
+  return job

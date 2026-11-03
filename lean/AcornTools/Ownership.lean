@@ -48,7 +48,8 @@ def executables : Array (String × Name) := #[
   ("native-audit", `AcornTools.Native.Audit),
   ("ownership-audit", `AcornTools.OwnershipAudit),
   ("corpus-audit", `AcornTools.Corpus.Main),
-  ("acorn-gates", `AcornTools.Gate)
+  ("acorn-gates", `AcornTools.Gate),
+  ("intent-check", `AcornTools.Intent)
 ]
 
 /-- Required statements about executing definitions must retain their actual execution
@@ -737,7 +738,8 @@ def entryUses : Array (Name × Array Name) := #[
   (`AcornTools.Native.Audit, #[`AcornNativeAudit.audit]),
   (`AcornTools.OwnershipAudit, #[`AcornOwnershipAudit.compiled]),
   (`AcornTools.Corpus.Main, #[`AcornCorpus.check]),
-  (`AcornTools.Gate, #[`AcornGate.verify])
+  (`AcornTools.Gate, #[`AcornGate.verify]),
+  (`AcornTools.Intent, #[`AcornIntentCheck.run])
 ]
 
 end AcornOwnership

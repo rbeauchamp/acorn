@@ -161,7 +161,7 @@ case "$dependency_status" in
     # FloatLib and lean-intent publish no cache, so the modules the proof bridge and the
     # intent bridge import are built here, with the Regula interface modules the decision
     # registries import.
-    (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge) ;;
+    (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge leanIntentNative) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
 phase='build'
