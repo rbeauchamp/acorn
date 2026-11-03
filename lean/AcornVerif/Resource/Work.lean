@@ -31,8 +31,8 @@ satisfy the same theorem. That a twin's loops and charges are those of the execu
 correspondence no theorem states: the twins' charges were compared with the compiled call multisets
 of one build by a one-time inventory, an observation of that build which no gate repeats. A bound
 proved here bounds the twin's accounting. It is not a bound of the executed code, which would need
-that correspondence as a checked statement, owed by a later increment of requirement R8
-(rbeauchamp/acorn#90). A definition that is the value of its costed definition is bounded through
+that correspondence as a checked statement, part of obligation 7 of `docs/mission-contract.md`.
+A definition that is the value of its costed definition is bounded through
 that definition instead, in `AcornVerif.Resource.LearnerWork`, `AcornVerif.Resource.ControlWork`,
 `AcornVerif.Resource.EncodeWork`, `AcornVerif.Resource.ModelWork`,
 `AcornVerif.Resource.QuestionWork` or `AcornVerif.Resource.OptionWork`.

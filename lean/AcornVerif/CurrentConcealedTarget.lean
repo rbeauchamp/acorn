@@ -52,8 +52,8 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   visit. `feasibleFind` holds the concealed targets a visit can meet, so its members are feasible
   by how it is indexed; it keeps the concealment and the bound (`feasibleFind_conceals`,
   `feasibleFind_covered`). In the same world, with visits of seven steps, the 147 members above
-  make it a `Kernel.BigClass` with the bound 98 (`witness_big`). This says nothing about the
-  goal-information and exploration premises a mission theorem also needs.
+  make it a `Kernel.BigClass` with the bound 98 (`witness_big`). This says nothing about
+  obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
 
 Hypotheses and limits. The class is of target positions over one host world: reading a bound
 as a fraction of seeds would assume that the seed hash places targets independently of the
@@ -740,9 +740,9 @@ theorem feasibleFind_big_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
 /-- **A class meeting conditions (a) to (c).** In the admitted world at seed 5 and side 64, with
 visits of seven steps, the feasible concealed targets are a big class with the bound 98: the 147
 members of `witness_separation` are each feasible, since each is solved on a visit. This is a
-lemma the mission theorem on the first class of the ladder uses. It says nothing about the
-goal-information and exploration premises that theorem also needs, and it is no result about
-learning. -/
+lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4
+of `docs/mission-contract.md`, the goal-information and exploration premises, and it is no result
+about learning. -/
 theorem witness_big (mode : TaskFeatureMode) :
     Nonempty (Kernel.BigClass (feasibleFind witnessConfig mode witnessLive 7)
       (fun _ => completion witnessConfig mode 7) 7 (49 + 7 * 7)) := by
